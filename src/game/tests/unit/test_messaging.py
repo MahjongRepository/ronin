@@ -13,11 +13,11 @@ from game.session.manager import SessionManager
 
 
 class TestParseClientMessage:
-    def test_parse_join_room(self):
-        data = {"type": "join_room", "room_id": "room1", "player_name": "Alice"}
+    def test_parse_join_game(self):
+        data = {"type": "join_game", "game_id": "game1", "player_name": "Alice"}
         msg = parse_client_message(data)
-        assert msg.type == ClientMessageType.JOIN_ROOM
-        assert msg.room_id == "room1"
+        assert msg.type == ClientMessageType.JOIN_GAME
+        assert msg.game_id == "game1"
         assert msg.player_name == "Alice"
 
     def test_parse_chat(self):
@@ -42,15 +42,15 @@ class TestMessageRouter:
         await router.handle_connect(connection)
         return router, connection, session_manager
 
-    async def test_join_room(self, setup):
-        router, connection, _ = setup
-        await router.handle_connect(connection)
+    async def test_join_game(self, setup):
+        router, connection, session_manager = setup
+        session_manager.create_game("game1")
 
         await router.handle_message(
             connection,
             {
-                "type": "join_room",
-                "room_id": "room1",
+                "type": "join_game",
+                "game_id": "game1",
                 "player_name": "Alice",
             },
         )
@@ -58,13 +58,12 @@ class TestMessageRouter:
         # check the response
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
-        assert response["type"] == ServerMessageType.ROOM_JOINED
-        assert response["room_id"] == "room1"
-        assert "Alice" in response["players"]
+        assert response["type"] == ServerMessageType.GAME_JOINED
+        assert response["game_id"] == "game1"
+        assert response["players"] == ["Alice"]
 
     async def test_invalid_message_returns_error(self, setup):
         router, connection, _ = setup
-        await router.handle_connect(connection)
 
         await router.handle_message(connection, {"type": "bogus"})
 
@@ -73,9 +72,8 @@ class TestMessageRouter:
         assert response["type"] == ServerMessageType.ERROR
         assert response["code"] == "invalid_message"
 
-    async def test_chat_requires_room(self, setup):
+    async def test_chat_requires_game(self, setup):
         router, connection, _ = setup
-        await router.handle_connect(connection)
 
         await router.handle_message(
             connection,
@@ -88,4 +86,4 @@ class TestMessageRouter:
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == ServerMessageType.ERROR
-        assert response["code"] == "not_in_room"
+        assert response["code"] == "not_in_game"

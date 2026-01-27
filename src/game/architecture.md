@@ -7,14 +7,16 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 ## REST API
 
 - `GET /health` - Health check
-- `GET /status` - Server status (active rooms, capacity)
-- `POST /rooms` - Create a room (called by lobby)
+- `GET /status` - Server status (active games, capacity)
+- `GET /games` - List all active games
+- `POST /games` - Create a game (called by lobby)
+- `GET /static/*` - Static file serving
 
 ## WebSocket API
 
 ### Connection
 
-Connect to `ws://localhost:8001/ws/{room_id}` (room must be created first via lobby or `POST /rooms`).
+Connect to `ws://localhost:8001/ws/{game_id}` (game must be created first via lobby or `POST /games`).
 
 ### Message Format
 
@@ -22,14 +24,14 @@ All messages are JSON with a `type` field.
 
 #### Client -> Server
 
-**Join Room**
+**Join Game**
 ```json
-{"type": "join_room", "room_id": "room123", "player_name": "Alice"}
+{"type": "join_game", "game_id": "game123", "player_name": "Alice"}
 ```
 
-**Leave Room**
+**Leave Game**
 ```json
-{"type": "leave_room"}
+{"type": "leave_game"}
 ```
 
 **Game Action**
@@ -44,17 +46,17 @@ All messages are JSON with a `type` field.
 
 #### Server -> Client
 
-**Room Joined**
+**Game Joined**
 ```json
-{"type": "room_joined", "room_id": "room123", "players": ["Alice", "Bob"]}
+{"type": "game_joined", "game_id": "game123", "players": ["Alice", "Bob"]}
 ```
 
-**Room Left** (sent to the player who left)
+**Game Left** (sent to the player who left)
 ```json
-{"type": "room_left"}
+{"type": "game_left"}
 ```
 
-**Player Joined/Left** (broadcast to other players in room)
+**Player Joined/Left** (broadcast to other players in game)
 ```json
 {"type": "player_joined", "player_name": "Charlie"}
 {"type": "player_left", "player_name": "Charlie"}
@@ -72,14 +74,14 @@ All messages are JSON with a `type` field.
 
 **Error**
 ```json
-{"type": "error", "code": "room_full", "message": "Room is full"}
+{"type": "error", "code": "game_full", "message": "Game is full"}
 ```
 
 Error codes:
-- `room_full` - Room has reached maximum player capacity (4)
-- `already_in_room` - Player tried to join a room while already in one
-- `name_taken` - Player name is already used in the room
-- `not_in_room` - Player tried to perform an action without being in a room
+- `game_full` - Game has reached maximum player capacity (4)
+- `already_in_game` - Player tried to join a game while already in one
+- `name_taken` - Player name is already used in the game
+- `not_in_game` - Player tried to perform an action without being in a game
 
 ## Internal Architecture
 
@@ -103,7 +105,7 @@ WebSocketConnection (implements ConnectionProtocol)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (room/player management)
+SessionManager (game/player management)
     │
     ▼
 GameService (game logic interface)
@@ -132,11 +134,13 @@ ronin/
         │   ├── types.py        # Message schemas (Pydantic)
         │   └── router.py       # Message routing
         ├── session/
-        │   ├── models.py       # Player, Room dataclasses
-        │   └── manager.py      # Session/room management
+        │   ├── models.py       # Player, Game dataclasses
+        │   └── manager.py      # Session/game management
         ├── logic/
         │   ├── service.py      # GameService interface
         │   └── mock.py         # Mock implementation
+        ├── static/
+        │   └── game.html       # Game WebSocket UI
         └── tests/
             ├── unit/
             └── integration/
@@ -145,6 +149,7 @@ ronin/
 ## Running
 
 ```bash
+make run-all    # Run both lobby and game servers
 make run-game   # Start server on port 8001
 make test-game  # Run game tests
 make lint       # Run linter
@@ -158,17 +163,17 @@ make format     # Format code
 Use `MockConnection` to test message handling:
 
 ```python
-async def test_join_room():
+async def test_join_game():
     connection = MockConnection()
     router.handle_connect(connection)
 
     await router.handle_message(connection, {
-        "type": "join_room",
-        "room_id": "room1",
+        "type": "join_game",
+        "game_id": "game1",
         "player_name": "Alice",
     })
 
-    assert connection.sent_messages[0]["type"] == "room_joined"
+    assert connection.sent_messages[0]["type"] == "game_joined"
 ```
 
 ### Integration Tests (With TestClient)
@@ -178,9 +183,9 @@ Use Starlette's `TestClient` for full WebSocket flow:
 ```python
 def test_websocket():
     client = TestClient(app)
-    client.post("/rooms", json={"room_id": "test_room"})
-    with client.websocket_connect("/ws/test_room") as ws:
-        ws.send_json({"type": "join_room", "room_id": "test_room", "player_name": "Alice"})
+    client.post("/games", json={"game_id": "test_game"})
+    with client.websocket_connect("/ws/test_game") as ws:
+        ws.send_json({"type": "join_game", "game_id": "test_game", "player_name": "Alice"})
         response = ws.receive_json()
-        assert response["type"] == "room_joined"
+        assert response["type"] == "game_joined"
 ```

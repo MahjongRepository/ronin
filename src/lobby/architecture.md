@@ -6,15 +6,34 @@ Portal service for game discovery and creation.
 
 ## REST API
 
+- `GET /` - Redirect to `/static/index.html`
 - `GET /health` - Health check
 - `GET /servers` - List available game servers with health status
+- `GET /games` - List all available games across all healthy servers
 - `POST /games` - Create a new game
+- `GET /static/*` - Static file serving
+
+### List Games Response
+
+```json
+{
+  "games": [
+    {
+      "game_id": "abc123",
+      "player_count": 2,
+      "max_players": 4,
+      "server_name": "local-1",
+      "server_url": "http://localhost:8001"
+    }
+  ]
+}
+```
 
 ### Create Game Response
 
 ```json
 {
-  "room_id": "abc123",
+  "game_id": "abc123",
   "websocket_url": "ws://localhost:8001/ws/abc123",
   "server_name": "local-1"
 }
@@ -38,7 +57,7 @@ The lobby periodically checks server health via `GET /health` and only routes ga
 
 - **Server Layer** (`server/`) - Starlette REST API
 - **Registry** (`registry/`) - Game server discovery and health checks
-- **Games** (`games/`) - Game creation logic
+- **Games** (`games/`) - Game listing and creation logic
 
 ## Project Structure
 
@@ -58,6 +77,8 @@ ronin/
         ├── games/
         │   ├── types.py        # CreateGameResponse
         │   └── service.py      # GamesService
+        ├── static/
+        │   └── index.html      # Games list and creation UI
         └── tests/
             ├── unit/
             └── integration/
@@ -66,6 +87,7 @@ ronin/
 ## Running
 
 ```bash
+make run-all     # Run both lobby and game servers
 make run-lobby   # Start server on port 8000
 make test-lobby  # Run lobby tests
 make lint        # Run linter
@@ -77,9 +99,17 @@ make format      # Format code
 1. Client calls `POST /games`
 2. Lobby checks health of all configured game servers
 3. Lobby selects a healthy server (first available)
-4. Lobby generates a room ID
-5. Lobby calls `POST /rooms` on the game server
+4. Lobby generates a game ID
+5. Lobby calls `POST /games` on the game server
 6. Lobby returns WebSocket URL to client
+
+## Game Listing Flow
+
+1. Client calls `GET /games`
+2. Lobby checks health of all configured game servers
+3. Lobby calls `GET /games` on each healthy server
+4. Lobby aggregates results with server info
+5. Lobby returns combined list to client
 
 ## Environment Variables
 

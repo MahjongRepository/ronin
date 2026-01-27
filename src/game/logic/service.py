@@ -12,7 +12,7 @@ class GameService(ABC):
     @abstractmethod
     async def handle_action(
         self,
-        room_id: str,
+        game_id: str,
         player_name: str,
         action: str,
         data: dict[str, Any],

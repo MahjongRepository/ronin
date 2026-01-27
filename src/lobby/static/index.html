@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ronin - Lobby</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        .btn-refresh {
+            background-color: #6c757d;
+        }
+        .btn-refresh:hover {
+            background-color: #5a6268;
+        }
+        #status {
+            margin-top: 20px;
+            color: #666;
+        }
+        .error {
+            color: #d32f2f;
+        }
+        #games-container {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        #games-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        #games-list {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .game-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .game-item:last-child {
+            border-bottom: none;
+        }
+        .game-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .game-id {
+            font-weight: bold;
+            color: #333;
+        }
+        .game-players {
+            font-size: 0.85em;
+            color: #666;
+        }
+        #no-games {
+            padding: 20px;
+            color: #666;
+            text-align: center;
+            font-style: italic;
+        }
+        #create-section {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ronin Lobby</h1>
+
+    <div id="games-container">
+        <div id="games-header">
+            <h2>Available Games</h2>
+            <button id="refreshGames" class="btn-small btn-refresh">Refresh</button>
+        </div>
+        <div id="games-list"></div>
+        <div id="no-games" style="display: none;">No games available</div>
+    </div>
+
+    <div id="create-section">
+        <button id="createGame">Create Game</button>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        const gamesListDiv = document.getElementById('games-list');
+        const noGamesDiv = document.getElementById('no-games');
+        const createButton = document.getElementById('createGame');
+        const refreshButton = document.getElementById('refreshGames');
+        const statusDiv = document.getElementById('status');
+
+        // generate random player name
+        function generatePlayerName() {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let suffix = '';
+            for (let i = 0; i < 6; i++) {
+                suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return `Player_${suffix}`;
+        }
+
+        const playerName = generatePlayerName();
+
+        // fetch and display games
+        async function loadGames() {
+            refreshButton.disabled = true;
+            try {
+                const response = await fetch('/games');
+                const data = await response.json();
+                renderGames(data.games || []);
+            } catch (error) {
+                statusDiv.textContent = `Error loading games: ${error.message}`;
+                statusDiv.className = 'error';
+            } finally {
+                refreshButton.disabled = false;
+            }
+        }
+
+        function renderGames(games) {
+            gamesListDiv.innerHTML = '';
+
+            if (games.length === 0) {
+                gamesListDiv.style.display = 'none';
+                noGamesDiv.style.display = 'block';
+                return;
+            }
+
+            gamesListDiv.style.display = 'block';
+            noGamesDiv.style.display = 'none';
+
+            for (const game of games) {
+                const gameItem = document.createElement('div');
+                gameItem.className = 'game-item';
+
+                const gameInfo = document.createElement('div');
+                gameInfo.className = 'game-info';
+
+                const gameId = document.createElement('span');
+                gameId.className = 'game-id';
+                gameId.textContent = game.game_id;
+
+                const gamePlayers = document.createElement('span');
+                gamePlayers.className = 'game-players';
+                gamePlayers.textContent = `${game.player_count}/${game.max_players} players`;
+
+                gameInfo.appendChild(gameId);
+                gameInfo.appendChild(gamePlayers);
+
+                const joinBtn = document.createElement('button');
+                joinBtn.className = 'btn-small';
+                if (game.player_count >= game.max_players) {
+                    joinBtn.textContent = 'Full';
+                    joinBtn.disabled = true;
+                } else {
+                    joinBtn.textContent = 'Join';
+                    joinBtn.addEventListener('click', () => joinGame(game));
+                }
+
+                gameItem.appendChild(gameInfo);
+                gameItem.appendChild(joinBtn);
+                gamesListDiv.appendChild(gameItem);
+            }
+        }
+
+        function joinGame(game) {
+            const wsUrl = game.server_url.replace('http://', 'ws://').replace('https://', 'wss://');
+            const websocketUrl = `${wsUrl}/ws/${game.game_id}`;
+            const serverUrl = new URL(game.server_url);
+            const httpProtocol = serverUrl.protocol;
+            const gamePageUrl = `${httpProtocol}//${serverUrl.host}/static/game.html?game_id=${encodeURIComponent(game.game_id)}&websocket_url=${encodeURIComponent(websocketUrl)}&player_name=${encodeURIComponent(playerName)}`;
+            window.location.href = gamePageUrl;
+        }
+
+        async function createGame() {
+            createButton.disabled = true;
+            statusDiv.textContent = 'Creating game...';
+            statusDiv.className = '';
+
+            try {
+                const response = await fetch('/games', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    let errorMsg = 'Failed to create game';
+                    try {
+                        const error = await response.json();
+                        errorMsg = error.error || errorMsg;
+                    } catch {
+                        // response was not JSON
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                const data = await response.json();
+
+                // redirect to game page with websocket URL, game ID, and player name
+                const gameUrl = new URL(data.websocket_url);
+                const httpProtocol = gameUrl.protocol === 'wss:' ? 'https:' : 'http:';
+                const gamePageUrl = `${httpProtocol}//${gameUrl.host}/static/game.html?game_id=${encodeURIComponent(data.game_id)}&websocket_url=${encodeURIComponent(data.websocket_url)}&player_name=${encodeURIComponent(playerName)}`;
+
+                statusDiv.textContent = 'Redirecting to game...';
+                window.location.href = gamePageUrl;
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'error';
+                createButton.disabled = false;
+            }
+        }
+
+        createButton.addEventListener('click', createGame);
+        refreshButton.addEventListener('click', loadGames);
+
+        // load games on page load
+        loadGames();
+    </script>
+</body>
+</html>

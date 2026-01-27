@@ -11,7 +11,7 @@ class MockGameService(GameService):
 
     async def handle_action(
         self,
-        room_id: str,  # noqa: ARG002
+        game_id: str,  # noqa: ARG002
         player_name: str,
         action: str,
         data: dict[str, Any],

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class Player:
     connection: ConnectionProtocol
     name: str
-    room_id: str | None = None
+    game_id: str | None = None
 
     @property
     def connection_id(self) -> str:
@@ -17,8 +17,8 @@ class Player:
 
 
 @dataclass
-class Room:
-    room_id: str
+class Game:
+    game_id: str
     players: dict[str, Player] = field(default_factory=dict)
     game_state: dict = field(default_factory=dict)
 

@@ -1,15 +1,16 @@
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from game.messaging.types import (
     ErrorMessage,
     GameEventMessage,
+    GameJoinedMessage,
+    GameLeftMessage,
     PlayerJoinedMessage,
     PlayerLeftMessage,
-    RoomJoinedMessage,
-    RoomLeftMessage,
     ServerChatMessage,
 )
-from game.session.models import Player, Room
+from game.session.models import Game, Player
 
 if TYPE_CHECKING:
     from game.logic.service import GameService
@@ -17,13 +18,13 @@ if TYPE_CHECKING:
 
 
 class SessionManager:
-    MAX_PLAYERS_PER_ROOM = 4  # Mahjong requires exactly 4 players
+    MAX_PLAYERS_PER_GAME = 4  # Mahjong requires exactly 4 players
 
     def __init__(self, game_service: GameService) -> None:
         self._game_service = game_service
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
-        self._rooms: dict[str, Room] = {}  # room_id -> Room
+        self._games: dict[str, Game] = {}  # game_id -> Game
 
     def register_connection(self, connection: ConnectionProtocol) -> None:
         self._connections[connection.connection_id] = connection
@@ -35,102 +36,126 @@ class SessionManager:
     def get_player(self, connection: ConnectionProtocol) -> Player | None:
         return self._players.get(connection.connection_id)
 
-    def get_room(self, room_id: str) -> Room | None:
-        return self._rooms.get(room_id)
+    def get_game(self, game_id: str) -> Game | None:
+        return self._games.get(game_id)
 
     @property
-    def room_count(self) -> int:
-        return len(self._rooms)
+    def game_count(self) -> int:
+        return len(self._games)
 
-    def create_room(self, room_id: str) -> Room:
-        room = Room(room_id=room_id)
-        self._rooms[room_id] = room
-        return room
+    def get_games_info(self) -> list[dict[str, Any]]:
+        """
+        Return info about all active games for the lobby list.
+        """
+        return [
+            {
+                "game_id": game.game_id,
+                "player_count": game.player_count,
+                "max_players": self.MAX_PLAYERS_PER_GAME,
+            }
+            for game in self._games.values()
+        ]
 
-    async def join_room(
+    def create_game(self, game_id: str) -> Game:
+        game = Game(game_id=game_id)
+        self._games[game_id] = game
+        return game
+
+    async def join_game(
         self,
         connection: ConnectionProtocol,
-        room_id: str,
+        game_id: str,
         player_name: str,
     ) -> None:
-        # check if already in a room
+        # check if already in a game
         existing_player = self._players.get(connection.connection_id)
-        if existing_player and existing_player.room_id:
+        if existing_player and existing_player.game_id:
             await connection.send_json(
                 ErrorMessage(
-                    code="already_in_room",
-                    message="You must leave your current room first",
+                    code="already_in_game",
+                    message="You must leave your current game first",
                 ).model_dump()
             )
             return
 
-        room = self._rooms.get(room_id)
-        if room is None:
-            room = Room(room_id=room_id)
-            self._rooms[room_id] = room
-
-        # check room capacity
-        if room.player_count >= self.MAX_PLAYERS_PER_ROOM:
-            await connection.send_json(ErrorMessage(code="room_full", message="Room is full").model_dump())
+        game = self._games.get(game_id)
+        if game is None:
+            await connection.send_json(
+                ErrorMessage(
+                    code="game_not_found",
+                    message="Game does not exist",
+                ).model_dump()
+            )
             return
 
-        # check for duplicate name in room
-        if player_name in [p.name for p in room.players.values()]:
+        # check game capacity
+        if game.player_count >= self.MAX_PLAYERS_PER_GAME:
+            await connection.send_json(ErrorMessage(code="game_full", message="Game is full").model_dump())
+            return
+
+        # check for duplicate name in game
+        if player_name in [p.name for p in game.players.values()]:
             await connection.send_json(
                 ErrorMessage(
                     code="name_taken",
-                    message="That name is already taken in this room",
+                    message="That name is already taken in this game",
                 ).model_dump()
             )
             return
 
-        # create player and add to room
-        player = Player(connection=connection, name=player_name, room_id=room_id)
+        # create player and add to game
+        player = Player(connection=connection, name=player_name, game_id=game_id)
         self._players[connection.connection_id] = player
-        room.players[connection.connection_id] = player
+        game.players[connection.connection_id] = player
 
         # notify the joining player
         await connection.send_json(
-            RoomJoinedMessage(
-                room_id=room_id,
-                players=room.player_names,
+            GameJoinedMessage(
+                game_id=game_id,
+                players=game.player_names,
             ).model_dump()
         )
 
-        # notify other players in the room
-        await self._broadcast_to_room(
-            room=room,
+        # notify other players in the game
+        await self._broadcast_to_game(
+            game=game,
             message=PlayerJoinedMessage(player_name=player_name).model_dump(),
             exclude_connection_id=connection.connection_id,
         )
 
-    async def leave_room(self, connection: ConnectionProtocol) -> None:
+    async def leave_game(
+        self,
+        connection: ConnectionProtocol,
+        *,
+        notify_player: bool = True,
+    ) -> None:
         player = self._players.get(connection.connection_id)
-        if player is None or player.room_id is None:
+        if player is None or player.game_id is None:
             return
 
-        room = self._rooms.get(player.room_id)
-        if room is None:
+        game = self._games.get(player.game_id)
+        if game is None:
             return
 
         player_name = player.name
 
-        # remove player from room
-        room.players.pop(connection.connection_id, None)
-        player.room_id = None
+        # remove player from game
+        game.players.pop(connection.connection_id, None)
+        player.game_id = None
 
-        # notify the leaving player
-        await connection.send_json(RoomLeftMessage().model_dump())
+        # notify the leaving player (skip if connection is already closed)
+        if notify_player:
+            await connection.send_json(GameLeftMessage().model_dump())
 
         # notify remaining players
-        await self._broadcast_to_room(
-            room=room,
+        await self._broadcast_to_game(
+            game=game,
             message=PlayerLeftMessage(player_name=player_name).model_dump(),
         )
 
-        # clean up empty rooms
-        if room.is_empty:
-            self._rooms.pop(room.room_id, None)
+        # clean up empty games
+        if game.is_empty:
+            self._games.pop(game.game_id, None)
 
     async def handle_game_action(
         self,
@@ -139,31 +164,31 @@ class SessionManager:
         data: dict[str, Any],
     ) -> None:
         player = self._players.get(connection.connection_id)
-        if player is None or player.room_id is None:
+        if player is None or player.game_id is None:
             await connection.send_json(
                 ErrorMessage(
-                    code="not_in_room",
-                    message="You must join a room first",
+                    code="not_in_game",
+                    message="You must join a game first",
                 ).model_dump()
             )
             return
 
-        room = self._rooms.get(player.room_id)
-        if room is None:
+        game = self._games.get(player.game_id)
+        if game is None:
             return
 
         # delegate to game service
         result = await self._game_service.handle_action(
-            room_id=player.room_id,
+            game_id=player.game_id,
             player_name=player.name,
             action=action,
             data=data,
         )
 
-        # broadcast the result to all players in the room
+        # broadcast the result to all players in the game
         if result:
-            await self._broadcast_to_room(
-                room=room,
+            await self._broadcast_to_game(
+                game=game,
                 message=GameEventMessage(
                     event=result.get("event", action),
                     data=result.get("data", {}),
@@ -176,33 +201,35 @@ class SessionManager:
         text: str,
     ) -> None:
         player = self._players.get(connection.connection_id)
-        if player is None or player.room_id is None:
+        if player is None or player.game_id is None:
             await connection.send_json(
                 ErrorMessage(
-                    code="not_in_room",
-                    message="You must join a room first",
+                    code="not_in_game",
+                    message="You must join a game first",
                 ).model_dump()
             )
             return
 
-        room = self._rooms.get(player.room_id)
-        if room is None:
+        game = self._games.get(player.game_id)
+        if game is None:
             return
 
-        await self._broadcast_to_room(
-            room=room,
+        await self._broadcast_to_game(
+            game=game,
             message=ServerChatMessage(
                 player_name=player.name,
                 text=text,
             ).model_dump(),
         )
 
-    async def _broadcast_to_room(
+    async def _broadcast_to_game(
         self,
-        room: Room,
+        game: Game,
         message: dict[str, Any],
         exclude_connection_id: str | None = None,
     ) -> None:
-        for player in room.players.values():
+        for player in game.players.values():
             if player.connection_id != exclude_connection_id:
-                await player.connection.send_json(message)
+                # ignore send failures, connection will be cleaned up on disconnect
+                with contextlib.suppress(Exception):
+                    await player.connection.send_json(message)

@@ -9,5 +9,5 @@ class GameServer(BaseModel):
 
 class ServerStatus(BaseModel):
     status: str
-    active_rooms: int = 0
-    max_rooms: int = 100
+    active_games: int = 0
+    max_games: int = 100

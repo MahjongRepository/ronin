@@ -1,17 +1,67 @@
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
-from starlette.routing import Route, WebSocketRoute
+from starlette.routing import Mount, Route, WebSocketRoute
+from starlette.staticfiles import StaticFiles
 
 from game.logic.mock import MockGameService
 from game.messaging.router import MessageRouter
-from game.server.types import CreateRoomRequest
+from game.server.types import CreateGameRequest
 from game.session.manager import SessionManager
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.websockets import WebSocket
+
+
+MAX_GAMES = 100
+
+
+async def health(_request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
+
+
+async def status(request: Request) -> JSONResponse:
+    session_manager: SessionManager = request.app.state.session_manager
+    return JSONResponse(
+        {
+            "status": "ok",
+            "active_games": session_manager.game_count,
+            "max_games": MAX_GAMES,
+        }
+    )
+
+
+async def list_games(request: Request) -> JSONResponse:
+    session_manager: SessionManager = request.app.state.session_manager
+    games = session_manager.get_games_info()
+    return JSONResponse({"games": games})
+
+
+async def create_game(request: Request) -> JSONResponse:
+    session_manager: SessionManager = request.app.state.session_manager
+
+    try:
+        body = await request.json()
+        game_request = CreateGameRequest(**body)
+    except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    if session_manager.game_count >= MAX_GAMES:
+        return JSONResponse({"error": "Server at capacity"}, status_code=503)
+
+    if session_manager.get_game(game_request.game_id):
+        return JSONResponse({"error": "Game already exists"}, status_code=409)
+
+    session_manager.create_game(game_request.game_id)
+    return JSONResponse(
+        {"game_id": game_request.game_id, "status": "created"},
+        status_code=201,
+    )
 
 
 def create_app(
@@ -33,48 +83,16 @@ def create_app(
 
         await websocket_endpoint(websocket, message_router)
 
-    async def health(_request: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok"})
-
-    async def status(_request: Request) -> JSONResponse:
-        return JSONResponse(
-            {
-                "status": "ok",
-                "active_rooms": session_manager.room_count,
-                "max_rooms": 100,
-            }
-        )
-
-    async def create_room(request: Request) -> JSONResponse:
-        try:
-            body = await request.json()
-            room_request = CreateRoomRequest(**body)
-
-            # Check if room already exists
-            if session_manager.get_room(room_request.room_id):
-                return JSONResponse(
-                    {"error": "Room already exists"},
-                    status_code=409,
-                )
-
-            # Pre-create the room
-            session_manager.create_room(room_request.room_id)
-
-            return JSONResponse(
-                {
-                    "room_id": room_request.room_id,
-                    "status": "created",
-                },
-                status_code=201,
-            )
-        except Exception as e:
-            return JSONResponse({"error": str(e)}, status_code=400)
+    # path to static files directory
+    static_dir = Path(__file__).parent.parent / "static"
 
     routes = [
         Route("/health", health, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
-        Route("/rooms", create_room, methods=["POST"]),
-        WebSocketRoute("/ws/{room_id}", ws_endpoint),
+        Route("/games", list_games, methods=["GET"]),
+        Route("/games", create_game, methods=["POST"]),
+        WebSocketRoute("/ws/{game_id}", ws_endpoint),
+        Mount("/static", app=StaticFiles(directory=static_dir), name="static"),
     ]
 
     app = Starlette(routes=routes)

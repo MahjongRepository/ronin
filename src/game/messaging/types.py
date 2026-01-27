@@ -5,15 +5,15 @@ from pydantic import BaseModel, Field
 
 
 class ClientMessageType(str, Enum):
-    JOIN_ROOM = "join_room"
-    LEAVE_ROOM = "leave_room"
+    JOIN_GAME = "join_game"
+    LEAVE_GAME = "leave_game"
     GAME_ACTION = "game_action"
     CHAT = "chat"
 
 
 class ServerMessageType(str, Enum):
-    ROOM_JOINED = "room_joined"
-    ROOM_LEFT = "room_left"
+    GAME_JOINED = "game_joined"
+    GAME_LEFT = "game_left"
     PLAYER_JOINED = "player_joined"
     PLAYER_LEFT = "player_left"
     GAME_STATE = "game_state"
@@ -22,41 +22,41 @@ class ServerMessageType(str, Enum):
     ERROR = "error"
 
 
-class JoinRoomMessage(BaseModel):
-    type: Literal[ClientMessageType.JOIN_ROOM] = ClientMessageType.JOIN_ROOM
-    room_id: str
-    player_name: str
+class JoinGameMessage(BaseModel):
+    type: Literal[ClientMessageType.JOIN_GAME] = ClientMessageType.JOIN_GAME
+    game_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    player_name: str = Field(min_length=1, max_length=50)
 
 
-class LeaveRoomMessage(BaseModel):
-    type: Literal[ClientMessageType.LEAVE_ROOM] = ClientMessageType.LEAVE_ROOM
+class LeaveGameMessage(BaseModel):
+    type: Literal[ClientMessageType.LEAVE_GAME] = ClientMessageType.LEAVE_GAME
 
 
 class GameActionMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: str
+    action: str = Field(min_length=1, max_length=100)
     data: dict = Field(default_factory=dict)
 
 
 class ChatMessage(BaseModel):
     type: Literal[ClientMessageType.CHAT] = ClientMessageType.CHAT
-    text: str
+    text: str = Field(min_length=1, max_length=1000)
 
 
 ClientMessage = Annotated[
-    JoinRoomMessage | LeaveRoomMessage | GameActionMessage | ChatMessage,
+    JoinGameMessage | LeaveGameMessage | GameActionMessage | ChatMessage,
     Field(discriminator="type"),
 ]
 
 
-class RoomJoinedMessage(BaseModel):
-    type: Literal[ServerMessageType.ROOM_JOINED] = ServerMessageType.ROOM_JOINED
-    room_id: str
+class GameJoinedMessage(BaseModel):
+    type: Literal[ServerMessageType.GAME_JOINED] = ServerMessageType.GAME_JOINED
+    game_id: str
     players: list[str]
 
 
-class RoomLeftMessage(BaseModel):
-    type: Literal[ServerMessageType.ROOM_LEFT] = ServerMessageType.ROOM_LEFT
+class GameLeftMessage(BaseModel):
+    type: Literal[ServerMessageType.GAME_LEFT] = ServerMessageType.GAME_LEFT
 
 
 class PlayerJoinedMessage(BaseModel):
@@ -93,8 +93,8 @@ class ErrorMessage(BaseModel):
 
 
 ServerMessage = (
-    RoomJoinedMessage
-    | RoomLeftMessage
+    GameJoinedMessage
+    | GameLeftMessage
     | PlayerJoinedMessage
     | PlayerLeftMessage
     | GameStateMessage

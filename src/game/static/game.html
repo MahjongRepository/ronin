@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ronin - Game</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .join-form {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        input[type="text"] {
+            padding: 10px 15px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .status-connecting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-disconnected {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+        }
+        .message {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .message:last-child {
+            border-bottom: none;
+        }
+        .message-system {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .message-chat {
+            color: #333;
+        }
+        .message-error {
+            color: #dc3545;
+        }
+        .message-event {
+            color: #007bff;
+        }
+        #game-info {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ronin Game</h1>
+    <div id="game-info"></div>
+    <div id="status" class="status-disconnected">Disconnected</div>
+
+    <div class="join-form">
+        <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+        <button id="joinButton">Join Game</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <script>
+        // parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const gameId = urlParams.get('game_id');
+        const websocketUrl = urlParams.get('websocket_url');
+        const playerNameFromUrl = urlParams.get('player_name');
+
+        const gameInfoDiv = document.getElementById('game-info');
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        const playerNameInput = document.getElementById('playerName');
+        const joinButton = document.getElementById('joinButton');
+        const joinForm = document.querySelector('.join-form');
+
+        let ws = null;
+
+        // display game info
+        if (gameId) {
+            gameInfoDiv.textContent = `Game: ${gameId}`;
+        } else {
+            gameInfoDiv.textContent = 'No game specified';
+        }
+
+        // if player name is provided via URL, hide the join form and auto-connect
+        if (playerNameFromUrl) {
+            playerNameInput.value = playerNameFromUrl;
+            joinForm.style.display = 'none';
+        }
+
+        function setStatus(text, className) {
+            statusDiv.textContent = text;
+            statusDiv.className = className;
+        }
+
+        function addMessage(text, className = '') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${className}`;
+            messageDiv.textContent = text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function connect() {
+            // prevent duplicate connections
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                addMessage('Already connecting or connected', 'message-error');
+                return;
+            }
+
+            if (!websocketUrl) {
+                setStatus('Error: No WebSocket URL provided', 'status-error');
+                addMessage('Cannot connect: No WebSocket URL in parameters', 'message-error');
+                return;
+            }
+
+            const playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                addMessage('Please enter your name', 'message-error');
+                return;
+            }
+
+            joinButton.disabled = true;
+            playerNameInput.disabled = true;
+            setStatus('Connecting...', 'status-connecting');
+            addMessage('Connecting to server...', 'message-system');
+
+            try {
+                ws = new WebSocket(websocketUrl);
+            } catch (e) {
+                setStatus('Connection failed', 'status-error');
+                addMessage(`Failed to connect: ${e.message}`, 'message-error');
+                joinButton.disabled = false;
+                playerNameInput.disabled = false;
+                return;
+            }
+
+            ws.onopen = () => {
+                setStatus('Connected', 'status-connected');
+                addMessage('Connected to server', 'message-system');
+
+                // validate game_id before joining
+                if (!gameId) {
+                    setStatus('Error: No game ID provided', 'status-error');
+                    addMessage('Cannot join: No game ID in parameters', 'message-error');
+                    ws.close();
+                    return;
+                }
+
+                // send join_game message
+                const joinMessage = {
+                    type: 'join_game',
+                    game_id: gameId,
+                    player_name: playerName
+                };
+                ws.send(JSON.stringify(joinMessage));
+                addMessage(`Joining game as "${playerName}"...`, 'message-system');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleServerMessage(message);
+                } catch (e) {
+                    addMessage('Received invalid message from server', 'message-error');
+                }
+            };
+
+            ws.onclose = () => {
+                setStatus('Disconnected', 'status-disconnected');
+                addMessage('Disconnected from server', 'message-system');
+                joinButton.disabled = false;
+                playerNameInput.disabled = false;
+                joinForm.style.display = 'block';
+                ws = null;
+            };
+
+            ws.onerror = () => {
+                setStatus('Connection error', 'status-error');
+                addMessage('Connection error occurred', 'message-error');
+                // onclose will always fire after onerror, so let it handle cleanup
+            };
+        }
+
+        function handleServerMessage(message) {
+            switch (message.type) {
+                case 'game_joined':
+                    addMessage(`Joined game: ${message.game_id}`, 'message-system');
+                    if (message.players && message.players.length > 0) {
+                        addMessage(`Players in game: ${message.players.join(', ')}`, 'message-system');
+                    }
+                    break;
+
+                case 'player_joined':
+                    addMessage(`${message.player_name} joined the game`, 'message-system');
+                    break;
+
+                case 'player_left':
+                    addMessage(`${message.player_name} left the game`, 'message-system');
+                    break;
+
+                case 'game_left':
+                    addMessage('You have left the game', 'message-system');
+                    break;
+
+                case 'game_state':
+                    addMessage(`Game state updated: ${JSON.stringify(message.state)}`, 'message-event');
+                    break;
+
+                case 'game_event':
+                    addMessage(`Game event (${message.event}): ${JSON.stringify(message.data)}`, 'message-event');
+                    break;
+
+                case 'chat':
+                    addMessage(`${message.player_name}: ${message.text}`, 'message-chat');
+                    break;
+
+                case 'error':
+                    addMessage(`Error: ${message.message}`, 'message-error');
+                    break;
+
+                default:
+                    addMessage(`Unknown message: ${JSON.stringify(message)}`, 'message-system');
+            }
+        }
+
+        joinButton.addEventListener('click', connect);
+
+        // allow pressing Enter to join
+        playerNameInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                connect();
+            }
+        });
+
+        // auto-connect if all required params are provided
+        if (gameId && websocketUrl && playerNameFromUrl) {
+            connect();
+        }
+    </script>
+</body>
+</html>

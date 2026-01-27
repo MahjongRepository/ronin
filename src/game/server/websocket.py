@@ -31,8 +31,8 @@ class WebSocketConnection(ConnectionProtocol):
 async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> None:
     await websocket.accept()
 
-    # extract room_id from path if present
-    room_id = websocket.path_params.get("room_id")
+    # extract game_id from path if present
+    game_id = websocket.path_params.get("game_id")
 
     connection = WebSocketConnection(websocket)
     await router.handle_connect(connection)
@@ -40,9 +40,9 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     try:
         while True:
             data = await connection.receive_json()
-            # шf room_id is in path, inject it into join_room messages
-            if room_id and data.get("type") == "join_room":
-                data["room_id"] = room_id
+            # if game_id is in path, inject it into join_game messages
+            if game_id and data.get("type") == "join_game":
+                data["game_id"] = game_id
             await router.handle_message(connection, data)
     except WebSocketDisconnect:
         pass

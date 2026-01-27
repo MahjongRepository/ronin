@@ -1,4 +1,4 @@
-.PHONY: test test-lobby test-game run-lobby run-game lint format check-agent
+.PHONY: test test-lobby test-game run-lobby run-game run-all lint format check-agent
 
 test:
 	uv run pytest -v
@@ -14,6 +14,9 @@ run-lobby:
 
 run-game:
 	uv run uvicorn game.server.app:app --reload --host 0.0.0.0 --port 8001
+
+run-all:
+	@bash ./bin/run_all.sh
 
 lint:
 	uv run ruff format --check src
