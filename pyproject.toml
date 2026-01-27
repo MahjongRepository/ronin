@@ -1,0 +1,86 @@
+[project]
+name = "ronin"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "starlette>=0.52.1",
+    "uvicorn[standard]>=0.40.0",
+    "pydantic>=2.12.5",
+    "httpx>=0.28.1",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.14.14",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lobby", "src/game", "src/shared"]
+
+[tool.pytest.ini_options]
+testpaths = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+python_files = "test_*.py"
+addopts = "-p no:warnings --no-header --tb=short -qq"
+
+[tool.ruff]
+src = ["src"]
+target-version = "py314"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D101", # Missing docstring in public class
+    "D102", # Missing docstring in public method
+    "D103", # Missing docstring in public function
+    "D104", # Missing docstring in public package
+    "D107", # Missing docstring in __init__
+    "D200", # One-line docstring should fit on one line
+    "D203", # One blank line before class
+    "D213", # Multi-line summary second line
+    "D212", # Multi-line summary first line should end with a period
+    "COM812", # Trailing comma missing
+    # Exception message rules - overly pedantic. Standard Python patterns like
+    # `raise SomeError("message")` are clear and readable. Forcing message extraction
+    # to variables adds boilerplate without improving clarity.
+    "TRY003", # Avoid specifying long messages outside exception class
+    "EM101",  # Exception must not use a string literal
+    "EM102",  # Exception must not use an f-string literal
+    # Magic values - HTTP status codes (200, 201, etc.) are well-understood
+    # constants in web development. Creating named constants for them reduces
+    # readability and adds unnecessary indirection.
+    "PLR2004",
+    # Blind exception catching - at API boundaries (request handlers, message parsing),
+    # catching generic exceptions is appropriate to return user-friendly errors.
+    # The alternative is letting unexpected exceptions crash with stack traces.
+    "BLE001",
+    # Top-level imports - lazy imports inside functions are an intentional pattern
+    # to avoid circular imports or defer heavy imports until needed.
+    "PLC0415",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# tests are allowed to have less restrictive rules
+"test_*.py" = [
+    "ANN001", # Missing type annotation for function argument
+    "ANN201", # Missing return type annotation
+    "ANN202", # Missing return type annotation for private function
+    "PLR2004", # Magic value used in comparison
+    "S101", # Use of `assert` detected
+    "SLF001", # Private member accessed - common in tests to verify internal state
+    "D401", # Imperative mood - test helpers often use descriptive names
+]
+"conftest.py" = [
+    "ANN001", # Missing type annotation for function argument
+    "ANN201", # Missing return type annotation
+]

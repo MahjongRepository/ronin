@@ -1,0 +1,50 @@
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
+
+from starlette.websockets import WebSocket, WebSocketDisconnect
+
+from game.messaging.protocol import ConnectionProtocol
+
+if TYPE_CHECKING:
+    from game.messaging.router import MessageRouter
+
+
+class WebSocketConnection(ConnectionProtocol):
+    def __init__(self, websocket: WebSocket, connection_id: str | None = None) -> None:
+        self._websocket = websocket
+        self._connection_id = connection_id or str(uuid4())
+
+    @property
+    def connection_id(self) -> str:
+        return self._connection_id
+
+    async def send_json(self, data: dict[str, Any]) -> None:
+        await self._websocket.send_json(data)
+
+    async def receive_json(self) -> dict[str, Any]:
+        return await self._websocket.receive_json()
+
+    async def close(self, code: int = 1000, reason: str = "") -> None:
+        await self._websocket.close(code=code, reason=reason)
+
+
+async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> None:
+    await websocket.accept()
+
+    # extract room_id from path if present
+    room_id = websocket.path_params.get("room_id")
+
+    connection = WebSocketConnection(websocket)
+    await router.handle_connect(connection)
+
+    try:
+        while True:
+            data = await connection.receive_json()
+            # шf room_id is in path, inject it into join_room messages
+            if room_id and data.get("type") == "join_room":
+                data["room_id"] = room_id
+            await router.handle_message(connection, data)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await router.handle_disconnect(connection)

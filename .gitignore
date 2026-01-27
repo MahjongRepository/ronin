@@ -1,0 +1,11 @@
+.idea
+
+.venv
+uv.lock
+
+*.pyc
+*.pyo
+__pycache__
+
+.pytest_cache
+.ruff_cache
