@@ -1,4 +1,5 @@
 import uuid
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -30,7 +31,7 @@ class GamesService:
             for server in healthy_servers:
                 try:
                     response = await client.get(f"{server.url}/games")
-                    if response.status_code == 200:
+                    if response.status_code == HTTPStatus.OK:
                         data = response.json()
                         for game in data.get("games", []):
                             game["server_name"] = server.name
@@ -75,7 +76,7 @@ class GamesService:
                     f"{server.url}/games",
                     json={"game_id": game_id},
                 )
-                if response.status_code != 201:
+                if response.status_code != HTTPStatus.CREATED:
                     raise GameCreationError(f"Failed to create game: {response.text}")
             except httpx.RequestError as e:
                 raise GameCreationError(f"Failed to connect to game server: {e}") from e

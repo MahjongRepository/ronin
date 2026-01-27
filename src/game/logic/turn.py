@@ -13,6 +13,7 @@ from game.logic.abortive import (
     check_triple_ron,
     process_abortive_draw,
 )
+from game.logic.actions import get_available_actions
 from game.logic.melds import (
     call_added_kan,
     call_chi,
@@ -22,8 +23,6 @@ from game.logic.melds import (
     can_call_chi,
     can_call_open_kan,
     can_call_pon,
-    get_possible_added_kans,
-    get_possible_closed_kans,
 )
 from game.logic.riichi import can_declare_riichi, declare_riichi
 from game.logic.round import (
@@ -33,23 +32,38 @@ from game.logic.round import (
     draw_tile,
     process_exhaustive_draw,
 )
-from game.logic.state import RoundPhase
-from game.logic.tiles import tile_to_34, tile_to_string
-from game.logic.win import (
+from game.logic.scoring import (
     apply_double_ron_score,
     apply_ron_score,
     apply_tsumo_score,
     calculate_hand_value,
+)
+from game.logic.state import RoundPhase
+from game.logic.tiles import tile_to_34, tile_to_string
+from game.logic.win import (
     can_call_ron,
     can_declare_tsumo,
     is_chankan_possible,
+)
+from game.messaging.events import (
+    CallPromptEvent,
+    DiscardEvent,
+    DrawEvent,
+    GameEvent,
+    MeldEvent,
+    RiichiDeclaredEvent,
+    RoundEndEvent,
+    TurnEvent,
 )
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongRoundState
 
+# number of ron callers for double ron
+DOUBLE_RON_COUNT = 2
 
-def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameState) -> list[dict]:
+
+def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameState) -> list[GameEvent]:
     """
     Process the draw phase for the current player.
 
@@ -58,9 +72,9 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
     - kyuushu kyuuhai (nine terminals abortive draw)
     - closed/added kan options
 
-    Returns a list of events describing what happened and available options.
+    Returns a list of typed events describing what happened and available options.
     """
-    events = []
+    events: list[GameEvent] = []
     current_seat = round_state.current_player_seat
     player = round_state.players[current_seat]
 
@@ -68,7 +82,7 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
     if check_exhaustive_draw(round_state):
         result = process_exhaustive_draw(round_state)
         round_state.phase = RoundPhase.FINISHED
-        events.append({"type": "round_end", "result": result, "target": "all"})
+        events.append(RoundEndEvent(result=result, target="all"))
         return events
 
     # draw a tile
@@ -77,46 +91,33 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
         # wall exhausted during draw (shouldn't happen if check above works)
         result = process_exhaustive_draw(round_state)
         round_state.phase = RoundPhase.FINISHED
-        events.append({"type": "round_end", "result": result, "target": "all"})
+        events.append(RoundEndEvent(result=result, target="all"))
         return events
 
     # notify player of drawn tile
     events.append(
-        {
-            "type": "draw",
-            "seat": current_seat,
-            "tile_id": drawn_tile,
-            "tile": tile_to_string(drawn_tile),
-            "target": f"seat_{current_seat}",
-        }
+        DrawEvent(
+            seat=current_seat,
+            tile_id=drawn_tile,
+            tile=tile_to_string(drawn_tile),
+            target=f"seat_{current_seat}",
+        )
     )
 
-    # check for tsumo
-    can_tsumo = can_declare_tsumo(player, round_state)
-
-    # check for kyuushu kyuuhai
-    can_kyuushu = can_call_kyuushu_kyuuhai(player, round_state)
-
-    # check for kan options
-    wall_count = len(round_state.wall)
-    closed_kans = get_possible_closed_kans(player, wall_count)
-    added_kans = get_possible_added_kans(player, wall_count)
-
-    # build available actions for the player
+    # build available actions for the player (already includes tsumo, riichi, kan options)
     available_actions = get_available_actions(round_state, game_state, current_seat)
-    available_actions["can_tsumo"] = can_tsumo
-    available_actions["can_kyuushu"] = can_kyuushu
-    available_actions["closed_kans"] = closed_kans
-    available_actions["added_kans"] = added_kans
+
+    # check for kyuushu kyuuhai and add to actions if available
+    if can_call_kyuushu_kyuuhai(player, round_state):
+        available_actions.append({"action": "kyuushu"})
 
     events.append(
-        {
-            "type": "turn",
-            "current_seat": current_seat,
-            "available_actions": available_actions,
-            "wall_count": len(round_state.wall),
-            "target": f"seat_{current_seat}",
-        }
+        TurnEvent(
+            current_seat=current_seat,
+            available_actions=available_actions,
+            wall_count=len(round_state.wall),
+            target=f"seat_{current_seat}",
+        )
     )
 
     return events
@@ -128,7 +129,7 @@ def process_discard_phase(
     tile_id: int,
     *,
     is_riichi: bool = False,
-) -> list[dict]:
+) -> list[GameEvent]:
     """
     Process the discard phase after a player discards a tile.
 
@@ -143,9 +144,9 @@ def process_discard_phase(
     6. Check for meld calls with priority: kan > pon > chi
     7. If no calls, advance turn
 
-    Returns list of events describing what happened.
+    Returns list of typed events describing what happened.
     """
-    events = []
+    events: list[GameEvent] = []
     current_seat = round_state.current_player_seat
     player = round_state.players[current_seat]
 
@@ -160,22 +161,20 @@ def process_discard_phase(
     discard = discard_tile(round_state, current_seat, tile_id, is_riichi=is_riichi)
 
     events.append(
-        {
-            "type": "discard",
-            "seat": current_seat,
-            "tile_id": tile_id,
-            "tile": tile_to_string(tile_id),
-            "is_tsumogiri": discard.is_tsumogiri,
-            "is_riichi": is_riichi,
-            "target": "all",
-        }
+        DiscardEvent(
+            seat=current_seat,
+            tile_id=tile_id,
+            tile=tile_to_string(tile_id),
+            is_tsumogiri=discard.is_tsumogiri,
+            is_riichi=is_riichi,
+        )
     )
 
     # step 3: check for four winds abortive draw
     if check_four_winds(round_state):
         result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_WINDS)
         round_state.phase = RoundPhase.FINISHED
-        events.append({"type": "round_end", "result": result, "target": "all"})
+        events.append(RoundEndEvent(result=result, target="all"))
         return events
 
     # step 4: check for ron from other players
@@ -185,41 +184,32 @@ def process_discard_phase(
         # triple ron is abortive draw
         result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)
         round_state.phase = RoundPhase.FINISHED
-        events.append({"type": "round_end", "result": result, "target": "all"})
+        events.append(RoundEndEvent(result=result, target="all"))
         return events
 
     if ron_callers:
         # ron opportunities exist - create call prompt
-        # in actual game, this would wait for player decisions
-        # here we return events indicating ron is available
         events.append(
-            {
-                "type": "call_prompt",
-                "call_type": "ron",
-                "tile_id": tile_id,
-                "from_seat": current_seat,
-                "callers": ron_callers,
-                "target": "all",
-            }
+            CallPromptEvent(
+                call_type="ron",
+                tile_id=tile_id,
+                from_seat=current_seat,
+                callers=ron_callers,
+                target="all",
+            )
         )
         return events
 
     # step 5: finalize riichi if no ron
     if riichi_pending:
         declare_riichi(player, game_state)
-        events.append(
-            {
-                "type": "riichi_declared",
-                "seat": current_seat,
-                "target": "all",
-            }
-        )
+        events.append(RiichiDeclaredEvent(seat=current_seat, target="all"))
 
         # check for four riichi abortive draw
         if check_four_riichi(round_state):
             result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_RIICHI)
             round_state.phase = RoundPhase.FINISHED
-            events.append({"type": "round_end", "result": result, "target": "all"})
+            events.append(RoundEndEvent(result=result, target="all"))
             return events
 
     # step 6: check for meld calls (priority: kan > pon > chi)
@@ -227,14 +217,13 @@ def process_discard_phase(
 
     if meld_calls:
         events.append(
-            {
-                "type": "call_prompt",
-                "call_type": "meld",
-                "tile_id": tile_id,
-                "from_seat": current_seat,
-                "callers": meld_calls,
-                "target": "all",
-            }
+            CallPromptEvent(
+                call_type="meld",
+                tile_id=tile_id,
+                from_seat=current_seat,
+                callers=meld_calls,
+                target="all",
+            )
         )
         return events
 
@@ -261,14 +250,14 @@ class MeldCallContext:
         self.tile_id = tile_id
         self.sequence_tiles = sequence_tiles
         self.discarder_seat = round_state.current_player_seat
-        self.events: list[dict] = []
+        self.events: list[GameEvent] = []
 
     def check_four_kans_abort(self) -> bool:
         """Check for four kans abortive draw. Returns True if game should end."""
         if check_four_kans(self.round_state):
             result = process_abortive_draw(self.game_state, AbortiveDrawType.FOUR_KANS)
             self.round_state.phase = RoundPhase.FINISHED
-            self.events.append({"type": "round_end", "result": result, "target": "all"})
+            self.events.append(RoundEndEvent(result=result, target="all"))
             return True
         return False
 
@@ -278,15 +267,13 @@ def _process_pon_call(ctx: MeldCallContext) -> None:
     meld = call_pon(ctx.round_state, ctx.caller_seat, ctx.discarder_seat, ctx.tile_id)
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
-        {
-            "type": "meld",
-            "meld_type": "pon",
-            "caller_seat": ctx.caller_seat,
-            "from_seat": ctx.discarder_seat,
-            "tile_ids": tile_ids,
-            "tiles": [tile_to_string(t) for t in tile_ids],
-            "target": "all",
-        }
+        MeldEvent(
+            meld_type="pon",
+            caller_seat=ctx.caller_seat,
+            tile_ids=tile_ids,
+            tiles=[tile_to_string(t) for t in tile_ids],
+            from_seat=ctx.discarder_seat,
+        )
     )
 
 
@@ -297,15 +284,13 @@ def _process_chi_call(ctx: MeldCallContext) -> None:
     meld = call_chi(ctx.round_state, ctx.caller_seat, ctx.discarder_seat, ctx.tile_id, ctx.sequence_tiles)
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
-        {
-            "type": "meld",
-            "meld_type": "chi",
-            "caller_seat": ctx.caller_seat,
-            "from_seat": ctx.discarder_seat,
-            "tile_ids": tile_ids,
-            "tiles": [tile_to_string(t) for t in tile_ids],
-            "target": "all",
-        }
+        MeldEvent(
+            meld_type="chi",
+            caller_seat=ctx.caller_seat,
+            tile_ids=tile_ids,
+            tiles=[tile_to_string(t) for t in tile_ids],
+            from_seat=ctx.discarder_seat,
+        )
     )
 
 
@@ -314,16 +299,14 @@ def _process_open_kan_call(ctx: MeldCallContext) -> bool:
     meld = call_open_kan(ctx.round_state, ctx.caller_seat, ctx.discarder_seat, ctx.tile_id)
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
-        {
-            "type": "meld",
-            "meld_type": "kan",
-            "kan_type": "open",
-            "caller_seat": ctx.caller_seat,
-            "from_seat": ctx.discarder_seat,
-            "tile_ids": tile_ids,
-            "tiles": [tile_to_string(t) for t in tile_ids],
-            "target": "all",
-        }
+        MeldEvent(
+            meld_type="kan",
+            caller_seat=ctx.caller_seat,
+            tile_ids=tile_ids,
+            tiles=[tile_to_string(t) for t in tile_ids],
+            from_seat=ctx.discarder_seat,
+            kan_type="open",
+        )
     )
     return ctx.check_four_kans_abort()
 
@@ -333,15 +316,13 @@ def _process_closed_kan_call(ctx: MeldCallContext) -> bool:
     meld = call_closed_kan(ctx.round_state, ctx.caller_seat, ctx.tile_id)
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
-        {
-            "type": "meld",
-            "meld_type": "kan",
-            "kan_type": "closed",
-            "caller_seat": ctx.caller_seat,
-            "tile_ids": tile_ids,
-            "tiles": [tile_to_string(t) for t in tile_ids],
-            "target": "all",
-        }
+        MeldEvent(
+            meld_type="kan",
+            caller_seat=ctx.caller_seat,
+            tile_ids=tile_ids,
+            tiles=[tile_to_string(t) for t in tile_ids],
+            kan_type="closed",
+        )
     )
     return ctx.check_four_kans_abort()
 
@@ -351,29 +332,26 @@ def _process_added_kan_call(ctx: MeldCallContext) -> bool:
     chankan_seats = is_chankan_possible(ctx.round_state, ctx.caller_seat, ctx.tile_id)
     if chankan_seats:
         ctx.events.append(
-            {
-                "type": "call_prompt",
-                "call_type": "chankan",
-                "tile_id": ctx.tile_id,
-                "from_seat": ctx.caller_seat,
-                "callers": chankan_seats,
-                "target": "all",
-            }
+            CallPromptEvent(
+                call_type="chankan",
+                tile_id=ctx.tile_id,
+                from_seat=ctx.caller_seat,
+                callers=chankan_seats,
+                target="all",
+            )
         )
         return True
 
     meld = call_added_kan(ctx.round_state, ctx.caller_seat, ctx.tile_id)
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
-        {
-            "type": "meld",
-            "meld_type": "kan",
-            "kan_type": "added",
-            "caller_seat": ctx.caller_seat,
-            "tile_ids": tile_ids,
-            "tiles": [tile_to_string(t) for t in tile_ids],
-            "target": "all",
-        }
+        MeldEvent(
+            meld_type="kan",
+            caller_seat=ctx.caller_seat,
+            tile_ids=tile_ids,
+            tiles=[tile_to_string(t) for t in tile_ids],
+            kan_type="added",
+        )
     )
     return ctx.check_four_kans_abort()
 
@@ -386,7 +364,7 @@ def process_meld_call(  # noqa: PLR0913
     tile_id: int,
     *,
     sequence_tiles: tuple[int, int] | None = None,
-) -> list[dict]:
+) -> list[GameEvent]:
     """
     Process a meld call (pon, chi, open kan, closed kan, added kan).
 
@@ -394,7 +372,7 @@ def process_meld_call(  # noqa: PLR0913
     For closed kan: tile_id is one of the 4 tiles to kan.
     For added kan: tile_id is the 4th tile to add to existing pon.
 
-    Returns events describing the meld and any follow-up (chankan check for added kan).
+    Returns typed events describing the meld and any follow-up (chankan check for added kan).
     """
     ctx = MeldCallContext(round_state, game_state, caller_seat, tile_id, sequence_tiles)
 
@@ -423,13 +401,13 @@ def process_ron_call(
     ron_callers: list[int],
     tile_id: int,
     discarder_seat: int,
-) -> list[dict]:
+) -> list[GameEvent]:
     """
     Process ron call(s) from one or more players.
 
-    Returns events for the ron result.
+    Returns typed events for the ron result.
     """
-    events = []
+    events: list[GameEvent] = []
 
     if len(ron_callers) == 1:
         # single ron
@@ -446,9 +424,9 @@ def process_ron_call(
 
         result = apply_ron_score(game_state, winner_seat, discarder_seat, hand_result)
         round_state.phase = RoundPhase.FINISHED
-        events.append({"type": "round_end", "result": result, "target": "all"})
+        events.append(RoundEndEvent(result=result, target="all"))
 
-    elif len(ron_callers) == 2:
+    elif len(ron_callers) == DOUBLE_RON_COUNT:
         # double ron
         winners = []
         for winner_seat in ron_callers:
@@ -464,7 +442,7 @@ def process_ron_call(
 
         result = apply_double_ron_score(game_state, winners, discarder_seat)
         round_state.phase = RoundPhase.FINISHED
-        events.append({"type": "round_end", "result": result, "target": "all"})
+        events.append(RoundEndEvent(result=result, target="all"))
 
     return events
 
@@ -473,13 +451,13 @@ def process_tsumo_call(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     winner_seat: int,
-) -> list[dict]:
+) -> list[GameEvent]:
     """
     Process tsumo declaration from a player.
 
-    Returns events for the tsumo result.
+    Returns typed events for the tsumo result.
     """
-    events = []
+    events: list[GameEvent] = []
     winner = round_state.players[winner_seat]
 
     if not can_declare_tsumo(winner, round_state):
@@ -494,49 +472,9 @@ def process_tsumo_call(
 
     result = apply_tsumo_score(game_state, winner_seat, hand_result)
     round_state.phase = RoundPhase.FINISHED
-    events.append({"type": "round_end", "result": result, "target": "all"})
+    events.append(RoundEndEvent(result=result, target="all"))
 
     return events
-
-
-def get_available_actions(
-    round_state: MahjongRoundState,
-    _game_state: MahjongGameState,
-    seat: int,
-) -> dict:
-    """
-    Return available actions for a player at their turn.
-
-    Includes:
-    - discardable tiles
-    - riichi option (if eligible)
-    - tsumo option (if hand is winning)
-    - kan options (closed and added)
-    """
-    player = round_state.players[seat]
-    wall_count = len(round_state.wall)
-
-    # all tiles in hand can be discarded (unless in riichi)
-    # in riichi, must discard the drawn tile (tsumogiri)
-    discard_tiles = ([player.tiles[-1]] if player.tiles else []) if player.is_riichi else list(player.tiles)
-
-    # check riichi eligibility
-    riichi_available = can_declare_riichi(player, round_state)
-
-    # check tsumo
-    tsumo_available = can_declare_tsumo(player, round_state)
-
-    # check kan options
-    closed_kans = get_possible_closed_kans(player, wall_count)
-    added_kans = get_possible_added_kans(player, wall_count)
-
-    return {
-        "discard_tiles": discard_tiles,
-        "can_riichi": riichi_available,
-        "can_tsumo": tsumo_available,
-        "closed_kans": closed_kans,
-        "added_kans": added_kans,
-    }
 
 
 def _find_ron_callers(round_state: MahjongRoundState, tile_id: int, discarder_seat: int) -> list[int]:

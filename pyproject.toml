@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pyyaml>=6.0.0",
     "mahjong>=1.4.0",
+    "msgpack>=1.1.2",
 ]
 
 [project.optional-dependencies]
@@ -57,17 +58,6 @@ ignore = [
     "TRY003", # Avoid specifying long messages outside exception class
     "EM101",  # Exception must not use a string literal
     "EM102",  # Exception must not use an f-string literal
-    # Magic values - HTTP status codes (200, 201, etc.) are well-understood
-    # constants in web development. Creating named constants for them reduces
-    # readability and adds unnecessary indirection.
-    "PLR2004",
-    # Blind exception catching - at API boundaries (request handlers, message parsing),
-    # catching generic exceptions is appropriate to return user-friendly errors.
-    # The alternative is letting unexpected exceptions crash with stack traces.
-    "BLE001",
-    # Top-level imports - lazy imports inside functions are an intentional pattern
-    # to avoid circular imports or defer heavy imports until needed.
-    "PLC0415",
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -13,6 +13,9 @@ DEAD_WALL_SIZE = 14
 FIRST_DORA_INDEX = 2
 MAX_DORA_INDICATORS = 4
 
+# hand size constants
+HAND_SIZE_AFTER_DRAW = 14
+
 
 def init_round(game_state: MahjongGameState) -> None:
     """
@@ -239,7 +242,7 @@ def is_tempai(player: MahjongPlayer) -> bool:
     tiles = player.tiles
     shanten = Shanten()
 
-    if len(tiles) == 14:
+    if len(tiles) == HAND_SIZE_AFTER_DRAW:
         # after drawing, check if any discard leaves us in tempai
         for i in range(len(tiles)):
             remaining = tiles[:i] + tiles[i + 1 :]

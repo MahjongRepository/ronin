@@ -5,6 +5,8 @@ Abortive draw conditions for Mahjong.
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from mahjong.meld import Meld
+
 from game.logic.tiles import WINDS_34, is_terminal_or_honor, tile_to_34
 
 if TYPE_CHECKING:
@@ -23,6 +25,12 @@ class AbortiveDrawType(Enum):
 
 # minimum number of different terminal/honor tile types for kyuushu kyuuhai
 KYUUSHU_MIN_TYPES = 9
+
+# game constants
+NUM_PLAYERS = 4
+TRIPLE_RON_COUNT = 3
+MIN_PLAYERS_FOR_KAN_ABORT = 2
+FOUR_WINDS_DISCARD_COUNT = 4
 
 
 def can_call_kyuushu_kyuuhai(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
@@ -78,7 +86,7 @@ def check_four_riichi(round_state: MahjongRoundState) -> bool:
     Check if all 4 players have declared riichi (abortive draw condition).
     """
     riichi_count = sum(1 for p in round_state.players if p.is_riichi)
-    return riichi_count == 4
+    return riichi_count == NUM_PLAYERS
 
 
 def check_triple_ron(ron_callers: list[int]) -> bool:
@@ -88,7 +96,7 @@ def check_triple_ron(ron_callers: list[int]) -> bool:
     When 2 players can ron, both win (double ron).
     When 3 players can ron, it's an abortive draw (triple ron).
     """
-    return len(ron_callers) == 3
+    return len(ron_callers) == TRIPLE_RON_COUNT
 
 
 def check_four_kans(round_state: MahjongRoundState) -> bool:
@@ -98,8 +106,6 @@ def check_four_kans(round_state: MahjongRoundState) -> bool:
     This is an abortive draw condition - if 4 kans are declared by 2+ different players,
     the round ends. If one player has all 4 kans, the game continues (suukantsu possible).
     """
-    from mahjong.meld import Meld
-
     total_kans = 0
     players_with_kans = set()
 
@@ -110,7 +116,7 @@ def check_four_kans(round_state: MahjongRoundState) -> bool:
             players_with_kans.add(player.seat)
 
     # abortive draw only if 4 kans AND multiple players have kans
-    return total_kans >= 4 and len(players_with_kans) >= 2
+    return total_kans >= NUM_PLAYERS and len(players_with_kans) >= MIN_PLAYERS_FOR_KAN_ABORT
 
 
 def check_four_winds(round_state: MahjongRoundState) -> bool:
@@ -123,7 +129,7 @@ def check_four_winds(round_state: MahjongRoundState) -> bool:
     - No open melds have been called (players_with_open_hands is empty)
     """
     # check exactly 4 discards
-    if len(round_state.all_discards) != 4:
+    if len(round_state.all_discards) != FOUR_WINDS_DISCARD_COUNT:
         return False
 
     # check no open melds

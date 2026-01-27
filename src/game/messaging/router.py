@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
+from pydantic import ValidationError
+
 from game.messaging.types import (
     ClientMessageType,
     ErrorMessage,
@@ -29,8 +31,8 @@ class MessageRouter:
     ) -> None:
         try:
             message = parse_client_message(raw_message)
-        except Exception as e:
-            await connection.send_json(ErrorMessage(code="invalid_message", message=str(e)).model_dump())
+        except (ValidationError, KeyError, TypeError, ValueError) as e:
+            await connection.send_message(ErrorMessage(code="invalid_message", message=str(e)).model_dump())
             return
 
         match message.type:
@@ -49,8 +51,8 @@ class MessageRouter:
                         action=message.action,
                         data=message.data,
                     )
-                except Exception as e:
-                    await connection.send_json(
+                except (ValueError, KeyError, TypeError, RuntimeError) as e:
+                    await connection.send_message(
                         ErrorMessage(code="action_failed", message=str(e)).model_dump()
                     )
             case ClientMessageType.CHAT:

@@ -12,7 +12,7 @@ from mahjong.shanten import Shanten
 
 from game.logic.melds import can_call_pon
 from game.logic.riichi import can_declare_riichi
-from game.logic.tiles import hand_to_34_array, tile_to_34
+from game.logic.tiles import HONOR_34_START, hand_to_34_array, tile_to_34
 from game.logic.win import can_call_ron, can_declare_tsumo
 
 if TYPE_CHECKING:
@@ -274,7 +274,7 @@ def _is_isolated_tile(tile_34: int, tiles_34: list[int]) -> bool:
     Honor tiles (27-33) are always "isolated" in terms of sequences.
     """
     # honor tiles can't form sequences
-    if tile_34 >= 27:
+    if tile_34 >= HONOR_34_START:
         return True
 
     # check suit and position

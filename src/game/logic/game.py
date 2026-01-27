@@ -9,6 +9,14 @@ from game.logic.state import (
     MahjongRoundState,
 )
 
+# wind progression thresholds
+EAST_WIND_MAX_DEALERS = 4
+SOUTH_WIND_MAX_DEALERS = 8
+WEST_WIND_MAX_DEALERS = 12
+
+# winning score threshold
+WINNING_SCORE_THRESHOLD = 30000
+
 
 def init_game(player_names: list[str], seed: float = 0.0) -> MahjongGameState:
     """
@@ -120,9 +128,9 @@ def process_round_end(game_state: MahjongGameState, result: dict) -> None:
         game_state.unique_dealers += 1
 
         # wind progression: unique_dealers 1-4 = East, 5-8 = South, 9-12 = West
-        if game_state.unique_dealers <= 4:
+        if game_state.unique_dealers <= EAST_WIND_MAX_DEALERS:
             round_state.round_wind = 0  # East
-        elif game_state.unique_dealers <= 8:
+        elif game_state.unique_dealers <= SOUTH_WIND_MAX_DEALERS:
             round_state.round_wind = 1  # South
         else:
             round_state.round_wind = 2  # West
@@ -147,13 +155,13 @@ def check_game_end(game_state: MahjongGameState) -> bool:
         return True
 
     # check if South wind complete and someone has 30000+
-    south_complete = game_state.unique_dealers > 8
-    has_winner = any(player.score >= 30000 for player in round_state.players)
+    south_complete = game_state.unique_dealers > SOUTH_WIND_MAX_DEALERS
+    has_winner = any(player.score >= WINNING_SCORE_THRESHOLD for player in round_state.players)
     if south_complete and has_winner:
         return True
 
     # check if West wind complete
-    return game_state.unique_dealers > 12
+    return game_state.unique_dealers > WEST_WIND_MAX_DEALERS
 
 
 def finalize_game(game_state: MahjongGameState) -> dict:

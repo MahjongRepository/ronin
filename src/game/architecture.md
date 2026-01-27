@@ -20,7 +20,7 @@ Connect to `ws://localhost:8001/ws/{game_id}` (game must be created first via lo
 
 ### Message Format
 
-All messages are JSON with a `type` field.
+All messages use MessagePack binary format with a `type` field. The server only accepts and sends binary WebSocket frames.
 
 #### Client -> Server
 
@@ -93,13 +93,16 @@ Clean architecture pattern with clear separation between layers:
 
 ### Protocol Abstraction
 
-All message handling logic operates through `ConnectionProtocol`, an abstract interface that decouples business logic from the WebSocket transport:
+All message handling logic operates through `ConnectionProtocol`, an abstract interface that decouples business logic from the WebSocket transport. Messages are encoded/decoded using MessagePack binary format:
 
 ```
 WebSocket (Starlette)
     │
     ▼
 WebSocketConnection (implements ConnectionProtocol)
+    │
+    ▼
+MessagePack encode/decode (encoder.py)
     │
     ▼
 MessageRouter (pure Python, testable)
@@ -120,13 +123,17 @@ This enables:
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Main entry point implementing GameService interface
+- **MahjongService** - Orchestration-only entry point implementing GameService interface
 - **MahjongGame** - Manages game state across multiple rounds (hanchan)
 - **Round** - Handles a single round with wall, draws, and discards
-- **Turn** - Processes player actions (discard, chi, pon, kan, riichi, tsumo, ron)
+- **Turn** - Processes player actions and returns typed events
+- **Actions** - Builds available actions for players (discardable tiles, riichi, tsumo, kan)
+- **ActionHandlers** - Validates and processes player actions (discard, chi, pon, kan, etc.)
+- **BotController** - Handles bot turns and call responses
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
 - **Melds** - Detection of valid chi, pon, and kan combinations
-- **Win** - Hand parsing, yaku detection, and scoring (fu/han calculation)
+- **Win** - Hand parsing and yaku detection
+- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron)
 - **Riichi** - Riichi declaration validation and tenpai detection
 - **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.)
 - **Bot** - AI player for filling empty seats
@@ -147,19 +154,25 @@ ronin/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── mock.py         # MockConnection for testing
         │   ├── types.py        # Message schemas (Pydantic)
+        │   ├── events.py       # Typed game event classes
+        │   ├── encoder.py      # MessagePack encoding/decoding
         │   └── router.py       # Message routing
         ├── session/
         │   ├── models.py       # Player, Game dataclasses
         │   └── manager.py      # Session/game management
         ├── logic/
         │   ├── service.py          # GameService interface
-        │   ├── mahjong_service.py  # MahjongService implementation
+        │   ├── mahjong_service.py  # MahjongService orchestration
         │   ├── game.py             # MahjongGame state management
         │   ├── round.py            # Round management
-        │   ├── turn.py             # Turn processing and player actions
+        │   ├── turn.py             # Turn processing, returns typed events
+        │   ├── actions.py          # Available actions builder
+        │   ├── action_handlers.py  # Action validation and processing
+        │   ├── bot_controller.py   # Bot turn and call handling
         │   ├── tiles.py            # Tile types and wall building
         │   ├── melds.py            # Meld detection (chi, pon, kan)
         │   ├── win.py              # Win detection and hand parsing
+        │   ├── scoring.py          # Score calculation and distribution
         │   ├── riichi.py           # Riichi declaration logic
         │   ├── abortive.py         # Abortive draw detection
         │   ├── state.py            # Game state dataclasses
@@ -204,14 +217,16 @@ async def test_join_game():
 
 ### Integration Tests (With TestClient)
 
-Use Starlette's `TestClient` for full WebSocket flow:
+Use Starlette's `TestClient` for full WebSocket flow with MessagePack:
 
 ```python
+import msgpack
+
 def test_websocket():
     client = TestClient(app)
     client.post("/games", json={"game_id": "test_game"})
     with client.websocket_connect("/ws/test_game") as ws:
-        ws.send_json({"type": "join_game", "game_id": "test_game", "player_name": "Alice"})
-        response = ws.receive_json()
+        ws.send_bytes(msgpack.packb({"type": "join_game", "game_id": "test_game", "player_name": "Alice"}))
+        response = msgpack.unpackb(ws.receive_bytes())
         assert response["type"] == "game_joined"
 ```

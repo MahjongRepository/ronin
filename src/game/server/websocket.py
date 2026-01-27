@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -18,11 +18,11 @@ class WebSocketConnection(ConnectionProtocol):
     def connection_id(self) -> str:
         return self._connection_id
 
-    async def send_json(self, data: dict[str, Any]) -> None:
-        await self._websocket.send_json(data)
+    async def send_bytes(self, data: bytes) -> None:
+        await self._websocket.send_bytes(data)
 
-    async def receive_json(self) -> dict[str, Any]:
-        return await self._websocket.receive_json()
+    async def receive_bytes(self) -> bytes:
+        return await self._websocket.receive_bytes()
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         await self._websocket.close(code=code, reason=reason)
@@ -39,7 +39,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
 
     try:
         while True:
-            data = await connection.receive_json()
+            data = await connection.receive_message()
             # if game_id is in path, inject it into join_game messages
             if game_id and data.get("type") == "join_game":
                 data["game_id"] = game_id

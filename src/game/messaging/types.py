@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 class ClientMessageType(str, Enum):
@@ -293,8 +293,8 @@ ServerMessage = (
 )
 
 
-def parse_client_message(data: dict) -> ClientMessage:
-    from pydantic import TypeAdapter
+_client_message_adapter = TypeAdapter(ClientMessage)
 
-    adapter = TypeAdapter(ClientMessage)
-    return adapter.validate_python(data)
+
+def parse_client_message(data: dict) -> ClientMessage:
+    return _client_message_adapter.validate_python(data)

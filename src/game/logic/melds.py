@@ -6,13 +6,27 @@ from typing import TYPE_CHECKING
 
 from mahjong.meld import Meld
 
+from game.logic.round import add_dora_indicator, draw_from_dead_wall
+from game.logic.state import MahjongPlayer
 from game.logic.tiles import is_honor, tile_to_34
+from game.logic.win import get_waiting_tiles
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongPlayer, MahjongRoundState
+    from game.logic.state import MahjongRoundState
 
 # minimum tiles needed in wall to declare kan (need replacement draw)
 MIN_WALL_FOR_KAN = 2
+
+# meld size constants
+TILES_FOR_PON = 2
+TILES_FOR_OPEN_KAN = 3
+TILES_FOR_CLOSED_KAN = 4
+
+# chi sequence position limits (0-indexed tile values within a suit)
+CHI_LOWEST_MAX_VALUE = 6  # tile can be lowest (e.g., 1 in 123) if value <= 6
+CHI_MIDDLE_MIN_VALUE = 1  # tile can be middle if value >= 1
+CHI_MIDDLE_MAX_VALUE = 7  # tile can be middle if value <= 7
+CHI_HIGHEST_MIN_VALUE = 2  # tile can be highest (e.g., 3 in 123) if value >= 2
 
 
 def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
@@ -29,7 +43,7 @@ def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
     discarded_34 = tile_to_34(discarded_tile)
     matching_count = sum(1 for t in player.tiles if tile_to_34(t) == discarded_34)
 
-    return matching_count >= 2
+    return matching_count >= TILES_FOR_PON
 
 
 def call_pon(
@@ -52,13 +66,13 @@ def call_pon(
     removed_tiles = []
     new_hand = []
     for t in caller.tiles:
-        if tile_to_34(t) == tile_34 and len(removed_tiles) < 2:
+        if tile_to_34(t) == tile_34 and len(removed_tiles) < TILES_FOR_PON:
             removed_tiles.append(t)
         else:
             new_hand.append(t)
 
-    if len(removed_tiles) != 2:
-        raise ValueError(f"cannot call pon: need 2 matching tiles, found {len(removed_tiles)}")
+    if len(removed_tiles) != TILES_FOR_PON:
+        raise ValueError(f"cannot call pon: need {TILES_FOR_PON} matching tiles, found {len(removed_tiles)}")
 
     caller.tiles = new_hand
 
@@ -152,15 +166,15 @@ def _find_chi_combinations(
     combinations: list[tuple[int, int]] = []
 
     # discarded tile is lowest in sequence (e.g., 1 in 123)
-    if tile_value <= 6:
+    if tile_value <= CHI_LOWEST_MAX_VALUE:
         _add_combination_if_valid(combinations, hand_tiles, discarded_34 + 1, discarded_34 + 2)
 
     # discarded tile is middle in sequence (e.g., 2 in 123)
-    if 1 <= tile_value <= 7:
+    if CHI_MIDDLE_MIN_VALUE <= tile_value <= CHI_MIDDLE_MAX_VALUE:
         _add_combination_if_valid(combinations, hand_tiles, discarded_34 - 1, discarded_34 + 1)
 
     # discarded tile is highest in sequence (e.g., 3 in 123)
-    if tile_value >= 2:
+    if tile_value >= CHI_HIGHEST_MIN_VALUE:
         _add_combination_if_valid(combinations, hand_tiles, discarded_34 - 2, discarded_34 - 1)
 
     return combinations
@@ -245,7 +259,7 @@ def can_call_open_kan(player: MahjongPlayer, discarded_tile: int, wall_count: in
     discarded_34 = tile_to_34(discarded_tile)
     matching_count = sum(1 for t in player.tiles if tile_to_34(t) == discarded_34)
 
-    return matching_count >= 3
+    return matching_count >= TILES_FOR_OPEN_KAN
 
 
 def can_call_closed_kan(player: MahjongPlayer, tile_34: int, wall_count: int) -> bool:
@@ -262,7 +276,7 @@ def can_call_closed_kan(player: MahjongPlayer, tile_34: int, wall_count: int) ->
 
     matching_count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
 
-    if matching_count < 4:
+    if matching_count < TILES_FOR_CLOSED_KAN:
         return False
 
     if player.is_riichi:
@@ -279,8 +293,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     1. It doesn't change the waiting tiles
     2. The tile is not one of the waiting tiles
     """
-    from game.logic.win import get_waiting_tiles
-
     # get current waits
     original_waits = get_waiting_tiles(player)
 
@@ -295,9 +307,7 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     new_tiles = [t for t in player.tiles if tile_to_34(t) != tile_34]
 
     # create a temporary player to check waits
-    from game.logic.state import MahjongPlayer as TempPlayer
-
-    temp_player = TempPlayer(seat=player.seat, name=player.name, tiles=new_tiles, melds=list(player.melds))
+    temp_player = MahjongPlayer(seat=player.seat, name=player.name, tiles=new_tiles, melds=list(player.melds))
 
     # add the kan as a meld (closed)
     kan_tiles = [t for t in player.tiles if tile_to_34(t) == tile_34]
@@ -360,8 +370,6 @@ def call_open_kan(
     updates game state. The caller must draw from dead wall after this.
     Returns the created Meld.
     """
-    from game.logic.round import add_dora_indicator, draw_from_dead_wall
-
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
 
@@ -369,13 +377,15 @@ def call_open_kan(
     removed_tiles = []
     new_hand = []
     for t in caller.tiles:
-        if tile_to_34(t) == tile_34 and len(removed_tiles) < 3:
+        if tile_to_34(t) == tile_34 and len(removed_tiles) < TILES_FOR_OPEN_KAN:
             removed_tiles.append(t)
         else:
             new_hand.append(t)
 
-    if len(removed_tiles) != 3:
-        raise ValueError(f"cannot call open kan: need 3 matching tiles, found {len(removed_tiles)}")
+    if len(removed_tiles) != TILES_FOR_OPEN_KAN:
+        raise ValueError(
+            f"cannot call open kan: need {TILES_FOR_OPEN_KAN} matching tiles, found {len(removed_tiles)}"
+        )
 
     caller.tiles = new_hand
 
@@ -422,8 +432,6 @@ def call_closed_kan(
     Player declares kan with 4 tiles from hand. The hand remains closed.
     Returns the created Meld.
     """
-    from game.logic.round import add_dora_indicator, draw_from_dead_wall
-
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
@@ -431,13 +439,15 @@ def call_closed_kan(
     removed_tiles = []
     new_hand = []
     for t in player.tiles:
-        if tile_to_34(t) == tile_34 and len(removed_tiles) < 4:
+        if tile_to_34(t) == tile_34 and len(removed_tiles) < TILES_FOR_CLOSED_KAN:
             removed_tiles.append(t)
         else:
             new_hand.append(t)
 
-    if len(removed_tiles) != 4:
-        raise ValueError(f"cannot call closed kan: need 4 matching tiles, found {len(removed_tiles)}")
+    if len(removed_tiles) != TILES_FOR_CLOSED_KAN:
+        raise ValueError(
+            f"cannot call closed kan: need {TILES_FOR_CLOSED_KAN} matching tiles, found {len(removed_tiles)}"
+        )
 
     player.tiles = new_hand
 
@@ -482,8 +492,6 @@ def call_added_kan(
     Note: This can be robbed by other players (chankan) if they are waiting on this tile.
     Returns the upgraded Meld.
     """
-    from game.logic.round import add_dora_indicator, draw_from_dead_wall
-
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
@@ -551,7 +559,7 @@ def get_possible_closed_kans(player: MahjongPlayer, wall_count: int) -> list[int
 
     possible = []
     for t34, count in tile_counts.items():
-        if count >= 4:
+        if count >= TILES_FOR_CLOSED_KAN:
             if player.is_riichi:
                 if _kan_preserves_waits_for_riichi(player, t34):
                     possible.append(t34)

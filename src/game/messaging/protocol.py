@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from game.messaging.encoder import decode, encode
+
 
 class ConnectionProtocol(ABC):
     """
     Abstract interface for a client connection.
 
     This abstraction allows message handling logic to be tested
-    without real WebSocket connections.
+    without real WebSocket connections. Uses MessagePack binary protocol.
     """
 
     @property
@@ -19,16 +21,16 @@ class ConnectionProtocol(ABC):
         ...
 
     @abstractmethod
-    async def send_json(self, data: dict[str, Any]) -> None:
+    async def send_bytes(self, data: bytes) -> None:
         """
-        Send a JSON message to the client.
+        Send raw bytes to the client.
         """
         ...
 
     @abstractmethod
-    async def receive_json(self) -> dict[str, Any]:
+    async def receive_bytes(self) -> bytes:
         """
-        Receive a JSON message from the client.
+        Receive raw bytes from the client.
         """
         ...
 
@@ -38,3 +40,16 @@ class ConnectionProtocol(ABC):
         Close the connection.
         """
         ...
+
+    async def send_message(self, data: dict[str, Any]) -> None:
+        """
+        Send a message to the client using MessagePack encoding.
+        """
+        await self.send_bytes(encode(data))
+
+    async def receive_message(self) -> dict[str, Any]:
+        """
+        Receive a message from the client using MessagePack decoding.
+        """
+        raw = await self.receive_bytes()
+        return decode(raw)

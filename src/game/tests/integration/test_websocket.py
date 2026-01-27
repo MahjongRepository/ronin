@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from game.logic.mock import MockGameService
+from game.messaging.encoder import decode, encode
 from game.server.app import create_app
 
 
@@ -17,19 +18,32 @@ class TestWebSocketIntegration:
         assert response.status_code == 201
         return response.json()
 
+    def _send_message(self, ws, data: dict) -> None:
+        """
+        Send a MessagePack-encoded message over WebSocket.
+        """
+        ws.send_bytes(encode(data))
+
+    def _receive_message(self, ws) -> dict:
+        """
+        Receive and decode a MessagePack message from WebSocket.
+        """
+        return decode(ws.receive_bytes())
+
     def test_connect_and_join_game(self, client):
         self._create_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            ws.send_json(
+            self._send_message(
+                ws,
                 {
                     "type": "join_game",
                     "game_id": "test_game",
                     "player_name": "TestPlayer",
-                }
+                },
             )
 
-            response = ws.receive_json()
+            response = self._receive_message(ws)
             assert response["type"] == "game_joined"
             assert response["game_id"] == "test_game"
             assert response["players"] == ["TestPlayer"]
@@ -38,32 +52,34 @@ class TestWebSocketIntegration:
         self._create_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws1:
-            ws1.send_json(
+            self._send_message(
+                ws1,
                 {
                     "type": "join_game",
                     "game_id": "test_game",
                     "player_name": "Player1",
-                }
+                },
             )
-            ws1.receive_json()  # game_joined
-            ws1.receive_json()  # game_started event for seat_0
+            self._receive_message(ws1)  # game_joined
+            self._receive_message(ws1)  # game_started event for seat_0
 
             with client.websocket_connect("/ws/test_game") as ws2:
-                ws2.send_json(
+                self._send_message(
+                    ws2,
                     {
                         "type": "join_game",
                         "game_id": "test_game",
                         "player_name": "Player2",
-                    }
+                    },
                 )
 
                 # Player2 receives game_joined
-                response = ws2.receive_json()
+                response = self._receive_message(ws2)
                 assert response["type"] == "game_joined"
                 assert set(response["players"]) == {"Player1", "Player2"}
 
                 # Player1 receives player_joined notification
-                notification = ws1.receive_json()
+                notification = self._receive_message(ws1)
                 assert notification["type"] == "player_joined"
                 assert notification["player_name"] == "Player2"
 
@@ -71,38 +87,41 @@ class TestWebSocketIntegration:
         self._create_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws1:
-            ws1.send_json(
+            self._send_message(
+                ws1,
                 {
                     "type": "join_game",
                     "game_id": "test_game",
                     "player_name": "Player1",
-                }
+                },
             )
-            ws1.receive_json()  # game_joined
-            ws1.receive_json()  # game_started event for seat_0
+            self._receive_message(ws1)  # game_joined
+            self._receive_message(ws1)  # game_started event for seat_0
 
             with client.websocket_connect("/ws/test_game") as ws2:
-                ws2.send_json(
+                self._send_message(
+                    ws2,
                     {
                         "type": "join_game",
                         "game_id": "test_game",
                         "player_name": "Player2",
-                    }
+                    },
                 )
-                ws2.receive_json()  # game_joined
-                ws1.receive_json()  # player_joined
+                self._receive_message(ws2)  # game_joined
+                self._receive_message(ws1)  # player_joined
 
                 # Player1 sends chat
-                ws1.send_json(
+                self._send_message(
+                    ws1,
                     {
                         "type": "chat",
                         "text": "Hello!",
-                    }
+                    },
                 )
 
                 # Both players receive the chat
-                chat1 = ws1.receive_json()
-                chat2 = ws2.receive_json()
+                chat1 = self._receive_message(ws1)
+                chat2 = self._receive_message(ws2)
 
                 assert chat1["type"] == "chat"
                 assert chat1["player_name"] == "Player1"
@@ -113,25 +132,27 @@ class TestWebSocketIntegration:
         self._create_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            ws.send_json(
+            self._send_message(
+                ws,
                 {
                     "type": "join_game",
                     "game_id": "test_game",
                     "player_name": "Player1",
-                }
+                },
             )
-            ws.receive_json()  # game_joined
-            ws.receive_json()  # game_started event for seat_0
+            self._receive_message(ws)  # game_joined
+            self._receive_message(ws)  # game_started event for seat_0
 
-            ws.send_json(
+            self._send_message(
+                ws,
                 {
                     "type": "game_action",
                     "action": "test_action",
                     "data": {"foo": "bar"},
-                }
+                },
             )
 
-            response = ws.receive_json()
+            response = self._receive_message(ws)
             assert response["type"] == "game_event"
             assert response["event"] == "test_action_result"
             assert response["data"]["player"] == "Player1"
@@ -141,9 +162,9 @@ class TestWebSocketIntegration:
         self._create_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            ws.send_json({"type": "invalid"})
+            self._send_message(ws, {"type": "invalid"})
 
-            response = ws.receive_json()
+            response = self._receive_message(ws)
             assert response["type"] == "error"
             assert response["code"] == "invalid_message"
 

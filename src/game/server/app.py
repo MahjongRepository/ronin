@@ -11,6 +11,7 @@ from starlette.staticfiles import StaticFiles
 from game.logic.mahjong_service import MahjongGameService
 from game.messaging.router import MessageRouter
 from game.server.types import CreateGameRequest
+from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -18,52 +19,6 @@ if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
     from game.logic.service import GameService
-
-
-MAX_GAMES = 100
-
-
-async def health(_request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok"})
-
-
-async def status(request: Request) -> JSONResponse:
-    session_manager: SessionManager = request.app.state.session_manager
-    return JSONResponse(
-        {
-            "status": "ok",
-            "active_games": session_manager.game_count,
-            "max_games": MAX_GAMES,
-        }
-    )
-
-
-async def list_games(request: Request) -> JSONResponse:
-    session_manager: SessionManager = request.app.state.session_manager
-    games = session_manager.get_games_info()
-    return JSONResponse({"games": games})
-
-
-async def create_game(request: Request) -> JSONResponse:
-    session_manager: SessionManager = request.app.state.session_manager
-
-    try:
-        body = await request.json()
-        game_request = CreateGameRequest(**body)
-    except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
-
-    if session_manager.game_count >= MAX_GAMES:
-        return JSONResponse({"error": "Server at capacity"}, status_code=503)
-
-    if session_manager.get_game(game_request.game_id):
-        return JSONResponse({"error": "Game already exists"}, status_code=409)
-
-    session_manager.create_game(game_request.game_id)
-    return JSONResponse(
-        {"game_id": game_request.game_id, "status": "created"},
-        status_code=201,
-    )
 
 
 MAX_GAMES = 100
@@ -127,8 +82,6 @@ def create_app(
         message_router = MessageRouter(session_manager)
 
     async def ws_endpoint(websocket: WebSocket) -> None:
-        from game.server.websocket import websocket_endpoint
-
         await websocket_endpoint(websocket, message_router)
 
     # path to static files directory

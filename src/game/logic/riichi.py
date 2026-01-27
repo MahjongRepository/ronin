@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 # ura dora positions in dead wall: indices 9, 10, 11, 12 (one per dora indicator)
 FIRST_URA_DORA_INDEX = 9
 
+# riichi point cost
+RIICHI_COST = 1000
+
 
 def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
     """
@@ -29,7 +32,7 @@ def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) ->
         return False
 
     # must have at least 1000 points
-    if player.score < 1000:
+    if player.score < RIICHI_COST:
         return False
 
     # must have closed hand (no open melds)

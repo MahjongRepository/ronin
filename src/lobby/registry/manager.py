@@ -1,4 +1,5 @@
 import os
+from http import HTTPStatus
 from pathlib import Path
 
 import httpx
@@ -47,7 +48,7 @@ class RegistryManager:
             for server in self._servers:
                 try:
                     response = await client.get(f"{server.url}/health")
-                    if response.status_code == 200:
+                    if response.status_code == HTTPStatus.OK:
                         server.healthy = True
                     else:
                         server.healthy = False
@@ -58,7 +59,7 @@ class RegistryManager:
         async with httpx.AsyncClient(timeout=5.0) as client:
             try:
                 response = await client.get(f"{server.url}/status")
-                if response.status_code == 200:
+                if response.status_code == HTTPStatus.OK:
                     return ServerStatus(**response.json())
             except httpx.RequestError:
                 pass

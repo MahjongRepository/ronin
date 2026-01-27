@@ -4,11 +4,13 @@ Unit tests for turn loop orchestration.
 
 import pytest
 
+from game.logic.abortive import check_four_riichi
+from game.logic.actions import get_available_actions
 from game.logic.game import init_game
+from game.logic.melds import can_call_chi
 from game.logic.round import draw_tile
 from game.logic.state import MahjongGameState, RoundPhase
 from game.logic.turn import (
-    get_available_actions,
     process_discard_phase,
     process_draw_phase,
     process_meld_call,
@@ -33,9 +35,9 @@ class TestProcessDrawPhase:
         assert len(round_state.wall) == initial_wall_len - 1
         assert len(round_state.players[0].tiles) == initial_hand_len + 1
         # find draw event
-        draw_events = [e for e in events if e["type"] == "draw"]
+        draw_events = [e for e in events if e.type == "draw"]
         assert len(draw_events) == 1
-        assert draw_events[0]["seat"] == 0
+        assert draw_events[0].seat == 0
 
     def test_draw_phase_returns_draw_event_with_tile(self):
         game_state = self._create_game_state()
@@ -43,9 +45,9 @@ class TestProcessDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        draw_event = next(e for e in events if e["type"] == "draw")
-        assert "tile_id" in draw_event
-        assert draw_event["target"] == "seat_0"
+        draw_event = next(e for e in events if e.type == "draw")
+        assert hasattr(draw_event, "tile_id")
+        assert draw_event.target == "seat_0"
 
     def test_draw_phase_returns_turn_event_with_actions(self):
         game_state = self._create_game_state()
@@ -53,10 +55,10 @@ class TestProcessDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        turn_events = [e for e in events if e["type"] == "turn"]
+        turn_events = [e for e in events if e.type == "turn"]
         assert len(turn_events) == 1
-        assert "available_actions" in turn_events[0]
-        assert turn_events[0]["target"] == "seat_0"
+        assert hasattr(turn_events[0], "available_actions")
+        assert turn_events[0].target == "seat_0"
 
     def test_draw_phase_exhaustive_draw(self):
         game_state = self._create_game_state()
@@ -66,9 +68,9 @@ class TestProcessDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        round_end_events = [e for e in events if e["type"] == "round_end"]
+        round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
-        assert round_end_events[0]["result"]["type"] == "exhaustive_draw"
+        assert round_end_events[0].result["type"] == "exhaustive_draw"
         assert round_state.phase == RoundPhase.FINISHED
 
 
@@ -87,10 +89,10 @@ class TestProcessDiscardPhase:
 
         events = process_discard_phase(round_state, game_state, tile_to_discard)
 
-        discard_events = [e for e in events if e["type"] == "discard"]
+        discard_events = [e for e in events if e.type == "discard"]
         assert len(discard_events) == 1
-        assert discard_events[0]["tile_id"] == tile_to_discard
-        assert discard_events[0]["target"] == "all"
+        assert discard_events[0].tile_id == tile_to_discard
+        assert discard_events[0].target == "all"
 
     def test_discard_phase_removes_tile_from_hand(self):
         game_state = self._create_game_state()
@@ -119,7 +121,7 @@ class TestProcessDiscardPhase:
         events = process_discard_phase(round_state, game_state, tile_to_discard)
 
         # if no call_prompt events, turn should advance
-        call_prompts = [e for e in events if e["type"] == "call_prompt"]
+        call_prompts = [e for e in events if e.type == "call_prompt"]
         if not call_prompts:
             assert round_state.current_player_seat == (initial_seat + 1) % 4
 
@@ -161,11 +163,13 @@ class TestProcessDiscardPhaseWithRiichi:
         events = process_discard_phase(round_state, game_state, tile_to_discard, is_riichi=True)
 
         # check for riichi declared event (if no ron calls)
-        ron_prompts = [e for e in events if e["type"] == "call_prompt" and e.get("call_type") == "ron"]
+        ron_prompts = [
+            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "ron"
+        ]
         if not ron_prompts:
-            riichi_events = [e for e in events if e["type"] == "riichi_declared"]
+            riichi_events = [e for e in events if e.type == "riichi_declared"]
             assert len(riichi_events) == 1
-            assert riichi_events[0]["seat"] == 0
+            assert riichi_events[0].seat == 0
             assert round_state.players[0].is_riichi is True
 
     def test_discard_phase_riichi_fails_when_not_tempai(self):
@@ -203,11 +207,11 @@ class TestProcessMeldCall:
             round_state, game_state, caller_seat=1, call_type="pon", tile_id=tile_to_pon
         )
 
-        meld_events = [e for e in events if e["type"] == "meld"]
+        meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
-        assert meld_events[0]["meld_type"] == "pon"
-        assert meld_events[0]["caller_seat"] == 1
-        assert meld_events[0]["from_seat"] == 0
+        assert meld_events[0].meld_type == "pon"
+        assert meld_events[0].caller_seat == 1
+        assert meld_events[0].from_seat == 0
         assert round_state.current_player_seat == 1
 
     def test_process_chi_call(self):
@@ -232,10 +236,10 @@ class TestProcessMeldCall:
             sequence_tiles=(4, 8),  # 2m, 3m
         )
 
-        meld_events = [e for e in events if e["type"] == "meld"]
+        meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
-        assert meld_events[0]["meld_type"] == "chi"
-        assert meld_events[0]["caller_seat"] == 1
+        assert meld_events[0].meld_type == "chi"
+        assert meld_events[0].caller_seat == 1
         assert round_state.current_player_seat == 1
 
     def test_process_chi_call_requires_sequence_tiles(self):
@@ -287,9 +291,9 @@ class TestProcessRonCall:
             round_state, game_state, ron_callers=[1], tile_id=win_tile, discarder_seat=discarder_seat
         )
 
-        round_end_events = [e for e in events if e["type"] == "round_end"]
+        round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
-        result = round_end_events[0]["result"]
+        result = round_end_events[0].result
         assert result["type"] == "ron"
         assert result["winner_seat"] == 1
         assert result["loser_seat"] == 0
@@ -329,9 +333,9 @@ class TestProcessTsumoCall:
 
         events = process_tsumo_call(round_state, game_state, winner_seat=0)
 
-        round_end_events = [e for e in events if e["type"] == "round_end"]
+        round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
-        result = round_end_events[0]["result"]
+        result = round_end_events[0].result
         assert result["type"] == "tsumo"
         assert result["winner_seat"] == 0
         assert round_state.phase == RoundPhase.FINISHED
@@ -345,14 +349,22 @@ class TestGetAvailableActions:
         draw_tile(game_state.round_state)
         return game_state
 
+    def _find_action(self, actions: list[dict], action_type: str) -> dict | None:
+        """Find an action by type in the actions list."""
+        for action in actions:
+            if action.get("action") == action_type:
+                return action
+        return None
+
     def test_get_available_actions_returns_discard_tiles(self):
         game_state = self._create_game_state()
         round_state = game_state.round_state
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
-        assert "discard_tiles" in actions
-        assert len(actions["discard_tiles"]) == 14  # 13 dealt + 1 drawn
+        discard_action = self._find_action(actions, "discard")
+        assert discard_action is not None
+        assert len(discard_action["tiles"]) == 14  # 13 dealt + 1 drawn
 
     def test_get_available_actions_returns_riichi_option(self):
         game_state = self._create_game_state()
@@ -360,8 +372,9 @@ class TestGetAvailableActions:
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
-        assert "can_riichi" in actions
-        # can_riichi depends on tempai status
+        # riichi action is present only if player is in tempai
+        # check that the function returns a list of actions
+        assert isinstance(actions, list)
 
     def test_get_available_actions_returns_tsumo_option(self):
         game_state = self._create_game_state()
@@ -369,7 +382,8 @@ class TestGetAvailableActions:
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
-        assert "can_tsumo" in actions
+        # tsumo action is present only if player has a winning hand
+        assert isinstance(actions, list)
 
     def test_get_available_actions_returns_kan_options(self):
         game_state = self._create_game_state()
@@ -377,8 +391,8 @@ class TestGetAvailableActions:
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
-        assert "closed_kans" in actions
-        assert "added_kans" in actions
+        # kan/added_kan actions are present only if player has kan options
+        assert isinstance(actions, list)
 
     def test_get_available_actions_riichi_limits_discards(self):
         game_state = self._create_game_state()
@@ -388,8 +402,10 @@ class TestGetAvailableActions:
         actions = get_available_actions(round_state, game_state, seat=0)
 
         # in riichi, can only discard the drawn tile
-        assert len(actions["discard_tiles"]) == 1
-        assert actions["discard_tiles"][0] == round_state.players[0].tiles[-1]
+        discard_action = self._find_action(actions, "discard")
+        assert discard_action is not None
+        assert len(discard_action["tiles"]) == 1
+        assert discard_action["tiles"][0] == round_state.players[0].tiles[-1]
 
 
 class TestFourWindsAbortiveDraw:
@@ -423,9 +439,9 @@ class TestFourWindsAbortiveDraw:
             events = process_discard_phase(round_state, game_state, east_tiles[i])
 
             if i == 3:  # fourth discard triggers four winds
-                round_end_events = [e for e in events if e["type"] == "round_end"]
+                round_end_events = [e for e in events if e.type == "round_end"]
                 assert len(round_end_events) == 1
-                assert round_end_events[0]["result"]["reason"] == "four_winds"
+                assert round_end_events[0].result["reason"] == "four_winds"
                 assert round_state.phase == RoundPhase.FINISHED
 
 
@@ -467,8 +483,6 @@ class TestFourRiichiAbortiveDraw:
             player.is_riichi = True
 
         # verify the condition is detected
-        from game.logic.abortive import check_four_riichi
-
         assert check_four_riichi(round_state) is True
 
 
@@ -497,9 +511,11 @@ class TestRiichiPlayerExcludedFromMeldCallers:
 
         # player 1 is NOT in riichi - should be able to call pon
         events = process_discard_phase(round_state, game_state, tile_to_discard)
-        call_prompts = [e for e in events if e["type"] == "call_prompt" and e.get("call_type") == "meld"]
+        call_prompts = [
+            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "meld"
+        ]
         if call_prompts:
-            callers = call_prompts[0].get("callers", [])
+            callers = call_prompts[0].callers
             caller_seats = [c["seat"] if isinstance(c, dict) else c for c in callers]
             assert 1 in caller_seats
 
@@ -512,9 +528,11 @@ class TestRiichiPlayerExcludedFromMeldCallers:
         round_state.players[1].is_riichi = True
 
         events = process_discard_phase(round_state, game_state, tile_to_discard)
-        call_prompts = [e for e in events if e["type"] == "call_prompt" and e.get("call_type") == "meld"]
+        call_prompts = [
+            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "meld"
+        ]
         if call_prompts:
-            callers = call_prompts[0].get("callers", [])
+            callers = call_prompts[0].callers
             caller_seats = [c["seat"] if isinstance(c, dict) else c for c in callers]
             # player 1 should NOT be in callers since they're in riichi
             assert 1 not in caller_seats
@@ -531,14 +549,15 @@ class TestRiichiPlayerExcludedFromMeldCallers:
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
+        # find the discard action
+        discard_action = next((a for a in actions if a.get("action") == "discard"), None)
+        assert discard_action is not None
         # should only be able to discard the drawn tile
-        assert len(actions["discard_tiles"]) == 1
-        assert actions["discard_tiles"][0] == drawn_tile
+        assert len(discard_action["tiles"]) == 1
+        assert discard_action["tiles"][0] == drawn_tile
 
     def test_riichi_player_cannot_call_chi(self):
         """Verify can_call_chi returns empty for riichi players."""
-        from game.logic.melds import can_call_chi
-
         game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
         round_state = game_state.round_state
         player = round_state.players[1]

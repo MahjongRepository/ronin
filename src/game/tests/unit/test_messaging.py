@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from game.logic.mock import MockGameService
+from game.messaging.encoder import decode, encode
 from game.messaging.mock import MockConnection
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
@@ -388,3 +389,55 @@ class TestMahjongMessageTypes:
         assert data["type"] == "round_end"
         assert data["result_type"] == "tsumo"
         assert data["score_changes"][0] == 5800
+
+
+class TestMockConnectionProtocol:
+    async def test_send_message_encodes_to_msgpack(self):
+        connection = MockConnection()
+        message = {"type": "test", "value": 42}
+
+        await connection.send_message(message)
+
+        assert len(connection.sent_messages) == 1
+        assert connection.sent_messages[0] == message
+
+    async def test_receive_message_decodes_from_msgpack(self):
+        connection = MockConnection()
+        message = {"type": "test", "value": 42}
+        await connection.simulate_receive(message)
+
+        received = await connection.receive_message()
+
+        assert received == message
+
+    async def test_send_bytes_stores_decoded_message(self):
+        connection = MockConnection()
+        message = {"type": "test", "data": [1, 2, 3]}
+        encoded = encode(message)
+
+        await connection.send_bytes(encoded)
+
+        assert connection.sent_messages[0] == message
+
+    async def test_receive_bytes_returns_encoded_data(self):
+        connection = MockConnection()
+        message = {"type": "test", "nested": {"key": "value"}}
+        await connection.simulate_receive(message)
+
+        raw_bytes = await connection.receive_bytes()
+
+        assert decode(raw_bytes) == message
+
+    async def test_closed_connection_raises_on_send(self):
+        connection = MockConnection()
+        await connection.close()
+
+        with pytest.raises(RuntimeError, match="Connection is closed"):
+            await connection.send_message({"type": "test"})
+
+    async def test_closed_connection_raises_on_receive(self):
+        connection = MockConnection()
+        await connection.close()
+
+        with pytest.raises(RuntimeError, match="Connection is closed"):
+            await connection.receive_message()

@@ -70,7 +70,7 @@ class SessionManager:
         # check if already in a game
         existing_player = self._players.get(connection.connection_id)
         if existing_player and existing_player.game_id:
-            await connection.send_json(
+            await connection.send_message(
                 ErrorMessage(
                     code="already_in_game",
                     message="You must leave your current game first",
@@ -80,7 +80,7 @@ class SessionManager:
 
         game = self._games.get(game_id)
         if game is None:
-            await connection.send_json(
+            await connection.send_message(
                 ErrorMessage(
                     code="game_not_found",
                     message="Game does not exist",
@@ -90,12 +90,12 @@ class SessionManager:
 
         # check game capacity
         if game.player_count >= self.MAX_PLAYERS_PER_GAME:
-            await connection.send_json(ErrorMessage(code="game_full", message="Game is full").model_dump())
+            await connection.send_message(ErrorMessage(code="game_full", message="Game is full").model_dump())
             return
 
         # check for duplicate name in game
         if player_name in [p.name for p in game.players.values()]:
-            await connection.send_json(
+            await connection.send_message(
                 ErrorMessage(
                     code="name_taken",
                     message="That name is already taken in this game",
@@ -109,7 +109,7 @@ class SessionManager:
         game.players[connection.connection_id] = player
 
         # notify the joining player
-        await connection.send_json(
+        await connection.send_message(
             GameJoinedMessage(
                 game_id=game_id,
                 players=game.player_names,
@@ -149,7 +149,7 @@ class SessionManager:
 
         # notify the leaving player (skip if connection is already closed)
         if notify_player:
-            await connection.send_json(GameLeftMessage().model_dump())
+            await connection.send_message(GameLeftMessage().model_dump())
 
         # notify remaining players
         await self._broadcast_to_game(
@@ -169,7 +169,7 @@ class SessionManager:
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await connection.send_json(
+            await connection.send_message(
                 ErrorMessage(
                     code="not_in_game",
                     message="You must join a game first",
@@ -199,7 +199,7 @@ class SessionManager:
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await connection.send_json(
+            await connection.send_message(
                 ErrorMessage(
                     code="not_in_game",
                     message="You must join a game first",
@@ -259,7 +259,7 @@ class SessionManager:
                 if player:
                     # ignore connection errors, will be cleaned up on disconnect
                     with contextlib.suppress(RuntimeError, OSError):
-                        await player.connection.send_json(message)
+                        await player.connection.send_message(message)
 
     async def _broadcast_to_game(
         self,
@@ -271,4 +271,4 @@ class SessionManager:
             if player.connection_id != exclude_connection_id:
                 # ignore connection errors, will be cleaned up on disconnect
                 with contextlib.suppress(RuntimeError, OSError):
-                    await player.connection.send_json(message)
+                    await player.connection.send_message(message)

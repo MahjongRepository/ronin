@@ -7,15 +7,15 @@ dealer rotation, and game end conditions.
 
 import pytest
 
-from game.logic.game import finalize_game, init_game, process_round_end
+from game.logic.game import check_game_end, finalize_game, init_game, process_round_end
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.melds import call_pon
 from game.logic.riichi import declare_riichi
 from game.logic.round import advance_turn, discard_tile, draw_tile
+from game.logic.scoring import HandResult, apply_ron_score, apply_tsumo_score
 from game.logic.state import RoundPhase
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_draw_phase
-from game.logic.win import HandResult, apply_ron_score, apply_tsumo_score
 
 
 class TestGameCreationAndJoin:
@@ -190,7 +190,7 @@ class TestExhaustiveDraw:
         # process draw phase which should detect exhaustive draw
         events = process_draw_phase(round_state, game_state)
 
-        round_end_event = next((e for e in events if e.get("type") == "round_end"), None)
+        round_end_event = next((e for e in events if e.type == "round_end"), None)
         assert round_end_event is not None
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -417,8 +417,6 @@ class TestGameEndConditions:
 
         loser = game_state.round_state.players[1]
         assert loser.score < 0
-
-        from game.logic.game import check_game_end
 
         assert check_game_end(game_state) is True
 

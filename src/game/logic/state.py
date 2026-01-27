@@ -9,6 +9,8 @@ from mahjong.meld import Meld
 
 from game.logic.tiles import format_hand, tile_to_string
 
+NUM_WINDS = 4
+
 
 class RoundPhase(Enum):
     """Phase of a mahjong round."""
@@ -214,4 +216,13 @@ def _wind_name(wind: int) -> str:
     Convert wind index to name.
     """
     winds = ["East", "South", "West", "North"]
-    return winds[wind] if 0 <= wind < 4 else "Unknown"
+    return winds[wind] if 0 <= wind < NUM_WINDS else "Unknown"
+
+
+def seat_to_wind(seat: int, dealer_seat: int) -> int:
+    """
+    Calculate player's wind based on seat position relative to dealer.
+
+    Dealer is always East (0), and winds rotate counter-clockwise from there.
+    """
+    return (seat - dealer_seat) % 4
