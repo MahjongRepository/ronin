@@ -5,8 +5,23 @@ from game.logic.mock import MockGameService
 from game.messaging.mock import MockConnection
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
+    AvailableAction,
+    CallPromptMessage,
     ClientMessageType,
+    DiscardInfo,
+    DiscardMessage,
+    DrawMessage,
+    GameEndMessage,
+    GameStartedMessage,
+    MeldInfo,
+    MeldMessage,
+    PlayerInfo,
+    RiichiMessage,
+    RoundEndMessage,
     ServerMessageType,
+    TileInfo,
+    TurnMessage,
+    YakuInfo,
     parse_client_message,
 )
 from game.session.manager import SessionManager
@@ -55,12 +70,16 @@ class TestMessageRouter:
             },
         )
 
-        # check the response
-        assert len(connection.sent_messages) == 1
+        # check the response: game_joined + game_started event
+        assert len(connection.sent_messages) == 2
         response = connection.sent_messages[0]
         assert response["type"] == ServerMessageType.GAME_JOINED
         assert response["game_id"] == "game1"
         assert response["players"] == ["Alice"]
+        # second message is game_started from start_game
+        game_event = connection.sent_messages[1]
+        assert game_event["type"] == ServerMessageType.GAME_EVENT
+        assert game_event["event"] == "game_started"
 
     async def test_invalid_message_returns_error(self, setup):
         router, connection, _ = setup
@@ -87,3 +106,285 @@ class TestMessageRouter:
         response = connection.sent_messages[0]
         assert response["type"] == ServerMessageType.ERROR
         assert response["code"] == "not_in_game"
+
+
+class TestMahjongMessageTypes:
+    def test_tile_info(self):
+        tile = TileInfo(tile="1m", tile_id=0)
+        assert tile.tile == "1m"
+        assert tile.tile_id == 0
+
+    def test_discard_info(self):
+        discard = DiscardInfo(tile="5p", tile_id=40, is_tsumogiri=True, is_riichi_discard=False)
+        assert discard.tile == "5p"
+        assert discard.tile_id == 40
+        assert discard.is_tsumogiri is True
+        assert discard.is_riichi_discard is False
+
+    def test_discard_info_defaults(self):
+        discard = DiscardInfo(tile="E", tile_id=108)
+        assert discard.is_tsumogiri is False
+        assert discard.is_riichi_discard is False
+
+    def test_meld_info(self):
+        meld = MeldInfo(
+            type="pon",
+            tiles=["5m", "5m", "5m"],
+            tile_ids=[16, 17, 18],
+            opened=True,
+            from_who=2,
+        )
+        assert meld.type == "pon"
+        assert meld.tiles == ["5m", "5m", "5m"]
+        assert meld.tile_ids == [16, 17, 18]
+        assert meld.opened is True
+        assert meld.from_who == 2
+
+    def test_player_info_minimal(self):
+        player = PlayerInfo(
+            seat=0,
+            name="Alice",
+            is_bot=False,
+            score=25000,
+            is_riichi=False,
+            discards=[],
+            melds=[],
+            tile_count=13,
+        )
+        assert player.seat == 0
+        assert player.name == "Alice"
+        assert player.is_bot is False
+        assert player.score == 25000
+        assert player.tiles is None
+        assert player.hand is None
+
+    def test_player_info_with_hand(self):
+        player = PlayerInfo(
+            seat=0,
+            name="Alice",
+            is_bot=False,
+            score=25000,
+            is_riichi=True,
+            discards=[],
+            melds=[],
+            tile_count=13,
+            tiles=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            hand="1m 1m 1m 2m 2m",
+        )
+        assert player.tiles == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        assert player.hand == "1m 1m 1m 2m 2m"
+
+    def test_available_action(self):
+        action = AvailableAction(action="discard", tiles=[0, 4, 8])
+        assert action.action == "discard"
+        assert action.tiles == [0, 4, 8]
+
+    def test_available_action_no_tiles(self):
+        action = AvailableAction(action="tsumo")
+        assert action.action == "tsumo"
+        assert action.tiles is None
+
+    def test_game_started_message(self):
+        player = PlayerInfo(
+            seat=0,
+            name="Alice",
+            is_bot=False,
+            score=25000,
+            is_riichi=False,
+            discards=[],
+            melds=[],
+            tile_count=13,
+        )
+        msg = GameStartedMessage(
+            seat=0,
+            round_wind="East",
+            round_number=0,
+            dealer_seat=0,
+            wall_count=70,
+            dora_indicators=[TileInfo(tile="3p", tile_id=44)],
+            honba_sticks=0,
+            riichi_sticks=0,
+            players=[player],
+        )
+        assert msg.type == ServerMessageType.GAME_STARTED
+        assert msg.seat == 0
+        assert msg.round_wind == "East"
+        assert msg.dealer_seat == 0
+        assert msg.wall_count == 70
+        assert len(msg.dora_indicators) == 1
+        assert msg.dora_indicators[0].tile == "3p"
+
+    def test_draw_message(self):
+        msg = DrawMessage(tile="7s", tile_id=96)
+        assert msg.type == ServerMessageType.DRAW
+        assert msg.tile == "7s"
+        assert msg.tile_id == 96
+
+    def test_discard_message(self):
+        msg = DiscardMessage(seat=1, tile="9m", tile_id=32, is_tsumogiri=False, is_riichi=True)
+        assert msg.type == ServerMessageType.DISCARD
+        assert msg.seat == 1
+        assert msg.tile == "9m"
+        assert msg.tile_id == 32
+        assert msg.is_tsumogiri is False
+        assert msg.is_riichi is True
+
+    def test_meld_message(self):
+        msg = MeldMessage(
+            caller_seat=2,
+            meld_type="chi",
+            tiles=["1m", "2m", "3m"],
+            tile_ids=[0, 4, 8],
+            from_seat=1,
+        )
+        assert msg.type == ServerMessageType.MELD
+        assert msg.caller_seat == 2
+        assert msg.meld_type == "chi"
+        assert msg.tiles == ["1m", "2m", "3m"]
+        assert msg.from_seat == 1
+
+    def test_riichi_message(self):
+        msg = RiichiMessage(seat=3)
+        assert msg.type == ServerMessageType.RIICHI
+        assert msg.seat == 3
+
+    def test_turn_message(self):
+        msg = TurnMessage(
+            current_seat=0,
+            available_actions=[
+                AvailableAction(action="discard", tiles=[0, 4, 8]),
+                AvailableAction(action="riichi"),
+            ],
+        )
+        assert msg.type == ServerMessageType.TURN
+        assert msg.current_seat == 0
+        assert len(msg.available_actions) == 2
+        assert msg.available_actions[0].action == "discard"
+        assert msg.available_actions[1].action == "riichi"
+
+    def test_call_prompt_message(self):
+        msg = CallPromptMessage(
+            available_calls=[
+                AvailableAction(action="pon", tiles=[16, 17]),
+                AvailableAction(action="pass"),
+            ],
+            timeout_seconds=5,
+        )
+        assert msg.type == ServerMessageType.CALL_PROMPT
+        assert len(msg.available_calls) == 2
+        assert msg.available_calls[0].action == "pon"
+        assert msg.timeout_seconds == 5
+
+    def test_call_prompt_message_default_timeout(self):
+        msg = CallPromptMessage(available_calls=[AvailableAction(action="pass")])
+        assert msg.timeout_seconds == 10
+
+    def test_yaku_info(self):
+        yaku = YakuInfo(name="Riichi", han=1)
+        assert yaku.name == "Riichi"
+        assert yaku.han == 1
+
+    def test_round_end_message_tsumo(self):
+        msg = RoundEndMessage(
+            result_type="tsumo",
+            winner_seats=[0],
+            winning_hand="1m 2m 3m 4m 5m 6m 7m 8m 9m 1p 1p 1p 2p 2p",
+            yaku=[YakuInfo(name="Riichi", han=1), YakuInfo(name="Tsumo", han=1)],
+            han=2,
+            fu=30,
+            score_changes={0: 3900, 1: -1300, 2: -1300, 3: -1300},
+            final_scores={0: 28900, 1: 23700, 2: 23700, 3: 23700},
+        )
+        assert msg.type == ServerMessageType.ROUND_END
+        assert msg.result_type == "tsumo"
+        assert msg.winner_seats == [0]
+        assert msg.loser_seat is None
+        assert msg.han == 2
+        assert msg.fu == 30
+        assert len(msg.yaku) == 2
+
+    def test_round_end_message_ron(self):
+        msg = RoundEndMessage(
+            result_type="ron",
+            winner_seats=[2],
+            loser_seat=1,
+            winning_hand="1m 1m 1m 2m 2m 2m 3m 3m 3m 4m 4m 5m 5m",
+            yaku=[YakuInfo(name="Toitoi", han=2)],
+            han=2,
+            fu=40,
+            score_changes={2: 2600, 1: -2600},
+            final_scores={0: 25000, 1: 22400, 2: 27600, 3: 25000},
+        )
+        assert msg.result_type == "ron"
+        assert msg.loser_seat == 1
+
+    def test_round_end_message_draw(self):
+        msg = RoundEndMessage(
+            result_type="draw",
+            score_changes={0: 1500, 1: 1500, 2: -1500, 3: -1500},
+            final_scores={0: 26500, 1: 26500, 2: 23500, 3: 23500},
+        )
+        assert msg.result_type == "draw"
+        assert msg.winner_seats == []
+        assert msg.yaku == []
+        assert msg.han is None
+
+    def test_round_end_message_abortive(self):
+        msg = RoundEndMessage(
+            result_type="abortive",
+            final_scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+        )
+        assert msg.result_type == "abortive"
+        assert msg.score_changes == {}
+
+    def test_game_end_message(self):
+        msg = GameEndMessage(
+            final_scores={0: 35000, 1: 28000, 2: 22000, 3: 15000},
+            winner_seat=0,
+            placements=[0, 1, 2, 3],
+        )
+        assert msg.type == ServerMessageType.GAME_END
+        assert msg.final_scores[0] == 35000
+        assert msg.winner_seat == 0
+        assert msg.placements == [0, 1, 2, 3]
+
+    def test_game_started_message_serialization(self):
+        player = PlayerInfo(
+            seat=0,
+            name="Alice",
+            is_bot=False,
+            score=25000,
+            is_riichi=False,
+            discards=[],
+            melds=[],
+            tile_count=13,
+        )
+        msg = GameStartedMessage(
+            seat=0,
+            round_wind="East",
+            round_number=0,
+            dealer_seat=0,
+            wall_count=70,
+            dora_indicators=[TileInfo(tile="3p", tile_id=44)],
+            honba_sticks=0,
+            riichi_sticks=0,
+            players=[player],
+        )
+        data = msg.model_dump()
+        assert data["type"] == "game_started"
+        assert data["seat"] == 0
+        assert data["round_wind"] == "East"
+
+    def test_round_end_message_serialization(self):
+        msg = RoundEndMessage(
+            result_type="tsumo",
+            winner_seats=[0],
+            han=3,
+            fu=30,
+            score_changes={0: 5800, 1: -2000, 2: -2000, 3: -1800},
+            final_scores={0: 30800, 1: 23000, 2: 23000, 3: 23200},
+        )
+        data = msg.model_dump()
+        assert data["type"] == "round_end"
+        assert data["result_type"] == "tsumo"
+        assert data["score_changes"][0] == 5800

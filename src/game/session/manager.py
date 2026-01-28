@@ -123,6 +123,10 @@ class SessionManager:
             exclude_connection_id=connection.connection_id,
         )
 
+        # start the mahjong game when first human player joins
+        if game.player_count == 1:
+            await self._start_mahjong_game(game)
+
     async def leave_game(
         self,
         connection: ConnectionProtocol,
@@ -178,22 +182,15 @@ class SessionManager:
             return
 
         # delegate to game service
-        result = await self._game_service.handle_action(
+        events = await self._game_service.handle_action(
             game_id=player.game_id,
             player_name=player.name,
             action=action,
             data=data,
         )
 
-        # broadcast the result to all players in the game
-        if result:
-            await self._broadcast_to_game(
-                game=game,
-                message=GameEventMessage(
-                    event=result.get("event", action),
-                    data=result.get("data", {}),
-                ).model_dump(),
-            )
+        # broadcast each event to appropriate targets
+        await self._broadcast_events(game, events)
 
     async def broadcast_chat(
         self,
@@ -222,6 +219,48 @@ class SessionManager:
             ).model_dump(),
         )
 
+    async def _start_mahjong_game(self, game: Game) -> None:
+        """
+        Start the mahjong game when first human joins.
+
+        Calls the game service to initialize the game with the human player
+        and bots, then broadcasts the initial state to all players.
+        """
+        player_names = game.player_names
+        events = await self._game_service.start_game(game.game_id, player_names)
+        await self._broadcast_events(game, events)
+
+    async def _broadcast_events(
+        self,
+        game: Game,
+        events: list[dict[str, Any]],
+    ) -> None:
+        """
+        Broadcast events with target-based filtering.
+
+        Events with target "all" go to everyone.
+        Events with target "seat_N" go only to the player at that seat.
+        """
+        # build seat -> player mapping
+        seat_to_player = dict(enumerate(game.players.values()))
+
+        for event in events:
+            target = event.get("target", "all")
+            message = GameEventMessage(
+                event=event.get("event", ""),
+                data=event.get("data", {}),
+            ).model_dump()
+
+            if target == "all":
+                await self._broadcast_to_game(game, message)
+            elif target.startswith("seat_"):
+                seat = int(target.split("_")[1])
+                player = seat_to_player.get(seat)
+                if player:
+                    # ignore connection errors, will be cleaned up on disconnect
+                    with contextlib.suppress(RuntimeError, OSError):
+                        await player.connection.send_json(message)
+
     async def _broadcast_to_game(
         self,
         game: Game,
@@ -230,6 +269,6 @@ class SessionManager:
     ) -> None:
         for player in game.players.values():
             if player.connection_id != exclude_connection_id:
-                # ignore send failures, connection will be cleaned up on disconnect
-                with contextlib.suppress(Exception):
+                # ignore connection errors, will be cleaned up on disconnect
+                with contextlib.suppress(RuntimeError, OSError):
                     await player.connection.send_json(message)

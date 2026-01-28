@@ -3,10 +3,12 @@ from typing import Any
 
 
 class GameService(ABC):
-    """Abstract interface for game logic.
+    """
+    Abstract interface for game logic.
 
-    This will be implemented with real Riichi Mahjong rules later.
-    For now, we use a mock implementation for testing.
+    Events returned by methods include a 'target' field:
+    - "all": broadcast to all players in the game
+    - "seat_0", "seat_1", etc.: send only to player at that seat
     """
 
     @abstractmethod
@@ -16,9 +18,26 @@ class GameService(ABC):
         player_name: str,
         action: str,
         data: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Handle a game action from a player.
+    ) -> list[dict[str, Any]]:
+        """
+        Handle a game action from a player.
 
-        Returns an event dict to broadcast, or None if no broadcast needed.
+        Returns a list of events to broadcast. Each event has:
+        - event: str - the event type
+        - data: dict - event payload
+        - target: str - "all" or "seat_N" for targeted messages
+        """
+        ...
+
+    @abstractmethod
+    async def start_game(
+        self,
+        game_id: str,
+        player_names: list[str],
+    ) -> list[dict[str, Any]]:
+        """
+        Start a game with the given players.
+
+        Returns a list of initial state events (one per player with their view).
         """
         ...

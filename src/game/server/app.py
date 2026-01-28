@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
-from game.logic.mock import MockGameService
+from game.logic.mahjong_service import MahjongGameService
 from game.messaging.router import MessageRouter
 from game.server.types import CreateGameRequest
 from game.session.manager import SessionManager
@@ -16,6 +16,54 @@ from game.session.manager import SessionManager
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.websockets import WebSocket
+
+    from game.logic.service import GameService
+
+
+MAX_GAMES = 100
+
+
+async def health(_request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
+
+
+async def status(request: Request) -> JSONResponse:
+    session_manager: SessionManager = request.app.state.session_manager
+    return JSONResponse(
+        {
+            "status": "ok",
+            "active_games": session_manager.game_count,
+            "max_games": MAX_GAMES,
+        }
+    )
+
+
+async def list_games(request: Request) -> JSONResponse:
+    session_manager: SessionManager = request.app.state.session_manager
+    games = session_manager.get_games_info()
+    return JSONResponse({"games": games})
+
+
+async def create_game(request: Request) -> JSONResponse:
+    session_manager: SessionManager = request.app.state.session_manager
+
+    try:
+        body = await request.json()
+        game_request = CreateGameRequest(**body)
+    except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    if session_manager.game_count >= MAX_GAMES:
+        return JSONResponse({"error": "Server at capacity"}, status_code=503)
+
+    if session_manager.get_game(game_request.game_id):
+        return JSONResponse({"error": "Game already exists"}, status_code=409)
+
+    session_manager.create_game(game_request.game_id)
+    return JSONResponse(
+        {"game_id": game_request.game_id, "status": "created"},
+        status_code=201,
+    )
 
 
 MAX_GAMES = 100
@@ -65,12 +113,12 @@ async def create_game(request: Request) -> JSONResponse:
 
 
 def create_app(
-    game_service: MockGameService | None = None,
+    game_service: GameService | None = None,
     session_manager: SessionManager | None = None,
     message_router: MessageRouter | None = None,
 ) -> Starlette:
     if game_service is None:
-        game_service = MockGameService()
+        game_service = MahjongGameService()
 
     if session_manager is None:
         session_manager = SessionManager(game_service)

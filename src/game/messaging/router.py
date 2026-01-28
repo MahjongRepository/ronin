@@ -43,11 +43,16 @@ class MessageRouter:
             case ClientMessageType.LEAVE_GAME:
                 await self._session_manager.leave_game(connection)
             case ClientMessageType.GAME_ACTION:
-                await self._session_manager.handle_game_action(
-                    connection=connection,
-                    action=message.action,
-                    data=message.data,
-                )
+                try:
+                    await self._session_manager.handle_game_action(
+                        connection=connection,
+                        action=message.action,
+                        data=message.data,
+                    )
+                except Exception as e:
+                    await connection.send_json(
+                        ErrorMessage(code="action_failed", message=str(e)).model_dump()
+                    )
             case ClientMessageType.CHAT:
                 await self._session_manager.broadcast_chat(
                     connection=connection,

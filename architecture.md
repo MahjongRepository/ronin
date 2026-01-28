@@ -5,7 +5,7 @@
 The system consists of two services in a unified project:
 
 - **Lobby Service** (`src/lobby/`) - Portal for game discovery and creation (port 8000)
-- **Game Service** (`src/game/`) - Real-time Mahjong gameplay server (port 8001)
+- **Game Service** (`src/game/`) - Real-time Riichi Mahjong gameplay server with full game logic (port 8001)
 
 ## Game Creation Flow
 
@@ -55,7 +55,7 @@ ronin/
 │   │   ├── server/
 │   │   ├── messaging/
 │   │   ├── session/
-│   │   ├── logic/
+│   │   ├── logic/              # Riichi Mahjong rules implementation
 │   │   ├── static/             # Game HTML pages
 │   │   └── tests/
 │   └── shared/                 # Shared code (future use)
@@ -107,7 +107,6 @@ make format        # Auto-format code
 
 ## Next Steps
 
-1. Implement real Riichi Mahjong game logic in `src/game/logic/`
-2. Add game state synchronization
-3. Add authentication
-4. Add persistence (game history, player stats)
+1. Add game state synchronization
+2. Add authentication
+3. Add persistence (game history, player stats)

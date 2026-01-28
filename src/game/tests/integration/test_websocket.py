@@ -1,13 +1,15 @@
 import pytest
 from starlette.testclient import TestClient
 
+from game.logic.mock import MockGameService
 from game.server.app import create_app
 
 
 class TestWebSocketIntegration:
     @pytest.fixture
     def client(self):
-        app = create_app()
+        # use MockGameService for predictable test behavior
+        app = create_app(game_service=MockGameService())
         return TestClient(app)
 
     def _create_game(self, client, game_id: str) -> dict:
@@ -44,6 +46,7 @@ class TestWebSocketIntegration:
                 }
             )
             ws1.receive_json()  # game_joined
+            ws1.receive_json()  # game_started event for seat_0
 
             with client.websocket_connect("/ws/test_game") as ws2:
                 ws2.send_json(
@@ -76,6 +79,7 @@ class TestWebSocketIntegration:
                 }
             )
             ws1.receive_json()  # game_joined
+            ws1.receive_json()  # game_started event for seat_0
 
             with client.websocket_connect("/ws/test_game") as ws2:
                 ws2.send_json(
@@ -117,6 +121,7 @@ class TestWebSocketIntegration:
                 }
             )
             ws.receive_json()  # game_joined
+            ws.receive_json()  # game_started event for seat_0
 
             ws.send_json(
                 {

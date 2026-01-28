@@ -1,0 +1,319 @@
+"""
+Unit tests for tile representation utilities.
+"""
+
+import pytest
+
+from game.logic.tiles import (
+    CHUN_34,
+    DRAGONS_34,
+    EAST_34,
+    HAKU_34,
+    HATSU_34,
+    HONOR_34_END,
+    HONOR_34_START,
+    MAN_34_END,
+    MAN_34_START,
+    NORTH_34,
+    PIN_34_END,
+    PIN_34_START,
+    SOU_34_END,
+    SOU_34_START,
+    SOUTH_34,
+    TERMINALS_34,
+    WEST_34,
+    WINDS_34,
+    format_hand,
+    generate_wall,
+    is_dragon,
+    is_honor,
+    is_terminal,
+    is_terminal_or_honor,
+    is_wind,
+    sort_tiles,
+    tile_34_to_string,
+    tile_to_34,
+    tile_to_string,
+)
+
+
+class TestTileConstants:
+    def test_tile_34_ranges_are_contiguous(self):
+        # man: 0-8, pin: 9-17, sou: 18-26, honors: 27-33
+        assert MAN_34_START == 0
+        assert MAN_34_END == 8
+        assert PIN_34_START == 9
+        assert PIN_34_END == 17
+        assert SOU_34_START == 18
+        assert SOU_34_END == 26
+        assert HONOR_34_START == 27
+        assert HONOR_34_END == 33
+
+    def test_wind_constants(self):
+        assert EAST_34 == 27
+        assert SOUTH_34 == 28
+        assert WEST_34 == 29
+        assert NORTH_34 == 30
+        assert WINDS_34 == [27, 28, 29, 30]
+
+    def test_dragon_constants(self):
+        assert HAKU_34 == 31
+        assert HATSU_34 == 32
+        assert CHUN_34 == 33
+        assert DRAGONS_34 == [31, 32, 33]
+
+    def test_terminal_constants(self):
+        # terminals are 1 and 9 of each suit
+        assert TERMINALS_34 == [0, 8, 9, 17, 18, 26]
+
+
+class TestTileTo34:
+    def test_converts_man_tiles(self):
+        # 1m tiles: 0, 1, 2, 3 all map to 0
+        assert tile_to_34(0) == 0
+        assert tile_to_34(1) == 0
+        assert tile_to_34(2) == 0
+        assert tile_to_34(3) == 0
+        # 9m tiles: 32, 33, 34, 35 all map to 8
+        assert tile_to_34(32) == 8
+        assert tile_to_34(35) == 8
+
+    def test_converts_pin_tiles(self):
+        # 1p tiles: 36, 37, 38, 39 map to 9
+        assert tile_to_34(36) == 9
+        assert tile_to_34(39) == 9
+        # 9p tiles: 68, 69, 70, 71 map to 17
+        assert tile_to_34(68) == 17
+        assert tile_to_34(71) == 17
+
+    def test_converts_sou_tiles(self):
+        # 1s tiles: 72, 73, 74, 75 map to 18
+        assert tile_to_34(72) == 18
+        assert tile_to_34(75) == 18
+        # 9s tiles: 104, 105, 106, 107 map to 26
+        assert tile_to_34(104) == 26
+        assert tile_to_34(107) == 26
+
+    def test_converts_honor_tiles(self):
+        # east: 108-111 map to 27
+        assert tile_to_34(108) == 27
+        assert tile_to_34(111) == 27
+        # chun (red dragon): 132-135 map to 33
+        assert tile_to_34(132) == 33
+        assert tile_to_34(135) == 33
+
+
+class TestTileToString:
+    def test_man_tiles(self):
+        assert tile_to_string(0) == "1m"
+        assert tile_to_string(4) == "2m"
+        assert tile_to_string(35) == "9m"
+
+    def test_pin_tiles(self):
+        assert tile_to_string(36) == "1p"
+        assert tile_to_string(40) == "2p"
+        assert tile_to_string(71) == "9p"
+
+    def test_sou_tiles(self):
+        assert tile_to_string(72) == "1s"
+        assert tile_to_string(76) == "2s"
+        assert tile_to_string(107) == "9s"
+
+    def test_wind_tiles(self):
+        assert tile_to_string(108) == "E"
+        assert tile_to_string(112) == "S"
+        assert tile_to_string(116) == "W"
+        assert tile_to_string(120) == "N"
+
+    def test_dragon_tiles(self):
+        assert tile_to_string(124) == "Haku"
+        assert tile_to_string(128) == "Hatsu"
+        assert tile_to_string(132) == "Chun"
+
+
+class TestTile34ToString:
+    def test_man_tiles(self):
+        assert tile_34_to_string(0) == "1m"
+        assert tile_34_to_string(4) == "5m"
+        assert tile_34_to_string(8) == "9m"
+
+    def test_pin_tiles(self):
+        assert tile_34_to_string(9) == "1p"
+        assert tile_34_to_string(13) == "5p"
+        assert tile_34_to_string(17) == "9p"
+
+    def test_sou_tiles(self):
+        assert tile_34_to_string(18) == "1s"
+        assert tile_34_to_string(22) == "5s"
+        assert tile_34_to_string(26) == "9s"
+
+    def test_honor_tiles(self):
+        assert tile_34_to_string(27) == "E"
+        assert tile_34_to_string(28) == "S"
+        assert tile_34_to_string(29) == "W"
+        assert tile_34_to_string(30) == "N"
+        assert tile_34_to_string(31) == "Haku"
+        assert tile_34_to_string(32) == "Hatsu"
+        assert tile_34_to_string(33) == "Chun"
+
+    def test_invalid_tile_raises_error(self):
+        with pytest.raises(ValueError, match="Invalid tile_34 value: 34"):
+            tile_34_to_string(34)
+        with pytest.raises(ValueError, match="Invalid tile_34 value: -1"):
+            tile_34_to_string(-1)
+
+
+class TestIsTerminal:
+    def test_terminal_tiles(self):
+        # 1m, 9m
+        assert is_terminal(0) is True
+        assert is_terminal(8) is True
+        # 1p, 9p
+        assert is_terminal(9) is True
+        assert is_terminal(17) is True
+        # 1s, 9s
+        assert is_terminal(18) is True
+        assert is_terminal(26) is True
+
+    def test_non_terminal_tiles(self):
+        # middle man tiles
+        assert is_terminal(4) is False  # 5m
+        # middle pin tiles
+        assert is_terminal(13) is False  # 5p
+        # honors are not terminals
+        assert is_terminal(27) is False  # east
+
+
+class TestIsHonor:
+    def test_honor_tiles(self):
+        # winds
+        assert is_honor(27) is True  # east
+        assert is_honor(30) is True  # north
+        # dragons
+        assert is_honor(31) is True  # haku
+        assert is_honor(33) is True  # chun
+
+    def test_non_honor_tiles(self):
+        assert is_honor(0) is False  # 1m
+        assert is_honor(17) is False  # 9p
+        assert is_honor(26) is False  # 9s
+
+
+class TestIsWind:
+    def test_wind_tiles(self):
+        assert is_wind(27) is True  # east
+        assert is_wind(28) is True  # south
+        assert is_wind(29) is True  # west
+        assert is_wind(30) is True  # north
+
+    def test_non_wind_tiles(self):
+        assert is_wind(31) is False  # haku (dragon)
+        assert is_wind(0) is False  # 1m
+
+
+class TestIsDragon:
+    def test_dragon_tiles(self):
+        assert is_dragon(31) is True  # haku
+        assert is_dragon(32) is True  # hatsu
+        assert is_dragon(33) is True  # chun
+
+    def test_non_dragon_tiles(self):
+        assert is_dragon(27) is False  # east (wind)
+        assert is_dragon(0) is False  # 1m
+
+
+class TestIsTerminalOrHonor:
+    def test_terminal_tiles(self):
+        assert is_terminal_or_honor(0) is True  # 1m
+        assert is_terminal_or_honor(8) is True  # 9m
+
+    def test_honor_tiles(self):
+        assert is_terminal_or_honor(27) is True  # east
+        assert is_terminal_or_honor(33) is True  # chun
+
+    def test_simple_tiles(self):
+        assert is_terminal_or_honor(4) is False  # 5m
+        assert is_terminal_or_honor(13) is False  # 5p
+
+
+class TestGenerateWall:
+    def test_wall_has_136_tiles(self):
+        wall = generate_wall(0.5, 0)
+        assert len(wall) == 136
+
+    def test_wall_contains_all_tiles(self):
+        wall = generate_wall(0.5, 0)
+        assert sorted(wall) == list(range(136))
+
+    def test_same_seed_and_round_produces_same_wall(self):
+        wall1 = generate_wall(0.5, 0)
+        wall2 = generate_wall(0.5, 0)
+        assert wall1 == wall2
+
+    def test_different_rounds_produce_different_walls(self):
+        wall1 = generate_wall(0.5, 0)
+        wall2 = generate_wall(0.5, 1)
+        assert wall1 != wall2
+
+    def test_different_seeds_produce_different_walls(self):
+        wall1 = generate_wall(0.5, 0)
+        wall2 = generate_wall(0.6, 0)
+        assert wall1 != wall2
+
+
+class TestFormatHand:
+    def test_empty_hand(self):
+        assert format_hand([]) == ""
+
+    def test_single_tile(self):
+        # 1m (tile_id 0)
+        assert format_hand([0]) == "1m"
+
+    def test_man_tiles_grouped(self):
+        # 1m, 2m, 3m
+        assert format_hand([0, 4, 8]) == "123m"
+
+    def test_mixed_suits(self):
+        # 1m, 1p, 1s
+        hand = [0, 36, 72]
+        result = format_hand(hand)
+        assert result == "1m 1p 1s"
+
+    def test_honor_tiles(self):
+        # east, south, haku
+        hand = [108, 112, 124]
+        result = format_hand(hand)
+        assert result == "E S Haku"
+
+    def test_full_hand(self):
+        # typical starting hand: 123m 456p 789s EEE Haku Haku
+        hand = [0, 4, 8, 48, 52, 56, 96, 100, 104, 108, 109, 110, 124, 125]
+        result = format_hand(hand)
+        assert "123m" in result
+        assert "456p" in result
+        assert "789s" in result
+
+    def test_tiles_are_sorted(self):
+        # hand in random order
+        hand = [72, 0, 36]  # 1s, 1m, 1p
+        result = format_hand(hand)
+        # should be sorted: man, pin, sou
+        assert result == "1m 1p 1s"
+
+
+class TestSortTiles:
+    def test_empty_list(self):
+        assert sort_tiles([]) == []
+
+    def test_already_sorted(self):
+        tiles = [0, 4, 8]
+        assert sort_tiles(tiles) == [0, 4, 8]
+
+    def test_unsorted_tiles(self):
+        tiles = [72, 36, 0]  # 1s, 1p, 1m
+        assert sort_tiles(tiles) == [0, 36, 72]
+
+    def test_same_type_different_copies(self):
+        # different copies of 1m
+        tiles = [3, 1, 2, 0]
+        assert sort_tiles(tiles) == [0, 1, 2, 3]

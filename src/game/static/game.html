@@ -3,21 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ronin - Game</title>
+    <title>Ronin Game - Mahjong</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: system-ui, -apple-system, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
+            margin: 0;
+            padding: 10px;
+            background-color: #1a472a;
+            min-height: 100vh;
         }
         h1 {
-            color: #333;
+            color: #fff;
             text-align: center;
+            margin: 0 0 10px 0;
+            font-size: 24px;
         }
         .join-form {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
         }
         input[type="text"] {
             padding: 10px 15px;
@@ -39,76 +51,530 @@
             background-color: #45a049;
         }
         button:disabled {
-            background-color: #ccc;
+            background-color: #888;
             cursor: not-allowed;
         }
         #status {
             text-align: center;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .status-connecting { background-color: #fff3cd; color: #856404; }
+        .status-connected { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .status-disconnected { background-color: #e2e3e5; color: #383d41; }
+
+        /* game container */
+        #game-container {
+            display: none;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* game info bar */
+        #game-info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .game-info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .game-info-label {
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+        }
+        .game-info-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* dora display */
+        #dora-display {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #dora-display .dora-label {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        /* game table - represents the mahjong table layout */
+        #game-table {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 1;
+            margin: 0 auto 10px auto;
+            background: #0d5c23;
+            border-radius: 8px;
+            border: 4px solid #8b4513;
+        }
+
+        /* player areas positioned around the table */
+        .player-area {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .player-area.bottom {
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+        }
+        .player-area.top {
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70%;
+        }
+        .player-area.left {
+            left: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 15%;
+        }
+        .player-area.right {
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 15%;
+        }
+
+        /* player info panel */
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .player-info.is-turn {
+            background: rgba(255, 215, 0, 0.6);
+            color: #000;
+        }
+        .player-info.is-riichi {
+            border: 2px solid #ff4444;
+        }
+        .player-name {
+            font-weight: bold;
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .player-score {
+            font-family: monospace;
+        }
+        .dealer-marker {
+            background: #ff6b6b;
+            color: #fff;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .riichi-marker {
+            background: #ff4444;
+            color: #fff;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+        .tile-count {
+            color: #aaa;
+            font-size: 11px;
+        }
+
+        /* discard area */
+        .discard-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            max-width: 180px;
+            justify-content: flex-start;
+            min-height: 60px;
+        }
+        .player-area.bottom .discard-area,
+        .player-area.top .discard-area {
+            max-width: 200px;
+        }
+        .player-area.left .discard-area,
+        .player-area.right .discard-area {
+            max-width: 90px;
+            flex-direction: column;
+        }
+
+        /* meld area */
+        .meld-area {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .meld {
+            display: flex;
+            gap: 1px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px;
+            border-radius: 3px;
+        }
+
+        /* tile styling */
+        .tile {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 36px;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            border: 1px solid #999;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: default;
+            user-select: none;
+        }
+        .tile.small {
+            width: 22px;
+            height: 28px;
+            font-size: 11px;
+        }
+        .tile.man { color: #d44; }
+        .tile.pin { color: #44d; }
+        .tile.sou { color: #4a4; }
+        .tile.honor { color: #333; }
+        .tile.drawn {
+            background: linear-gradient(135deg, #ffffcc 0%, #fff9c4 100%);
+            border-color: #d4a600;
+        }
+        .tile.tsumogiri {
+            opacity: 0.7;
+        }
+        .tile.riichi-discard {
+            transform: rotate(90deg);
+            margin: 4px 8px;
+        }
+        .tile.clickable {
+            cursor: pointer;
+        }
+        .tile.clickable:hover {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border-color: #4CAF50;
+        }
+        .tile.selected {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: #fff;
+        }
+        .tile.hidden {
+            background: linear-gradient(135deg, #8b4513 0%, #654321 100%);
+            color: transparent;
+        }
+
+        /* hand area for human player */
+        #hand-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             padding: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+        }
+        #hand-tiles {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+        }
+        #drawn-tile {
+            margin-left: 15px;
+            border-left: 2px dashed #666;
+            padding-left: 15px;
+        }
+
+        /* action buttons panel */
+        #action-panel {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .action-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .action-btn.riichi { background: #ff6b6b; color: #fff; }
+        .action-btn.tsumo { background: #4CAF50; color: #fff; }
+        .action-btn.ron { background: #f44336; color: #fff; }
+        .action-btn.pon { background: #2196F3; color: #fff; }
+        .action-btn.chi { background: #9C27B0; color: #fff; }
+        .action-btn.kan { background: #FF9800; color: #fff; }
+        .action-btn.pass { background: #607D8B; color: #fff; }
+        .action-btn.discard { background: #795548; color: #fff; }
+
+        /* result modal */
+        #result-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        #result-modal.show {
+            display: flex;
+        }
+        .result-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        .result-title {
+            font-size: 24px;
+            font-weight: bold;
             margin-bottom: 20px;
+            color: #333;
+        }
+        .result-winner {
+            font-size: 20px;
+            color: #4CAF50;
+            margin-bottom: 15px;
+        }
+        .result-hand {
+            font-family: monospace;
+            font-size: 16px;
+            background: #f5f5f5;
+            padding: 10px;
             border-radius: 4px;
+            margin-bottom: 15px;
         }
-        .status-connecting {
-            background-color: #fff3cd;
-            color: #856404;
+        .result-yaku {
+            text-align: left;
+            margin-bottom: 15px;
         }
-        .status-connected {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status-error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .status-disconnected {
-            background-color: #e2e3e5;
-            color: #383d41;
-        }
-        #messages {
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 15px;
-            height: 300px;
-            overflow-y: auto;
-            background-color: #f8f9fa;
-        }
-        .message {
+        .yaku-item {
+            display: flex;
+            justify-content: space-between;
             padding: 5px 0;
             border-bottom: 1px solid #eee;
         }
-        .message:last-child {
-            border-bottom: none;
+        .result-scores {
+            text-align: left;
+            margin-top: 20px;
         }
-        .message-system {
-            color: #6c757d;
-            font-style: italic;
+        .score-change {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
         }
-        .message-chat {
-            color: #333;
+        .score-change.positive { color: #4CAF50; }
+        .score-change.negative { color: #f44336; }
+        .continue-btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 16px;
         }
-        .message-error {
-            color: #dc3545;
-        }
-        .message-event {
-            color: #007bff;
-        }
-        #game-info {
+
+        /* messages log (collapsed by default) */
+        #messages-toggle {
             text-align: center;
-            margin-bottom: 20px;
-            color: #666;
+            margin-top: 10px;
+        }
+        #messages-toggle button {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 5px 15px;
+            font-size: 12px;
+        }
+        #messages {
+            display: none;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 500px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.6);
+            margin-top: 10px;
+            font-size: 11px;
+            word-break: break-all;
+        }
+        #messages.show {
+            display: block;
+        }
+        .message {
+            padding: 3px 0;
+            color: #ccc;
+        }
+        .message-error { color: #ff6b6b; }
+        .message-system { color: #aaa; }
+        .message-event { color: #6db3f2; }
+
+        /* wind display */
+        .wind-display {
+            font-size: 24px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <h1>Ronin Game</h1>
-    <div id="game-info"></div>
+    <h1>Ronin Mahjong</h1>
     <div id="status" class="status-disconnected">Disconnected</div>
 
-    <div class="join-form">
+    <div class="join-form" id="join-form">
         <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
         <button id="joinButton">Join Game</button>
     </div>
 
+    <div id="game-container">
+        <!-- game info bar -->
+        <div id="game-info-bar">
+            <div class="game-info-item">
+                <span class="game-info-label">Round</span>
+                <span class="game-info-value" id="round-display">East 1</span>
+            </div>
+            <div class="game-info-item">
+                <span class="game-info-label">Wall</span>
+                <span class="game-info-value" id="wall-count">70</span>
+            </div>
+            <div id="dora-display">
+                <span class="dora-label">Dora:</span>
+                <span id="dora-tiles"></span>
+            </div>
+            <div class="game-info-item">
+                <span class="game-info-label">Honba</span>
+                <span class="game-info-value" id="honba-count">0</span>
+            </div>
+            <div class="game-info-item">
+                <span class="game-info-label">Riichi</span>
+                <span class="game-info-value" id="riichi-sticks">0</span>
+            </div>
+        </div>
+
+        <!-- game table with player areas -->
+        <div id="game-table">
+            <!-- opposite player (seat 2) -->
+            <div class="player-area top" id="player-area-2">
+                <div class="player-info" id="player-info-2">
+                    <span class="player-name" id="player-name-2">Bot 2</span>
+                    <span class="dealer-marker" id="dealer-2" style="display:none;">Oya</span>
+                    <span class="riichi-marker" id="riichi-2" style="display:none;">R</span>
+                    <span class="player-score" id="player-score-2">25000</span>
+                    <span class="tile-count" id="tile-count-2">(13)</span>
+                </div>
+                <div class="discard-area" id="discards-2"></div>
+                <div class="meld-area" id="melds-2"></div>
+            </div>
+
+            <!-- left player (seat 3) -->
+            <div class="player-area left" id="player-area-3">
+                <div class="player-info" id="player-info-3">
+                    <span class="player-name" id="player-name-3">Bot 3</span>
+                    <span class="dealer-marker" id="dealer-3" style="display:none;">Oya</span>
+                    <span class="riichi-marker" id="riichi-3" style="display:none;">R</span>
+                    <span class="player-score" id="player-score-3">25000</span>
+                    <span class="tile-count" id="tile-count-3">(13)</span>
+                </div>
+                <div class="discard-area" id="discards-3"></div>
+                <div class="meld-area" id="melds-3"></div>
+            </div>
+
+            <!-- right player (seat 1) -->
+            <div class="player-area right" id="player-area-1">
+                <div class="player-info" id="player-info-1">
+                    <span class="player-name" id="player-name-1">Bot 1</span>
+                    <span class="dealer-marker" id="dealer-1" style="display:none;">Oya</span>
+                    <span class="riichi-marker" id="riichi-1" style="display:none;">R</span>
+                    <span class="player-score" id="player-score-1">25000</span>
+                    <span class="tile-count" id="tile-count-1">(13)</span>
+                </div>
+                <div class="discard-area" id="discards-1"></div>
+                <div class="meld-area" id="melds-1"></div>
+            </div>
+
+            <!-- human player (seat 0) -->
+            <div class="player-area bottom" id="player-area-0">
+                <div class="player-info" id="player-info-0">
+                    <span class="player-name" id="player-name-0">You</span>
+                    <span class="dealer-marker" id="dealer-0" style="display:none;">Oya</span>
+                    <span class="riichi-marker" id="riichi-0" style="display:none;">R</span>
+                    <span class="player-score" id="player-score-0">25000</span>
+                    <span class="tile-count" id="tile-count-0">(13)</span>
+                </div>
+                <div class="meld-area" id="melds-0"></div>
+                <div class="discard-area" id="discards-0"></div>
+                <div id="hand-area">
+                    <div id="hand-tiles"></div>
+                    <div id="drawn-tile"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- action buttons -->
+        <div id="action-panel">
+            <button class="action-btn riichi" id="btn-riichi" disabled>Riichi</button>
+            <button class="action-btn tsumo" id="btn-tsumo" disabled>Tsumo</button>
+            <button class="action-btn ron" id="btn-ron" disabled>Ron</button>
+            <button class="action-btn pon" id="btn-pon" disabled>Pon</button>
+            <button class="action-btn chi" id="btn-chi" disabled>Chi</button>
+            <button class="action-btn kan" id="btn-kan" disabled>Kan</button>
+            <button class="action-btn pass" id="btn-pass" disabled>Pass</button>
+        </div>
+    </div>
+
+    <!-- result modal -->
+    <div id="result-modal">
+        <div class="result-content">
+            <div class="result-title" id="result-title">Round Result</div>
+            <div class="result-winner" id="result-winner"></div>
+            <div class="result-hand" id="result-hand"></div>
+            <div class="result-yaku" id="result-yaku"></div>
+            <div class="result-scores" id="result-scores"></div>
+            <button class="continue-btn" id="continue-btn">Continue</button>
+        </div>
+    </div>
+
+    <!-- collapsible messages log -->
+    <div id="messages-toggle">
+        <button onclick="toggleMessages()">Show/Hide Log</button>
+    </div>
     <div id="messages"></div>
 
     <script>
@@ -118,26 +584,42 @@
         const websocketUrl = urlParams.get('websocket_url');
         const playerNameFromUrl = urlParams.get('player_name');
 
-        const gameInfoDiv = document.getElementById('game-info');
         const statusDiv = document.getElementById('status');
         const messagesDiv = document.getElementById('messages');
         const playerNameInput = document.getElementById('playerName');
         const joinButton = document.getElementById('joinButton');
-        const joinForm = document.querySelector('.join-form');
+        const joinForm = document.getElementById('join-form');
+        const gameContainer = document.getElementById('game-container');
 
         let ws = null;
+        let gameState = {
+            seat: 0,
+            roundWind: 'East',
+            roundNumber: 0,
+            dealerSeat: 0,
+            wallCount: 70,
+            doraIndicators: [],
+            honbaSticks: 0,
+            riichiSticks: 0,
+            players: [],
+            hand: [],
+            drawnTile: null,
+            availableActions: [],
+            currentSeat: -1,
+            selectedTile: null,
+            pendingCallPrompt: null,
+            pendingRiichi: false
+        };
 
-        // display game info
-        if (gameId) {
-            gameInfoDiv.textContent = `Game: ${gameId}`;
-        } else {
-            gameInfoDiv.textContent = 'No game specified';
-        }
-
-        // if player name is provided via URL, hide the join form and auto-connect
+        // if player name is provided via URL, prefill and optionally hide form
         if (playerNameFromUrl) {
             playerNameInput.value = playerNameFromUrl;
-            joinForm.style.display = 'none';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function setStatus(text, className) {
@@ -148,13 +630,16 @@
         function addMessage(text, className = '') {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${className}`;
-            messageDiv.textContent = text;
+            messageDiv.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
+        function toggleMessages() {
+            messagesDiv.classList.toggle('show');
+        }
+
         function connect() {
-            // prevent duplicate connections
             if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
                 addMessage('Already connecting or connected', 'message-error');
                 return;
@@ -191,7 +676,6 @@
                 setStatus('Connected', 'status-connected');
                 addMessage('Connected to server', 'message-system');
 
-                // validate game_id before joining
                 if (!gameId) {
                     setStatus('Error: No game ID provided', 'status-error');
                     addMessage('Cannot join: No game ID in parameters', 'message-error');
@@ -199,7 +683,6 @@
                     return;
                 }
 
-                // send join_game message
                 const joinMessage = {
                     type: 'join_game',
                     game_id: gameId,
@@ -224,68 +707,720 @@
                 joinButton.disabled = false;
                 playerNameInput.disabled = false;
                 joinForm.style.display = 'block';
+                gameContainer.style.display = 'none';
                 ws = null;
             };
 
             ws.onerror = () => {
                 setStatus('Connection error', 'status-error');
                 addMessage('Connection error occurred', 'message-error');
-                // onclose will always fire after onerror, so let it handle cleanup
             };
         }
 
         function handleServerMessage(message) {
-            switch (message.type) {
-                case 'game_joined':
-                    addMessage(`Joined game: ${message.game_id}`, 'message-system');
-                    if (message.players && message.players.length > 0) {
-                        addMessage(`Players in game: ${message.players.join(', ')}`, 'message-system');
-                    }
-                    break;
+            addMessage(`${message.type}: ${JSON.stringify(message)}`, 'message-event');
 
+            switch (message.type) {
+                case 'game_event':
+                    // unwrap game_event and re-dispatch with the inner event type
+                    handleServerMessage({ type: message.event, ...message.data });
+                    break;
+                case 'game_joined':
+                    handleGameJoined(message);
+                    break;
+                case 'game_started':
+                    handleGameStarted(message);
+                    break;
+                case 'round_started':
+                    handleRoundStarted(message);
+                    break;
+                case 'draw':
+                    handleDraw(message);
+                    break;
+                case 'discard':
+                    handleDiscard(message);
+                    break;
+                case 'meld':
+                    handleMeld(message);
+                    break;
+                case 'riichi':
+                case 'riichi_declared':
+                    handleRiichi(message);
+                    break;
+                case 'turn':
+                    handleTurn(message);
+                    break;
+                case 'call_prompt':
+                    handleCallPrompt(message);
+                    break;
+                case 'round_end':
+                    handleRoundEnd(message);
+                    break;
+                case 'game_end':
+                    handleGameEnd(message);
+                    break;
                 case 'player_joined':
                     addMessage(`${message.player_name} joined the game`, 'message-system');
                     break;
-
                 case 'player_left':
                     addMessage(`${message.player_name} left the game`, 'message-system');
                     break;
-
-                case 'game_left':
-                    addMessage('You have left the game', 'message-system');
-                    break;
-
-                case 'game_state':
-                    addMessage(`Game state updated: ${JSON.stringify(message.state)}`, 'message-event');
-                    break;
-
-                case 'game_event':
-                    addMessage(`Game event (${message.event}): ${JSON.stringify(message.data)}`, 'message-event');
-                    break;
-
-                case 'chat':
-                    addMessage(`${message.player_name}: ${message.text}`, 'message-chat');
-                    break;
-
                 case 'error':
                     addMessage(`Error: ${message.message}`, 'message-error');
                     break;
-
                 default:
-                    addMessage(`Unknown message: ${JSON.stringify(message)}`, 'message-system');
+                    addMessage(`Unknown message type: ${message.type}`, 'message-system');
             }
         }
 
-        joinButton.addEventListener('click', connect);
+        function handleGameJoined(message) {
+            addMessage(`Joined game: ${message.game_id}`, 'message-system');
+            joinForm.style.display = 'none';
+            gameContainer.style.display = 'block';
+        }
 
-        // allow pressing Enter to join
-        playerNameInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                connect();
+        function handleGameStarted(message) {
+            gameState.seat = message.seat;
+            gameState.roundWind = message.round_wind;
+            gameState.roundNumber = message.round_number;
+            gameState.dealerSeat = message.dealer_seat;
+            gameState.wallCount = message.wall_count;
+            gameState.doraIndicators = message.dora_indicators || [];
+            gameState.honbaSticks = message.honba_sticks;
+            gameState.riichiSticks = message.riichi_sticks;
+            gameState.drawnTile = null;
+            gameState.selectedTile = null;
+            gameState.availableActions = [];
+            gameState.currentSeat = -1;
+            gameState.pendingCallPrompt = null;
+
+            // initialize players with empty discards/melds
+            gameState.players = message.players.map(p => ({
+                ...p,
+                discards: [],
+                melds: [],
+                is_riichi: false
+            }));
+
+            // find our player data and set hand
+            const ourPlayer = message.players.find(p => p.seat === gameState.seat);
+            if (ourPlayer && ourPlayer.tiles) {
+                gameState.hand = ourPlayer.tiles.slice().sort((a, b) => a - b);
+            } else {
+                gameState.hand = [];
+            }
+
+            updateGameDisplay();
+            addMessage(`Game started! You are seat ${gameState.seat}`, 'message-system');
+        }
+
+        function handleRoundStarted(message) {
+            // reset round-specific state
+            gameState.roundWind = message.round_wind;
+            gameState.roundNumber = message.round_number;
+            gameState.dealerSeat = message.dealer_seat;
+            gameState.wallCount = message.wall_count;
+            gameState.doraIndicators = message.dora_indicators || [];
+            gameState.honbaSticks = message.honba_sticks;
+            gameState.riichiSticks = message.riichi_sticks;
+            gameState.drawnTile = null;
+            gameState.selectedTile = null;
+            gameState.availableActions = [];
+            gameState.currentSeat = -1;
+            gameState.pendingCallPrompt = null;
+
+            // update players but reset round-specific data (discards, melds, riichi)
+            message.players.forEach(p => {
+                const existingPlayer = gameState.players.find(ep => ep.seat === p.seat);
+                if (existingPlayer) {
+                    existingPlayer.score = p.score;
+                    existingPlayer.tile_count = p.tile_count || 13;
+                    existingPlayer.discards = [];
+                    existingPlayer.melds = [];
+                    existingPlayer.is_riichi = false;
+                } else {
+                    p.discards = [];
+                    p.melds = [];
+                    p.is_riichi = false;
+                    gameState.players.push(p);
+                }
+            });
+
+            // find our player data and set hand
+            const ourPlayer = message.players.find(p => p.seat === gameState.seat);
+            if (ourPlayer && ourPlayer.tiles) {
+                gameState.hand = ourPlayer.tiles.slice().sort((a, b) => a - b);
+            } else {
+                gameState.hand = [];
+            }
+
+            updateGameDisplay();
+            addMessage(`New round started: ${gameState.roundWind} ${gameState.roundNumber + 1}`, 'message-system');
+        }
+
+        function handleDraw(message) {
+            gameState.drawnTile = {
+                tile: message.tile,
+                tileId: message.tile_id
+            };
+            updateGameDisplay();
+            addMessage(`Drew: ${message.tile}`, 'message-event');
+        }
+
+        function handleDiscard(message) {
+            const player = gameState.players.find(p => p.seat === message.seat);
+            if (player) {
+                player.discards = player.discards || [];
+                player.discards.push({
+                    tile: message.tile,
+                    tile_id: message.tile_id,
+                    is_tsumogiri: message.is_tsumogiri,
+                    is_riichi_discard: message.is_riichi
+                });
+                player.tile_count = (player.tile_count || 14) - 1;
+            }
+
+            // if it's our discard, remove from hand
+            if (message.seat === gameState.seat) {
+                if (gameState.drawnTile && gameState.drawnTile.tileId === message.tile_id) {
+                    // discarding the drawn tile - just clear it
+                    gameState.drawnTile = null;
+                } else {
+                    // discarding from hand - remove from hand and merge drawn tile into hand
+                    const idx = gameState.hand.indexOf(message.tile_id);
+                    if (idx !== -1) {
+                        gameState.hand.splice(idx, 1);
+                    }
+                    if (gameState.drawnTile) {
+                        gameState.hand.push(gameState.drawnTile.tileId);
+                        gameState.hand.sort((a, b) => a - b);
+                        gameState.drawnTile = null;
+                    }
+                }
+            }
+
+            updateGameDisplay();
+            addMessage(`Seat ${message.seat} discarded ${message.tile}${message.is_riichi ? ' (riichi)' : ''}`, 'message-event');
+        }
+
+        function handleMeld(message) {
+            const player = gameState.players.find(p => p.seat === message.caller_seat);
+            if (player) {
+                player.melds = player.melds || [];
+                player.melds.push({
+                    type: message.meld_type,
+                    tiles: message.tiles,
+                    tile_ids: message.tile_ids,
+                    from_who: message.from_seat
+                });
+            }
+            updateMeldsDisplay();
+            addMessage(`Seat ${message.caller_seat} called ${message.meld_type}: ${message.tiles.join(' ')}`, 'message-event');
+        }
+
+        function handleRiichi(message) {
+            const player = gameState.players.find(p => p.seat === message.seat);
+            if (player) {
+                player.is_riichi = true;
+            }
+            gameState.riichiSticks++;
+            updateGameDisplay();
+            addMessage(`Seat ${message.seat} declared riichi!`, 'message-event');
+        }
+
+        function handleTurn(message) {
+            gameState.currentSeat = message.current_seat;
+            gameState.availableActions = message.available_actions || [];
+            gameState.pendingCallPrompt = null;
+            gameState.pendingRiichi = false;
+
+            // update wall count from server if provided
+            if (message.wall_count !== undefined) {
+                gameState.wallCount = message.wall_count;
+            }
+
+            updateTurnIndicators();
+            updateActionButtons();
+            updateGameDisplay();
+
+            if (message.current_seat === gameState.seat) {
+                // check if we're in riichi with only one discard option (auto-discard)
+                const ourPlayer = gameState.players.find(p => p.seat === gameState.seat);
+                const discardAction = gameState.availableActions.find(a => a.action === 'discard');
+                const canTsumo = gameState.availableActions.some(a => a.action === 'tsumo');
+
+                if (ourPlayer && ourPlayer.is_riichi && discardAction && discardAction.tiles && discardAction.tiles.length === 1 && !canTsumo) {
+                    // auto-discard in riichi (no choice anyway)
+                    addMessage("Auto-discarding in riichi...", 'message-system');
+                    sendAction('discard', { tile_id: discardAction.tiles[0] });
+                    return;
+                }
+
+                addMessage("It's your turn!", 'message-system');
+            }
+        }
+
+        function handleCallPrompt(message) {
+            // store prompt data for use when player clicks action buttons
+            // extract chi options from caller info if available
+            let chiOptions = null;
+            const callers = message.callers || [];
+
+            // callers can be seat numbers or objects with seat and options
+            for (const caller of callers) {
+                if (typeof caller === 'object' && caller.seat === gameState.seat && caller.options) {
+                    chiOptions = caller.options;
+                    break;
+                }
+            }
+
+            gameState.pendingCallPrompt = {
+                tile_id: message.tile_id,
+                from_seat: message.from_seat,
+                call_type: message.call_type,
+                callers: callers,
+                chi_options: chiOptions
+            };
+
+            // build available actions from callers list if present
+            const availableCalls = [];
+            const playerIsInCallers = callers.some(c =>
+                typeof c === 'number' ? c === gameState.seat : c.seat === gameState.seat
+            );
+            if (playerIsInCallers) {
+                availableCalls.push({ action: message.call_type });
+                availableCalls.push({ action: 'pass' });  // can always pass on a call
+            }
+            gameState.availableActions = availableCalls;
+            updateActionButtons();
+
+            if (availableCalls.length > 0) {
+                addMessage(`You can call: ${message.call_type} (or pass)`, 'message-system');
+            }
+        }
+
+        function handleRoundEnd(message) {
+            showResultModal(message, false);
+        }
+
+        function handleGameEnd(message) {
+            showResultModal(message, true);
+        }
+
+        function showResultModal(message, isGameEnd) {
+            const modal = document.getElementById('result-modal');
+            const title = document.getElementById('result-title');
+            const winner = document.getElementById('result-winner');
+            const hand = document.getElementById('result-hand');
+            const yaku = document.getElementById('result-yaku');
+            const scores = document.getElementById('result-scores');
+
+            if (isGameEnd) {
+                title.textContent = 'Game Over!';
+                const winnerPlayer = gameState.players.find(p => p.seat === message.winner_seat);
+                winner.textContent = `Winner: ${winnerPlayer ? winnerPlayer.name : 'Seat ' + message.winner_seat}`;
+                hand.textContent = '';
+                yaku.innerHTML = '';
+            } else {
+                // extract result data from message.result
+                const result = message.result || {};
+                const resultType = result.type || 'unknown';
+                title.textContent = `Round End - ${resultType.toUpperCase().replace('_', ' ')}`;
+
+                if (result.winner_seats && result.winner_seats.length > 0) {
+                    const winnerNames = result.winner_seats.map(s => {
+                        const p = gameState.players.find(pl => pl.seat === s);
+                        return p ? p.name : 'Seat ' + s;
+                    });
+                    winner.textContent = `Winner: ${winnerNames.join(', ')}`;
+                } else if (resultType === 'exhaustive_draw') {
+                    winner.textContent = 'Exhaustive Draw - No Winner';
+                } else if (resultType.includes('abortive')) {
+                    winner.textContent = 'Abortive Draw';
+                } else {
+                    winner.textContent = '';
+                }
+
+                hand.textContent = result.winning_hand || '';
+
+                if (result.yaku && result.yaku.length > 0) {
+                    yaku.innerHTML = '<strong>Yaku:</strong><br>' +
+                        result.yaku.map(y => `<div class="yaku-item"><span>${escapeHtml(y.name)}</span><span>${escapeHtml(String(y.han))} han</span></div>`).join('');
+                    if (result.han && result.fu) {
+                        yaku.innerHTML += `<div class="yaku-item"><strong><span>Total</span><span>${escapeHtml(String(result.han))} han ${escapeHtml(String(result.fu))} fu</span></strong></div>`;
+                    }
+                } else {
+                    yaku.innerHTML = '';
+                }
+            }
+
+            // display score changes (extract from result if present)
+            const result = message.result || {};
+            const finalScores = result.final_scores || message.final_scores || {};
+            const scoreChanges = result.score_changes || message.score_changes || {};
+            scores.innerHTML = '<strong>Scores:</strong>';
+            gameState.players.forEach(p => {
+                const change = scoreChanges[p.seat] || 0;
+                const final = finalScores[p.seat] || p.score + change;
+                const changeClass = change > 0 ? 'positive' : (change < 0 ? 'negative' : '');
+                const changeStr = change > 0 ? `+${change}` : change.toString();
+                // escape player name to prevent XSS
+                const safeName = escapeHtml(p.name);
+                scores.innerHTML += `<div class="score-change ${changeClass}">
+                    <span>${safeName}</span>
+                    <span>${final} (${changeStr})</span>
+                </div>`;
+                // update player scores
+                p.score = final;
+            });
+
+            modal.classList.add('show');
+
+            document.getElementById('continue-btn').onclick = () => {
+                modal.classList.remove('show');
+                if (isGameEnd) {
+                    // could redirect or show final screen
+                    addMessage('Game ended! Thank you for playing.', 'message-system');
+                }
+            };
+        }
+
+        function updateGameDisplay() {
+            // update round info (round_number is 0-based, display as 1-based)
+            document.getElementById('round-display').textContent = `${gameState.roundWind} ${gameState.roundNumber + 1}`;
+            document.getElementById('wall-count').textContent = gameState.wallCount;
+            document.getElementById('honba-count').textContent = gameState.honbaSticks;
+            document.getElementById('riichi-sticks').textContent = gameState.riichiSticks;
+
+            // update dora display
+            const doraTiles = document.getElementById('dora-tiles');
+            doraTiles.innerHTML = '';
+            gameState.doraIndicators.forEach(d => {
+                const tileEl = createTileElement(d.tile, d.tile_id, true);
+                doraTiles.appendChild(tileEl);
+            });
+
+            // update player info
+            updatePlayersDisplay();
+            updateHandDisplay();
+            updateDiscardsDisplay();
+            updateMeldsDisplay();
+        }
+
+        function updatePlayersDisplay() {
+            gameState.players.forEach(player => {
+                const seat = player.seat;
+                document.getElementById(`player-name-${seat}`).textContent = player.name;
+                document.getElementById(`player-score-${seat}`).textContent = player.score;
+                document.getElementById(`tile-count-${seat}`).textContent = `(${player.tile_count || 13})`;
+
+                // dealer marker
+                const dealerEl = document.getElementById(`dealer-${seat}`);
+                dealerEl.style.display = seat === gameState.dealerSeat ? 'inline' : 'none';
+
+                // riichi marker
+                const riichiEl = document.getElementById(`riichi-${seat}`);
+                riichiEl.style.display = player.is_riichi ? 'inline' : 'none';
+            });
+        }
+
+        function updateTurnIndicators() {
+            gameState.players.forEach(player => {
+                const infoEl = document.getElementById(`player-info-${player.seat}`);
+                if (player.seat === gameState.currentSeat) {
+                    infoEl.classList.add('is-turn');
+                } else {
+                    infoEl.classList.remove('is-turn');
+                }
+            });
+        }
+
+        function updateHandDisplay() {
+            const handTilesEl = document.getElementById('hand-tiles');
+            const drawnTileEl = document.getElementById('drawn-tile');
+
+            handTilesEl.innerHTML = '';
+            drawnTileEl.innerHTML = '';
+
+            // get allowed discard tiles (for riichi restriction)
+            const allowedTiles = getAllowedDiscardTiles();
+            const isOurTurn = gameState.currentSeat === gameState.seat && canDiscard();
+
+            // display hand tiles
+            gameState.hand.forEach(tileId => {
+                const tile = tileIdToString(tileId);
+                const canDiscardTile = isOurTurn && (allowedTiles.length === 0 || allowedTiles.includes(tileId));
+                const tileEl = createTileElement(tile, tileId, false, canDiscardTile);
+                if (canDiscardTile) {
+                    tileEl.addEventListener('click', () => selectTile(tileId));
+                }
+                if (gameState.selectedTile === tileId) {
+                    tileEl.classList.add('selected');
+                }
+                handTilesEl.appendChild(tileEl);
+            });
+
+            // display drawn tile separately
+            if (gameState.drawnTile) {
+                const canDiscardDrawn = isOurTurn && (allowedTiles.length === 0 || allowedTiles.includes(gameState.drawnTile.tileId));
+                const tileEl = createTileElement(gameState.drawnTile.tile, gameState.drawnTile.tileId, false, canDiscardDrawn);
+                tileEl.classList.add('drawn');
+                if (canDiscardDrawn) {
+                    tileEl.addEventListener('click', () => selectTile(gameState.drawnTile.tileId));
+                }
+                if (gameState.selectedTile === gameState.drawnTile.tileId) {
+                    tileEl.classList.add('selected');
+                }
+                drawnTileEl.appendChild(tileEl);
+            }
+        }
+
+        function updateDiscardsDisplay() {
+            gameState.players.forEach(player => {
+                const discardArea = document.getElementById(`discards-${player.seat}`);
+                discardArea.innerHTML = '';
+
+                (player.discards || []).forEach(discard => {
+                    const tileEl = createTileElement(discard.tile, discard.tile_id, true);
+                    if (discard.is_tsumogiri) {
+                        tileEl.classList.add('tsumogiri');
+                    }
+                    if (discard.is_riichi_discard) {
+                        tileEl.classList.add('riichi-discard');
+                    }
+                    discardArea.appendChild(tileEl);
+                });
+            });
+        }
+
+        function updateMeldsDisplay() {
+            gameState.players.forEach(player => {
+                const meldArea = document.getElementById(`melds-${player.seat}`);
+                meldArea.innerHTML = '';
+
+                (player.melds || []).forEach(meld => {
+                    const meldDiv = document.createElement('div');
+                    meldDiv.className = 'meld';
+                    meld.tiles.forEach(tile => {
+                        const tileEl = createTileElement(tile, null, true);
+                        meldDiv.appendChild(tileEl);
+                    });
+                    meldArea.appendChild(meldDiv);
+                });
+            });
+        }
+
+        function updateActionButtons() {
+            const actions = gameState.availableActions.map(a => a.action);
+
+            document.getElementById('btn-riichi').disabled = !actions.includes('riichi');
+            document.getElementById('btn-tsumo').disabled = !actions.includes('tsumo');
+            document.getElementById('btn-ron').disabled = !actions.includes('ron');
+            document.getElementById('btn-pon').disabled = !actions.includes('pon');
+            document.getElementById('btn-chi').disabled = !actions.includes('chi');
+            document.getElementById('btn-kan').disabled = !actions.includes('kan');
+            document.getElementById('btn-pass').disabled = !actions.includes('pass');
+        }
+
+        function selectTile(tileId) {
+            if (gameState.currentSeat !== gameState.seat) return;
+            if (!canDiscard()) return;
+
+            // check if this tile is in the allowed discard tiles (for riichi restriction)
+            const allowedTiles = getAllowedDiscardTiles();
+            if (allowedTiles.length > 0 && !allowedTiles.includes(tileId)) {
+                return; // tile not allowed for discard
+            }
+
+            // if clicking already selected tile, discard it
+            if (gameState.selectedTile === tileId) {
+                discardSelectedTile();
+                return;
+            }
+
+            gameState.selectedTile = tileId;
+            updateHandDisplay();
+        }
+
+        function canDiscard() {
+            return gameState.availableActions.some(a => a.action === 'discard');
+        }
+
+        function getAllowedDiscardTiles() {
+            const discardAction = gameState.availableActions.find(a => a.action === 'discard');
+            return discardAction && discardAction.tiles ? discardAction.tiles : [];
+        }
+
+        function sendAction(action, data = {}) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+            const message = {
+                type: 'game_action',
+                action: action,
+                data: data
+            };
+            ws.send(JSON.stringify(message));
+            addMessage(`Sent action: ${action}`, 'message-system');
+
+            // clear available actions after sending
+            gameState.availableActions = [];
+            updateActionButtons();
+        }
+
+        function discardSelectedTile() {
+            if (gameState.selectedTile === null) {
+                addMessage('Please select a tile to discard', 'message-error');
+                return;
+            }
+            // if riichi is pending, send riichi action instead of discard
+            if (gameState.pendingRiichi) {
+                sendAction('declare_riichi', { tile_id: gameState.selectedTile });
+                gameState.pendingRiichi = false;
+            } else {
+                sendAction('discard', { tile_id: gameState.selectedTile });
+            }
+            gameState.selectedTile = null;
+        }
+
+        // create tile element
+        function createTileElement(tile, tileId, small = false, clickable = false) {
+            const el = document.createElement('span');
+            el.className = 'tile';
+            if (small) el.classList.add('small');
+            if (clickable) el.classList.add('clickable');
+
+            // determine suit class
+            if (tile.endsWith('m')) {
+                el.classList.add('man');
+            } else if (tile.endsWith('p')) {
+                el.classList.add('pin');
+            } else if (tile.endsWith('s')) {
+                el.classList.add('sou');
+            } else {
+                el.classList.add('honor');
+            }
+
+            el.textContent = tile;
+            el.dataset.tileId = tileId;
+            return el;
+        }
+
+        // convert tile ID to string notation
+        function tileIdToString(tileId) {
+            const tile34 = Math.floor(tileId / 4);
+            if (tile34 < 9) {
+                return `${tile34 + 1}m`;
+            } else if (tile34 < 18) {
+                return `${tile34 - 9 + 1}p`;
+            } else if (tile34 < 27) {
+                return `${tile34 - 18 + 1}s`;
+            } else {
+                const honors = ['E', 'S', 'W', 'N', 'Haku', 'Hatsu', 'Chun'];
+                return honors[tile34 - 27];
+            }
+        }
+
+        // action button handlers
+        document.getElementById('btn-riichi').addEventListener('click', () => {
+            if (gameState.selectedTile === null) {
+                // set pending riichi flag - next discard will be riichi
+                gameState.pendingRiichi = true;
+                addMessage('Riichi pending - select a tile to discard', 'message-system');
+                return;
+            }
+            sendAction('declare_riichi', { tile_id: gameState.selectedTile });
+            gameState.selectedTile = null;
+            gameState.pendingRiichi = false;
+        });
+
+        document.getElementById('btn-tsumo').addEventListener('click', () => {
+            sendAction('declare_tsumo', {});
+        });
+
+        document.getElementById('btn-ron').addEventListener('click', () => {
+            if (!gameState.pendingCallPrompt) {
+                addMessage('No ron opportunity available', 'message-error');
+                return;
+            }
+            sendAction('call_ron', {
+                tile_id: gameState.pendingCallPrompt.tile_id,
+                from_seat: gameState.pendingCallPrompt.from_seat
+            });
+            gameState.pendingCallPrompt = null;
+        });
+
+        document.getElementById('btn-pon').addEventListener('click', () => {
+            if (!gameState.pendingCallPrompt) {
+                addMessage('No pon opportunity available', 'message-error');
+                return;
+            }
+            sendAction('call_pon', { tile_id: gameState.pendingCallPrompt.tile_id });
+            gameState.pendingCallPrompt = null;
+        });
+
+        document.getElementById('btn-chi').addEventListener('click', () => {
+            if (!gameState.pendingCallPrompt) {
+                addMessage('No chi opportunity available', 'message-error');
+                return;
+            }
+            // send chi with sequence_tiles (first option if available)
+            const chiOptions = gameState.pendingCallPrompt.chi_options;
+            if (!chiOptions || chiOptions.length === 0) {
+                addMessage('No chi options available', 'message-error');
+                return;
+            }
+            sendAction('call_chi', {
+                tile_id: gameState.pendingCallPrompt.tile_id,
+                sequence_tiles: chiOptions[0]
+            });
+            gameState.pendingCallPrompt = null;
+        });
+
+        document.getElementById('btn-kan').addEventListener('click', () => {
+            if (!gameState.pendingCallPrompt) {
+                addMessage('No kan opportunity available', 'message-error');
+                return;
+            }
+            sendAction('call_kan', { tile_id: gameState.pendingCallPrompt.tile_id });
+            gameState.pendingCallPrompt = null;
+        });
+
+        document.getElementById('btn-pass').addEventListener('click', () => {
+            gameState.pendingCallPrompt = null;
+            sendAction('pass', {});
+        });
+
+        // add keyboard shortcut for discarding (Enter key)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && gameState.selectedTile !== null && canDiscard()) {
+                discardSelectedTile();
             }
         });
 
-        // auto-connect if all required params are provided
+        // double click to discard
+        document.getElementById('hand-tiles').addEventListener('dblclick', (e) => {
+            if (e.target.classList.contains('tile') && canDiscard()) {
+                const tileId = parseInt(e.target.dataset.tileId);
+                gameState.selectedTile = tileId;
+                discardSelectedTile();
+            }
+        });
+
+        document.getElementById('drawn-tile').addEventListener('dblclick', (e) => {
+            if (e.target.classList.contains('tile') && canDiscard()) {
+                const tileId = parseInt(e.target.dataset.tileId);
+                gameState.selectedTile = tileId;
+                discardSelectedTile();
+            }
+        });
+
+        // initialize
+        joinButton.addEventListener('click', connect);
+        playerNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') connect();
+        });
+
+        // auto-connect if all params provided
         if (gameId && websocketUrl && playerNameFromUrl) {
             connect();
         }

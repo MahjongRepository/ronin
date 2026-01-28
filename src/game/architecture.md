@@ -89,7 +89,7 @@ Clean architecture pattern with clear separation between layers:
 
 - **Transport Layer** (`server/`) - Starlette WebSocket + REST handling
 - **Application Layer** (`messaging/`, `session/`) - Message routing and session management
-- **Domain Layer** (`logic/`) - Game logic (currently mocked)
+- **Domain Layer** (`logic/`) - Riichi Mahjong game logic
 
 ### Protocol Abstraction
 
@@ -116,6 +116,21 @@ This enables:
 - Integration tests with Starlette's `TestClient`
 - Easy swapping of transport layers if needed
 
+### Game Logic Layer
+
+The `logic/` module implements Riichi Mahjong rules:
+
+- **MahjongService** - Main entry point implementing GameService interface
+- **MahjongGame** - Manages game state across multiple rounds (hanchan)
+- **Round** - Handles a single round with wall, draws, and discards
+- **Turn** - Processes player actions (discard, chi, pon, kan, riichi, tsumo, ron)
+- **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
+- **Melds** - Detection of valid chi, pon, and kan combinations
+- **Win** - Hand parsing, yaku detection, and scoring (fu/han calculation)
+- **Riichi** - Riichi declaration validation and tenpai detection
+- **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.)
+- **Bot** - AI player for filling empty seats
+
 ## Project Structure
 
 ```
@@ -137,8 +152,19 @@ ronin/
         │   ├── models.py       # Player, Game dataclasses
         │   └── manager.py      # Session/game management
         ├── logic/
-        │   ├── service.py      # GameService interface
-        │   └── mock.py         # Mock implementation
+        │   ├── service.py          # GameService interface
+        │   ├── mahjong_service.py  # MahjongService implementation
+        │   ├── game.py             # MahjongGame state management
+        │   ├── round.py            # Round management
+        │   ├── turn.py             # Turn processing and player actions
+        │   ├── tiles.py            # Tile types and wall building
+        │   ├── melds.py            # Meld detection (chi, pon, kan)
+        │   ├── win.py              # Win detection and hand parsing
+        │   ├── riichi.py           # Riichi declaration logic
+        │   ├── abortive.py         # Abortive draw detection
+        │   ├── state.py            # Game state dataclasses
+        │   ├── bot.py              # Bot player AI
+        │   └── mock.py             # Mock implementation for testing
         ├── static/
         │   └── game.html       # Game WebSocket UI
         └── tests/
