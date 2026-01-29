@@ -6,16 +6,22 @@ from typing import TYPE_CHECKING
 
 from mahjong.meld import Meld
 
+from game.logic.enums import MeldCallType
 from game.logic.round import add_dora_indicator, draw_from_dead_wall
 from game.logic.state import MahjongPlayer
-from game.logic.tiles import is_honor, tile_to_34
+from game.logic.tiles import DRAGONS_34, WINDS_34, is_honor, tile_to_34
 from game.logic.win import get_waiting_tiles
+
+TILES_PER_SUIT = 9
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongRoundState
 
 # minimum tiles needed in wall to declare kan (need replacement draw)
 MIN_WALL_FOR_KAN = 2
+
+# maximum number of kans allowed per round across all players
+MAX_KANS_PER_ROUND = 4
 
 # meld size constants
 TILES_FOR_PON = 2
@@ -27,6 +33,81 @@ CHI_LOWEST_MAX_VALUE = 6  # tile can be lowest (e.g., 1 in 123) if value <= 6
 CHI_MIDDLE_MIN_VALUE = 1  # tile can be middle if value >= 1
 CHI_MIDDLE_MAX_VALUE = 7  # tile can be middle if value <= 7
 CHI_HIGHEST_MIN_VALUE = 2  # tile can be highest (e.g., 3 in 123) if value >= 2
+
+
+def _count_total_kans(round_state: MahjongRoundState) -> int:
+    """
+    Count total kans declared across all players in the round.
+    """
+    total = 0
+    for player in round_state.players:
+        total += sum(1 for m in player.melds if m.type in (Meld.KAN, Meld.SHOUMINKAN))
+    return total
+
+
+DRAGON_SET_COUNT_FOR_PAO = 3  # pao triggers on 3rd dragon set (daisangen)
+WIND_SET_COUNT_FOR_PAO = 4  # pao triggers on 4th wind set (daisuushii)
+
+_DRAGON_TILES = frozenset(DRAGONS_34)
+_WIND_TILES = frozenset(WINDS_34)
+
+# pao-eligible meld types (pon, open kan, added kan)
+_PAO_MELD_TYPES = (Meld.PON, Meld.KAN, Meld.SHOUMINKAN)
+
+
+def _check_pao(player: MahjongPlayer, discarder_seat: int, called_tile_34: int) -> None:
+    """
+    Check and set pao liability after a pon/open kan call.
+
+    Pao triggers when:
+    - 3rd dragon set is completed (Big Three Dragons / daisangen)
+    - 4th wind set is completed (Big Four Winds / daisuushii)
+    """
+    pao_rules: list[tuple[frozenset[int], int]] = [
+        (_DRAGON_TILES, DRAGON_SET_COUNT_FOR_PAO),
+        (_WIND_TILES, WIND_SET_COUNT_FOR_PAO),
+    ]
+    for tile_set, threshold in pao_rules:
+        if called_tile_34 in tile_set:
+            count = sum(
+                1
+                for m in player.melds
+                if m.tiles and tile_to_34(m.tiles[0]) in tile_set and m.type in _PAO_MELD_TYPES
+            )
+            if count >= threshold:
+                player.pao_seat = discarder_seat
+            break
+
+
+def get_kuikae_tiles(
+    call_type: MeldCallType, called_tile_34: int, sequence_tiles_34: list[int] | None = None
+) -> list[int]:
+    """
+    Compute tiles forbidden to discard after a meld call (kuikae restriction).
+
+    For pon: the called tile type is forbidden.
+    For chi: the called tile type plus the suji tile at the opposite end of the sequence.
+    """
+    forbidden = [called_tile_34]
+
+    if call_type == MeldCallType.CHI and sequence_tiles_34 is not None:
+        # chi suji kuikae: forbid the tile at the opposite end of the sequence
+        all_tiles = sorted([called_tile_34, *sequence_tiles_34])
+        suit = called_tile_34 // TILES_PER_SUIT
+
+        if called_tile_34 == all_tiles[0]:
+            # called tile is the lowest in the sequence, suji extends one step beyond the highest
+            suji = all_tiles[2] + 1
+            if suji // TILES_PER_SUIT == suit:
+                forbidden.append(suji)
+        elif called_tile_34 == all_tiles[2]:
+            # called tile is the highest in the sequence, suji extends one step below the lowest
+            suji = all_tiles[0] - 1
+            if suji >= 0 and suji // TILES_PER_SUIT == suit:
+                forbidden.append(suji)
+        # if called tile is middle, no suji kuikae applies
+
+    return forbidden
 
 
 def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
@@ -98,6 +179,12 @@ def call_pon(
 
     # set current player to caller (they must discard next)
     round_state.current_player_seat = caller_seat
+
+    # set kuikae restriction
+    caller.kuikae_tiles = get_kuikae_tiles(MeldCallType.PON, tile_34)
+
+    # check pao liability
+    _check_pao(caller, discarder_seat, tile_34)
 
     return meld
 
@@ -238,10 +325,14 @@ def call_chi(
     # set current player to caller (they must discard next)
     round_state.current_player_seat = caller_seat
 
+    # set kuikae restriction
+    sequence_tiles_34 = [tile_to_34(t) for t in sequence_tiles]
+    caller.kuikae_tiles = get_kuikae_tiles(MeldCallType.CHI, tile_to_34(tile_id), sequence_tiles_34)
+
     return meld
 
 
-def can_call_open_kan(player: MahjongPlayer, discarded_tile: int, wall_count: int) -> bool:
+def can_call_open_kan(player: MahjongPlayer, discarded_tile: int, round_state: MahjongRoundState) -> bool:
     """
     Check if player can call open kan (daiminkan) on a discarded tile.
 
@@ -249,11 +340,15 @@ def can_call_open_kan(player: MahjongPlayer, discarded_tile: int, wall_count: in
     - Player has 3 matching tiles in hand (same tile_34 type)
     - Player is not in riichi
     - Wall must have at least 2 tiles remaining (need replacement draw)
+    - Total kans in round must be less than 4
     """
     if player.is_riichi:
         return False
 
-    if wall_count < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+        return False
+
+    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
         return False
 
     discarded_34 = tile_to_34(discarded_tile)
@@ -262,16 +357,20 @@ def can_call_open_kan(player: MahjongPlayer, discarded_tile: int, wall_count: in
     return matching_count >= TILES_FOR_OPEN_KAN
 
 
-def can_call_closed_kan(player: MahjongPlayer, tile_34: int, wall_count: int) -> bool:
+def can_call_closed_kan(player: MahjongPlayer, tile_34: int, round_state: MahjongRoundState) -> bool:
     """
     Check if player can call closed kan (ankan) for a specific tile type.
 
     Requirements:
     - Player has 4 of the tile in hand
     - Wall must have at least 2 tiles remaining (need replacement draw)
+    - Total kans in round must be less than 4
     - If in riichi, kan must not change waiting tiles
     """
-    if wall_count < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+        return False
+
+    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
         return False
 
     matching_count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
@@ -324,7 +423,7 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     return new_waits == original_waits
 
 
-def can_call_added_kan(player: MahjongPlayer, tile_34: int, wall_count: int) -> bool:
+def can_call_added_kan(player: MahjongPlayer, tile_34: int, round_state: MahjongRoundState) -> bool:
     """
     Check if player can call added kan (shouminkan) for a specific tile type.
 
@@ -332,12 +431,16 @@ def can_call_added_kan(player: MahjongPlayer, tile_34: int, wall_count: int) -> 
     - Player has an existing pon of this tile type
     - Player has the 4th tile in hand
     - Wall must have at least 2 tiles remaining
+    - Total kans in round must be less than 4
     - Player is not in riichi (cannot add kan in riichi)
     """
     if player.is_riichi:
         return False
 
-    if wall_count < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+        return False
+
+    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
         return False
 
     # check for existing pon of this tile type
@@ -412,8 +515,11 @@ def call_open_kan(
     # set current player to caller (they will draw from dead wall and then discard)
     round_state.current_player_seat = caller_seat
 
-    # add new dora indicator
-    add_dora_indicator(round_state)
+    # defer dora indicator reveal until after discard (open kan rule)
+    round_state.pending_dora_count += 1
+
+    # check pao liability
+    _check_pao(caller, discarder_seat, tile_34)
 
     # draw from dead wall (sets is_rinshan flag)
     draw_from_dead_wall(round_state)
@@ -536,8 +642,8 @@ def call_added_kan(
     # current player remains the same
     round_state.current_player_seat = seat
 
-    # add new dora indicator
-    add_dora_indicator(round_state)
+    # defer dora indicator reveal until after discard (added kan rule)
+    round_state.pending_dora_count += 1
 
     # draw from dead wall (sets is_rinshan flag)
     draw_from_dead_wall(round_state)
@@ -545,13 +651,16 @@ def call_added_kan(
     return upgraded_meld
 
 
-def get_possible_closed_kans(player: MahjongPlayer, wall_count: int) -> list[int]:
+def get_possible_closed_kans(player: MahjongPlayer, round_state: MahjongRoundState) -> list[int]:
     """
     Get list of tile_34 values for which player can declare closed kan.
 
     Returns a list of tile_34 indices representing tiles the player has 4 of.
     """
-    if wall_count < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+        return []
+
+    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
         return []
 
     tile_counts: dict[int, int] = {}
@@ -571,7 +680,7 @@ def get_possible_closed_kans(player: MahjongPlayer, wall_count: int) -> list[int
     return possible
 
 
-def get_possible_added_kans(player: MahjongPlayer, wall_count: int) -> list[int]:
+def get_possible_added_kans(player: MahjongPlayer, round_state: MahjongRoundState) -> list[int]:
     """
     Get list of tile_34 values for which player can declare added kan.
 
@@ -580,7 +689,10 @@ def get_possible_added_kans(player: MahjongPlayer, wall_count: int) -> list[int]
     if player.is_riichi:
         return []
 
-    if wall_count < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+        return []
+
+    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
         return []
 
     possible = []

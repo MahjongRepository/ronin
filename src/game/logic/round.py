@@ -4,15 +4,16 @@ Round initialization and management for Mahjong game.
 
 from mahjong.shanten import Shanten
 
+from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState, RoundPhase
-from game.logic.tiles import generate_wall, hand_to_34_array, sort_tiles
-from game.logic.types import ExhaustiveDrawResult, SeatConfig
+from game.logic.tiles import generate_wall, hand_to_34_array, is_terminal_or_honor, sort_tiles, tile_to_34
+from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, SeatConfig
 
 # dead wall constants
 DEAD_WALL_SIZE = 14
-# dora indicator positions in dead wall: indices 2, 3, 4, 5 (up to 4 dora for kans)
+# dora indicator positions in dead wall: indices 2, 3, 4, 5, 6 (initial + up to 4 for kans)
 FIRST_DORA_INDEX = 2
-MAX_DORA_INDICATORS = 4
+MAX_DORA_INDICATORS = 5
 
 # hand size constants
 HAND_SIZE_AFTER_DRAW = 14
@@ -57,6 +58,7 @@ def init_round(game_state: MahjongGameState) -> None:
     round_state.turn_count = 0
     round_state.all_discards = []
     round_state.players_with_open_hands = []
+    round_state.pending_dora_count = 0
 
     # set phase to playing
     round_state.phase = RoundPhase.PLAYING
@@ -74,6 +76,8 @@ def _reset_players(round_state: MahjongRoundState) -> None:
         player.is_ippatsu = False
         player.is_daburi = False
         player.is_rinshan = False
+        player.kuikae_tiles = []
+        player.pao_seat = None
 
 
 def _deal_tiles(round_state: MahjongRoundState) -> None:
@@ -107,18 +111,31 @@ def add_dora_indicator(round_state: MahjongRoundState) -> int:
     Reveal the next dora indicator from dead wall.
 
     Called after a kan is declared. Returns the tile_id of the new indicator.
-    Dora indicators are at dead wall indices 2, 3, 4, 5.
+    Dora indicators are at dead wall indices 2, 3, 4, 5, 6.
     """
     current_count = len(round_state.dora_indicators)
     if current_count >= MAX_DORA_INDICATORS:
-        raise ValueError("cannot add more than 4 dora indicators")
+        raise ValueError("cannot add more than 5 dora indicators")
 
-    # next dora index: 3, 4, 5 for 2nd, 3rd, 4th dora
+    # next dora index: 3, 4, 5, 6 for 2nd, 3rd, 4th, 5th dora
     next_index = FIRST_DORA_INDEX + current_count
     new_indicator = round_state.dead_wall[next_index]
     round_state.dora_indicators.append(new_indicator)
 
     return new_indicator
+
+
+def reveal_pending_dora(round_state: MahjongRoundState) -> None:
+    """
+    Reveal any pending dora indicators queued by open/added kan.
+
+    Called after a discard to implement the rule that open and added kan
+    dora indicators are revealed after the replacement tile is discarded,
+    not immediately when the kan is declared.
+    """
+    while round_state.pending_dora_count > 0:
+        add_dora_indicator(round_state)
+        round_state.pending_dora_count -= 1
 
 
 def create_players(seat_configs: list[SeatConfig]) -> list[MahjongPlayer]:
@@ -150,6 +167,8 @@ def draw_from_dead_wall(round_state: MahjongRoundState) -> int:
     """
     Draw a replacement tile from the dead wall after kan.
 
+    After drawing, replenishes the dead wall by moving the last tile
+    from the live wall to maintain 14 dead wall tiles.
     Sets the player's is_rinshan flag to True.
     Returns the drawn tile_id.
     """
@@ -158,6 +177,11 @@ def draw_from_dead_wall(round_state: MahjongRoundState) -> int:
     current_player = round_state.players[round_state.current_player_seat]
     current_player.tiles.append(tile)
     current_player.is_rinshan = True
+
+    # replenish dead wall from live wall (append to maintain dora indicator positions at front)
+    if round_state.wall:
+        replenish_tile = round_state.wall.pop()
+        round_state.dead_wall.append(replenish_tile)
 
     return tile
 
@@ -179,6 +203,10 @@ def discard_tile(
 
     if tile_id not in player.tiles:
         raise ValueError(f"tile {tile_id} not in player's hand")
+
+    # validate kuikae restriction
+    if player.kuikae_tiles and tile_to_34(tile_id) in player.kuikae_tiles:
+        raise ValueError(f"tile {tile_id} is forbidden by kuikae restriction")
 
     # check if this is tsumogiri (discarding the just-drawn tile)
     # the drawn tile is always the last tile in hand (appended by draw_tile)
@@ -204,6 +232,12 @@ def discard_tile(
 
     # clear rinshan flag
     player.is_rinshan = False
+
+    # clear kuikae restriction after discard
+    player.kuikae_tiles = []
+
+    # reveal pending dora indicators (from open/added kan)
+    reveal_pending_dora(round_state)
 
     return discard
 
@@ -255,16 +289,60 @@ def is_tempai(player: MahjongPlayer) -> bool:
     return shanten_value == 0
 
 
-def process_exhaustive_draw(round_state: MahjongRoundState) -> ExhaustiveDrawResult:
+def check_nagashi_mangan(round_state: MahjongRoundState) -> list[int]:
+    """
+    Check which players qualify for nagashi mangan at exhaustive draw.
+
+    Requirements:
+    - All discards are terminals or honors
+    - None of the player's discards were claimed by opponents
+
+    Returns list of qualifying seat numbers.
+    """
+    qualifying = []
+    for player in round_state.players:
+        if not player.discards:
+            continue
+
+        # check all discards are terminal/honor
+        all_terminal_honor = all(is_terminal_or_honor(tile_to_34(d.tile_id)) for d in player.discards)
+        if not all_terminal_honor:
+            continue
+
+        # check none of the discards were claimed
+        # a claimed discard means another player has a meld with from_who == player.seat
+        was_claimed = False
+        for other in round_state.players:
+            if other.seat == player.seat:
+                continue
+            for meld in other.melds:
+                if meld.from_who == player.seat:
+                    was_claimed = True
+                    break
+            if was_claimed:
+                break
+
+        if not was_claimed:
+            qualifying.append(player.seat)
+
+    return qualifying
+
+
+def process_exhaustive_draw(game_state: MahjongGameState) -> ExhaustiveDrawResult | NagashiManganResult:
     """
     Process an exhaustive draw (wall empty, no winner).
 
-    Calculates noten payments: 3000 points total split from noten players to tempai players.
+    Checks for nagashi mangan first. If any player qualifies, delegates to
+    apply_nagashi_mangan_score(). Otherwise calculates noten payments:
+    3000 points total split from noten players to tempai players.
     - If all 4 tempai or all 4 noten: no payment
     - 1 tempai, 3 noten: each noten pays 1000 to tempai
     - 2 tempai, 2 noten: each noten pays 1500 to each tempai (750 each)
     - 3 tempai, 1 noten: noten pays 1000 to each tempai
     """
+    round_state = game_state.round_state
+
+    # compute tempai/noten (used by both nagashi mangan and normal exhaustive draw)
     tempai_seats = []
     noten_seats = []
 
@@ -273,6 +351,11 @@ def process_exhaustive_draw(round_state: MahjongRoundState) -> ExhaustiveDrawRes
             tempai_seats.append(player.seat)
         else:
             noten_seats.append(player.seat)
+
+    # check nagashi mangan first
+    qualifying = check_nagashi_mangan(round_state)
+    if qualifying:
+        return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats)
 
     score_changes = {0: 0, 1: 0, 2: 0, 3: 0}
 

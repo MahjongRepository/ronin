@@ -168,3 +168,38 @@ class TestGetAvailableActions:
         # no kan should be available since wall is empty
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 0
+
+    def test_kuikae_tiles_filtered_from_discard(self):
+        game_state = self._create_game_state()
+        round_state = game_state.round_state
+        player = round_state.players[0]
+
+        # set kuikae restriction: forbid tile_34=0 (1m, tiles 0-3)
+        player.kuikae_tiles = [0]
+
+        actions = get_available_actions(round_state, game_state, seat=0)
+
+        discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
+        assert len(discard_actions) == 1
+        tiles = discard_actions[0].tiles
+        assert tiles is not None
+        # no 1m tiles (tile_34=0) should be in the discard list
+        for tile_id in tiles:
+            assert tile_id // 4 != 0
+
+    def test_kuikae_tiles_does_not_affect_non_forbidden_tiles(self):
+        game_state = self._create_game_state()
+        round_state = game_state.round_state
+        player = round_state.players[0]
+
+        # forbid a tile_34 that the player doesn't have in hand
+        player.kuikae_tiles = [33]  # chun (red dragon)
+
+        actions = get_available_actions(round_state, game_state, seat=0)
+
+        discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
+        assert len(discard_actions) == 1
+        tiles = discard_actions[0].tiles
+        assert tiles is not None
+        # all 14 tiles should be discardable
+        assert len(tiles) == 14

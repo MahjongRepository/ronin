@@ -3,6 +3,7 @@ Unit tests for round initialization and management.
 """
 
 import pytest
+from mahjong.meld import Meld
 
 from game.logic.enums import BotType
 from game.logic.round import (
@@ -12,6 +13,7 @@ from game.logic.round import (
     add_dora_indicator,
     advance_turn,
     check_exhaustive_draw,
+    check_nagashi_mangan,
     create_players,
     discard_tile,
     draw_from_dead_wall,
@@ -19,6 +21,7 @@ from game.logic.round import (
     init_round,
     is_tempai,
     process_exhaustive_draw,
+    reveal_pending_dora,
 )
 from game.logic.state import (
     Discard,
@@ -27,7 +30,7 @@ from game.logic.state import (
     MahjongRoundState,
     RoundPhase,
 )
-from game.logic.types import SeatConfig
+from game.logic.types import NagashiManganResult, SeatConfig
 
 
 class TestInitRound:
@@ -117,6 +120,8 @@ class TestInitRound:
         game_state.round_state.players[1].is_ippatsu = True
         game_state.round_state.players[2].is_daburi = True
         game_state.round_state.players[3].is_rinshan = True
+        game_state.round_state.players[0].kuikae_tiles = [0, 1]
+        game_state.round_state.players[1].pao_seat = 2
 
         init_round(game_state)
 
@@ -126,6 +131,8 @@ class TestInitRound:
             assert player.is_ippatsu is False
             assert player.is_daburi is False
             assert player.is_rinshan is False
+            assert player.kuikae_tiles == []
+            assert player.pao_seat is None
             assert player.discards == []
             assert player.melds == []
 
@@ -240,16 +247,27 @@ class TestAddDoraIndicator:
         assert len(round_state.dora_indicators) == 4
         assert new_indicator == round_state.dead_wall[5]
 
+    def test_add_dora_indicator_adds_fifth_dora(self):
+        round_state = self._create_round_state_with_dead_wall()
+        add_dora_indicator(round_state)
+        add_dora_indicator(round_state)
+        add_dora_indicator(round_state)
+
+        new_indicator = add_dora_indicator(round_state)
+
+        assert len(round_state.dora_indicators) == 5
+        assert new_indicator == round_state.dead_wall[6]
+
     def test_add_dora_indicator_raises_when_max_reached(self):
         round_state = self._create_round_state_with_dead_wall()
-        # add up to max
+        # add up to max (initial + 4 kans = 5 indicators)
         for _ in range(MAX_DORA_INDICATORS - 1):
             add_dora_indicator(round_state)
 
         assert len(round_state.dora_indicators) == MAX_DORA_INDICATORS
 
         # next add should raise
-        with pytest.raises(ValueError, match="cannot add more than 4 dora indicators"):
+        with pytest.raises(ValueError, match="cannot add more than 5 dora indicators"):
             add_dora_indicator(round_state)
 
 
@@ -384,17 +402,18 @@ class TestDrawFromDeadWall:
         ]
         return MahjongRoundState(
             dead_wall=list(range(122, 136)),  # 14 tiles
+            wall=list(range(50)),  # live wall with tiles for replenishment
             players=players,
             current_player_seat=0,
         )
 
-    def test_draw_from_dead_wall_removes_from_dead_wall(self):
+    def test_draw_from_dead_wall_maintains_dead_wall_size(self):
         round_state = self._create_round_state()
-        initial_len = len(round_state.dead_wall)
 
         draw_from_dead_wall(round_state)
 
-        assert len(round_state.dead_wall) == initial_len - 1
+        # dead wall should stay at 14 (one popped, one replenished from live wall)
+        assert len(round_state.dead_wall) == DEAD_WALL_SIZE
 
     def test_draw_from_dead_wall_returns_last_tile(self):
         round_state = self._create_round_state()
@@ -422,6 +441,28 @@ class TestDrawFromDeadWall:
         draw_from_dead_wall(round_state)
 
         assert round_state.players[0].is_rinshan is True
+
+    def test_draw_from_dead_wall_replenishes_from_live_wall(self):
+        round_state = self._create_round_state()
+        initial_wall_len = len(round_state.wall)
+        last_wall_tile = round_state.wall[-1]
+
+        draw_from_dead_wall(round_state)
+
+        # live wall loses one tile (moved to dead wall)
+        assert len(round_state.wall) == initial_wall_len - 1
+        # replenish tile is appended at the end of dead wall (preserves dora indicator positions at front)
+        assert round_state.dead_wall[-1] == last_wall_tile
+
+    def test_draw_from_dead_wall_without_live_wall(self):
+        round_state = self._create_round_state()
+        round_state.wall = []  # no live wall tiles
+        initial_dead_wall_len = len(round_state.dead_wall)
+
+        draw_from_dead_wall(round_state)
+
+        # dead wall shrinks by 1 since no replenishment possible
+        assert len(round_state.dead_wall) == initial_dead_wall_len - 1
 
 
 class TestDiscardTile:
@@ -524,6 +565,34 @@ class TestDiscardTile:
         discard_tile(round_state, seat=0, tile_id=20)
 
         assert round_state.players[0].is_rinshan is False
+
+    def test_discard_tile_rejects_kuikae_forbidden_tile(self):
+        round_state = self._create_round_state()
+        # tile 10 is tile_34=2 (3m), set kuikae to forbid it
+        round_state.players[0].kuikae_tiles = [2]
+
+        with pytest.raises(ValueError, match="forbidden by kuikae"):
+            discard_tile(round_state, seat=0, tile_id=10)
+
+    def test_discard_tile_allows_non_kuikae_tile(self):
+        round_state = self._create_round_state()
+        # forbid tile_34=2 (3m), but player discards tile 20 (tile_34=5, 6m)
+        round_state.players[0].kuikae_tiles = [2]
+
+        result = discard_tile(round_state, seat=0, tile_id=20)
+
+        assert result.tile_id == 20
+
+    def test_discard_tile_clears_kuikae_after_discard(self):
+        round_state = self._create_round_state()
+        # player 0 has tiles [10, 20, 30, 40]
+        # tile 10 is tile_34=2, tile 20 is tile_34=5, tile 30 is tile_34=7, tile 40 is tile_34=10
+        # set kuikae to forbid tile_34=2 (tile 10) and discard tile 20 (tile_34=5, not forbidden)
+        round_state.players[0].kuikae_tiles = [2]
+
+        discard_tile(round_state, seat=0, tile_id=20)
+
+        assert round_state.players[0].kuikae_tiles == []
 
 
 class TestAdvanceTurn:
@@ -665,9 +734,9 @@ class TestIsTempai:
 
 
 class TestProcessExhaustiveDraw:
-    def _create_round_state_with_players(self, tempai_seats: list[int]) -> MahjongRoundState:
+    def _create_game_state_with_players(self, tempai_seats: list[int]) -> MahjongGameState:
         """
-        Create a round state with players where specified seats are in tempai.
+        Create a game state with players where specified seats are in tempai.
         """
         players = []
         for seat in range(4):
@@ -678,15 +747,17 @@ class TestProcessExhaustiveDraw:
                 # non-tempai hand: disconnected tiles
                 tiles = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96]
             players.append(MahjongPlayer(seat=seat, name=f"Player{seat}", tiles=tiles, score=25000))
-        return MahjongRoundState(players=players, wall=[])
+        round_state = MahjongRoundState(players=players, wall=[])
+        return MahjongGameState(round_state=round_state)
 
     def test_process_exhaustive_draw_one_tempai(self):
         """
         1 tempai, 3 noten: each noten pays 1000 to tempai.
         """
-        round_state = self._create_round_state_with_players(tempai_seats=[0])
+        game_state = self._create_game_state_with_players(tempai_seats=[0])
+        round_state = game_state.round_state
 
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
 
         assert result.tempai_seats == [0]
         assert result.noten_seats == [1, 2, 3]
@@ -701,9 +772,10 @@ class TestProcessExhaustiveDraw:
         """
         2 tempai, 2 noten: each noten pays 1500 total, each tempai gets 1500.
         """
-        round_state = self._create_round_state_with_players(tempai_seats=[0, 2])
+        game_state = self._create_game_state_with_players(tempai_seats=[0, 2])
+        round_state = game_state.round_state
 
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
 
         assert result.tempai_seats == [0, 2]
         assert result.noten_seats == [1, 3]
@@ -717,9 +789,10 @@ class TestProcessExhaustiveDraw:
         """
         3 tempai, 1 noten: noten pays 1000 to each tempai.
         """
-        round_state = self._create_round_state_with_players(tempai_seats=[0, 1, 2])
+        game_state = self._create_game_state_with_players(tempai_seats=[0, 1, 2])
+        round_state = game_state.round_state
 
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
 
         assert result.tempai_seats == [0, 1, 2]
         assert result.noten_seats == [3]
@@ -733,9 +806,10 @@ class TestProcessExhaustiveDraw:
         """
         All 4 tempai: no payment.
         """
-        round_state = self._create_round_state_with_players(tempai_seats=[0, 1, 2, 3])
+        game_state = self._create_game_state_with_players(tempai_seats=[0, 1, 2, 3])
+        round_state = game_state.round_state
 
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
 
         assert result.tempai_seats == [0, 1, 2, 3]
         assert result.noten_seats == []
@@ -747,9 +821,10 @@ class TestProcessExhaustiveDraw:
         """
         All 4 noten: no payment.
         """
-        round_state = self._create_round_state_with_players(tempai_seats=[])
+        game_state = self._create_game_state_with_players(tempai_seats=[])
+        round_state = game_state.round_state
 
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
 
         assert result.tempai_seats == []
         assert result.noten_seats == [0, 1, 2, 3]
@@ -759,10 +834,279 @@ class TestProcessExhaustiveDraw:
 
     def test_process_exhaustive_draw_returns_type(self):
         """
-        Verify the result dict contains the correct type field.
+        Verify the result contains the correct type field.
         """
-        round_state = self._create_round_state_with_players(tempai_seats=[0])
+        game_state = self._create_game_state_with_players(tempai_seats=[0])
 
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
 
         assert result.type == "exhaustive_draw"
+
+
+class TestRevealPendingDora:
+    def _create_round_state_with_pending_dora(self, pending_count: int = 1) -> MahjongRoundState:
+        """Create a round state with pending dora indicators."""
+        dead_wall = list(range(122, 136))  # 14 tiles
+        return MahjongRoundState(
+            dead_wall=dead_wall,
+            dora_indicators=[dead_wall[FIRST_DORA_INDEX]],
+            pending_dora_count=pending_count,
+        )
+
+    def test_reveal_pending_dora_adds_indicator(self):
+        round_state = self._create_round_state_with_pending_dora(pending_count=1)
+        initial_dora_count = len(round_state.dora_indicators)
+
+        reveal_pending_dora(round_state)
+
+        assert len(round_state.dora_indicators) == initial_dora_count + 1
+        assert round_state.pending_dora_count == 0
+
+    def test_reveal_pending_dora_multiple(self):
+        round_state = self._create_round_state_with_pending_dora(pending_count=2)
+        initial_dora_count = len(round_state.dora_indicators)
+
+        reveal_pending_dora(round_state)
+
+        assert len(round_state.dora_indicators) == initial_dora_count + 2
+        assert round_state.pending_dora_count == 0
+
+    def test_reveal_pending_dora_noop_when_zero(self):
+        round_state = self._create_round_state_with_pending_dora(pending_count=0)
+        initial_dora_count = len(round_state.dora_indicators)
+
+        reveal_pending_dora(round_state)
+
+        assert len(round_state.dora_indicators) == initial_dora_count
+        assert round_state.pending_dora_count == 0
+
+
+class TestDiscardTileRevealsPendingDora:
+    def _create_round_state(self) -> MahjongRoundState:
+        """Create a round state with pending dora and dead wall."""
+        dead_wall = list(range(122, 136))  # 14 tiles
+        players = [
+            MahjongPlayer(seat=0, name="Player1", tiles=[10, 20, 30, 40]),
+            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=[11, 21, 31, 41]),
+            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[12, 22, 32, 42]),
+            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[13, 23, 33, 43]),
+        ]
+        return MahjongRoundState(
+            players=players,
+            current_player_seat=0,
+            dead_wall=dead_wall,
+            dora_indicators=[dead_wall[FIRST_DORA_INDEX]],
+            pending_dora_count=1,
+        )
+
+    def test_discard_reveals_pending_dora(self):
+        round_state = self._create_round_state()
+        initial_dora_count = len(round_state.dora_indicators)
+
+        discard_tile(round_state, seat=0, tile_id=20)
+
+        assert len(round_state.dora_indicators) == initial_dora_count + 1
+        assert round_state.pending_dora_count == 0
+
+    def test_discard_reveals_multiple_pending_dora(self):
+        round_state = self._create_round_state()
+        round_state.pending_dora_count = 2
+        initial_dora_count = len(round_state.dora_indicators)
+
+        discard_tile(round_state, seat=0, tile_id=20)
+
+        assert len(round_state.dora_indicators) == initial_dora_count + 2
+        assert round_state.pending_dora_count == 0
+
+    def test_discard_without_pending_dora_unchanged(self):
+        round_state = self._create_round_state()
+        round_state.pending_dora_count = 0
+        initial_dora_count = len(round_state.dora_indicators)
+
+        discard_tile(round_state, seat=0, tile_id=20)
+
+        assert len(round_state.dora_indicators) == initial_dora_count
+        assert round_state.pending_dora_count == 0
+
+
+class TestInitRoundResetsPendingDora:
+    def test_init_round_resets_pending_dora_count(self):
+        players = [
+            MahjongPlayer(seat=0, name="Player1"),
+            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
+            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
+            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+        ]
+        round_state = MahjongRoundState(players=players, dealer_seat=0, pending_dora_count=2)
+        game_state = MahjongGameState(round_state=round_state, seed=12345.0, round_number=0)
+
+        init_round(game_state)
+
+        assert game_state.round_state.pending_dora_count == 0
+
+
+class TestCheckNagashiMangan:
+    def _create_round_state(self) -> MahjongRoundState:
+        """Create a round state with 4 players for nagashi mangan testing."""
+        players = [
+            MahjongPlayer(seat=0, name="Player0", score=25000),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
+        ]
+        return MahjongRoundState(players=players, wall=[])
+
+    def test_qualifies_with_all_terminal_honor_discards(self):
+        """Player with only terminal/honor discards and none claimed qualifies."""
+        round_state = self._create_round_state()
+        # tile_ids for terminals/honors:
+        # 1m=0, 9m=32, E=108, S=112, W=116, N=120, Haku=124
+        round_state.players[0].discards = [
+            Discard(tile_id=0),  # 1m (terminal)
+            Discard(tile_id=32),  # 9m (terminal)
+            Discard(tile_id=108),  # E (honor)
+            Discard(tile_id=112),  # S (honor)
+            Discard(tile_id=124),  # Haku (honor)
+        ]
+
+        result = check_nagashi_mangan(round_state)
+
+        assert result == [0]
+
+    def test_fails_with_non_terminal_discard(self):
+        """Player with a non-terminal/non-honor discard does not qualify."""
+        round_state = self._create_round_state()
+        # tile_id 4 is 2m (not terminal), tile_id 108 is E (honor)
+        round_state.players[0].discards = [
+            Discard(tile_id=4),  # 2m (simples, not terminal)
+            Discard(tile_id=108),  # E (honor)
+        ]
+
+        result = check_nagashi_mangan(round_state)
+
+        assert result == []
+
+    def test_fails_when_discard_claimed_by_opponent(self):
+        """Player whose discard was claimed by opponent does not qualify."""
+        round_state = self._create_round_state()
+        round_state.players[0].discards = [
+            Discard(tile_id=0),  # 1m (terminal)
+            Discard(tile_id=108),  # E (honor)
+        ]
+        # opponent at seat 1 has a pon meld taken from seat 0
+        pon_meld = Meld(
+            meld_type=Meld.PON, tiles=[108, 109, 110], opened=True, called_tile=108, who=1, from_who=0
+        )
+        round_state.players[1].melds = [pon_meld]
+
+        result = check_nagashi_mangan(round_state)
+
+        assert result == []
+
+    def test_no_discards_does_not_qualify(self):
+        """Player with no discards does not qualify."""
+        round_state = self._create_round_state()
+        # no discards for any player
+
+        result = check_nagashi_mangan(round_state)
+
+        assert result == []
+
+    def test_multiple_players_qualify(self):
+        """Multiple players can qualify simultaneously."""
+        round_state = self._create_round_state()
+        round_state.players[0].discards = [
+            Discard(tile_id=0),  # 1m
+            Discard(tile_id=108),  # E
+        ]
+        round_state.players[2].discards = [
+            Discard(tile_id=32),  # 9m
+            Discard(tile_id=124),  # Haku
+        ]
+
+        result = check_nagashi_mangan(round_state)
+
+        assert result == [0, 2]
+
+    def test_claimed_by_self_does_not_disqualify(self):
+        """Melds from_who == self (closed kan) should not disqualify."""
+        round_state = self._create_round_state()
+        round_state.players[0].discards = [
+            Discard(tile_id=0),  # 1m
+            Discard(tile_id=108),  # E
+        ]
+        # player 0 has a closed kan (from_who == self)
+        kan_meld = Meld(
+            meld_type=Meld.KAN, tiles=[108, 109, 110, 111], opened=False, called_tile=108, who=0, from_who=0
+        )
+        round_state.players[0].melds = [kan_meld]
+
+        result = check_nagashi_mangan(round_state)
+
+        assert result == [0]
+
+
+class TestProcessExhaustiveDrawNagashiMangan:
+    def _create_game_state_for_nagashi(self) -> MahjongGameState:
+        """
+        Create a game state where seat 0 qualifies for nagashi mangan.
+
+        Uses non-tempai hands to simplify score verification.
+        """
+        players = []
+        for seat in range(4):
+            # non-tempai hand: disconnected tiles
+            tiles = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96]
+            players.append(MahjongPlayer(seat=seat, name=f"Player{seat}", tiles=tiles, score=25000))
+
+        # seat 0 has all terminal/honor discards
+        players[0].discards = [
+            Discard(tile_id=0),  # 1m
+            Discard(tile_id=32),  # 9m
+            Discard(tile_id=108),  # E
+        ]
+
+        round_state = MahjongRoundState(players=players, wall=[], dealer_seat=0)
+        return MahjongGameState(round_state=round_state)
+
+    def test_process_exhaustive_draw_returns_nagashi_mangan_result(self):
+        """When nagashi mangan qualifies, returns NagashiManganResult."""
+        game_state = self._create_game_state_for_nagashi()
+
+        result = process_exhaustive_draw(game_state)
+
+        assert isinstance(result, NagashiManganResult)
+        assert result.type == "nagashi_mangan"
+        assert result.qualifying_seats == [0]
+
+    def test_nagashi_mangan_dealer_scoring(self):
+        """Dealer nagashi mangan: 4000 from each non-dealer (12000 total)."""
+        game_state = self._create_game_state_for_nagashi()
+        # seat 0 is dealer
+
+        result = process_exhaustive_draw(game_state)
+
+        assert isinstance(result, NagashiManganResult)
+        assert result.score_changes[0] == 12000
+        assert result.score_changes[1] == -4000
+        assert result.score_changes[2] == -4000
+        assert result.score_changes[3] == -4000
+        # verify scores applied
+        assert game_state.round_state.players[0].score == 37000
+        assert game_state.round_state.players[1].score == 21000
+
+    def test_nagashi_mangan_non_dealer_scoring(self):
+        """Non-dealer nagashi mangan: 4000 from dealer + 2000 from each non-dealer."""
+        game_state = self._create_game_state_for_nagashi()
+        game_state.round_state.dealer_seat = 1  # seat 1 is dealer, seat 0 is non-dealer
+
+        result = process_exhaustive_draw(game_state)
+
+        assert isinstance(result, NagashiManganResult)
+        # seat 0 gets 4000+2000+2000 = 8000
+        assert result.score_changes[0] == 8000
+        # dealer (seat 1) pays 4000
+        assert result.score_changes[1] == -4000
+        # non-dealers pay 2000 each
+        assert result.score_changes[2] == -2000
+        assert result.score_changes[3] == -2000

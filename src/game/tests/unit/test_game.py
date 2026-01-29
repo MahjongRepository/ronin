@@ -22,6 +22,7 @@ from game.logic.types import (
     DoubleRonWinner,
     ExhaustiveDrawResult,
     HandResultInfo,
+    NagashiManganResult,
     RonResult,
     SeatConfig,
     TsumoResult,
@@ -391,6 +392,49 @@ class TestProcessRoundEnd:
 
         assert game_state.unique_dealers == 9
         assert game_state.round_state.round_wind == 2  # West
+
+    def test_nagashi_mangan_does_not_increment_honba(self):
+        game_state = self._create_game_state()
+        game_state.honba_sticks = 2
+        result = NagashiManganResult(
+            qualifying_seats=[1],
+            tempai_seats=[0, 1],
+            noten_seats=[2, 3],
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
+        )
+
+        process_round_end(game_state, result)
+
+        # honba should remain unchanged (no increment for nagashi mangan)
+        assert game_state.honba_sticks == 2
+
+    def test_nagashi_mangan_dealer_tempai_does_not_rotate(self):
+        game_state = self._create_game_state()
+        result = NagashiManganResult(
+            qualifying_seats=[1],
+            tempai_seats=[0],  # dealer (seat 0) is tempai
+            noten_seats=[1, 2, 3],
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
+        )
+
+        process_round_end(game_state, result)
+
+        assert game_state.round_state.dealer_seat == 0
+        assert game_state.unique_dealers == 1
+
+    def test_nagashi_mangan_dealer_noten_rotates(self):
+        game_state = self._create_game_state()
+        result = NagashiManganResult(
+            qualifying_seats=[1],
+            tempai_seats=[1],  # dealer (seat 0) is noten
+            noten_seats=[0, 2, 3],
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
+        )
+
+        process_round_end(game_state, result)
+
+        assert game_state.round_state.dealer_seat == 1
+        assert game_state.unique_dealers == 2
 
 
 class TestCheckGameEnd:

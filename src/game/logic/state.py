@@ -62,6 +62,10 @@ class MahjongPlayer:
 
     # special conditions
     is_rinshan: bool = False  # drew from dead wall after kan
+    kuikae_tiles: list[int] = field(
+        default_factory=list
+    )  # tile_34 values forbidden for discard after meld call
+    pao_seat: int | None = None  # seat of player liable for pao (None if no liability)
 
     # score
     score: int = 25000
@@ -96,6 +100,9 @@ class MahjongRoundState:
     # tracking for abortive draws
     all_discards: list[int] = field(default_factory=list)  # all tile_ids discarded (for four winds check)
     players_with_open_hands: list[int] = field(default_factory=list)  # seats that have called melds
+
+    # dora timing
+    pending_dora_count: int = 0  # dora indicators to reveal after next discard (for open/added kan)
 
     # phase
     phase: RoundPhase = RoundPhase.WAITING

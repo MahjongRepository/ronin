@@ -110,6 +110,7 @@ def process_round_end(game_state: MahjongGameState, result: RoundResult) -> None
     - dealer won (or one of multiple winners): increment honba, don't rotate
     - exhaustive draw with dealer tempai: increment honba, don't rotate
     - exhaustive draw with dealer noten: increment honba, rotate dealer
+    - nagashi mangan: no honba change, dealer rotates if noten
     - dealer lost (ron/tsumo, dealer not winner): reset honba to 0, rotate dealer
 
     Updates unique_dealers when dealer changes, which drives wind progression.
@@ -120,6 +121,9 @@ def process_round_end(game_state: MahjongGameState, result: RoundResult) -> None
     # determine if dealer should rotate based on result type
     if result_type in (RoundResultType.ABORTIVE_DRAW, RoundResultType.EXHAUSTIVE_DRAW):
         should_rotate = _process_draw_result(game_state, result)
+    elif result_type == RoundResultType.NAGASHI_MANGAN:
+        # nagashi mangan: no honba increment, dealer rotates if noten
+        should_rotate = round_state.dealer_seat not in result.tempai_seats
     elif result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):
         should_rotate = _process_win_result(game_state, result)
     else:

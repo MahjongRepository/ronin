@@ -136,7 +136,7 @@ The `logic/` module implements Riichi Mahjong rules:
 
 - **MahjongService** - Orchestration-only entry point implementing GameService interface; returns `list[ServiceEvent]`
 - **MahjongGame** - Manages game state across multiple rounds (hanchan)
-- **Round** - Handles a single round with wall, draws, and discards
+- **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, and nagashi mangan detection
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
 - **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.)
@@ -144,11 +144,11 @@ The `logic/` module implements Riichi Mahjong rules:
 - **TurnTimer** - Server-side bank time management with async timeout callbacks for turns and meld decisions
 - **BotController** - Handles bot turns and call responses using `dict[int, BotPlayer]` seat-to-bot mapping; operates on `ServiceEvent` and `MeldCaller` models
 - **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`
-- **Types** - Pydantic models for cross-component data: `SeatConfig`, round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller`, `BotAction`, `AvailableActionItem`; `RoundResult` union type
+- **Types** - Pydantic models for cross-component data: `SeatConfig`, round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller`, `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
-- **Melds** - Detection of valid chi, pon, and kan combinations
+- **Melds** - Detection of valid chi, pon, and kan combinations; kuikae restriction calculation; pao liability detection
 - **Win** - Hand parsing and yaku detection
-- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); returns typed result models
+- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); pao liability scoring (tsumo: liable pays full, ron: 50/50 split); nagashi mangan scoring; returns typed result models
 - **Riichi** - Riichi declaration validation and tenpai detection
 - **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.); returns `AbortiveDrawResult`
 - **Bot** - AI player for filling empty seats; returns `BotAction` model

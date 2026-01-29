@@ -351,6 +351,17 @@ class TestProcessTsumoCall:
         assert result.winner_seat == 0
         assert round_state.phase == RoundPhase.FINISHED
 
+    def test_process_tsumo_clears_pending_dora(self):
+        game_state = self._create_game_state_with_tsumo()
+        round_state = game_state.round_state
+        # simulate pending dora from open/added kan
+        round_state.pending_dora_count = 1
+
+        process_tsumo_call(round_state, game_state, winner_seat=0)
+
+        # tsumo win clears pending dora (not revealed for the winning hand)
+        assert round_state.pending_dora_count == 0
+
 
 class TestGetAvailableActions:
     def _create_game_state(self) -> MahjongGameState:

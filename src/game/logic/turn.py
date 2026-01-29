@@ -82,7 +82,7 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
 
     # check for exhaustive draw before attempting to draw
     if check_exhaustive_draw(round_state):
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
         round_state.phase = RoundPhase.FINISHED
         events.append(RoundEndEvent(result=result, target="all"))
         return events
@@ -91,7 +91,7 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
     drawn_tile = draw_tile(round_state)
     if drawn_tile is None:
         # wall exhausted during draw (shouldn't happen if check above works)
-        result = process_exhaustive_draw(round_state)
+        result = process_exhaustive_draw(game_state)
         round_state.phase = RoundPhase.FINISHED
         events.append(RoundEndEvent(result=result, target="all"))
         return events
@@ -465,6 +465,10 @@ def process_tsumo_call(
     if not can_declare_tsumo(winner, round_state):
         raise ValueError("cannot declare tsumo: conditions not met")
 
+    # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
+    # scores before the deferred dora indicator would have been revealed
+    round_state.pending_dora_count = 0
+
     # the win tile is the last tile in hand (just drawn)
     win_tile = winner.tiles[-1]
     hand_result = calculate_hand_value(winner, round_state, win_tile, is_tsumo=True)
@@ -516,7 +520,6 @@ def _find_meld_callers(
     Each entry includes: seat, call_type, and options (for chi).
     """
     meld_calls: list[MeldCaller] = []
-    wall_count = len(round_state.wall)
     tile_34 = tile_to_34(tile_id)
 
     for seat in range(4):
@@ -526,7 +529,7 @@ def _find_meld_callers(
         player = round_state.players[seat]
 
         # check open kan
-        if can_call_open_kan(player, tile_id, wall_count):
+        if can_call_open_kan(player, tile_id, round_state):
             meld_calls.append(
                 MeldCaller(
                     seat=seat,

@@ -9,11 +9,14 @@ from game.logic.round import is_tempai
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
 
-# ura dora positions in dead wall: indices 9, 10, 11, 12 (one per dora indicator)
-FIRST_URA_DORA_INDEX = 9
+# ura dora positions in dead wall: indices 7, 8, 9, 10, 11 (beneath each dora indicator)
+FIRST_URA_DORA_INDEX = 7
 
 # riichi point cost
 RIICHI_COST = 1000
+
+# minimum tiles required in wall for riichi declaration
+MIN_WALL_FOR_RIICHI = 4
 
 
 def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
@@ -25,7 +28,7 @@ def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) ->
     - Must be in tempai (one tile away from winning)
     - Must have closed hand (no open melds)
     - Must have at least 1000 points
-    - Must have at least one tile remaining in wall
+    - Must have at least 4 tiles remaining in wall
     """
     # must not already be in riichi
     if player.is_riichi:
@@ -39,8 +42,8 @@ def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) ->
     if player.has_open_melds():
         return False
 
-    # must have tiles remaining in wall
-    if len(round_state.wall) == 0:
+    # must have at least 4 tiles remaining in wall so other players can still draw
+    if len(round_state.wall) < MIN_WALL_FOR_RIICHI:
         return False
 
     # must be in tempai
@@ -80,7 +83,8 @@ def get_ura_dora(round_state: MahjongRoundState, num_dora: int) -> list[int]:
     """
     Get ura dora tiles revealed when winning with riichi.
 
-    The ura dora indicators are at dead wall indices 9, 10, 11, 12.
+    The ura dora indicators are at dead wall indices 7, 8, 9, 10, 11
+    (beneath each dora indicator at indices 2, 3, 4, 5, 6).
     One ura dora is revealed per dora indicator (up to num_dora).
     Returns the tile_ids of the ura dora indicator tiles.
     """

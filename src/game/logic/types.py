@@ -81,6 +81,7 @@ class TsumoResult(BaseModel):
     hand_result: HandResultInfo
     score_changes: dict[int, int]
     riichi_sticks_collected: int
+    pao_seat: int | None = None
 
 
 class RonResult(BaseModel):
@@ -92,6 +93,7 @@ class RonResult(BaseModel):
     hand_result: HandResultInfo
     score_changes: dict[int, int]
     riichi_sticks_collected: int
+    pao_seat: int | None = None
 
 
 class DoubleRonWinner(BaseModel):
@@ -100,6 +102,7 @@ class DoubleRonWinner(BaseModel):
     winner_seat: int
     hand_result: HandResultInfo
     riichi_sticks_collected: int
+    pao_seat: int | None = None
 
 
 class DoubleRonResult(BaseModel):
@@ -127,6 +130,16 @@ class AbortiveDrawResult(BaseModel):
     reason: AbortiveDrawType
     score_changes: dict[int, int] = Field(default_factory=dict)
     seat: int | None = None
+
+
+class NagashiManganResult(BaseModel):
+    """Result of a nagashi mangan at exhaustive draw."""
+
+    type: RoundResultType = RoundResultType.NAGASHI_MANGAN
+    qualifying_seats: list[int]
+    tempai_seats: list[int]
+    noten_seats: list[int]
+    score_changes: dict[int, int]
 
 
 class PlayerStanding(BaseModel):
@@ -229,4 +242,11 @@ class GameView(BaseModel):
 
 
 # discriminated union for all round results
-RoundResult = TsumoResult | RonResult | DoubleRonResult | ExhaustiveDrawResult | AbortiveDrawResult
+RoundResult = (
+    TsumoResult
+    | RonResult
+    | DoubleRonResult
+    | ExhaustiveDrawResult
+    | AbortiveDrawResult
+    | NagashiManganResult
+)

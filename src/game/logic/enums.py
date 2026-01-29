@@ -85,6 +85,7 @@ class RoundResultType(str, Enum):
     DOUBLE_RON = "double_ron"
     EXHAUSTIVE_DRAW = "exhaustive_draw"
     ABORTIVE_DRAW = "abortive_draw"
+    NAGASHI_MANGAN = "nagashi_mangan"
     GAME_END = "game_end"
 
 
