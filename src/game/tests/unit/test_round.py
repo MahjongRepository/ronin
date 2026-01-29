@@ -4,6 +4,7 @@ Unit tests for round initialization and management.
 
 import pytest
 
+from game.logic.enums import BotType
 from game.logic.round import (
     DEAD_WALL_SIZE,
     FIRST_DORA_INDEX,
@@ -26,6 +27,7 @@ from game.logic.state import (
     MahjongRoundState,
     RoundPhase,
 )
+from game.logic.types import SeatConfig
 
 
 class TestInitRound:
@@ -252,31 +254,44 @@ class TestAddDoraIndicator:
 
 
 class TestCreatePlayers:
+    def _default_configs(self) -> list[SeatConfig]:
+        return [
+            SeatConfig(name="Human", is_bot=False),
+            SeatConfig(name="Tsumogiri 1", is_bot=True, bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="Tsumogiri 2", is_bot=True, bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="Tsumogiri 3", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        ]
+
     def test_create_players_creates_four_players(self):
-        names = ["Human", "Bot1", "Bot2", "Bot3"]
-        players = create_players(names)
+        configs = self._default_configs()
+        players = create_players(configs)
 
         assert len(players) == 4
 
     def test_create_players_first_is_human(self):
-        names = ["Human", "Bot1", "Bot2", "Bot3"]
-        players = create_players(names)
+        configs = self._default_configs()
+        players = create_players(configs)
 
         assert players[0].is_bot is False
         assert players[0].name == "Human"
         assert players[0].seat == 0
 
     def test_create_players_rest_are_bots(self):
-        names = ["Human", "Bot1", "Bot2", "Bot3"]
-        players = create_players(names)
+        configs = self._default_configs()
+        players = create_players(configs)
 
         for i in range(1, 4):
             assert players[i].is_bot is True
             assert players[i].seat == i
 
     def test_create_players_assigns_correct_names(self):
-        names = ["Alice", "BotA", "BotB", "BotC"]
-        players = create_players(names)
+        configs = [
+            SeatConfig(name="Alice", is_bot=False),
+            SeatConfig(name="BotA", is_bot=True, bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="BotB", is_bot=True, bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="BotC", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        ]
+        players = create_players(configs)
 
         assert players[0].name == "Alice"
         assert players[1].name == "BotA"
@@ -284,8 +299,8 @@ class TestCreatePlayers:
         assert players[3].name == "BotC"
 
     def test_create_players_default_scores(self):
-        names = ["Human", "Bot1", "Bot2", "Bot3"]
-        players = create_players(names)
+        configs = self._default_configs()
+        players = create_players(configs)
 
         for player in players:
             assert player.score == 25000
@@ -673,9 +688,9 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(round_state)
 
-        assert result["tempai_seats"] == [0]
-        assert result["noten_seats"] == [1, 2, 3]
-        assert result["score_changes"] == {0: 3000, 1: -1000, 2: -1000, 3: -1000}
+        assert result.tempai_seats == [0]
+        assert result.noten_seats == [1, 2, 3]
+        assert result.score_changes == {0: 3000, 1: -1000, 2: -1000, 3: -1000}
         # verify scores updated
         assert round_state.players[0].score == 28000
         assert round_state.players[1].score == 24000
@@ -690,9 +705,9 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(round_state)
 
-        assert result["tempai_seats"] == [0, 2]
-        assert result["noten_seats"] == [1, 3]
-        assert result["score_changes"] == {0: 1500, 1: -1500, 2: 1500, 3: -1500}
+        assert result.tempai_seats == [0, 2]
+        assert result.noten_seats == [1, 3]
+        assert result.score_changes == {0: 1500, 1: -1500, 2: 1500, 3: -1500}
         assert round_state.players[0].score == 26500
         assert round_state.players[1].score == 23500
         assert round_state.players[2].score == 26500
@@ -706,9 +721,9 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(round_state)
 
-        assert result["tempai_seats"] == [0, 1, 2]
-        assert result["noten_seats"] == [3]
-        assert result["score_changes"] == {0: 1000, 1: 1000, 2: 1000, 3: -3000}
+        assert result.tempai_seats == [0, 1, 2]
+        assert result.noten_seats == [3]
+        assert result.score_changes == {0: 1000, 1: 1000, 2: 1000, 3: -3000}
         assert round_state.players[0].score == 26000
         assert round_state.players[1].score == 26000
         assert round_state.players[2].score == 26000
@@ -722,9 +737,9 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(round_state)
 
-        assert result["tempai_seats"] == [0, 1, 2, 3]
-        assert result["noten_seats"] == []
-        assert result["score_changes"] == {0: 0, 1: 0, 2: 0, 3: 0}
+        assert result.tempai_seats == [0, 1, 2, 3]
+        assert result.noten_seats == []
+        assert result.score_changes == {0: 0, 1: 0, 2: 0, 3: 0}
         for player in round_state.players:
             assert player.score == 25000
 
@@ -736,9 +751,9 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(round_state)
 
-        assert result["tempai_seats"] == []
-        assert result["noten_seats"] == [0, 1, 2, 3]
-        assert result["score_changes"] == {0: 0, 1: 0, 2: 0, 3: 0}
+        assert result.tempai_seats == []
+        assert result.noten_seats == [0, 1, 2, 3]
+        assert result.score_changes == {0: 0, 1: 0, 2: 0, 3: 0}
         for player in round_state.players:
             assert player.score == 25000
 
@@ -750,4 +765,4 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(round_state)
 
-        assert result["type"] == "exhaustive_draw"
+        assert result.type == "exhaustive_draw"

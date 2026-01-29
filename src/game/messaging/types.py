@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -16,7 +16,6 @@ class ServerMessageType(str, Enum):
     GAME_LEFT = "game_left"
     PLAYER_JOINED = "player_joined"
     PLAYER_LEFT = "player_left"
-    GAME_STATE = "game_state"
     GAME_EVENT = "game_event"
     CHAT = "chat"
     ERROR = "error"
@@ -45,7 +44,7 @@ class LeaveGameMessage(BaseModel):
 class GameActionMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
     action: str = Field(min_length=1, max_length=100)
-    data: dict = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatMessage(BaseModel):
@@ -79,15 +78,10 @@ class PlayerLeftMessage(BaseModel):
     player_name: str
 
 
-class GameStateMessage(BaseModel):
-    type: Literal[ServerMessageType.GAME_STATE] = ServerMessageType.GAME_STATE
-    state: dict
-
-
 class GameEventMessage(BaseModel):
     type: Literal[ServerMessageType.GAME_EVENT] = ServerMessageType.GAME_EVENT
     event: str
-    data: dict = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ServerChatMessage(BaseModel):
@@ -276,7 +270,6 @@ ServerMessage = (
     | GameLeftMessage
     | PlayerJoinedMessage
     | PlayerLeftMessage
-    | GameStateMessage
     | GameEventMessage
     | ServerChatMessage
     | ErrorMessage
@@ -296,5 +289,5 @@ ServerMessage = (
 _client_message_adapter = TypeAdapter(ClientMessage)
 
 
-def parse_client_message(data: dict) -> ClientMessage:
+def parse_client_message(data: dict[str, Any]) -> ClientMessage:
     return _client_message_adapter.validate_python(data)

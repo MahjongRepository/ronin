@@ -1,6 +1,8 @@
 import pytest
 
+from game.logic.enums import TimeoutType
 from game.logic.mock import MockGameService
+from game.logic.timer import TurnTimer
 from game.messaging.mock import MockConnection
 from game.messaging.types import ServerMessageType
 from game.session.manager import SessionManager
@@ -218,3 +220,114 @@ class TestSessionManager:
             if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "game_started"
         ]
         assert len(new_game_started) == 0
+
+
+class TestSessionManagerTimers:
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    async def test_timer_created_on_game_start(self, manager):
+        """Timer is created when a game starts."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        assert "game1" in manager._timers
+        assert isinstance(manager._timers["game1"], TurnTimer)
+
+    async def test_lock_created_on_game_start(self, manager):
+        """Asyncio lock is created when a game starts."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        assert "game1" in manager._game_locks
+
+    async def test_timer_gets_initial_round_bonus(self, manager):
+        """Timer receives the first round bonus on game start."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        timer = manager._timers["game1"]
+        # default: 30s initial + 10s round bonus = 40s
+        assert timer.remaining_bank == 40.0
+
+    async def test_game_cleanup_removes_timer_and_lock(self, manager):
+        """Leaving a game cleans up timer and lock."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+        assert "game1" in manager._timers
+        assert "game1" in manager._game_locks
+
+        await manager.leave_game(conn)
+        assert "game1" not in manager._timers
+        assert "game1" not in manager._game_locks
+
+    async def test_turn_timeout_broadcasts_events(self, manager):
+        """Turn timeout triggers handle_timeout and broadcasts result events."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        await manager._handle_timeout("game1", TimeoutType.TURN)
+
+        # mock service returns a timeout_turn event with target "all"
+        timeout_msgs = [
+            m
+            for m in conn.sent_messages
+            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "timeout_turn"
+        ]
+        assert len(timeout_msgs) == 1
+
+    async def test_meld_timeout_broadcasts_events(self, manager):
+        """Meld timeout triggers handle_timeout and broadcasts result events."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        await manager._handle_timeout("game1", TimeoutType.MELD)
+
+        timeout_msgs = [
+            m
+            for m in conn.sent_messages
+            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "timeout_meld"
+        ]
+        assert len(timeout_msgs) == 1
+
+    async def test_timeout_on_missing_game_does_nothing(self, manager):
+        """Timeout on a non-existent game is silently ignored."""
+        # should not raise
+        await manager._handle_timeout("nonexistent", TimeoutType.TURN)
+
+    async def test_timeout_on_game_without_lock_does_nothing(self, manager):
+        """Timeout when lock has been cleaned up is silently ignored."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+
+        # remove lock to simulate cleanup race
+        manager._game_locks.pop("game1", None)
+        conn._outbox.clear()
+
+        await manager._handle_timeout("game1", TimeoutType.TURN)
+
+        # no events broadcast
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == ServerMessageType.GAME_EVENT]
+        assert len(timeout_msgs) == 0

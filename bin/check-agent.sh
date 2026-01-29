@@ -26,6 +26,7 @@ echo "❯ Running all checks..."
 # --- Python Checks ---
 run_check "Format" "make format"
 run_check "Lint" "make lint"
+run_check "Typecheck" "make typecheck"
 run_check "Test" "make test"
 
 # If the script reaches this line, it's because no check failed and the script never exited.

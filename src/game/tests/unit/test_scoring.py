@@ -198,8 +198,8 @@ class TestApplyTsumoScore:
         # other non-dealers pay 500 each
         assert game_state.round_state.players[2].score == 25000 - 500
         assert game_state.round_state.players[3].score == 25000 - 500
-        assert result["type"] == "tsumo"
-        assert result["winner_seat"] == 1
+        assert result.type == "tsumo"
+        assert result.winner_seat == 1
 
     def test_dealer_tsumo_basic(self):
         # dealer wins with 30fu 2han = 2000 all (dealer tsumo)
@@ -243,7 +243,7 @@ class TestApplyTsumoScore:
         assert game_state.round_state.players[1].score == 25000 + 4000
         # riichi sticks should be cleared
         assert game_state.riichi_sticks == 0
-        assert result["riichi_sticks_collected"] == 2
+        assert result.riichi_sticks_collected == 2
 
 
 class TestApplyRonScore:
@@ -272,7 +272,7 @@ class TestApplyRonScore:
         # others unaffected
         assert game_state.round_state.players[2].score == 25000
         assert game_state.round_state.players[3].score == 25000
-        assert result["type"] == "ron"
+        assert result.type == "ron"
 
     def test_ron_with_honba(self):
         # ron with 3 honba sticks = +900 total
@@ -301,7 +301,7 @@ class TestApplyRonScore:
         assert game_state.round_state.players[1].score == 25000 - 2000
         # riichi sticks cleared
         assert game_state.riichi_sticks == 0
-        assert result["riichi_sticks_collected"] == 3
+        assert result.riichi_sticks_collected == 3
 
 
 class TestApplyDoubleRonScore:
@@ -333,7 +333,7 @@ class TestApplyDoubleRonScore:
         assert game_state.round_state.players[1].score == 25000 - 6000
         # seat 3 unaffected
         assert game_state.round_state.players[3].score == 25000
-        assert result["type"] == "double_ron"
+        assert result.type == "double_ron"
 
     def test_double_ron_with_honba(self):
         # both winners get honba bonus
@@ -372,11 +372,11 @@ class TestApplyDoubleRonScore:
         assert game_state.riichi_sticks == 0
 
         # verify which winner got riichi sticks
-        for w in result["winners"]:
-            if w["winner_seat"] == 2:
-                assert w["riichi_sticks_collected"] == 2
+        for w in result.winners:
+            if w.winner_seat == 2:
+                assert w.riichi_sticks_collected == 2
             else:
-                assert w["riichi_sticks_collected"] == 0
+                assert w.riichi_sticks_collected == 0
 
     def test_double_ron_riichi_sticks_other_order(self):
         # different loser seat changes who gets riichi

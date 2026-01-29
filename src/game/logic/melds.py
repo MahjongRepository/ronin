@@ -516,6 +516,8 @@ def call_added_kan(
     player.tiles.remove(tile_id)
 
     # upgrade the meld from pon to kan (shouminkan)
+    if pon_meld.tiles is None:
+        raise ValueError("pon meld tiles cannot be None for kan upgrade")
     new_tiles = sorted([*pon_meld.tiles, tile_id])
     upgraded_meld = Meld(
         meld_type=Meld.SHOUMINKAN,

@@ -108,10 +108,11 @@ MessagePack encode/decode (encoder.py)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (game/player management)
+SessionManager (game/player management, timer lifecycle, concurrency locks)
     │
     ▼
-GameService (game logic interface)
+GameService (game logic interface) → returns list[ServiceEvent]
+    Methods: start_game, handle_action, get_player_seat, handle_timeout
 ```
 
 This enables:
@@ -119,24 +120,38 @@ This enables:
 - Integration tests with Starlette's `TestClient`
 - Easy swapping of transport layers if needed
 
+### Event System
+
+The game service communicates through a typed event pipeline:
+
+- **GameEvent** (Pydantic base) - Domain events like DrawEvent, DiscardEvent, MeldEvent, TurnEvent, RoundEndEvent, etc.
+- **ServiceEvent** - Transport container wrapping a GameEvent with routing metadata (event type string, target)
+- **EventType** - String enum defining all event type identifiers
+- `convert_events()` transforms GameEvent lists into ServiceEvent lists
+- `extract_round_result()` extracts round results from ServiceEvent lists
+
 ### Game Logic Layer
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Orchestration-only entry point implementing GameService interface
+- **MahjongService** - Orchestration-only entry point implementing GameService interface; returns `list[ServiceEvent]`
 - **MahjongGame** - Manages game state across multiple rounds (hanchan)
 - **Round** - Handles a single round with wall, draws, and discards
-- **Turn** - Processes player actions and returns typed events
-- **Actions** - Builds available actions for players (discardable tiles, riichi, tsumo, kan)
-- **ActionHandlers** - Validates and processes player actions (discard, chi, pon, kan, etc.)
-- **BotController** - Handles bot turns and call responses
+- **Turn** - Processes player actions and returns typed GameEvent objects
+- **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
+- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.)
+- **Matchmaker** - Assigns human players to random seats and fills remaining with bots; returns `list[SeatConfig]`
+- **TurnTimer** - Server-side bank time management with async timeout callbacks for turns and meld decisions
+- **BotController** - Handles bot turns and call responses using `dict[int, BotPlayer]` seat-to-bot mapping; operates on `ServiceEvent` and `MeldCaller` models
+- **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`
+- **Types** - Pydantic models for cross-component data: `SeatConfig`, round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller`, `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
 - **Melds** - Detection of valid chi, pon, and kan combinations
 - **Win** - Hand parsing and yaku detection
-- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron)
+- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); returns typed result models
 - **Riichi** - Riichi declaration validation and tenpai detection
-- **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.)
-- **Bot** - AI player for filling empty seats
+- **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.); returns `AbortiveDrawResult`
+- **Bot** - AI player for filling empty seats; returns `BotAction` model
 
 ## Project Structure
 
@@ -154,11 +169,12 @@ ronin/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── mock.py         # MockConnection for testing
         │   ├── types.py        # Message schemas (Pydantic)
-        │   ├── events.py       # Typed game event classes
+        │   ├── events.py       # Typed events, ServiceEvent, EventType enum
         │   ├── encoder.py      # MessagePack encoding/decoding
         │   └── router.py       # Message routing
         ├── session/
         │   ├── models.py       # Player, Game dataclasses
+        │   ├── types.py        # Pydantic models (GameInfo)
         │   └── manager.py      # Session/game management
         ├── logic/
         │   ├── service.py          # GameService interface
@@ -169,6 +185,8 @@ ronin/
         │   ├── actions.py          # Available actions builder
         │   ├── action_handlers.py  # Action validation and processing
         │   ├── bot_controller.py   # Bot turn and call handling
+        │   ├── enums.py            # String enum definitions for game concepts
+        │   ├── types.py            # Pydantic models for cross-component data
         │   ├── tiles.py            # Tile types and wall building
         │   ├── melds.py            # Meld detection (chi, pon, kan)
         │   ├── win.py              # Win detection and hand parsing
@@ -177,7 +195,9 @@ ronin/
         │   ├── abortive.py         # Abortive draw detection
         │   ├── state.py            # Game state dataclasses
         │   ├── bot.py              # Bot player AI
-        │   └── mock.py             # Mock implementation for testing
+        │   ├── matchmaker.py       # Seat assignment and bot filling
+        │   ├── timer.py            # Turn timer with bank time management
+        │   └── mock.py             # MockGameService for testing
         ├── static/
         │   └── game.html       # Game WebSocket UI
         └── tests/
@@ -193,6 +213,7 @@ make run-game   # Start server on port 8001
 make test-game  # Run game tests
 make lint       # Run linter
 make format     # Format code
+make typecheck  # Run type checking (ty)
 ```
 
 ## Testing Strategy

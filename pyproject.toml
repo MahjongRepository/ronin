@@ -12,11 +12,12 @@ dependencies = [
     "msgpack>=1.1.2",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.14",
+    "ty>=0.0.14",
 ]
 
 [build-system]
@@ -58,6 +59,8 @@ ignore = [
     "TRY003", # Avoid specifying long messages outside exception class
     "EM101",  # Exception must not use a string literal
     "EM102",  # Exception must not use an f-string literal
+    # Pydantic models used in function signatures need runtime imports for validation
+    "TC001",  # Move application import into type-checking block
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -75,3 +78,20 @@ ignore = [
     "ANN001", # Missing type annotation for function argument
     "ANN201", # Missing return type annotation
 ]
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+include = ["src"]
+
+[[tool.ty.overrides]]
+include = ["**/test_*.py", "**/conftest.py"]
+
+[tool.ty.overrides.rules]
+# relax rules for test files - tests often use dynamic fixtures, mocks,
+# and untyped external libraries (mahjong) that produce Unknown types
+possibly-unresolved-reference = "warn"
+possibly-missing-attribute = "warn"
+invalid-argument-type = "warn"
+invalid-parameter-default = "warn"

@@ -6,6 +6,7 @@ from mahjong.shanten import Shanten
 
 from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState, RoundPhase
 from game.logic.tiles import generate_wall, hand_to_34_array, sort_tiles
+from game.logic.types import ExhaustiveDrawResult, SeatConfig
 
 # dead wall constants
 DEAD_WALL_SIZE = 14
@@ -120,15 +121,13 @@ def add_dora_indicator(round_state: MahjongRoundState) -> int:
     return new_indicator
 
 
-def create_players(player_names: list[str]) -> list[MahjongPlayer]:
+def create_players(seat_configs: list[SeatConfig]) -> list[MahjongPlayer]:
     """
-    Create 4 players for a game: first is human, rest are bots.
+    Create players from seat configurations.
     """
-    players = []
-    for i, name in enumerate(player_names):
-        is_bot = i > 0  # first player is human
-        players.append(MahjongPlayer(seat=i, name=name, is_bot=is_bot))
-    return players
+    return [
+        MahjongPlayer(seat=i, name=config.name, is_bot=config.is_bot) for i, config in enumerate(seat_configs)
+    ]
 
 
 def draw_tile(round_state: MahjongRoundState) -> int | None:
@@ -256,7 +255,7 @@ def is_tempai(player: MahjongPlayer) -> bool:
     return shanten_value == 0
 
 
-def process_exhaustive_draw(round_state: MahjongRoundState) -> dict:
+def process_exhaustive_draw(round_state: MahjongRoundState) -> ExhaustiveDrawResult:
     """
     Process an exhaustive draw (wall empty, no winner).
 
@@ -265,8 +264,6 @@ def process_exhaustive_draw(round_state: MahjongRoundState) -> dict:
     - 1 tempai, 3 noten: each noten pays 1000 to tempai
     - 2 tempai, 2 noten: each noten pays 1500 to each tempai (750 each)
     - 3 tempai, 1 noten: noten pays 1000 to each tempai
-
-    Returns a dict with tempai_seats, noten_seats, and score_changes.
     """
     tempai_seats = []
     noten_seats = []
@@ -299,9 +296,8 @@ def process_exhaustive_draw(round_state: MahjongRoundState) -> dict:
     for player in round_state.players:
         player.score += score_changes[player.seat]
 
-    return {
-        "type": "exhaustive_draw",
-        "tempai_seats": tempai_seats,
-        "noten_seats": noten_seats,
-        "score_changes": score_changes,
-    }
+    return ExhaustiveDrawResult(
+        tempai_seats=tempai_seats,
+        noten_seats=noten_seats,
+        score_changes=score_changes,
+    )

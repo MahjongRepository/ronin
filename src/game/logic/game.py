@@ -2,11 +2,22 @@
 Game initialization and progression for Mahjong.
 """
 
+from game.logic.enums import RoundResultType
 from game.logic.round import create_players, init_round
 from game.logic.state import (
     GamePhase,
     MahjongGameState,
     MahjongRoundState,
+)
+from game.logic.types import (
+    DoubleRonResult,
+    ExhaustiveDrawResult,
+    GameEndResult,
+    PlayerStanding,
+    RonResult,
+    RoundResult,
+    SeatConfig,
+    TsumoResult,
 )
 
 # wind progression thresholds
@@ -18,15 +29,14 @@ WEST_WIND_MAX_DEALERS = 12
 WINNING_SCORE_THRESHOLD = 30000
 
 
-def init_game(player_names: list[str], seed: float = 0.0) -> MahjongGameState:
+def init_game(seat_configs: list[SeatConfig], seed: float = 0.0) -> MahjongGameState:
     """
-    Initialize a new mahjong game with 4 players.
+    Initialize a new mahjong game with seat configurations.
 
-    First player (index 0) is human, indices 1-3 are bots.
     All players start with 25000 points.
     Dealer starts at seat 0, round wind starts at East.
     """
-    players = create_players(player_names)
+    players = create_players(seat_configs)
 
     round_state = MahjongRoundState(
         players=players,
@@ -50,45 +60,38 @@ def init_game(player_names: list[str], seed: float = 0.0) -> MahjongGameState:
     return game_state
 
 
-def _process_draw_result(game_state: MahjongGameState, result: dict) -> bool:
+def _process_draw_result(game_state: MahjongGameState, result: RoundResult) -> bool:
     """
     Process an abortive or exhaustive draw result.
 
     Returns True if dealer should rotate.
     """
-    round_state = game_state.round_state
-    dealer_seat = round_state.dealer_seat
-    result_type = result.get("type", "")
+    dealer_seat = game_state.round_state.dealer_seat
 
-    if result_type == "abortive_draw":
+    if result.type == RoundResultType.ABORTIVE_DRAW:
         game_state.honba_sticks += 1
         return False
 
     # exhaustive draw
-    tempai_seats = result.get("tempai_seats", [])
     game_state.honba_sticks += 1
-    return dealer_seat not in tempai_seats
+    if isinstance(result, ExhaustiveDrawResult):
+        return dealer_seat not in result.tempai_seats
+    return False
 
 
-def _process_win_result(game_state: MahjongGameState, result: dict) -> bool:
+def _process_win_result(game_state: MahjongGameState, result: RoundResult) -> bool:
     """
     Process a tsumo, ron, or double ron result.
 
     Returns True if dealer should rotate.
     """
-    round_state = game_state.round_state
-    dealer_seat = round_state.dealer_seat
-    result_type = result.get("type", "")
+    dealer_seat = game_state.round_state.dealer_seat
 
-    winner_seats = result.get("winner_seats", [])
-    if result_type in ("tsumo", "ron"):
-        winner_seat = result.get("winner_seat")
-        if winner_seat is not None:
-            winner_seats = [winner_seat]
-    elif result_type == "double_ron" and not winner_seats:
-        # double_ron returns "winners" list with "winner_seat" in each entry
-        winners_list = result.get("winners", [])
-        winner_seats = [w.get("winner_seat") for w in winners_list]
+    winner_seats: list[int] = []
+    if isinstance(result, (TsumoResult, RonResult)):
+        winner_seats = [result.winner_seat]
+    elif isinstance(result, DoubleRonResult):
+        winner_seats = [w.winner_seat for w in result.winners]
 
     if dealer_seat in winner_seats:
         game_state.honba_sticks += 1
@@ -98,7 +101,7 @@ def _process_win_result(game_state: MahjongGameState, result: dict) -> bool:
     return True
 
 
-def process_round_end(game_state: MahjongGameState, result: dict) -> None:
+def process_round_end(game_state: MahjongGameState, result: RoundResult) -> None:
     """
     Process the end of a round and update game state.
 
@@ -112,12 +115,12 @@ def process_round_end(game_state: MahjongGameState, result: dict) -> None:
     Updates unique_dealers when dealer changes, which drives wind progression.
     """
     round_state = game_state.round_state
-    result_type = result.get("type", "")
+    result_type = result.type
 
     # determine if dealer should rotate based on result type
-    if result_type in ("abortive_draw", "exhaustive_draw"):
+    if result_type in (RoundResultType.ABORTIVE_DRAW, RoundResultType.EXHAUSTIVE_DRAW):
         should_rotate = _process_draw_result(game_state, result)
-    elif result_type in ("tsumo", "ron", "double_ron"):
+    elif result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):
         should_rotate = _process_win_result(game_state, result)
     else:
         should_rotate = False
@@ -164,15 +167,12 @@ def check_game_end(game_state: MahjongGameState) -> bool:
     return game_state.unique_dealers > WEST_WIND_MAX_DEALERS
 
 
-def finalize_game(game_state: MahjongGameState) -> dict:
+def finalize_game(game_state: MahjongGameState) -> GameEndResult:
     """
     Finalize the game and determine winner.
 
     Winner is the player with highest score. Ties broken by seat order (lower seat wins).
     Winner receives remaining riichi_sticks * 1000 points.
-    Verifies total scores sum to 100000 (sanity check).
-
-    Returns final standings with winner and scores.
     """
     round_state = game_state.round_state
 
@@ -191,20 +191,19 @@ def finalize_game(game_state: MahjongGameState) -> dict:
 
     # build final standings
     standings = [
-        {
-            "seat": player.seat,
-            "name": player.name,
-            "score": player.score,
-            "is_bot": player.is_bot,
-        }
+        PlayerStanding(
+            seat=player.seat,
+            name=player.name,
+            score=player.score,
+            is_bot=player.is_bot,
+        )
         for player in sorted(round_state.players, key=lambda p: (-p.score, p.seat))
     ]
 
     # mark game as finished
     game_state.game_phase = GamePhase.FINISHED
 
-    return {
-        "type": "game_end",
-        "winner_seat": winner_seat,
-        "standings": standings,
-    }
+    return GameEndResult(
+        winner_seat=winner_seat,
+        standings=standings,
+    )

@@ -92,6 +92,7 @@ make run-lobby   # Start server on port 8000
 make test-lobby  # Run lobby tests
 make lint        # Run linter
 make format      # Format code
+make typecheck   # Run type checking (ty)
 ```
 
 ## Game Creation Flow

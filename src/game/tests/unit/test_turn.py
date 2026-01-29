@@ -6,6 +6,7 @@ import pytest
 
 from game.logic.abortive import check_four_riichi
 from game.logic.actions import get_available_actions
+from game.logic.enums import AbortiveDrawType, BotType, MeldViewType
 from game.logic.game import init_game
 from game.logic.melds import can_call_chi
 from game.logic.round import draw_tile
@@ -17,12 +18,22 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
+from game.logic.types import SeatConfig
+
+
+def _default_seat_configs() -> list[SeatConfig]:
+    return [
+        SeatConfig(name="Player", is_bot=False),
+        SeatConfig(name="Tsumogiri 1", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 2", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 3", is_bot=True, bot_type=BotType.TSUMOGIRI),
+    ]
 
 
 class TestProcessDrawPhase:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state for testing."""
-        return init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        return init_game(_default_seat_configs(), seed=12345.0)
 
     def test_draw_phase_draws_tile(self):
         game_state = self._create_game_state()
@@ -70,14 +81,14 @@ class TestProcessDrawPhase:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
-        assert round_end_events[0].result["type"] == "exhaustive_draw"
+        assert round_end_events[0].result.type == "exhaustive_draw"
         assert round_state.phase == RoundPhase.FINISHED
 
 
 class TestProcessDiscardPhase:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state for testing."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         # draw a tile for the dealer
         draw_tile(game_state.round_state)
         return game_state
@@ -129,7 +140,7 @@ class TestProcessDiscardPhase:
 class TestProcessDiscardPhaseWithRiichi:
     def _create_tempai_game_state(self) -> MahjongGameState:
         """Create a game state where player 0 is in tempai."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # manually set player 0 to have a tempai hand
@@ -173,7 +184,7 @@ class TestProcessDiscardPhaseWithRiichi:
             assert round_state.players[0].is_riichi is True
 
     def test_discard_phase_riichi_fails_when_not_tempai(self):
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
         # player 0 has random tiles, not tempai
         draw_tile(round_state)
@@ -186,7 +197,7 @@ class TestProcessDiscardPhaseWithRiichi:
 class TestProcessMeldCall:
     def _create_game_state_with_pon_opportunity(self) -> tuple[MahjongGameState, int]:
         """Create a game state where player 1 can pon a discarded tile."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # give player 1 two 1m tiles (tiles 0-3 are all 1m)
@@ -209,13 +220,13 @@ class TestProcessMeldCall:
 
         meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == "pon"
+        assert meld_events[0].meld_type == MeldViewType.PON
         assert meld_events[0].caller_seat == 1
         assert meld_events[0].from_seat == 0
         assert round_state.current_player_seat == 1
 
     def test_process_chi_call(self):
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # player 1 has 2m and 3m tiles (can chi 1m from player 0)
@@ -238,12 +249,12 @@ class TestProcessMeldCall:
 
         meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == "chi"
+        assert meld_events[0].meld_type == MeldViewType.CHI
         assert meld_events[0].caller_seat == 1
         assert round_state.current_player_seat == 1
 
     def test_process_chi_call_requires_sequence_tiles(self):
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
         round_state.current_player_seat = 0
 
@@ -254,7 +265,7 @@ class TestProcessMeldCall:
 class TestProcessRonCall:
     def _create_game_state_with_ron_opportunity(self) -> tuple[MahjongGameState, int, int]:
         """Create a game state where player 1 can ron on player 0's discard."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # give player 1 a winning hand (needs one tile to complete)
@@ -294,16 +305,16 @@ class TestProcessRonCall:
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
         result = round_end_events[0].result
-        assert result["type"] == "ron"
-        assert result["winner_seat"] == 1
-        assert result["loser_seat"] == 0
+        assert result.type == "ron"
+        assert result.winner_seat == 1
+        assert result.loser_seat == 0
         assert round_state.phase == RoundPhase.FINISHED
 
 
 class TestProcessTsumoCall:
     def _create_game_state_with_tsumo(self) -> MahjongGameState:
         """Create a game state where player 0 has a winning hand."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # give player 0 a complete winning hand (14 tiles)
@@ -336,23 +347,23 @@ class TestProcessTsumoCall:
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
         result = round_end_events[0].result
-        assert result["type"] == "tsumo"
-        assert result["winner_seat"] == 0
+        assert result.type == "tsumo"
+        assert result.winner_seat == 0
         assert round_state.phase == RoundPhase.FINISHED
 
 
 class TestGetAvailableActions:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state for testing."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         # draw a tile for the dealer
         draw_tile(game_state.round_state)
         return game_state
 
-    def _find_action(self, actions: list[dict], action_type: str) -> dict | None:
+    def _find_action(self, actions: list, action_type: str):
         """Find an action by type in the actions list."""
         for action in actions:
-            if action.get("action") == action_type:
+            if action.action == action_type:
                 return action
         return None
 
@@ -364,7 +375,8 @@ class TestGetAvailableActions:
 
         discard_action = self._find_action(actions, "discard")
         assert discard_action is not None
-        assert len(discard_action["tiles"]) == 14  # 13 dealt + 1 drawn
+        assert discard_action.tiles is not None
+        assert len(discard_action.tiles) == 14  # 13 dealt + 1 drawn
 
     def test_get_available_actions_returns_riichi_option(self):
         game_state = self._create_game_state()
@@ -404,14 +416,15 @@ class TestGetAvailableActions:
         # in riichi, can only discard the drawn tile
         discard_action = self._find_action(actions, "discard")
         assert discard_action is not None
-        assert len(discard_action["tiles"]) == 1
-        assert discard_action["tiles"][0] == round_state.players[0].tiles[-1]
+        assert discard_action.tiles is not None
+        assert len(discard_action.tiles) == 1
+        assert discard_action.tiles[0] == round_state.players[0].tiles[-1]
 
 
 class TestFourWindsAbortiveDraw:
     def _create_game_state_for_four_winds(self) -> MahjongGameState:
         """Create a game state where four winds can occur."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # give each player an East wind tile (E = tile 108-111)
@@ -441,14 +454,14 @@ class TestFourWindsAbortiveDraw:
             if i == 3:  # fourth discard triggers four winds
                 round_end_events = [e for e in events if e.type == "round_end"]
                 assert len(round_end_events) == 1
-                assert round_end_events[0].result["reason"] == "four_winds"
+                assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_WINDS
                 assert round_state.phase == RoundPhase.FINISHED
 
 
 class TestFourRiichiAbortiveDraw:
     def _create_tempai_for_all(self) -> MahjongGameState:
         """Create a game state where all players are in tempai."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # tempai hand for all players: 123m 456m 789m 111p, waiting for 2p
@@ -491,7 +504,7 @@ class TestRiichiPlayerExcludedFromMeldCallers:
 
     def _create_game_state_with_meld_opportunity(self) -> tuple[MahjongGameState, int]:
         """Create a game where player 1 could call pon if not in riichi."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # give player 1 two 1m tiles
@@ -516,7 +529,7 @@ class TestRiichiPlayerExcludedFromMeldCallers:
         ]
         if call_prompts:
             callers = call_prompts[0].callers
-            caller_seats = [c["seat"] if isinstance(c, dict) else c for c in callers]
+            caller_seats = [c.seat if hasattr(c, "seat") else c for c in callers]
             assert 1 in caller_seats
 
     def test_riichi_player_excluded_from_pon_callers_when_riichi(self):
@@ -533,13 +546,13 @@ class TestRiichiPlayerExcludedFromMeldCallers:
         ]
         if call_prompts:
             callers = call_prompts[0].callers
-            caller_seats = [c["seat"] if isinstance(c, dict) else c for c in callers]
+            caller_seats = [c.seat if hasattr(c, "seat") else c for c in callers]
             # player 1 should NOT be in callers since they're in riichi
             assert 1 not in caller_seats
 
     def test_riichi_player_discard_limited_to_drawn_tile(self):
         """After riichi, only the drawn tile should be discardable."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
         player = round_state.players[0]
 
@@ -550,15 +563,16 @@ class TestRiichiPlayerExcludedFromMeldCallers:
         actions = get_available_actions(round_state, game_state, seat=0)
 
         # find the discard action
-        discard_action = next((a for a in actions if a.get("action") == "discard"), None)
+        discard_action = next((a for a in actions if a.action == "discard"), None)
         assert discard_action is not None
         # should only be able to discard the drawn tile
-        assert len(discard_action["tiles"]) == 1
-        assert discard_action["tiles"][0] == drawn_tile
+        assert discard_action.tiles is not None
+        assert len(discard_action.tiles) == 1
+        assert discard_action.tiles[0] == drawn_tile
 
     def test_riichi_player_cannot_call_chi(self):
         """Verify can_call_chi returns empty for riichi players."""
-        game_state = init_game(["Player", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
         player = round_state.players[1]
 

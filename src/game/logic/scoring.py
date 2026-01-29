@@ -11,6 +11,7 @@ from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
 
 from game.logic.state import seat_to_wind
+from game.logic.types import DoubleRonResult, DoubleRonWinner, HandResultInfo, RonResult, TsumoResult
 from game.logic.win import is_chiihou, is_haitei, is_houtei, is_tenhou
 
 if TYPE_CHECKING:
@@ -111,8 +112,8 @@ def calculate_hand_value(
     yaku_list = [str(y) for y in result.yaku] if result.yaku else []
 
     return HandResult(
-        han=result.han,
-        fu=result.fu,
+        han=result.han or 0,
+        fu=result.fu or 0,
         cost_main=result.cost["main"] if result.cost else 0,
         cost_additional=result.cost["additional"] if result.cost else 0,
         yaku=yaku_list,
@@ -123,7 +124,7 @@ def apply_tsumo_score(
     game_state: MahjongGameState,
     winner_seat: int,
     hand_result: HandResult,
-) -> dict:
+) -> TsumoResult:
     """
     Apply score changes for a tsumo win.
 
@@ -170,17 +171,12 @@ def apply_tsumo_score(
     # clear riichi sticks
     game_state.riichi_sticks = 0
 
-    return {
-        "type": "tsumo",
-        "winner_seat": winner_seat,
-        "hand_result": {
-            "han": hand_result.han,
-            "fu": hand_result.fu,
-            "yaku": hand_result.yaku,
-        },
-        "score_changes": score_changes,
-        "riichi_sticks_collected": riichi_bonus // 1000,
-    }
+    return TsumoResult(
+        winner_seat=winner_seat,
+        hand_result=HandResultInfo(han=hand_result.han, fu=hand_result.fu, yaku=hand_result.yaku),
+        score_changes=score_changes,
+        riichi_sticks_collected=riichi_bonus // 1000,
+    )
 
 
 def apply_ron_score(
@@ -188,7 +184,7 @@ def apply_ron_score(
     winner_seat: int,
     loser_seat: int,
     hand_result: HandResult,
-) -> dict:
+) -> RonResult:
     """
     Apply score changes for a ron win.
 
@@ -215,25 +211,20 @@ def apply_ron_score(
     # clear riichi sticks
     game_state.riichi_sticks = 0
 
-    return {
-        "type": "ron",
-        "winner_seat": winner_seat,
-        "loser_seat": loser_seat,
-        "hand_result": {
-            "han": hand_result.han,
-            "fu": hand_result.fu,
-            "yaku": hand_result.yaku,
-        },
-        "score_changes": score_changes,
-        "riichi_sticks_collected": riichi_bonus // 1000,
-    }
+    return RonResult(
+        winner_seat=winner_seat,
+        loser_seat=loser_seat,
+        hand_result=HandResultInfo(han=hand_result.han, fu=hand_result.fu, yaku=hand_result.yaku),
+        score_changes=score_changes,
+        riichi_sticks_collected=riichi_bonus // 1000,
+    )
 
 
 def apply_double_ron_score(
     game_state: MahjongGameState,
     winners: list[tuple[int, HandResult]],  # list of (seat, hand_result)
     loser_seat: int,
-) -> dict:
+) -> DoubleRonResult:
     """
     Apply score changes for a double ron (two players winning on the same discard).
 
@@ -257,7 +248,7 @@ def apply_double_ron_score(
             riichi_receiver = check_seat
             break
 
-    results = []
+    winner_results = []
     total_loser_payment = 0
 
     for winner_seat, hand_result in winners:
@@ -270,16 +261,12 @@ def apply_double_ron_score(
 
         score_changes[winner_seat] += winner_total
 
-        results.append(
-            {
-                "winner_seat": winner_seat,
-                "hand_result": {
-                    "han": hand_result.han,
-                    "fu": hand_result.fu,
-                    "yaku": hand_result.yaku,
-                },
-                "riichi_sticks_collected": riichi_bonus // 1000 if winner_seat == riichi_receiver else 0,
-            }
+        winner_results.append(
+            DoubleRonWinner(
+                winner_seat=winner_seat,
+                hand_result=HandResultInfo(han=hand_result.han, fu=hand_result.fu, yaku=hand_result.yaku),
+                riichi_sticks_collected=riichi_bonus // 1000 if winner_seat == riichi_receiver else 0,
+            )
         )
 
     score_changes[loser_seat] = -total_loser_payment
@@ -291,9 +278,8 @@ def apply_double_ron_score(
     # clear riichi sticks
     game_state.riichi_sticks = 0
 
-    return {
-        "type": "double_ron",
-        "loser_seat": loser_seat,
-        "winners": results,
-        "score_changes": score_changes,
-    }
+    return DoubleRonResult(
+        loser_seat=loser_seat,
+        winners=winner_results,
+        score_changes=score_changes,
+    )

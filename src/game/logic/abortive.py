@@ -2,25 +2,16 @@
 Abortive draw conditions for Mahjong.
 """
 
-from enum import Enum
 from typing import TYPE_CHECKING
 
 from mahjong.meld import Meld
 
+from game.logic.enums import AbortiveDrawType
 from game.logic.tiles import WINDS_34, is_terminal_or_honor, tile_to_34
+from game.logic.types import AbortiveDrawResult
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
-
-
-class AbortiveDrawType(Enum):
-    """Types of abortive draws in Mahjong."""
-
-    NINE_TERMINALS = "nine_terminals"
-    FOUR_RIICHI = "four_riichi"
-    TRIPLE_RON = "triple_ron"
-    FOUR_KANS = "four_kans"
-    FOUR_WINDS = "four_winds"
 
 
 # minimum number of different terminal/honor tile types for kyuushu kyuuhai
@@ -68,17 +59,14 @@ def _count_terminal_honor_types(tiles: list[int]) -> int:
     return len(unique_types)
 
 
-def call_kyuushu_kyuuhai(round_state: MahjongRoundState) -> dict:
+def call_kyuushu_kyuuhai(round_state: MahjongRoundState) -> AbortiveDrawResult:
     """
     Execute kyuushu kyuuhai abortive draw.
-
-    Returns a result dict with the abortive draw details.
     """
-    return {
-        "type": "abortive_draw",
-        "reason": "kyuushu_kyuuhai",
-        "seat": round_state.current_player_seat,
-    }
+    return AbortiveDrawResult(
+        reason=AbortiveDrawType.NINE_TERMINALS,
+        seat=round_state.current_player_seat,
+    )
 
 
 def check_four_riichi(round_state: MahjongRoundState) -> bool:
@@ -147,15 +135,13 @@ def check_four_winds(round_state: MahjongRoundState) -> bool:
     return all(t == first_tile for t in discard_34s)
 
 
-def process_abortive_draw(game_state: MahjongGameState, draw_type: AbortiveDrawType) -> dict:
+def process_abortive_draw(game_state: MahjongGameState, draw_type: AbortiveDrawType) -> AbortiveDrawResult:
     """
     Process an abortive draw.
 
     No score changes occur. Honba increment is handled by process_round_end.
-    Returns a result dict with abortive draw details.
     """
-    return {
-        "type": "abortive_draw",
-        "reason": draw_type.value,
-        "score_changes": {p.seat: 0 for p in game_state.round_state.players},
-    }
+    return AbortiveDrawResult(
+        reason=draw_type,
+        score_changes={p.seat: 0 for p in game_state.round_state.players},
+    )

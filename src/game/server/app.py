@@ -42,7 +42,7 @@ async def status(request: Request) -> JSONResponse:
 async def list_games(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     games = session_manager.get_games_info()
-    return JSONResponse({"games": games})
+    return JSONResponse({"games": [g.model_dump() for g in games]})
 
 
 async def create_game(request: Request) -> JSONResponse:

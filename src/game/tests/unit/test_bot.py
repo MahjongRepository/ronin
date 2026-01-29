@@ -22,16 +22,16 @@ from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 
 class TestBotPlayer:
     def test_create_bot_with_default_strategy(self):
-        """BotPlayer defaults to SIMPLE strategy."""
+        """BotPlayer defaults to TSUMOGIRI strategy."""
         bot = BotPlayer()
 
-        assert bot.strategy == BotStrategy.SIMPLE
+        assert bot.strategy == BotStrategy.TSUMOGIRI
 
     def test_create_bot_with_explicit_strategy(self):
         """BotPlayer can be created with explicit strategy."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
 
-        assert bot.strategy == BotStrategy.SIMPLE
+        assert bot.strategy == BotStrategy.TSUMOGIRI
 
 
 class TestShouldCallPon:
@@ -57,8 +57,8 @@ class TestShouldCallPon:
         return player, round_state
 
     def test_simple_bot_never_calls_pon(self):
-        """Simple bot never calls pon to keep hand closed."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot never calls pon to keep hand closed."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # player has 1m 1m in hand (tiles 0 and 1)
         player, round_state = self._create_player_and_round_state([0, 1, 36, 72])
 
@@ -67,8 +67,8 @@ class TestShouldCallPon:
         assert result is False
 
     def test_simple_bot_refuses_pon_even_with_valid_opportunity(self):
-        """Simple bot refuses pon even when it's a valid call."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot refuses pon even when it's a valid call."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # player has two matching tiles for a pon
         player, round_state = self._create_player_and_round_state(
             [0, 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44]
@@ -99,8 +99,8 @@ class TestShouldCallChi:
         return player, round_state
 
     def test_simple_bot_never_calls_chi(self):
-        """Simple bot never calls chi to keep hand closed."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot never calls chi to keep hand closed."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # player has 1m 2m (tiles 0 and 4)
         player, round_state = self._create_player_and_round_state([0, 4, 36, 72])
         # chi options would be for 3m (completing 123m sequence)
@@ -113,8 +113,8 @@ class TestShouldCallChi:
         assert result is None
 
     def test_simple_bot_refuses_chi_with_empty_options(self):
-        """Simple bot returns None when no chi options available."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot returns None when no chi options available."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state([0, 36, 72, 108])
 
         result = should_call_chi(bot, player, discarded_tile=8, chi_options=[], round_state=round_state)
@@ -145,8 +145,8 @@ class TestShouldCallKan:
         return player, round_state
 
     def test_simple_bot_never_calls_open_kan(self):
-        """Simple bot never calls open kan."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot never calls open kan."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # player has 1m 1m 1m in hand
         player, round_state = self._create_player_and_round_state([0, 1, 2, 36])
 
@@ -155,8 +155,8 @@ class TestShouldCallKan:
         assert result is False
 
     def test_simple_bot_never_calls_closed_kan(self):
-        """Simple bot never calls closed kan."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot never calls closed kan."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # player has all four 1m tiles
         player, round_state = self._create_player_and_round_state([0, 1, 2, 3, 36])
 
@@ -165,8 +165,8 @@ class TestShouldCallKan:
         assert result is False
 
     def test_simple_bot_never_calls_added_kan(self):
-        """Simple bot never calls added kan."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot never calls added kan."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # player has a pon and the 4th tile
         pon = Meld(meld_type=Meld.PON, tiles=[0, 1, 2], opened=True)
         player, round_state = self._create_player_and_round_state([3, 36, 72], melds=[pon])
@@ -244,8 +244,8 @@ class TestShouldCallRon:
         return player, round_state
 
     def test_simple_bot_calls_ron_when_able(self):
-        """Simple bot always calls ron when it can win."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot always calls ron when it can win."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # tempai hand waiting for 1p to complete pair
         player, round_state = self._create_player_and_round_state(
             self._create_tempai_hand(),
@@ -258,8 +258,8 @@ class TestShouldCallRon:
         assert result is True
 
     def test_simple_bot_does_not_call_ron_when_furiten(self):
-        """Simple bot does not call ron when in furiten."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot does not call ron when in furiten."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # tempai hand, but player has discarded their wait tile
         player, round_state = self._create_player_and_round_state(
             self._create_tempai_hand(),
@@ -272,8 +272,8 @@ class TestShouldCallRon:
         assert result is False
 
     def test_simple_bot_does_not_call_ron_when_hand_not_complete(self):
-        """Simple bot does not call ron when discarded tile doesn't complete hand."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot does not call ron when discarded tile doesn't complete hand."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(
             self._create_tempai_hand(),
             is_riichi=True,
@@ -319,8 +319,8 @@ class TestShouldCallRiichi:
         return player, round_state
 
     def test_simple_bot_calls_riichi_when_tempai(self):
-        """Simple bot always calls riichi when in tempai with closed hand."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot always calls riichi when in tempai with closed hand."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(self._create_tempai_hand())
 
         result = should_call_riichi(bot, player, round_state)
@@ -328,8 +328,8 @@ class TestShouldCallRiichi:
         assert result is True
 
     def test_simple_bot_does_not_call_riichi_without_tempai(self):
-        """Simple bot does not call riichi without tempai."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot does not call riichi without tempai."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(self._create_non_tempai_hand())
 
         result = should_call_riichi(bot, player, round_state)
@@ -337,8 +337,8 @@ class TestShouldCallRiichi:
         assert result is False
 
     def test_simple_bot_does_not_call_riichi_with_low_points(self):
-        """Simple bot does not call riichi with less than 1000 points."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot does not call riichi with less than 1000 points."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(
             self._create_tempai_hand(),
             score=999,
@@ -349,8 +349,8 @@ class TestShouldCallRiichi:
         assert result is False
 
     def test_simple_bot_does_not_call_riichi_with_open_meld(self):
-        """Simple bot does not call riichi with open meld."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot does not call riichi with open meld."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         open_meld = Meld(meld_type=Meld.PON, tiles=[0, 1, 2], opened=True)
         # adjust hand for open meld
         player, round_state = self._create_player_and_round_state(
@@ -415,8 +415,8 @@ class TestShouldDeclareTsumo:
         return player, round_state
 
     def test_simple_bot_declares_tsumo_when_winning(self):
-        """Simple bot always declares tsumo when holding a winning hand."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot always declares tsumo when holding a winning hand."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(
             self._create_winning_hand(),
             is_riichi=True,  # riichi provides yaku
@@ -427,8 +427,8 @@ class TestShouldDeclareTsumo:
         assert result is True
 
     def test_simple_bot_does_not_declare_tsumo_without_winning_hand(self):
-        """Simple bot does not declare tsumo without winning hand."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot does not declare tsumo without winning hand."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(self._create_non_winning_hand())
 
         result = should_declare_tsumo(bot, player, round_state)
@@ -436,8 +436,8 @@ class TestShouldDeclareTsumo:
         assert result is False
 
     def test_simple_bot_declares_tsumo_with_closed_hand(self):
-        """Simple bot declares tsumo with closed hand (menzen tsumo yaku)."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot declares tsumo with closed hand (menzen tsumo yaku)."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # closed winning hand - menzen tsumo is always a valid yaku
         player, round_state = self._create_player_and_round_state(self._create_winning_hand())
 
@@ -466,8 +466,8 @@ class TestSelectDiscard:
         return player, round_state
 
     def test_simple_bot_discards_last_tile_tsumogiri(self):
-        """Simple bot discards the last tile (tsumogiri strategy)."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot discards the last tile (tsumogiri strategy)."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # hand with last tile being 44 (recently drawn)
         tiles = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52]
         player, round_state = self._create_player_and_round_state(tiles)
@@ -477,8 +477,8 @@ class TestSelectDiscard:
         assert result == 52  # last tile
 
     def test_simple_bot_always_discards_last_tile(self):
-        """Simple bot consistently discards the most recent tile."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        """Tsumogiri bot consistently discards the most recent tile."""
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         tiles = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 100]
         player, round_state = self._create_player_and_round_state(tiles)
 
@@ -523,7 +523,7 @@ class TestSelectRiichiDiscard:
 
     def test_select_riichi_discard_returns_tile_keeping_tempai(self):
         """Riichi discard keeps hand in tempai."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player = self._create_player(self._create_tempai_hand_with_isolated_extra())
 
         result = select_riichi_discard(bot, player)
@@ -533,7 +533,7 @@ class TestSelectRiichiDiscard:
 
     def test_select_riichi_discard_prefers_last_tile_if_valid(self):
         """Riichi discard prefers tsumogiri if it maintains tempai."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         # tempai hand where last tile (South) keeps tempai
         tiles = [
             0,
@@ -634,36 +634,37 @@ class TestGetBotAction:
 
     def test_bot_action_tsumo_when_winning(self):
         """Bot declares tsumo when holding a winning hand."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(self._create_winning_hand())
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result == {"action": "tsumo"}
+        assert result.action == "tsumo"
+        assert result.tile_id is None
 
     def test_bot_action_riichi_when_tempai(self):
         """Bot declares riichi when in tempai with closed hand."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(self._create_tempai_hand())
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result["action"] == "riichi"
-        assert "tile_id" in result
+        assert result.action == "riichi"
+        assert result.tile_id is not None
 
     def test_bot_action_discard_when_not_tempai(self):
         """Bot discards when not in tempai."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(self._create_non_tempai_hand())
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result["action"] == "discard"
-        assert "tile_id" in result
+        assert result.action == "discard"
+        assert result.tile_id is not None
 
     def test_bot_action_discard_when_already_riichi(self):
         """Bot only discards when already in riichi (can't riichi again)."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(
             self._create_tempai_hand(),
             is_riichi=True,
@@ -672,11 +673,11 @@ class TestGetBotAction:
         result = get_bot_action(bot, player, round_state)
 
         # already in riichi, so just discard
-        assert result["action"] == "discard"
+        assert result.action == "discard"
 
     def test_bot_action_discard_when_not_enough_points_for_riichi(self):
         """Bot discards instead of riichi when score is below 1000."""
-        bot = BotPlayer(strategy=BotStrategy.SIMPLE)
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         player, round_state = self._create_player_and_round_state(
             self._create_tempai_hand(),
             score=500,
@@ -684,4 +685,4 @@ class TestGetBotAction:
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result["action"] == "discard"
+        assert result.action == "discard"

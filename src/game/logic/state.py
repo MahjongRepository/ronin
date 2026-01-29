@@ -7,7 +7,9 @@ from enum import Enum
 
 from mahjong.meld import Meld
 
+from game.logic.enums import MeldViewType, WindName
 from game.logic.tiles import format_hand, tile_to_string
+from game.logic.types import DiscardView, GameView, MeldView, PlayerView, TileView
 
 NUM_WINDS = 4
 
@@ -122,7 +124,7 @@ class MahjongGameState:
     seed: float = 0.0
 
 
-def get_player_view(game_state: MahjongGameState, seat: int) -> dict:
+def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
     """
     Return the visible game state for a specific player.
 
@@ -146,77 +148,77 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> dict:
     round_state = game_state.round_state
 
     # build player info for all players
-    players_view = []
+    players_view: list[PlayerView] = []
     for p in round_state.players:
-        player_view = {
-            "seat": p.seat,
-            "name": p.name,
-            "is_bot": p.is_bot,
-            "score": p.score,
-            "is_riichi": p.is_riichi,
-            "discards": [
-                {
-                    "tile": tile_to_string(d.tile_id),
-                    "tile_id": d.tile_id,
-                    "is_tsumogiri": d.is_tsumogiri,
-                    "is_riichi_discard": d.is_riichi_discard,
-                }
-                for d in p.discards
-            ],
-            "melds": [_meld_to_view(m) for m in p.melds],
-            "tile_count": len(p.tiles),  # show count for opponents
-        }
+        tiles = list(p.tiles) if p.seat == seat else None
+        hand = format_hand(p.tiles) if p.seat == seat else None
 
-        # only show own hand
-        if p.seat == seat:
-            player_view["tiles"] = list(p.tiles)  # copy to avoid mutation
-            player_view["hand"] = format_hand(p.tiles)
+        players_view.append(
+            PlayerView(
+                seat=p.seat,
+                name=p.name,
+                is_bot=p.is_bot,
+                score=p.score,
+                is_riichi=p.is_riichi,
+                discards=[
+                    DiscardView(
+                        tile=tile_to_string(d.tile_id),
+                        tile_id=d.tile_id,
+                        is_tsumogiri=d.is_tsumogiri,
+                        is_riichi_discard=d.is_riichi_discard,
+                    )
+                    for d in p.discards
+                ],
+                melds=[_meld_to_view(m) for m in p.melds],
+                tile_count=len(p.tiles),
+                tiles=tiles,
+                hand=hand,
+            )
+        )
 
-        players_view.append(player_view)
-
-    return {
-        "seat": seat,
-        "round_wind": _wind_name(round_state.round_wind),
-        "round_number": game_state.round_number,
-        "dealer_seat": round_state.dealer_seat,
-        "current_player_seat": round_state.current_player_seat,
-        "wall_count": len(round_state.wall),
-        "dora_indicators": [{"tile": tile_to_string(t), "tile_id": t} for t in round_state.dora_indicators],
-        "honba_sticks": game_state.honba_sticks,
-        "riichi_sticks": game_state.riichi_sticks,
-        "players": players_view,
-        "phase": round_state.phase.value,
-        "game_phase": game_state.game_phase.value,
-    }
+    return GameView(
+        seat=seat,
+        round_wind=_wind_name(round_state.round_wind),
+        round_number=game_state.round_number,
+        dealer_seat=round_state.dealer_seat,
+        current_player_seat=round_state.current_player_seat,
+        wall_count=len(round_state.wall),
+        dora_indicators=[TileView(tile=tile_to_string(t), tile_id=t) for t in round_state.dora_indicators],
+        honba_sticks=game_state.honba_sticks,
+        riichi_sticks=game_state.riichi_sticks,
+        players=players_view,
+        phase=round_state.phase.value,
+        game_phase=game_state.game_phase.value,
+    )
 
 
-def _meld_to_view(meld: Meld) -> dict:
+def _meld_to_view(meld: Meld) -> MeldView:
     """
-    Convert a Meld object to a view dict.
+    Convert a Meld object to a MeldView model.
     """
     meld_type_names = {
-        Meld.CHI: "chi",
-        Meld.PON: "pon",
-        Meld.KAN: "kan",
-        Meld.CHANKAN: "chankan",
-        Meld.SHOUMINKAN: "shouminkan",
+        Meld.CHI: MeldViewType.CHI,
+        Meld.PON: MeldViewType.PON,
+        Meld.KAN: MeldViewType.KAN,
+        Meld.CHANKAN: MeldViewType.CHANKAN,
+        Meld.SHOUMINKAN: MeldViewType.SHOUMINKAN,
     }
 
-    return {
-        "type": meld_type_names.get(meld.type, "unknown"),
-        "tiles": [tile_to_string(t) for t in meld.tiles] if meld.tiles else [],
-        "tile_ids": list(meld.tiles) if meld.tiles else [],
-        "opened": meld.opened,
-        "from_who": meld.from_who,
-    }
+    return MeldView(
+        type=meld_type_names.get(meld.type, MeldViewType.UNKNOWN),
+        tiles=[tile_to_string(t) for t in meld.tiles] if meld.tiles else [],
+        tile_ids=list(meld.tiles) if meld.tiles else [],
+        opened=meld.opened,
+        from_who=meld.from_who,
+    )
 
 
 def _wind_name(wind: int) -> str:
     """
     Convert wind index to name.
     """
-    winds = ["East", "South", "West", "North"]
-    return winds[wind] if 0 <= wind < NUM_WINDS else "Unknown"
+    winds = [WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH]
+    return winds[wind] if 0 <= wind < NUM_WINDS else WindName.UNKNOWN
 
 
 def seat_to_wind(seat: int, dealer_seat: int) -> int:

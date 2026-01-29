@@ -1,4 +1,4 @@
-.PHONY: test test-lobby test-game run-lobby run-game run-all lint format check-agent
+.PHONY: test test-lobby test-game run-lobby run-game run-all lint format typecheck check-agent
 
 test:
 	uv run pytest -v
@@ -25,6 +25,9 @@ lint:
 format:
 	uv run ruff check --select I --fix src
 	uv run ruff format src
+
+typecheck:
+	uv run ty check src
 
 check-agent:
 	@bash ./bin/check-agent.sh || true

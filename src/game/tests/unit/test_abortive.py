@@ -266,8 +266,8 @@ class TestCallKyuushuKyuuhai:
 
         result = call_kyuushu_kyuuhai(round_state)
 
-        assert result["type"] == "abortive_draw"
-        assert result["reason"] == "kyuushu_kyuuhai"
+        assert result.type == "abortive_draw"
+        assert result.reason == AbortiveDrawType.NINE_TERMINALS
 
     def test_includes_calling_player_seat(self):
         """Result includes the seat of the player who called."""
@@ -276,7 +276,7 @@ class TestCallKyuushuKyuuhai:
 
         result = call_kyuushu_kyuuhai(round_state)
 
-        assert result["seat"] == 2
+        assert result.seat == 2
 
     def test_different_seats(self):
         """Works correctly for any seat."""
@@ -285,7 +285,7 @@ class TestCallKyuushuKyuuhai:
         for seat in range(4):
             round_state.current_player_seat = seat
             result = call_kyuushu_kyuuhai(round_state)
-            assert result["seat"] == seat
+            assert result.seat == seat
 
 
 class TestKyuushuConstant:
@@ -606,8 +606,8 @@ class TestProcessAbortiveDraw:
 
         result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)
 
-        assert result["type"] == "abortive_draw"
-        assert result["reason"] == "triple_ron"
+        assert result.type == "abortive_draw"
+        assert result.reason == AbortiveDrawType.TRIPLE_RON
 
     def test_includes_score_changes_of_zero(self):
         """Score changes in result are all zero."""
@@ -615,7 +615,7 @@ class TestProcessAbortiveDraw:
 
         result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_KANS)
 
-        assert result["score_changes"] == {0: 0, 1: 0, 2: 0, 3: 0}
+        assert result.score_changes == {0: 0, 1: 0, 2: 0, 3: 0}
 
     def test_all_abortive_types_work(self):
         """Each abortive draw type is handled correctly."""
@@ -623,5 +623,5 @@ class TestProcessAbortiveDraw:
             game_state = self._create_game_state()
             result = process_abortive_draw(game_state, draw_type)
 
-            assert result["type"] == "abortive_draw"
-            assert result["reason"] == draw_type.value
+            assert result.type == "abortive_draw"
+            assert result.reason == draw_type

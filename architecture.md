@@ -7,7 +7,6 @@ The system consists of two services in a unified project:
 - **Lobby Service** (`src/lobby/`) - Portal for game discovery and creation (port 8000)
 - **Game Service** (`src/game/`) - Real-time Riichi Mahjong gameplay server with full game logic (port 8001)
 
-
 ## Game Creation Flow
 
 API flow:
@@ -104,6 +103,7 @@ make test-lobby    # Run lobby tests only
 make test-game     # Run game tests only
 make lint          # Check code style
 make format        # Auto-format code
+make typecheck     # Run type checking (ty)
 ```
 
 ## Next Steps

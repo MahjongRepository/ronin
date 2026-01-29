@@ -3,8 +3,11 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from game.messaging.types import (
-    ClientMessageType,
+    ChatMessage,
     ErrorMessage,
+    GameActionMessage,
+    JoinGameMessage,
+    LeaveGameMessage,
     parse_client_message,
 )
 
@@ -35,31 +38,28 @@ class MessageRouter:
             await connection.send_message(ErrorMessage(code="invalid_message", message=str(e)).model_dump())
             return
 
-        match message.type:
-            case ClientMessageType.JOIN_GAME:
-                await self._session_manager.join_game(
+        if isinstance(message, JoinGameMessage):
+            await self._session_manager.join_game(
+                connection=connection,
+                game_id=message.game_id,
+                player_name=message.player_name,
+            )
+        elif isinstance(message, LeaveGameMessage):
+            await self._session_manager.leave_game(connection)
+        elif isinstance(message, GameActionMessage):
+            try:
+                await self._session_manager.handle_game_action(
                     connection=connection,
-                    game_id=message.game_id,
-                    player_name=message.player_name,
+                    action=message.action,
+                    data=message.data,
                 )
-            case ClientMessageType.LEAVE_GAME:
-                await self._session_manager.leave_game(connection)
-            case ClientMessageType.GAME_ACTION:
-                try:
-                    await self._session_manager.handle_game_action(
-                        connection=connection,
-                        action=message.action,
-                        data=message.data,
-                    )
-                except (ValueError, KeyError, TypeError, RuntimeError) as e:
-                    await connection.send_message(
-                        ErrorMessage(code="action_failed", message=str(e)).model_dump()
-                    )
-            case ClientMessageType.CHAT:
-                await self._session_manager.broadcast_chat(
-                    connection=connection,
-                    text=message.text,
-                )
+            except (ValueError, KeyError, TypeError, RuntimeError) as e:
+                await connection.send_message(ErrorMessage(code="action_failed", message=str(e)).model_dump())
+        elif isinstance(message, ChatMessage):
+            await self._session_manager.broadcast_chat(
+                connection=connection,
+                text=message.text,
+            )
 
     async def handle_connect(self, connection: ConnectionProtocol) -> None:
         self._session_manager.register_connection(connection)

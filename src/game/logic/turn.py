@@ -14,6 +14,7 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.actions import get_available_actions
+from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
 from game.logic.melds import (
     call_added_kan,
     call_chi,
@@ -40,6 +41,7 @@ from game.logic.scoring import (
 )
 from game.logic.state import RoundPhase
 from game.logic.tiles import tile_to_34, tile_to_string
+from game.logic.types import AvailableActionItem, MeldCaller
 from game.logic.win import (
     can_call_ron,
     can_declare_tsumo,
@@ -109,7 +111,7 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
 
     # check for kyuushu kyuuhai and add to actions if available
     if can_call_kyuushu_kyuuhai(player, round_state):
-        available_actions.append({"action": "kyuushu"})
+        available_actions.append(AvailableActionItem(action=PlayerAction.KYUUSHU))
 
     events.append(
         TurnEvent(
@@ -191,7 +193,7 @@ def process_discard_phase(
         # ron opportunities exist - create call prompt
         events.append(
             CallPromptEvent(
-                call_type="ron",
+                call_type=CallType.RON,
                 tile_id=tile_id,
                 from_seat=current_seat,
                 callers=ron_callers,
@@ -218,7 +220,7 @@ def process_discard_phase(
     if meld_calls:
         events.append(
             CallPromptEvent(
-                call_type="meld",
+                call_type=CallType.MELD,
                 tile_id=tile_id,
                 from_seat=current_seat,
                 callers=meld_calls,
@@ -268,7 +270,7 @@ def _process_pon_call(ctx: MeldCallContext) -> None:
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
         MeldEvent(
-            meld_type="pon",
+            meld_type=MeldViewType.PON,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             tiles=[tile_to_string(t) for t in tile_ids],
@@ -285,7 +287,7 @@ def _process_chi_call(ctx: MeldCallContext) -> None:
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
         MeldEvent(
-            meld_type="chi",
+            meld_type=MeldViewType.CHI,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             tiles=[tile_to_string(t) for t in tile_ids],
@@ -300,12 +302,12 @@ def _process_open_kan_call(ctx: MeldCallContext) -> bool:
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
         MeldEvent(
-            meld_type="kan",
+            meld_type=MeldViewType.KAN,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             tiles=[tile_to_string(t) for t in tile_ids],
             from_seat=ctx.discarder_seat,
-            kan_type="open",
+            kan_type=KanType.OPEN,
         )
     )
     return ctx.check_four_kans_abort()
@@ -317,11 +319,11 @@ def _process_closed_kan_call(ctx: MeldCallContext) -> bool:
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
         MeldEvent(
-            meld_type="kan",
+            meld_type=MeldViewType.KAN,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             tiles=[tile_to_string(t) for t in tile_ids],
-            kan_type="closed",
+            kan_type=KanType.CLOSED,
         )
     )
     return ctx.check_four_kans_abort()
@@ -333,7 +335,7 @@ def _process_added_kan_call(ctx: MeldCallContext) -> bool:
     if chankan_seats:
         ctx.events.append(
             CallPromptEvent(
-                call_type="chankan",
+                call_type=CallType.CHANKAN,
                 tile_id=ctx.tile_id,
                 from_seat=ctx.caller_seat,
                 callers=chankan_seats,
@@ -346,11 +348,11 @@ def _process_added_kan_call(ctx: MeldCallContext) -> bool:
     tile_ids = list(meld.tiles) if meld.tiles else []
     ctx.events.append(
         MeldEvent(
-            meld_type="kan",
+            meld_type=MeldViewType.KAN,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             tiles=[tile_to_string(t) for t in tile_ids],
-            kan_type="added",
+            kan_type=KanType.ADDED,
         )
     )
     return ctx.check_four_kans_abort()
@@ -360,7 +362,7 @@ def process_meld_call(  # noqa: PLR0913
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     caller_seat: int,
-    call_type: str,
+    call_type: MeldCallType,
     tile_id: int,
     *,
     sequence_tiles: tuple[int, int] | None = None,
@@ -376,17 +378,17 @@ def process_meld_call(  # noqa: PLR0913
     """
     ctx = MeldCallContext(round_state, game_state, caller_seat, tile_id, sequence_tiles)
 
-    if call_type == "pon":
+    if call_type == MeldCallType.PON:
         _process_pon_call(ctx)
-    elif call_type == "chi":
+    elif call_type == MeldCallType.CHI:
         _process_chi_call(ctx)
-    elif call_type == "open_kan":
+    elif call_type == MeldCallType.OPEN_KAN:
         if _process_open_kan_call(ctx):
             return ctx.events
-    elif call_type == "closed_kan":
+    elif call_type == MeldCallType.CLOSED_KAN:
         if _process_closed_kan_call(ctx):
             return ctx.events
-    elif call_type == "added_kan":
+    elif call_type == MeldCallType.ADDED_KAN:
         if _process_added_kan_call(ctx):
             return ctx.events
     else:
@@ -506,14 +508,14 @@ def _find_meld_callers(
     round_state: MahjongRoundState,
     tile_id: int,
     discarder_seat: int,
-) -> list[dict]:
+) -> list[MeldCaller]:
     """
     Find all players who can call a meld on the discarded tile.
 
     Returns list of meld options sorted by priority (kan > pon > chi).
     Each entry includes: seat, call_type, and options (for chi).
     """
-    meld_calls = []
+    meld_calls: list[MeldCaller] = []
     wall_count = len(round_state.wall)
     tile_34 = tile_to_34(tile_id)
 
@@ -526,39 +528,39 @@ def _find_meld_callers(
         # check open kan
         if can_call_open_kan(player, tile_id, wall_count):
             meld_calls.append(
-                {
-                    "seat": seat,
-                    "call_type": "open_kan",
-                    "tile_34": tile_34,
-                    "priority": 0,  # highest priority
-                }
+                MeldCaller(
+                    seat=seat,
+                    call_type=MeldCallType.OPEN_KAN,
+                    tile_34=tile_34,
+                    priority=0,
+                )
             )
 
         # check pon
         if can_call_pon(player, tile_id):
             meld_calls.append(
-                {
-                    "seat": seat,
-                    "call_type": "pon",
-                    "tile_34": tile_34,
-                    "priority": 1,
-                }
+                MeldCaller(
+                    seat=seat,
+                    call_type=MeldCallType.PON,
+                    tile_34=tile_34,
+                    priority=1,
+                )
             )
 
         # check chi (only from kamicha)
         chi_options = can_call_chi(player, tile_id, discarder_seat, seat)
         if chi_options:
             meld_calls.append(
-                {
-                    "seat": seat,
-                    "call_type": "chi",
-                    "tile_34": tile_34,
-                    "options": chi_options,
-                    "priority": 2,  # lowest priority
-                }
+                MeldCaller(
+                    seat=seat,
+                    call_type=MeldCallType.CHI,
+                    tile_34=tile_34,
+                    options=chi_options,
+                    priority=2,
+                )
             )
 
     # sort by priority
-    meld_calls.sort(key=lambda x: x["priority"])
+    meld_calls.sort(key=lambda x: x.priority)
 
     return meld_calls

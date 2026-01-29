@@ -5,7 +5,7 @@ Each handler validates input and returns a list of GameEvent objects.
 These handlers are designed to be used by the MahjongGameService to process player actions.
 """
 
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from game.logic.abortive import (
     AbortiveDrawType,
@@ -16,6 +16,7 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.actions import get_available_actions
+from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType
 from game.logic.melds import call_added_kan
 from game.logic.riichi import declare_riichi
 from game.logic.round import advance_turn
@@ -28,9 +29,18 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
+from game.logic.types import (
+    ChiActionData,
+    DiscardActionData,
+    KanActionData,
+    PonActionData,
+    RiichiActionData,
+    RonActionData,
+)
 from game.messaging.events import (
     DrawEvent,
     ErrorEvent,
+    EventType,
     GameEvent,
     MeldEvent,
     PassAcknowledgedEvent,
@@ -48,6 +58,11 @@ class ActionResult(NamedTuple):
 
     events: list[GameEvent]
     needs_post_discard: bool = False
+
+
+def _create_not_your_turn_error(seat: int) -> ActionResult:
+    """Create an error result for when it's not a player's turn."""
+    return ActionResult([ErrorEvent(code="not_your_turn", message="not your turn", target=f"seat_{seat}")])
 
 
 def _create_turn_event(
@@ -69,7 +84,7 @@ def handle_discard(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: dict[str, Any],
+    data: DiscardActionData,
 ) -> ActionResult:
     """
     Handle a discard action.
@@ -78,18 +93,10 @@ def handle_discard(
     Returns events and whether post-discard processing is needed.
     """
     if round_state.current_player_seat != seat:
-        return ActionResult(
-            [ErrorEvent(code="not_your_turn", message="not your turn", target=f"seat_{seat}")]
-        )
-
-    tile_id = data.get("tile_id")
-    if tile_id is None:
-        return ActionResult(
-            [ErrorEvent(code="missing_tile_id", message="tile_id required", target=f"seat_{seat}")]
-        )
+        return _create_not_your_turn_error(seat)
 
     try:
-        events = process_discard_phase(round_state, game_state, tile_id, is_riichi=False)
+        events = process_discard_phase(round_state, game_state, data.tile_id, is_riichi=False)
         return ActionResult(events, needs_post_discard=True)
     except ValueError as e:
         return ActionResult([ErrorEvent(code="invalid_discard", message=str(e), target=f"seat_{seat}")])
@@ -99,7 +106,7 @@ def handle_riichi(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: dict[str, Any],
+    data: RiichiActionData,
 ) -> ActionResult:
     """
     Handle a riichi declaration with discard.
@@ -107,18 +114,10 @@ def handle_riichi(
     Validates the player's turn and tile_id, then processes the riichi discard.
     """
     if round_state.current_player_seat != seat:
-        return ActionResult(
-            [ErrorEvent(code="not_your_turn", message="not your turn", target=f"seat_{seat}")]
-        )
-
-    tile_id = data.get("tile_id")
-    if tile_id is None:
-        return ActionResult(
-            [ErrorEvent(code="missing_tile_id", message="tile_id required", target=f"seat_{seat}")]
-        )
+        return _create_not_your_turn_error(seat)
 
     try:
-        events = process_discard_phase(round_state, game_state, tile_id, is_riichi=True)
+        events = process_discard_phase(round_state, game_state, data.tile_id, is_riichi=True)
         return ActionResult(events, needs_post_discard=True)
     except ValueError as e:
         return ActionResult([ErrorEvent(code="invalid_riichi", message=str(e), target=f"seat_{seat}")])
@@ -135,9 +134,7 @@ def handle_tsumo(
     Validates the player's turn and processes the tsumo win.
     """
     if round_state.current_player_seat != seat:
-        return ActionResult(
-            [ErrorEvent(code="not_your_turn", message="not your turn", target=f"seat_{seat}")]
-        )
+        return _create_not_your_turn_error(seat)
 
     try:
         events = process_tsumo_call(round_state, game_state, seat)
@@ -150,27 +147,15 @@ def handle_ron(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: dict[str, Any],
+    data: RonActionData,
 ) -> ActionResult:
     """
     Handle a ron call from a player.
 
     Validates tile_id and from_seat, then processes the ron win.
     """
-    tile_id = data.get("tile_id")
-    discarder_seat = data.get("from_seat")
-
-    if tile_id is None or discarder_seat is None:
-        return ActionResult(
-            [
-                ErrorEvent(
-                    code="missing_params", message="tile_id and from_seat required", target=f"seat_{seat}"
-                )
-            ]
-        )
-
     try:
-        events = process_ron_call(round_state, game_state, [seat], tile_id, discarder_seat)
+        events = process_ron_call(round_state, game_state, [seat], data.tile_id, data.from_seat)
         return ActionResult(events)
     except ValueError as e:
         return ActionResult([ErrorEvent(code="invalid_ron", message=str(e), target=f"seat_{seat}")])
@@ -180,7 +165,7 @@ def handle_pon(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: dict[str, Any],
+    data: PonActionData,
 ) -> ActionResult:
     """
     Handle a pon call from a player.
@@ -188,14 +173,8 @@ def handle_pon(
     Validates tile_id and processes the pon meld.
     Returns meld events and a turn event for the caller.
     """
-    tile_id = data.get("tile_id")
-    if tile_id is None:
-        return ActionResult(
-            [ErrorEvent(code="missing_tile_id", message="tile_id required", target=f"seat_{seat}")]
-        )
-
     try:
-        events = process_meld_call(round_state, game_state, seat, "pon", tile_id)
+        events = process_meld_call(round_state, game_state, seat, MeldCallType.PON, data.tile_id)
         events.append(_create_turn_event(round_state, game_state, seat))
         return ActionResult(events)
     except ValueError as e:
@@ -206,7 +185,7 @@ def handle_chi(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: dict[str, Any],
+    data: ChiActionData,
 ) -> ActionResult:
     """
     Handle a chi call from a player.
@@ -214,23 +193,14 @@ def handle_chi(
     Validates tile_id and sequence_tiles, then processes the chi meld.
     Returns meld events and a turn event for the caller.
     """
-    tile_id = data.get("tile_id")
-    sequence_tiles = data.get("sequence_tiles")
-
-    if tile_id is None or sequence_tiles is None:
-        return ActionResult(
-            [
-                ErrorEvent(
-                    code="missing_params",
-                    message="tile_id and sequence_tiles required",
-                    target=f"seat_{seat}",
-                )
-            ]
-        )
-
     try:
         events = process_meld_call(
-            round_state, game_state, seat, "chi", tile_id, sequence_tiles=tuple(sequence_tiles)
+            round_state,
+            game_state,
+            seat,
+            MeldCallType.CHI,
+            data.tile_id,
+            sequence_tiles=data.sequence_tiles,
         )
         events.append(_create_turn_event(round_state, game_state, seat))
         return ActionResult(events)
@@ -242,7 +212,7 @@ def handle_kan(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: dict[str, Any],
+    data: KanActionData,
 ) -> ActionResult:
     """
     Handle a kan call (open, closed, or added).
@@ -250,16 +220,9 @@ def handle_kan(
     Validates tile_id and kan_type, then processes the kan meld.
     Returns meld events and handles post-kan processing (chankan, dead wall draw).
     """
-    tile_id = data.get("tile_id")
-    kan_type = data.get("kan_type", "open")
-
-    if tile_id is None:
-        return ActionResult(
-            [ErrorEvent(code="missing_tile_id", message="tile_id required", target=f"seat_{seat}")]
-        )
-
     try:
-        events = process_meld_call(round_state, game_state, seat, f"{kan_type}_kan", tile_id)
+        meld_call_type = data.kan_type.to_meld_call_type()
+        events = process_meld_call(round_state, game_state, seat, meld_call_type, data.tile_id)
     except ValueError as e:
         return ActionResult([ErrorEvent(code="invalid_kan", message=str(e), target=f"seat_{seat}")])
 
@@ -269,7 +232,7 @@ def handle_kan(
 
     # check for chankan prompt in events
     has_chankan_prompt = any(
-        e.type == "call_prompt" and getattr(e, "call_type", None) == "chankan" for e in events
+        e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.CHANKAN for e in events
     )
     if has_chankan_prompt:
         # return events with chankan prompt - caller will handle responses
@@ -304,9 +267,7 @@ def handle_kyuushu(
     Validates the player's turn and kyuushu conditions, then processes the abortive draw.
     """
     if round_state.current_player_seat != seat:
-        return ActionResult(
-            [ErrorEvent(code="not_your_turn", message="not your turn", target=f"seat_{seat}")]
-        )
+        return _create_not_your_turn_error(seat)
 
     player = round_state.players[seat]
     if not can_call_kyuushu_kyuuhai(player, round_state):
@@ -386,11 +347,11 @@ def complete_added_kan_after_chankan_decline(
 
     events: list[GameEvent] = [
         MeldEvent(
-            meld_type="kan",
+            meld_type=MeldViewType.KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
             tiles=[tile_to_string(t) for t in tile_ids],
-            kan_type="added",
+            kan_type=KanType.ADDED,
         )
     ]
 

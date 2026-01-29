@@ -780,14 +780,15 @@
         }
 
         function handleGameStarted(message) {
-            gameState.seat = message.seat;
-            gameState.roundWind = message.round_wind;
-            gameState.roundNumber = message.round_number;
-            gameState.dealerSeat = message.dealer_seat;
-            gameState.wallCount = message.wall_count;
-            gameState.doraIndicators = message.dora_indicators || [];
-            gameState.honbaSticks = message.honba_sticks;
-            gameState.riichiSticks = message.riichi_sticks;
+            const view = message.view;
+            gameState.seat = view.seat;
+            gameState.roundWind = view.round_wind;
+            gameState.roundNumber = view.round_number;
+            gameState.dealerSeat = view.dealer_seat;
+            gameState.wallCount = view.wall_count;
+            gameState.doraIndicators = view.dora_indicators || [];
+            gameState.honbaSticks = view.honba_sticks;
+            gameState.riichiSticks = view.riichi_sticks;
             gameState.drawnTile = null;
             gameState.selectedTile = null;
             gameState.availableActions = [];
@@ -795,7 +796,7 @@
             gameState.pendingCallPrompt = null;
 
             // initialize players with empty discards/melds
-            gameState.players = message.players.map(p => ({
+            gameState.players = view.players.map(p => ({
                 ...p,
                 discards: [],
                 melds: [],
@@ -803,7 +804,7 @@
             }));
 
             // find our player data and set hand
-            const ourPlayer = message.players.find(p => p.seat === gameState.seat);
+            const ourPlayer = view.players.find(p => p.seat === gameState.seat);
             if (ourPlayer && ourPlayer.tiles) {
                 gameState.hand = ourPlayer.tiles.slice().sort((a, b) => a - b);
             } else {
@@ -815,14 +816,15 @@
         }
 
         function handleRoundStarted(message) {
+            const view = message.view;
             // reset round-specific state
-            gameState.roundWind = message.round_wind;
-            gameState.roundNumber = message.round_number;
-            gameState.dealerSeat = message.dealer_seat;
-            gameState.wallCount = message.wall_count;
-            gameState.doraIndicators = message.dora_indicators || [];
-            gameState.honbaSticks = message.honba_sticks;
-            gameState.riichiSticks = message.riichi_sticks;
+            gameState.roundWind = view.round_wind;
+            gameState.roundNumber = view.round_number;
+            gameState.dealerSeat = view.dealer_seat;
+            gameState.wallCount = view.wall_count;
+            gameState.doraIndicators = view.dora_indicators || [];
+            gameState.honbaSticks = view.honba_sticks;
+            gameState.riichiSticks = view.riichi_sticks;
             gameState.drawnTile = null;
             gameState.selectedTile = null;
             gameState.availableActions = [];
@@ -830,7 +832,7 @@
             gameState.pendingCallPrompt = null;
 
             // update players but reset round-specific data (discards, melds, riichi)
-            message.players.forEach(p => {
+            view.players.forEach(p => {
                 const existingPlayer = gameState.players.find(ep => ep.seat === p.seat);
                 if (existingPlayer) {
                     existingPlayer.score = p.score;
@@ -847,7 +849,7 @@
             });
 
             // find our player data and set hand
-            const ourPlayer = message.players.find(p => p.seat === gameState.seat);
+            const ourPlayer = view.players.find(p => p.seat === gameState.seat);
             if (ourPlayer && ourPlayer.tiles) {
                 gameState.hand = ourPlayer.tiles.slice().sort((a, b) => a - b);
             } else {
@@ -1017,8 +1019,9 @@
 
             if (isGameEnd) {
                 title.textContent = 'Game Over!';
-                const winnerPlayer = gameState.players.find(p => p.seat === message.winner_seat);
-                winner.textContent = `Winner: ${winnerPlayer ? winnerPlayer.name : 'Seat ' + message.winner_seat}`;
+                const result = message.result || {};
+                const winnerPlayer = gameState.players.find(p => p.seat === result.winner_seat);
+                winner.textContent = `Winner: ${winnerPlayer ? winnerPlayer.name : 'Seat ' + result.winner_seat}`;
                 hand.textContent = '';
                 yaku.innerHTML = '';
             } else {
@@ -1027,12 +1030,16 @@
                 const resultType = result.type || 'unknown';
                 title.textContent = `Round End - ${resultType.toUpperCase().replace('_', ' ')}`;
 
-                if (result.winner_seats && result.winner_seats.length > 0) {
-                    const winnerNames = result.winner_seats.map(s => {
-                        const p = gameState.players.find(pl => pl.seat === s);
-                        return p ? p.name : 'Seat ' + s;
+                if (result.winner_seat !== undefined) {
+                    const p = gameState.players.find(pl => pl.seat === result.winner_seat);
+                    winner.textContent = `Winner: ${p ? p.name : 'Seat ' + result.winner_seat}`;
+                } else if (result.winners && result.winners.length > 0) {
+                    // double ron: multiple winners
+                    const winnerNames = result.winners.map(w => {
+                        const p = gameState.players.find(pl => pl.seat === w.winner_seat);
+                        return p ? p.name : 'Seat ' + w.winner_seat;
                     });
-                    winner.textContent = `Winner: ${winnerNames.join(', ')}`;
+                    winner.textContent = `Winners: ${winnerNames.join(', ')}`;
                 } else if (resultType === 'exhaustive_draw') {
                     winner.textContent = 'Exhaustive Draw - No Winner';
                 } else if (resultType.includes('abortive')) {

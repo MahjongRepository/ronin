@@ -10,6 +10,7 @@ class Player:
     connection: ConnectionProtocol
     name: str
     game_id: str | None = None
+    seat: int | None = None
 
     @property
     def connection_id(self) -> str:
@@ -20,7 +21,6 @@ class Player:
 class Game:
     game_id: str
     players: dict[str, Player] = field(default_factory=dict)
-    game_state: dict = field(default_factory=dict)
 
     @property
     def player_names(self) -> list[str]:

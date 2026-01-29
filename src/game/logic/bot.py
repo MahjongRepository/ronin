@@ -2,7 +2,7 @@
 Bot decision making for mahjong game.
 
 Provides AI logic for bot players to make decisions during gameplay.
-The simple bot strategy focuses on keeping hands closed for riichi play.
+The tsumogiri bot strategy focuses on keeping hands closed for riichi play.
 """
 
 from enum import Enum
@@ -10,9 +10,11 @@ from typing import TYPE_CHECKING
 
 from mahjong.shanten import Shanten
 
+from game.logic.enums import KanType, PlayerAction
 from game.logic.melds import can_call_pon
 from game.logic.riichi import can_declare_riichi
 from game.logic.tiles import HONOR_34_START, hand_to_34_array, tile_to_34
+from game.logic.types import BotAction
 from game.logic.win import can_call_ron, can_declare_tsumo
 
 if TYPE_CHECKING:
@@ -22,7 +24,7 @@ if TYPE_CHECKING:
 class BotStrategy(Enum):
     """Available bot strategies."""
 
-    SIMPLE = "simple"  # basic strategy: always call wins, never call melds
+    TSUMOGIRI = "tsumogiri"  # tsumogiri: always call wins, never call melds, discard last drawn tile
 
 
 class BotPlayer:
@@ -30,7 +32,7 @@ class BotPlayer:
     Bot player with configurable decision-making strategy.
     """
 
-    def __init__(self, strategy: BotStrategy = BotStrategy.SIMPLE) -> None:
+    def __init__(self, strategy: BotStrategy = BotStrategy.TSUMOGIRI) -> None:
         self.strategy = strategy
 
 
@@ -43,9 +45,9 @@ def should_call_pon(
     """
     Decide whether bot should call pon on a discarded tile.
 
-    For simple bot: always return False to keep hand closed for riichi.
+    For tsumogiri bot: always return False to keep hand closed for riichi.
     """
-    if bot.strategy == BotStrategy.SIMPLE:
+    if bot.strategy == BotStrategy.TSUMOGIRI:
         return False
 
     # validate the call is possible
@@ -62,11 +64,11 @@ def should_call_chi(
     """
     Decide whether bot should call chi on a discarded tile.
 
-    For simple bot: always return None to keep hand closed for riichi.
+    For tsumogiri bot: always return None to keep hand closed for riichi.
 
     Returns the chosen chi combination (two tiles from hand) or None to pass.
     """
-    if bot.strategy == BotStrategy.SIMPLE:
+    if bot.strategy == BotStrategy.TSUMOGIRI:
         return None
 
     # validate options exist
@@ -79,17 +81,17 @@ def should_call_chi(
 def should_call_kan(
     bot: BotPlayer,
     player: MahjongPlayer,  # noqa: ARG001
-    kan_type: str,  # noqa: ARG001
+    kan_type: KanType,  # noqa: ARG001
     tile_34: int,  # noqa: ARG001
     round_state: MahjongRoundState,  # noqa: ARG001
 ) -> bool:
     """
     Decide whether bot should call kan (open, closed, or added).
 
-    For simple bot: always return False.
+    For tsumogiri bot: always return False.
     Open/added kan opens the hand; closed kan reveals tiles.
     """
-    return bot.strategy != BotStrategy.SIMPLE
+    return bot.strategy != BotStrategy.TSUMOGIRI
 
 
 def should_call_ron(
@@ -140,13 +142,13 @@ def select_discard(
     """
     Select a tile to discard from the player's hand.
 
-    For simple bot (tsumogiri): always discard the last drawn tile.
+    For tsumogiri bot: always discard the last drawn tile.
     For smarter bot: use shanten-based discard to improve hand.
     """
     if not player.tiles:
         raise ValueError("cannot select discard from empty hand")
 
-    if bot.strategy == BotStrategy.SIMPLE:
+    if bot.strategy == BotStrategy.TSUMOGIRI:
         # tsumogiri: discard the last tile (most recently drawn)
         return player.tiles[-1]
 
@@ -186,7 +188,7 @@ def get_bot_action(
     bot: BotPlayer,
     player: MahjongPlayer,
     round_state: MahjongRoundState,
-) -> dict:
+) -> BotAction:
     """
     Determine the bot's action during their turn.
 
@@ -194,16 +196,16 @@ def get_bot_action(
     """
     # check for tsumo win first (highest priority)
     if should_declare_tsumo(bot, player, round_state):
-        return {"action": "tsumo"}
+        return BotAction(action=PlayerAction.TSUMO)
 
     # check for riichi
     if should_call_riichi(bot, player, round_state):
         discard_tile = select_riichi_discard(bot, player)
-        return {"action": "riichi", "tile_id": discard_tile}
+        return BotAction(action=PlayerAction.RIICHI, tile_id=discard_tile)
 
     # default: discard a tile
     discard_tile = select_discard(bot, player, round_state)
-    return {"action": "discard", "tile_id": discard_tile}
+    return BotAction(action=PlayerAction.DISCARD, tile_id=discard_tile)
 
 
 def _select_best_discard(player: MahjongPlayer) -> int:

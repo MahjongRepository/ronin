@@ -237,37 +237,37 @@ class TestGetPlayerView:
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
 
-        assert view["seat"] == 0
-        assert view["round_wind"] == "East"
-        assert view["round_number"] == 0
-        assert view["dealer_seat"] == 0
-        assert view["current_player_seat"] == 0
-        assert view["honba_sticks"] == 0
-        assert view["riichi_sticks"] == 0
-        assert view["phase"] == "playing"
-        assert view["game_phase"] == "in_progress"
+        assert view.seat == 0
+        assert view.round_wind == "East"
+        assert view.round_number == 0
+        assert view.dealer_seat == 0
+        assert view.current_player_seat == 0
+        assert view.honba_sticks == 0
+        assert view.riichi_sticks == 0
+        assert view.phase == "playing"
+        assert view.game_phase == "in_progress"
 
     def test_view_contains_wall_count(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
-        assert view["wall_count"] == 38  # 122 - 84
+        assert view.wall_count == 38  # 122 - 84
 
     def test_view_contains_dora_indicators(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
-        assert len(view["dora_indicators"]) == 1
-        assert view["dora_indicators"][0]["tile"] == "Haku"
-        assert view["dora_indicators"][0]["tile_id"] == 124
+        assert len(view.dora_indicators) == 1
+        assert view.dora_indicators[0].tile == "Haku"
+        assert view.dora_indicators[0].tile_id == 124
 
     def test_view_shows_own_hand(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
 
-        player_view = view["players"][0]
-        assert "tiles" in player_view
-        assert len(player_view["tiles"]) == 13
-        assert "hand" in player_view
-        assert player_view["tile_count"] == 13
+        player_view = view.players[0]
+        assert player_view.tiles is not None
+        assert len(player_view.tiles) == 13
+        assert player_view.hand is not None
+        assert player_view.tile_count == 13
 
     def test_view_hides_other_hands(self):
         game_state = self._create_test_game_state()
@@ -275,19 +275,19 @@ class TestGetPlayerView:
 
         # check that other players' hands are hidden
         for i in range(1, 4):
-            player_view = view["players"][i]
-            assert "tiles" not in player_view
-            assert "hand" not in player_view
-            assert player_view["tile_count"] == 13
+            player_view = view.players[i]
+            assert player_view.tiles is None
+            assert player_view.hand is None
+            assert player_view.tile_count == 13
 
     def test_view_shows_all_player_scores(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
 
-        assert view["players"][0]["score"] == 25000
-        assert view["players"][1]["score"] == 24000
-        assert view["players"][2]["score"] == 26000
-        assert view["players"][3]["score"] == 25000
+        assert view.players[0].score == 25000
+        assert view.players[1].score == 24000
+        assert view.players[2].score == 26000
+        assert view.players[3].score == 25000
 
     def test_view_shows_discards(self):
         game_state = self._create_test_game_state()
@@ -298,12 +298,12 @@ class TestGetPlayerView:
         ]
 
         view = get_player_view(game_state, seat=0)
-        bot1_discards = view["players"][1]["discards"]
+        bot1_discards = view.players[1].discards
         assert len(bot1_discards) == 2
-        assert bot1_discards[0]["tile"] == "1m"
-        assert bot1_discards[0]["is_tsumogiri"] is False
-        assert bot1_discards[1]["tile"] == "1p"
-        assert bot1_discards[1]["is_tsumogiri"] is True
+        assert bot1_discards[0].tile == "1m"
+        assert bot1_discards[0].is_tsumogiri is False
+        assert bot1_discards[1].tile == "1p"
+        assert bot1_discards[1].is_tsumogiri is True
 
     def test_view_shows_melds(self):
         game_state = self._create_test_game_state()
@@ -316,32 +316,32 @@ class TestGetPlayerView:
         game_state.round_state.players[2].melds = [meld]
 
         view = get_player_view(game_state, seat=0)
-        bot2_melds = view["players"][2]["melds"]
+        bot2_melds = view.players[2].melds
         assert len(bot2_melds) == 1
-        assert bot2_melds[0]["type"] == "pon"
-        assert bot2_melds[0]["tiles"] == ["E", "E", "E"]
-        assert bot2_melds[0]["opened"] is True
+        assert bot2_melds[0].type == "pon"
+        assert bot2_melds[0].tiles == ["E", "E", "E"]
+        assert bot2_melds[0].opened is True
 
     def test_view_shows_riichi_status(self):
         game_state = self._create_test_game_state()
         game_state.round_state.players[1].is_riichi = True
 
         view = get_player_view(game_state, seat=0)
-        assert view["players"][0]["is_riichi"] is False
-        assert view["players"][1]["is_riichi"] is True
+        assert view.players[0].is_riichi is False
+        assert view.players[1].is_riichi is True
 
     def test_view_for_different_seats(self):
         game_state = self._create_test_game_state()
 
         # seat 0 sees their own hand
         view0 = get_player_view(game_state, seat=0)
-        assert "tiles" in view0["players"][0]
-        assert "tiles" not in view0["players"][1]
+        assert view0.players[0].tiles is not None
+        assert view0.players[1].tiles is None
 
         # seat 1 sees their own hand
         view1 = get_player_view(game_state, seat=1)
-        assert "tiles" not in view1["players"][0]
-        assert "tiles" in view1["players"][1]
+        assert view1.players[0].tiles is None
+        assert view1.players[1].tiles is not None
 
     def test_view_with_riichi_discard(self):
         game_state = self._create_test_game_state()
@@ -351,9 +351,9 @@ class TestGetPlayerView:
         ]
 
         view = get_player_view(game_state, seat=0)
-        discards = view["players"][0]["discards"]
-        assert discards[0]["is_riichi_discard"] is False
-        assert discards[1]["is_riichi_discard"] is True
+        discards = view.players[0].discards
+        assert discards[0].is_riichi_discard is False
+        assert discards[1].is_riichi_discard is True
 
 
 class TestRoundPhaseEnum:

@@ -7,6 +7,7 @@ dealer rotation, and game end conditions.
 
 import pytest
 
+from game.logic.enums import BotType
 from game.logic.game import check_game_end, finalize_game, init_game, process_round_end
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.melds import call_pon
@@ -16,6 +17,17 @@ from game.logic.scoring import HandResult, apply_ron_score, apply_tsumo_score
 from game.logic.state import RoundPhase
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_draw_phase
+from game.logic.types import HandResultInfo, RonResult, SeatConfig, TsumoResult
+from game.messaging.events import GameStartedEvent
+
+
+def _default_seat_configs() -> list[SeatConfig]:
+    return [
+        SeatConfig(name="Human", is_bot=False),
+        SeatConfig(name="Tsumogiri 1", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 2", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 3", is_bot=True, bot_type=BotType.TSUMOGIRI),
+    ]
 
 
 class TestGameCreationAndJoin:
@@ -29,54 +41,52 @@ class TestGameCreationAndJoin:
         """Create game and verify initial state events are received."""
         events = await service.start_game("game1", ["Human"])
 
-        game_started_events = [e for e in events if e.get("event") == "game_started"]
+        game_started_events = [e for e in events if e.event == "game_started"]
         assert len(game_started_events) == 4
 
         for event in game_started_events:
-            data = event.get("data", {})
-            assert "seat" in data
-            assert "players" in data
-            assert "round_wind" in data
-            assert "dealer_seat" in data
-            assert len(data["players"]) == 4
+            assert isinstance(event.data, GameStartedEvent)
+            view = event.data.view
+            assert view.seat is not None
+            assert view.players is not None
+            assert view.round_wind is not None
+            assert view.dealer_seat is not None
+            assert len(view.players) == 4
 
     async def test_initial_state_contains_player_hand(self, service):
         """Verify initial state includes player's own hand."""
         events = await service.start_game("game1", ["Human"])
 
-        human_event = next(
-            e for e in events if e.get("event") == "game_started" and e.get("target") == "seat_0"
-        )
-        data = human_event.get("data", {})
-        player_info = next(p for p in data["players"] if p["seat"] == 0)
+        human_event = next(e for e in events if e.event == "game_started" and e.target == "seat_0")
+        assert isinstance(human_event.data, GameStartedEvent)
+        view = human_event.data.view
+        player_info = next(p for p in view.players if p.seat == 0)
 
-        assert "tiles" in player_info
-        assert len(player_info["tiles"]) == 13 or len(player_info["tiles"]) == 14
+        assert player_info.tiles is not None
+        assert len(player_info.tiles) == 13 or len(player_info.tiles) == 14
 
     async def test_initial_state_hides_opponent_hands(self, service):
         """Verify initial state does not include opponent hands."""
         events = await service.start_game("game1", ["Human"])
 
-        human_event = next(
-            e for e in events if e.get("event") == "game_started" and e.get("target") == "seat_0"
-        )
-        data = human_event.get("data", {})
-        opponent_info = next(p for p in data["players"] if p["seat"] == 1)
+        human_event = next(e for e in events if e.event == "game_started" and e.target == "seat_0")
+        assert isinstance(human_event.data, GameStartedEvent)
+        view = human_event.data.view
+        opponent_info = next(p for p in view.players if p.seat == 1)
 
-        assert "tiles" not in opponent_info
-        assert "tile_count" in opponent_info
+        assert opponent_info.tiles is None
+        assert opponent_info.tile_count is not None
 
     async def test_initial_state_includes_scores(self, service):
         """Verify all players start with 25000 points."""
         events = await service.start_game("game1", ["Human"])
 
-        human_event = next(
-            e for e in events if e.get("event") == "game_started" and e.get("target") == "seat_0"
-        )
-        data = human_event.get("data", {})
+        human_event = next(e for e in events if e.event == "game_started" and e.target == "seat_0")
+        assert isinstance(human_event.data, GameStartedEvent)
+        view = human_event.data.view
 
-        for player in data["players"]:
-            assert player["score"] == 25000
+        for player in view.players:
+            assert player.score == 25000
 
 
 class TestTsumoWin:
@@ -84,7 +94,7 @@ class TestTsumoWin:
 
     def test_tsumo_win_updates_scores(self):
         """Tsumo win applies correct score changes."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
 
         hand_result = HandResult(
             han=3,
@@ -98,8 +108,8 @@ class TestTsumoWin:
 
         result = apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
 
-        assert result["type"] == "tsumo"
-        assert result["winner_seat"] == 0
+        assert result.type == "tsumo"
+        assert result.winner_seat == 0
 
         winner = game_state.round_state.players[0]
         assert winner.score > initial_scores[0]
@@ -109,7 +119,7 @@ class TestTsumoWin:
 
     def test_tsumo_win_collects_riichi_sticks(self):
         """Tsumo winner collects riichi sticks on the table."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         game_state.riichi_sticks = 2
 
         hand_result = HandResult(
@@ -122,7 +132,7 @@ class TestTsumoWin:
 
         result = apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
 
-        assert result["riichi_sticks_collected"] == 2
+        assert result.riichi_sticks_collected == 2
         assert game_state.riichi_sticks == 0
 
         winner = game_state.round_state.players[0]
@@ -134,7 +144,7 @@ class TestRonWin:
 
     def test_ron_win_updates_scores(self):
         """Ron win applies correct score changes."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
 
         hand_result = HandResult(
             han=4,
@@ -145,9 +155,9 @@ class TestRonWin:
 
         result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
 
-        assert result["type"] == "ron"
-        assert result["winner_seat"] == 0
-        assert result["loser_seat"] == 1
+        assert result.type == "ron"
+        assert result.winner_seat == 0
+        assert result.loser_seat == 1
 
         winner = game_state.round_state.players[0]
         loser = game_state.round_state.players[1]
@@ -156,7 +166,7 @@ class TestRonWin:
 
     def test_ron_win_includes_honba_bonus(self):
         """Ron win includes honba bonus payment."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         game_state.honba_sticks = 2
 
         hand_result = HandResult(
@@ -181,7 +191,7 @@ class TestExhaustiveDraw:
 
     def test_exhaustive_draw_tempai_payment(self):
         """Exhaustive draw transfers points from noten to tempai players."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
 
         # manually empty wall and set up for exhaustive draw
@@ -196,7 +206,7 @@ class TestExhaustiveDraw:
 
     def test_exhaustive_draw_all_noten_no_payment(self):
         """When all players are noten, no payment occurs."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"], seed=42.0)
+        game_state = init_game(_default_seat_configs(), seed=42.0)
         round_state = game_state.round_state
 
         # empty wall
@@ -215,7 +225,7 @@ class TestRiichiAndIppatsu:
 
     def test_riichi_declaration_deducts_points(self):
         """Riichi declaration costs 1000 points."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         player = game_state.round_state.players[0]
         initial_score = player.score
 
@@ -229,7 +239,7 @@ class TestRiichiAndIppatsu:
 
     def test_riichi_sets_ippatsu_flag(self):
         """Riichi declaration sets ippatsu flag."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         player = game_state.round_state.players[0]
 
         declare_riichi(player, game_state)
@@ -238,7 +248,7 @@ class TestRiichiAndIppatsu:
 
     def test_ippatsu_cleared_after_discard(self):
         """Ippatsu flag is cleared after any discard."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
         player = round_state.players[0]
 
@@ -255,7 +265,7 @@ class TestPonCallFlow:
 
     def test_pon_call_creates_meld(self):
         """Pon call creates a meld and sets current player."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         caller_seat = 1
@@ -299,7 +309,7 @@ class TestPonCallFlow:
 
     def test_pon_clears_all_ippatsu(self):
         """Pon call clears ippatsu for all players."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"], seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
         # set ippatsu for multiple players
@@ -338,11 +348,17 @@ class TestDealerRotation:
 
     def test_dealer_rotates_after_non_dealer_win(self):
         """Dealer rotates when non-dealer wins by ron."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         initial_dealer = game_state.round_state.dealer_seat
 
         # simulate non-dealer (seat 1) winning by ron
-        result = {"type": "ron", "winner_seat": 1, "loser_seat": 0}
+        result = RonResult(
+            winner_seat=1,
+            loser_seat=0,
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[]),
+            score_changes={},
+            riichi_sticks_collected=0,
+        )
         process_round_end(game_state, result)
 
         new_dealer = game_state.round_state.dealer_seat
@@ -350,11 +366,16 @@ class TestDealerRotation:
 
     def test_dealer_stays_after_dealer_win(self):
         """Dealer does not rotate when dealer wins."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         initial_dealer = game_state.round_state.dealer_seat
 
         # simulate dealer winning by tsumo
-        result = {"type": "tsumo", "winner_seat": initial_dealer}
+        result = TsumoResult(
+            winner_seat=initial_dealer,
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[]),
+            score_changes={},
+            riichi_sticks_collected=0,
+        )
         process_round_end(game_state, result)
 
         new_dealer = game_state.round_state.dealer_seat
@@ -362,33 +383,50 @@ class TestDealerRotation:
 
     def test_honba_increments_after_dealer_win(self):
         """Honba sticks increase when dealer wins."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         initial_honba = game_state.honba_sticks
 
-        result = {"type": "tsumo", "winner_seat": 0}
+        result = TsumoResult(
+            winner_seat=0,
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[]),
+            score_changes={},
+            riichi_sticks_collected=0,
+        )
         process_round_end(game_state, result)
 
         assert game_state.honba_sticks == initial_honba + 1
 
     def test_honba_resets_after_non_dealer_win(self):
         """Honba sticks reset to 0 when non-dealer wins."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         game_state.honba_sticks = 3
 
-        result = {"type": "ron", "winner_seat": 1, "loser_seat": 0}
+        result = RonResult(
+            winner_seat=1,
+            loser_seat=0,
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[]),
+            score_changes={},
+            riichi_sticks_collected=0,
+        )
         process_round_end(game_state, result)
 
         assert game_state.honba_sticks == 0
 
     def test_wind_progression_after_dealer_rotation(self):
         """Wind progresses after full dealer rotation."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
 
         # rotate through all 4 dealers (4 non-dealer wins)
         for _ in range(4):
             current_dealer = game_state.round_state.dealer_seat
             non_dealer = (current_dealer + 1) % 4
-            result = {"type": "ron", "winner_seat": non_dealer, "loser_seat": current_dealer}
+            result = RonResult(
+                winner_seat=non_dealer,
+                loser_seat=current_dealer,
+                hand_result=HandResultInfo(han=1, fu=30, yaku=[]),
+                score_changes={},
+                riichi_sticks_collected=0,
+            )
             process_round_end(game_state, result)
 
         # after 4 rotations, should be in south wind
@@ -401,7 +439,7 @@ class TestGameEndConditions:
 
     def test_game_ends_when_player_goes_negative(self):
         """Game ends when a player's score goes below 0."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
 
         # set up a scenario where loser will go negative
         game_state.round_state.players[1].score = 5000
@@ -422,7 +460,7 @@ class TestGameEndConditions:
 
     def test_finalize_game_determines_winner(self):
         """Game finalization correctly determines winner by highest score."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         game_state.round_state.players[0].score = 35000
         game_state.round_state.players[1].score = 20000
         game_state.round_state.players[2].score = 30000
@@ -430,19 +468,19 @@ class TestGameEndConditions:
 
         result = finalize_game(game_state)
 
-        assert result["type"] == "game_end"
-        assert result["winner_seat"] == 0
-        assert result["standings"][0]["seat"] == 0
+        assert result.type == "game_end"
+        assert result.winner_seat == 0
+        assert result.standings[0].seat == 0
 
     def test_finalize_game_distributes_riichi_sticks_to_winner(self):
         """Winner receives remaining riichi sticks on game end."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         game_state.riichi_sticks = 3
         game_state.round_state.players[2].score = 30000
 
         result = finalize_game(game_state)
 
-        winner = game_state.round_state.players[result["winner_seat"]]
+        winner = game_state.round_state.players[result.winner_seat]
         # winner should have original score + 3000 (3 riichi sticks)
         assert winner.score >= 30000 + 3000
 
@@ -460,17 +498,17 @@ class TestGameServiceIntegration:
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
-        # human should be dealer (seat 0)
-        assert round_state.dealer_seat == 0
-        assert round_state.current_player_seat == 0
+        # find the human player (seat is random now)
+        human = next(p for p in round_state.players if p.name == "Human")
 
-        player = round_state.players[0]
-        tile_to_discard = player.tiles[-1]
+        # human needs to have tiles to discard
+        assert len(human.tiles) >= 13
+        tile_to_discard = human.tiles[-1]
 
         events = await service.handle_action("game1", "Human", "discard", {"tile_id": tile_to_discard})
 
         # should have discard event
-        discard_events = [e for e in events if e.get("event") == "discard"]
+        discard_events = [e for e in events if e.event == "discard"]
         assert len(discard_events) >= 1
 
     async def test_multiple_rounds_through_service(self, service):
@@ -502,7 +540,7 @@ class TestDrawFromWall:
 
     def test_draw_tile_adds_to_hand(self):
         """Drawing a tile adds it to player's hand."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
         player = round_state.players[0]
 
@@ -517,7 +555,7 @@ class TestDrawFromWall:
 
     def test_draw_from_empty_wall_returns_none(self):
         """Drawing from empty wall returns None."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
         round_state.wall = []
 
@@ -531,7 +569,7 @@ class TestTurnAdvancement:
 
     def test_turn_advances_counter_clockwise(self):
         """Turns advance in counter-clockwise order (0->1->2->3->0)."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
         round_state.current_player_seat = 0
 
@@ -549,7 +587,7 @@ class TestTurnAdvancement:
 
     def test_turn_count_increments(self):
         """Turn count increments with each advancement."""
-        game_state = init_game(["Human", "Bot1", "Bot2", "Bot3"])
+        game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
         round_state.turn_count = 0
 

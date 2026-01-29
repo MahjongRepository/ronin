@@ -1,6 +1,16 @@
+import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any
 
+from game.logic.enums import TimeoutType
+from game.logic.timer import TurnTimer
+from game.messaging.events import (
+    CallPromptEvent,
+    ErrorEvent,
+    GameEndedEvent,
+    RoundStartedEvent,
+    TurnEvent,
+)
 from game.messaging.types import (
     ErrorMessage,
     GameEventMessage,
@@ -11,9 +21,12 @@ from game.messaging.types import (
     ServerChatMessage,
 )
 from game.session.models import Game, Player
+from game.session.types import GameInfo
 
 if TYPE_CHECKING:
     from game.logic.service import GameService
+    from game.logic.types import MeldCaller
+    from game.messaging.events import ServiceEvent
     from game.messaging.protocol import ConnectionProtocol
 
 
@@ -25,6 +38,8 @@ class SessionManager:
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
         self._games: dict[str, Game] = {}  # game_id -> Game
+        self._timers: dict[str, TurnTimer] = {}  # game_id -> TurnTimer
+        self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
 
     def register_connection(self, connection: ConnectionProtocol) -> None:
         self._connections[connection.connection_id] = connection
@@ -43,16 +58,16 @@ class SessionManager:
     def game_count(self) -> int:
         return len(self._games)
 
-    def get_games_info(self) -> list[dict[str, Any]]:
+    def get_games_info(self) -> list[GameInfo]:
         """
         Return info about all active games for the lobby list.
         """
         return [
-            {
-                "game_id": game.game_id,
-                "player_count": game.player_count,
-                "max_players": self.MAX_PLAYERS_PER_GAME,
-            }
+            GameInfo(
+                game_id=game.game_id,
+                player_count=game.player_count,
+                max_players=self.MAX_PLAYERS_PER_GAME,
+            )
             for game in self._games.values()
         ]
 
@@ -60,6 +75,10 @@ class SessionManager:
         game = Game(game_id=game_id)
         self._games[game_id] = game
         return game
+
+    async def _send_error(self, connection: ConnectionProtocol, code: str, message: str) -> None:
+        """Send an error message to a connection."""
+        await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
 
     async def join_game(
         self,
@@ -70,37 +89,22 @@ class SessionManager:
         # check if already in a game
         existing_player = self._players.get(connection.connection_id)
         if existing_player and existing_player.game_id:
-            await connection.send_message(
-                ErrorMessage(
-                    code="already_in_game",
-                    message="You must leave your current game first",
-                ).model_dump()
-            )
+            await self._send_error(connection, "already_in_game", "You must leave your current game first")
             return
 
         game = self._games.get(game_id)
         if game is None:
-            await connection.send_message(
-                ErrorMessage(
-                    code="game_not_found",
-                    message="Game does not exist",
-                ).model_dump()
-            )
+            await self._send_error(connection, "game_not_found", "Game does not exist")
             return
 
         # check game capacity
         if game.player_count >= self.MAX_PLAYERS_PER_GAME:
-            await connection.send_message(ErrorMessage(code="game_full", message="Game is full").model_dump())
+            await self._send_error(connection, "game_full", "Game is full")
             return
 
         # check for duplicate name in game
         if player_name in [p.name for p in game.players.values()]:
-            await connection.send_message(
-                ErrorMessage(
-                    code="name_taken",
-                    message="That name is already taken in this game",
-                ).model_dump()
-            )
+            await self._send_error(connection, "name_taken", "That name is already taken in this game")
             return
 
         # create player and add to game
@@ -160,6 +164,10 @@ class SessionManager:
         # clean up empty games
         if game.is_empty:
             self._games.pop(game.game_id, None)
+            timer = self._timers.pop(game.game_id, None)
+            if timer:
+                timer.cancel()
+            self._game_locks.pop(game.game_id, None)
 
     async def handle_game_action(
         self,
@@ -169,28 +177,32 @@ class SessionManager:
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await connection.send_message(
-                ErrorMessage(
-                    code="not_in_game",
-                    message="You must join a game first",
-                ).model_dump()
-            )
+            await self._send_error(connection, "not_in_game", "You must join a game first")
             return
 
         game = self._games.get(player.game_id)
         if game is None:
             return
 
-        # delegate to game service
-        events = await self._game_service.handle_action(
-            game_id=player.game_id,
-            player_name=player.name,
-            action=action,
-            data=data,
-        )
+        game_id = player.game_id
+        lock = self._game_locks.setdefault(game_id, asyncio.Lock())
 
-        # broadcast each event to appropriate targets
-        await self._broadcast_events(game, events)
+        async with lock:
+            events = await self._game_service.handle_action(
+                game_id=game_id,
+                player_name=player.name,
+                action=action,
+                data=data,
+            )
+
+            # only deduct bank time if the action progressed the game state.
+            # failed actions (errors) should not consume bank time or cancel the timer.
+            timer = self._timers.get(game_id)
+            if timer and self._has_game_events(events):
+                timer.stop()
+
+            await self._broadcast_events(game, events)
+            await self._maybe_start_timer(game, events)
 
     async def broadcast_chat(
         self,
@@ -199,12 +211,7 @@ class SessionManager:
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await connection.send_message(
-                ErrorMessage(
-                    code="not_in_game",
-                    message="You must join a game first",
-                ).model_dump()
-            )
+            await self._send_error(connection, "not_in_game", "You must join a game first")
             return
 
         game = self._games.get(player.game_id)
@@ -228,12 +235,27 @@ class SessionManager:
         """
         player_names = game.player_names
         events = await self._game_service.start_game(game.game_id, player_names)
-        await self._broadcast_events(game, events)
+
+        # assign seats to session players
+        for player in game.players.values():
+            seat = self._game_service.get_player_seat(game.game_id, player.name)
+            if seat is not None:
+                player.seat = seat
+
+        # create timer and lock for this game
+        timer = TurnTimer()
+        timer.add_round_bonus()  # first round bonus
+        self._timers[game.game_id] = timer
+        self._game_locks[game.game_id] = asyncio.Lock()
+
+        async with self._game_locks[game.game_id]:
+            await self._broadcast_events(game, events)
+            await self._maybe_start_timer(game, events)
 
     async def _broadcast_events(
         self,
         game: Game,
-        events: list[dict[str, Any]],
+        events: list[ServiceEvent],
     ) -> None:
         """
         Broadcast events with target-based filtering.
@@ -241,20 +263,19 @@ class SessionManager:
         Events with target "all" go to everyone.
         Events with target "seat_N" go only to the player at that seat.
         """
-        # build seat -> player mapping
-        seat_to_player = dict(enumerate(game.players.values()))
+        # build seat -> player mapping using assigned seats
+        seat_to_player = {p.seat: p for p in game.players.values() if p.seat is not None}
 
         for event in events:
-            target = event.get("target", "all")
             message = GameEventMessage(
-                event=event.get("event", ""),
-                data=event.get("data", {}),
+                event=event.event,
+                data=event.data.model_dump(),
             ).model_dump()
 
-            if target == "all":
+            if event.target == "all":
                 await self._broadcast_to_game(game, message)
-            elif target.startswith("seat_"):
-                seat = int(target.split("_")[1])
+            elif event.target.startswith("seat_"):
+                seat = int(event.target.split("_")[1])
                 player = seat_to_player.get(seat)
                 if player:
                     # ignore connection errors, will be cleaned up on disconnect
@@ -272,3 +293,94 @@ class SessionManager:
                 # ignore connection errors, will be cleaned up on disconnect
                 with contextlib.suppress(RuntimeError, OSError):
                     await player.connection.send_message(message)
+
+    async def _maybe_start_timer(self, game: Game, events: list[ServiceEvent]) -> None:
+        """
+        Inspect events and start appropriate timer if a human needs to act.
+        """
+        if self._cleanup_timer_on_game_end(game, events):
+            return
+
+        timer = self._timers.get(game.game_id)
+        if timer is None:
+            return
+
+        # add round bonus once when a new round starts
+        if any(isinstance(event.data, RoundStartedEvent) for event in events):
+            timer.add_round_bonus()
+
+        human_player = self._get_human_player(game)
+        if human_player is None:
+            return
+
+        game_id = game.game_id
+
+        # check for turn events targeting human
+        for event in events:
+            if isinstance(event.data, TurnEvent) and event.data.current_seat == human_player.seat:
+                timer.start_turn_timer(lambda gid=game_id: self._handle_timeout(gid, TimeoutType.TURN))
+                return
+
+        # check for call prompts targeting human
+        for event in events:
+            if isinstance(event.data, CallPromptEvent) and self._player_in_callers(
+                human_player.seat, event.data.callers
+            ):
+                timer.start_meld_timer(lambda gid=game_id: self._handle_timeout(gid, TimeoutType.MELD))
+                return
+
+    def _cleanup_timer_on_game_end(self, game: Game, events: list[ServiceEvent]) -> bool:
+        """
+        Clean up timer when the game ends. Returns True if game ended.
+
+        Only cancels the timer here. Lock and timer dict cleanup happens in leave_game
+        when the game becomes empty, to avoid removing the lock while it is still held.
+        """
+        if not any(isinstance(event.data, GameEndedEvent) for event in events):
+            return False
+        timer = self._timers.get(game.game_id)
+        if timer:
+            timer.cancel()
+        return True
+
+    def _get_human_player(self, game: Game) -> Player | None:
+        """Get the human player in the game (first player with an assigned seat)."""
+        for player in game.players.values():
+            if player.seat is not None:
+                return player
+        return None
+
+    def _has_game_events(self, events: list[ServiceEvent]) -> bool:
+        """Check if events contain non-error game events (indicating the action progressed the game)."""
+        return any(not isinstance(event.data, ErrorEvent) for event in events)
+
+    def _player_in_callers(self, seat: int | None, callers: list[int] | list[MeldCaller]) -> bool:
+        """Check if a player's seat is in the callers list."""
+        if seat is None:
+            return False
+        return any((caller if isinstance(caller, int) else caller.seat) == seat for caller in callers)
+
+    async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType) -> None:
+        """Handle timer expiry by performing the default action for the timeout type."""
+        lock = self._game_locks.get(game_id)
+        if lock is None:
+            return
+
+        async with lock:
+            game = self._games.get(game_id)
+            if game is None:
+                return
+
+            human_player = self._get_human_player(game)
+            if human_player is None:
+                return
+
+            # deduct elapsed bank time without cancelling the task, since this
+            # callback executes within the timer task itself
+            timer = self._timers.get(game_id)
+            if timer:
+                timer.consume_bank()
+
+            events = await self._game_service.handle_timeout(game_id, human_player.name, timeout_type)
+            await self._broadcast_events(game, events)
+            await self._maybe_start_timer(game, events)

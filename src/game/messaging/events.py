@@ -7,9 +7,36 @@ Each event has a target field indicating who should receive it:
 - "seat_N": send only to player at seat N (0-3)
 """
 
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel
+
+from game.logic.enums import CallType, KanType, MeldViewType
+from game.logic.types import (
+    AvailableActionItem,
+    GameEndResult,
+    GameView,
+    MeldCaller,
+    RoundResult,
+)
+
+
+class EventType(str, Enum):
+    """Types of game events sent to clients."""
+
+    DRAW = "draw"
+    DISCARD = "discard"
+    MELD = "meld"
+    TURN = "turn"
+    CALL_PROMPT = "call_prompt"
+    ROUND_END = "round_end"
+    RIICHI_DECLARED = "riichi_declared"
+    ERROR = "error"
+    PASS_ACKNOWLEDGED = "pass_acknowledged"  # noqa: S105
+    GAME_STARTED = "game_started"
+    ROUND_STARTED = "round_started"
+    GAME_END = "game_end"
 
 
 class GameEvent(BaseModel):
@@ -22,7 +49,7 @@ class GameEvent(BaseModel):
 class DrawEvent(GameEvent):
     """Event sent to a player when they draw a tile."""
 
-    type: Literal["draw"] = "draw"
+    type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
     tile_id: int
     tile: str
@@ -31,7 +58,7 @@ class DrawEvent(GameEvent):
 class DiscardEvent(GameEvent):
     """Event broadcast when a player discards a tile."""
 
-    type: Literal["discard"] = "discard"
+    type: Literal[EventType.DISCARD] = EventType.DISCARD
     target: str = "all"
     seat: int
     tile_id: int
@@ -43,10 +70,10 @@ class DiscardEvent(GameEvent):
 class MeldEvent(GameEvent):
     """Event broadcast when a player calls a meld (pon, chi, kan)."""
 
-    type: Literal["meld"] = "meld"
+    type: Literal[EventType.MELD] = EventType.MELD
     target: str = "all"
-    meld_type: str  # "pon", "chi", "kan"
-    kan_type: str | None = None  # "open", "closed", "added" for kan
+    meld_type: MeldViewType
+    kan_type: KanType | None = None
     caller_seat: int
     from_seat: int | None = None  # None for closed kans
     tile_ids: list[int]
@@ -56,40 +83,40 @@ class MeldEvent(GameEvent):
 class TurnEvent(GameEvent):
     """Event sent to a player when it's their turn with available actions."""
 
-    type: Literal["turn"] = "turn"
+    type: Literal[EventType.TURN] = EventType.TURN
     current_seat: int
-    available_actions: list[dict]
+    available_actions: list[AvailableActionItem]
     wall_count: int
 
 
 class CallPromptEvent(GameEvent):
     """Event sent to players who can respond to a call opportunity."""
 
-    type: Literal["call_prompt"] = "call_prompt"
-    call_type: str  # "ron", "meld", "chankan"
+    type: Literal[EventType.CALL_PROMPT] = EventType.CALL_PROMPT
+    call_type: CallType
     tile_id: int
     from_seat: int
-    callers: list[int] | list[dict]  # list[int] for ron, list[dict] for meld
+    callers: list[int] | list[MeldCaller]
 
 
 class RoundEndEvent(GameEvent):
     """Event broadcast when a round ends."""
 
-    type: Literal["round_end"] = "round_end"
-    result: dict
+    type: Literal[EventType.ROUND_END] = EventType.ROUND_END
+    result: RoundResult
 
 
 class RiichiDeclaredEvent(GameEvent):
     """Event broadcast when a player declares riichi."""
 
-    type: Literal["riichi_declared"] = "riichi_declared"
+    type: Literal[EventType.RIICHI_DECLARED] = EventType.RIICHI_DECLARED
     seat: int
 
 
 class ErrorEvent(GameEvent):
     """Event sent to a player when an error occurs."""
 
-    type: Literal["error"] = "error"
+    type: Literal[EventType.ERROR] = EventType.ERROR
     code: str
     message: str
 
@@ -97,8 +124,29 @@ class ErrorEvent(GameEvent):
 class PassAcknowledgedEvent(GameEvent):
     """Event sent to acknowledge a player's pass on a call opportunity."""
 
-    type: Literal["pass_acknowledged"] = "pass_acknowledged"
+    type: Literal[EventType.PASS_ACKNOWLEDGED] = EventType.PASS_ACKNOWLEDGED
     seat: int
+
+
+class GameStartedEvent(GameEvent):
+    """Event sent to each player when the game starts with their initial view."""
+
+    type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
+    view: GameView
+
+
+class RoundStartedEvent(GameEvent):
+    """Event sent to each player when a new round starts."""
+
+    type: Literal[EventType.ROUND_STARTED] = EventType.ROUND_STARTED
+    view: GameView
+
+
+class GameEndedEvent(GameEvent):
+    """Event sent when the entire game ends."""
+
+    type: Literal[EventType.GAME_END] = EventType.GAME_END
+    result: GameEndResult
 
 
 Event = (
@@ -111,40 +159,35 @@ Event = (
     | RiichiDeclaredEvent
     | ErrorEvent
     | PassAcknowledgedEvent
+    | GameStartedEvent
+    | RoundStartedEvent
+    | GameEndedEvent
 )
 
 
-def event_to_wire(event: GameEvent) -> dict:
-    """
-    Convert a game event to wire format (dict for serialization).
+class ServiceEvent(BaseModel):
+    """Event transport container for game service layer."""
 
-    Returns a dict with all event fields that can be serialized and sent to clients.
-    """
-    return event.model_dump()
+    event: str
+    data: GameEvent
+    target: str = "all"
 
 
-def convert_events(raw_events: list[GameEvent]) -> list[dict]:
-    """
-    Convert typed events to service events with event/data/target structure.
-    """
-    result = []
-    for event in raw_events:
-        data = event_to_wire(event)
-        result.append(
-            {
-                "event": data["type"],
-                "data": data,
-                "target": data.get("target", "all"),
-            }
+def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
+    """Convert typed events to service events."""
+    return [
+        ServiceEvent(
+            event=event.type,
+            data=event,
+            target=event.target,
         )
-    return result
+        for event in raw_events
+    ]
 
 
-def extract_round_result(events: list[dict]) -> dict | None:
-    """
-    Extract the round result from a list of events.
-    """
+def extract_round_result(events: list[ServiceEvent]) -> RoundResult | None:
+    """Extract the round result from a list of service events."""
     for event in events:
-        if event.get("event") == "round_end":
-            return event.get("data", {}).get("result", event.get("data", {}))
+        if event.event == EventType.ROUND_END and isinstance(event.data, RoundEndEvent):
+            return event.data.result
     return None
