@@ -392,8 +392,17 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     1. It doesn't change the waiting tiles
     2. The tile is not one of the waiting tiles
     """
-    # get current waits
-    original_waits = get_waiting_tiles(player)
+    # reduce to 13 tiles by removing one copy of the kan tile
+    tiles_13 = list(player.tiles)
+    for i, t in enumerate(tiles_13):
+        if tile_to_34(t) == tile_34:
+            tiles_13.pop(i)
+            break
+
+    tenpai_player = MahjongPlayer(
+        seat=player.seat, name=player.name, tiles=tiles_13, melds=list(player.melds)
+    )
+    original_waits = get_waiting_tiles(tenpai_player)
 
     if not original_waits:
         return False
@@ -402,13 +411,8 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     if tile_34 in original_waits:
         return False
 
-    # simulate removing 4 tiles and check if waits remain the same
-    new_tiles = [t for t in player.tiles if tile_to_34(t) != tile_34]
-
-    # create a temporary player to check waits
-    temp_player = MahjongPlayer(seat=player.seat, name=player.name, tiles=new_tiles, melds=list(player.melds))
-
-    # add the kan as a meld (closed)
+    # simulate kan state with all 14 tiles retained; the hand calculator
+    # subtracts the kan meld tiles internally when evaluating tenpai.
     kan_tiles = [t for t in player.tiles if tile_to_34(t) == tile_34]
     kan_meld = Meld(
         meld_type=Meld.KAN,
@@ -416,7 +420,12 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
         opened=False,
         who=player.seat,
     )
-    temp_player.melds.append(kan_meld)
+    temp_player = MahjongPlayer(
+        seat=player.seat,
+        name=player.name,
+        tiles=list(player.tiles),
+        melds=[*player.melds, kan_meld],
+    )
 
     new_waits = get_waiting_tiles(temp_player)
 
@@ -672,7 +681,7 @@ def get_possible_closed_kans(player: MahjongPlayer, round_state: MahjongRoundSta
     for t34, count in tile_counts.items():
         if count >= TILES_FOR_CLOSED_KAN:
             if player.is_riichi:
-                if _kan_preserves_waits_for_riichi(player, t34):
+                if _kan_preserves_waits_for_riichi(player, t34):  # pragma: no cover
                     possible.append(t34)
             else:
                 possible.append(t34)

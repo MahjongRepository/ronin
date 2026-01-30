@@ -1,11 +1,51 @@
+import asyncio
+
 import pytest
 
-from game.logic.enums import TimeoutType
-from game.logic.mock import MockGameService
+from game.logic.enums import CallType, TimeoutType
+from game.logic.mock import MockGameService, MockResultEvent
 from game.logic.timer import TurnTimer
+from game.logic.types import GameEndResult, GameView, PlayerStanding, PlayerView
+from game.messaging.events import (
+    CallPromptEvent,
+    GameEndedEvent,
+    RoundStartedEvent,
+    ServiceEvent,
+    TurnEvent,
+)
 from game.messaging.mock import MockConnection
 from game.messaging.types import ServerMessageType
 from game.session.manager import SessionManager
+from game.session.models import Game, Player
+
+
+def _make_dummy_game_view() -> GameView:
+    """Create a minimal GameView for testing."""
+    return GameView(
+        seat=0,
+        round_wind="East",
+        round_number=1,
+        dealer_seat=0,
+        current_player_seat=0,
+        wall_count=70,
+        dora_indicators=[],
+        honba_sticks=0,
+        riichi_sticks=0,
+        players=[
+            PlayerView(
+                seat=0,
+                name="Alice",
+                is_bot=False,
+                score=25000,
+                is_riichi=False,
+                discards=[],
+                melds=[],
+                tile_count=13,
+            ),
+        ],
+        phase="playing",
+        game_phase="east",
+    )
 
 
 class TestSessionManager:
@@ -331,3 +371,392 @@ class TestSessionManagerTimers:
         # no events broadcast
         timeout_msgs = [m for m in conn.sent_messages if m.get("type") == ServerMessageType.GAME_EVENT]
         assert len(timeout_msgs) == 0
+
+
+class TestSessionManagerDefensiveChecks:
+    """Tests for defensive checks that guard against invalid state."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    async def test_get_player_returns_player(self, manager):
+        """get_player returns the player after joining a game."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        player = manager.get_player(conn)
+        assert player is not None
+        assert player.name == "Alice"
+
+    async def test_get_player_returns_none_for_unknown(self, manager):
+        """get_player returns None for a connection that has not joined a game."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+
+        player = manager.get_player(conn)
+        assert player is None
+
+    async def test_join_game_already_in_game_returns_error(self, manager):
+        """Joining a second game while already in one returns an error."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        manager.create_game("game2")
+
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        await manager.join_game(conn, "game2", "Alice")
+
+        assert len(conn.sent_messages) == 1
+        msg = conn.sent_messages[0]
+        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["code"] == "already_in_game"
+
+    async def test_leave_game_when_game_is_none(self, manager):
+        """Leaving when the game mapping is missing does not raise."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        # remove the game from the internal mapping to simulate the defensive case
+        player = manager._players[conn.connection_id]
+        manager._games.pop(player.game_id, None)
+
+        # should return without error
+        await manager.leave_game(conn)
+
+    async def test_handle_game_action_not_in_game_returns_error(self, manager):
+        """Performing a game action without joining returns an error."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+
+        await manager.handle_game_action(conn, "test_action", {})
+
+        assert len(conn.sent_messages) == 1
+        msg = conn.sent_messages[0]
+        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["code"] == "not_in_game"
+
+    async def test_handle_game_action_game_is_none(self, manager):
+        """Performing a game action when game is missing from mapping does not raise."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        # remove the game from the internal mapping
+        manager._games.pop("game1", None)
+
+        # should return silently without error
+        await manager.handle_game_action(conn, "test_action", {})
+        assert len(conn.sent_messages) == 0
+
+    async def test_broadcast_chat_game_is_none(self, manager):
+        """Broadcasting chat when game is missing from mapping does not raise."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        # remove the game from the internal mapping
+        manager._games.pop("game1", None)
+
+        # should return silently without error
+        await manager.broadcast_chat(conn, "hello")
+        assert len(conn.sent_messages) == 0
+
+
+class TestSessionManagerTimerIntegration:
+    """Tests for timer integration methods."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    def _make_game_with_human(self, manager) -> tuple[Game, Player, MockConnection]:
+        """Create a game with a human player who has an assigned seat."""
+        conn = MockConnection()
+        game = Game(game_id="game1")
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=0)
+        game.players[conn.connection_id] = player
+        manager._games["game1"] = game
+        manager._players[conn.connection_id] = player
+        manager._connections[conn.connection_id] = conn
+        return game, player, conn
+
+    def test_get_human_player_returns_seated_player(self, manager):
+        """_get_human_player returns the first player with an assigned seat."""
+        game, _player, _conn = self._make_game_with_human(manager)
+
+        result = manager._get_human_player(game)
+        assert result is not None
+        assert result.name == "Alice"
+        assert result.seat == 0
+
+    def test_get_human_player_returns_none_without_seated_players(self, manager):
+        """_get_human_player returns None when no player has a seat assigned."""
+        game = Game(game_id="game1")
+        conn = MockConnection()
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
+        game.players[conn.connection_id] = player
+
+        result = manager._get_human_player(game)
+        assert result is None
+
+    def test_player_in_callers_with_int_list_match(self, manager):
+        """_player_in_callers returns True when seat is in integer callers list."""
+        assert manager._player_in_callers(0, [0, 1, 2]) is True
+
+    def test_player_in_callers_with_int_list_no_match(self, manager):
+        """_player_in_callers returns False when seat is not in integer callers list."""
+        assert manager._player_in_callers(3, [0, 1, 2]) is False
+
+    def test_player_in_callers_with_none_seat(self, manager):
+        """_player_in_callers returns False when seat is None."""
+        assert manager._player_in_callers(None, [0, 1, 2]) is False
+
+    def test_cleanup_timer_on_game_end_cancels_timer(self, manager):
+        """_cleanup_timer_on_game_end cancels active timer when GameEndedEvent is present."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        timer = TurnTimer()
+        manager._timers["game1"] = timer
+
+        game_end_event = ServiceEvent(
+            event="game_end",
+            data=GameEndedEvent(
+                type="game_end",
+                target="all",
+                result=GameEndResult(
+                    winner_seat=0,
+                    standings=[
+                        PlayerStanding(seat=0, name="Alice", score=25000, is_bot=False),
+                    ],
+                ),
+            ),
+            target="all",
+        )
+
+        result = manager._cleanup_timer_on_game_end(game, [game_end_event])
+        assert result is True
+
+    def test_cleanup_timer_on_game_end_returns_false_without_end_event(self, manager):
+        """_cleanup_timer_on_game_end returns False when no GameEndedEvent is present."""
+        game, _player, _conn = self._make_game_with_human(manager)
+
+        generic_event = ServiceEvent(
+            event="test",
+            data=MockResultEvent(
+                type="test",
+                target="all",
+                player="Alice",
+                action="test",
+                input={},
+                success=True,
+            ),
+            target="all",
+        )
+
+        result = manager._cleanup_timer_on_game_end(game, [generic_event])
+        assert result is False
+
+    async def test_maybe_start_timer_with_turn_event(self, manager):
+        """_maybe_start_timer starts a turn timer when TurnEvent targets the human player."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        timer = TurnTimer()
+        manager._timers["game1"] = timer
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        turn_event = ServiceEvent(
+            event="turn",
+            data=TurnEvent(
+                type="turn",
+                target="seat_0",
+                current_seat=0,
+                available_actions=[],
+                wall_count=70,
+            ),
+            target="seat_0",
+        )
+
+        await manager._maybe_start_timer(game, [turn_event])
+
+        # timer should have an active task (turn timer started)
+        assert timer._active_task is not None
+        timer.cancel()
+
+    async def test_maybe_start_timer_with_call_prompt_event(self, manager):
+        """_maybe_start_timer starts a meld timer when CallPromptEvent targets the human player."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        timer = TurnTimer()
+        manager._timers["game1"] = timer
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                type="call_prompt",
+                target="seat_0",
+                call_type=CallType.MELD,
+                tile_id=0,
+                from_seat=1,
+                callers=[0],
+            ),
+            target="seat_0",
+        )
+
+        await manager._maybe_start_timer(game, [call_event])
+
+        # timer should have an active task (meld timer started)
+        assert timer._active_task is not None
+        timer.cancel()
+
+    async def test_maybe_start_timer_with_round_started_event(self, manager):
+        """_maybe_start_timer adds round bonus when RoundStartedEvent is present."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        timer = TurnTimer()
+        manager._timers["game1"] = timer
+        initial_bank = timer.remaining_bank
+
+        round_event = ServiceEvent(
+            event="round_started",
+            data=RoundStartedEvent(
+                type="round_started",
+                target="seat_0",
+                view=_make_dummy_game_view(),
+            ),
+            target="seat_0",
+        )
+
+        await manager._maybe_start_timer(game, [round_event])
+
+        # bank should have increased by round bonus (10s default)
+        assert timer.remaining_bank == initial_bank + 10.0
+
+    async def test_maybe_start_timer_with_game_ended_event(self, manager):
+        """_maybe_start_timer returns early and cleans up timer when GameEndedEvent is present."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        timer = TurnTimer()
+        manager._timers["game1"] = timer
+
+        game_end_event = ServiceEvent(
+            event="game_end",
+            data=GameEndedEvent(
+                type="game_end",
+                target="all",
+                result=GameEndResult(
+                    winner_seat=0,
+                    standings=[
+                        PlayerStanding(seat=0, name="Alice", score=25000, is_bot=False),
+                    ],
+                ),
+            ),
+            target="all",
+        )
+
+        await manager._maybe_start_timer(game, [game_end_event])
+
+        # timer task should not be started (game ended)
+        assert timer._active_task is None
+
+    async def test_handle_timeout_executes_timeout_action(self, manager):
+        """_handle_timeout invokes handle_timeout on the game service and broadcasts events."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        await manager._handle_timeout("game1", TimeoutType.TURN)
+
+        timeout_msgs = [
+            m
+            for m in conn.sent_messages
+            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "timeout_turn"
+        ]
+        assert len(timeout_msgs) == 1
+
+    async def test_maybe_start_timer_returns_when_timer_is_none(self, manager):
+        """_maybe_start_timer returns early when no timer exists for the game."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        # do not set up a timer for the game
+
+        generic_event = ServiceEvent(
+            event="test",
+            data=MockResultEvent(
+                type="test",
+                target="all",
+                player="Alice",
+                action="test",
+                input={},
+                success=True,
+            ),
+            target="all",
+        )
+
+        # should return without error
+        await manager._maybe_start_timer(game, [generic_event])
+
+    async def test_maybe_start_timer_returns_when_no_human_player(self, manager):
+        """_maybe_start_timer returns early when the game has no human player with a seat."""
+        game = Game(game_id="game1")
+        conn = MockConnection()
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
+        game.players[conn.connection_id] = player
+        manager._games["game1"] = game
+
+        timer = TurnTimer()
+        manager._timers["game1"] = timer
+
+        generic_event = ServiceEvent(
+            event="test",
+            data=MockResultEvent(
+                type="test",
+                target="all",
+                player="Alice",
+                action="test",
+                input={},
+                success=True,
+            ),
+            target="all",
+        )
+
+        # should return without error (no human player to start timer for)
+        await manager._maybe_start_timer(game, [generic_event])
+        assert timer._active_task is None
+
+    async def test_handle_timeout_returns_when_game_is_none(self, manager):
+        """_handle_timeout returns early when game has been removed but lock still exists."""
+        _game, _player, _conn = self._make_game_with_human(manager)
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        # remove the game to simulate the game being cleaned up
+        manager._games.pop("game1", None)
+
+        # should return without error
+        await manager._handle_timeout("game1", TimeoutType.TURN)
+
+    async def test_handle_timeout_returns_when_no_human_player(self, manager):
+        """_handle_timeout returns early when game has no human player with a seat."""
+        game = Game(game_id="game1")
+        conn = MockConnection()
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
+        game.players[conn.connection_id] = player
+        manager._games["game1"] = game
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        # should return without error
+        await manager._handle_timeout("game1", TimeoutType.TURN)
+        assert len(conn.sent_messages) == 0

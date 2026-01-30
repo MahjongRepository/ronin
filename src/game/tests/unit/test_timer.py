@@ -162,3 +162,19 @@ class TestTurnTimerBankEdgeCases:
         await asyncio.sleep(0.05)
         timer.cancel()
         assert first_called is False
+
+
+class TestTimerCallbackException:
+    async def test_timer_callback_exception_is_caught(self):
+        """Timer catches exceptions from callback without re-raising."""
+        timer = TurnTimer(TimerConfig(initial_bank_seconds=0.01))
+
+        async def failing_callback():
+            raise RuntimeError("callback failed")
+
+        timer.start_turn_timer(failing_callback)
+        # wait for timer to fire and handle the exception
+        await asyncio.sleep(0.05)
+        # timer should complete without raising
+        assert timer._active_task is not None
+        assert timer._active_task.done()

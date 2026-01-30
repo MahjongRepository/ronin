@@ -12,3 +12,5 @@ __pycache__
 
 progress*.txt
 docs
+
+.coverage

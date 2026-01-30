@@ -2,7 +2,10 @@
 Tests for MessagePack encoder module.
 """
 
-from game.messaging.encoder import decode, encode
+import msgpack
+import pytest
+
+from game.messaging.encoder import DecodeError, decode, encode
 
 
 class TestEncode:
@@ -151,3 +154,17 @@ class TestRoundTrip:
         data = {"score": 25000, "negative_score": -8000, "zero": 0}
 
         assert decode(encode(data)) == data
+
+
+class TestDecodeErrors:
+    def test_invalid_msgpack_data_raises_decode_error(self) -> None:
+        """Decoding invalid bytes raises DecodeError."""
+        with pytest.raises(DecodeError, match="failed to decode"):
+            decode(b"\xff\xff\xff")
+
+    def test_non_dict_result_raises_decode_error(self) -> None:
+        """Decoding valid msgpack that is not a dict raises DecodeError."""
+        data = msgpack.packb([1, 2, 3])
+
+        with pytest.raises(DecodeError, match="expected dict, got list"):
+            decode(data)

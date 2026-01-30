@@ -1,4 +1,5 @@
 import pytest
+from mahjong.tile import TilesConverter
 from pydantic import ValidationError
 
 from game.logic.mock import MockGameService
@@ -108,22 +109,99 @@ class TestMessageRouter:
         assert response["type"] == ServerMessageType.ERROR
         assert response["code"] == "not_in_game"
 
+    async def test_leave_game_message(self, setup):
+        """Leave game message calls session_manager.leave_game."""
+        router, connection, session_manager = setup
+        session_manager.create_game("game1")
+        await router.handle_message(
+            connection,
+            {"type": "join_game", "game_id": "game1", "player_name": "Alice"},
+        )
+        connection._outbox.clear()
+
+        await router.handle_message(connection, {"type": "leave_game"})
+
+        # player should have received game_left
+        assert any(m.get("type") == ServerMessageType.GAME_LEFT for m in connection.sent_messages)
+
+    async def test_game_action_routes_to_session_manager(self, setup):
+        """Game action message routes through session manager and returns events."""
+        router, connection, session_manager = setup
+        session_manager.create_game("game1")
+        await router.handle_message(
+            connection,
+            {"type": "join_game", "game_id": "game1", "player_name": "Alice"},
+        )
+        connection._outbox.clear()
+
+        await router.handle_message(
+            connection,
+            {
+                "type": "game_action",
+                "action": "discard",
+                "data": {"tile_id": TilesConverter.string_to_136_array(man="1")[0]},
+            },
+        )
+
+        # mock service returns events, so we get game_event messages
+        assert len(connection.sent_messages) >= 1
+
+    async def test_game_action_error_returns_action_failed(self, setup):
+        """Game action that raises error returns action_failed error."""
+        router, connection, session_manager = setup
+        session_manager.create_game("game1")
+        await router.handle_message(
+            connection,
+            {"type": "join_game", "game_id": "game1", "player_name": "Alice"},
+        )
+        connection._outbox.clear()
+
+        # patch handle_game_action to raise ValueError
+        async def raise_value_error(
+            connection: object,  # noqa: ARG001
+            action: object,  # noqa: ARG001
+            data: object,  # noqa: ARG001
+        ) -> None:
+            raise ValueError("invalid tile")
+
+        session_manager.handle_game_action = raise_value_error
+
+        await router.handle_message(
+            connection,
+            {
+                "type": "game_action",
+                "action": "discard",
+                "data": {"tile_id": TilesConverter.string_to_136_array(man="1")[0]},
+            },
+        )
+
+        assert len(connection.sent_messages) == 1
+        response = connection.sent_messages[0]
+        assert response["type"] == ServerMessageType.ERROR
+        assert response["code"] == "action_failed"
+        assert response["message"] == "invalid tile"
+
 
 class TestMahjongMessageTypes:
     def test_tile_info(self):
-        tile = TileInfo(tile="1m", tile_id=0)
+        tile = TileInfo(tile="1m", tile_id=TilesConverter.string_to_136_array(man="1")[0])
         assert tile.tile == "1m"
-        assert tile.tile_id == 0
+        assert tile.tile_id == TilesConverter.string_to_136_array(man="1")[0]
 
     def test_discard_info(self):
-        discard = DiscardInfo(tile="5p", tile_id=40, is_tsumogiri=True, is_riichi_discard=False)
+        discard = DiscardInfo(
+            tile="5p",
+            tile_id=TilesConverter.string_to_136_array(pin="5")[0],
+            is_tsumogiri=True,
+            is_riichi_discard=False,
+        )
         assert discard.tile == "5p"
-        assert discard.tile_id == 40
+        assert discard.tile_id == TilesConverter.string_to_136_array(pin="5")[0]
         assert discard.is_tsumogiri is True
         assert discard.is_riichi_discard is False
 
     def test_discard_info_defaults(self):
-        discard = DiscardInfo(tile="E", tile_id=108)
+        discard = DiscardInfo(tile="E", tile_id=TilesConverter.string_to_136_array(honors="1")[0])
         assert discard.is_tsumogiri is False
         assert discard.is_riichi_discard is False
 
@@ -131,13 +209,13 @@ class TestMahjongMessageTypes:
         meld = MeldInfo(
             type="pon",
             tiles=["5m", "5m", "5m"],
-            tile_ids=[16, 17, 18],
+            tile_ids=TilesConverter.string_to_136_array(man="555")[:3],
             opened=True,
             from_who=2,
         )
         assert meld.type == "pon"
         assert meld.tiles == ["5m", "5m", "5m"]
-        assert meld.tile_ids == [16, 17, 18]
+        assert meld.tile_ids == TilesConverter.string_to_136_array(man="555")[:3]
         assert meld.opened is True
         assert meld.from_who == 2
 
@@ -160,6 +238,7 @@ class TestMahjongMessageTypes:
         assert player.hand is None
 
     def test_player_info_with_hand(self):
+        tiles = TilesConverter.string_to_136_array(man="111122223334")
         player = PlayerInfo(
             seat=0,
             name="Alice",
@@ -169,16 +248,16 @@ class TestMahjongMessageTypes:
             discards=[],
             melds=[],
             tile_count=13,
-            tiles=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            tiles=tiles,
             hand="1m 1m 1m 2m 2m",
         )
-        assert player.tiles == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        assert player.tiles == tiles
         assert player.hand == "1m 1m 1m 2m 2m"
 
     def test_available_action(self):
-        action = AvailableAction(action="discard", tiles=[0, 4, 8])
+        action = AvailableAction(action="discard", tiles=TilesConverter.string_to_136_array(man="123"))
         assert action.action == "discard"
-        assert action.tiles == [0, 4, 8]
+        assert action.tiles == TilesConverter.string_to_136_array(man="123")
 
     def test_available_action_no_tiles(self):
         action = AvailableAction(action="tsumo")
@@ -202,7 +281,7 @@ class TestMahjongMessageTypes:
             round_number=0,
             dealer_seat=0,
             wall_count=70,
-            dora_indicators=[TileInfo(tile="3p", tile_id=44)],
+            dora_indicators=[TileInfo(tile="3p", tile_id=TilesConverter.string_to_136_array(pin="3")[0])],
             honba_sticks=0,
             riichi_sticks=0,
             players=[player],
@@ -216,17 +295,23 @@ class TestMahjongMessageTypes:
         assert msg.dora_indicators[0].tile == "3p"
 
     def test_draw_message(self):
-        msg = DrawMessage(tile="7s", tile_id=96)
+        msg = DrawMessage(tile="7s", tile_id=TilesConverter.string_to_136_array(sou="7")[0])
         assert msg.type == ServerMessageType.DRAW
         assert msg.tile == "7s"
-        assert msg.tile_id == 96
+        assert msg.tile_id == TilesConverter.string_to_136_array(sou="7")[0]
 
     def test_discard_message(self):
-        msg = DiscardMessage(seat=1, tile="9m", tile_id=32, is_tsumogiri=False, is_riichi=True)
+        msg = DiscardMessage(
+            seat=1,
+            tile="9m",
+            tile_id=TilesConverter.string_to_136_array(man="9")[0],
+            is_tsumogiri=False,
+            is_riichi=True,
+        )
         assert msg.type == ServerMessageType.DISCARD
         assert msg.seat == 1
         assert msg.tile == "9m"
-        assert msg.tile_id == 32
+        assert msg.tile_id == TilesConverter.string_to_136_array(man="9")[0]
         assert msg.is_tsumogiri is False
         assert msg.is_riichi is True
 
@@ -235,7 +320,7 @@ class TestMahjongMessageTypes:
             caller_seat=2,
             meld_type="chi",
             tiles=["1m", "2m", "3m"],
-            tile_ids=[0, 4, 8],
+            tile_ids=TilesConverter.string_to_136_array(man="123"),
             from_seat=1,
         )
         assert msg.type == ServerMessageType.MELD
@@ -253,7 +338,7 @@ class TestMahjongMessageTypes:
         msg = TurnMessage(
             current_seat=0,
             available_actions=[
-                AvailableAction(action="discard", tiles=[0, 4, 8]),
+                AvailableAction(action="discard", tiles=TilesConverter.string_to_136_array(man="123")),
                 AvailableAction(action="riichi"),
             ],
         )
@@ -266,7 +351,7 @@ class TestMahjongMessageTypes:
     def test_call_prompt_message(self):
         msg = CallPromptMessage(
             available_calls=[
-                AvailableAction(action="pon", tiles=[16, 17]),
+                AvailableAction(action="pon", tiles=TilesConverter.string_to_136_array(man="55")[:2]),
                 AvailableAction(action="pass"),
             ],
             timeout_seconds=5,
@@ -366,7 +451,7 @@ class TestMahjongMessageTypes:
             round_number=0,
             dealer_seat=0,
             wall_count=70,
-            dora_indicators=[TileInfo(tile="3p", tile_id=44)],
+            dora_indicators=[TileInfo(tile="3p", tile_id=TilesConverter.string_to_136_array(pin="3")[0])],
             honba_sticks=0,
             riichi_sticks=0,
             players=[player],
@@ -441,3 +526,35 @@ class TestMockConnectionProtocol:
 
         with pytest.raises(RuntimeError, match="Connection is closed"):
             await connection.receive_message()
+
+    def test_is_closed_property_default_false(self):
+        """MockConnection starts as not closed."""
+        connection = MockConnection()
+
+        assert connection.is_closed is False
+
+    async def test_is_closed_property_true_after_close(self):
+        """MockConnection is_closed returns True after close."""
+        connection = MockConnection()
+        await connection.close()
+
+        assert connection.is_closed is True
+
+    async def test_simulate_receive_nowait(self):
+        """simulate_receive_nowait queues message without awaiting."""
+        connection = MockConnection()
+        connection.simulate_receive_nowait({"type": "test", "value": 42})
+
+        received = await connection.receive_message()
+
+        assert received == {"type": "test", "value": 42}
+
+
+class TestMockGameServiceGetPlayerSeat:
+    def test_get_player_seat_unknown_game_returns_none(self):
+        """Return None when game_id is not found."""
+        service = MockGameService()
+
+        result = service.get_player_seat("nonexistent_game", "Alice")
+
+        assert result is None

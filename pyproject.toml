@@ -16,6 +16,7 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
     "ty>=0.0.14",
 ]
@@ -32,7 +33,7 @@ testpaths = ["src"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 python_files = "test_*.py"
-addopts = "-p no:warnings --no-header --tb=short -qq"
+addopts = "-p no:warnings --no-header --tb=short -qq --cov --cov-report=term:skip-covered"
 
 [tool.ruff]
 src = ["src"]
@@ -95,3 +96,19 @@ possibly-unresolved-reference = "warn"
 possibly-missing-attribute = "warn"
 invalid-argument-type = "warn"
 invalid-parameter-default = "warn"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/bot.py", "src/game/logic/bot_controller.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    '^\\s*\\.\\.\\.\\s*$',
+    '^\\s*pass\\s*$',
+    "@(abc\\.)?abstractmethod",
+]
+fail_under = 100

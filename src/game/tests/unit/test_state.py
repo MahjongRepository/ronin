@@ -3,6 +3,7 @@ Unit tests for game state models.
 """
 
 from mahjong.meld import Meld
+from mahjong.tile import TilesConverter
 
 from game.logic.state import (
     Discard,
@@ -17,24 +18,28 @@ from game.logic.state import (
 
 class TestDiscard:
     def test_create_basic_discard(self):
-        discard = Discard(tile_id=0)
-        assert discard.tile_id == 0
+        man_1m = TilesConverter.string_to_136_array(man="1")[0]
+        discard = Discard(tile_id=man_1m)
+        assert discard.tile_id == man_1m
         assert discard.is_tsumogiri is False
         assert discard.is_riichi_discard is False
 
     def test_create_tsumogiri_discard(self):
-        discard = Discard(tile_id=36, is_tsumogiri=True)
-        assert discard.tile_id == 36
+        pin_1p = TilesConverter.string_to_136_array(pin="1")[0]
+        discard = Discard(tile_id=pin_1p, is_tsumogiri=True)
+        assert discard.tile_id == pin_1p
         assert discard.is_tsumogiri is True
 
     def test_create_riichi_discard(self):
-        discard = Discard(tile_id=72, is_riichi_discard=True)
-        assert discard.tile_id == 72
+        sou_1s = TilesConverter.string_to_136_array(sou="1")[0]
+        discard = Discard(tile_id=sou_1s, is_riichi_discard=True)
+        assert discard.tile_id == sou_1s
         assert discard.is_riichi_discard is True
 
     def test_create_tsumogiri_riichi_discard(self):
-        discard = Discard(tile_id=108, is_tsumogiri=True, is_riichi_discard=True)
-        assert discard.tile_id == 108
+        east = TilesConverter.string_to_136_array(honors="1")[0]
+        discard = Discard(tile_id=east, is_tsumogiri=True, is_riichi_discard=True)
+        assert discard.tile_id == east
         assert discard.is_tsumogiri is True
         assert discard.is_riichi_discard is True
 
@@ -61,22 +66,24 @@ class TestMahjongPlayer:
         assert player.is_bot is True
 
     def test_player_with_tiles(self):
-        tiles = [0, 4, 8, 36, 40, 44, 72, 76, 80, 108, 109, 110, 124]
+        tiles = TilesConverter.string_to_136_array(man="123", pin="123", sou="123", honors="1115")
         player = MahjongPlayer(seat=0, name="Player1", tiles=tiles)
         assert player.tiles == tiles
         assert len(player.tiles) == 13
 
     def test_player_with_discards(self):
-        discards = [Discard(tile_id=0), Discard(tile_id=4, is_tsumogiri=True)]
+        man_1m = TilesConverter.string_to_136_array(man="1")[0]
+        man_2m = TilesConverter.string_to_136_array(man="2")[0]
+        discards = [Discard(tile_id=man_1m), Discard(tile_id=man_2m, is_tsumogiri=True)]
         player = MahjongPlayer(seat=0, name="Player1", discards=discards)
         assert len(player.discards) == 2
-        assert player.discards[0].tile_id == 0
+        assert player.discards[0].tile_id == man_1m
         assert player.discards[1].is_tsumogiri is True
 
     def test_player_with_melds(self):
         meld = Meld()
         meld.type = Meld.PON
-        meld.tiles = [0, 1, 2]
+        meld.tiles = TilesConverter.string_to_136_array(man="111")[:3]
         meld.opened = True
         player = MahjongPlayer(seat=0, name="Player1", melds=[meld])
         assert len(player.melds) == 1
@@ -185,32 +192,56 @@ class TestMahjongGameState:
 class TestGetPlayerView:
     def _create_test_game_state(self):
         """Create a game state for testing."""
+        haku = TilesConverter.string_to_136_array(honors="5")[0]
         players = [
             MahjongPlayer(
                 seat=0,
                 name="Player1",
-                tiles=[0, 4, 8, 36, 40, 44, 72, 76, 80, 108, 109, 110, 124],
+                tiles=TilesConverter.string_to_136_array(
+                    man="123",
+                    pin="123",
+                    sou="123",
+                    honors="1115",
+                ),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
                 is_bot=True,
-                tiles=[1, 5, 9, 37, 41, 45, 73, 77, 81, 112, 113, 114, 125],
+                tiles=[
+                    *TilesConverter.string_to_136_array(man="112233")[1::2],
+                    *TilesConverter.string_to_136_array(pin="112233")[1::2],
+                    *TilesConverter.string_to_136_array(sou="112233")[1::2],
+                    *TilesConverter.string_to_136_array(honors="222"),
+                    TilesConverter.string_to_136_array(honors="55")[1],
+                ],
                 score=24000,
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
                 is_bot=True,
-                tiles=[2, 6, 10, 38, 42, 46, 74, 78, 82, 116, 117, 118, 126],
+                tiles=[
+                    *TilesConverter.string_to_136_array(man="111222333")[2::3],
+                    *TilesConverter.string_to_136_array(pin="111222333")[2::3],
+                    *TilesConverter.string_to_136_array(sou="111222333")[2::3],
+                    *TilesConverter.string_to_136_array(honors="333"),
+                    TilesConverter.string_to_136_array(honors="555")[2],
+                ],
                 score=26000,
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
                 is_bot=True,
-                tiles=[3, 7, 11, 39, 43, 47, 75, 79, 83, 120, 121, 122, 127],
+                tiles=[
+                    *TilesConverter.string_to_136_array(man="111122223333")[3::4],
+                    *TilesConverter.string_to_136_array(pin="111122223333")[3::4],
+                    *TilesConverter.string_to_136_array(sou="111122223333")[3::4],
+                    *TilesConverter.string_to_136_array(honors="444"),
+                    TilesConverter.string_to_136_array(honors="5555")[3],
+                ],
                 score=25000,
             ),
         ]
@@ -218,7 +249,7 @@ class TestGetPlayerView:
         round_state = MahjongRoundState(
             wall=list(range(84, 122)),  # remaining wall tiles
             dead_wall=list(range(122, 136)),
-            dora_indicators=[124],  # haku as dora indicator
+            dora_indicators=[haku],  # haku as dora indicator
             players=players,
             dealer_seat=0,
             current_player_seat=0,
@@ -255,9 +286,10 @@ class TestGetPlayerView:
     def test_view_contains_dora_indicators(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
+        haku = TilesConverter.string_to_136_array(honors="5")[0]
         assert len(view.dora_indicators) == 1
         assert view.dora_indicators[0].tile == "Haku"
-        assert view.dora_indicators[0].tile_id == 124
+        assert view.dora_indicators[0].tile_id == haku
 
     def test_view_shows_own_hand(self):
         game_state = self._create_test_game_state()
@@ -292,9 +324,11 @@ class TestGetPlayerView:
     def test_view_shows_discards(self):
         game_state = self._create_test_game_state()
         # add some discards
+        man_1m = TilesConverter.string_to_136_array(man="1")[0]
+        pin_1p = TilesConverter.string_to_136_array(pin="1")[0]
         game_state.round_state.players[1].discards = [
-            Discard(tile_id=0),
-            Discard(tile_id=36, is_tsumogiri=True),
+            Discard(tile_id=man_1m),
+            Discard(tile_id=pin_1p, is_tsumogiri=True),
         ]
 
         view = get_player_view(game_state, seat=0)
@@ -310,7 +344,7 @@ class TestGetPlayerView:
         # add a pon meld
         meld = Meld()
         meld.type = Meld.PON
-        meld.tiles = [108, 109, 110]
+        meld.tiles = TilesConverter.string_to_136_array(honors="111")[:3]
         meld.opened = True
         meld.from_who = 0
         game_state.round_state.players[2].melds = [meld]
@@ -345,9 +379,11 @@ class TestGetPlayerView:
 
     def test_view_with_riichi_discard(self):
         game_state = self._create_test_game_state()
+        man_1m = TilesConverter.string_to_136_array(man="1")[0]
+        man_2m = TilesConverter.string_to_136_array(man="2")[0]
         game_state.round_state.players[0].discards = [
-            Discard(tile_id=0),
-            Discard(tile_id=4, is_riichi_discard=True),
+            Discard(tile_id=man_1m),
+            Discard(tile_id=man_2m, is_riichi_discard=True),
         ]
 
         view = get_player_view(game_state, seat=0)

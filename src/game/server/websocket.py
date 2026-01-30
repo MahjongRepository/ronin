@@ -24,7 +24,7 @@ class WebSocketConnection(ConnectionProtocol):
     async def receive_bytes(self) -> bytes:
         return await self._websocket.receive_bytes()
 
-    async def close(self, code: int = 1000, reason: str = "") -> None:
+    async def close(self, code: int = 1000, reason: str = "") -> None:  # pragma: no cover - thin wrapper
         await self._websocket.close(code=code, reason=reason)
 
 

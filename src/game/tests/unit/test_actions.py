@@ -2,11 +2,15 @@
 Unit tests for available actions builder.
 """
 
+from mahjong.meld import Meld
+from mahjong.tile import TilesConverter
+
 from game.logic.actions import get_available_actions
 from game.logic.enums import BotType, PlayerAction
 from game.logic.game import init_game
 from game.logic.round import draw_tile
 from game.logic.types import AvailableActionItem, SeatConfig
+from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -52,23 +56,7 @@ class TestGetAvailableActions:
         player = round_state.players[0]
 
         # create a tempai hand: 123m 456m 789m 111p, waiting for 2p
-        # 1m=0-3, 2m=4-7, 3m=8-11, 4m=12-15, 5m=16-19, 6m=20-23, 7m=24-27, 8m=28-31, 9m=32-35
-        # 1p=36-39, 2p=40-43
-        player.tiles = [
-            0,
-            4,
-            8,  # 123m
-            12,
-            16,
-            20,  # 456m
-            24,
-            28,
-            32,  # 789m
-            36,
-            37,
-            38,  # 111p
-            40,  # 2p (waiting for pair)
-        ]
+        player.tiles = TilesConverter.string_to_136_array(man="123456789", pin="1112")
         draw_tile(round_state)
 
         actions = get_available_actions(round_state, game_state, seat=0)
@@ -86,22 +74,7 @@ class TestGetAvailableActions:
         player = round_state.players[0]
 
         # create a winning hand: 123m 456m 789m 11p 22p (complete)
-        # this is a winning hand with 2 pairs completing melds
-        player.tiles = [
-            0,
-            4,
-            8,  # 123m
-            12,
-            16,
-            20,  # 456m
-            24,
-            28,
-            32,  # 789m
-            36,
-            37,  # 11p
-            40,
-            41,  # 22p - winning tile
-        ]
+        player.tiles = TilesConverter.string_to_136_array(man="123456789", pin="1122")
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
@@ -117,8 +90,8 @@ class TestGetAvailableActions:
         player = round_state.players[0]
 
         # give player 4 of the same tile for closed kan
-        # 1m = tiles 0, 1, 2, 3, plus 10 other tiles to make 14 total
-        player.tiles = [0, 1, 2, 3, *list(range(4, 14))]  # 4 1m tiles + 10 more = 14 tiles
+        # 4x 1m + 4x 2m + 4x 3m + 2x 4m = 14 tiles
+        player.tiles = TilesConverter.string_to_136_array(man="11112222333344")
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
@@ -159,7 +132,7 @@ class TestGetAvailableActions:
         player = round_state.players[0]
 
         # give player 4 of the same tile plus 10 more to make 14 total
-        player.tiles = [0, 1, 2, 3, *list(range(4, 14))]
+        player.tiles = TilesConverter.string_to_136_array(man="11112222333344")
         # empty the wall
         round_state.wall = []
 
@@ -174,8 +147,8 @@ class TestGetAvailableActions:
         round_state = game_state.round_state
         player = round_state.players[0]
 
-        # set kuikae restriction: forbid tile_34=0 (1m, tiles 0-3)
-        player.kuikae_tiles = [0]
+        # set kuikae restriction: forbid 1m (tiles 0-3)
+        player.kuikae_tiles = _string_to_34_tiles(man="1")
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
@@ -183,9 +156,9 @@ class TestGetAvailableActions:
         assert len(discard_actions) == 1
         tiles = discard_actions[0].tiles
         assert tiles is not None
-        # no 1m tiles (tile_34=0) should be in the discard list
+        # no 1m tiles should be in the discard list
         for tile_id in tiles:
-            assert tile_id // 4 != 0
+            assert tile_id // 4 != _string_to_34_tile(man="1")
 
     def test_kuikae_tiles_does_not_affect_non_forbidden_tiles(self):
         game_state = self._create_game_state()
@@ -193,7 +166,7 @@ class TestGetAvailableActions:
         player = round_state.players[0]
 
         # forbid a tile_34 that the player doesn't have in hand
-        player.kuikae_tiles = [33]  # chun (red dragon)
+        player.kuikae_tiles = _string_to_34_tiles(honors="7")
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
@@ -203,3 +176,39 @@ class TestGetAvailableActions:
         assert tiles is not None
         # all 14 tiles should be discardable
         assert len(tiles) == 14
+
+
+class TestAddedKanAction:
+    def test_added_kan_available_with_pon_and_fourth_tile(self):
+        """Player with a pon meld and 4th tile in hand can declare added kan."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        player = round_state.players[0]
+
+        # set up player with a pon of 1m and 4th tile in hand
+        pon_meld = Meld(
+            meld_type=Meld.PON,
+            tiles=TilesConverter.string_to_136_array(man="111")[:3],
+            opened=True,
+            called_tile=TilesConverter.string_to_136_array(man="111")[2],
+            who=0,
+            from_who=1,
+        )
+        player.melds = [pon_meld]
+        player.tiles = [
+            TilesConverter.string_to_136_array(man="1111")[3],
+            *TilesConverter.string_to_136_array(pin="1234", sou="1234", honors="12345"),
+        ]
+
+        # player must be in open hands list
+        round_state.players_with_open_hands = [0]
+
+        # wall needs at least 2 tiles for kan
+        round_state.wall = list(range(50))
+
+        actions = get_available_actions(round_state, game_state, seat=0)
+
+        added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]
+        assert len(added_kan_actions) == 1
+        assert added_kan_actions[0].tiles is not None
+        assert _string_to_34_tile(man="1") in added_kan_actions[0].tiles

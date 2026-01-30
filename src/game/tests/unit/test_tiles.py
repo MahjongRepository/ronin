@@ -3,6 +3,7 @@ Unit tests for tile representation utilities.
 """
 
 import pytest
+from mahjong.tile import TilesConverter
 
 from game.logic.tiles import (
     CHUN_34,
@@ -266,36 +267,35 @@ class TestFormatHand:
         assert format_hand([]) == ""
 
     def test_single_tile(self):
-        # 1m (tile_id 0)
-        assert format_hand([0]) == "1m"
+        assert format_hand(TilesConverter.string_to_136_array(man="1")) == "1m"
 
     def test_man_tiles_grouped(self):
-        # 1m, 2m, 3m
-        assert format_hand([0, 4, 8]) == "123m"
+        assert format_hand(TilesConverter.string_to_136_array(man="123")) == "123m"
 
     def test_mixed_suits(self):
-        # 1m, 1p, 1s
-        hand = [0, 36, 72]
+        hand = TilesConverter.string_to_136_array(man="1", pin="1", sou="1")
         result = format_hand(hand)
         assert result == "1m 1p 1s"
 
     def test_honor_tiles(self):
-        # east, south, haku
-        hand = [108, 112, 124]
+        hand = TilesConverter.string_to_136_array(honors="125")
         result = format_hand(hand)
         assert result == "E S Haku"
 
     def test_full_hand(self):
         # typical starting hand: 123m 456p 789s EEE Haku Haku
-        hand = [0, 4, 8, 48, 52, 56, 96, 100, 104, 108, 109, 110, 124, 125]
+        hand = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="11155")
         result = format_hand(hand)
         assert "123m" in result
         assert "456p" in result
         assert "789s" in result
 
     def test_tiles_are_sorted(self):
-        # hand in random order
-        hand = [72, 0, 36]  # 1s, 1m, 1p
+        # hand in reverse suit order to verify sorting
+        sou = TilesConverter.string_to_136_array(sou="1")
+        man = TilesConverter.string_to_136_array(man="1")
+        pin = TilesConverter.string_to_136_array(pin="1")
+        hand = [*sou, *man, *pin]
         result = format_hand(hand)
         # should be sorted: man, pin, sou
         assert result == "1m 1p 1s"
@@ -306,12 +306,15 @@ class TestSortTiles:
         assert sort_tiles([]) == []
 
     def test_already_sorted(self):
-        tiles = [0, 4, 8]
-        assert sort_tiles(tiles) == [0, 4, 8]
+        tiles = TilesConverter.string_to_136_array(man="123")
+        assert sort_tiles(tiles) == TilesConverter.string_to_136_array(man="123")
 
     def test_unsorted_tiles(self):
-        tiles = [72, 36, 0]  # 1s, 1p, 1m
-        assert sort_tiles(tiles) == [0, 36, 72]
+        sou = TilesConverter.string_to_136_array(sou="1")
+        pin = TilesConverter.string_to_136_array(pin="1")
+        man = TilesConverter.string_to_136_array(man="1")
+        tiles = [*sou, *pin, *man]
+        assert sort_tiles(tiles) == TilesConverter.string_to_136_array(man="1", pin="1", sou="1")
 
     def test_same_type_different_copies(self):
         # different copies of 1m

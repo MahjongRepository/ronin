@@ -2,8 +2,11 @@
 Unit tests for game initialization and progression.
 """
 
-from game.logic.enums import AbortiveDrawType, BotType
+from unittest.mock import MagicMock
+
+from game.logic.enums import AbortiveDrawType, BotType, RoundResultType
 from game.logic.game import (
+    _process_draw_result,
     check_game_end,
     finalize_game,
     init_game,
@@ -618,3 +621,62 @@ class TestFinalizeGame:
         assert standings[1].seat == 1
         assert standings[2].seat == 2
         assert standings[3].seat == 3
+
+
+class TestProcessDrawResultFallback:
+    def _create_game_state(self) -> MahjongGameState:
+        """Create a game state for testing."""
+        players = [
+            MahjongPlayer(seat=0, name="Player1", score=25000),
+            MahjongPlayer(seat=1, name="Bot1", is_bot=True, score=25000),
+            MahjongPlayer(seat=2, name="Bot2", is_bot=True, score=25000),
+            MahjongPlayer(seat=3, name="Bot3", is_bot=True, score=25000),
+        ]
+        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
+        return MahjongGameState(
+            round_state=round_state,
+            round_number=0,
+            unique_dealers=1,
+            honba_sticks=0,
+            riichi_sticks=0,
+        )
+
+    def test_process_draw_result_fallback_returns_false(self):
+        """Exhaustive draw type that is not an ExhaustiveDrawResult falls through to False."""
+        game_state = self._create_game_state()
+        # mock a result with EXHAUSTIVE_DRAW type but not an ExhaustiveDrawResult instance
+        mock_result = MagicMock()
+        mock_result.type = RoundResultType.EXHAUSTIVE_DRAW
+        result = _process_draw_result(game_state, mock_result)
+        assert result is False
+        assert game_state.honba_sticks == 1
+
+
+class TestProcessRoundEndFallback:
+    def _create_game_state(self) -> MahjongGameState:
+        """Create a game state for testing."""
+        players = [
+            MahjongPlayer(seat=0, name="Player1", score=25000),
+            MahjongPlayer(seat=1, name="Bot1", is_bot=True, score=25000),
+            MahjongPlayer(seat=2, name="Bot2", is_bot=True, score=25000),
+            MahjongPlayer(seat=3, name="Bot3", is_bot=True, score=25000),
+        ]
+        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
+        return MahjongGameState(
+            round_state=round_state,
+            round_number=0,
+            unique_dealers=1,
+            honba_sticks=0,
+            riichi_sticks=0,
+        )
+
+    def test_process_round_end_unknown_result_type_does_not_rotate(self):
+        """Unknown result type falls through to should_rotate=False."""
+        game_state = self._create_game_state()
+        mock_result = MagicMock()
+        mock_result.type = "unknown_type"
+        mock_result.tempai_seats = []
+        process_round_end(game_state, mock_result)
+        assert game_state.round_state.dealer_seat == 0
+        assert game_state.unique_dealers == 1
+        assert game_state.round_number == 1

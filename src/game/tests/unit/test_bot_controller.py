@@ -3,6 +3,7 @@ Unit tests for BotController.
 """
 
 import pytest
+from mahjong.tile import TilesConverter
 
 from game.logic.bot import BotPlayer, BotStrategy
 from game.logic.bot_controller import BotController
@@ -17,6 +18,7 @@ from game.messaging.events import (
     convert_events,
     extract_round_result,
 )
+from game.tests.unit.helpers import _string_to_34_tile, _string_to_136_tile
 
 
 class TestBotControllerInit:
@@ -86,7 +88,11 @@ class TestBotControllerHasHumanCaller:
             ServiceEvent(
                 event="call_prompt",
                 data=CallPromptEvent(
-                    call_type=CallType.MELD, tile_id=0, from_seat=0, callers=[0, 1], target="all"
+                    call_type=CallType.MELD,
+                    tile_id=_string_to_136_tile(man="1"),
+                    from_seat=0,
+                    callers=[0, 1],
+                    target="all",
                 ),
             )
         ]
@@ -103,7 +109,11 @@ class TestBotControllerHasHumanCaller:
             ServiceEvent(
                 event="call_prompt",
                 data=CallPromptEvent(
-                    call_type=CallType.MELD, tile_id=0, from_seat=0, callers=[1, 2], target="all"
+                    call_type=CallType.MELD,
+                    tile_id=_string_to_136_tile(man="1"),
+                    from_seat=0,
+                    callers=[1, 2],
+                    target="all",
                 ),
             )
         ]
@@ -121,11 +131,15 @@ class TestBotControllerHasHumanCaller:
                 event="call_prompt",
                 data=CallPromptEvent(
                     call_type=CallType.MELD,
-                    tile_id=0,
+                    tile_id=_string_to_136_tile(man="1"),
                     from_seat=0,
                     callers=[
                         MeldCaller(
-                            seat=0, call_type=MeldCallType.CHI, tile_34=5, priority=2, options=[(4, 8)]
+                            seat=0,
+                            call_type=MeldCallType.CHI,
+                            tile_34=_string_to_34_tile(man="6"),
+                            priority=2,
+                            options=[(_string_to_136_tile(man="2"), _string_to_136_tile(man="3"))],
                         )
                     ],
                     target="all",
@@ -142,7 +156,10 @@ class TestBotControllerHasHumanCaller:
         round_state = self._create_round_state([1, 2, 3])
 
         events = [
-            ServiceEvent(event="discard", data=DrawEvent(seat=0, tile_id=0, tile="1m", target="seat_0")),
+            ServiceEvent(
+                event="discard",
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+            ),
         ]
 
         assert controller.has_human_caller(round_state, events) is False
@@ -162,17 +179,25 @@ class TestBotControllerParseCallerInfo:
         """_parse_caller_info handles MeldCaller with seat and options."""
         controller = BotController({})
 
-        caller = MeldCaller(seat=1, call_type=MeldCallType.CHI, tile_34=5, priority=2, options=[(4, 8)])
+        caller = MeldCaller(
+            seat=1,
+            call_type=MeldCallType.CHI,
+            tile_34=_string_to_34_tile(man="6"),
+            priority=2,
+            options=[(_string_to_136_tile(man="2"), _string_to_136_tile(man="3"))],
+        )
         seat, options = controller._parse_caller_info(caller)
 
         assert seat == 1
-        assert options == [(4, 8)]
+        assert options == [(_string_to_136_tile(man="2"), _string_to_136_tile(man="3"))]
 
     def test_parse_caller_info_meld_caller_without_options(self):
         """_parse_caller_info handles MeldCaller without options."""
         controller = BotController({})
 
-        caller = MeldCaller(seat=3, call_type=MeldCallType.PON, tile_34=5, priority=1)
+        caller = MeldCaller(
+            seat=3, call_type=MeldCallType.PON, tile_34=_string_to_34_tile(man="6"), priority=1
+        )
         seat, options = controller._parse_caller_info(caller)
 
         assert seat == 3
@@ -197,7 +222,7 @@ class TestBotControllerEvaluateBotCalls:
         round_state = self._create_round_state()
 
         ron_callers, meld_caller, meld_type, sequence_tiles = controller._evaluate_bot_calls(
-            round_state, callers=[0], call_type="ron", tile_id=0
+            round_state, callers=[0], call_type="ron", tile_id=_string_to_136_tile(man="1")
         )
 
         assert ron_callers == []
@@ -209,7 +234,7 @@ class TestBotControllerEvaluateBotCalls:
 class TestConvertEvents:
     def test_convert_events_handles_typed_events(self):
         """convert_events converts typed events to ServiceEvent format."""
-        events = [DrawEvent(seat=0, tile_id=0, tile="1m", target="seat_0")]
+        events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0")]
 
         result = convert_events(events)
 
@@ -231,7 +256,10 @@ class TestExtractRoundResult:
             riichi_sticks_collected=0,
         )
         events = [
-            ServiceEvent(event="draw", data=DrawEvent(seat=0, tile_id=0, tile="1m", target="seat_0")),
+            ServiceEvent(
+                event="draw",
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+            ),
             ServiceEvent(event="round_end", data=RoundEndEvent(result=tsumo_result, target="all")),
         ]
 
@@ -245,8 +273,14 @@ class TestExtractRoundResult:
     def test_extract_round_result_no_round_end(self):
         """extract_round_result returns None when no round_end event."""
         events = [
-            ServiceEvent(event="draw", data=DrawEvent(seat=0, tile_id=0, tile="1m", target="seat_0")),
-            ServiceEvent(event="discard", data=DrawEvent(seat=0, tile_id=0, tile="1m", target="seat_0")),
+            ServiceEvent(
+                event="draw",
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+            ),
+            ServiceEvent(
+                event="discard",
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+            ),
         ]
 
         result = extract_round_result(events)
@@ -258,7 +292,7 @@ class TestBotControllerProcessBotTurns:
     def _create_game_state(self, current_seat: int = 1) -> MahjongGameState:
         """Create a minimal game state for testing bot turns."""
         # create a hand that will result in a simple discard (not winning)
-        non_winning_hand = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104]
+        non_winning_hand = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
 
         players = [
             MahjongPlayer(seat=0, name="Human", is_bot=False, tiles=list(non_winning_hand[:13])),
@@ -270,7 +304,7 @@ class TestBotControllerProcessBotTurns:
             players=players,
             wall=list(range(50)),
             dead_wall=list(range(14)),
-            dora_indicators=[0],
+            dora_indicators=TilesConverter.string_to_136_array(man="1"),
             current_player_seat=current_seat,
             phase=RoundPhase.PLAYING,
         )
@@ -318,7 +352,10 @@ class TestBotControllerProcessCallResponses:
         players = [
             MahjongPlayer(seat=0, name="Human", is_bot=False, tiles=[]),
             MahjongPlayer(
-                seat=1, name="Bot1", is_bot=True, tiles=[0, 1, 4, 8]
+                seat=1,
+                name="Bot1",
+                is_bot=True,
+                tiles=TilesConverter.string_to_136_array(man="1123"),
             ),  # has tiles for potential pon
             MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[]),
             MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[]),
@@ -340,7 +377,12 @@ class TestBotControllerProcessCallResponses:
 
         events = await controller.process_call_responses(
             game_state,
-            [ServiceEvent(event="discard", data=DrawEvent(seat=0, tile_id=0, tile="1m", target="seat_0"))],
+            [
+                ServiceEvent(
+                    event="discard",
+                    data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+                )
+            ],
         )
 
         assert events == []
@@ -363,9 +405,16 @@ class TestBotControllerProcessCallResponses:
                 event="call_prompt",
                 data=CallPromptEvent(
                     call_type="meld",
-                    tile_id=2,
+                    tile_id=TilesConverter.string_to_136_array(man="111")[2],
                     from_seat=0,
-                    callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=0, priority=1)],
+                    callers=[
+                        MeldCaller(
+                            seat=1,
+                            call_type=MeldCallType.PON,
+                            tile_34=_string_to_34_tile(man="1"),
+                            priority=1,
+                        )
+                    ],
                     target="all",
                 ),
             )

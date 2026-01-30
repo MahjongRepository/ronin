@@ -295,7 +295,6 @@ class BotController:
         # check if the discarder had a pending riichi declaration
         discarder = round_state.players[from_seat]
         if discarder.discards and discarder.discards[-1].is_riichi_discard:
-            # finalize the riichi declaration
             declare_riichi(discarder, game_state)
             result_events.extend(convert_events([RiichiDeclaredEvent(seat=from_seat, target="all")]))
 

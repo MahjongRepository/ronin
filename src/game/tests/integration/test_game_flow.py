@@ -265,7 +265,7 @@ class TestPonCallFlow:
 
     def test_pon_call_creates_meld(self):
         """Pon call creates a meld and sets current player."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=1.0)
         round_state = game_state.round_state
 
         caller_seat = 1
@@ -280,15 +280,13 @@ class TestPonCallFlow:
                 tile_counts[t34] = []
             tile_counts[t34].append(t)
 
-        # find a tile we can use for pon
         pon_tile_34 = None
         for t34, tiles in tile_counts.items():
             if len(tiles) >= 2:
                 pon_tile_34 = t34
                 break
 
-        if pon_tile_34 is None:
-            pytest.skip("No suitable tile for pon test in this deal")
+        assert pon_tile_34 is not None
 
         # get a tile_id of this type (simulating discard from seat 0)
         pon_tile_id = tile_counts[pon_tile_34][0]
@@ -309,7 +307,7 @@ class TestPonCallFlow:
 
     def test_pon_clears_all_ippatsu(self):
         """Pon call clears ippatsu for all players."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), seed=1.0)
         round_state = game_state.round_state
 
         # set ippatsu for multiple players
@@ -333,8 +331,7 @@ class TestPonCallFlow:
                 pon_tile_34 = t34
                 break
 
-        if pon_tile_34 is None:
-            pytest.skip("No suitable tile for pon test in this deal")
+        assert pon_tile_34 is not None
 
         pon_tile_id = tile_counts[pon_tile_34][0]
         call_pon(round_state, caller_seat, 0, pon_tile_id)

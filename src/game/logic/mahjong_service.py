@@ -314,7 +314,7 @@ class MahjongGameService(GameService):
         if timeout_type == TimeoutType.MELD:
             return await self._dispatch_action(game_id, seat, GameAction.PASS, {})
 
-        return []
+        raise ValueError(f"Unknown timeout type: {timeout_type}")
 
     def _find_player_seat(self, game_state: MahjongGameState, player_name: str) -> int | None:
         """Find the seat number for a human player by name."""

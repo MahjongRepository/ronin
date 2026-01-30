@@ -3,6 +3,7 @@ Unit tests for riichi declaration and related mechanics.
 """
 
 from mahjong.meld import Meld
+from mahjong.tile import TilesConverter
 
 from game.logic.riichi import (
     FIRST_URA_DORA_INDEX,
@@ -23,13 +24,13 @@ class TestCanDeclareRiichi:
         """
         Create a tempai hand: 11m 234m 567m 888m 9m, waiting for 9m pair.
         """
-        return [0, 1, 4, 8, 12, 16, 20, 24, 28, 29, 30, 32, 33]
+        return TilesConverter.string_to_136_array(man="1123456788899")
 
     def _create_non_tempai_hand(self) -> list[int]:
         """
         Create a non-tempai hand (random disconnected tiles).
         """
-        return [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96]
+        return TilesConverter.string_to_136_array(man="13579", pin="2468", sou="1357")
 
     def _create_player_and_round_state(
         self,
@@ -80,9 +81,11 @@ class TestCanDeclareRiichi:
 
     def test_cannot_declare_riichi_with_open_meld(self):
         """Player cannot declare riichi with an open meld."""
-        open_meld = Meld(meld_type=Meld.PON, tiles=[0, 1, 2], opened=True)
+        open_meld = Meld(
+            meld_type=Meld.PON, tiles=TilesConverter.string_to_136_array(man="111")[:3], opened=True
+        )
         # hand with open meld has fewer tiles (10 instead of 13)
-        tempai_hand_with_meld = [4, 8, 12, 16, 20, 24, 28, 29, 30, 32]
+        tempai_hand_with_meld = TilesConverter.string_to_136_array(man="2345678889")
         player, round_state = self._create_player_and_round_state(
             tiles=tempai_hand_with_meld,
             melds=[open_meld],
@@ -94,9 +97,11 @@ class TestCanDeclareRiichi:
 
     def test_can_declare_riichi_with_closed_kan(self):
         """Player can declare riichi with a closed kan (not an open meld)."""
-        closed_kan = Meld(meld_type=Meld.KAN, tiles=[0, 1, 2, 3], opened=False)
+        closed_kan = Meld(
+            meld_type=Meld.KAN, tiles=TilesConverter.string_to_136_array(man="1111"), opened=False
+        )
         # hand with closed kan has fewer tiles (10 instead of 13)
-        tempai_hand_with_kan = [4, 8, 12, 16, 20, 24, 28, 29, 30, 32]
+        tempai_hand_with_kan = TilesConverter.string_to_136_array(man="2345678889")
         player, round_state = self._create_player_and_round_state(
             tiles=tempai_hand_with_kan,
             melds=[closed_kan],
@@ -142,7 +147,7 @@ class TestCanDeclareRiichi:
 class TestDeclareRiichi:
     def _create_tempai_hand(self) -> list[int]:
         """Create a tempai hand."""
-        return [0, 1, 4, 8, 12, 16, 20, 24, 28, 29, 30, 32, 33]
+        return TilesConverter.string_to_136_array(man="1123456788899")
 
     def _create_game_state(
         self,
@@ -221,7 +226,9 @@ class TestDeclareRiichi:
         is added to player.discards. So for double riichi, len(discards) == 1.
         """
         player, game_state = self._create_game_state(
-            player_discards=[Discard(tile_id=100, is_riichi_discard=True)],  # riichi discard already added
+            player_discards=[
+                Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),
+            ],  # riichi discard already added
             players_with_open_hands=[],
         )
         assert player.is_daburi is False
@@ -238,8 +245,10 @@ class TestDeclareRiichi:
         """
         player, game_state = self._create_game_state(
             player_discards=[
-                Discard(tile_id=100),  # previous discard
-                Discard(tile_id=101, is_riichi_discard=True),  # riichi discard
+                Discard(tile_id=TilesConverter.string_to_136_array(sou="88")[0]),  # previous discard
+                Discard(
+                    tile_id=TilesConverter.string_to_136_array(sou="88")[1], is_riichi_discard=True
+                ),  # riichi discard
             ],
             players_with_open_hands=[],
         )
@@ -251,7 +260,9 @@ class TestDeclareRiichi:
     def test_no_double_riichi_if_open_hands_exist(self):
         """No double riichi if any player has called an open meld."""
         player, game_state = self._create_game_state(
-            player_discards=[Discard(tile_id=100, is_riichi_discard=True)],  # riichi discard already added
+            player_discards=[
+                Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),
+            ],  # riichi discard already added
             players_with_open_hands=[1],  # bot 1 has open hand
         )
 

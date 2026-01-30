@@ -95,16 +95,13 @@ def calculate_hand_value(
     dora_indicators = list(round_state.dora_indicators) if round_state.dora_indicators else None
 
     # get ura dora if riichi (one ura per dora indicator revealed)
-    if player.is_riichi and round_state.dead_wall:
-        num_ura = len(round_state.dora_indicators)
+    if player.is_riichi and round_state.dead_wall and round_state.dora_indicators:
         ura_indicators = []
-        for i in range(num_ura):
+        for i in range(len(round_state.dora_indicators)):
             ura_index = URA_DORA_START_INDEX + i
             if ura_index < len(round_state.dead_wall):
                 ura_indicators.append(round_state.dead_wall[ura_index])
         if ura_indicators:
-            if dora_indicators is None:
-                dora_indicators = []
             dora_indicators.extend(ura_indicators)
 
     calculator = HandCalculator()

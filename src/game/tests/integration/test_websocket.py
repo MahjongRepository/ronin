@@ -1,9 +1,12 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from starlette.testclient import TestClient
 
 from game.logic.mock import MockGameService
 from game.messaging.encoder import decode, encode
 from game.server.app import create_app
+from game.server.websocket import WebSocketConnection
 
 
 class TestWebSocketIntegration:
@@ -187,6 +190,83 @@ class TestWebSocketIntegration:
         for game in data["games"]:
             assert game["player_count"] == 0
             assert game["max_players"] == 4
+
+
+class TestHealthEndpoint:
+    @pytest.fixture
+    def client(self):
+        app = create_app(game_service=MockGameService())
+        return TestClient(app)
+
+    def test_health_returns_ok(self, client):
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+
+class TestStatusEndpoint:
+    @pytest.fixture
+    def client(self):
+        app = create_app(game_service=MockGameService())
+        return TestClient(app)
+
+    def test_status_returns_game_info(self, client):
+        response = client.get("/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == {"status": "ok", "active_games": 0, "max_games": 100}
+
+    def test_status_reflects_active_games(self, client):
+        client.post("/games", json={"game_id": "g1"})
+        response = client.get("/status")
+        data = response.json()
+        assert data["active_games"] == 1
+
+
+class TestCreateGameEndpoint:
+    @pytest.fixture
+    def client(self):
+        app = create_app(game_service=MockGameService())
+        return TestClient(app)
+
+    def test_create_game_success(self, client):
+        response = client.post("/games", json={"game_id": "test-game"})
+        assert response.status_code == 201
+        assert response.json() == {"game_id": "test-game", "status": "created"}
+
+    def test_create_game_invalid_body(self, client):
+        response = client.post("/games", content=b"not json")
+        assert response.status_code == 400
+
+    def test_create_game_invalid_game_id(self, client):
+        response = client.post("/games", json={"game_id": "bad id!"})
+        assert response.status_code == 400
+
+    def test_create_game_duplicate(self, client):
+        client.post("/games", json={"game_id": "dupe"})
+        response = client.post("/games", json={"game_id": "dupe"})
+        assert response.status_code == 409
+        assert response.json() == {"error": "Game already exists"}
+
+    def test_create_game_at_capacity(self, client):
+        # create MAX_GAMES games to fill capacity
+        for i in range(100):
+            resp = client.post("/games", json={"game_id": f"g{i}"})
+            assert resp.status_code == 201
+        response = client.post("/games", json={"game_id": "overflow"})
+        assert response.status_code == 503
+        assert response.json() == {"error": "Server at capacity"}
+
+
+class TestWebSocketConnection:
+    async def test_close_delegates_to_underlying_websocket(self):
+        mock_ws = MagicMock()
+        mock_ws.close = AsyncMock()
+        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
+
+        await conn.close(code=1001, reason="going away")
+
+        mock_ws.close.assert_called_once_with(code=1001, reason="going away")
 
 
 class TestStaticFiles:

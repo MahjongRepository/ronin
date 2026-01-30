@@ -1,19 +1,16 @@
 """
-Unit tests for win detection.
+Unit tests for core win detection.
 """
 
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
-from game.logic.tiles import hand_to_34_array
 from game.logic.win import (
-    _melds_to_34_sets,
     can_call_ron,
     can_declare_tsumo,
     check_tsumo,
     get_waiting_tiles,
-    is_chankan_possible,
     is_chiihou,
     is_furiten,
     is_haitei,
@@ -98,7 +95,7 @@ class TestCanDeclareTsumo:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,  # east
-            dora_indicators=[0],  # 1m as dora indicator
+            dora_indicators=TilesConverter.string_to_136_array(man="1"),  # 1m as dora indicator
         )
 
     def test_closed_hand_can_declare(self):
@@ -256,8 +253,8 @@ class TestIsFuriten:
     def test_not_furiten_irrelevant_discards(self):
         # tempai waiting for 3p, discarded unrelated tiles
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        # discard 1m (tile_id 0)
-        discards = [Discard(tile_id=0)]
+        # discard 1m
+        discards = [Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0])]
         player = MahjongPlayer(seat=0, name="Player1", tiles=tiles, discards=discards)
 
         assert is_furiten(player) is False
@@ -265,8 +262,7 @@ class TestIsFuriten:
     def test_furiten_discarded_waiting_tile(self):
         # tempai waiting for 3p, already discarded 3p
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        # 3p in 136-format: pin starts at 36, 3p = 36 + 8 = 44 (for first 3p)
-        discards = [Discard(tile_id=44)]  # 3p
+        discards = [Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0])]
         player = MahjongPlayer(seat=0, name="Player1", tiles=tiles, discards=discards)
 
         assert is_furiten(player) is True
@@ -274,8 +270,10 @@ class TestIsFuriten:
     def test_furiten_multiple_discards_one_waiting(self):
         # tempai waiting for 3p or 6p, discarded 6p (one of the waits)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="4555")
-        # 6p in 136-format: 36 + 20 = 56 (first 6p)
-        discards = [Discard(tile_id=0), Discard(tile_id=56)]  # 1m, 6p
+        discards = [
+            Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0]),
+            Discard(tile_id=TilesConverter.string_to_136_array(pin="6")[0]),
+        ]
         player = MahjongPlayer(seat=0, name="Player1", tiles=tiles, discards=discards)
 
         assert is_furiten(player) is True
@@ -295,7 +293,7 @@ class TestCanCallRon:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,  # east
-            dora_indicators=[0],  # 1m as dora indicator
+            dora_indicators=TilesConverter.string_to_136_array(man="1"),  # 1m as dora indicator
         )
 
     def test_can_ron_closed_hand(self):
@@ -314,7 +312,7 @@ class TestCanCallRon:
         # tempai but furiten (discarded 3p)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         # discarded 3p already
-        discards = [Discard(tile_id=44)]  # 3p
+        discards = [Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0])]
         player = MahjongPlayer(seat=0, name="Player1", tiles=tiles, discards=discards, is_riichi=True)
         round_state = self._create_round_state()
 
@@ -387,93 +385,9 @@ class TestCanCallRon:
         round_state = self._create_round_state()
 
         # 5s completes the pair for tanyao (use different tile ID than the one in hand)
-        # hand has 5s (tile 88), so use 89 for the discarded 5s
-        discarded_tile = 89  # second 5s tile
+        discarded_tile = TilesConverter.string_to_136_array(sou="55")[1]
 
         assert can_call_ron(player, discarded_tile, round_state) is True
-
-
-class TestHandTo34Array:
-    def test_simple_hand(self):
-        # 111m (tile_ids 0,1,2) -> tile_34 index 0 should have count 3
-        tiles = [0, 1, 2]
-        result = hand_to_34_array(tiles)
-        assert result[0] == 3  # 1m count
-        assert sum(result) == 3
-
-    def test_mixed_suits(self):
-        # 1m, 1p, 1s
-        tiles = [0, 36, 72]  # 1m, 1p, 1s
-        result = hand_to_34_array(tiles)
-        assert result[0] == 1  # 1m
-        assert result[9] == 1  # 1p
-        assert result[18] == 1  # 1s
-        assert sum(result) == 3
-
-    def test_honors(self):
-        # E, S, W, N, Haku, Hatsu, Chun
-        tiles = [108, 112, 116, 120, 124, 128, 132]
-        result = hand_to_34_array(tiles)
-        assert result[27] == 1  # east
-        assert result[28] == 1  # south
-        assert result[29] == 1  # west
-        assert result[30] == 1  # north
-        assert result[31] == 1  # haku
-        assert result[32] == 1  # hatsu
-        assert result[33] == 1  # chun
-
-
-class TestMeldsTo34Sets:
-    def test_no_melds(self):
-        result = _melds_to_34_sets([])
-        assert result is None
-
-    def test_empty_list(self):
-        result = _melds_to_34_sets([])
-        assert result is None
-
-    def test_pon_meld(self):
-        # pon of 1m (tiles 0,1,2 -> tile_34 = 0)
-        pon = Meld(meld_type=Meld.PON, tiles=[0, 1, 2], opened=True)
-        result = _melds_to_34_sets([pon])
-        assert result == [[0, 0, 0]]
-
-    def test_chi_meld(self):
-        # chi of 123m (tiles 0,4,8 -> tile_34 = 0,1,2)
-        chi = Meld(meld_type=Meld.CHI, tiles=[0, 4, 8], opened=True)
-        result = _melds_to_34_sets([chi])
-        assert result == [[0, 1, 2]]
-
-    def test_multiple_melds(self):
-        # pon of 1m and chi of 123p
-        pon = Meld(meld_type=Meld.PON, tiles=[0, 1, 2], opened=True)
-        chi = Meld(meld_type=Meld.CHI, tiles=[36, 40, 44], opened=True)  # 1p,2p,3p
-        result = _melds_to_34_sets([pon, chi])
-        assert result == [[0, 0, 0], [9, 10, 11]]
-
-
-class TestHasOpenMelds:
-    def test_no_melds(self):
-        player = MahjongPlayer(seat=0, name="Player1")
-        assert player.has_open_melds() is False
-
-    def test_open_pon(self):
-        pon = Meld(meld_type=Meld.PON, tiles=[0, 1, 2], opened=True)
-        player = MahjongPlayer(seat=0, name="Player1", melds=[pon])
-        assert player.has_open_melds() is True
-
-    def test_closed_kan(self):
-        # closed kan is not an open meld
-        kan = Meld(meld_type=Meld.KAN, tiles=[0, 1, 2, 3], opened=False)
-        player = MahjongPlayer(seat=0, name="Player1", melds=[kan])
-        assert player.has_open_melds() is False
-
-    def test_mixed_melds(self):
-        # one closed kan, one open pon
-        kan = Meld(meld_type=Meld.KAN, tiles=[0, 1, 2, 3], opened=False)
-        pon = Meld(meld_type=Meld.PON, tiles=[4, 5, 6], opened=True)
-        player = MahjongPlayer(seat=0, name="Player1", melds=[kan, pon])
-        assert player.has_open_melds() is True
 
 
 class TestIsHaitei:
@@ -617,121 +531,3 @@ class TestIsChiihou:
             players_with_open_hands=[2],  # someone called a meld
         )
         assert is_chiihou(players[1], round_state) is False
-
-
-class TestIsChankanPossible:
-    def test_chankan_when_waiting_on_tile(self):
-        # player 0 is waiting for 3p (tempai hand 123m 456m 789m 12p 55p)
-        tiles_p0 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        players = [
-            MahjongPlayer(seat=0, name="Player0", tiles=tiles_p0, is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
-        ]
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=2,
-            round_wind=0,
-            players=players,
-            dora_indicators=[0],
-        )
-
-        # player 2 tries to add kan of 3p
-        kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-        assert 0 in chankan_seats
-
-    def test_no_chankan_when_not_waiting(self):
-        # player 0 is waiting for 3p (tempai hand 123m 456m 789m 12p 55p)
-        tiles_p0 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        players = [
-            MahjongPlayer(seat=0, name="Player0", tiles=tiles_p0, is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
-        ]
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=2,
-            round_wind=0,
-            players=players,
-            dora_indicators=[0],
-        )
-
-        # player 2 tries to add kan of 9s (no one waiting on it)
-        kan_tile = TilesConverter.string_to_136_array(sou="9")[0]
-
-        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-        assert chankan_seats == []
-
-    def test_no_chankan_when_furiten(self):
-        # player 0 is waiting for 3p but has discarded 3p (furiten)
-        tiles_p0 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        discards_p0 = [Discard(tile_id=44)]  # 3p already discarded
-        players = [
-            MahjongPlayer(seat=0, name="Player0", tiles=tiles_p0, discards=discards_p0, is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
-        ]
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=2,
-            round_wind=0,
-            players=players,
-            dora_indicators=[0],
-        )
-
-        # player 2 tries to add kan of 3p
-        kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-        assert 0 not in chankan_seats
-
-    def test_no_chankan_for_self(self):
-        # player 2 is waiting for 3p and calls kan on 3p - they can't chankan themselves
-        tiles_p2 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        players = [
-            MahjongPlayer(seat=0, name="Player0"),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2", tiles=tiles_p2, is_riichi=True),
-            MahjongPlayer(seat=3, name="Player3"),
-        ]
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=2,
-            round_wind=0,
-            players=players,
-            dora_indicators=[0],
-        )
-
-        kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-        assert 2 not in chankan_seats
-
-    def test_multiple_chankan_players(self):
-        # both player 0 and player 3 are waiting for 3p
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        players = [
-            MahjongPlayer(seat=0, name="Player0", tiles=list(tiles), is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3", tiles=list(tiles), is_riichi=True),
-        ]
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=2,
-            round_wind=0,
-            players=players,
-            dora_indicators=[0],
-        )
-
-        kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-        assert 0 in chankan_seats
-        assert 3 in chankan_seats
-        assert len(chankan_seats) == 2

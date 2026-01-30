@@ -50,15 +50,17 @@ class TestCalculateHandValue:
         Sets up a mid-game state (some discards) to avoid triggering Tenhou.
         """
         players = [MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4)]
+        dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
+        dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
         round_state = MahjongRoundState(
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,  # east
-            dora_indicators=[0],  # 1m as dora indicator (makes 2m dora)
+            dora_indicators=dora_indicator_tiles,  # 1m as dora indicator (makes 2m dora)
             wall=list(range(70)),  # some tiles in wall (not empty)
             dead_wall=list(range(14)),  # dummy dead wall for ura dora
             players=players,
-            all_discards=[1, 2, 3, 4],  # some discards to avoid tenhou/chiihou
+            all_discards=dummy_discard_tiles,  # some discards to avoid tenhou/chiihou
         )
         return MahjongGameState(round_state=round_state)
 
@@ -407,7 +409,7 @@ class TestApplyNagashiManganScore:
                 seat=i,
                 name=f"Player{i}",
                 score=25000,
-                tiles=[0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96],
+                tiles=TilesConverter.string_to_136_array(man="13579", pin="2468", sou="1357"),
             )
             for i in range(4)
         ]

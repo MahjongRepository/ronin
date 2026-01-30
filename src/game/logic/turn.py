@@ -90,7 +90,6 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
     # draw a tile
     drawn_tile = draw_tile(round_state)
     if drawn_tile is None:
-        # wall exhausted during draw (shouldn't happen if check above works)
         result = process_exhaustive_draw(game_state)
         round_state.phase = RoundPhase.FINISHED
         events.append(RoundEndEvent(result=result, target="all"))
