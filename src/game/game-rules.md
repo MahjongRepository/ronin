@@ -38,6 +38,8 @@ in hand plus the winning tile).
     * Negative Score (Tobi): The game ends immediately if a player's score drops below zero (runs out of points).
     * Target Score: If the target score (typically 30,000) is not met by the end of the final round (South 4), the game
       may extend into a "West Round" (Sudden Death) until a player exceeds the target or the round ends.
+    * Tie-breaking: When two or more players have the same score, the player closer to the starting dealer (起家,
+      seat 0) ranks higher.
 
 ### 3. Turn Mechanics
 
@@ -119,8 +121,24 @@ A player with a concealed hand that needs only one tile to win (*tenpai*) may de
 
 * Tenpai: The state of waiting for one specific tile to complete the hand.
 * Noten: The state of not being ready to win.
+* Keishiki Tenpai (形式聴牌): Structural tenpai counts for noten payments at an exhaustive draw, even if all winning
+  tiles are visible elsewhere (in other players' discards, etc.). Exception: pure karaten (all 4 copies of every
+  winning tile are in the player's own hand and melds) is treated as noten.
 
-### 8. Liability (Pao)
+### 8. Furiten
+
+Furiten (振聴) prevents a player from winning by Ron (discard) under certain conditions. A player in furiten can
+still win by Tsumo (self-draw).
+
+* Discard Furiten (permanent): A player who has discarded a tile matching any of their current waits cannot call Ron.
+  This furiten persists as long as the wait includes a previously discarded tile.
+* Temporary Furiten: A player who passes on a Ron opportunity (including Chankan Ron) cannot call Ron until their next
+  discard. This resets when the player makes their next discard.
+* Riichi Furiten: A riichi player whose winning tile passes by (for any reason, including being already in furiten or
+  explicitly passing) becomes permanently unable to call Ron for the rest of the hand. This never clears within the
+  current hand.
+
+### 9. Liability (Pao)
 
 A specific penalty rule applies to the "Big Three Dragons" and "Big Four Winds" hands.
 
@@ -131,7 +149,7 @@ A specific penalty rule applies to the "Big Three Dragons" and "Big Four Winds" 
     * If the hand is won by discard (Ron) from another player, the liable player and the discarder split the payment
       50/50.
 
-### 9. Winning
+### 10. Winning
 
 * Self-Draw (Tsumo): Winning on a tile drawn from the wall or dead wall.
 * Discard (Ron): Winning on a tile discarded by an opponent.
@@ -142,7 +160,7 @@ A specific penalty rule applies to the "Big Three Dragons" and "Big Four Winds" 
   discarder pays both winners. If all three opponents declare Ron on the same discard (Triple Ron), the hand ends in an
   Abortive Draw with no score changes.
 
-### 10. End of Hand
+### 11. End of Hand
 
 A hand ends in one of three ways:
 
@@ -165,11 +183,38 @@ A hand ends in one of three ways:
     * *Four Kans:* Four quads are declared by two or more different players.
     * *Triple Ron:* All three opponents declare Ron on the same discard. The hand ends with no score changes.
 
-### 11. Special Mechanics
+### 12. Special Mechanics
 
 * Dora: Specific tiles that add value to the hand.
     * Red Dora (Akadora): The set contains red versions of #5 tiles (one for each suit) which act as permanent Dora.
+* Renhou (Blessing of Man): A non-dealer wins by Ron before their first draw, with no calls (including closed kans)
+  having been made by any player. Scored as a 5-han yaku (mangan level).
+* Double Yakuman: Four hands score as double yakuman (2x the base yakuman value):
+    * Daburu Kokushi Musou (ダブル国士無双): Thirteen Orphans with a 13-sided wait (waiting on any of the 13
+      terminal/honor tiles).
+    * Suuankou Tanki (四暗刻単騎): Four Concealed Triplets with a pair wait.
+    * Daburu Chuuren Poutou (ダブル九蓮宝燈): Nine Gates with a 9-sided wait (1112345678999 + any tile in the suit).
+    * Daisuushii (大四喜): Big Four Winds (four wind triplets).
+    * Kazoe yakuman (13+ han from regular yaku) remains at single yakuman level.
 * Nagashi Mangan: A special condition occurring at an Exhaustive Draw.
     * If a player's discard pile consists *only* of terminal and honor tiles, and none of their discards were claimed by
       opponents, they receive a special payment.
     * This is treated as a special draw, not a win. No Riichi sticks are collected, and no Honba is added.
+
+### 13. Uma/Oka (End-Game Scoring)
+
+After the game ends, raw scores are adjusted using the Tenhou-standard uma/oka system
+(25000点持ち/30000点返し, ウマ10-20).
+
+* Oka (オカ): Each player starts with 25,000 but the target is 30,000. The difference of 5,000 per player (20,000
+  total, or 20 points after dividing by 1,000) is awarded as a bonus to 1st place.
+* Uma (ウマ): Placement bonus/penalty applied after oka. Format 10-20 means 3rd-to-2nd pays 10, 4th-to-1st pays 20.
+  Applied as: 1st +20, 2nd +10, 3rd -10, 4th -20.
+* Calculation:
+    1. Subtract target score (30,000) from each player's raw score.
+    2. Divide by 1,000.
+    3. Round using goshashōnyū (五捨六入): remainder of 500 or less rounds toward zero, remainder of 600 or more
+       rounds away from zero.
+    4. Add oka bonus (+20) to 1st place.
+    5. Apply uma spread.
+    6. Adjust 1st place score to ensure the sum of all final scores is zero.

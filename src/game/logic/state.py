@@ -2,14 +2,16 @@
 Game state models for Mahjong.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 
 from mahjong.meld import Meld
 
-from game.logic.enums import MeldViewType, WindName
+from game.logic.enums import CallType, GameAction, MeldViewType, WindName
 from game.logic.tiles import format_hand, tile_to_string
-from game.logic.types import DiscardView, GameView, MeldView, PlayerView, TileView
+from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView, TileView
 
 NUM_WINDS = 4
 
@@ -41,6 +43,27 @@ class Discard:
 
 
 @dataclass
+class CallResponse:
+    """A player's recorded response to a call prompt."""
+
+    seat: int
+    action: GameAction
+    sequence_tiles: tuple[int, int] | None = None  # for chi: the chosen sequence tiles
+
+
+@dataclass
+class PendingCallPrompt:
+    """Tracks pending call responses from eligible players."""
+
+    call_type: CallType
+    tile_id: int
+    from_seat: int
+    pending_seats: set[int]  # seats that haven't responded yet
+    callers: list[int] | list[MeldCaller]  # original callers list
+    responses: list[CallResponse] = field(default_factory=list)
+
+
+@dataclass
 class MahjongPlayer:
     """
     Represents a player in a mahjong game.
@@ -48,7 +71,6 @@ class MahjongPlayer:
 
     seat: int  # 0-3
     name: str
-    is_bot: bool = False
 
     # hand state
     tiles: list[int] = field(default_factory=list)  # tiles in hand (136-format)
@@ -66,6 +88,8 @@ class MahjongPlayer:
         default_factory=list
     )  # tile_34 values forbidden for discard after meld call
     pao_seat: int | None = None  # seat of player liable for pao (None if no liability)
+    is_temporary_furiten: bool = False  # passed on ron, cannot ron until next discard
+    is_riichi_furiten: bool = False  # riichi player missed a winning tile, permanent for this hand
 
     # score
     score: int = 25000
@@ -107,6 +131,9 @@ class MahjongRoundState:
     # phase
     phase: RoundPhase = RoundPhase.WAITING
 
+    # pending call prompt for multi-caller response collection
+    pending_call_prompt: PendingCallPrompt | None = None
+
 
 @dataclass
 class MahjongGameState:
@@ -131,7 +158,7 @@ class MahjongGameState:
     seed: float = 0.0
 
 
-def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
+def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int] | None = None) -> GameView:
     """
     Return the visible game state for a specific player.
 
@@ -164,7 +191,7 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
             PlayerView(
                 seat=p.seat,
                 name=p.name,
-                is_bot=p.is_bot,
+                is_bot=p.seat in (bot_seats or set()),
                 score=p.score,
                 is_riichi=p.is_riichi,
                 discards=[

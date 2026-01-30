@@ -323,7 +323,7 @@ class TestSessionManagerTimers:
         await manager.join_game(conn, "game1", "Alice")
         conn._outbox.clear()
 
-        await manager._handle_timeout("game1", TimeoutType.TURN)
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         # mock service returns a timeout_turn event with target "all"
         timeout_msgs = [
@@ -341,7 +341,7 @@ class TestSessionManagerTimers:
         await manager.join_game(conn, "game1", "Alice")
         conn._outbox.clear()
 
-        await manager._handle_timeout("game1", TimeoutType.MELD)
+        await manager._handle_timeout("game1", TimeoutType.MELD, seat=0)
 
         timeout_msgs = [
             m
@@ -353,7 +353,7 @@ class TestSessionManagerTimers:
     async def test_timeout_on_missing_game_does_nothing(self, manager):
         """Timeout on a non-existent game is silently ignored."""
         # should not raise
-        await manager._handle_timeout("nonexistent", TimeoutType.TURN)
+        await manager._handle_timeout("nonexistent", TimeoutType.TURN, seat=0)
 
     async def test_timeout_on_game_without_lock_does_nothing(self, manager):
         """Timeout when lock has been cleaned up is silently ignored."""
@@ -366,7 +366,7 @@ class TestSessionManagerTimers:
         manager._game_locks.pop("game1", None)
         conn._outbox.clear()
 
-        await manager._handle_timeout("game1", TimeoutType.TURN)
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         # no events broadcast
         timeout_msgs = [m for m in conn.sent_messages if m.get("type") == ServerMessageType.GAME_EVENT]
@@ -497,36 +497,39 @@ class TestSessionManagerTimerIntegration:
         manager._connections[conn.connection_id] = conn
         return game, player, conn
 
-    def test_get_human_player_returns_seated_player(self, manager):
-        """_get_human_player returns the first player with an assigned seat."""
+    def test_get_player_at_seat_returns_player(self, manager):
+        """_get_player_at_seat returns the player at the specified seat."""
         game, _player, _conn = self._make_game_with_human(manager)
 
-        result = manager._get_human_player(game)
+        result = manager._get_player_at_seat(game, 0)
         assert result is not None
         assert result.name == "Alice"
         assert result.seat == 0
 
-    def test_get_human_player_returns_none_without_seated_players(self, manager):
-        """_get_human_player returns None when no player has a seat assigned."""
+    def test_get_player_at_seat_returns_none_for_unoccupied_seat(self, manager):
+        """_get_player_at_seat returns None when no player is at the given seat."""
+        game, _player, _conn = self._make_game_with_human(manager)
+
+        result = manager._get_player_at_seat(game, 1)
+        assert result is None
+
+    def test_get_player_at_seat_returns_none_for_unseated_player(self, manager):
+        """_get_player_at_seat returns None when no player has a seat assigned."""
         game = Game(game_id="game1")
         conn = MockConnection()
         player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
         game.players[conn.connection_id] = player
 
-        result = manager._get_human_player(game)
+        result = manager._get_player_at_seat(game, 0)
         assert result is None
 
-    def test_player_in_callers_with_int_list_match(self, manager):
-        """_player_in_callers returns True when seat is in integer callers list."""
-        assert manager._player_in_callers(0, [0, 1, 2]) is True
+    def test_get_caller_seats_with_int_list(self, manager):
+        """_get_caller_seats extracts seats from integer callers list."""
+        assert manager._get_caller_seats([0, 1, 2]) == [0, 1, 2]
 
-    def test_player_in_callers_with_int_list_no_match(self, manager):
-        """_player_in_callers returns False when seat is not in integer callers list."""
-        assert manager._player_in_callers(3, [0, 1, 2]) is False
-
-    def test_player_in_callers_with_none_seat(self, manager):
-        """_player_in_callers returns False when seat is None."""
-        assert manager._player_in_callers(None, [0, 1, 2]) is False
+    def test_get_caller_seats_with_empty_list(self, manager):
+        """_get_caller_seats returns empty list for empty callers."""
+        assert manager._get_caller_seats([]) == []
 
     def test_cleanup_timer_on_game_end_cancels_timer(self, manager):
         """_cleanup_timer_on_game_end cancels active timer when GameEndedEvent is present."""
@@ -542,7 +545,7 @@ class TestSessionManagerTimerIntegration:
                 result=GameEndResult(
                     winner_seat=0,
                     standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, is_bot=False),
+                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
                     ],
                 ),
             ),
@@ -659,7 +662,7 @@ class TestSessionManagerTimerIntegration:
                 result=GameEndResult(
                     winner_seat=0,
                     standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, is_bot=False),
+                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
                     ],
                 ),
             ),
@@ -679,7 +682,7 @@ class TestSessionManagerTimerIntegration:
         await manager.join_game(conn, "game1", "Alice")
         conn._outbox.clear()
 
-        await manager._handle_timeout("game1", TimeoutType.TURN)
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         timeout_msgs = [
             m
@@ -709,32 +712,31 @@ class TestSessionManagerTimerIntegration:
         # should return without error
         await manager._maybe_start_timer(game, [generic_event])
 
-    async def test_maybe_start_timer_returns_when_no_human_player(self, manager):
-        """_maybe_start_timer returns early when the game has no human player with a seat."""
+    async def test_maybe_start_timer_no_connected_player_at_seat(self, manager):
+        """_maybe_start_timer does not start timer when no connected player is at the target seat."""
         game = Game(game_id="game1")
         conn = MockConnection()
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
+        # player at seat 1, but turn event targets seat 0 (no player there)
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=1)
         game.players[conn.connection_id] = player
         manager._games["game1"] = game
 
         timer = TurnTimer()
         manager._timers["game1"] = timer
 
-        generic_event = ServiceEvent(
-            event="test",
-            data=MockResultEvent(
-                type="test",
-                target="all",
-                player="Alice",
-                action="test",
-                input={},
-                success=True,
+        turn_event = ServiceEvent(
+            event="turn",
+            data=TurnEvent(
+                type="turn",
+                target="seat_0",
+                current_seat=0,
+                available_actions=[],
+                wall_count=70,
             ),
-            target="all",
+            target="seat_0",
         )
 
-        # should return without error (no human player to start timer for)
-        await manager._maybe_start_timer(game, [generic_event])
+        await manager._maybe_start_timer(game, [turn_event])
         assert timer._active_task is None
 
     async def test_handle_timeout_returns_when_game_is_none(self, manager):
@@ -746,17 +748,17 @@ class TestSessionManagerTimerIntegration:
         manager._games.pop("game1", None)
 
         # should return without error
-        await manager._handle_timeout("game1", TimeoutType.TURN)
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
-    async def test_handle_timeout_returns_when_no_human_player(self, manager):
-        """_handle_timeout returns early when game has no human player with a seat."""
+    async def test_handle_timeout_returns_when_no_player_at_seat(self, manager):
+        """_handle_timeout returns early when no player is at the timed-out seat."""
         game = Game(game_id="game1")
         conn = MockConnection()
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=1)
         game.players[conn.connection_id] = player
         manager._games["game1"] = game
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # should return without error
-        await manager._handle_timeout("game1", TimeoutType.TURN)
+        # seat 0 has no player
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
         assert len(conn.sent_messages) == 0

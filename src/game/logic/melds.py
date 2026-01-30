@@ -681,7 +681,7 @@ def get_possible_closed_kans(player: MahjongPlayer, round_state: MahjongRoundSta
     for t34, count in tile_counts.items():
         if count >= TILES_FOR_CLOSED_KAN:
             if player.is_riichi:
-                if _kan_preserves_waits_for_riichi(player, t34):  # pragma: no cover
+                if _kan_preserves_waits_for_riichi(player, t34):
                     possible.append(t34)
             else:
                 possible.append(t34)

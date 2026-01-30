@@ -49,7 +49,7 @@ class SessionManager:
         self._players.pop(connection.connection_id, None)
 
     def get_player(self, connection: ConnectionProtocol) -> Player | None:
-        return self._players.get(connection.connection_id)  # pragma: no cover - session integration
+        return self._players.get(connection.connection_id)
 
     def get_game(self, game_id: str) -> Game | None:
         return self._games.get(game_id)
@@ -89,10 +89,8 @@ class SessionManager:
         # check if already in a game
         existing_player = self._players.get(connection.connection_id)
         if existing_player and existing_player.game_id:
-            await self._send_error(
-                connection, "already_in_game", "You must leave your current game first"
-            )  # pragma: no cover - defensive
-            return  # pragma: no cover - defensive
+            await self._send_error(connection, "already_in_game", "You must leave your current game first")
+            return
 
         game = self._games.get(game_id)
         if game is None:
@@ -145,7 +143,7 @@ class SessionManager:
 
         game = self._games.get(player.game_id)
         if game is None:
-            return  # pragma: no cover - defensive
+            return
 
         player_name = player.name
 
@@ -179,14 +177,12 @@ class SessionManager:
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await self._send_error(
-                connection, "not_in_game", "You must join a game first"
-            )  # pragma: no cover - defensive
-            return  # pragma: no cover - defensive
+            await self._send_error(connection, "not_in_game", "You must join a game first")
+            return
 
         game = self._games.get(player.game_id)
         if game is None:
-            return  # pragma: no cover - defensive
+            return
 
         game_id = player.game_id
         lock = self._game_locks.setdefault(game_id, asyncio.Lock())
@@ -220,7 +216,7 @@ class SessionManager:
 
         game = self._games.get(player.game_id)
         if game is None:
-            return  # pragma: no cover - defensive
+            return
 
         await self._broadcast_to_game(
             game=game,
@@ -298,11 +294,9 @@ class SessionManager:
                 with contextlib.suppress(RuntimeError, OSError):
                     await player.connection.send_message(message)
 
-    async def _maybe_start_timer(
-        self, game: Game, events: list[ServiceEvent]
-    ) -> None:  # pragma: no cover - timer integration
+    async def _maybe_start_timer(self, game: Game, events: list[ServiceEvent]) -> None:
         """
-        Inspect events and start appropriate timer if a human needs to act.
+        Inspect events and start appropriate timer if a connected player needs to act.
         """
         if self._cleanup_timer_on_game_end(game, events):
             return
@@ -315,29 +309,24 @@ class SessionManager:
         if any(isinstance(event.data, RoundStartedEvent) for event in events):
             timer.add_round_bonus()
 
-        human_player = self._get_human_player(game)
-        if human_player is None:
-            return
-
         game_id = game.game_id
 
-        # check for turn events targeting human
+        # check for turn events targeting a connected player
         for event in events:
-            if isinstance(event.data, TurnEvent) and event.data.current_seat == human_player.seat:
-                timer.start_turn_timer(lambda gid=game_id: self._handle_timeout(gid, TimeoutType.TURN))
-                return
+            if isinstance(event.data, TurnEvent):
+                seat = event.data.current_seat
+                if self._get_player_at_seat(game, seat) is not None:
+                    timer.start_turn_timer(
+                        lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.TURN, s)
+                    )
+                    return
 
-        # check for call prompts targeting human
-        for event in events:
-            if isinstance(event.data, CallPromptEvent) and self._player_in_callers(
-                human_player.seat, event.data.callers
-            ):
-                timer.start_meld_timer(lambda gid=game_id: self._handle_timeout(gid, TimeoutType.MELD))
-                return
+        # check for call prompts targeting a connected player
+        seat = self._find_connected_caller_seat(game, events)
+        if seat is not None:
+            timer.start_meld_timer(lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.MELD, s))
 
-    def _cleanup_timer_on_game_end(
-        self, game: Game, events: list[ServiceEvent]
-    ) -> bool:  # pragma: no cover - timer integration
+    def _cleanup_timer_on_game_end(self, game: Game, events: list[ServiceEvent]) -> bool:
         """
         Clean up timer when the game ends. Returns True if game ended.
 
@@ -351,10 +340,10 @@ class SessionManager:
             timer.cancel()
         return True
 
-    def _get_human_player(self, game: Game) -> Player | None:  # pragma: no cover - timer integration
-        """Get the human player in the game (first player with an assigned seat)."""
+    def _get_player_at_seat(self, game: Game, seat: int) -> Player | None:
+        """Get the session player at a specific seat, if connected."""
         for player in game.players.values():
-            if player.seat is not None:
+            if player.seat == seat:
                 return player
         return None
 
@@ -362,18 +351,21 @@ class SessionManager:
         """Check if events contain non-error game events (indicating the action progressed the game)."""
         return any(not isinstance(event.data, ErrorEvent) for event in events)
 
-    def _player_in_callers(
-        self, seat: int | None, callers: list[int] | list[MeldCaller]
-    ) -> bool:  # pragma: no cover - timer integration
-        """Check if a player's seat is in the callers list."""
-        if seat is None:
-            return False
-        return any((caller if isinstance(caller, int) else caller.seat) == seat for caller in callers)
+    def _get_caller_seats(self, callers: list[int] | list[MeldCaller]) -> list[int]:
+        """Extract seat numbers from a callers list."""
+        return [caller if isinstance(caller, int) else caller.seat for caller in callers]
 
-    async def _handle_timeout(
-        self, game_id: str, timeout_type: TimeoutType
-    ) -> None:  # pragma: no cover - timer integration
-        """Handle timer expiry by performing the default action for the timeout type."""
+    def _find_connected_caller_seat(self, game: Game, events: list[ServiceEvent]) -> int | None:
+        """Find the first connected player's seat from call prompt events."""
+        for event in events:
+            if isinstance(event.data, CallPromptEvent):
+                for seat in self._get_caller_seats(event.data.callers):
+                    if self._get_player_at_seat(game, seat) is not None:
+                        return seat
+        return None
+
+    async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
+        """Handle timer expiry by performing the default action for the timed-out seat."""
         lock = self._game_locks.get(game_id)
         if lock is None:
             return
@@ -383,8 +375,8 @@ class SessionManager:
             if game is None:
                 return
 
-            human_player = self._get_human_player(game)
-            if human_player is None:
+            player = self._get_player_at_seat(game, seat)
+            if player is None:
                 return
 
             # deduct elapsed bank time without cancelling the task, since this
@@ -393,6 +385,6 @@ class SessionManager:
             if timer:
                 timer.consume_bank()
 
-            events = await self._game_service.handle_timeout(game_id, human_player.name, timeout_type)
+            events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)

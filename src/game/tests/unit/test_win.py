@@ -95,6 +95,7 @@ class TestCanDeclareTsumo:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,  # east
+            wall=list(range(10)),  # non-empty wall to avoid haitei triggering
             dora_indicators=TilesConverter.string_to_136_array(man="1"),  # 1m as dora indicator
         )
 
@@ -293,6 +294,7 @@ class TestCanCallRon:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,  # east
+            wall=list(range(10)),  # non-empty wall to avoid houtei triggering
             dora_indicators=TilesConverter.string_to_136_array(man="1"),  # 1m as dora indicator
         )
 

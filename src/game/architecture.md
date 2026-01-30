@@ -134,24 +134,57 @@ The game service communicates through a typed event pipeline:
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Orchestration-only entry point implementing GameService interface; returns `list[ServiceEvent]`
-- **MahjongGame** - Manages game state across multiple rounds (hanchan)
-- **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, and nagashi mangan detection
+- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`) and bot call response dispatch (`_dispatch_bot_call_responses`); returns `list[ServiceEvent]`
+- **MahjongGame** - Manages game state across multiple rounds (hanchan); uma/oka end-game score adjustment
+- **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
-- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.)
+- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without recording a response; resolution triggers when all callers have responded or passed via `resolve_call_prompt()`
 - **Matchmaker** - Assigns human players to random seats and fills remaining with bots; returns `list[SeatConfig]`
 - **TurnTimer** - Server-side bank time management with async timeout callbacks for turns and meld decisions
-- **BotController** - Handles bot turns and call responses using `dict[int, BotPlayer]` seat-to-bot mapping; operates on `ServiceEvent` and `MeldCaller` models
+- **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation
 - **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller`, `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
 - **Melds** - Detection of valid chi, pon, and kan combinations; kuikae restriction calculation; pao liability detection
-- **Win** - Hand parsing and yaku detection
-- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); pao liability scoring (tsumo: liable pays full, ron: 50/50 split); nagashi mangan scoring; returns typed result models
+- **Win** - Win detection, furiten checking (permanent, temporary, riichi furiten), renhou detection, chankan validation, and hand parsing
+- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); pao liability scoring (tsumo: liable pays full, ron: 50/50 split); nagashi mangan scoring; double yakuman scoring; returns typed result models
 - **Riichi** - Riichi declaration validation and tenpai detection
 - **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.); returns `AbortiveDrawResult`
 - **Bot** - AI player for filling empty seats; returns `BotAction` model
+- **State** - Game state dataclasses including `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, and `CallResponse`
+
+### Pending Call Prompt System
+
+The game uses a unified call-response system where all players (human and bot) respond to call opportunities through the same code path.
+
+When a discard or chankan creates call opportunities, `process_discard_phase()` or `_process_added_kan_call()` sets a `PendingCallPrompt` on `MahjongRoundState` with:
+- `call_type` - the type of call opportunity (ron, meld, chankan)
+- `tile_id` - the tile being called on
+- `from_seat` - the seat that discarded or played the tile
+- `pending_seats` - set of seats that have not yet responded
+- `callers` - the original eligible callers list
+- `responses` - collected `CallResponse` objects
+
+Each caller responds through the standard action handlers (`handle_pass`, `handle_pon`, `handle_chi`, `handle_ron`, `handle_kan`). These handlers record the response and remove the caller from `pending_seats`. When `pending_seats` is empty, `resolve_call_prompt()` picks the winner by priority (ron > pon/kan > chi > all pass) and executes the action.
+
+This eliminates the previous duplication where bot and human call responses had separate orchestration paths.
+
+### Unified Turn Loop
+
+`MahjongGameService` orchestrates all turns through a single dispatch pipeline:
+
+1. Human actions enter via `handle_action()` -> `_dispatch_and_process()` -> action handlers
+2. After each human action, `_process_bot_followup()` iterates bot turns through the same `_dispatch_and_process()` path
+3. Bot call responses are dispatched through `_dispatch_bot_call_responses()` -> `_call_handler()` -> same action handlers
+
+`BotController` is a pure decision-maker: `get_turn_action()` returns action data for a bot's turn, `get_call_response()` returns the bot's response to a call prompt. Neither method modifies game state or calls handlers directly. All state mutation flows through `MahjongGameService`.
+
+### Bot Identity Separation
+
+The game logic layer (`MahjongPlayer`, `MahjongRoundState`) has no knowledge of player types. `MahjongPlayer` has no `is_bot` field.
+
+Bot identity is managed exclusively by `BotController.is_bot(seat)` at the service layer. Client-facing DTOs (`PlayerView`, `PlayerStanding`, `PlayerInfo`) retain `is_bot` for display purposes, populated from `BotController.bot_seats` when constructing views via `get_player_view(bot_seats=...)` and `finalize_game(bot_seats=...)`.
 
 ## Project Structure
 

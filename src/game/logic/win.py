@@ -23,6 +23,13 @@ if TYPE_CHECKING:
 # maximum copies of a single tile
 MAX_TILE_COPIES = 4
 
+# shared optional rules for hand evaluation (aka dora, open tanyao, double yakuman)
+GAME_OPTIONAL_RULES = OptionalRules(
+    has_aka_dora=True,
+    has_open_tanyao=True,
+    has_double_yakuman=True,
+)
+
 
 def check_tsumo(player: MahjongPlayer) -> bool:
     """
@@ -138,7 +145,15 @@ def can_call_ron(player: MahjongPlayer, discarded_tile: int, round_state: Mahjon
     # restore tiles before furiten check (furiten uses hand without win tile)
     player.tiles = original_tiles
 
-    # check furiten
+    # check riichi furiten (permanent for the hand)
+    if player.is_riichi_furiten:
+        return False
+
+    # check temporary furiten (passed on ron this go-around)
+    if player.is_temporary_furiten:
+        return False
+
+    # check permanent furiten (discarded a winning tile)
     if is_furiten(player):
         return False
 
@@ -155,26 +170,29 @@ def can_call_ron(player: MahjongPlayer, discarded_tile: int, round_state: Mahjon
     return has_yaku
 
 
-def _has_yaku_for_ron(player: MahjongPlayer, round_state: MahjongRoundState, win_tile: int) -> bool:
+def _has_yaku_for_ron(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+    win_tile: int,
+    *,
+    is_chankan: bool = False,
+) -> bool:
     """
     Check if a ron call has at least one yaku.
 
     Similar to _has_yaku_for_open_hand but for ron (not tsumo).
     """
-    options = OptionalRules(
-        has_aka_dora=True,
-        has_open_tanyao=True,
-        has_double_yakuman=False,
-    )
-
     config = HandConfig(
         is_tsumo=False,
         is_riichi=player.is_riichi,
         is_ippatsu=player.is_ippatsu,
         is_daburu_riichi=player.is_daburi,
+        is_renhou=is_renhou(player, round_state),
+        is_chankan=is_chankan,
+        is_houtei=is_houtei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=round_state.round_wind,
-        options=options,
+        options=GAME_OPTIONAL_RULES,
     )
 
     calculator = HandCalculator()
@@ -211,8 +229,10 @@ def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundStat
         is_ippatsu=player.is_ippatsu,
         is_daburu_riichi=player.is_daburi,
         is_rinshan=player.is_rinshan,
+        is_haitei=is_haitei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=round_state.round_wind,
+        options=GAME_OPTIONAL_RULES,
     )
 
     calculator = HandCalculator()
@@ -245,6 +265,13 @@ def _melds_to_34_sets(melds: list[Meld]) -> list[list[int]] | None:
             open_sets.append(meld_34)
 
     return open_sets if open_sets else None
+
+
+def apply_temporary_furiten(player: MahjongPlayer) -> None:
+    """
+    Apply temporary furiten to a player who passed on a ron opportunity.
+    """
+    player.is_temporary_furiten = True
 
 
 def is_haitei(round_state: MahjongRoundState) -> bool:
@@ -299,6 +326,27 @@ def is_chiihou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
     )
 
 
+def is_renhou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+    """
+    Check if player's ron qualifies as renhou (blessing of man).
+
+    Renhou requires:
+    - Player is not the dealer
+    - No calls have been made by any player (open melds or closed kans)
+    - Player has not yet had their first draw (no discards)
+    """
+    if player.seat == round_state.dealer_seat:
+        return False
+    # no open melds from any player
+    if round_state.players_with_open_hands:
+        return False
+    # no melds at all (including closed kans)
+    if any(p.melds for p in round_state.players):
+        return False
+    # player has not yet discarded (before their first turn)
+    return len(player.discards) == 0
+
+
 def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_tile: int) -> list[int]:
     """
     Find seats that can ron on an added kan (chankan).
@@ -322,20 +370,20 @@ def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_ti
         if kan_tile_34 not in waiting:
             continue
 
-        # check if player is not furiten
+        # check riichi furiten (permanent for the hand)
+        if player.is_riichi_furiten:
+            continue
+
+        # check temporary furiten
+        if player.is_temporary_furiten:
+            continue
+
+        # check permanent furiten (discarded a winning tile)
         if is_furiten(player):
             continue
 
-        # for open hands, verify there's at least one yaku
-        if player.has_open_melds():
-            # temporarily add tile to check for yaku
-            original_tiles = list(player.tiles)
-            player.tiles.append(kan_tile)
-            has_yaku = _has_yaku_for_ron(player, round_state, kan_tile)
-            player.tiles = original_tiles
-            if not has_yaku:
-                continue
-
+        # chankan itself is always a valid yaku (1 han), so open hands
+        # don't need a separate yaku check here
         chankan_seats.append(seat)
 
     return chankan_seats

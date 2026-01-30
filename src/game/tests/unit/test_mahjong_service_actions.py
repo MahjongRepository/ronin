@@ -9,9 +9,8 @@ import pytest
 from game.logic.action_handlers import ActionResult
 from game.logic.enums import CallType
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import RoundPhase
+from game.logic.state import PendingCallPrompt, RoundPhase
 from game.logic.types import (
-    AbortiveDrawResult,
     ExhaustiveDrawResult,
 )
 from game.messaging.events import (
@@ -19,7 +18,6 @@ from game.messaging.events import (
     DiscardEvent,
     ErrorEvent,
     EventType,
-    PassAcknowledgedEvent,
     RoundEndEvent,
     ServiceEvent,
 )
@@ -34,12 +32,17 @@ class TestMahjongGameServiceDiscard:
     async def test_discard_validates_player_turn(self, service):
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
+        round_state = game_state.round_state
 
-        human = _find_human_player(game_state.round_state, "Human")
-        # try to discard when it's not human's turn
-        if game_state.round_state.current_player_seat != human.seat:
-            events = await service.handle_action("game1", "Human", "discard", {"tile_id": 0})
-            assert any(e.event == "error" for e in events)
+        # force current player to a different seat so the human is out of turn
+        round_state.current_player_seat = 1
+        # ensure all players have 13 tiles so subsequent draws work correctly
+        for player in round_state.players:
+            while len(player.tiles) > 13:
+                player.tiles.pop()
+
+        events = await service.handle_action("game1", "Human", "discard", {"tile_id": 0})
+        assert any(e.event == "error" for e in events)
 
     async def test_discard_requires_tile_id(self, service):
         await service.start_game("game1", ["Human"])
@@ -105,12 +108,17 @@ class TestMahjongGameServiceTsumo:
     async def test_tsumo_validates_turn(self, service):
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
+        round_state = game_state.round_state
 
-        human = _find_human_player(game_state.round_state, "Human")
-        # try to call tsumo when it's not human's turn
-        if game_state.round_state.current_player_seat != human.seat:
-            events = await service.handle_action("game1", "Human", "declare_tsumo", {})
-            assert any(e.event == "error" for e in events)
+        # force current player to a different seat so the human is out of turn
+        round_state.current_player_seat = 1
+        # ensure all players have 13 tiles so subsequent draws work correctly
+        for player in round_state.players:
+            while len(player.tiles) > 13:
+                player.tiles.pop()
+
+        events = await service.handle_action("game1", "Human", "declare_tsumo", {})
+        assert any(e.event == "error" for e in events)
 
 
 class TestMahjongGameServiceRon:
@@ -201,7 +209,7 @@ class TestMahjongGameServiceErrors:
 
 
 class TestMahjongGameServiceValidationError:
-    """Tests for ValidationError handling in _dispatch_action."""
+    """Tests for ValidationError handling in _dispatch_and_process."""
 
     @pytest.fixture
     def service(self):
@@ -234,14 +242,14 @@ class TestMahjongGameServiceValidationError:
 
 
 class TestMahjongGameServiceProcessActionResult:
-    """Tests for _process_action_result covering round end, post-discard, chankan, and bot turns."""
+    """Tests for _process_action_result_internal."""
 
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
     async def test_process_action_result_round_end(self, service):
-        """Verify _process_action_result returns round end events when round is finished."""
+        """Verify _process_action_result_internal returns round end events when round is finished."""
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
 
@@ -258,13 +266,13 @@ class TestMahjongGameServiceProcessActionResult:
             needs_post_discard=False,
         )
 
-        events = await service._process_action_result("game1", result)
+        events = await service._process_action_result_internal("game1", result)
 
         # should contain round end handling
         assert len(events) >= 1
 
     async def test_process_action_result_post_discard(self, service):
-        """Verify _process_action_result delegates to post-discard processing."""
+        """Verify _process_action_result_internal delegates to post-discard processing."""
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -288,45 +296,31 @@ class TestMahjongGameServiceProcessActionResult:
             needs_post_discard=True,
         )
 
-        events = await service._process_action_result("game1", result)
+        events = await service._process_action_result_internal("game1", result)
 
         # should have processed post-discard logic
         assert len(events) >= 1
 
-    async def test_process_action_result_bot_turns_after_action(self, service):
-        """Verify _process_action_result processes bot turns when current player is bot."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        # set current player to a bot seat and ensure all players have consistent tile counts
-        bot_seats = [p.seat for p in round_state.players if p.is_bot]
-        bot_seat = bot_seats[0]
-        round_state.current_player_seat = bot_seat
-
-        # ensure all players have exactly 13 tiles (simulating a mid-round state)
-        for player in round_state.players:
-            while len(player.tiles) > 13:
-                player.tiles.pop()
-
-        result = ActionResult(
-            events=[PassAcknowledgedEvent(seat=0, target="seat_0")],
-            needs_post_discard=False,
-        )
-
-        events = await service._process_action_result("game1", result)
-
-        # should have bot turn events
-        assert len(events) >= 1
-
     async def test_process_action_result_chankan_prompt(self, service):
-        """Verify _process_action_result handles chankan prompts."""
+        """Verify _process_action_result_internal handles chankan prompts."""
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
+        round_state = game_state.round_state
 
-        # create a chankan call prompt event targeting a bot
-        bot_seats = [p.seat for p in game_state.round_state.players if p.is_bot]
+        # find bot seats
+        bot_controller = service._bot_controllers["game1"]
+        bot_seats = sorted(bot_controller.bot_seats)
+
+        # set up pending call prompt for chankan
+        round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=0,
+            from_seat=human.seat,
+            pending_seats={bot_seats[0]},
+            callers=[bot_seats[0]],
+        )
+
         chankan_prompt = CallPromptEvent(
             call_type=CallType.CHANKAN,
             tile_id=0,
@@ -341,10 +335,10 @@ class TestMahjongGameServiceProcessActionResult:
 
         # mock complete_added_kan_after_chankan_decline to avoid tile validation issues
         with patch(
-            "game.logic.mahjong_service.complete_added_kan_after_chankan_decline",
+            "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
             return_value=[],
         ):
-            events = await service._process_action_result("game1", result)
+            events = await service._process_action_result_internal("game1", result)
 
         # should have processed chankan
         assert len(events) >= 1
@@ -358,10 +352,20 @@ class TestMahjongGameServiceHandleChankanPrompt:
         return MahjongGameService()
 
     async def test_chankan_prompt_returns_events_for_human_caller(self, service):
-        """Verify chankan returns events immediately when human can respond."""
+        """Verify chankan returns events when human is a pending caller."""
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
+        round_state = game_state.round_state
+
+        # set up pending call prompt with human caller
+        round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=0,
+            from_seat=0,
+            pending_seats={human.seat},
+            callers=[human.seat],
+        )
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -378,7 +382,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
         result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
 
-        # should return immediately with the events
+        # should return immediately with events since human needs to respond
         assert result == events
 
     async def test_chankan_prompt_processes_bot_response(self, service):
@@ -388,7 +392,17 @@ class TestMahjongGameServiceHandleChankanPrompt:
         round_state = game_state.round_state
 
         # find bot seats
-        bot_seats = [p.seat for p in round_state.players if p.is_bot]
+        bot_controller = service._bot_controllers["game1"]
+        bot_seats = sorted(bot_controller.bot_seats)
+
+        # set up pending call prompt with only bot callers
+        round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=0,
+            from_seat=bot_seats[0],
+            pending_seats={bot_seats[1]},
+            callers=[bot_seats[1]],
+        )
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -403,98 +417,34 @@ class TestMahjongGameServiceHandleChankanPrompt:
         )
         events = [chankan_prompt]
 
-        # mock complete_added_kan_after_chankan_decline to avoid tile validation
+        # mock complete_added_kan_after_chankan_decline to avoid tile validation issues
         with patch(
-            "game.logic.mahjong_service.complete_added_kan_after_chankan_decline",
+            "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
             return_value=[],
         ):
             result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
 
+        # bot should have responded, prompt resolved
         assert len(result) >= 1
 
-    async def test_chankan_prompt_round_end_after_bot_response(self, service):
-        """Verify chankan handles round end after bot response (e.g., bot calls ron on chankan)."""
+    async def test_chankan_prompt_no_pending_prompt(self, service):
+        """Verify chankan returns events immediately when no pending prompt."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        bot_seats = [p.seat for p in round_state.players if p.is_bot]
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.CHANKAN,
                 tile_id=0,
-                from_seat=bot_seats[0],
-                callers=[bot_seats[1]],
+                from_seat=0,
+                callers=[1],
                 target="all",
             ),
             target="all",
         )
         events = [chankan_prompt]
-
-        # mock bot controller to cause round end after processing call responses
-        abortive_result = AbortiveDrawResult(
-            reason="four_kans",
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-
-        async def mock_process_call_responses(_game_state, _events, _callback):
-            round_state.phase = RoundPhase.FINISHED
-            return [
-                ServiceEvent(
-                    event=EventType.ROUND_END,
-                    data=RoundEndEvent(result=abortive_result, target="all"),
-                    target="all",
-                )
-            ]
-
-        bot_controller = service._bot_controllers["game1"]
-        bot_controller.process_call_responses = mock_process_call_responses
 
         result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
 
-        # should contain round end handling events
-        round_end = [e for e in result if e.event == EventType.ROUND_END]
-        assert len(round_end) >= 1
-
-    async def test_chankan_prompt_four_kans_abort_after_decline(self, service):
-        """Verify chankan handles four-kans abort after chankan is declined."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        bot_seats = [p.seat for p in round_state.players if p.is_bot]
-
-        chankan_prompt = ServiceEvent(
-            event=EventType.CALL_PROMPT,
-            data=CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=0,
-                from_seat=bot_seats[0],
-                callers=[bot_seats[1]],
-                target="all",
-            ),
-            target="all",
-        )
-        events = [chankan_prompt]
-
-        abortive_result = AbortiveDrawResult(
-            reason="four_kans",
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-
-        # mock complete_added_kan_after_chankan_decline to trigger four-kans abort
-        def mock_kan_decline(_round_state, _game_state, _from_seat, _tile_id):
-            round_state.phase = RoundPhase.FINISHED
-            return [RoundEndEvent(result=abortive_result, target="all")]
-
-        with patch(
-            "game.logic.mahjong_service.complete_added_kan_after_chankan_decline",
-            side_effect=mock_kan_decline,
-        ):
-            result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
-
-        # should contain round end handling events
-        round_end = [e for e in result if e.event == EventType.ROUND_END]
-        assert len(round_end) >= 1
+        # should return immediately with no pending prompt
+        assert result == events

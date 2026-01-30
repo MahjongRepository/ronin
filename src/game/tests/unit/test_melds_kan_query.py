@@ -25,9 +25,9 @@ class TestGetPossibleClosedKans:
         """Create a round state with the given player and wall size."""
         players = [
             player,
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players, wall=list(range(wall_count)))
 
@@ -110,9 +110,9 @@ class TestGetPossibleAddedKans:
         """Create a round state with the given player and wall size."""
         players = [
             player,
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players, wall=list(range(wall_count)))
 
@@ -349,19 +349,16 @@ class TestCallAddedKanNullPonTiles:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=man_2m + TilesConverter.string_to_136_array(pin="5"),
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=man_3m + TilesConverter.string_to_136_array(pin="6"),
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=man_4m + TilesConverter.string_to_136_array(pin="7"),
             ),
         ]

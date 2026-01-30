@@ -28,6 +28,12 @@ WEST_WIND_MAX_DEALERS = 12
 # winning score threshold
 WINNING_SCORE_THRESHOLD = 30000
 
+# uma/oka scoring constants (Tenhou standard: 25000持ち/30000返し, ウマ10-20)
+STARTING_SCORE = 25000
+TARGET_SCORE = 30000
+UMA_SPREAD = [20, 10, -10, -20]  # 1st, 2nd, 3rd, 4th
+GOSHASHONYU_THRESHOLD = 500  # goshashonyu: remainder <= 500 rounds toward zero
+
 
 def init_game(seat_configs: list[SeatConfig], seed: float = 0.0) -> MahjongGameState:
     """
@@ -171,12 +177,77 @@ def check_game_end(game_state: MahjongGameState) -> bool:
     return game_state.unique_dealers > WEST_WIND_MAX_DEALERS
 
 
-def finalize_game(game_state: MahjongGameState) -> GameEndResult:
+def _goshashonyu_round(score: int) -> int:
+    """
+    Round a raw score using goshashonyu (五捨六入) rounding.
+
+    Converts a raw score (relative to target) to points by dividing by 1000,
+    rounding remainder <= 500 toward zero and remainder > 500 away from zero.
+    """
+    quotient = score // 1000
+    remainder = abs(score) % 1000
+
+    if score >= 0:
+        if remainder > GOSHASHONYU_THRESHOLD:
+            return quotient + 1
+        return quotient
+
+    # negative: python floor division already rounds toward negative infinity
+    # -1900 // 1000 = -2, abs(-1900) % 1000 = 900
+    # goshashonyu: -1.9 -> -2 (remainder 900 > 500, keep the floor)
+    # -1500 // 1000 = -2, abs(-1500) % 1000 = 500
+    # goshashonyu: -1.5 -> -1 (remainder 500 <= 500, round toward zero)
+    if 0 < remainder <= GOSHASHONYU_THRESHOLD:
+        return quotient + 1  # round toward zero (less negative)
+    return quotient
+
+
+def calculate_final_scores(raw_scores: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """
+    Calculate uma/oka-adjusted final scores from raw game scores.
+
+    Input: list of (seat, raw_score) sorted by placement (1st to 4th).
+    Output: list of (seat, final_score) in the same order.
+
+    Steps:
+    1. Subtract target score (30000) from each raw score
+    2. Divide by 1000 with goshashonyu rounding
+    3. Add oka bonus (20) to 1st place
+    4. Apply uma spread (20, 10, -10, -20)
+    5. Adjust 1st place to ensure zero-sum
+    """
+    oka_total = ((TARGET_SCORE - STARTING_SCORE) * 4) // 1000  # 20 points
+
+    adjusted = []
+    for i, (seat, raw_score) in enumerate(raw_scores):
+        diff = raw_score - TARGET_SCORE
+        points = _goshashonyu_round(diff)
+
+        # add oka to 1st place
+        if i == 0:
+            points += oka_total
+
+        # apply uma
+        points += UMA_SPREAD[i]
+
+        adjusted.append((seat, points))
+
+    # ensure zero-sum: adjust 1st place
+    total = sum(score for _, score in adjusted)
+    if total != 0:
+        seat_0, score_0 = adjusted[0]
+        adjusted[0] = (seat_0, score_0 - total)
+
+    return adjusted
+
+
+def finalize_game(game_state: MahjongGameState, bot_seats: set[int] | None = None) -> GameEndResult:
     """
     Finalize the game and determine winner.
 
     Winner is the player with highest score. Ties broken by seat order (lower seat wins).
     Winner receives remaining riichi_sticks * 1000 points.
+    Final scores are adjusted with uma/oka (Tenhou standard).
     """
     round_state = game_state.round_state
 
@@ -193,15 +264,24 @@ def finalize_game(game_state: MahjongGameState) -> GameEndResult:
         round_state.players[winner_seat].score += game_state.riichi_sticks * 1000
         game_state.riichi_sticks = 0
 
-    # build final standings
+    # sort players by placement (descending score, ascending seat for ties)
+    sorted_players = sorted(round_state.players, key=lambda p: (-p.score, p.seat))
+
+    # calculate uma/oka-adjusted final scores
+    raw_scores = [(p.seat, p.score) for p in sorted_players]
+    final_scores = calculate_final_scores(raw_scores)
+    final_score_map = dict(final_scores)
+
+    # build final standings with both raw and adjusted scores
     standings = [
         PlayerStanding(
             seat=player.seat,
             name=player.name,
             score=player.score,
-            is_bot=player.is_bot,
+            final_score=final_score_map[player.seat],
+            is_bot=player.seat in (bot_seats or set()),
         )
-        for player in sorted(round_state.players, key=lambda p: (-p.score, p.seat))
+        for player in sorted_players
     ]
 
     # mark game as finished

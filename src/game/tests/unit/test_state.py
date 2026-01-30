@@ -49,7 +49,6 @@ class TestMahjongPlayer:
         player = MahjongPlayer(seat=0, name="Player1")
         assert player.seat == 0
         assert player.name == "Player1"
-        assert player.is_bot is False
         assert player.tiles == []
         assert player.discards == []
         assert player.melds == []
@@ -60,10 +59,9 @@ class TestMahjongPlayer:
         assert player.score == 25000
 
     def test_create_bot_player(self):
-        player = MahjongPlayer(seat=1, name="Bot1", is_bot=True)
+        player = MahjongPlayer(seat=1, name="Bot1")
         assert player.seat == 1
         assert player.name == "Bot1"
-        assert player.is_bot is True
 
     def test_player_with_tiles(self):
         tiles = TilesConverter.string_to_136_array(man="123", pin="123", sou="123", honors="1115")
@@ -128,14 +126,12 @@ class TestMahjongRoundState:
     def test_round_state_with_players(self):
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         state = MahjongRoundState(players=players)
         assert len(state.players) == 4
-        assert state.players[0].is_bot is False
-        assert state.players[1].is_bot is True
 
     def test_round_state_with_wind(self):
         # south wind round
@@ -208,7 +204,6 @@ class TestGetPlayerView:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=[
                     *TilesConverter.string_to_136_array(man="112233")[1::2],
                     *TilesConverter.string_to_136_array(pin="112233")[1::2],
@@ -221,7 +216,6 @@ class TestGetPlayerView:
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=[
                     *TilesConverter.string_to_136_array(man="111222333")[2::3],
                     *TilesConverter.string_to_136_array(pin="111222333")[2::3],
@@ -234,7 +228,6 @@ class TestGetPlayerView:
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=[
                     *TilesConverter.string_to_136_array(man="111122223333")[3::4],
                     *TilesConverter.string_to_136_array(pin="111122223333")[3::4],

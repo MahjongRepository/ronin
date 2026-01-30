@@ -29,18 +29,12 @@ def fill_seats(human_names: list[str], seed: float | None = None) -> list[SeatCo
 
     for seat in range(NUM_PLAYERS):
         if seat in human_seats:
-            configs.append(
-                SeatConfig(
-                    name=human_names[human_index],
-                    is_bot=False,
-                )
-            )
+            configs.append(SeatConfig(name=human_names[human_index]))
             human_index += 1
         else:
             configs.append(
                 SeatConfig(
                     name=f"Tsumogiri {bot_number}",
-                    is_bot=True,
                     bot_type=BotType.TSUMOGIRI,
                 )
             )

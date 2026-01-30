@@ -15,10 +15,10 @@ from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
 def _default_seat_configs() -> list[SeatConfig]:
     return [
-        SeatConfig(name="Player", is_bot=False),
-        SeatConfig(name="Tsumogiri 1", is_bot=True, bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 2", is_bot=True, bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 3", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Player"),
+        SeatConfig(name="Tsumogiri 1", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 2", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 3", bot_type=BotType.TSUMOGIRI),
     ]
 
 

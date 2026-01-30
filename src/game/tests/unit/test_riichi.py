@@ -48,7 +48,7 @@ class TestCanDeclareRiichi:
             score=score,
             melds=melds or [],
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}", is_bot=True) for i in range(1, 4)]
+        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
         round_state = MahjongRoundState(
             wall=list(range(wall_size)),
             players=players,
@@ -164,7 +164,7 @@ class TestDeclareRiichi:
             score=25000,
             discards=player_discards or [],
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}", is_bot=True) for i in range(1, 4)]
+        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
         round_state = MahjongRoundState(
             wall=list(range(10)),
             players=players,

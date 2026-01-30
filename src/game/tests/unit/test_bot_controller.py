@@ -2,16 +2,14 @@
 Unit tests for BotController.
 """
 
-import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.bot import BotPlayer, BotStrategy
 from game.logic.bot_controller import BotController
-from game.logic.enums import CallType, MeldCallType
-from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState, RoundPhase
+from game.logic.enums import CallType, GameAction, MeldCallType
+from game.logic.state import MahjongPlayer, MahjongRoundState, RoundPhase
 from game.logic.types import HandResultInfo, MeldCaller, TsumoResult
 from game.messaging.events import (
-    CallPromptEvent,
     DrawEvent,
     RoundEndEvent,
     ServiceEvent,
@@ -63,172 +61,144 @@ class TestBotControllerGetBot:
         assert controller._get_bot(-1) is None
 
 
-class TestBotControllerHasHumanCaller:
-    def _create_round_state(self, bot_seats: list[int]) -> MahjongRoundState:
-        """Create round state with specified bot seats."""
-        players = []
-        for seat in range(4):
-            is_bot = seat in bot_seats
-            players.append(
-                MahjongPlayer(
-                    seat=seat,
-                    name=f"Bot{seat}" if is_bot else f"Human{seat}",
-                    is_bot=is_bot,
-                )
-            )
-        return MahjongRoundState(players=players, wall=list(range(10)))
-
-    def test_has_human_caller_with_human_in_callers(self):
-        """has_human_caller returns True when human can call."""
+class TestBotControllerIsBot:
+    def test_is_bot_returns_true_for_bot_seat(self):
+        """is_bot returns True for seats with bots."""
         bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
         controller = BotController(bots)
-        round_state = self._create_round_state([1, 2, 3])  # seat 0 is human
 
-        events = [
-            ServiceEvent(
-                event="call_prompt",
-                data=CallPromptEvent(
-                    call_type=CallType.MELD,
-                    tile_id=_string_to_136_tile(man="1"),
-                    from_seat=0,
-                    callers=[0, 1],
-                    target="all",
-                ),
-            )
-        ]
+        assert controller.is_bot(1) is True
+        assert controller.is_bot(2) is True
+        assert controller.is_bot(3) is True
 
-        assert controller.has_human_caller(round_state, events) is True
-
-    def test_has_human_caller_with_only_bots(self):
-        """has_human_caller returns False when only bots can call."""
+    def test_is_bot_returns_false_for_non_bot_seat(self):
+        """is_bot returns False for seats without bots."""
         bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
         controller = BotController(bots)
-        round_state = self._create_round_state([1, 2, 3])  # seat 0 is human
 
-        events = [
-            ServiceEvent(
-                event="call_prompt",
-                data=CallPromptEvent(
-                    call_type=CallType.MELD,
-                    tile_id=_string_to_136_tile(man="1"),
-                    from_seat=0,
-                    callers=[1, 2],
-                    target="all",
-                ),
-            )
-        ]
+        assert controller.is_bot(0) is False
 
-        assert controller.has_human_caller(round_state, events) is False
-
-    def test_has_human_caller_with_meld_caller_models(self):
-        """has_human_caller handles MeldCaller callers."""
+    def test_is_bot_returns_false_for_invalid_seat(self):
+        """is_bot returns False for invalid seats."""
         bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
         controller = BotController(bots)
-        round_state = self._create_round_state([1, 2, 3])
 
-        events = [
-            ServiceEvent(
-                event="call_prompt",
-                data=CallPromptEvent(
-                    call_type=CallType.MELD,
-                    tile_id=_string_to_136_tile(man="1"),
-                    from_seat=0,
-                    callers=[
-                        MeldCaller(
-                            seat=0,
-                            call_type=MeldCallType.CHI,
-                            tile_34=_string_to_34_tile(man="6"),
-                            priority=2,
-                            options=[(_string_to_136_tile(man="2"), _string_to_136_tile(man="3"))],
-                        )
-                    ],
-                    target="all",
-                ),
-            )
-        ]
+        assert controller.is_bot(4) is False
+        assert controller.is_bot(-1) is False
 
-        assert controller.has_human_caller(round_state, events) is True
 
-    def test_has_human_caller_no_call_prompts(self):
-        """has_human_caller returns False when no call prompts exist."""
+class TestBotControllerBotSeats:
+    def test_bot_seats_returns_set_of_bot_seats(self):
+        """bot_seats returns the correct set of seats."""
         bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
         controller = BotController(bots)
-        round_state = self._create_round_state([1, 2, 3])
 
-        events = [
-            ServiceEvent(
-                event="discard",
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
-            ),
-        ]
+        assert controller.bot_seats == {1, 2, 3}
 
-        assert controller.has_human_caller(round_state, events) is False
-
-
-class TestBotControllerParseCallerInfo:
-    def test_parse_caller_info_int(self):
-        """_parse_caller_info handles integer seat."""
+    def test_bot_seats_empty_when_no_bots(self):
+        """bot_seats returns empty set when no bots."""
         controller = BotController({})
 
-        seat, options = controller._parse_caller_info(2)
+        assert controller.bot_seats == set()
 
-        assert seat == 2
-        assert options is None
 
-    def test_parse_caller_info_meld_caller(self):
-        """_parse_caller_info handles MeldCaller with seat and options."""
-        controller = BotController({})
-
-        caller = MeldCaller(
-            seat=1,
-            call_type=MeldCallType.CHI,
-            tile_34=_string_to_34_tile(man="6"),
-            priority=2,
-            options=[(_string_to_136_tile(man="2"), _string_to_136_tile(man="3"))],
+class TestBotControllerGetTurnAction:
+    def _create_round_state(self, current_seat: int = 1) -> MahjongRoundState:
+        """Create round state for testing."""
+        non_winning_hand = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
+        players = [
+            MahjongPlayer(seat=0, name="Human", tiles=list(non_winning_hand[:13])),
+            MahjongPlayer(seat=1, name="Bot1", tiles=list(non_winning_hand)),
+            MahjongPlayer(seat=2, name="Bot2", tiles=list(non_winning_hand[:13])),
+            MahjongPlayer(seat=3, name="Bot3", tiles=list(non_winning_hand[:13])),
+        ]
+        return MahjongRoundState(
+            players=players,
+            wall=list(range(50)),
+            dead_wall=list(range(14)),
+            dora_indicators=TilesConverter.string_to_136_array(man="1"),
+            current_player_seat=current_seat,
+            phase=RoundPhase.PLAYING,
         )
-        seat, options = controller._parse_caller_info(caller)
 
-        assert seat == 1
-        assert options == [(_string_to_136_tile(man="2"), _string_to_136_tile(man="3"))]
+    def test_get_turn_action_returns_discard(self):
+        """get_turn_action returns discard action for tsumogiri bot."""
+        bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
+        controller = BotController(bots)
+        round_state = self._create_round_state(current_seat=1)
 
-    def test_parse_caller_info_meld_caller_without_options(self):
-        """_parse_caller_info handles MeldCaller without options."""
-        controller = BotController({})
+        result = controller.get_turn_action(1, round_state)
 
-        caller = MeldCaller(
-            seat=3, call_type=MeldCallType.PON, tile_34=_string_to_34_tile(man="6"), priority=1
-        )
-        seat, options = controller._parse_caller_info(caller)
+        assert result is not None
+        action, data = result
+        assert action == GameAction.DISCARD
+        assert "tile_id" in data
 
-        assert seat == 3
-        assert options is None
+    def test_get_turn_action_returns_none_for_non_bot(self):
+        """get_turn_action returns None for non-bot seat."""
+        bots = {1: BotPlayer()}
+        controller = BotController(bots)
+        round_state = self._create_round_state(current_seat=0)
+
+        result = controller.get_turn_action(0, round_state)
+
+        assert result is None
 
 
-class TestBotControllerEvaluateBotCalls:
+class TestBotControllerGetCallResponse:
     def _create_round_state(self) -> MahjongRoundState:
         """Create round state for testing."""
         players = [
-            MahjongPlayer(seat=0, name="Human", is_bot=False, tiles=[]),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[]),
+            MahjongPlayer(seat=0, name="Human", tiles=[]),
+            MahjongPlayer(seat=1, name="Bot1", tiles=[]),
+            MahjongPlayer(seat=2, name="Bot2", tiles=[]),
+            MahjongPlayer(seat=3, name="Bot3", tiles=[]),
         ]
-        return MahjongRoundState(players=players, wall=list(range(10)))
+        return MahjongRoundState(
+            players=players,
+            wall=list(range(50)),
+            current_player_seat=0,
+            phase=RoundPhase.PLAYING,
+        )
 
-    def test_evaluate_bot_calls_skips_humans(self):
-        """_evaluate_bot_calls ignores human callers."""
+    def test_get_call_response_returns_none_for_non_bot(self):
+        """get_call_response returns None for non-bot seat."""
         bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
         controller = BotController(bots)
         round_state = self._create_round_state()
 
-        ron_callers, meld_caller, meld_type, sequence_tiles = controller._evaluate_bot_calls(
-            round_state, callers=[0], call_type="ron", tile_id=_string_to_136_tile(man="1")
+        result = controller.get_call_response(0, round_state, CallType.MELD, 0, 0)
+
+        assert result is None
+
+    def test_get_call_response_tsumogiri_declines_ron(self):
+        """Tsumogiri bot declines ron opportunities."""
+        bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
+        controller = BotController(bots)
+        round_state = self._create_round_state()
+
+        result = controller.get_call_response(1, round_state, CallType.RON, 0, 1)
+
+        assert result is None
+
+    def test_get_call_response_tsumogiri_declines_meld(self):
+        """Tsumogiri bot declines meld opportunities."""
+        bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
+        controller = BotController(bots)
+        round_state = self._create_round_state()
+
+        caller_info = MeldCaller(
+            seat=1,
+            call_type=MeldCallType.PON,
+            tile_34=_string_to_34_tile(man="1"),
+            priority=1,
         )
 
-        assert ron_callers == []
-        assert meld_caller is None
-        assert meld_type is None
-        assert sequence_tiles is None
+        result = controller.get_call_response(
+            1, round_state, CallType.MELD, _string_to_136_tile(man="1"), caller_info
+        )
+
+        assert result is None
 
 
 class TestConvertEvents:
@@ -286,141 +256,3 @@ class TestExtractRoundResult:
         result = extract_round_result(events)
 
         assert result is None
-
-
-class TestBotControllerProcessBotTurns:
-    def _create_game_state(self, current_seat: int = 1) -> MahjongGameState:
-        """Create a minimal game state for testing bot turns."""
-        # create a hand that will result in a simple discard (not winning)
-        non_winning_hand = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
-
-        players = [
-            MahjongPlayer(seat=0, name="Human", is_bot=False, tiles=list(non_winning_hand[:13])),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=list(non_winning_hand)),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=list(non_winning_hand[:13])),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=list(non_winning_hand[:13])),
-        ]
-        round_state = MahjongRoundState(
-            players=players,
-            wall=list(range(50)),
-            dead_wall=list(range(14)),
-            dora_indicators=TilesConverter.string_to_136_array(man="1"),
-            current_player_seat=current_seat,
-            phase=RoundPhase.PLAYING,
-        )
-        return MahjongGameState(round_state=round_state)
-
-    @pytest.mark.asyncio
-    async def test_process_bot_turns_stops_at_human(self):
-        """process_bot_turns stops when reaching human player's turn."""
-        bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
-        controller = BotController(bots)
-        game_state = self._create_game_state(current_seat=0)
-
-        events = await controller.process_bot_turns(game_state)
-
-        # should stop immediately since current player is human
-        assert events == []
-
-    @pytest.mark.asyncio
-    async def test_process_bot_turns_stops_when_round_finished(self):
-        """process_bot_turns stops when round is finished."""
-        bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
-        controller = BotController(bots)
-        game_state = self._create_game_state(current_seat=1)
-        game_state.round_state.phase = RoundPhase.FINISHED
-
-        events = await controller.process_bot_turns(game_state)
-
-        # should stop immediately since round is finished
-        assert events == []
-
-    @pytest.mark.asyncio
-    async def test_process_bot_turns_returns_empty_for_invalid_bot(self):
-        """process_bot_turns returns empty when bot index is invalid."""
-        controller = BotController({})  # no bots
-        game_state = self._create_game_state(current_seat=1)
-
-        events = await controller.process_bot_turns(game_state)
-
-        assert events == []
-
-
-class TestBotControllerProcessCallResponses:
-    def _create_game_state(self) -> MahjongGameState:
-        """Create a minimal game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Human", is_bot=False, tiles=[]),
-            MahjongPlayer(
-                seat=1,
-                name="Bot1",
-                is_bot=True,
-                tiles=TilesConverter.string_to_136_array(man="1123"),
-            ),  # has tiles for potential pon
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[]),
-        ]
-        round_state = MahjongRoundState(
-            players=players,
-            wall=list(range(50)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-        )
-        return MahjongGameState(round_state=round_state)
-
-    @pytest.mark.asyncio
-    async def test_process_call_responses_no_prompts(self):
-        """process_call_responses returns empty when no call prompts."""
-        bots = {1: BotPlayer(), 2: BotPlayer(), 3: BotPlayer()}
-        controller = BotController(bots)
-        game_state = self._create_game_state()
-
-        events = await controller.process_call_responses(
-            game_state,
-            [
-                ServiceEvent(
-                    event="discard",
-                    data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
-                )
-            ],
-        )
-
-        assert events == []
-
-    @pytest.mark.asyncio
-    async def test_process_call_responses_advances_turn_when_no_calls(self):
-        """process_call_responses advances turn when bots decline calls."""
-        bots = {
-            1: BotPlayer(strategy=BotStrategy.TSUMOGIRI),
-            2: BotPlayer(strategy=BotStrategy.TSUMOGIRI),
-            3: BotPlayer(strategy=BotStrategy.TSUMOGIRI),
-        }
-        controller = BotController(bots)
-        game_state = self._create_game_state()
-        game_state.round_state.current_player_seat = 0
-
-        # call prompt for meld that simple bot will decline
-        events = [
-            ServiceEvent(
-                event="call_prompt",
-                data=CallPromptEvent(
-                    call_type="meld",
-                    tile_id=TilesConverter.string_to_136_array(man="111")[2],
-                    from_seat=0,
-                    callers=[
-                        MeldCaller(
-                            seat=1,
-                            call_type=MeldCallType.PON,
-                            tile_34=_string_to_34_tile(man="1"),
-                            priority=1,
-                        )
-                    ],
-                    target="all",
-                ),
-            )
-        ]
-
-        await controller.process_call_responses(game_state, events)
-
-        # turn should have advanced
-        assert game_state.round_state.current_player_seat == 1

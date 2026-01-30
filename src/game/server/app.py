@@ -24,11 +24,11 @@ if TYPE_CHECKING:
 MAX_GAMES = 100
 
 
-async def health(_request: Request) -> JSONResponse:  # pragma: no cover - HTTP endpoint
+async def health(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
-async def status(request: Request) -> JSONResponse:  # pragma: no cover - HTTP endpoint
+async def status(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     return JSONResponse(
         {
@@ -45,7 +45,7 @@ async def list_games(request: Request) -> JSONResponse:
     return JSONResponse({"games": [g.model_dump() for g in games]})
 
 
-async def create_game(request: Request) -> JSONResponse:  # pragma: no cover - HTTP endpoint
+async def create_game(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
 
     try:

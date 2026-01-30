@@ -25,9 +25,9 @@ class TestCanCallKyuushuKyuuhai:
         """Create a round state with a player holding specific tiles."""
         players = [
             MahjongPlayer(seat=0, name="Player1", tiles=tiles),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[]),
+            MahjongPlayer(seat=1, name="Bot1", tiles=[]),
+            MahjongPlayer(seat=2, name="Bot2", tiles=[]),
+            MahjongPlayer(seat=3, name="Bot3", tiles=[]),
         ]
         return MahjongRoundState(
             players=players,
@@ -209,9 +209,9 @@ class TestCallKyuushuKyuuhai:
         """Create a round state for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(
             players=players,
@@ -257,9 +257,9 @@ class TestCheckFourRiichi:
         """Create a round state with 4 players."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players)
 
@@ -342,9 +342,9 @@ class TestCheckFourKans:
         """Create a round state with 4 players."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players)
 
@@ -443,9 +443,9 @@ class TestCheckFourWinds:
         """Create a round state with 4 players."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players)
 
@@ -561,9 +561,9 @@ class TestProcessAbortiveDraw:
         """Create a game state for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, score=25000),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, score=25000),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, score=25000),
+            MahjongPlayer(seat=1, name="Bot1", score=25000),
+            MahjongPlayer(seat=2, name="Bot2", score=25000),
+            MahjongPlayer(seat=3, name="Bot3", score=25000),
         ]
         round_state = MahjongRoundState(players=players)
         return MahjongGameState(round_state=round_state, honba_sticks=0)

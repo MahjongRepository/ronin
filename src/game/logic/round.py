@@ -2,12 +2,14 @@
 Round initialization and management for Mahjong game.
 """
 
+from mahjong.agari import Agari
 from mahjong.shanten import Shanten
 
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState, RoundPhase
 from game.logic.tiles import generate_wall, hand_to_34_array, is_terminal_or_honor, sort_tiles, tile_to_34
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, SeatConfig
+from game.logic.win import MAX_TILE_COPIES
 
 # dead wall constants
 DEAD_WALL_SIZE = 14
@@ -59,6 +61,7 @@ def init_round(game_state: MahjongGameState) -> None:
     round_state.all_discards = []
     round_state.players_with_open_hands = []
     round_state.pending_dora_count = 0
+    round_state.pending_call_prompt = None
 
     # set phase to playing
     round_state.phase = RoundPhase.PLAYING
@@ -78,6 +81,8 @@ def _reset_players(round_state: MahjongRoundState) -> None:
         player.is_rinshan = False
         player.kuikae_tiles = []
         player.pao_seat = None
+        player.is_temporary_furiten = False
+        player.is_riichi_furiten = False
 
 
 def _deal_tiles(round_state: MahjongRoundState) -> None:
@@ -142,9 +147,7 @@ def create_players(seat_configs: list[SeatConfig]) -> list[MahjongPlayer]:
     """
     Create players from seat configurations.
     """
-    return [
-        MahjongPlayer(seat=i, name=config.name, is_bot=config.is_bot) for i, config in enumerate(seat_configs)
-    ]
+    return [MahjongPlayer(seat=i, name=config.name) for i, config in enumerate(seat_configs)]
 
 
 def draw_tile(round_state: MahjongRoundState) -> int | None:
@@ -230,6 +233,9 @@ def discard_tile(
     # (their ippatsu window ends when they discard, others' ippatsu is cleared on meld calls)
     player.is_ippatsu = False
 
+    # clear temporary furiten (resets each time the player discards)
+    player.is_temporary_furiten = False
+
     # clear rinshan flag
     player.is_rinshan = False
 
@@ -264,29 +270,85 @@ def check_exhaustive_draw(round_state: MahjongRoundState) -> bool:
 
 def is_tempai(player: MahjongPlayer) -> bool:
     """
-    Check if player is in tempai (one tile away from winning).
+    Check if player is in tenpai (one tile away from winning).
 
-    Uses the mahjong library's shanten calculator. A shanten of 0 means tempai.
-    Accounts for melds by only considering tiles currently in hand.
+    Accepts keishiki tenpai (formal/structural tenpai) where winning tiles may
+    be unavailable in the wall or other players' hands.
+    Exception: pure karaten (all copies of all winning tiles are in the
+    player's own hand + melds) is NOT considered tenpai.
 
-    If player has 14 tiles (after drawing), checks if any discard leaves them in tempai.
+    If player has 14 tiles (after drawing), checks if any discard leaves them in tenpai.
     If player has 13 tiles (waiting), directly checks shanten.
     """
     tiles = player.tiles
     shanten = Shanten()
 
     if len(tiles) == HAND_SIZE_AFTER_DRAW:
-        # after drawing, check if any discard leaves us in tempai
-        for i in range(len(tiles)):
-            remaining = tiles[:i] + tiles[i + 1 :]
-            tiles_34 = hand_to_34_array(remaining)
-            if shanten.calculate_shanten(tiles_34) == 0:
-                return True
-        return False
+        # after drawing, check if any discard leaves us in tenpai (excluding pure karaten)
+        original_tiles = list(player.tiles)
+        try:
+            for i in range(len(original_tiles)):
+                remaining = original_tiles[:i] + original_tiles[i + 1 :]
+                tiles_34 = hand_to_34_array(remaining)
+                if shanten.calculate_shanten(tiles_34) == 0:
+                    # check pure karaten with the remaining tiles
+                    player.tiles = remaining
+                    if not _is_pure_karaten(player):
+                        return True
+            return False
+        finally:
+            player.tiles = original_tiles
 
     tiles_34 = hand_to_34_array(tiles)
-    shanten_value = shanten.calculate_shanten(tiles_34)
-    return shanten_value == 0
+    if shanten.calculate_shanten(tiles_34) != 0:
+        return False
+
+    return not _is_pure_karaten(player)
+
+
+def _is_pure_karaten(player: MahjongPlayer) -> bool:
+    """
+    Check if all winning tiles are entirely in the player's own hand + melds.
+
+    Pure karaten means the player holds all 4 copies of every tile they are
+    waiting on. This is not considered valid tenpai.
+    """
+    waiting = _get_hand_waiting_tiles(player.tiles)
+    if not waiting:
+        return True  # no waiting tiles at all
+
+    # count tiles in player's hand + melds
+    tile_counts = hand_to_34_array(player.tiles)
+    for meld in player.melds:
+        if meld.tiles:
+            for t in meld.tiles:
+                tile_counts[tile_to_34(t)] += 1
+
+    # pure karaten: ALL waiting tiles have all 4 copies in player's possession
+    return all(tile_counts[t34] >= MAX_TILE_COPIES for t34 in waiting)
+
+
+def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
+    """
+    Find waiting tiles based on hand tiles only (ignoring melds for agari check).
+
+    Uses agari.is_agari without open_sets since the mahjong library's agari
+    checker expects meld tiles to be included in the tiles_34 array when
+    open_sets is provided. For tenpai/karaten checks, we only have hand tiles
+    (excluding melds), so passing None is correct.
+    """
+    tiles_34 = hand_to_34_array(tiles)
+    waiting = set()
+    agari = Agari()
+    for tile_34 in range(34):
+        if tiles_34[tile_34] >= MAX_TILE_COPIES:
+            continue
+        tiles_34[tile_34] += 1
+        if agari.is_agari(tiles_34, None):
+            waiting.add(tile_34)
+        tiles_34[tile_34] -= 1
+
+    return waiting
 
 
 def check_nagashi_mangan(round_state: MahjongRoundState) -> list[int]:

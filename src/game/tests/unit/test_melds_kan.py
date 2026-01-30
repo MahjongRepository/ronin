@@ -28,9 +28,9 @@ class TestCanCallOpenKan:
         """Create a round state with the given player and wall size."""
         players = [
             player,
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players, wall=list(range(wall_count)))
 
@@ -132,9 +132,9 @@ class TestCanCallClosedKan:
         """Create a round state with the given player and wall size."""
         players = [
             player,
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players, wall=list(range(wall_count)))
 
@@ -259,9 +259,9 @@ class TestCanCallAddedKan:
         """Create a round state with the given player and wall size."""
         players = [
             player,
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(players=players, wall=list(range(wall_count)))
 
@@ -378,19 +378,16 @@ class TestCallOpenKan:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=man_2m + TilesConverter.string_to_136_array(pin="5"),
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=man_3m + TilesConverter.string_to_136_array(pin="6"),
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=man_4m + TilesConverter.string_to_136_array(pin="7"),
             ),
         ]
@@ -522,19 +519,16 @@ class TestCallClosedKan:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=man_2m + TilesConverter.string_to_136_array(pin="5"),
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=man_3m + TilesConverter.string_to_136_array(pin="6"),
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=man_4m + TilesConverter.string_to_136_array(pin="7"),
             ),
         ]
@@ -646,19 +640,16 @@ class TestCallAddedKan:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=man_2m + TilesConverter.string_to_136_array(pin="5"),
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=man_3m + TilesConverter.string_to_136_array(pin="6"),
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=man_4m + TilesConverter.string_to_136_array(pin="7"),
             ),
         ]
@@ -780,15 +771,9 @@ class TestCheckFourKans:
         """Create a basic round state."""
         players = [
             MahjongPlayer(seat=0, name="Player1", tiles=TilesConverter.string_to_136_array(man="1111")),
-            MahjongPlayer(
-                seat=1, name="Bot1", is_bot=True, tiles=TilesConverter.string_to_136_array(man="2222")
-            ),
-            MahjongPlayer(
-                seat=2, name="Bot2", is_bot=True, tiles=TilesConverter.string_to_136_array(man="3333")
-            ),
-            MahjongPlayer(
-                seat=3, name="Bot3", is_bot=True, tiles=TilesConverter.string_to_136_array(man="4444")
-            ),
+            MahjongPlayer(seat=1, name="Bot1", tiles=TilesConverter.string_to_136_array(man="2222")),
+            MahjongPlayer(seat=2, name="Bot2", tiles=TilesConverter.string_to_136_array(man="3333")),
+            MahjongPlayer(seat=3, name="Bot3", tiles=TilesConverter.string_to_136_array(man="4444")),
         ]
         return MahjongRoundState(players=players)
 

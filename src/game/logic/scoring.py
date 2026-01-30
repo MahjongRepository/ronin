@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from mahjong.hand_calculating.hand import HandCalculator
-from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
+from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.state import seat_to_wind
 from game.logic.types import (
@@ -19,7 +19,7 @@ from game.logic.types import (
     RonResult,
     TsumoResult,
 )
-from game.logic.win import is_chiihou, is_haitei, is_houtei, is_tenhou
+from game.logic.win import GAME_OPTIONAL_RULES, is_chiihou, is_haitei, is_houtei, is_renhou, is_tenhou
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
@@ -62,18 +62,12 @@ def calculate_hand_value(
     Builds HandConfig with all relevant flags and OptionalRules for scoring.
     Returns a HandResult with han, fu, cost breakdown, and yaku list.
     """
-    # build optional rules
-    options = OptionalRules(
-        has_aka_dora=True,  # red fives enabled
-        has_open_tanyao=True,  # kuitan enabled
-        has_double_yakuman=False,  # single yakuman max
-    )
-
     # determine special conditions using standalone functions
     haitei_flag = is_tsumo and is_haitei(round_state)
     houtei_flag = not is_tsumo and is_houtei(round_state)
     tenhou_flag = is_tsumo and is_tenhou(player, round_state)
     chiihou_flag = is_tsumo and is_chiihou(player, round_state)
+    renhou_flag = not is_tsumo and is_renhou(player, round_state)
 
     config = HandConfig(
         is_tsumo=is_tsumo,
@@ -86,9 +80,10 @@ def calculate_hand_value(
         is_houtei=houtei_flag,
         is_tenhou=tenhou_flag,
         is_chiihou=chiihou_flag,
+        is_renhou=renhou_flag,
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=round_state.round_wind,
-        options=options,
+        options=GAME_OPTIONAL_RULES,
     )
 
     # get dora indicators

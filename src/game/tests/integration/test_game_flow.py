@@ -23,10 +23,10 @@ from game.messaging.events import GameStartedEvent
 
 def _default_seat_configs() -> list[SeatConfig]:
     return [
-        SeatConfig(name="Human", is_bot=False),
-        SeatConfig(name="Tsumogiri 1", is_bot=True, bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 2", is_bot=True, bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 3", is_bot=True, bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Human"),
+        SeatConfig(name="Tsumogiri 1", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 2", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 3", bot_type=BotType.TSUMOGIRI),
     ]
 
 
@@ -524,7 +524,7 @@ class TestGameServiceIntegration:
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
 
-            if not player.is_bot and player.tiles:
+            if player.name == "Human" and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 await service.handle_action("game1", player.name, "discard", {"tile_id": tile_to_discard})
 

@@ -29,9 +29,9 @@ class TestInitRound:
         """Create a game state with 4 players for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         round_state = MahjongRoundState(players=players, dealer_seat=0)
         return MahjongGameState(round_state=round_state, seed=12345.0, round_number=0)
@@ -269,10 +269,10 @@ class TestAddDoraIndicator:
 class TestCreatePlayers:
     def _default_configs(self) -> list[SeatConfig]:
         return [
-            SeatConfig(name="Human", is_bot=False),
-            SeatConfig(name="Tsumogiri 1", is_bot=True, bot_type=BotType.TSUMOGIRI),
-            SeatConfig(name="Tsumogiri 2", is_bot=True, bot_type=BotType.TSUMOGIRI),
-            SeatConfig(name="Tsumogiri 3", is_bot=True, bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="Human"),
+            SeatConfig(name="Tsumogiri 1", bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="Tsumogiri 2", bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="Tsumogiri 3", bot_type=BotType.TSUMOGIRI),
         ]
 
     def test_create_players_creates_four_players(self):
@@ -285,7 +285,6 @@ class TestCreatePlayers:
         configs = self._default_configs()
         players = create_players(configs)
 
-        assert players[0].is_bot is False
         assert players[0].name == "Human"
         assert players[0].seat == 0
 
@@ -294,15 +293,14 @@ class TestCreatePlayers:
         players = create_players(configs)
 
         for i in range(1, 4):
-            assert players[i].is_bot is True
             assert players[i].seat == i
 
     def test_create_players_assigns_correct_names(self):
         configs = [
-            SeatConfig(name="Alice", is_bot=False),
-            SeatConfig(name="BotA", is_bot=True, bot_type=BotType.TSUMOGIRI),
-            SeatConfig(name="BotB", is_bot=True, bot_type=BotType.TSUMOGIRI),
-            SeatConfig(name="BotC", is_bot=True, bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="Alice"),
+            SeatConfig(name="BotA", bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="BotB", bot_type=BotType.TSUMOGIRI),
+            SeatConfig(name="BotC", bot_type=BotType.TSUMOGIRI),
         ]
         players = create_players(configs)
 

@@ -29,9 +29,9 @@ class TestDrawTile:
         """Create a round state with wall and players for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         return MahjongRoundState(
             wall=TilesConverter.string_to_136_array(man="1111222233"),
@@ -97,9 +97,9 @@ class TestDrawFromDeadWall:
         """Create a round state with dead wall and players for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         # 14 tiles for dead wall: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
         dead_wall = [
@@ -193,9 +193,9 @@ class TestDiscardTile:
         pin_2 = TilesConverter.string_to_136_array(pin="2222")
         players = [
             MahjongPlayer(seat=0, name="Player1", tiles=[man_3[2], man_6[0], man_8[2], pin_2[0]]),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=[man_3[3], man_6[1], man_8[3], pin_2[1]]),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[man_4[0], man_6[2], man_9[0], pin_2[2]]),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[man_4[1], man_6[3], man_9[1], pin_2[3]]),
+            MahjongPlayer(seat=1, name="Bot1", tiles=[man_3[3], man_6[1], man_8[3], pin_2[1]]),
+            MahjongPlayer(seat=2, name="Bot2", tiles=[man_4[0], man_6[2], man_9[0], pin_2[2]]),
+            MahjongPlayer(seat=3, name="Bot3", tiles=[man_4[1], man_6[3], man_9[1], pin_2[3]]),
         ]
         return MahjongRoundState(players=players, current_player_seat=0)
 
@@ -433,9 +433,9 @@ class TestDiscardTileRevealsPendingDora:
         pin_2 = TilesConverter.string_to_136_array(pin="2222")
         players = [
             MahjongPlayer(seat=0, name="Player1", tiles=[man_3[2], man_6[0], man_8[2], pin_2[0]]),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=[man_3[3], man_6[1], man_8[3], pin_2[1]]),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[man_4[0], man_6[2], man_9[0], pin_2[2]]),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[man_4[1], man_6[3], man_9[1], pin_2[3]]),
+            MahjongPlayer(seat=1, name="Bot1", tiles=[man_3[3], man_6[1], man_8[3], pin_2[1]]),
+            MahjongPlayer(seat=2, name="Bot2", tiles=[man_4[0], man_6[2], man_9[0], pin_2[2]]),
+            MahjongPlayer(seat=3, name="Bot3", tiles=[man_4[1], man_6[3], man_9[1], pin_2[3]]),
         ]
         return MahjongRoundState(
             players=players,
@@ -482,9 +482,9 @@ class TestInitRoundResetsPendingDora:
     def test_init_round_resets_pending_dora_count(self):
         players = [
             MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
         round_state = MahjongRoundState(players=players, dealer_seat=0, pending_dora_count=2)
         game_state = MahjongGameState(round_state=round_state, seed=12345.0, round_number=0)

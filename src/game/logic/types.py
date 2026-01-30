@@ -22,7 +22,6 @@ class SeatConfig(BaseModel):
     """Configuration for a single seat in a game."""
 
     name: str
-    is_bot: bool
     bot_type: BotType | None = None
 
 
@@ -147,7 +146,8 @@ class PlayerStanding(BaseModel):
 
     seat: int
     name: str
-    score: int
+    score: int  # raw game score (e.g. 42300)
+    final_score: int  # uma/oka-adjusted score (e.g. 52)
     is_bot: bool
 
 

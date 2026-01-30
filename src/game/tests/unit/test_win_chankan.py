@@ -260,10 +260,11 @@ class TestChankanWithOpenHand:
         # player 1 has yakuhai (haku pon), so chankan is valid
         assert 1 in chankan_seats
 
-    def test_chankan_open_hand_no_yaku_excluded(self):
-        """Open-handed player waiting on kan tile but without yaku is excluded from chankan."""
-        # player 1 has an open hand with pon of 1m (no yaku)
+    def test_chankan_open_hand_allowed_with_chankan_yaku(self):
+        """Open-handed player can call chankan because chankan itself is a valid yaku."""
+        # player 1 has an open hand with pon of 1m (no other yaku)
         # hand: 2345m 234p 567s + pon of 111m, waiting for 5m (to make 234m + 55m pair)
+        # chankan provides the required yaku (1 han)
         pon_tiles = TilesConverter.string_to_136_array(man="111")
         pon_meld = Meld(
             meld_type=Meld.PON,
@@ -300,8 +301,8 @@ class TestChankanWithOpenHand:
         kan_tile = TilesConverter.string_to_136_array(man="5")[0]
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
 
-        # player 1 has no yaku with open hand (1m pon has 1m so no tanyao, no yakuhai)
-        assert 1 not in chankan_seats
+        # chankan itself provides a yaku, so player 1 can call chankan
+        assert 1 in chankan_seats
 
 
 class TestHasYakuForOpenHandEmptyTiles:

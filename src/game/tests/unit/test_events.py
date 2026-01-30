@@ -438,7 +438,7 @@ class TestEventUnionType:
                 result=GameEndResult(
                     winner_seat=0,
                     standings=[
-                        PlayerStanding(seat=0, name="Player0", score=30000, is_bot=False),
+                        PlayerStanding(seat=0, name="Player0", score=30000, final_score=40, is_bot=False),
                     ],
                 ),
                 target="all",

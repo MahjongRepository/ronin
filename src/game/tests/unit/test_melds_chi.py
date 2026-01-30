@@ -232,19 +232,16 @@ class TestCallChi:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=[man_3m, man_4m, *TilesConverter.string_to_136_array(pin="2", sou="2")],
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=[man_5m, man_6m, *TilesConverter.string_to_136_array(pin="3", sou="3")],
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=[man_7m, man_8m, *TilesConverter.string_to_136_array(pin="4", sou="4")],
             ),
         ]
@@ -510,19 +507,16 @@ class TestCallChiSetsKuikae:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=[man_3m, man_4m, *TilesConverter.string_to_136_array(pin="2", sou="2")],
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=[man_5m, man_6m, *TilesConverter.string_to_136_array(pin="3", sou="3")],
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=[man_7m, man_8m, *TilesConverter.string_to_136_array(pin="4", sou="4")],
             ),
         ]

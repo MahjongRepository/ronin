@@ -31,13 +31,13 @@ class TestMahjongGameServiceInit:
 
         game_state = service._games["game1"]
         human_player = _find_human_player(game_state.round_state, "Human")
-        assert human_player.is_bot is False
+        assert human_player.name == "Human"
 
     async def test_start_game_fills_with_bots(self, service):
         await service.start_game("game1", ["Human"])
 
-        game_state = service._games["game1"]
-        bot_count = sum(1 for p in game_state.round_state.players if p.is_bot)
+        bot_controller = service._bot_controllers["game1"]
+        bot_count = sum(1 for seat in range(4) if bot_controller.is_bot(seat))
         assert bot_count == 3
 
     async def test_start_game_returns_game_started_events(self, service):
@@ -94,7 +94,7 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
 
-        seat = service._find_player_seat(game_state, "Human")
+        seat = service._find_player_seat("game1", game_state, "Human")
 
         # seat is assigned randomly, just verify it's valid
         assert seat is not None
@@ -104,7 +104,24 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
 
-        seat = service._find_player_seat(game_state, "Unknown")
+        seat = service._find_player_seat("game1", game_state, "Unknown")
+
+        assert seat is None
+
+    async def test_find_player_seat_skips_bot_seats(self, service):
+        """Searching for a bot name returns None because bot seats are skipped."""
+        await service.start_game("game1", ["Human"])
+        game_state = service._games["game1"]
+        bot_controller = service._bot_controllers["game1"]
+
+        # find a bot's name to search for
+        bot_name = None
+        for player in game_state.round_state.players:
+            if bot_controller.is_bot(player.seat):
+                bot_name = player.name
+                break
+
+        seat = service._find_player_seat("game1", game_state, bot_name)
 
         assert seat is None
 
@@ -112,12 +129,12 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Tsumogiri 1"])
         game_state = service._games["game1"]
 
-        seat = service._find_player_seat(game_state, "Tsumogiri 1")
+        seat = service._find_player_seat("game1", game_state, "Tsumogiri 1")
 
         # should find the human player, not the bot
         assert seat is not None
-        player = game_state.round_state.players[seat]
-        assert player.is_bot is False
+        bot_controller = service._bot_controllers["game1"]
+        assert bot_controller.is_bot(seat) is False
 
 
 class TestMahjongGameServiceMultipleGames:

@@ -117,19 +117,16 @@ class TestCallPon:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=man_2m + TilesConverter.string_to_136_array(pin="2", sou="2"),
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=man_3m + TilesConverter.string_to_136_array(pin="3", sou="3"),
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=man_4m + TilesConverter.string_to_136_array(pin="4", sou="4"),
             ),
         ]
@@ -287,19 +284,16 @@ class TestCallPonSetsKuikae:
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
-                is_bot=True,
                 tiles=man_2m + TilesConverter.string_to_136_array(pin="2", sou="2"),
             ),
             MahjongPlayer(
                 seat=2,
                 name="Bot2",
-                is_bot=True,
                 tiles=man_3m + TilesConverter.string_to_136_array(pin="3", sou="3"),
             ),
             MahjongPlayer(
                 seat=3,
                 name="Bot3",
-                is_bot=True,
                 tiles=man_4m + TilesConverter.string_to_136_array(pin="4", sou="4"),
             ),
         ]
@@ -323,9 +317,9 @@ class TestPaoDetection:
         """Create a round state with proper dead wall setup."""
         players = [
             MahjongPlayer(seat=0, name="Player1", tiles=[]),
-            MahjongPlayer(seat=1, name="Bot1", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=2, name="Bot2", is_bot=True, tiles=[]),
-            MahjongPlayer(seat=3, name="Bot3", is_bot=True, tiles=[]),
+            MahjongPlayer(seat=1, name="Bot1", tiles=[]),
+            MahjongPlayer(seat=2, name="Bot2", tiles=[]),
+            MahjongPlayer(seat=3, name="Bot3", tiles=[]),
         ]
         west = TilesConverter.string_to_136_array(honors="3333")
         north = TilesConverter.string_to_136_array(honors="4444")

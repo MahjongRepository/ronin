@@ -39,12 +39,13 @@ from game.logic.scoring import (
     apply_tsumo_score,
     calculate_hand_value,
 )
-from game.logic.state import RoundPhase
+from game.logic.state import PendingCallPrompt, RoundPhase
 from game.logic.tiles import tile_to_34, tile_to_string
 from game.logic.types import AvailableActionItem, MeldCaller
 from game.logic.win import (
     can_call_ron,
     can_declare_tsumo,
+    get_waiting_tiles,
     is_chankan_possible,
 )
 from game.messaging.events import (
@@ -181,6 +182,9 @@ def process_discard_phase(
     # step 4: check for ron from other players
     ron_callers = _find_ron_callers(round_state, tile_id, current_seat)
 
+    # set riichi furiten for riichi players whose winning tile passed
+    _check_riichi_furiten(round_state, tile_id, current_seat, ron_callers)
+
     if check_triple_ron(ron_callers):
         # triple ron is abortive draw
         result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)
@@ -189,7 +193,14 @@ def process_discard_phase(
         return events
 
     if ron_callers:
-        # ron opportunities exist - create call prompt
+        # ron opportunities exist - set up pending prompt and create call prompt event
+        round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.RON,
+            tile_id=tile_id,
+            from_seat=current_seat,
+            pending_seats=set(ron_callers),
+            callers=ron_callers,
+        )
         events.append(
             CallPromptEvent(
                 call_type=CallType.RON,
@@ -217,6 +228,14 @@ def process_discard_phase(
     meld_calls = _find_meld_callers(round_state, tile_id, current_seat)
 
     if meld_calls:
+        # set up pending prompt and create call prompt event
+        round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=tile_id,
+            from_seat=current_seat,
+            pending_seats={c.seat for c in meld_calls},
+            callers=meld_calls,
+        )
         events.append(
             CallPromptEvent(
                 call_type=CallType.MELD,
@@ -332,6 +351,14 @@ def _process_added_kan_call(ctx: MeldCallContext) -> bool:
     """Process added kan call. Returns True if round ended or waiting for chankan."""
     chankan_seats = is_chankan_possible(ctx.round_state, ctx.caller_seat, ctx.tile_id)
     if chankan_seats:
+        # set up pending prompt for chankan callers
+        ctx.round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=ctx.tile_id,
+            from_seat=ctx.caller_seat,
+            pending_seats=set(chankan_seats),
+            callers=chankan_seats,
+        )
         ctx.events.append(
             CallPromptEvent(
                 call_type=CallType.CHANKAN,
@@ -566,3 +593,30 @@ def _find_meld_callers(
     meld_calls.sort(key=lambda x: x.priority)
 
     return meld_calls
+
+
+def _check_riichi_furiten(
+    round_state: MahjongRoundState,
+    tile_id: int,
+    discarder_seat: int,
+    ron_callers: list[int],
+) -> None:
+    """
+    Set riichi furiten for riichi players whose winning tile just passed.
+
+    A riichi player who is waiting on the discarded tile but did not (or could not)
+    call ron becomes permanently furiten for the rest of the hand.
+    """
+    tile_34 = tile_to_34(tile_id)
+    for seat in range(4):
+        if seat == discarder_seat:
+            continue
+        player = round_state.players[seat]
+        if not player.is_riichi:
+            continue
+        if seat in ron_callers:
+            # they can call ron; riichi furiten only applies if they later pass
+            continue
+        waiting = get_waiting_tiles(player)
+        if tile_34 in waiting:
+            player.is_riichi_furiten = True

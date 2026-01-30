@@ -21,8 +21,8 @@ class TestMatchmakerFillSeats:
 
         configs = matchmaker.fill_seats(["Alice"])
 
-        human_count = sum(1 for c in configs if not c.is_bot)
-        bot_count = sum(1 for c in configs if c.is_bot)
+        human_count = sum(1 for c in configs if c.bot_type is None)
+        bot_count = sum(1 for c in configs if c.bot_type is not None)
         assert human_count == 1
         assert bot_count == 3
 
@@ -32,7 +32,7 @@ class TestMatchmakerFillSeats:
 
         configs = matchmaker.fill_seats(["Alice"])
 
-        human_seats = [i for i, c in enumerate(configs) if not c.is_bot]
+        human_seats = [i for i, c in enumerate(configs) if c.bot_type is None]
         assert len(human_seats) == 1
         assert 0 <= human_seats[0] <= 3
 
@@ -42,7 +42,7 @@ class TestMatchmakerFillSeats:
 
         configs = matchmaker.fill_seats(["Alice"])
 
-        human_configs = [c for c in configs if not c.is_bot]
+        human_configs = [c for c in configs if c.bot_type is None]
         assert human_configs[0].name == "Alice"
 
     def test_fill_seats_bot_names_follow_pattern(self):
@@ -51,7 +51,7 @@ class TestMatchmakerFillSeats:
 
         configs = matchmaker.fill_seats(["Alice"])
 
-        bot_configs = [c for c in configs if c.is_bot]
+        bot_configs = [c for c in configs if c.bot_type is not None]
         bot_names = [c.name for c in bot_configs]
         assert bot_names == ["Tsumogiri 1", "Tsumogiri 2", "Tsumogiri 3"]
 
@@ -62,7 +62,7 @@ class TestMatchmakerFillSeats:
         configs = matchmaker.fill_seats(["Alice"])
 
         for config in configs:
-            if config.is_bot:
+            if config.bot_type is not None:
                 assert config.bot_type == BotType.TSUMOGIRI
 
     def test_fill_seats_human_has_no_bot_type(self):
@@ -71,7 +71,7 @@ class TestMatchmakerFillSeats:
 
         configs = matchmaker.fill_seats(["Alice"])
 
-        human_configs = [c for c in configs if not c.is_bot]
+        human_configs = [c for c in configs if c.bot_type is None]
         assert human_configs[0].bot_type is None
 
     def test_fill_seats_different_seeds_different_assignments(self):
@@ -81,15 +81,15 @@ class TestMatchmakerFillSeats:
         configs1 = matchmaker.fill_seats(["Alice"], seed=1.0)
         configs2 = matchmaker.fill_seats(["Alice"], seed=2.0)
 
-        seat1 = next(i for i, c in enumerate(configs1) if not c.is_bot)
-        seat2 = next(i for i, c in enumerate(configs2) if not c.is_bot)
+        seat1 = next(i for i, c in enumerate(configs1) if c.bot_type is None)
+        seat2 = next(i for i, c in enumerate(configs2) if c.bot_type is None)
 
         # with different seeds, seats should eventually differ
         # use seeds known to produce different results
         configs_a = matchmaker.fill_seats(["Alice"], seed=0.0)
         configs_b = matchmaker.fill_seats(["Alice"], seed=42.0)
-        seat_a = next(i for i, c in enumerate(configs_a) if not c.is_bot)
-        seat_b = next(i for i, c in enumerate(configs_b) if not c.is_bot)
+        seat_a = next(i for i, c in enumerate(configs_a) if c.bot_type is None)
+        seat_b = next(i for i, c in enumerate(configs_b) if c.bot_type is None)
         # at least one pair should differ across multiple seeds
         seats = {seat1, seat2, seat_a, seat_b}
         assert len(seats) > 1
@@ -103,5 +103,5 @@ class TestMatchmakerFillSeats:
 
         for c1, c2 in zip(configs1, configs2, strict=True):
             assert c1.name == c2.name
-            assert c1.is_bot == c2.is_bot
+            assert c1.bot_type == c2.bot_type
             assert c1.bot_type == c2.bot_type
