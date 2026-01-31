@@ -2,6 +2,7 @@
 Turn loop orchestration for Mahjong game.
 """
 
+import logging
 from typing import TYPE_CHECKING
 
 from game.logic.abortive import (
@@ -61,6 +62,8 @@ from game.messaging.events import (
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongRoundState
+
+logger = logging.getLogger(__name__)
 
 # number of ron callers for double ron
 DOUBLE_RON_COUNT = 2
@@ -155,6 +158,7 @@ def process_discard_phase(
     riichi_pending = False
     if is_riichi:
         if not can_declare_riichi(player, round_state):
+            logger.error(f"seat {current_seat} cannot declare riichi: conditions not met")
             raise ValueError("cannot declare riichi: conditions not met")
         riichi_pending = True
 
@@ -297,6 +301,7 @@ def _process_pon_call(ctx: MeldCallContext) -> None:
 def _process_chi_call(ctx: MeldCallContext) -> None:
     """Process chi call."""
     if ctx.sequence_tiles is None:
+        logger.error(f"chi call from seat {ctx.caller_seat} missing sequence_tiles")
         raise ValueError("chi call requires sequence_tiles")
     meld = call_chi(ctx.round_state, ctx.caller_seat, ctx.discarder_seat, ctx.tile_id, ctx.sequence_tiles)
     tile_ids = list(meld.tiles) if meld.tiles else []
@@ -411,6 +416,7 @@ def process_meld_call(  # noqa: PLR0913
         if _process_added_kan_call(ctx):
             return ctx.events
     else:
+        logger.error(f"unknown call_type: {call_type} from seat {caller_seat}")
         raise ValueError(f"unknown call_type: {call_type}")
 
     return ctx.events
@@ -441,6 +447,10 @@ def process_ron_call(
         winner.tiles.remove(tile_id)
 
         if hand_result.error:
+            logger.error(
+                f"ron calculation error for seat {winner_seat}: {hand_result.error}, "
+                f"tiles={winner.tiles}, melds={winner.melds}, win_tile={tile_id}"
+            )
             raise ValueError(f"ron calculation error: {hand_result.error}")
 
         result = apply_ron_score(game_state, winner_seat, discarder_seat, hand_result)
@@ -457,6 +467,10 @@ def process_ron_call(
             winner.tiles.remove(tile_id)
 
             if hand_result.error:
+                logger.error(
+                    f"ron calculation error for seat {winner_seat}: {hand_result.error}, "
+                    f"tiles={winner.tiles}, melds={winner.melds}, win_tile={tile_id}"
+                )
                 raise ValueError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
 
             winners.append((winner_seat, hand_result))
@@ -482,6 +496,10 @@ def process_tsumo_call(
     winner = round_state.players[winner_seat]
 
     if not can_declare_tsumo(winner, round_state):
+        logger.error(
+            f"seat {winner_seat} cannot declare tsumo: conditions not met, "
+            f"tiles={winner.tiles}, melds={winner.melds}"
+        )
         raise ValueError("cannot declare tsumo: conditions not met")
 
     # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
@@ -493,6 +511,10 @@ def process_tsumo_call(
     hand_result = calculate_hand_value(winner, round_state, win_tile, is_tsumo=True)
 
     if hand_result.error:
+        logger.error(
+            f"tsumo calculation error for seat {winner_seat}: {hand_result.error}, "
+            f"tiles={winner.tiles}, melds={winner.melds}, win_tile={win_tile}"
+        )
         raise ValueError(f"tsumo calculation error: {hand_result.error}")
 
     result = apply_tsumo_score(game_state, winner_seat, hand_result)

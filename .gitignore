@@ -17,3 +17,5 @@ docs
 logs
 
 bot
+
+src/debug.py

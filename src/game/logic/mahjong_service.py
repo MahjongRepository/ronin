@@ -38,7 +38,6 @@ from game.logic.types import (
     MeldCaller,
     PonActionData,
     RiichiActionData,
-    RonActionData,
     RoundResult,
 )
 from game.messaging.events import (
@@ -160,10 +159,12 @@ class MahjongGameService(GameService):
         """
         game_state = self._games.get(game_id)
         if game_state is None:
+            logger.warning(f"game {game_id}: action from '{player_name}' but game not found")
             return self._create_error_event("game_error", "game not found")
 
         seat = self._find_player_seat(game_id, game_state, player_name)
         if seat is None:
+            logger.warning(f"game {game_id}: action from '{player_name}' but player not in game")
             return self._create_error_event("game_error", "player not in game")
 
         logger.info(f"game {game_id}: player '{player_name}' (seat {seat}) action={action}")
@@ -191,6 +192,7 @@ class MahjongGameService(GameService):
         # actions without data parameters
         no_data_handlers = {
             GameAction.DECLARE_TSUMO: lambda: handle_tsumo(game_state.round_state, game_state, seat),
+            GameAction.CALL_RON: lambda: handle_ron(game_state.round_state, game_state, seat),
             GameAction.CALL_KYUUSHU: lambda: handle_kyuushu(game_state.round_state, game_state, seat),
             GameAction.PASS: lambda: handle_pass(game_state.round_state, game_state, seat),
         }
@@ -204,18 +206,20 @@ class MahjongGameService(GameService):
         try:
             result = self._execute_data_action(game_state, seat, action, data)
         except ValidationError as e:
+            logger.warning(f"game {game_id}: validation error for seat {seat} action={action}: {e}")
             return self._create_error_event(
                 "validation_error", f"invalid action data: {e}", target=f"seat_{seat}"
             )
 
         if result is None:
+            logger.warning(f"game {game_id}: unknown action '{action}' from seat {seat}")
             return self._create_error_event(
                 "unknown_action", f"unknown action: {action}", target=f"seat_{seat}"
             )
 
         return await self._process_action_result_internal(game_id, result)
 
-    def _execute_data_action(  # noqa: PLR0911
+    def _execute_data_action(
         self, game_state: MahjongGameState, seat: int, action: str, data: dict[str, Any]
     ) -> ActionResult | None:
         """Execute data-requiring actions and return the result."""
@@ -224,8 +228,6 @@ class MahjongGameService(GameService):
             return handle_discard(round_state, game_state, seat, DiscardActionData(**data))
         if action == GameAction.DECLARE_RIICHI:
             return handle_riichi(round_state, game_state, seat, RiichiActionData(**data))
-        if action == GameAction.CALL_RON:
-            return handle_ron(round_state, game_state, seat, RonActionData(**data))
         if action == GameAction.CALL_PON:
             return handle_pon(round_state, game_state, seat, PonActionData(**data))
         if action == GameAction.CALL_CHI:
@@ -335,6 +337,7 @@ class MahjongGameService(GameService):
         if timeout_type == TimeoutType.MELD:
             return await self.handle_action(game_id, player_name, GameAction.PASS, {})
 
+        logger.error(f"game {game_id}: unknown timeout type '{timeout_type}' for player '{player_name}'")
         raise ValueError(f"Unknown timeout type: {timeout_type}")
 
     def _find_player_seat(self, game_id: str, game_state: MahjongGameState, player_name: str) -> int | None:
@@ -460,7 +463,7 @@ class MahjongGameService(GameService):
         if action == GameAction.CALL_CHI:
             return handle_chi(round_state, game_state, seat, ChiActionData(**data))
         if action == GameAction.CALL_RON:
-            return handle_ron(round_state, game_state, seat, RonActionData(**data))
+            return handle_ron(round_state, game_state, seat)
         if action == GameAction.CALL_KAN:
             return handle_kan(round_state, game_state, seat, KanActionData(**data))
         return ActionResult([])
@@ -480,6 +483,7 @@ class MahjongGameService(GameService):
         game_state = self._games[game_id]
 
         if round_result is None:
+            logger.error(f"game {game_id}: round finished but no round result found in events")
             return self._create_error_event(
                 "missing_round_result",
                 "round finished but no round result found",

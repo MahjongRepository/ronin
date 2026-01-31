@@ -102,12 +102,13 @@ invalid-parameter-default = "warn"
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/bot.py", "src/game/logic/bot_controller.py"]
+omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/bot.py", "src/game/logic/bot_controller.py", "src/debug.py"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
 exclude_lines = [
+    "pragma: no cover",
     "if __name__ == .__main__.",
     "if TYPE_CHECKING:",
     '^\\s*\\.\\.\\.\\s*$',

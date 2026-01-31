@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
-.PHONY: test test-lobby test-game run-lobby run-game run-client run-all lint format typecheck typecheck-client check-agent
+.PHONY: test test-lobby test-game run-lobby run-game run-client run-all run-debug lint format typecheck typecheck-client check-agent process-logs
 
 test:
 	uv run pytest -v
@@ -37,5 +37,11 @@ typecheck:
 typecheck-client:
 	cd client && bun run typecheck
 
+run-debug:
+	PYTHONPATH=src uv run python src/debug.py
+
 check-agent:
 	@bash ./bin/check-agent.sh || true
+
+process-logs:
+	@bash ./bin/process-logs.sh

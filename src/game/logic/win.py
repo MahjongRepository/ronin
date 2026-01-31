@@ -31,6 +31,32 @@ GAME_OPTIONAL_RULES = OptionalRules(
 )
 
 
+def all_player_tiles(player: MahjongPlayer) -> list[int]:
+    """
+    Build a complete 136-format tile list from closed hand tiles and meld tiles.
+
+    The mahjong library expects ALL tiles (closed + open melds) to be passed to
+    HandCalculator.estimate_hand_value and Agari.is_agari.
+    Meld tiles that already exist in player.tiles are not double-counted.
+    """
+    hand_ids = set(player.tiles)
+    all_tiles = list(player.tiles)
+    for meld in player.melds:
+        if meld.tiles:
+            all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
+    return all_tiles
+
+
+def _hand_with_melds_to_34_array(player: MahjongPlayer) -> list[int]:
+    """
+    Build a 34-format tile count array from closed hand tiles and meld tiles.
+
+    The Agari library expects tiles_34 to contain ALL tiles (closed + open melds),
+    because it subtracts open sets internally during the agari check.
+    """
+    return hand_to_34_array(all_player_tiles(player))
+
+
 def check_tsumo(player: MahjongPlayer) -> bool:
     """
     Check if the player's hand is a winning hand (agari).
@@ -38,7 +64,7 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     Uses the mahjong library's Agari class to determine if the hand
     can form 4 melds + 1 pair (or special hands like kokushi/chiitoitsu).
     """
-    tiles_34 = hand_to_34_array(player.tiles)
+    tiles_34 = _hand_with_melds_to_34_array(player)
 
     # convert open melds to 34-format for the agari check
     open_sets_34 = _melds_to_34_sets(player.melds)
@@ -74,13 +100,16 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     Uses shanten calculator to identify which tiles would bring shanten to -1 (agari).
     Returns a set of tile_34 values (0-33) that complete the hand.
     """
-    tiles_34 = hand_to_34_array(player.tiles)
+    # shanten operates on closed hand tiles only
+    closed_tiles_34 = hand_to_34_array(player.tiles)
     shanten = Shanten()
-    current_shanten = shanten.calculate_shanten(tiles_34)
+    current_shanten = shanten.calculate_shanten(closed_tiles_34)
 
-    # if not in tempai (shanten > 0), no waiting tiles
     if current_shanten != 0:
         return set()
+
+    # agari requires all tiles (closed + melds) because it subtracts open sets internally
+    tiles_34 = _hand_with_melds_to_34_array(player)
 
     waiting = set()
 
@@ -165,7 +194,7 @@ def can_call_ron(player: MahjongPlayer, discarded_tile: int, round_state: Mahjon
     # temporarily add tile back for yaku check
     player.tiles.append(discarded_tile)
     has_yaku = _has_yaku_for_ron(player, round_state, discarded_tile)
-    player.tiles = original_tiles
+    player.tiles.pop()
 
     return has_yaku
 
@@ -197,14 +226,14 @@ def _has_yaku_for_ron(
 
     calculator = HandCalculator()
     result = calculator.estimate_hand_value(
-        tiles=list(player.tiles),
+        tiles=all_player_tiles(player),
         win_tile=win_tile,
         melds=player.melds if player.melds else None,
         dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
         config=config,
     )
 
-    return result.error != HandCalculator.ERR_NO_YAKU
+    return result.error is None
 
 
 def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
@@ -218,9 +247,6 @@ def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundStat
         return False
 
     win_tile = player.tiles[-1]
-
-    # build tiles array (all tiles in hand)
-    tiles = list(player.tiles)
 
     # configure hand for tsumo
     config = HandConfig(
@@ -237,15 +263,14 @@ def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundStat
 
     calculator = HandCalculator()
     result = calculator.estimate_hand_value(
-        tiles=tiles,
+        tiles=all_player_tiles(player),
         win_tile=win_tile,
         melds=player.melds if player.melds else None,
         dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
         config=config,
     )
 
-    # if error is "no_yaku", the hand has no valid yaku
-    return result.error != HandCalculator.ERR_NO_YAKU
+    return result.error is None
 
 
 def _melds_to_34_sets(melds: list[Meld]) -> list[list[int]] | None:

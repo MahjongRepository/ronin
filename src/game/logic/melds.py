@@ -2,6 +2,7 @@
 Meld operations for Mahjong game (pon, chi, kan).
 """
 
+import logging
 from typing import TYPE_CHECKING
 
 from mahjong.meld import Meld
@@ -16,6 +17,8 @@ TILES_PER_SUIT = 9
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongRoundState
+
+logger = logging.getLogger(__name__)
 
 # minimum tiles needed in wall to declare kan (need replacement draw)
 MIN_WALL_FOR_KAN = 2
@@ -153,6 +156,10 @@ def call_pon(
             new_hand.append(t)
 
     if len(removed_tiles) != TILES_FOR_PON:
+        logger.warning(
+            f"cannot call pon for seat {caller_seat}: "
+            f"need {TILES_FOR_PON} matching tiles, found {len(removed_tiles)}"
+        )
         raise ValueError(f"cannot call pon: need {TILES_FOR_PON} matching tiles, found {len(removed_tiles)}")
 
     caller.tiles = new_hand
@@ -495,6 +502,10 @@ def call_open_kan(
             new_hand.append(t)
 
     if len(removed_tiles) != TILES_FOR_OPEN_KAN:
+        logger.warning(
+            f"cannot call open kan for seat {caller_seat}: "
+            f"need {TILES_FOR_OPEN_KAN} matching tiles, found {len(removed_tiles)}"
+        )
         raise ValueError(
             f"cannot call open kan: need {TILES_FOR_OPEN_KAN} matching tiles, found {len(removed_tiles)}"
         )
@@ -560,6 +571,10 @@ def call_closed_kan(
             new_hand.append(t)
 
     if len(removed_tiles) != TILES_FOR_CLOSED_KAN:
+        logger.warning(
+            f"cannot call closed kan for seat {seat}: "
+            f"need {TILES_FOR_CLOSED_KAN} matching tiles, found {len(removed_tiles)}"
+        )
         raise ValueError(
             f"cannot call closed kan: need {TILES_FOR_CLOSED_KAN} matching tiles, found {len(removed_tiles)}"
         )
@@ -622,16 +637,19 @@ def call_added_kan(
                 break
 
     if pon_meld is None:
+        logger.warning(f"cannot call added kan for seat {seat}: no pon of tile type {tile_34}")
         raise ValueError(f"cannot call added kan: no pon of tile type {tile_34}")
 
     # remove the 4th tile from hand
     if tile_id not in player.tiles:
+        logger.warning(f"cannot call added kan for seat {seat}: tile {tile_id} not in hand")
         raise ValueError(f"cannot call added kan: tile {tile_id} not in hand")
 
     player.tiles.remove(tile_id)
 
     # upgrade the meld from pon to kan (shouminkan)
     if pon_meld.tiles is None:
+        logger.error(f"pon meld tiles are None for seat {seat} during kan upgrade")
         raise ValueError("pon meld tiles cannot be None for kan upgrade")
     new_tiles = sorted([*pon_meld.tiles, tile_id])
     upgraded_meld = Meld(

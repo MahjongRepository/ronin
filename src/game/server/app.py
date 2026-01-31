@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 
 MAX_GAMES = 100
+GAME_LOG_DIR = "logs/game"
 
 
 async def health(_request: Request) -> JSONResponse:
@@ -80,7 +81,7 @@ def create_app(
         game_service = MahjongGameService()
 
     if session_manager is None:
-        session_manager = SessionManager(game_service)
+        session_manager = SessionManager(game_service, log_dir=GAME_LOG_DIR)
 
     if message_router is None:
         message_router = MessageRouter(session_manager)
@@ -107,5 +108,5 @@ def create_app(
     return app
 
 
-setup_logging(log_dir="logs/game")
+setup_logging(log_dir=GAME_LOG_DIR)
 app = create_app()

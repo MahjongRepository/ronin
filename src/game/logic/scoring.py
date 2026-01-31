@@ -4,13 +4,15 @@ Scoring calculation for Mahjong game.
 Handles hand value calculation and score application for wins (tsumo, ron, double ron).
 """
 
+import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.state import seat_to_wind
+from game.logic.tiles import hand_to_34_array
 from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
@@ -19,10 +21,81 @@ from game.logic.types import (
     RonResult,
     TsumoResult,
 )
-from game.logic.win import GAME_OPTIONAL_RULES, is_chiihou, is_haitei, is_houtei, is_renhou, is_tenhou
+from game.logic.win import (
+    GAME_OPTIONAL_RULES,
+    all_player_tiles,
+    is_chiihou,
+    is_haitei,
+    is_houtei,
+    is_renhou,
+    is_tenhou,
+)
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
+
+logger = logging.getLogger(__name__)
+
+
+def _hand_config_debug(config: HandConfig) -> dict[str, object]:  # pragma: no cover
+    options = config.options
+    options_debug = None
+    if options is not None:
+        options_debug = {
+            "has_open_tanyao": options.has_open_tanyao,
+            "has_aka_dora": options.has_aka_dora,
+            "has_double_yakuman": options.has_double_yakuman,
+            "kazoe_limit": options.kazoe_limit,
+            "kiriage": options.kiriage,
+            "fu_for_open_pinfu": options.fu_for_open_pinfu,
+            "fu_for_pinfu_tsumo": options.fu_for_pinfu_tsumo,
+            "renhou_as_yakuman": options.renhou_as_yakuman,
+            "has_daisharin": options.has_daisharin,
+            "has_daisharin_other_suits": options.has_daisharin_other_suits,
+            "has_daichisei": options.has_daichisei,
+            "has_sashikomi_yakuman": options.has_sashikomi_yakuman,
+            "limit_to_sextuple_yakuman": options.limit_to_sextuple_yakuman,
+            "paarenchan_needs_yaku": options.paarenchan_needs_yaku,
+        }
+
+    return {
+        "is_tsumo": config.is_tsumo,
+        "is_riichi": config.is_riichi,
+        "is_ippatsu": config.is_ippatsu,
+        "is_daburu_riichi": config.is_daburu_riichi,
+        "is_rinshan": config.is_rinshan,
+        "is_chankan": config.is_chankan,
+        "is_haitei": config.is_haitei,
+        "is_houtei": config.is_houtei,
+        "is_tenhou": config.is_tenhou,
+        "is_chiihou": config.is_chiihou,
+        "is_renhou": config.is_renhou,
+        "is_open_riichi": config.is_open_riichi,
+        "is_nagashi_mangan": config.is_nagashi_mangan,
+        "player_wind": config.player_wind,
+        "round_wind": config.round_wind,
+        "is_dealer": config.is_dealer,
+        "paarenchan": config.paarenchan,
+        "kyoutaku_number": config.kyoutaku_number,
+        "tsumi_number": config.tsumi_number,
+        "options": options_debug,
+    }
+
+
+def _melds_debug(melds: list[Any] | None) -> list[dict[str, object]] | None:  # pragma: no cover
+    if not melds:
+        return None
+    return [
+        {
+            "type": getattr(meld, "type", None),
+            "opened": getattr(meld, "opened", None),
+            "tiles": getattr(meld, "tiles", None),
+            "called_tile": getattr(meld, "called_tile", None),
+            "who": getattr(meld, "who", None),
+            "from_who": getattr(meld, "from_who", None),
+        }
+        for meld in melds
+    ]
 
 
 @dataclass
@@ -100,15 +173,30 @@ def calculate_hand_value(
             dora_indicators.extend(ura_indicators)
 
     calculator = HandCalculator()
+    tiles = all_player_tiles(player)
+    melds = player.melds if player.melds else None
     result = calculator.estimate_hand_value(
-        tiles=list(player.tiles),
+        tiles=tiles,
         win_tile=win_tile,
-        melds=player.melds if player.melds else None,
+        melds=melds,
         dora_indicators=dora_indicators,
         config=config,
     )
 
     if result.error:
+        tile_counts_34 = hand_to_34_array(tiles)
+        discard_ids = [discard.tile_id for discard in player.discards]
+        logger.error(
+            f"hand calculation error: {result.error} "
+            f"(seat={player.seat} name={player.name} "
+            f"tiles={tiles} tiles_34={tile_counts_34} tiles_count={len(tiles)} "
+            f"win_tile={win_tile} melds={_melds_debug(melds)} dora_indicators={dora_indicators} "
+            f"discards={discard_ids} discards_count={len(discard_ids)} "
+            f"round_wind={round_state.round_wind} dealer_seat={round_state.dealer_seat} "
+            f"phase={round_state.phase.value} wall_count={len(round_state.wall)} "
+            f"pending_dora_count={round_state.pending_dora_count} "
+            f"config={_hand_config_debug(config)})"
+        )
         return HandResult(error=result.error)
 
     # extract yaku names

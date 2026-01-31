@@ -22,6 +22,7 @@ from game.messaging.types import (
 )
 from game.session.models import Game, Player
 from game.session.types import GameInfo
+from shared.logging import rotate_log_file
 
 if TYPE_CHECKING:
     from game.logic.service import GameService
@@ -35,8 +36,9 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     MAX_PLAYERS_PER_GAME = 4  # Mahjong requires exactly 4 players
 
-    def __init__(self, game_service: GameService) -> None:
+    def __init__(self, game_service: GameService, log_dir: str | None = None) -> None:
         self._game_service = game_service
+        self._log_dir = log_dir
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
         self._games: dict[str, Game] = {}  # game_id -> Game
@@ -74,13 +76,14 @@ class SessionManager:
         ]
 
     def create_game(self, game_id: str) -> Game:
+        if self._log_dir:
+            rotate_log_file(self._log_dir)
         game = Game(game_id=game_id)
         self._games[game_id] = game
         logger.info(f"game created: {game_id}")
         return game
 
     async def _send_error(self, connection: ConnectionProtocol, code: str, message: str) -> None:
-        """Send an error message to a connection."""
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
 
     async def join_game(
@@ -266,7 +269,8 @@ class SessionManager:
         """
         Broadcast events with target-based filtering.
 
-        Events with target "all" go to everyone.
+        Events with target "all" go to everyone, except CallPromptEvent
+        which is only sent to the players listed in its callers field.
         Events with target "seat_N" go only to the player at that seat.
         """
         # build seat -> player mapping using assigned seats
@@ -275,7 +279,14 @@ class SessionManager:
         for event in events:
             message = {"type": event.event, **event.data.model_dump(exclude={"type", "target"})}
 
-            if event.target == "all":
+            if isinstance(event.data, CallPromptEvent):
+                # only send call prompts to seats listed in callers
+                for seat in self._get_caller_seats(event.data.callers):
+                    player = seat_to_player.get(seat)
+                    if player:
+                        with contextlib.suppress(RuntimeError, OSError):
+                            await player.connection.send_message(message)
+            elif event.target == "all":
                 await self._broadcast_to_game(game, message)
             elif event.target.startswith("seat_"):
                 seat = int(event.target.split("_")[1])
@@ -357,22 +368,26 @@ class SessionManager:
                 await player.connection.close(code=1000, reason="game_ended")
 
     def _get_player_at_seat(self, game: Game, seat: int) -> Player | None:
-        """Get the session player at a specific seat, if connected."""
         for player in game.players.values():
             if player.seat == seat:
                 return player
         return None
 
     def _has_game_events(self, events: list[ServiceEvent]) -> bool:
-        """Check if events contain non-error game events (indicating the action progressed the game)."""
         return any(not isinstance(event.data, ErrorEvent) for event in events)
 
     def _get_caller_seats(self, callers: list[int] | list[MeldCaller]) -> list[int]:
-        """Extract seat numbers from a callers list."""
-        return [caller if isinstance(caller, int) else caller.seat for caller in callers]
+        # deduplicate: a player with both pon and chi options appears as multiple callers
+        seen: set[int] = set()
+        seats: list[int] = []
+        for caller in callers:
+            seat = caller if isinstance(caller, int) else caller.seat
+            if seat not in seen:
+                seen.add(seat)
+                seats.append(seat)
+        return seats
 
     def _find_connected_caller_seat(self, game: Game, events: list[ServiceEvent]) -> int | None:
-        """Find the first connected player's seat from call prompt events."""
         for event in events:
             if isinstance(event.data, CallPromptEvent):
                 for seat in self._get_caller_seats(event.data.callers):
@@ -381,7 +396,6 @@ class SessionManager:
         return None
 
     async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
-        """Handle timer expiry by performing the default action for the timed-out seat."""
         lock = self._game_locks.get(game_id)
         if lock is None:
             return

@@ -174,6 +174,56 @@ class TestCalculateHandValue:
 
         assert result.error == "no_yaku"
 
+    def test_ron_open_hand_meld_tiles_removed_from_hand(self):
+        # after meld call in actual gameplay, meld tiles are removed from player.tiles
+        # closed: 234m 567m 23s 55s (10 tiles) + PON(Haku) (meld) = 13 total
+        # ron on 4s to complete: 234m 567m 234s 55s + PON(Haku) = 14 total
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+
+        pon = Meld(
+            meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
+        )
+
+        game_state = self._create_game_state()
+        player = game_state.round_state.players[0]
+        # only closed tiles in hand (matching actual gameplay after meld call)
+        player.tiles = closed_tiles
+        player.melds = [pon]
+
+        # add ron tile
+        win_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        player.tiles.append(win_tile)
+
+        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+
+        assert result.error is None
+        assert result.han >= 1  # yakuhai (haku)
+        assert result.cost_main > 0
+
+    def test_tsumo_open_hand_meld_tiles_removed_from_hand(self):
+        # after meld call in actual gameplay, meld tiles are removed from player.tiles
+        # closed: 234m 567m 234s 55s (11 tiles) + PON(Haku) (meld) = 14 total (drawn 4s)
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+
+        pon = Meld(
+            meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
+        )
+
+        game_state = self._create_game_state()
+        player = game_state.round_state.players[0]
+        # only closed tiles in hand (matching actual gameplay after meld call)
+        player.tiles = closed_tiles
+        player.melds = [pon]
+
+        win_tile = player.tiles[-1]  # last tile drawn (5s)
+        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+
+        assert result.error is None
+        assert result.han >= 1  # yakuhai (haku)
+        assert result.cost_main > 0
+
 
 class TestApplyTsumoScore:
     def _create_game_state(self) -> MahjongGameState:

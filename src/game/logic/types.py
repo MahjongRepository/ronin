@@ -45,13 +45,6 @@ class RiichiActionData(BaseModel):
     tile_id: int
 
 
-class RonActionData(BaseModel):
-    """Data for ron call action."""
-
-    tile_id: int
-    from_seat: int
-
-
 class PonActionData(BaseModel):
     """Data for pon call action."""
 

@@ -74,6 +74,20 @@ class TestCheckTsumo:
         player = MahjongPlayer(seat=0, name="Player1", tiles=all_tiles, melds=[pon])
         assert check_tsumo(player) is True
 
+    def test_winning_hand_with_open_pon_meld_tiles_removed_from_hand(self):
+        # after call_pon, meld tiles are removed from player.tiles
+        # hand: 234m 567m 234s 55s (closed) + PON(888p) (open meld)
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
+        pon_tiles = TilesConverter.string_to_136_array(pin="888")
+
+        pon = Meld(
+            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[0], who=0, from_who=1
+        )
+
+        # only closed tiles in hand (meld tiles NOT in player.tiles)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[pon])
+        assert check_tsumo(player) is True
+
     def test_chiitoitsu_winning_hand(self):
         # 7 pairs: 11m 22m 33m 44p 55p 66s 77s
         tiles = TilesConverter.string_to_136_array(man="112233", pin="4455", sou="6677")
@@ -117,17 +131,16 @@ class TestCanDeclareTsumo:
 
     def test_open_hand_with_yakuhai_can_declare(self):
         # open hand with yakuhai (haku pon)
-        # 234m 567m 234s (3 sequences) + PON(Haku) + 55s pair = 14 tiles
+        # closed: 234m 567m 234s 55s (11 tiles) + PON(Haku) (meld, 3 tiles) = 14 tiles
+        # meld tiles not in player.tiles (matching actual gameplay after call_pon)
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
-
-        all_tiles = closed_tiles + haku_tiles
 
         pon = Meld(
             meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=all_tiles, melds=[pon])
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[pon])
         round_state = self._create_round_state()
 
         assert can_declare_tsumo(player, round_state) is True
@@ -155,18 +168,17 @@ class TestCanDeclareTsumo:
 
     def test_open_tanyao_with_kuitan_enabled(self):
         # open tanyao - with default settings (kuitan enabled), this should have yaku
-        # 234m 567m 234s (3 sequences) + PON(888p) + 55s pair = 14 tiles
+        # closed: 234m 567m 234s 55s (11 tiles) + PON(888p) (meld, 3 tiles) = 14 tiles
         # all simples = tanyao yaku
+        # meld tiles not in player.tiles (matching actual gameplay after call_pon)
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         pon_tiles = TilesConverter.string_to_136_array(pin="888")
-
-        all_tiles = closed_tiles + pon_tiles
 
         pon = Meld(
             meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[0], who=0, from_who=1
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=all_tiles, melds=[pon])
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[pon])
         round_state = self._create_round_state()
 
         assert can_declare_tsumo(player, round_state) is True
@@ -241,6 +253,26 @@ class TestGetWaitingTiles:
 
         # waiting for 7s (tile_34 = 18 + 6 = 24)
         assert 24 in waiting  # 7s
+
+    def test_waiting_tiles_with_open_pon_meld_tiles_removed_from_hand(self):
+        # after call_pon, meld tiles are removed from player.tiles
+        # closed hand: 234m 567m 23s 55s (10 tiles) + PON(888p) (open meld, 3 tiles) = 13 total (tenpai)
+        # waiting for 1s or 4s to complete 23s sequence
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
+        pon_tiles = TilesConverter.string_to_136_array(pin="888")
+
+        pon = Meld(
+            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[0], who=0, from_who=1
+        )
+
+        # only closed tiles in hand (meld tiles NOT in player.tiles)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[pon])
+
+        waiting = get_waiting_tiles(player)
+
+        # 1s = tile_34 index 18, 4s = tile_34 index 21
+        assert 18 in waiting  # 1s
+        assert 21 in waiting  # 4s
 
 
 class TestIsFuriten:
@@ -390,6 +422,64 @@ class TestCanCallRon:
         discarded_tile = TilesConverter.string_to_136_array(sou="55")[1]
 
         assert can_call_ron(player, discarded_tile, round_state) is True
+
+    def test_can_ron_open_hand_meld_tiles_removed_from_hand(self):
+        # after call_pon in actual gameplay, meld tiles are removed from player.tiles
+        # closed: 234m 567m 23s 55s (10 tiles) + PON(Haku) (meld, 3 tiles) = 13 total
+        # waiting for 1s or 4s
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+
+        pon = Meld(
+            meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
+        )
+
+        # only closed tiles in hand (meld tiles NOT in player.tiles, matching actual gameplay)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[pon])
+        round_state = self._create_round_state()
+
+        discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
+
+        assert can_call_ron(player, discarded_tile, round_state) is True
+
+    def test_can_ron_open_chi_meld_tiles_removed_from_hand(self):
+        # after call_chi in actual gameplay, meld tiles are removed from player.tiles
+        # closed: 567m 23s 55s HakuHakuHaku (10 tiles) + CHI(234m) (meld, 3 tiles) = 13 total
+        # waiting for 1s or 4s
+        closed_tiles = TilesConverter.string_to_136_array(man="567", sou="2355", honors="555")
+        chi_tiles = sorted(TilesConverter.string_to_136_array(man="234"))
+
+        chi = Meld(
+            meld_type=Meld.CHI, tiles=chi_tiles, opened=True, called_tile=chi_tiles[0], who=0, from_who=3
+        )
+
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[chi])
+        round_state = self._create_round_state()
+
+        # 4s completes: 234m(chi) + 567m + 234s + 55s(pair) + HakuHakuHaku
+        discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
+
+        assert can_call_ron(player, discarded_tile, round_state) is True
+
+    def test_can_call_ron_does_not_mutate_player_tiles_for_open_hand(self):
+        # can_call_ron must not leave extra tiles in player.tiles after returning
+        # closed: 234m 567m 23s 55s (10 tiles) + PON(Haku) (meld, 3 tiles) = 13 total
+        # waiting for 1s or 4s
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+
+        pon = Meld(
+            meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
+        )
+
+        player = MahjongPlayer(seat=0, name="Player1", tiles=closed_tiles, melds=[pon])
+        round_state = self._create_round_state()
+
+        tiles_before = list(player.tiles)
+        discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
+
+        assert can_call_ron(player, discarded_tile, round_state) is True
+        assert player.tiles == tiles_before
 
 
 class TestIsHaitei:

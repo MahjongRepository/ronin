@@ -31,7 +31,6 @@ from game.logic.types import (
     MeldCaller,
     PonActionData,
     RiichiActionData,
-    RonActionData,
     SeatConfig,
 )
 from game.messaging.events import (
@@ -212,9 +211,7 @@ class TestHandleRon:
             callers=[1],
         )
 
-        result = handle_ron(
-            round_state, game_state, seat=1, data=RonActionData(tile_id=win_tile, from_seat=discarder_seat)
-        )
+        result = handle_ron(round_state, game_state, seat=1)
 
         assert isinstance(result, ActionResult)
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -507,8 +504,7 @@ class TestHandleRonValueError:
         game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
-        tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        result = handle_ron(round_state, game_state, seat=1, data=RonActionData(tile_id=tile_id, from_seat=0))
+        result = handle_ron(round_state, game_state, seat=1)
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
@@ -907,9 +903,7 @@ class TestResolveCallPrompt:
             callers=[1],
         )
 
-        result = handle_ron(
-            round_state, game_state, seat=1, data=RonActionData(tile_id=win_tile, from_seat=0)
-        )
+        result = handle_ron(round_state, game_state, seat=1)
 
         assert round_state.pending_call_prompt is None
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -1062,13 +1056,11 @@ class TestResolveCallPrompt:
         )
 
         # seats 1 and 2 call ron
-        handle_ron(round_state, game_state, seat=1, data=RonActionData(tile_id=win_tile, from_seat=0))
-        handle_ron(round_state, game_state, seat=2, data=RonActionData(tile_id=win_tile, from_seat=0))
+        handle_ron(round_state, game_state, seat=1)
+        handle_ron(round_state, game_state, seat=2)
 
         # seat 3 calls ron -> triple ron
-        result = handle_ron(
-            round_state, game_state, seat=3, data=RonActionData(tile_id=win_tile, from_seat=0)
-        )
+        result = handle_ron(round_state, game_state, seat=3)
 
         assert round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -1092,9 +1084,7 @@ class TestResolveCallPrompt:
         )
 
         # seat 1 calls ron, but seat 2 hasn't responded yet
-        result = handle_ron(
-            round_state, game_state, seat=1, data=RonActionData(tile_id=win_tile, from_seat=0)
-        )
+        result = handle_ron(round_state, game_state, seat=1)
 
         assert result.events == []
         assert round_state.pending_call_prompt is not None

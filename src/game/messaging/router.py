@@ -63,6 +63,7 @@ class MessageRouter:
                 TypeError,
                 RuntimeError,
             ) as e:
+                logger.exception(f"action failed for {connection.connection_id}")
                 await connection.send_message(ErrorMessage(code="action_failed", message=str(e)).model_dump())
         elif isinstance(message, ChatMessage):
             await self._session_manager.broadcast_chat(

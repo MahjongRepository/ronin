@@ -2,6 +2,8 @@
 Round initialization and management for Mahjong game.
 """
 
+import logging
+
 from mahjong.agari import Agari
 from mahjong.shanten import Shanten
 
@@ -10,6 +12,8 @@ from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRo
 from game.logic.tiles import generate_wall, hand_to_34_array, is_terminal_or_honor, sort_tiles, tile_to_34
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, SeatConfig
 from game.logic.win import MAX_TILE_COPIES
+
+logger = logging.getLogger(__name__)
 
 # dead wall constants
 DEAD_WALL_SIZE = 14
@@ -120,6 +124,9 @@ def add_dora_indicator(round_state: MahjongRoundState) -> int:
     """
     current_count = len(round_state.dora_indicators)
     if current_count >= MAX_DORA_INDICATORS:
+        logger.error(
+            f"cannot add more than {MAX_DORA_INDICATORS} dora indicators, current count: {current_count}"
+        )
         raise ValueError("cannot add more than 5 dora indicators")
 
     # next dora index: 3, 4, 5, 6 for 2nd, 3rd, 4th, 5th dora
@@ -205,10 +212,12 @@ def discard_tile(
     player = round_state.players[seat]
 
     if tile_id not in player.tiles:
+        logger.warning(f"seat {seat} tried to discard tile {tile_id} not in hand, hand={player.tiles}")
         raise ValueError(f"tile {tile_id} not in player's hand")
 
     # validate kuikae restriction
     if player.kuikae_tiles and tile_to_34(tile_id) in player.kuikae_tiles:
+        logger.warning(f"seat {seat} tried to discard tile {tile_id} forbidden by kuikae restriction")
         raise ValueError(f"tile {tile_id} is forbidden by kuikae restriction")
 
     # check if this is tsumogiri (discarding the just-drawn tile)

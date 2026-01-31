@@ -3,7 +3,32 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from shared.logging import LOG_DATE_FORMAT, LOG_FORMAT, setup_logging
+import pytest
+
+from shared.logging import LOG_DATE_FORMAT, LOG_FORMAT, rotate_log_file, setup_logging
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_root_logger():
+    """
+    Close and remove all handlers from the root logger after each test.
+
+    Prevents file handlers from leaking across tests.
+    """
+    yield
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        handler.close()
+        root.removeHandler(handler)
+
+
+@pytest.fixture(autouse=True)
+def _allow_file_logging():
+    """
+    Disable the _is_test guard so logging tests can create real file handlers.
+    """
+    with patch("shared.logging._is_test", return_value=False):
+        yield
 
 
 class TestSetupLogging:
@@ -97,3 +122,54 @@ class TestSetupLogging:
         root = logging.getLogger()
 
         assert root.level == logging.DEBUG
+
+
+class TestRotateLogFile:
+    def test_creates_new_log_file(self, tmp_path):
+        log_dir = tmp_path / "game"
+        setup_logging(log_dir=log_dir)
+
+        new_path = rotate_log_file(log_dir)
+
+        assert new_path.exists()
+        assert new_path.parent == log_dir
+
+    def test_replaces_file_handler(self, tmp_path):
+        log_dir = tmp_path / "game"
+        setup_logging(log_dir=log_dir)
+
+        later_time = datetime(2099, 1, 1, 0, 0, 0, tzinfo=UTC)
+        with patch("shared.logging.datetime") as mock_dt:
+            mock_dt.now.return_value = later_time
+            mock_dt.strftime = datetime.strftime
+            new_path = rotate_log_file(log_dir)
+
+        root = logging.getLogger()
+        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
+        assert len(file_handlers) == 1
+        assert Path(file_handlers[0].baseFilename) == new_path
+        assert new_path.name == "2099-01-01_00-00-00.log"
+
+    def test_preserves_stdout_handler(self, tmp_path):
+        log_dir = tmp_path / "game"
+        setup_logging(log_dir=log_dir)
+
+        rotate_log_file(log_dir)
+
+        root = logging.getLogger()
+        stream_handlers = [
+            h
+            for h in root.handlers
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        ]
+        assert len(stream_handlers) == 1
+
+    def test_writes_to_new_file(self, tmp_path):
+        log_dir = tmp_path / "game"
+        setup_logging(log_dir=log_dir)
+
+        new_path = rotate_log_file(log_dir)
+        test_logger = logging.getLogger("test.rotate")
+        test_logger.info("after rotation")
+
+        assert "after rotation" in new_path.read_text()

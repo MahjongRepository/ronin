@@ -1317,10 +1317,7 @@
                 addMessage('No ron opportunity available', 'message-error');
                 return;
             }
-            sendAction('call_ron', {
-                tile_id: gameState.pendingCallPrompt.tile_id,
-                from_seat: gameState.pendingCallPrompt.from_seat
-            });
+            sendAction('call_ron', {});
             gameState.pendingCallPrompt = null;
         });
 

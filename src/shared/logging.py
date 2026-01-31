@@ -12,6 +12,10 @@ LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 LOG_FILE_TIMESTAMP_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
 
+def _is_test() -> bool:
+    return "pytest" in sys.modules
+
+
 def setup_logging(
     log_dir: Path | str | None = None,
     level: int = logging.INFO,
@@ -35,7 +39,7 @@ def setup_logging(
     stdout_handler.setFormatter(formatter)
     root_logger.addHandler(stdout_handler)
 
-    if log_dir is not None:
+    if log_dir is not None and not _is_test():
         dir_path = Path(log_dir)
         dir_path.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now(tz=UTC).strftime(LOG_FILE_TIMESTAMP_FORMAT)
@@ -46,3 +50,32 @@ def setup_logging(
         return file_path
 
     return None
+
+
+def rotate_log_file(log_dir: Path | str) -> Path | None:
+    """
+    Replace the current file handler with a new timestamped log file.
+
+    Closes the old file handler and creates a fresh one in the same directory.
+    Returns the new log file path, or None during tests.
+    """
+    if _is_test():
+        return None
+
+    root_logger = logging.getLogger()
+    formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
+
+    # remove existing file handlers
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            handler.close()
+            root_logger.removeHandler(handler)
+
+    dir_path = Path(log_dir)
+    dir_path.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(tz=UTC).strftime(LOG_FILE_TIMESTAMP_FORMAT)
+    file_path = dir_path / f"{timestamp}.log"
+    file_handler = logging.FileHandler(file_path)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+    return file_path

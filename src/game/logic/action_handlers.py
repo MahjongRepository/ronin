@@ -5,6 +5,7 @@ Each handler validates input and returns a list of GameEvent objects.
 These handlers are designed to be used by the MahjongGameService to process player actions.
 """
 
+import logging
 from typing import NamedTuple
 
 from game.logic.abortive import (
@@ -41,7 +42,6 @@ from game.logic.types import (
     MeldCaller,
     PonActionData,
     RiichiActionData,
-    RonActionData,
 )
 from game.logic.win import apply_temporary_furiten
 from game.messaging.events import (
@@ -54,6 +54,8 @@ from game.messaging.events import (
     RoundEndEvent,
     TurnEvent,
 )
+
+logger = logging.getLogger(__name__)
 
 # number of ron callers for triple ron abortive draw
 TRIPLE_RON_COUNT = 3
@@ -284,6 +286,7 @@ def handle_discard(
         events = process_discard_phase(round_state, game_state, data.tile_id, is_riichi=False)
         return ActionResult(events, needs_post_discard=True)
     except ValueError as e:
+        logger.warning(f"invalid discard from seat {seat}: {e}")
         return ActionResult([ErrorEvent(code="invalid_discard", message=str(e), target=f"seat_{seat}")])
 
 
@@ -305,6 +308,7 @@ def handle_riichi(
         events = process_discard_phase(round_state, game_state, data.tile_id, is_riichi=True)
         return ActionResult(events, needs_post_discard=True)
     except ValueError as e:
+        logger.warning(f"invalid riichi from seat {seat}: {e}")
         return ActionResult([ErrorEvent(code="invalid_riichi", message=str(e), target=f"seat_{seat}")])
 
 
@@ -325,6 +329,7 @@ def handle_tsumo(
         events = process_tsumo_call(round_state, game_state, seat)
         return ActionResult(events)
     except ValueError as e:
+        logger.warning(f"invalid tsumo from seat {seat}: {e}")
         return ActionResult([ErrorEvent(code="invalid_tsumo", message=str(e), target=f"seat_{seat}")])
 
 
@@ -332,7 +337,6 @@ def handle_ron(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    data: RonActionData,  # noqa: ARG001
 ) -> ActionResult:
     """
     Handle a ron call from a player.
@@ -342,6 +346,7 @@ def handle_ron(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
+        logger.warning(f"invalid ron from seat {seat}: no pending call prompt")
         return ActionResult(
             [ErrorEvent(code="invalid_ron", message="no pending call prompt", target=f"seat_{seat}")]
         )
@@ -370,11 +375,15 @@ def handle_pon(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
+        logger.warning(f"invalid pon from seat {seat}: no pending call prompt")
         return ActionResult(
             [ErrorEvent(code="invalid_pon", message="no pending call prompt", target=f"seat_{seat}")]
         )
 
     if prompt.tile_id != data.tile_id:
+        logger.warning(
+            f"invalid pon from seat {seat}: tile_id mismatch (expected={prompt.tile_id}, got={data.tile_id})"
+        )
         return ActionResult(
             [ErrorEvent(code="invalid_pon", message="tile_id mismatch", target=f"seat_{seat}")]
         )
@@ -403,11 +412,15 @@ def handle_chi(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
+        logger.warning(f"invalid chi from seat {seat}: no pending call prompt")
         return ActionResult(
             [ErrorEvent(code="invalid_chi", message="no pending call prompt", target=f"seat_{seat}")]
         )
 
     if prompt.tile_id != data.tile_id:
+        logger.warning(
+            f"invalid chi from seat {seat}: tile_id mismatch (expected={prompt.tile_id}, got={data.tile_id})"
+        )
         return ActionResult(
             [ErrorEvent(code="invalid_chi", message="tile_id mismatch", target=f"seat_{seat}")]
         )
@@ -436,6 +449,7 @@ def _handle_open_kan_call_response(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
+        logger.warning(f"invalid open kan from seat {seat}: not a pending caller")
         return ActionResult(
             [ErrorEvent(code="invalid_kan", message="not a pending caller", target=f"seat_{seat}")]
         )
@@ -474,6 +488,7 @@ def handle_kan(
         meld_call_type = data.kan_type.to_meld_call_type()
         events = process_meld_call(round_state, game_state, seat, meld_call_type, data.tile_id)
     except ValueError as e:
+        logger.warning(f"invalid kan from seat {seat}: {e}")
         return ActionResult([ErrorEvent(code="invalid_kan", message=str(e), target=f"seat_{seat}")])
 
     if round_state.phase == RoundPhase.FINISHED:

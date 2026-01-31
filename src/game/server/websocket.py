@@ -48,7 +48,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
             if game_id and data.get("type") == "join_game":
                 data["game_id"] = game_id
             await router.handle_message(connection, data)
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         pass
     finally:
         logger.info(f"websocket disconnected: {connection.connection_id}")

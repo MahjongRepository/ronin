@@ -127,6 +127,50 @@ class TestProcessRonCall:
         assert round_state.phase == RoundPhase.FINISHED
 
 
+class TestProcessRonCallOpenHand:
+    """Tests ron call with open hand where meld tiles are removed from player.tiles."""
+
+    def test_process_ron_with_open_pon_meld_tiles_removed(self):
+        """Ron succeeds when meld tiles are not in player.tiles (actual gameplay state)."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # simulate actual gameplay: player 1 called pon earlier
+        # closed: 234m 567m 23s 55s (10 tiles) + PON(Haku) (meld)
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+
+        pon = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=haku_tiles,
+            opened=True,
+            called_tile=haku_tiles[0],
+            who=1,
+            from_who=2,
+        )
+
+        # only closed tiles in player.tiles (meld tiles removed, matching actual gameplay)
+        round_state.players[1].tiles = closed_tiles
+        round_state.players[1].melds = [pon]
+        round_state.players_with_open_hands = [1]
+
+        # 4s completes the hand: 234m 567m 234s 55s + PON(Haku)
+        win_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        round_state.current_player_seat = 0
+
+        events = process_ron_call(
+            round_state, game_state, ron_callers=[1], tile_id=win_tile, discarder_seat=0
+        )
+
+        round_end_events = [e for e in events if e.type == "round_end"]
+        assert len(round_end_events) == 1
+        result = round_end_events[0].result
+        assert result.type == "ron"
+        assert result.winner_seat == 1
+        assert result.loser_seat == 0
+        assert round_state.phase == RoundPhase.FINISHED
+
+
 class TestProcessTsumoCall:
     def _create_game_state_with_tsumo(self):
         """Create a game state where player 0 has a winning hand."""

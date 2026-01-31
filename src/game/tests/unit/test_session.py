@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-from game.logic.enums import CallType, TimeoutType
+from game.logic.enums import CallType, MeldCallType, TimeoutType
 from game.logic.mock import MockGameService, MockResultEvent
 from game.logic.timer import TimerConfig, TurnTimer
-from game.logic.types import GameEndResult, GameView, PlayerStanding, PlayerView
+from game.logic.types import GameEndResult, GameView, MeldCaller, PlayerStanding, PlayerView
 from game.messaging.events import (
     CallPromptEvent,
     GameEndedEvent,
@@ -246,6 +246,77 @@ class TestSessionManager:
         assert len(conn2.sent_messages) == 1
         assert conn1.sent_messages[0]["type"] == "test_action_result"
         assert conn2.sent_messages[0]["type"] == "test_action_result"
+
+    async def test_call_prompt_only_sent_to_callers(self, manager):
+        """CallPromptEvent is only sent to seats listed in callers, not to all players."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.create_game("game1")
+
+        await manager.join_game(conn1, "game1", "Alice")
+        await manager.join_game(conn2, "game1", "Bob")
+        conn1._outbox.clear()
+        conn2._outbox.clear()
+
+        # manually broadcast a call_prompt targeting only seat 0 (Alice)
+        game = manager.get_game("game1")
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                call_type=CallType.RON,
+                tile_id=42,
+                from_seat=2,
+                callers=[0],
+                target="all",
+            ),
+            target="all",
+        )
+        await manager._broadcast_events(game, [call_event])
+
+        # only conn1 (seat 0) should receive the call_prompt
+        assert len(conn1.sent_messages) == 1
+        assert conn1.sent_messages[0]["type"] == "call_prompt"
+        assert len(conn2.sent_messages) == 0
+
+    async def test_call_prompt_sent_once_when_player_has_multiple_meld_options(self, manager):
+        """CallPromptEvent is sent once per player even when they have both pon and chi options."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.create_game("game1")
+
+        await manager.join_game(conn1, "game1", "Alice")
+        await manager.join_game(conn2, "game1", "Bob")
+        conn1._outbox.clear()
+        conn2._outbox.clear()
+
+        # seat 0 can both pon and chi the same tile — two MeldCaller entries for the same seat
+        game = manager.get_game("game1")
+        callers = [
+            MeldCaller(seat=0, call_type=MeldCallType.PON),
+            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=[(57, 63)]),
+        ]
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                call_type=CallType.MELD,
+                tile_id=55,
+                from_seat=3,
+                callers=callers,
+                target="all",
+            ),
+            target="all",
+        )
+        await manager._broadcast_events(game, [call_event])
+
+        # seat 0 should receive the call_prompt exactly once
+        assert len(conn1.sent_messages) == 1
+        assert conn1.sent_messages[0]["type"] == "call_prompt"
+        # seat 1 (Bob) should not receive it
+        assert len(conn2.sent_messages) == 0
 
     async def test_start_game_not_called_on_second_player(self, manager):
         """start_game is called once when first player joins, not on subsequent joins."""
@@ -524,6 +595,14 @@ class TestSessionManagerTimerIntegration:
     def test_get_caller_seats_with_empty_list(self, manager):
         """_get_caller_seats returns empty list for empty callers."""
         assert manager._get_caller_seats([]) == []
+
+    def test_get_caller_seats_deduplicates_meld_callers(self, manager):
+        """_get_caller_seats returns unique seats when same player has multiple meld options."""
+        callers = [
+            MeldCaller(seat=0, call_type=MeldCallType.PON),
+            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=[(57, 63)]),
+        ]
+        assert manager._get_caller_seats(callers) == [0]
 
     def test_cleanup_timer_on_game_end_cancels_timer(self, manager):
         """_cleanup_timer_on_game_end cancels active timer when GameEndedEvent is present."""

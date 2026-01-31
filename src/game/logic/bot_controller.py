@@ -98,8 +98,7 @@ class BotController:
         # ron/chankan opportunities
         if call_type in (CallType.RON, CallType.CHANKAN):
             if should_call_ron(bot, player, tile_id, round_state):
-                from_seat = round_state.current_player_seat
-                return GameAction.CALL_RON, {"tile_id": tile_id, "from_seat": from_seat}
+                return GameAction.CALL_RON, {}
             return None
 
         # meld opportunities
