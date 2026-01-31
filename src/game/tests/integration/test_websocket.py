@@ -64,7 +64,8 @@ class TestWebSocketIntegration:
                 },
             )
             self._receive_message(ws1)  # game_joined
-            self._receive_message(ws1)  # game_started event for seat_0
+            self._receive_message(ws1)  # game_started event (broadcast)
+            self._receive_message(ws1)  # round_started event for seat_0
 
             with client.websocket_connect("/ws/test_game") as ws2:
                 self._send_message(
@@ -99,7 +100,8 @@ class TestWebSocketIntegration:
                 },
             )
             self._receive_message(ws1)  # game_joined
-            self._receive_message(ws1)  # game_started event for seat_0
+            self._receive_message(ws1)  # game_started event (broadcast)
+            self._receive_message(ws1)  # round_started event for seat_0
 
             with client.websocket_connect("/ws/test_game") as ws2:
                 self._send_message(
@@ -144,7 +146,8 @@ class TestWebSocketIntegration:
                 },
             )
             self._receive_message(ws)  # game_joined
-            self._receive_message(ws)  # game_started event for seat_0
+            self._receive_message(ws)  # game_started event (broadcast)
+            self._receive_message(ws)  # round_started event for seat_0
 
             self._send_message(
                 ws,
@@ -156,10 +159,9 @@ class TestWebSocketIntegration:
             )
 
             response = self._receive_message(ws)
-            assert response["type"] == "game_event"
-            assert response["event"] == "test_action_result"
-            assert response["data"]["player"] == "Player1"
-            assert response["data"]["success"] is True
+            assert response["type"] == "test_action_result"
+            assert response["player"] == "Player1"
+            assert response["success"] is True
 
     def test_invalid_message(self, client):
         self._create_game(client, "test_game")

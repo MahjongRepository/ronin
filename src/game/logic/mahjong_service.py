@@ -33,6 +33,7 @@ from game.logic.turn import process_draw_phase
 from game.logic.types import (
     ChiActionData,
     DiscardActionData,
+    GamePlayerInfo,
     KanActionData,
     MeldCaller,
     PonActionData,
@@ -97,7 +98,8 @@ class MahjongGameService(GameService):
         self._bot_controllers[game_id] = bot_controller
 
         events: list[ServiceEvent] = []
-        events.extend(self._create_game_started_events(game_state, bot_seats=bot_controller.bot_seats))
+        events.append(self._create_game_started_event(game_state, bot_seats=bot_controller.bot_seats))
+        events.extend(self._create_round_started_events(game_state, bot_seats=bot_controller.bot_seats))
 
         draw_events = process_draw_phase(game_state.round_state, game_state)
         events.extend(convert_events(draw_events))
@@ -110,14 +112,32 @@ class MahjongGameService(GameService):
 
         return events
 
-    def _create_game_started_events(
+    def _create_game_started_event(
+        self, game_state: MahjongGameState, bot_seats: set[int] | None = None
+    ) -> ServiceEvent:
+        """Create a single game_started event broadcast to all players."""
+        players = [
+            GamePlayerInfo(
+                seat=p.seat,
+                name=p.name,
+                is_bot=p.seat in (bot_seats or set()),
+            )
+            for p in game_state.round_state.players
+        ]
+        return ServiceEvent(
+            event=EventType.GAME_STARTED,
+            data=GameStartedEvent(players=players),
+            target="all",
+        )
+
+    def _create_round_started_events(
         self, game_state: MahjongGameState, bot_seats: set[int] | None = None
     ) -> list[ServiceEvent]:
-        """Create game_started events for all players."""
+        """Create round_started events for all players."""
         return [
             ServiceEvent(
-                event=EventType.GAME_STARTED,
-                data=GameStartedEvent(
+                event=EventType.ROUND_STARTED,
+                data=RoundStartedEvent(
                     view=get_player_view(game_state, seat, bot_seats=bot_seats),
                     target=f"seat_{seat}",
                 ),
@@ -497,23 +517,12 @@ class MahjongGameService(GameService):
         bot_controller = self._bot_controllers[game_id]
         bot_seats = bot_controller.bot_seats
 
-        events: list[ServiceEvent] = [
-            ServiceEvent(
-                event=EventType.ROUND_STARTED,
-                data=RoundStartedEvent(
-                    view=get_player_view(game_state, seat, bot_seats=bot_seats),
-                    target=f"seat_{seat}",
-                ),
-                target=f"seat_{seat}",
-            )
-            for seat in range(4)
-        ]
+        events = self._create_round_started_events(game_state, bot_seats=bot_seats)
 
         round_state = game_state.round_state
         draw_events = process_draw_phase(round_state, game_state)
         events.extend(convert_events(draw_events))
 
-        bot_controller = self._bot_controllers[game_id]
         dealer_seat = round_state.dealer_seat
         if bot_controller.is_bot(dealer_seat):
             bot_events = await self._process_bot_followup(game_id)

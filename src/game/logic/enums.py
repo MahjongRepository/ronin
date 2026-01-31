@@ -40,6 +40,14 @@ class MeldCallType(str, Enum):
     ADDED_KAN = "added_kan"
 
 
+# priority order for meld calls: kan > pon > chi
+MELD_CALL_PRIORITY: dict[MeldCallType, int] = {
+    MeldCallType.OPEN_KAN: 0,
+    MeldCallType.PON: 1,
+    MeldCallType.CHI: 2,
+}
+
+
 class KanType(str, Enum):
     """Subtypes of kan declarations."""
 

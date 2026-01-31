@@ -17,11 +17,11 @@ from game.messaging.types import (
     GameStartedMessage,
     MeldInfo,
     MeldMessage,
+    PlayerIdentity,
     PlayerInfo,
     RiichiMessage,
     RoundEndMessage,
     ServerMessageType,
-    TileInfo,
     TurnMessage,
     YakuInfo,
     parse_client_message,
@@ -72,16 +72,18 @@ class TestMessageRouter:
             },
         )
 
-        # check the response: game_joined + game_started event
-        assert len(connection.sent_messages) == 2
+        # check the response: game_joined + game_started + round_started events
+        assert len(connection.sent_messages) == 3
         response = connection.sent_messages[0]
         assert response["type"] == ServerMessageType.GAME_JOINED
         assert response["game_id"] == "game1"
         assert response["players"] == ["Alice"]
-        # second message is game_started from start_game
+        # second message is game_started (flat, no game_event wrapper)
         game_event = connection.sent_messages[1]
-        assert game_event["type"] == ServerMessageType.GAME_EVENT
-        assert game_event["event"] == "game_started"
+        assert game_event["type"] == "game_started"
+        # third message is round_started for seat_0
+        round_event = connection.sent_messages[2]
+        assert round_event["type"] == "round_started"
 
     async def test_invalid_message_returns_error(self, setup):
         router, connection, _ = setup
@@ -143,7 +145,7 @@ class TestMessageRouter:
             },
         )
 
-        # mock service returns events, so we get game_event messages
+        # mock service returns events as flat messages
         assert len(connection.sent_messages) >= 1
 
     async def test_game_action_error_returns_action_failed(self, setup):
@@ -183,38 +185,29 @@ class TestMessageRouter:
 
 
 class TestMahjongMessageTypes:
-    def test_tile_info(self):
-        tile = TileInfo(tile="1m", tile_id=TilesConverter.string_to_136_array(man="1")[0])
-        assert tile.tile == "1m"
-        assert tile.tile_id == TilesConverter.string_to_136_array(man="1")[0]
-
     def test_discard_info(self):
         discard = DiscardInfo(
-            tile="5p",
             tile_id=TilesConverter.string_to_136_array(pin="5")[0],
             is_tsumogiri=True,
             is_riichi_discard=False,
         )
-        assert discard.tile == "5p"
         assert discard.tile_id == TilesConverter.string_to_136_array(pin="5")[0]
         assert discard.is_tsumogiri is True
         assert discard.is_riichi_discard is False
 
     def test_discard_info_defaults(self):
-        discard = DiscardInfo(tile="E", tile_id=TilesConverter.string_to_136_array(honors="1")[0])
+        discard = DiscardInfo(tile_id=TilesConverter.string_to_136_array(honors="1")[0])
         assert discard.is_tsumogiri is False
         assert discard.is_riichi_discard is False
 
     def test_meld_info(self):
         meld = MeldInfo(
             type="pon",
-            tiles=["5m", "5m", "5m"],
             tile_ids=TilesConverter.string_to_136_array(man="555")[:3],
             opened=True,
             from_who=2,
         )
         assert meld.type == "pon"
-        assert meld.tiles == ["5m", "5m", "5m"]
         assert meld.tile_ids == TilesConverter.string_to_136_array(man="555")[:3]
         assert meld.opened is True
         assert meld.from_who == 2
@@ -235,9 +228,8 @@ class TestMahjongMessageTypes:
         assert player.is_bot is False
         assert player.score == 25000
         assert player.tiles is None
-        assert player.hand is None
 
-    def test_player_info_with_hand(self):
+    def test_player_info_with_tiles(self):
         tiles = TilesConverter.string_to_136_array(man="111122223334")
         player = PlayerInfo(
             seat=0,
@@ -249,10 +241,8 @@ class TestMahjongMessageTypes:
             melds=[],
             tile_count=13,
             tiles=tiles,
-            hand="1m 1m 1m 2m 2m",
         )
         assert player.tiles == tiles
-        assert player.hand == "1m 1m 1m 2m 2m"
 
     def test_available_action(self):
         action = AvailableAction(action="discard", tiles=TilesConverter.string_to_136_array(man="123"))
@@ -265,52 +255,28 @@ class TestMahjongMessageTypes:
         assert action.tiles is None
 
     def test_game_started_message(self):
-        player = PlayerInfo(
-            seat=0,
-            name="Alice",
-            is_bot=False,
-            score=25000,
-            is_riichi=False,
-            discards=[],
-            melds=[],
-            tile_count=13,
-        )
-        msg = GameStartedMessage(
-            seat=0,
-            round_wind="East",
-            round_number=0,
-            dealer_seat=0,
-            wall_count=70,
-            dora_indicators=[TileInfo(tile="3p", tile_id=TilesConverter.string_to_136_array(pin="3")[0])],
-            honba_sticks=0,
-            riichi_sticks=0,
-            players=[player],
-        )
+        player = PlayerIdentity(seat=0, name="Alice", is_bot=False)
+        msg = GameStartedMessage(players=[player])
         assert msg.type == ServerMessageType.GAME_STARTED
-        assert msg.seat == 0
-        assert msg.round_wind == "East"
-        assert msg.dealer_seat == 0
-        assert msg.wall_count == 70
-        assert len(msg.dora_indicators) == 1
-        assert msg.dora_indicators[0].tile == "3p"
+        assert len(msg.players) == 1
+        assert msg.players[0].seat == 0
+        assert msg.players[0].name == "Alice"
+        assert msg.players[0].is_bot is False
 
     def test_draw_message(self):
-        msg = DrawMessage(tile="7s", tile_id=TilesConverter.string_to_136_array(sou="7")[0])
+        msg = DrawMessage(tile_id=TilesConverter.string_to_136_array(sou="7")[0])
         assert msg.type == ServerMessageType.DRAW
-        assert msg.tile == "7s"
         assert msg.tile_id == TilesConverter.string_to_136_array(sou="7")[0]
 
     def test_discard_message(self):
         msg = DiscardMessage(
             seat=1,
-            tile="9m",
             tile_id=TilesConverter.string_to_136_array(man="9")[0],
             is_tsumogiri=False,
             is_riichi=True,
         )
         assert msg.type == ServerMessageType.DISCARD
         assert msg.seat == 1
-        assert msg.tile == "9m"
         assert msg.tile_id == TilesConverter.string_to_136_array(man="9")[0]
         assert msg.is_tsumogiri is False
         assert msg.is_riichi is True
@@ -319,14 +285,13 @@ class TestMahjongMessageTypes:
         msg = MeldMessage(
             caller_seat=2,
             meld_type="chi",
-            tiles=["1m", "2m", "3m"],
             tile_ids=TilesConverter.string_to_136_array(man="123"),
             from_seat=1,
         )
         assert msg.type == ServerMessageType.MELD
         assert msg.caller_seat == 2
         assert msg.meld_type == "chi"
-        assert msg.tiles == ["1m", "2m", "3m"]
+        assert msg.tile_ids == TilesConverter.string_to_136_array(man="123")
         assert msg.from_seat == 1
 
     def test_riichi_message(self):
@@ -435,31 +400,12 @@ class TestMahjongMessageTypes:
         assert msg.placements == [0, 1, 2, 3]
 
     def test_game_started_message_serialization(self):
-        player = PlayerInfo(
-            seat=0,
-            name="Alice",
-            is_bot=False,
-            score=25000,
-            is_riichi=False,
-            discards=[],
-            melds=[],
-            tile_count=13,
-        )
-        msg = GameStartedMessage(
-            seat=0,
-            round_wind="East",
-            round_number=0,
-            dealer_seat=0,
-            wall_count=70,
-            dora_indicators=[TileInfo(tile="3p", tile_id=TilesConverter.string_to_136_array(pin="3")[0])],
-            honba_sticks=0,
-            riichi_sticks=0,
-            players=[player],
-        )
+        player = PlayerIdentity(seat=0, name="Alice", is_bot=False)
+        msg = GameStartedMessage(players=[player])
         data = msg.model_dump()
         assert data["type"] == "game_started"
-        assert data["seat"] == 0
-        assert data["round_wind"] == "East"
+        assert len(data["players"]) == 1
+        assert data["players"][0]["name"] == "Alice"
 
     def test_round_end_message_serialization(self):
         msg = RoundEndMessage(

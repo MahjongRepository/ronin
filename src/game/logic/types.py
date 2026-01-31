@@ -25,6 +25,14 @@ class SeatConfig(BaseModel):
     bot_type: BotType | None = None
 
 
+class GamePlayerInfo(BaseModel):
+    """Player identity information sent at game start."""
+
+    seat: int
+    name: str
+    is_bot: bool
+
+
 class DiscardActionData(BaseModel):
     """Data for discard action."""
 
@@ -164,8 +172,6 @@ class MeldCaller(BaseModel):
 
     seat: int
     call_type: MeldCallType
-    tile_34: int
-    priority: int
     options: list[tuple[int, int]] | None = None
 
 
@@ -183,17 +189,9 @@ class AvailableActionItem(BaseModel):
     tiles: list[int] | None = None
 
 
-class TileView(BaseModel):
-    """Tile display information."""
-
-    tile: str
-    tile_id: int
-
-
 class DiscardView(BaseModel):
     """Discard display information."""
 
-    tile: str
     tile_id: int
     is_tsumogiri: bool
     is_riichi_discard: bool
@@ -203,7 +201,6 @@ class MeldView(BaseModel):
     """Meld display information."""
 
     type: MeldViewType
-    tiles: list[str]
     tile_ids: list[int]
     opened: bool
     from_who: int | None
@@ -221,7 +218,6 @@ class PlayerView(BaseModel):
     melds: list[MeldView]
     tile_count: int
     tiles: list[int] | None = None
-    hand: str | None = None
 
 
 class GameView(BaseModel):
@@ -233,7 +229,7 @@ class GameView(BaseModel):
     dealer_seat: int
     current_player_seat: int
     wall_count: int
-    dora_indicators: list[TileView]
+    dora_indicators: list[int]
     honba_sticks: int
     riichi_sticks: int
     players: list[PlayerView]

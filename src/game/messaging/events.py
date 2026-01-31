@@ -16,6 +16,7 @@ from game.logic.enums import CallType, KanType, MeldViewType
 from game.logic.types import (
     AvailableActionItem,
     GameEndResult,
+    GamePlayerInfo,
     GameView,
     MeldCaller,
     RoundResult,
@@ -33,7 +34,6 @@ class EventType(str, Enum):
     ROUND_END = "round_end"
     RIICHI_DECLARED = "riichi_declared"
     ERROR = "error"
-    PASS_ACKNOWLEDGED = "pass_acknowledged"  # noqa: S105
     GAME_STARTED = "game_started"
     ROUND_STARTED = "round_started"
     GAME_END = "game_end"
@@ -52,7 +52,6 @@ class DrawEvent(GameEvent):
     type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
     tile_id: int
-    tile: str
 
 
 class DiscardEvent(GameEvent):
@@ -62,7 +61,6 @@ class DiscardEvent(GameEvent):
     target: str = "all"
     seat: int
     tile_id: int
-    tile: str
     is_tsumogiri: bool
     is_riichi: bool
 
@@ -77,7 +75,6 @@ class MeldEvent(GameEvent):
     caller_seat: int
     from_seat: int | None = None  # None for closed kans
     tile_ids: list[int]
-    tiles: list[str]
 
 
 class TurnEvent(GameEvent):
@@ -121,18 +118,12 @@ class ErrorEvent(GameEvent):
     message: str
 
 
-class PassAcknowledgedEvent(GameEvent):
-    """Event sent to acknowledge a player's pass on a call opportunity."""
-
-    type: Literal[EventType.PASS_ACKNOWLEDGED] = EventType.PASS_ACKNOWLEDGED
-    seat: int
-
-
 class GameStartedEvent(GameEvent):
-    """Event sent to each player when the game starts with their initial view."""
+    """Event broadcast to all players when the game starts."""
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
-    view: GameView
+    target: str = "all"
+    players: list[GamePlayerInfo]
 
 
 class RoundStartedEvent(GameEvent):
@@ -158,7 +149,6 @@ Event = (
     | RoundEndEvent
     | RiichiDeclaredEvent
     | ErrorEvent
-    | PassAcknowledgedEvent
     | GameStartedEvent
     | RoundStartedEvent
     | GameEndedEvent

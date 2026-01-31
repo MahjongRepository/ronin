@@ -16,7 +16,7 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.actions import get_available_actions
-from game.logic.enums import CallType, GameAction, KanType, MeldCallType, MeldViewType
+from game.logic.enums import MELD_CALL_PRIORITY, CallType, GameAction, KanType, MeldCallType, MeldViewType
 from game.logic.melds import call_added_kan
 from game.logic.riichi import declare_riichi
 from game.logic.round import advance_turn
@@ -27,7 +27,6 @@ from game.logic.state import (
     PendingCallPrompt,
     RoundPhase,
 )
-from game.logic.tiles import tile_to_string
 from game.logic.turn import (
     process_discard_phase,
     process_draw_phase,
@@ -51,7 +50,6 @@ from game.messaging.events import (
     EventType,
     GameEvent,
     MeldEvent,
-    PassAcknowledgedEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
     TurnEvent,
@@ -185,7 +183,6 @@ def _resolve_meld_response(
                 DrawEvent(
                     seat=best.seat,
                     tile_id=drawn_tile,
-                    tile=tile_to_string(drawn_tile),
                     target=f"seat_{best.seat}",
                 )
             )
@@ -242,13 +239,13 @@ def _pick_best_meld_response(
     caller_priority: dict[tuple[int, MeldCallType], int] = {}
     for caller in prompt.callers:
         if isinstance(caller, MeldCaller):
-            caller_priority[(caller.seat, caller.call_type)] = caller.priority
+            caller_priority[(caller.seat, caller.call_type)] = MELD_CALL_PRIORITY.get(caller.call_type, 99)
 
     best: CallResponse | None = None
     best_priority = float("inf")
     for response in meld_responses:
         call_type = _action_to_meld_call_type(response.action)
-        priority = caller_priority.get((response.seat, call_type), 999)
+        priority = caller_priority.get((response.seat, call_type), 99)
         if priority < best_priority:
             best = response
             best_priority = priority
@@ -498,7 +495,6 @@ def handle_kan(
                 DrawEvent(
                     seat=seat,
                     tile_id=drawn_tile,
-                    tile=tile_to_string(drawn_tile),
                     target=f"seat_{seat}",
                 )
             )
@@ -549,11 +545,10 @@ def handle_pass(
     Record the pass on the pending call prompt and apply furiten if applicable.
     When all callers have responded, trigger resolution.
     """
-    events: list[GameEvent] = [PassAcknowledgedEvent(seat=seat, target=f"seat_{seat}")]
+    events: list[GameEvent] = []
 
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        # no pending prompt or player not a caller - just acknowledge
         return ActionResult(events)
 
     # apply furiten for passing on ron/chankan opportunity
@@ -595,7 +590,6 @@ def complete_added_kan_after_chankan_decline(
             meld_type=MeldViewType.KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
-            tiles=[tile_to_string(t) for t in tile_ids],
             kan_type=KanType.ADDED,
         )
     ]
@@ -614,7 +608,6 @@ def complete_added_kan_after_chankan_decline(
                 DrawEvent(
                     seat=caller_seat,
                     tile_id=drawn_tile,
-                    tile=tile_to_string(drawn_tile),
                     target=f"seat_{caller_seat}",
                 )
             )

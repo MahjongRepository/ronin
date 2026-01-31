@@ -159,7 +159,8 @@ class TestMahjongGameServiceHandleTimeout:
 
         events = await service.handle_timeout("game1", "Human", TimeoutType.MELD)
 
-        assert any(e.event == "pass_acknowledged" for e in events)
+        # pass with no pending prompt returns empty events
+        assert events == []
 
     async def test_timeout_nonexistent_game_returns_empty(self, service):
         events = await service.handle_timeout("nonexistent", "Human", TimeoutType.TURN)
@@ -431,8 +432,6 @@ class TestMahjongGameServiceProcessPostDiscard:
                 MeldCaller(
                     seat=human.seat,
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 )
             ],
         )
@@ -482,8 +481,6 @@ class TestMahjongGameServiceProcessPostDiscard:
                 MeldCaller(
                     seat=bot_seat,
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 )
             ],
         )
@@ -501,8 +498,6 @@ class TestMahjongGameServiceProcessPostDiscard:
                         MeldCaller(
                             seat=bot_seat,
                             call_type=MeldCallType.PON,
-                            tile_34=0,
-                            priority=1,
                         )
                     ],
                     target="all",
@@ -674,8 +669,6 @@ class TestMahjongGameServicePostDiscardRoundEnd:
                 MeldCaller(
                     seat=bot_seat,
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 )
             ],
         )
@@ -746,8 +739,6 @@ class TestMahjongGameServiceFindCallerInfo:
                 MeldCaller(
                     seat=2,
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 )
             ],
         )
@@ -905,8 +896,6 @@ class TestMahjongGameServiceDispatchBotCallResponsesBranches:
                 MeldCaller(
                     seat=bot_seat,
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 )
             ],
         )
@@ -941,14 +930,10 @@ class TestMahjongGameServiceDispatchBotCallResponsesBranches:
                 MeldCaller(
                     seat=bot_seats[0],
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 ),
                 MeldCaller(
                     seat=bot_seats[1],
                     call_type=MeldCallType.PON,
-                    tile_34=0,
-                    priority=1,
                 ),
             ],
         )

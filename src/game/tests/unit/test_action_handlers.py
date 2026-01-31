@@ -23,7 +23,6 @@ from game.logic.enums import AbortiveDrawType, BotType, CallType, KanType, MeldC
 from game.logic.game import init_game
 from game.logic.round import discard_tile, draw_tile
 from game.logic.state import MahjongGameState, PendingCallPrompt, RoundPhase
-from game.logic.tiles import tile_to_34
 from game.logic.types import (
     AbortiveDrawResult,
     ChiActionData,
@@ -41,7 +40,6 @@ from game.messaging.events import (
     DrawEvent,
     ErrorEvent,
     MeldEvent,
-    PassAcknowledgedEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
     TurnEvent,
@@ -252,7 +250,7 @@ class TestHandlePon:
             from_seat=0,
             pending_seats={1},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_34(tile_to_pon), priority=1),
+                MeldCaller(seat=1, call_type=MeldCallType.PON),
             ],
         )
 
@@ -295,7 +293,7 @@ class TestHandleChi:
             from_seat=0,
             pending_seats={1},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.CHI, tile_34=tile_to_34(tile_to_chi), priority=2),
+                MeldCaller(seat=1, call_type=MeldCallType.CHI),
             ],
         )
 
@@ -401,7 +399,7 @@ class TestHandlePass:
         """Create a game state for testing."""
         return init_game(_default_seat_configs(), seed=12345.0)
 
-    def test_handle_pass_acknowledges(self):
+    def test_handle_pass_no_pending_prompt_returns_empty(self):
         game_state = self._create_game_state()
         round_state = game_state.round_state
         draw_tile(round_state)
@@ -409,9 +407,7 @@ class TestHandlePass:
         result = handle_pass(round_state, game_state, seat=0)
 
         assert isinstance(result, ActionResult)
-        pass_events = [e for e in result.events if isinstance(e, PassAcknowledgedEvent)]
-        assert len(pass_events) == 1
-        assert pass_events[0].seat == 0
+        assert result.events == []
 
     def test_handle_pass_after_discard_advances_turn(self):
         game_state = self._create_game_state()
@@ -428,9 +424,7 @@ class TestHandlePass:
             tile_id=tile_to_discard,
             from_seat=0,
             pending_seats={1},
-            callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_discard // 4, priority=1)
-            ],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         initial_seat = round_state.current_player_seat
@@ -647,9 +641,7 @@ class TestHandlePassRiichiFinalization:
             tile_id=tile_to_discard,
             from_seat=0,
             pending_seats={1},
-            callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_discard // 4, priority=1)
-            ],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         # handle_pass should finalize the riichi
@@ -684,9 +676,7 @@ class TestHandlePassRiichiFinalization:
             tile_id=tile_to_discard,
             from_seat=0,
             pending_seats={1},
-            callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_discard // 4, priority=1)
-            ],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         # handle_pass should finalize riichi and detect four riichi
@@ -820,9 +810,7 @@ class TestResolveCallPrompt:
             tile_id=tile_to_discard,
             from_seat=0,
             pending_seats={1},
-            callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_discard // 4, priority=1)
-            ],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         initial_seat = round_state.current_player_seat
@@ -848,8 +836,8 @@ class TestResolveCallPrompt:
             from_seat=0,
             pending_seats={1, 2},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_discard // 4, priority=1),
-                MeldCaller(seat=2, call_type=MeldCallType.CHI, tile_34=tile_to_discard // 4, priority=2),
+                MeldCaller(seat=1, call_type=MeldCallType.PON),
+                MeldCaller(seat=2, call_type=MeldCallType.CHI),
             ],
         )
 
@@ -886,7 +874,7 @@ class TestResolveCallPrompt:
             tile_id=tile_to_pon,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_to_pon // 4, priority=1)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_to_pon))
@@ -952,8 +940,8 @@ class TestResolveCallPrompt:
             from_seat=0,
             pending_seats={1, 2},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_id // 4, priority=1),
-                MeldCaller(seat=2, call_type=MeldCallType.CHI, tile_34=tile_id // 4, priority=2),
+                MeldCaller(seat=1, call_type=MeldCallType.PON),
+                MeldCaller(seat=2, call_type=MeldCallType.CHI),
             ],
         )
 
@@ -972,7 +960,7 @@ class TestResolveCallPrompt:
         # seat 1 responds with pon
         result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
 
-        # pon should win (priority 1 < priority 2)
+        # pon should win (pon has higher priority than chi)
         assert round_state.pending_call_prompt is None
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
@@ -1019,8 +1007,8 @@ class TestResolveCallPrompt:
         assert round_state.players[1].is_temporary_furiten is True
         assert round_state.players[1].is_riichi_furiten is True
 
-    def test_handle_pass_not_caller_just_acknowledges(self):
-        """Passing when not a pending caller just acknowledges."""
+    def test_handle_pass_not_caller_returns_empty(self):
+        """Passing when not a pending caller returns empty events."""
         game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
@@ -1032,14 +1020,12 @@ class TestResolveCallPrompt:
             tile_id=tile_id,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=0, priority=1)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         result = handle_pass(round_state, game_state, seat=3)
 
-        # seat 3 is not a caller, so just acknowledge
-        pass_events = [e for e in result.events if isinstance(e, PassAcknowledgedEvent)]
-        assert len(pass_events) == 1
+        assert result.events == []
         # prompt should still be pending for seat 1
         assert round_state.pending_call_prompt is not None
         assert 1 in round_state.pending_call_prompt.pending_seats
@@ -1127,7 +1113,7 @@ class TestResolveCallPrompt:
             tile_id=correct_tile,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=correct_tile // 4, priority=1)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=wrong_tile))
@@ -1150,8 +1136,8 @@ class TestResolveCallPrompt:
             from_seat=0,
             pending_seats={1, 2},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_id // 4, priority=1),
-                MeldCaller(seat=2, call_type=MeldCallType.CHI, tile_34=tile_id // 4, priority=2),
+                MeldCaller(seat=1, call_type=MeldCallType.PON),
+                MeldCaller(seat=2, call_type=MeldCallType.CHI),
             ],
         )
 
@@ -1175,7 +1161,7 @@ class TestResolveCallPrompt:
             tile_id=correct_tile,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.CHI, tile_34=correct_tile // 4, priority=2)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.CHI)],
         )
 
         result = handle_chi(
@@ -1207,7 +1193,7 @@ class TestResolveCallPrompt:
             tile_id=tile_id,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.CHI, tile_34=tile_id // 4, priority=2)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.CHI)],
         )
 
         result = handle_chi(
@@ -1236,8 +1222,8 @@ class TestResolveCallPrompt:
             from_seat=0,
             pending_seats={1, 2},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_id // 4, priority=1),
-                MeldCaller(seat=2, call_type=MeldCallType.CHI, tile_34=tile_id // 4, priority=2),
+                MeldCaller(seat=1, call_type=MeldCallType.PON),
+                MeldCaller(seat=2, call_type=MeldCallType.CHI),
             ],
         )
 
@@ -1268,7 +1254,7 @@ class TestResolveCallPrompt:
             tile_id=tile_id,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN, tile_34=tile_id // 4, priority=0)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN)],
         )
 
         result = handle_kan(
@@ -1326,7 +1312,7 @@ class TestResolveCallPrompt:
             tile_id=tile_id,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN, tile_34=tile_id // 4, priority=0)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN)],
         )
 
         result = handle_kan(
@@ -1351,7 +1337,7 @@ class TestResolveCallPrompt:
             tile_id=tile_id,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_id // 4, priority=1)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         result = handle_kan(
@@ -1376,8 +1362,8 @@ class TestResolveCallPrompt:
             from_seat=0,
             pending_seats={1, 2},
             callers=[
-                MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN, tile_34=tile_id // 4, priority=0),
-                MeldCaller(seat=2, call_type=MeldCallType.PON, tile_34=tile_id // 4, priority=1),
+                MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN),
+                MeldCaller(seat=2, call_type=MeldCallType.PON),
             ],
         )
 

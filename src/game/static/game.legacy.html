@@ -721,10 +721,6 @@
             addMessage(`${message.type}: ${JSON.stringify(message)}`, 'message-event');
 
             switch (message.type) {
-                case 'game_event':
-                    // unwrap game_event and re-dispatch with the inner event type
-                    handleServerMessage({ type: message.event, ...message.data });
-                    break;
                 case 'game_joined':
                     handleGameJoined(message);
                     break;
@@ -780,6 +776,23 @@
         }
 
         function handleGameStarted(message) {
+            // game_started only contains player identities
+            const players = message.players;
+            gameState.players = players.map(p => ({
+                seat: p.seat,
+                name: p.name,
+                is_bot: p.is_bot,
+                score: 0,
+                discards: [],
+                melds: [],
+                is_riichi: false,
+                tile_count: 0,
+            }));
+
+            addMessage('Game started!', 'message-system');
+        }
+
+        function handleRoundStarted(message) {
             const view = message.view;
             gameState.seat = view.seat;
             gameState.roundWind = view.round_wind;
@@ -795,43 +808,7 @@
             gameState.currentSeat = -1;
             gameState.pendingCallPrompt = null;
 
-            // initialize players with empty discards/melds
-            gameState.players = view.players.map(p => ({
-                ...p,
-                discards: [],
-                melds: [],
-                is_riichi: false
-            }));
-
-            // find our player data and set hand
-            const ourPlayer = view.players.find(p => p.seat === gameState.seat);
-            if (ourPlayer && ourPlayer.tiles) {
-                gameState.hand = ourPlayer.tiles.slice().sort((a, b) => a - b);
-            } else {
-                gameState.hand = [];
-            }
-
-            updateGameDisplay();
-            addMessage(`Game started! You are seat ${gameState.seat}`, 'message-system');
-        }
-
-        function handleRoundStarted(message) {
-            const view = message.view;
-            // reset round-specific state
-            gameState.roundWind = view.round_wind;
-            gameState.roundNumber = view.round_number;
-            gameState.dealerSeat = view.dealer_seat;
-            gameState.wallCount = view.wall_count;
-            gameState.doraIndicators = view.dora_indicators || [];
-            gameState.honbaSticks = view.honba_sticks;
-            gameState.riichiSticks = view.riichi_sticks;
-            gameState.drawnTile = null;
-            gameState.selectedTile = null;
-            gameState.availableActions = [];
-            gameState.currentSeat = -1;
-            gameState.pendingCallPrompt = null;
-
-            // update players but reset round-specific data (discards, melds, riichi)
+            // update or initialize players with round data
             view.players.forEach(p => {
                 const existingPlayer = gameState.players.find(ep => ep.seat === p.seat);
                 if (existingPlayer) {
@@ -840,15 +817,10 @@
                     existingPlayer.discards = [];
                     existingPlayer.melds = [];
                     existingPlayer.is_riichi = false;
-                } else {
-                    p.discards = [];
-                    p.melds = [];
-                    p.is_riichi = false;
-                    gameState.players.push(p);
                 }
             });
 
-            // find our player data and set hand
+            // set our hand from the round data
             const ourPlayer = view.players.find(p => p.seat === gameState.seat);
             if (ourPlayer && ourPlayer.tiles) {
                 gameState.hand = ourPlayer.tiles.slice().sort((a, b) => a - b);
@@ -857,16 +829,15 @@
             }
 
             updateGameDisplay();
-            addMessage(`New round started: ${gameState.roundWind} ${gameState.roundNumber + 1}`, 'message-system');
+            addMessage(`Round ${view.round_wind} ${view.round_number + 1} started`, 'message-system');
         }
 
         function handleDraw(message) {
             gameState.drawnTile = {
-                tile: message.tile,
                 tileId: message.tile_id
             };
             updateGameDisplay();
-            addMessage(`Drew: ${message.tile}`, 'message-event');
+            addMessage(`Drew: ${tileIdToString(message.tile_id)}`, 'message-event');
         }
 
         function handleDiscard(message) {
@@ -874,7 +845,6 @@
             if (player) {
                 player.discards = player.discards || [];
                 player.discards.push({
-                    tile: message.tile,
                     tile_id: message.tile_id,
                     is_tsumogiri: message.is_tsumogiri,
                     is_riichi_discard: message.is_riichi
@@ -885,10 +855,8 @@
             // if it's our discard, remove from hand
             if (message.seat === gameState.seat) {
                 if (gameState.drawnTile && gameState.drawnTile.tileId === message.tile_id) {
-                    // discarding the drawn tile - just clear it
                     gameState.drawnTile = null;
                 } else {
-                    // discarding from hand - remove from hand and merge drawn tile into hand
                     const idx = gameState.hand.indexOf(message.tile_id);
                     if (idx !== -1) {
                         gameState.hand.splice(idx, 1);
@@ -902,7 +870,7 @@
             }
 
             updateGameDisplay();
-            addMessage(`Seat ${message.seat} discarded ${message.tile}${message.is_riichi ? ' (riichi)' : ''}`, 'message-event');
+            addMessage(`Seat ${message.seat} discarded ${tileIdToString(message.tile_id)}${message.is_riichi ? ' (riichi)' : ''}`, 'message-event');
         }
 
         function handleMeld(message) {
@@ -911,13 +879,13 @@
                 player.melds = player.melds || [];
                 player.melds.push({
                     type: message.meld_type,
-                    tiles: message.tiles,
                     tile_ids: message.tile_ids,
                     from_who: message.from_seat
                 });
             }
             updateMeldsDisplay();
-            addMessage(`Seat ${message.caller_seat} called ${message.meld_type}: ${message.tiles.join(' ')}`, 'message-event');
+            const tileStr = message.tile_ids.map(id => tileIdToString(id)).join(' ');
+            addMessage(`Seat ${message.caller_seat} called ${message.meld_type}: ${tileStr}`, 'message-event');
         }
 
         function handleRiichi(message) {
@@ -1102,8 +1070,8 @@
             // update dora display
             const doraTiles = document.getElementById('dora-tiles');
             doraTiles.innerHTML = '';
-            gameState.doraIndicators.forEach(d => {
-                const tileEl = createTileElement(d.tile, d.tile_id, true);
+            gameState.doraIndicators.forEach(tileId => {
+                const tileEl = createTileElement(tileIdToString(tileId), tileId, true);
                 doraTiles.appendChild(tileEl);
             });
 
@@ -1170,7 +1138,7 @@
             // display drawn tile separately
             if (gameState.drawnTile) {
                 const canDiscardDrawn = isOurTurn && (allowedTiles.length === 0 || allowedTiles.includes(gameState.drawnTile.tileId));
-                const tileEl = createTileElement(gameState.drawnTile.tile, gameState.drawnTile.tileId, false, canDiscardDrawn);
+                const tileEl = createTileElement(tileIdToString(gameState.drawnTile.tileId), gameState.drawnTile.tileId, false, canDiscardDrawn);
                 tileEl.classList.add('drawn');
                 if (canDiscardDrawn) {
                     tileEl.addEventListener('click', () => selectTile(gameState.drawnTile.tileId));
@@ -1188,7 +1156,7 @@
                 discardArea.innerHTML = '';
 
                 (player.discards || []).forEach(discard => {
-                    const tileEl = createTileElement(discard.tile, discard.tile_id, true);
+                    const tileEl = createTileElement(tileIdToString(discard.tile_id), discard.tile_id, true);
                     if (discard.is_tsumogiri) {
                         tileEl.classList.add('tsumogiri');
                     }
@@ -1208,8 +1176,8 @@
                 (player.melds || []).forEach(meld => {
                     const meldDiv = document.createElement('div');
                     meldDiv.className = 'meld';
-                    meld.tiles.forEach(tile => {
-                        const tileEl = createTileElement(tile, null, true);
+                    meld.tile_ids.forEach(tileId => {
+                        const tileEl = createTileElement(tileIdToString(tileId), tileId, true);
                         meldDiv.appendChild(tileEl);
                     });
                     meldArea.appendChild(meldDiv);

@@ -281,8 +281,7 @@ class TestGetPlayerView:
         view = get_player_view(game_state, seat=0)
         haku = TilesConverter.string_to_136_array(honors="5")[0]
         assert len(view.dora_indicators) == 1
-        assert view.dora_indicators[0].tile == "Haku"
-        assert view.dora_indicators[0].tile_id == haku
+        assert view.dora_indicators[0] == haku
 
     def test_view_shows_own_hand(self):
         game_state = self._create_test_game_state()
@@ -291,7 +290,6 @@ class TestGetPlayerView:
         player_view = view.players[0]
         assert player_view.tiles is not None
         assert len(player_view.tiles) == 13
-        assert player_view.hand is not None
         assert player_view.tile_count == 13
 
     def test_view_hides_other_hands(self):
@@ -302,7 +300,6 @@ class TestGetPlayerView:
         for i in range(1, 4):
             player_view = view.players[i]
             assert player_view.tiles is None
-            assert player_view.hand is None
             assert player_view.tile_count == 13
 
     def test_view_shows_all_player_scores(self):
@@ -327,9 +324,9 @@ class TestGetPlayerView:
         view = get_player_view(game_state, seat=0)
         bot1_discards = view.players[1].discards
         assert len(bot1_discards) == 2
-        assert bot1_discards[0].tile == "1m"
+        assert bot1_discards[0].tile_id == man_1m
         assert bot1_discards[0].is_tsumogiri is False
-        assert bot1_discards[1].tile == "1p"
+        assert bot1_discards[1].tile_id == pin_1p
         assert bot1_discards[1].is_tsumogiri is True
 
     def test_view_shows_melds(self):
@@ -346,7 +343,7 @@ class TestGetPlayerView:
         bot2_melds = view.players[2].melds
         assert len(bot2_melds) == 1
         assert bot2_melds[0].type == "pon"
-        assert bot2_melds[0].tiles == ["E", "E", "E"]
+        assert bot2_melds[0].tile_ids == TilesConverter.string_to_136_array(honors="111")[:3]
         assert bot2_melds[0].opened is True
 
     def test_view_shows_riichi_status(self):

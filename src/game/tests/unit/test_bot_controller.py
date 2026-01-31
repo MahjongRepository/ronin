@@ -16,7 +16,7 @@ from game.messaging.events import (
     convert_events,
     extract_round_result,
 )
-from game.tests.unit.helpers import _string_to_34_tile, _string_to_136_tile
+from game.tests.unit.helpers import _string_to_136_tile
 
 
 class TestBotControllerInit:
@@ -190,8 +190,6 @@ class TestBotControllerGetCallResponse:
         caller_info = MeldCaller(
             seat=1,
             call_type=MeldCallType.PON,
-            tile_34=_string_to_34_tile(man="1"),
-            priority=1,
         )
 
         result = controller.get_call_response(
@@ -204,7 +202,7 @@ class TestBotControllerGetCallResponse:
 class TestConvertEvents:
     def test_convert_events_handles_typed_events(self):
         """convert_events converts typed events to ServiceEvent format."""
-        events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0")]
+        events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0")]
 
         result = convert_events(events)
 
@@ -228,7 +226,7 @@ class TestExtractRoundResult:
         events = [
             ServiceEvent(
                 event="draw",
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
             ),
             ServiceEvent(event="round_end", data=RoundEndEvent(result=tsumo_result, target="all")),
         ]
@@ -245,11 +243,11 @@ class TestExtractRoundResult:
         events = [
             ServiceEvent(
                 event="draw",
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
             ),
             ServiceEvent(
                 event="discard",
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), tile="1m", target="seat_0"),
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
             ),
         ]
 

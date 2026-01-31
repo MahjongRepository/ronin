@@ -14,7 +14,7 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.actions import get_available_actions
-from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.enums import MELD_CALL_PRIORITY, CallType, KanType, MeldCallType, MeldViewType, PlayerAction
 from game.logic.melds import (
     call_added_kan,
     call_chi,
@@ -40,7 +40,7 @@ from game.logic.scoring import (
     calculate_hand_value,
 )
 from game.logic.state import PendingCallPrompt, RoundPhase
-from game.logic.tiles import tile_to_34, tile_to_string
+from game.logic.tiles import tile_to_34
 from game.logic.types import AvailableActionItem, MeldCaller
 from game.logic.win import (
     can_call_ron,
@@ -101,7 +101,6 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
         DrawEvent(
             seat=current_seat,
             tile_id=drawn_tile,
-            tile=tile_to_string(drawn_tile),
             target=f"seat_{current_seat}",
         )
     )
@@ -166,7 +165,6 @@ def process_discard_phase(
         DiscardEvent(
             seat=current_seat,
             tile_id=tile_id,
-            tile=tile_to_string(tile_id),
             is_tsumogiri=discard.is_tsumogiri,
             is_riichi=is_riichi,
         )
@@ -291,7 +289,6 @@ def _process_pon_call(ctx: MeldCallContext) -> None:
             meld_type=MeldViewType.PON,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
-            tiles=[tile_to_string(t) for t in tile_ids],
             from_seat=ctx.discarder_seat,
         )
     )
@@ -308,7 +305,6 @@ def _process_chi_call(ctx: MeldCallContext) -> None:
             meld_type=MeldViewType.CHI,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
-            tiles=[tile_to_string(t) for t in tile_ids],
             from_seat=ctx.discarder_seat,
         )
     )
@@ -323,7 +319,6 @@ def _process_open_kan_call(ctx: MeldCallContext) -> bool:
             meld_type=MeldViewType.KAN,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
-            tiles=[tile_to_string(t) for t in tile_ids],
             from_seat=ctx.discarder_seat,
             kan_type=KanType.OPEN,
         )
@@ -340,7 +335,6 @@ def _process_closed_kan_call(ctx: MeldCallContext) -> bool:
             meld_type=MeldViewType.KAN,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
-            tiles=[tile_to_string(t) for t in tile_ids],
             kan_type=KanType.CLOSED,
         )
     )
@@ -377,7 +371,6 @@ def _process_added_kan_call(ctx: MeldCallContext) -> bool:
             meld_type=MeldViewType.KAN,
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
-            tiles=[tile_to_string(t) for t in tile_ids],
             kan_type=KanType.ADDED,
         )
     )
@@ -546,7 +539,6 @@ def _find_meld_callers(
     Each entry includes: seat, call_type, and options (for chi).
     """
     meld_calls: list[MeldCaller] = []
-    tile_34 = tile_to_34(tile_id)
 
     for seat in range(4):
         if seat == discarder_seat:
@@ -560,8 +552,6 @@ def _find_meld_callers(
                 MeldCaller(
                     seat=seat,
                     call_type=MeldCallType.OPEN_KAN,
-                    tile_34=tile_34,
-                    priority=0,
                 )
             )
 
@@ -571,8 +561,6 @@ def _find_meld_callers(
                 MeldCaller(
                     seat=seat,
                     call_type=MeldCallType.PON,
-                    tile_34=tile_34,
-                    priority=1,
                 )
             )
 
@@ -583,14 +571,12 @@ def _find_meld_callers(
                 MeldCaller(
                     seat=seat,
                     call_type=MeldCallType.CHI,
-                    tile_34=tile_34,
                     options=chi_options,
-                    priority=2,
                 )
             )
 
-    # sort by priority
-    meld_calls.sort(key=lambda x: x.priority)
+    # sort by priority: kan > pon > chi
+    meld_calls.sort(key=lambda x: MELD_CALL_PRIORITY.get(x.call_type, 99))
 
     return meld_calls
 

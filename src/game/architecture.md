@@ -62,9 +62,17 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "player_left", "player_name": "Charlie"}
 ```
 
-**Game Event**
+**Game Events** (sent as flat top-level messages, no wrapper envelope)
 ```json
-{"type": "game_event", "event": "tile_discarded", "data": {...}}
+{"type": "game_started", "players": [{"seat": 0, "name": "Alice", "is_bot": false}, ...]}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", ...}}
+{"type": "draw", "seat": 0, "tile_id": 42}
+{"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "caller_seat": 1, "tile_ids": [8, 9, 10], "from_seat": 0}
+{"type": "turn", "current_seat": 0, "available_actions": [...], "wall_count": 69}
+{"type": "call_prompt", "call_type": "meld", "tile_id": 55, "from_seat": 2, "callers": [...]}
+{"type": "round_end", "result": {...}}
+{"type": "game_end", "result": {...}}
 ```
 
 **Chat**
@@ -124,8 +132,8 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base) - Domain events like DrawEvent, DiscardEvent, MeldEvent, TurnEvent, RoundEndEvent, etc.
-- **ServiceEvent** - Transport container wrapping a GameEvent with routing metadata (event type string, target)
+- **GameEvent** (Pydantic base) - Domain events like DrawEvent, DiscardEvent, MeldEvent, TurnEvent, RoundEndEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (target="all", lightweight broadcast with player identities) followed by `RoundStartedEvent` (target="seat_N", per-seat events with full GameView).
+- **ServiceEvent** - Transport container wrapping a GameEvent with routing metadata (event type string, target). Events are serialized as flat top-level messages on the wire (no wrapper envelope).
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists
 - `extract_round_result()` extracts round results from ServiceEvent lists
@@ -139,12 +147,12 @@ The `logic/` module implements Riichi Mahjong rules:
 - **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
-- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without recording a response; resolution triggers when all callers have responded or passed via `resolve_call_prompt()`
+- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()`
 - **Matchmaker** - Assigns human players to random seats and fills remaining with bots; returns `list[SeatConfig]`
 - **TurnTimer** - Server-side bank time management with async timeout callbacks for turns and meld decisions
 - **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation
-- **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`
-- **Types** - Pydantic models for cross-component data: `SeatConfig`, round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller`, `BotAction`, `AvailableActionItem`; `RoundResult` union type
+- **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`; `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
+- **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller` (seat and call_type only, no server-internal fields), `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
 - **Melds** - Detection of valid chi, pon, and kan combinations; kuikae restriction calculation; pao liability detection
 - **Win** - Win detection, furiten checking (permanent, temporary, riichi furiten), renhou detection, chankan validation, and hand parsing

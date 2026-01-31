@@ -14,7 +14,6 @@ from game.messaging.events import (
 )
 from game.messaging.types import (
     ErrorMessage,
-    GameEventMessage,
     GameJoinedMessage,
     GameLeftMessage,
     PlayerJoinedMessage,
@@ -252,7 +251,6 @@ class SessionManager:
 
         # create timer and lock for this game
         timer = TurnTimer()
-        timer.add_round_bonus()  # first round bonus
         self._timers[game.game_id] = timer
         self._game_locks[game.game_id] = asyncio.Lock()
 
@@ -275,10 +273,7 @@ class SessionManager:
         seat_to_player = {p.seat: p for p in game.players.values() if p.seat is not None}
 
         for event in events:
-            message = GameEventMessage(
-                event=event.event,
-                data=event.data.model_dump(),
-            ).model_dump()
+            message = {"type": event.event, **event.data.model_dump(exclude={"type", "target"})}
 
             if event.target == "all":
                 await self._broadcast_to_game(game, message)

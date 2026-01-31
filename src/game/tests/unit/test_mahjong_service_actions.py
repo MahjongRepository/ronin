@@ -166,12 +166,12 @@ class TestMahjongGameServicePass:
     def service(self):
         return MahjongGameService()
 
-    async def test_pass_returns_acknowledgement(self, service):
+    async def test_pass_returns_empty_without_pending_prompt(self, service):
         await service.start_game("game1", ["Human"])
 
         events = await service.handle_action("game1", "Human", "pass", {})
 
-        assert any(e.event == "pass_acknowledged" for e in events)
+        assert events == []
 
 
 class TestMahjongGameServiceErrors:
@@ -287,7 +287,6 @@ class TestMahjongGameServiceProcessActionResult:
                 DiscardEvent(
                     seat=0,
                     tile_id=0,
-                    tile="1m",
                     is_tsumogiri=True,
                     is_riichi=False,
                     target="all",

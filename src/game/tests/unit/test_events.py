@@ -10,6 +10,7 @@ from game.logic.types import (
     AvailableActionItem,
     ExhaustiveDrawResult,
     GameEndResult,
+    GamePlayerInfo,
     GameView,
     HandResultInfo,
     MeldCaller,
@@ -27,7 +28,6 @@ from game.messaging.events import (
     GameEndedEvent,
     GameStartedEvent,
     MeldEvent,
-    PassAcknowledgedEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
     RoundStartedEvent,
@@ -38,17 +38,16 @@ from game.messaging.events import (
 class TestDrawEvent:
     def test_create_draw_event(self) -> None:
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        event = DrawEvent(seat=0, tile_id=tile_id, tile="1m", target="seat_0")
+        event = DrawEvent(seat=0, tile_id=tile_id, target="seat_0")
 
         assert event.type == "draw"
         assert event.seat == 0
         assert event.tile_id == tile_id
-        assert event.tile == "1m"
         assert event.target == "seat_0"
 
     def test_create_draw_event_different_seat(self) -> None:
         tile_id = TilesConverter.string_to_136_array(pin="9")[0]
-        event = DrawEvent(seat=3, tile_id=tile_id, tile="9p", target="seat_3")
+        event = DrawEvent(seat=3, tile_id=tile_id, target="seat_3")
 
         assert event.seat == 3
         assert event.target == "seat_3"
@@ -60,7 +59,6 @@ class TestDiscardEvent:
         event = DiscardEvent(
             seat=1,
             tile_id=tile_id,
-            tile="5s",
             is_tsumogiri=True,
             is_riichi=False,
         )
@@ -68,7 +66,6 @@ class TestDiscardEvent:
         assert event.type == "discard"
         assert event.seat == 1
         assert event.tile_id == tile_id
-        assert event.tile == "5s"
         assert event.is_tsumogiri is True
         assert event.is_riichi is False
         assert event.target == "all"
@@ -78,7 +75,6 @@ class TestDiscardEvent:
         event = DiscardEvent(
             seat=2,
             tile_id=tile_id,
-            tile="E",
             is_tsumogiri=False,
             is_riichi=True,
         )
@@ -94,7 +90,6 @@ class TestMeldEvent:
             meld_type=MeldViewType.PON,
             caller_seat=1,
             tile_ids=pon_tile_ids,
-            tiles=["3m", "3m", "3m"],
             from_seat=0,
         )
 
@@ -103,7 +98,6 @@ class TestMeldEvent:
         assert event.caller_seat == 1
         assert event.from_seat == 0
         assert event.tile_ids == pon_tile_ids
-        assert event.tiles == ["3m", "3m", "3m"]
         assert event.kan_type is None
         assert event.target == "all"
 
@@ -112,7 +106,6 @@ class TestMeldEvent:
             meld_type=MeldViewType.CHI,
             caller_seat=2,
             tile_ids=TilesConverter.string_to_136_array(man="123"),
-            tiles=["1m", "2m", "3m"],
             from_seat=1,
         )
 
@@ -124,7 +117,6 @@ class TestMeldEvent:
             meld_type=MeldViewType.KAN,
             caller_seat=0,
             tile_ids=TilesConverter.string_to_136_array(pin="1111"),
-            tiles=["1p", "1p", "1p", "1p"],
             kan_type=KanType.CLOSED,
         )
 
@@ -137,7 +129,6 @@ class TestMeldEvent:
             meld_type=MeldViewType.KAN,
             caller_seat=3,
             tile_ids=TilesConverter.string_to_136_array(sou="1111"),
-            tiles=["1s", "1s", "1s", "1s"],
             from_seat=2,
             kan_type=KanType.OPEN,
         )
@@ -150,7 +141,6 @@ class TestMeldEvent:
             meld_type=MeldViewType.KAN,
             caller_seat=1,
             tile_ids=TilesConverter.string_to_136_array(honors="1111"),
-            tiles=["E", "E", "E", "E"],
             kan_type=KanType.ADDED,
         )
 
@@ -198,8 +188,8 @@ class TestCallPromptEvent:
 
     def test_meld_call_prompt(self) -> None:
         callers = [
-            MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=5, priority=1),
-            MeldCaller(seat=2, call_type=MeldCallType.CHI, tile_34=5, options=[(4, 8)], priority=2),
+            MeldCaller(seat=1, call_type=MeldCallType.PON),
+            MeldCaller(seat=2, call_type=MeldCallType.CHI, options=[(4, 8)]),
         ]
         event = CallPromptEvent(
             call_type="meld",
@@ -293,28 +283,18 @@ class TestErrorEvent:
         assert event.target == "seat_2"
 
 
-class TestPassAcknowledgedEvent:
-    def test_pass_acknowledged_event(self) -> None:
-        event = PassAcknowledgedEvent(seat=3, target="seat_3")
-
-        assert event.type == "pass_acknowledged"
-        assert event.seat == 3
-        assert event.target == "seat_3"
-
-
 class TestEventModelDump:
     """Test that events serialize correctly for wire format."""
 
     def test_draw_event_to_wire(self) -> None:
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        event = DrawEvent(seat=0, tile_id=tile_id, tile="1m", target="seat_0")
+        event = DrawEvent(seat=0, tile_id=tile_id, target="seat_0")
         wire = event.model_dump()
 
         assert wire == {
             "type": "draw",
             "seat": 0,
             "tile_id": tile_id,
-            "tile": "1m",
             "target": "seat_0",
         }
 
@@ -323,7 +303,6 @@ class TestEventModelDump:
         event = DiscardEvent(
             seat=1,
             tile_id=tile_id,
-            tile="5s",
             is_tsumogiri=True,
             is_riichi=False,
         )
@@ -333,7 +312,6 @@ class TestEventModelDump:
             "type": "discard",
             "seat": 1,
             "tile_id": tile_id,
-            "tile": "5s",
             "is_tsumogiri": True,
             "is_riichi": False,
             "target": "all",
@@ -345,7 +323,6 @@ class TestEventModelDump:
             meld_type=MeldViewType.PON,
             caller_seat=1,
             tile_ids=pon_tile_ids,
-            tiles=["3m", "3m", "3m"],
             from_seat=0,
         )
         wire = event.model_dump()
@@ -355,7 +332,6 @@ class TestEventModelDump:
         assert wire["caller_seat"] == 1
         assert wire["from_seat"] == 0
         assert wire["tile_ids"] == pon_tile_ids
-        assert wire["tiles"] == ["3m", "3m", "3m"]
         assert wire["kan_type"] is None
         assert wire["target"] == "all"
 
@@ -421,18 +397,17 @@ class TestEventUnionType:
         man_1_tile_id = TilesConverter.string_to_136_array(man="1")[0]
         man_1_pon_ids = TilesConverter.string_to_136_array(man="111")
         events: list[Event] = [
-            DrawEvent(seat=0, tile_id=man_1_tile_id, tile="1m", target="seat_0"),
-            DiscardEvent(seat=0, tile_id=man_1_tile_id, tile="1m", is_tsumogiri=False, is_riichi=False),
-            MeldEvent(
-                meld_type=MeldViewType.PON, caller_seat=0, tile_ids=man_1_pon_ids, tiles=["1m", "1m", "1m"]
-            ),
+            DrawEvent(seat=0, tile_id=man_1_tile_id, target="seat_0"),
+            DiscardEvent(seat=0, tile_id=man_1_tile_id, is_tsumogiri=False, is_riichi=False),
+            MeldEvent(meld_type=MeldViewType.PON, caller_seat=0, tile_ids=man_1_pon_ids),
             TurnEvent(current_seat=0, available_actions=[], wall_count=70, target="seat_0"),
             CallPromptEvent(call_type="ron", tile_id=man_1_tile_id, from_seat=0, callers=[1], target="all"),
             RoundEndEvent(result=AbortiveDrawResult(reason=AbortiveDrawType.NINE_TERMINALS), target="all"),
             RiichiDeclaredEvent(seat=0, target="all"),
             ErrorEvent(code="test", message="test", target="all"),
-            PassAcknowledgedEvent(seat=0, target="seat_0"),
-            GameStartedEvent(view=mock_view, target="seat_0"),
+            GameStartedEvent(
+                players=[GamePlayerInfo(seat=i, name=f"Player{i}", is_bot=i > 0) for i in range(4)],
+            ),
             RoundStartedEvent(view=mock_view, target="seat_0"),
             GameEndedEvent(
                 result=GameEndResult(
@@ -445,4 +420,4 @@ class TestEventUnionType:
             ),
         ]
 
-        assert len(events) == 12
+        assert len(events) == 11

@@ -38,54 +38,50 @@ class TestGameCreationAndJoin:
         return MahjongGameService()
 
     async def test_create_game_and_join_returns_initial_state(self, service):
-        """Create game and verify initial state events are received."""
+        """Create game and verify game_started broadcast event is received."""
         events = await service.start_game("game1", ["Human"])
 
         game_started_events = [e for e in events if e.event == "game_started"]
-        assert len(game_started_events) == 4
+        assert len(game_started_events) == 1
 
-        for event in game_started_events:
-            assert isinstance(event.data, GameStartedEvent)
-            view = event.data.view
-            assert view.seat is not None
-            assert view.players is not None
-            assert view.round_wind is not None
-            assert view.dealer_seat is not None
-            assert len(view.players) == 4
+        event = game_started_events[0]
+        assert isinstance(event.data, GameStartedEvent)
+        assert event.target == "all"
+        assert len(event.data.players) == 4
+
+        for player in event.data.players:
+            assert player.seat is not None
+            assert player.name is not None
 
     async def test_initial_state_contains_player_hand(self, service):
-        """Verify initial state includes player's own hand."""
-        events = await service.start_game("game1", ["Human"])
+        """Verify initial state includes player's own hand via game state."""
+        await service.start_game("game1", ["Human"])
 
-        human_event = next(e for e in events if e.event == "game_started" and e.target == "seat_0")
-        assert isinstance(human_event.data, GameStartedEvent)
-        view = human_event.data.view
-        player_info = next(p for p in view.players if p.seat == 0)
+        game_state = service._games["game1"]
+        human = next(p for p in game_state.round_state.players if p.name == "Human")
 
-        assert player_info.tiles is not None
-        assert len(player_info.tiles) == 13 or len(player_info.tiles) == 14
+        assert human.tiles is not None
+        assert len(human.tiles) == 13 or len(human.tiles) == 14
 
     async def test_initial_state_hides_opponent_hands(self, service):
-        """Verify initial state does not include opponent hands."""
+        """Verify game_started broadcast contains only player identities, no hand data."""
         events = await service.start_game("game1", ["Human"])
 
-        human_event = next(e for e in events if e.event == "game_started" and e.target == "seat_0")
-        assert isinstance(human_event.data, GameStartedEvent)
-        view = human_event.data.view
-        opponent_info = next(p for p in view.players if p.seat == 1)
+        game_started = next(e for e in events if e.event == "game_started")
+        assert isinstance(game_started.data, GameStartedEvent)
 
-        assert opponent_info.tiles is None
-        assert opponent_info.tile_count is not None
+        # game_started only has player identities (seat, name, is_bot)
+        for player in game_started.data.players:
+            assert hasattr(player, "seat")
+            assert hasattr(player, "name")
+            assert hasattr(player, "is_bot")
 
     async def test_initial_state_includes_scores(self, service):
-        """Verify all players start with 25000 points."""
-        events = await service.start_game("game1", ["Human"])
+        """Verify all players start with 25000 points via game state."""
+        await service.start_game("game1", ["Human"])
 
-        human_event = next(e for e in events if e.event == "game_started" and e.target == "seat_0")
-        assert isinstance(human_event.data, GameStartedEvent)
-        view = human_event.data.view
-
-        for player in view.players:
+        game_state = service._games["game1"]
+        for player in game_state.round_state.players:
             assert player.score == 25000
 
 

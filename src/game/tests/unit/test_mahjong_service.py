@@ -40,19 +40,14 @@ class TestMahjongGameServiceInit:
         bot_count = sum(1 for seat in range(4) if bot_controller.is_bot(seat))
         assert bot_count == 3
 
-    async def test_start_game_returns_game_started_events(self, service):
+    async def test_start_game_returns_game_started_event(self, service):
         events = await service.start_game("game1", ["Human"])
 
-        # should have game_started events for each player
+        # single game_started event broadcast to all
         game_started_events = [e for e in events if e.event == "game_started"]
-        assert len(game_started_events) == 4
-
-    async def test_start_game_events_target_correct_seats(self, service):
-        events = await service.start_game("game1", ["Human"])
-
-        game_started_events = [e for e in events if e.event == "game_started"]
-        targets = {e.target for e in game_started_events}
-        assert targets == {"seat_0", "seat_1", "seat_2", "seat_3"}
+        assert len(game_started_events) == 1
+        assert game_started_events[0].target == "all"
+        assert len(game_started_events[0].data.players) == 4
 
     async def test_start_game_includes_draw_event_for_dealer(self, service):
         events = await service.start_game("game1", ["Human"])

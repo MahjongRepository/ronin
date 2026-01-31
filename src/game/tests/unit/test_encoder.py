@@ -10,7 +10,7 @@ from game.messaging.encoder import DecodeError, decode, encode
 
 class TestEncode:
     def test_encode_simple_dict(self) -> None:
-        data = {"type": "draw", "seat": 0, "tile": "1m"}
+        data = {"type": "draw", "seat": 0, "tile_id": 0}
         result = encode(data)
 
         assert isinstance(result, bytes)
@@ -35,7 +35,6 @@ class TestEncode:
         data = {
             "type": "meld",
             "tile_ids": [10, 11, 12],
-            "tiles": ["3m", "3m", "3m"],
         }
         result = encode(data)
 
@@ -44,7 +43,7 @@ class TestEncode:
 
 class TestDecode:
     def test_decode_simple_dict(self) -> None:
-        data = {"type": "draw", "seat": 0, "tile": "1m"}
+        data = {"type": "draw", "seat": 0, "tile_id": 0}
         encoded = encode(data)
 
         result = decode(encoded)
@@ -74,7 +73,6 @@ class TestDecode:
         data = {
             "type": "meld",
             "tile_ids": [10, 11, 12],
-            "tiles": ["3m", "3m", "3m"],
         }
         encoded = encode(data)
 
@@ -85,7 +83,7 @@ class TestDecode:
 
 class TestRoundTrip:
     def test_round_trip_draw_event(self) -> None:
-        data = {"type": "draw", "seat": 0, "tile_id": 42, "tile": "1m", "target": "seat_0"}
+        data = {"type": "draw", "seat": 0, "tile_id": 42, "target": "seat_0"}
 
         assert decode(encode(data)) == data
 
@@ -94,7 +92,6 @@ class TestRoundTrip:
             "type": "discard",
             "seat": 1,
             "tile_id": 50,
-            "tile": "5s",
             "is_tsumogiri": True,
             "is_riichi": False,
             "target": "all",
@@ -123,8 +120,8 @@ class TestRoundTrip:
             "tile_id": 20,
             "from_seat": 0,
             "callers": [
-                {"seat": 1, "call_type": "pon", "tile_34": 5, "priority": 1},
-                {"seat": 2, "call_type": "chi", "tile_34": 5, "options": [[4, 8]], "priority": 2},
+                {"seat": 1, "call_type": "pon"},
+                {"seat": 2, "call_type": "chi", "options": [[4, 8]]},
             ],
             "target": "all",
         }
@@ -139,7 +136,6 @@ class TestRoundTrip:
             "from_seat": None,
             "kan_type": "closed",
             "tile_ids": [36, 37, 38, 39],
-            "tiles": ["1p", "1p", "1p", "1p"],
             "target": "all",
         }
 

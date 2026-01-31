@@ -86,12 +86,9 @@ class TestSessionManager:
 
         await manager.join_game(conn, "game1", "Alice")
 
-        # should receive: game_joined + game_started event (seat_0 only sent to first player)
-        game_event_msgs = [m for m in conn.sent_messages if m.get("type") == ServerMessageType.GAME_EVENT]
-        assert len(game_event_msgs) >= 1
-        # the mock returns game_started events for each seat
-        game_started_events = [m for m in game_event_msgs if m.get("event") == "game_started"]
-        assert len(game_started_events) == 1  # seat_0 targeted to first player
+        # should receive: game_joined + game_started (broadcast) + round_started (seat_0)
+        game_started_events = [m for m in conn.sent_messages if m.get("type") == "game_started"]
+        assert len(game_started_events) == 1
 
     async def test_second_player_notifies_first(self, manager):
         conn1 = MockConnection()
@@ -195,28 +192,38 @@ class TestSessionManager:
         # mock service returns one event with target "all"
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == ServerMessageType.GAME_EVENT
-        assert msg["event"] == "test_action_result"
+        assert msg["type"] == "test_action_result"
 
     async def test_targeted_events_only_sent_to_target_player(self, manager):
         """Events with seat_N target go only to the player at that seat."""
         conn1 = MockConnection()
+        conn2 = MockConnection()
         manager.register_connection(conn1)
+        manager.register_connection(conn2)
         manager.create_game("game1")
 
         await manager.join_game(conn1, "game1", "Alice")
+        await manager.join_game(conn2, "game1", "Bob")
+        conn1._outbox.clear()
+        conn2._outbox.clear()
 
-        # when first player joins, start_game returns events for all seats,
-        # but only seat_0 event reaches conn1 (the only connected player)
-        conn1_game_started = [
-            m
-            for m in conn1.sent_messages
-            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "game_started"
-        ]
+        # manually broadcast a seat-targeted event
+        game = manager.get_game("game1")
+        seat_event = ServiceEvent(
+            event="turn",
+            data=TurnEvent(
+                current_seat=0,
+                available_actions=[],
+                wall_count=70,
+                target="seat_0",
+            ),
+            target="seat_0",
+        )
+        await manager._broadcast_events(game, [seat_event])
 
-        # conn1 (seat 0) should only get seat_0 event
-        assert len(conn1_game_started) == 1
-        assert conn1_game_started[0]["data"]["seat"] == 0
+        # only conn1 (seat 0) should receive the event
+        assert len(conn1.sent_messages) == 1
+        assert len(conn2.sent_messages) == 0
 
     async def test_broadcast_events_sends_all_target_to_everyone(self, manager):
         """Events with 'all' target are broadcast to all players."""
@@ -237,8 +244,8 @@ class TestSessionManager:
         # both players should receive the event
         assert len(conn1.sent_messages) == 1
         assert len(conn2.sent_messages) == 1
-        assert conn1.sent_messages[0]["event"] == "test_action_result"
-        assert conn2.sent_messages[0]["event"] == "test_action_result"
+        assert conn1.sent_messages[0]["type"] == "test_action_result"
+        assert conn2.sent_messages[0]["type"] == "test_action_result"
 
     async def test_start_game_not_called_on_second_player(self, manager):
         """start_game is called once when first player joins, not on subsequent joins."""
@@ -254,11 +261,7 @@ class TestSessionManager:
         await manager.join_game(conn2, "game1", "Bob")
 
         # conn1 should not receive any new game_started events
-        new_game_started = [
-            m
-            for m in conn1.sent_messages
-            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "game_started"
-        ]
+        new_game_started = [m for m in conn1.sent_messages if m.get("type") == "game_started"]
         assert len(new_game_started) == 0
 
 
@@ -326,11 +329,7 @@ class TestSessionManagerTimers:
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         # mock service returns a timeout_turn event with target "all"
-        timeout_msgs = [
-            m
-            for m in conn.sent_messages
-            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "timeout_turn"
-        ]
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == "timeout_turn"]
         assert len(timeout_msgs) == 1
 
     async def test_meld_timeout_broadcasts_events(self, manager):
@@ -343,11 +342,7 @@ class TestSessionManagerTimers:
 
         await manager._handle_timeout("game1", TimeoutType.MELD, seat=0)
 
-        timeout_msgs = [
-            m
-            for m in conn.sent_messages
-            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "timeout_meld"
-        ]
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == "timeout_meld"]
         assert len(timeout_msgs) == 1
 
     async def test_timeout_on_missing_game_does_nothing(self, manager):
@@ -369,8 +364,7 @@ class TestSessionManagerTimers:
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         # no events broadcast
-        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == ServerMessageType.GAME_EVENT]
-        assert len(timeout_msgs) == 0
+        assert len(conn.sent_messages) == 0
 
 
 class TestSessionManagerDefensiveChecks:
@@ -684,11 +678,7 @@ class TestSessionManagerTimerIntegration:
 
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
-        timeout_msgs = [
-            m
-            for m in conn.sent_messages
-            if m.get("type") == ServerMessageType.GAME_EVENT and m.get("event") == "timeout_turn"
-        ]
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == "timeout_turn"]
         assert len(timeout_msgs) == 1
 
     async def test_maybe_start_timer_returns_when_timer_is_none(self, manager):

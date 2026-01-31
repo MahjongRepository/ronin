@@ -142,7 +142,7 @@ class TestPassingOnMeldDoesNotSetTemporaryFuriten:
             tile_id=tile_5s,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=five_sou_34, priority=1)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         # player 1 passes on the meld-only opportunity
@@ -254,7 +254,7 @@ class TestHandlePassSetsTemporaryFuriten:
             tile_id=tile_9s,
             from_seat=0,
             pending_seats={1},
-            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON, tile_34=tile_9s // 4, priority=1)],
+            callers=[MeldCaller(seat=1, call_type=MeldCallType.PON)],
         )
 
         # player 1 passes on the meld opportunity

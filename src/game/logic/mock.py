@@ -2,7 +2,8 @@ from typing import Any
 
 from game.logic.enums import TimeoutType
 from game.logic.service import GameService
-from game.messaging.events import EventType, GameEvent, ServiceEvent
+from game.logic.types import GamePlayerInfo, GameView, PlayerView
+from game.messaging.events import EventType, GameEvent, GameStartedEvent, RoundStartedEvent, ServiceEvent
 
 
 class MockResultEvent(GameEvent):
@@ -12,14 +13,6 @@ class MockResultEvent(GameEvent):
     action: str
     input: dict[str, Any]
     success: bool
-
-
-class MockGameStartedEvent(GameEvent):
-    """Mock event for game started in tests."""
-
-    seat: int
-    player_name: str
-    players: list[str]
 
 
 class MockGameService(GameService):
@@ -71,23 +64,55 @@ class MockGameService(GameService):
         # store player seat assignments (seat 0 for first player)
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}
 
-        # mock returns one event per player with their "view"
-        events = []
-        for i, name in enumerate(player_names):
-            events.append(
-                ServiceEvent(
-                    event=EventType.GAME_STARTED,
-                    data=MockGameStartedEvent(
-                        type=EventType.GAME_STARTED,
-                        target=f"seat_{i}",
-                        seat=i,
-                        player_name=name,
-                        players=player_names,
-                    ),
-                    target=f"seat_{i}",
+        all_names = player_names + ["Bot"] * (4 - len(player_names))
+        human_count = len(player_names)
+
+        mock_view = GameView(
+            seat=0,
+            round_wind="East",
+            round_number=0,
+            dealer_seat=0,
+            current_player_seat=0,
+            wall_count=70,
+            dora_indicators=[],
+            honba_sticks=0,
+            riichi_sticks=0,
+            players=[
+                PlayerView(
+                    seat=i,
+                    name=name,
+                    is_bot=i >= human_count,
+                    score=25000,
+                    is_riichi=False,
+                    discards=[],
+                    melds=[],
+                    tile_count=13,
                 )
-            )
-        return events
+                for i, name in enumerate(all_names)
+            ],
+            phase="playing",
+            game_phase="playing",
+        )
+
+        players = [
+            GamePlayerInfo(seat=i, name=name, is_bot=i >= human_count) for i, name in enumerate(all_names)
+        ]
+
+        return [
+            ServiceEvent(
+                event=EventType.GAME_STARTED,
+                data=GameStartedEvent(players=players),
+                target="all",
+            ),
+            ServiceEvent(
+                event=EventType.ROUND_STARTED,
+                data=RoundStartedEvent(
+                    view=mock_view,
+                    target="seat_0",
+                ),
+                target="seat_0",
+            ),
+        ]
 
     async def handle_timeout(
         self,

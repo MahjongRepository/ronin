@@ -10,8 +10,7 @@ from enum import Enum
 from mahjong.meld import Meld
 
 from game.logic.enums import CallType, GameAction, MeldViewType, WindName
-from game.logic.tiles import format_hand, tile_to_string
-from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView, TileView
+from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView
 
 NUM_WINDS = 4
 
@@ -185,7 +184,6 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
     players_view: list[PlayerView] = []
     for p in round_state.players:
         tiles = list(p.tiles) if p.seat == seat else None
-        hand = format_hand(p.tiles) if p.seat == seat else None
 
         players_view.append(
             PlayerView(
@@ -196,7 +194,6 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
                 is_riichi=p.is_riichi,
                 discards=[
                     DiscardView(
-                        tile=tile_to_string(d.tile_id),
                         tile_id=d.tile_id,
                         is_tsumogiri=d.is_tsumogiri,
                         is_riichi_discard=d.is_riichi_discard,
@@ -206,7 +203,6 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
                 melds=[_meld_to_view(m) for m in p.melds],
                 tile_count=len(p.tiles),
                 tiles=tiles,
-                hand=hand,
             )
         )
 
@@ -217,7 +213,7 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
         dealer_seat=round_state.dealer_seat,
         current_player_seat=round_state.current_player_seat,
         wall_count=len(round_state.wall),
-        dora_indicators=[TileView(tile=tile_to_string(t), tile_id=t) for t in round_state.dora_indicators],
+        dora_indicators=list(round_state.dora_indicators),
         honba_sticks=game_state.honba_sticks,
         riichi_sticks=game_state.riichi_sticks,
         players=players_view,
@@ -240,7 +236,6 @@ def _meld_to_view(meld: Meld) -> MeldView:
 
     return MeldView(
         type=meld_type_names.get(meld.type, MeldViewType.UNKNOWN),
-        tiles=[tile_to_string(t) for t in meld.tiles] if meld.tiles else [],
         tile_ids=list(meld.tiles) if meld.tiles else [],
         opened=meld.opened,
         from_who=meld.from_who,
