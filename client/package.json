@@ -1,0 +1,16 @@
+{
+  "name": "client",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run sass:build && (bunx sass --watch src/styles/main.scss:public/styles/main.css --no-source-map & SASS_PID=$!; trap 'kill $SASS_PID 2>/dev/null' EXIT; bun ./index.html --port 3000)",
+    "sass:build": "bunx sass src/styles/main.scss public/styles/main.css --no-source-map",
+    "sass:watch": "bunx sass --watch src/styles/main.scss:public/styles/main.css --no-source-map",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.8",
+    "sass": "^1.97.3",
+    "typescript": "^5.9.3"
+  }
+}

@@ -204,7 +204,7 @@
             const websocketUrl = `${wsUrl}/ws/${game.game_id}`;
             const serverUrl = new URL(game.server_url);
             const httpProtocol = serverUrl.protocol;
-            const gamePageUrl = `${httpProtocol}//${serverUrl.host}/static/game.html?game_id=${encodeURIComponent(game.game_id)}&websocket_url=${encodeURIComponent(websocketUrl)}&player_name=${encodeURIComponent(playerName)}`;
+            const gamePageUrl = `${httpProtocol}//${serverUrl.host}/static/game.legacy.html?game_id=${encodeURIComponent(game.game_id)}&websocket_url=${encodeURIComponent(websocketUrl)}&player_name=${encodeURIComponent(playerName)}`;
             window.location.href = gamePageUrl;
         }
 
@@ -237,7 +237,7 @@
                 // redirect to game page with websocket URL, game ID, and player name
                 const gameUrl = new URL(data.websocket_url);
                 const httpProtocol = gameUrl.protocol === 'wss:' ? 'https:' : 'http:';
-                const gamePageUrl = `${httpProtocol}//${gameUrl.host}/static/game.html?game_id=${encodeURIComponent(data.game_id)}&websocket_url=${encodeURIComponent(data.websocket_url)}&player_name=${encodeURIComponent(playerName)}`;
+                const gamePageUrl = `${httpProtocol}//${gameUrl.host}/static/game.legacy.html?game_id=${encodeURIComponent(data.game_id)}&websocket_url=${encodeURIComponent(data.websocket_url)}&player_name=${encodeURIComponent(playerName)}`;
 
                 statusDiv.textContent = 'Redirecting to game...';
                 window.location.href = gamePageUrl;

@@ -87,12 +87,15 @@ ronin/
 ## Running
 
 ```bash
-make run-all     # Run both lobby and game servers
-make run-lobby   # Start server on port 8000
-make test-lobby  # Run lobby tests
-make lint        # Run linter
-make format      # Format code
-make typecheck   # Run type checking (ty)
+make run-all           # Run game, client, and lobby servers
+make run-lobby         # Start server on port 8000
+make run-client        # Start client dev server on port 3000
+make test-lobby        # Run lobby tests
+make lint              # Run linter
+make format            # Format code
+make typecheck         # Run Python type checking (ty)
+make typecheck-client  # Run TypeScript type checking
+make check-agent       # Run all checks
 ```
 
 ## Game Creation Flow

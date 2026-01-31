@@ -276,7 +276,7 @@ class TestStaticFiles:
         return TestClient(app)
 
     def test_static_game_html_served(self, client):
-        response = client.get("/static/game.html")
+        response = client.get("/static/game.legacy.html")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "Ronin Game" in response.text

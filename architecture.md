@@ -2,10 +2,11 @@
 
 ## Services
 
-The system consists of two services in a unified project:
+The system consists of two backend services and a TypeScript client in a unified project:
 
 - **Lobby Service** (`src/lobby/`) - Portal for game discovery and creation (port 8000)
 - **Game Service** (`src/game/`) - Real-time Riichi Mahjong gameplay server with full game logic (port 8001)
+- **Client** (`client/`) - TypeScript + SASS frontend using Bun dev server (port 3000)
 
 ## Game Creation Flow
 
@@ -23,25 +24,30 @@ Web UI flow:
 2. Lobby page displays list of available games (fetched via `GET /games`)
 3. User clicks "Create Game" to create a new game, or "Join" on an existing game
 4. Lobby page calls `POST /games` (for create) and receives game_id and websocket_url
-5. Lobby page redirects to game page with URL parameters: `http://localhost:8001/static/game.html?game_id=xxx&websocket_url=ws://...&player_name=Player_xxx`
+5. Lobby page redirects to legacy game page with URL parameters: `http://localhost:8001/static/game.legacy.html?game_id=xxx&websocket_url=ws://...&player_name=Player_xxx`
 6. Game page reads parameters and auto-connects with the provided player name
 7. Game page establishes WebSocket connection and sends `join_game` message
 
 ## Web UI
 
-Both services include static HTML pages for browser-based interaction:
-
+- **Client** (`client/`, port 3000) - TypeScript + SASS application served by Bun's dev server. Entry point is `client/index.html` with TypeScript transpiled on-the-fly by Bun and SASS compiled via the `sass` CLI.
 - **Lobby Page** (`/static/index.html` on port 8000) - Displays available games with "Join" buttons and a "Create Game" button. Player names are auto-generated.
-- **Game Page** (`/static/game.html` on port 8001) - WebSocket-based game interface with real-time connection status
-
-The HTML pages use vanilla JavaScript with no external dependencies. They communicate with the backend using the existing REST and WebSocket APIs.
+- **Legacy Game Page** (`/static/game.legacy.html` on port 8001) - Archived vanilla JS game interface, kept for reference.
 
 ## Project Structure
 
 ```
 ronin/
 ├── pyproject.toml              # Unified project config
-├── Makefile                    # Build targets for both services
+├── Makefile                    # Build targets for all services
+├── client/                     # TypeScript + SASS frontend (Bun)
+│   ├── index.html              # HTML entry point
+│   ├── package.json            # Bun project config
+│   ├── tsconfig.json           # TypeScript configuration
+│   └── src/
+│       ├── index.ts            # Application entry point
+│       └── styles/
+│           └── main.scss       # SASS styles
 ├── src/
 │   ├── config/
 │   │   └── servers.yaml        # Game server registry
@@ -56,32 +62,29 @@ ronin/
 │   │   ├── messaging/
 │   │   ├── session/
 │   │   ├── logic/              # Riichi Mahjong rules implementation
-│   │   ├── static/             # Game HTML pages
+│   │   ├── static/             # Legacy game HTML pages
 │   │   └── tests/
 │   └── shared/                 # Shared code (future use)
 ```
 
 ## Running Locally
 
-Requires [uv](https://docs.astral.sh/uv/) for package management. Dependencies are installed automatically when running commands.
+Requires [uv](https://docs.astral.sh/uv/) for Python package management and [Bun](https://bun.sh/) for the TypeScript client. Dependencies are installed automatically when running commands.
 
 ```bash
-# Run both servers together (recommended for local testing)
+# Run all servers together (recommended for local testing)
 make run-all
 
 # Or run servers separately:
-# Terminal 1: Start game server
-make run-game
-
-# Terminal 2: Start lobby
-make run-lobby
+make run-game      # Game server on port 8001
+make run-lobby     # Lobby server on port 8000
+make run-client    # Client dev server on port 3000
 ```
 
 Using the Web UI:
-1. Run `make run-all` to start both servers
-2. Open http://localhost:8000/static/index.html in your browser
-3. Click "Create Game" to create a new game, or "Join" an existing one
-4. You'll be automatically connected with a generated player name
+1. Run `make run-all` to start all servers
+2. Open http://localhost:3000 in your browser for the game client
+3. Open http://localhost:8000/static/index.html for the lobby page
 
 Using the API directly:
 ```bash
@@ -98,12 +101,14 @@ curl -X POST http://localhost:8000/games
 ## Development
 
 ```bash
-make test          # Run all tests
-make test-lobby    # Run lobby tests only
-make test-game     # Run game tests only
-make lint          # Check code style
-make format        # Auto-format code
-make typecheck     # Run type checking (ty)
+make test              # Run all tests
+make test-lobby        # Run lobby tests only
+make test-game         # Run game tests only
+make lint              # Check code style
+make format            # Auto-format code
+make typecheck         # Run Python type checking (ty)
+make typecheck-client  # Run TypeScript type checking
+make check-agent       # Run all checks (format, lint, typecheck, test, client typecheck)
 ```
 
 ## Next Steps

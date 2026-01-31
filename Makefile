@@ -1,4 +1,6 @@
-.PHONY: test test-lobby test-game run-lobby run-game run-all lint format typecheck check-agent
+export PATH := $(HOME)/.bun/bin:$(PATH)
+
+.PHONY: test test-lobby test-game run-lobby run-game run-client run-all lint format typecheck typecheck-client check-agent
 
 test:
 	uv run pytest -v
@@ -15,6 +17,9 @@ run-lobby:
 run-game:
 	uv run uvicorn game.server.app:app --reload --host 0.0.0.0 --port 8001
 
+run-client:
+	cd client && bun run dev
+
 run-all:
 	@bash ./bin/run_all.sh
 
@@ -28,6 +33,9 @@ format:
 
 typecheck:
 	uv run ty check src
+
+typecheck-client:
+	cd client && bun run typecheck
 
 check-agent:
 	@bash ./bin/check-agent.sh || true
