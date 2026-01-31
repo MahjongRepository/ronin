@@ -156,6 +156,44 @@ class TestRoundTrip:
         assert decode(encode(data)) == data
 
 
+class TestIntegerKeyConversion:
+    def test_encode_converts_integer_keys_to_strings(self) -> None:
+        data = {
+            "type": "round_result",
+            "score_changes": {0: -1000, 1: 0, 2: 0, 3: 1000},
+        }
+        result = decode(encode(data))
+
+        assert result == {
+            "type": "round_result",
+            "score_changes": {"0": -1000, "1": 0, "2": 0, "3": 1000},
+        }
+
+    def test_encode_converts_nested_integer_keys(self) -> None:
+        data = {
+            "result": {
+                "score_changes": {0: 8000, 1: -8000, 2: 0, 3: 0},
+            },
+        }
+        result = decode(encode(data))
+
+        assert result == {
+            "result": {
+                "score_changes": {"0": 8000, "1": -8000, "2": 0, "3": 0},
+            },
+        }
+
+    def test_encode_converts_integer_keys_inside_list(self) -> None:
+        data = {
+            "results": [{0: 100, 1: -100}],
+        }
+        result = decode(encode(data))
+
+        assert result == {
+            "results": [{"0": 100, "1": -100}],
+        }
+
+
 class TestDecodeErrors:
     def test_invalid_msgpack_data_raises_decode_error(self) -> None:
         """Decoding invalid bytes raises DecodeError."""

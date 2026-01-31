@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -14,6 +15,8 @@ from game.messaging.types import (
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
     from game.session.manager import SessionManager
+
+logger = logging.getLogger(__name__)
 
 
 class MessageRouter:
@@ -35,6 +38,7 @@ class MessageRouter:
         try:
             message = parse_client_message(raw_message)
         except (ValidationError, KeyError, TypeError, ValueError) as e:
+            logger.warning(f"invalid message from {connection.connection_id}: {e}")
             await connection.send_message(ErrorMessage(code="invalid_message", message=str(e)).model_dump())
             return
 

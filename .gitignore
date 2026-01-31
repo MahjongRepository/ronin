@@ -14,3 +14,6 @@ progress*.txt
 docs
 
 .coverage
+logs
+
+bot

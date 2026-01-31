@@ -21,9 +21,10 @@ if TYPE_CHECKING:
 class TimerConfig(BaseModel):
     """Configuration for player turn timers."""
 
-    initial_bank_seconds: float = 30.0
-    round_bonus_seconds: float = 10.0
-    meld_decision_seconds: float = 5.0
+    # TODO: increase these limits for longer games or different game modes
+    initial_bank_seconds: float = 3
+    round_bonus_seconds: float = 2
+    meld_decision_seconds: float = 2
 
 
 class TurnTimer:

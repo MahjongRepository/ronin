@@ -2,11 +2,13 @@ import asyncio
 
 from game.logic.timer import TimerConfig, TurnTimer
 
+DEFAULT_CONFIG = TimerConfig()
+
 
 class TestTurnTimerInit:
     def test_default_config(self):
         timer = TurnTimer()
-        assert timer.remaining_bank == 30.0
+        assert timer.remaining_bank == DEFAULT_CONFIG.initial_bank_seconds
 
     def test_custom_config(self):
         config = TimerConfig(initial_bank_seconds=60.0)

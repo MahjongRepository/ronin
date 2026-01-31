@@ -10,11 +10,25 @@ from typing import Any
 import msgpack
 
 
+def _stringify_keys(obj: object) -> object:
+    """
+    Recursively convert integer dict keys to strings.
+
+    MessagePack strict mode only allows string keys, but Pydantic model_dump()
+    preserves integer keys from fields like dict[int, int].
+    """
+    if isinstance(obj, dict):
+        return {str(k) if isinstance(k, int) else k: _stringify_keys(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_stringify_keys(item) for item in obj]
+    return obj
+
+
 def encode(data: dict[str, Any]) -> bytes:
     """
     Encode a dict to MessagePack bytes.
     """
-    return msgpack.packb(data)
+    return msgpack.packb(_stringify_keys(data))
 
 
 class DecodeError(Exception):

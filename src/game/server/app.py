@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,9 @@ from game.messaging.router import MessageRouter
 from game.server.types import CreateGameRequest
 from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
+from shared.logging import setup_logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -99,7 +103,9 @@ def create_app(
     app = Starlette(routes=routes)
     app.state.session_manager = session_manager
 
+    logger.info("game server ready")
     return app
 
 
+setup_logging(log_dir="logs/game")
 app = create_app()

@@ -4,7 +4,7 @@ import pytest
 
 from game.logic.enums import CallType, TimeoutType
 from game.logic.mock import MockGameService, MockResultEvent
-from game.logic.timer import TurnTimer
+from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import GameEndResult, GameView, PlayerStanding, PlayerView
 from game.messaging.events import (
     CallPromptEvent,
@@ -298,8 +298,8 @@ class TestSessionManagerTimers:
         await manager.join_game(conn, "game1", "Alice")
 
         timer = manager._timers["game1"]
-        # default: 30s initial + 10s round bonus = 40s
-        assert timer.remaining_bank == 40.0
+        config = TimerConfig()
+        assert timer.remaining_bank == config.initial_bank_seconds + config.round_bonus_seconds
 
     async def test_game_cleanup_removes_timer_and_lock(self, manager):
         """Leaving a game cleans up timer and lock."""
@@ -645,8 +645,8 @@ class TestSessionManagerTimerIntegration:
 
         await manager._maybe_start_timer(game, [round_event])
 
-        # bank should have increased by round bonus (10s default)
-        assert timer.remaining_bank == initial_bank + 10.0
+        config = TimerConfig()
+        assert timer.remaining_bank == initial_bank + config.round_bonus_seconds
 
     async def test_maybe_start_timer_with_game_ended_event(self, manager):
         """_maybe_start_timer returns early and cleans up timer when GameEndedEvent is present."""
@@ -762,3 +762,84 @@ class TestSessionManagerTimerIntegration:
         # seat 0 has no player
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
         assert len(conn.sent_messages) == 0
+
+
+class TestSessionManagerGameEnd:
+    """Tests for connection closing on game end."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    def _make_game_with_human(self, manager) -> tuple[Game, Player, MockConnection]:
+        """Create a game with a human player who has an assigned seat."""
+        conn = MockConnection()
+        game = Game(game_id="game1")
+        player = Player(connection=conn, name="Alice", game_id="game1", seat=0)
+        game.players[conn.connection_id] = player
+        manager._games["game1"] = game
+        manager._players[conn.connection_id] = player
+        manager._connections[conn.connection_id] = conn
+        return game, player, conn
+
+    def _make_game_end_event(self) -> ServiceEvent:
+        return ServiceEvent(
+            event="game_end",
+            data=GameEndedEvent(
+                type="game_end",
+                target="all",
+                result=GameEndResult(
+                    winner_seat=0,
+                    standings=[
+                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
+                    ],
+                ),
+            ),
+            target="all",
+        )
+
+    async def test_close_connections_on_game_end(self, manager):
+        """All player connections are closed when game_end event is present."""
+        game, _player, conn = self._make_game_with_human(manager)
+
+        events = [self._make_game_end_event()]
+        await manager._close_connections_on_game_end(game, events)
+
+        assert conn.is_closed is True
+        assert conn._close_code == 1000
+        assert conn._close_reason == "game_ended"
+
+    async def test_close_connections_skipped_without_game_end(self, manager):
+        """Connections are not closed when no game_end event is present."""
+        game, _player, conn = self._make_game_with_human(manager)
+
+        generic_event = ServiceEvent(
+            event="test",
+            data=MockResultEvent(
+                type="test",
+                target="all",
+                player="Alice",
+                action="test",
+                input={},
+                success=True,
+            ),
+            target="all",
+        )
+        await manager._close_connections_on_game_end(game, [generic_event])
+
+        assert conn.is_closed is False
+
+    async def test_close_connections_on_game_end_multiple_players(self, manager):
+        """All player connections are closed when game ends with multiple players."""
+        game, _player, conn1 = self._make_game_with_human(manager)
+
+        conn2 = MockConnection()
+        player2 = Player(connection=conn2, name="Bob", game_id="game1", seat=1)
+        game.players[conn2.connection_id] = player2
+
+        events = [self._make_game_end_event()]
+        await manager._close_connections_on_game_end(game, events)
+
+        assert conn1.is_closed is True
+        assert conn2.is_closed is True

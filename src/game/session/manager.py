@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import TimeoutType
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
     from game.logic.types import MeldCaller
     from game.messaging.events import ServiceEvent
     from game.messaging.protocol import ConnectionProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
@@ -74,6 +77,7 @@ class SessionManager:
     def create_game(self, game_id: str) -> Game:
         game = Game(game_id=game_id)
         self._games[game_id] = game
+        logger.info(f"game created: {game_id}")
         return game
 
     async def _send_error(self, connection: ConnectionProtocol, code: str, message: str) -> None:
@@ -111,6 +115,7 @@ class SessionManager:
         player = Player(connection=connection, name=player_name, game_id=game_id)
         self._players[connection.connection_id] = player
         game.players[connection.connection_id] = player
+        logger.info(f"player '{player_name}' joined game {game_id}")
 
         # notify the joining player
         await connection.send_message(
@@ -146,6 +151,7 @@ class SessionManager:
             return
 
         player_name = player.name
+        logger.info(f"player '{player_name}' left game {player.game_id}")
 
         # remove player from game
         game.players.pop(connection.connection_id, None)
@@ -163,6 +169,7 @@ class SessionManager:
 
         # clean up empty games
         if game.is_empty:
+            logger.info(f"game {game.game_id} is empty, cleaning up")
             self._games.pop(game.game_id, None)
             timer = self._timers.pop(game.game_id, None)
             if timer:
@@ -203,6 +210,7 @@ class SessionManager:
 
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
+            await self._close_connections_on_game_end(game, events)
 
     async def broadcast_chat(
         self,
@@ -340,6 +348,19 @@ class SessionManager:
             timer.cancel()
         return True
 
+    async def _close_connections_on_game_end(self, game: Game, events: list[ServiceEvent]) -> None:
+        """
+        Close all player connections after the game ends.
+
+        The WebSocket disconnect handlers will clean up session state
+        (remove players, clean up empty game) when connections close.
+        """
+        if not any(isinstance(event.data, GameEndedEvent) for event in events):
+            return
+        for player in list(game.players.values()):
+            with contextlib.suppress(RuntimeError, OSError):
+                await player.connection.close(code=1000, reason="game_ended")
+
     def _get_player_at_seat(self, game: Game, seat: int) -> Player | None:
         """Get the session player at a specific seat, if connected."""
         for player in game.players.values():
@@ -388,3 +409,4 @@ class SessionManager:
             events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
+            await self._close_connections_on_game_end(game, events)

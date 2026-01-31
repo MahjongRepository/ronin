@@ -4,6 +4,7 @@ MahjongGameService implementation for the Mahjong game.
 Orchestrates game logic, bot turns, and event generation for the session manager.
 """
 
+import logging
 from typing import Any
 
 from pydantic import ValidationError
@@ -51,6 +52,8 @@ from game.messaging.events import (
     extract_round_result,
 )
 
+logger = logging.getLogger(__name__)
+
 _BOT_TYPE_TO_STRATEGY: dict[BotType, BotStrategy] = {
     BotType.TSUMOGIRI: BotStrategy.TSUMOGIRI,
 }
@@ -79,6 +82,7 @@ class MahjongGameService(GameService):
         Uses matchmaker to assign seats randomly and fill with bots.
         Returns initial state events for each player.
         """
+        logger.info(f"starting game {game_id} with players: {player_names}")
         seat_configs = fill_seats(player_names)
         game_state = init_game(seat_configs)
         self._games[game_id] = game_state
@@ -142,6 +146,7 @@ class MahjongGameService(GameService):
         if seat is None:
             return self._create_error_event("game_error", "player not in game")
 
+        logger.info(f"game {game_id}: player '{player_name}' (seat {seat}) action={action}")
         events = await self._dispatch_and_process(game_id, seat, action, data)
 
         # trigger bot followup if round is playing and no pending callers
@@ -459,12 +464,14 @@ class MahjongGameService(GameService):
                 "missing_round_result",
                 "round finished but no round result found",
             )
+        logger.info(f"game {game_id}: round ended")
         process_round_end(game_state, round_result)
 
         if check_game_end(game_state):
             bot_controller = self._bot_controllers.get(game_id)
             bot_seats = bot_controller.bot_seats if bot_controller else None
             game_result = finalize_game(game_state, bot_seats=bot_seats)
+            logger.info(f"game {game_id}: game ended")
             self._cleanup_game(game_id)
             return [
                 ServiceEvent(
@@ -484,6 +491,7 @@ class MahjongGameService(GameService):
     async def _start_next_round(self, game_id: str) -> list[ServiceEvent]:
         """Start the next round and return events."""
         game_state = self._games[game_id]
+        logger.info(f"game {game_id}: starting next round")
         init_round(game_state)
 
         bot_controller = self._bot_controllers[game_id]

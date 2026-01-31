@@ -1,9 +1,12 @@
+import logging
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from game.messaging.protocol import ConnectionProtocol
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from game.messaging.router import MessageRouter
@@ -35,6 +38,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     game_id = websocket.path_params.get("game_id")
 
     connection = WebSocketConnection(websocket)
+    logger.info(f"websocket connected: {connection.connection_id}")
     await router.handle_connect(connection)
 
     try:
@@ -47,4 +51,5 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     except WebSocketDisconnect:
         pass
     finally:
+        logger.info(f"websocket disconnected: {connection.connection_id}")
         await router.handle_disconnect(connection)

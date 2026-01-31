@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -8,6 +9,9 @@ from starlette.staticfiles import StaticFiles
 
 from lobby.games.service import GameCreationError, GamesService
 from lobby.registry.manager import RegistryManager
+from shared.logging import setup_logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -86,7 +90,9 @@ def create_app(config_path: Path | None = None) -> Starlette:
     app.state.registry = registry
     app.state.games_service = GamesService(registry)
 
+    logger.info("lobby server ready")
     return app
 
 
+setup_logging(log_dir="logs/lobby")
 app = create_app()
