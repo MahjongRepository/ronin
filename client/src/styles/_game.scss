@@ -1,0 +1,93 @@
+@use "variables" as *;
+
+.game-header {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+    margin-bottom: $spacing-lg;
+
+    h2 {
+        flex: 1;
+        font-size: 1.2rem;
+    }
+}
+
+.connection-status {
+    padding: $spacing-xs $spacing-sm;
+    border-radius: $radius-sm;
+    font-size: 12px;
+    font-weight: 600;
+
+    &.status-connected {
+        background: $success;
+        color: $bg-primary;
+    }
+
+    &.status-connecting {
+        background: $warning;
+        color: $bg-primary;
+    }
+
+    &.status-disconnected {
+        background: $text-muted;
+        color: $text-primary;
+    }
+
+    &.status-error {
+        background: $danger;
+        color: #fff;
+    }
+}
+
+.log-panel {
+    background: $bg-secondary;
+    border-radius: $radius-md;
+    padding: $spacing-md;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.log-entries {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-xs;
+}
+
+.log-entry {
+    font-size: 12px;
+    padding: $spacing-xs $spacing-sm;
+    border-radius: $radius-sm;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    gap: $spacing-sm;
+    align-items: flex-start;
+
+    &.log-system {
+        color: $text-secondary;
+    }
+
+    &.log-error {
+        color: $danger;
+    }
+}
+
+.log-time {
+    color: $text-muted;
+    font-family: $font-mono;
+    white-space: nowrap;
+}
+
+.log-type {
+    color: $accent;
+    font-family: $font-mono;
+    font-weight: 600;
+    min-width: 100px;
+}
+
+.log-raw {
+    font-family: $font-mono;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: $text-secondary;
+    margin: 0;
+}

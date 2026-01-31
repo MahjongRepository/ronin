@@ -1,22 +1,5 @@
-$bg-color: #1a1a2e;
-$text-color: #e0e0e0;
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: system-ui, -apple-system, sans-serif;
-    background: $bg-color;
-    color: $text-color;
-}
-
-#app {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    font-size: 2rem;
-}
+@use "variables" as *;
+@use "reset";
+@use "layout";
+@use "lobby";
+@use "game";

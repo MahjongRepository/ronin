@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
@@ -102,6 +103,12 @@ def create_app(
     ]
 
     app = Starlette(routes=routes)
+    app.add_middleware(
+        CORSMiddleware,  # type: ignore[arg-type]
+        allow_origins=["http://localhost:3000"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.state.session_manager = session_manager
 
     logger.info("game server ready")

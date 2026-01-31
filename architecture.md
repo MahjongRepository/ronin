@@ -19,20 +19,21 @@ API flow:
 6. Client connects to `ws://game-server/ws/{game_id}`
 7. Client sends `join_game` message with player name
 
-Web UI flow:
-1. User opens lobby page at `http://localhost:8000/static/index.html`
-2. Lobby page displays list of available games (fetched via `GET /games`)
-3. User clicks "Create Game" to create a new game, or "Join" on an existing game
-4. Lobby page calls `POST /games` (for create) and receives game_id and websocket_url
-5. Lobby page redirects to legacy game page with URL parameters: `http://localhost:8001/static/game.legacy.html?game_id=xxx&websocket_url=ws://...&player_name=Player_xxx`
-6. Game page reads parameters and auto-connects with the provided player name
-7. Game page establishes WebSocket connection and sends `join_game` message
+Web UI flow (client SPA on port 3000):
+1. User opens `http://localhost:3000` which loads the SPA
+2. Hash-based router renders lobby view at `#/`
+3. Lobby view fetches games via `GET /games` (CORS-enabled on lobby server)
+4. User clicks "Create Game" or "Join" on an existing game
+5. Client stores WebSocket URL and player name in sessionStorage
+6. Router navigates to `#/game/<id>` and renders game view
+7. Game view connects via WebSocket using MessagePack binary frames
+8. Client sends `join_game` message and displays all server messages in a log panel
 
 ## Web UI
 
-- **Client** (`client/`, port 3000) - TypeScript + SASS application served by Bun's dev server. Entry point is `client/index.html` with TypeScript transpiled on-the-fly by Bun and SASS compiled via the `sass` CLI.
-- **Lobby Page** (`/static/index.html` on port 8000) - Displays available games with "Join" buttons and a "Create Game" button. Player names are auto-generated.
-- **Legacy Game Page** (`/static/game.legacy.html` on port 8001) - Archived vanilla JS game interface, kept for reference.
+- **Client** (`client/`, port 3000) - Primary frontend. TypeScript + SASS single-page application served by Bun's dev server. Uses lit-html for templating, hash-based routing (`#/` for lobby, `#/game/:id` for game), and MessagePack for WebSocket communication. Entry point is `client/index.html`.
+- **Lobby Page** (`/static/index.html` on port 8000) - Legacy standalone lobby page, kept for reference.
+- **Legacy Game Page** (`/static/game.legacy.html` on port 8001) - Legacy vanilla JS game interface, kept for reference. Uses JSON WebSocket (incompatible with current MessagePack server).
 
 ## Project Structure
 
@@ -45,9 +46,20 @@ ronin/
 │   ├── package.json            # Bun project config
 │   ├── tsconfig.json           # TypeScript configuration
 │   └── src/
-│       ├── index.ts            # Application entry point
+│       ├── index.ts            # App entry point, initializes router
+│       ├── router.ts           # Hash-based SPA router
+│       ├── api.ts              # Lobby API client (fetch wrappers)
+│       ├── websocket.ts        # WebSocket manager with MessagePack
+│       ├── views/
+│       │   ├── lobby.ts        # Lobby view (list/create games)
+│       │   └── game.ts         # Game view (WebSocket log panel)
 │       └── styles/
-│           └── main.scss       # SASS styles
+│           ├── main.scss       # SASS entry point (imports partials)
+│           ├── _variables.scss # Shared design tokens
+│           ├── _reset.scss     # CSS reset
+│           ├── _layout.scss    # Shared layout and button styles
+│           ├── _lobby.scss     # Lobby view styles
+│           └── _game.scss      # Game view styles
 ├── src/
 │   ├── config/
 │   │   └── servers.yaml        # Game server registry
@@ -83,8 +95,9 @@ make run-client    # Client dev server on port 3000
 
 Using the Web UI:
 1. Run `make run-all` to start all servers
-2. Open http://localhost:3000 in your browser for the game client
-3. Open http://localhost:8000/static/index.html for the lobby page
+2. Open http://localhost:3000 in your browser
+3. Create or join a game from the lobby view
+4. Game view connects via WebSocket and displays server messages in a log panel
 
 Using the API directly:
 ```bash

@@ -1,0 +1,51 @@
+@use "variables" as *;
+
+.lobby {
+    h1 {
+        text-align: center;
+        font-size: 2rem;
+        margin-bottom: $spacing-lg;
+    }
+}
+
+.lobby-controls {
+    display: flex;
+    gap: $spacing-sm;
+    justify-content: center;
+    margin-bottom: $spacing-lg;
+}
+
+.lobby-status {
+    text-align: center;
+    margin-bottom: $spacing-md;
+}
+
+.games-list {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-sm;
+}
+
+.game-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $spacing-md;
+    background: $bg-secondary;
+    border-radius: $radius-md;
+}
+
+.game-id {
+    font-family: $font-mono;
+    font-size: 14px;
+}
+
+.game-players {
+    color: $text-secondary;
+    font-size: 14px;
+}
+
+.game-full {
+    color: $text-muted;
+    font-size: 12px;
+}
