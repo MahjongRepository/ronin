@@ -1,4 +1,4 @@
-import { render, TemplateResult } from "lit-html";
+import { type TemplateResult, render } from "lit-html";
 
 interface Route {
     pattern: RegExp;
@@ -7,7 +7,7 @@ interface Route {
 }
 
 let routes: Route[] = [];
-let container: HTMLElement;
+let container: HTMLElement | undefined = undefined;
 let activeRoute: Route | null = null;
 
 export function initRouter(el: HTMLElement, routeDefs: Route[]): void {
@@ -22,28 +22,39 @@ export function navigate(hash: string): void {
 }
 
 function resolve(): void {
+    if (!container) {
+        return;
+    }
     const hash = window.location.hash.slice(1) || "/";
+    const matched = findMatchingRoute(hash);
+    runRouteCleanup();
+    if (matched) {
+        activeRoute = matched.route;
+        render(matched.route.handler(matched.params), container);
+    } else {
+        activeRoute = null;
+        navigate("/");
+    }
+}
+
+function findMatchingRoute(
+    hash: string,
+): { params: Record<string, string>; route: Route } | undefined {
     for (const route of routes) {
         const match = hash.match(route.pattern);
         if (match) {
-            // run cleanup for the previous route before rendering
-            if (activeRoute && activeRoute.cleanup) {
-                activeRoute.cleanup();
-            }
-            activeRoute = route;
-
             const params: Record<string, string> = {};
             if (match.groups) {
                 Object.assign(params, match.groups);
             }
-            render(route.handler(params), container);
-            return;
+            return { params, route };
         }
     }
-    // fallback: run cleanup before redirecting to lobby
-    if (activeRoute && activeRoute.cleanup) {
+    return undefined;
+}
+
+function runRouteCleanup(): void {
+    if (activeRoute?.cleanup) {
         activeRoute.cleanup();
     }
-    activeRoute = null;
-    navigate("/");
 }

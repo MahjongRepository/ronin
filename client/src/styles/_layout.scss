@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "variables" as *;
 
 #app {
@@ -6,7 +7,8 @@
     padding: $spacing-lg;
 }
 
-h1, h2 {
+h1,
+h2 {
     color: $text-primary;
     margin-bottom: $spacing-md;
 }
@@ -32,7 +34,7 @@ h1, h2 {
         color: $text-primary;
 
         &:hover {
-            background: lighten($bg-panel, 10%);
+            background: color.adjust($bg-panel, $lightness: 10%);
         }
     }
 
