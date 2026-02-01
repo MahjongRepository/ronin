@@ -42,7 +42,7 @@ class SessionManager:
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
         self._games: dict[str, Game] = {}  # game_id -> Game
-        self._timers: dict[str, TurnTimer] = {}  # game_id -> TurnTimer
+        self._timers: dict[str, dict[int, TurnTimer]] = {}  # game_id -> {seat -> TurnTimer}
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
 
     def register_connection(self, connection: ConnectionProtocol) -> None:
@@ -71,16 +71,18 @@ class SessionManager:
                 game_id=game.game_id,
                 player_count=game.player_count,
                 max_players=self.MAX_PLAYERS_PER_GAME,
+                num_bots=game.num_bots,
+                started=game.started,
             )
             for game in self._games.values()
         ]
 
-    def create_game(self, game_id: str) -> Game:
+    def create_game(self, game_id: str, num_bots: int = 3) -> Game:
         if self._log_dir:
             rotate_log_file(self._log_dir)
-        game = Game(game_id=game_id)
+        game = Game(game_id=game_id, num_bots=num_bots)
         self._games[game_id] = game
-        logger.info(f"game created: {game_id}")
+        logger.info(f"game created: {game_id} num_bots={num_bots}")
         return game
 
     async def _send_error(self, connection: ConnectionProtocol, code: str, message: str) -> None:
@@ -103,8 +105,12 @@ class SessionManager:
             await self._send_error(connection, "game_not_found", "Game does not exist")
             return
 
-        # check game capacity
-        if game.player_count >= self.MAX_PLAYERS_PER_GAME:
+        # block all joins to started or full games
+        if game.started:
+            await self._send_error(connection, "game_started", "Game has already started")
+            return
+
+        if game.player_count >= game.num_humans_needed:
             await self._send_error(connection, "game_full", "Game is full")
             return
 
@@ -134,8 +140,10 @@ class SessionManager:
             exclude_connection_id=connection.connection_id,
         )
 
-        # start the mahjong game when first human player joins
-        if game.player_count == 1:
+        # start when enough humans have joined.
+        # game.started is set synchronously in _start_mahjong_game()
+        # before any await, preventing double-start from concurrent joins.
+        if not game.started and game.player_count == game.num_humans_needed:
             await self._start_mahjong_game(game)
 
     async def leave_game(
@@ -153,15 +161,17 @@ class SessionManager:
             return
 
         player_name = player.name
+        player_seat = player.seat
         logger.info(f"player '{player_name}' left game {player.game_id}")
 
         # remove player from game
         game.players.pop(connection.connection_id, None)
         player.game_id = None
 
-        # notify the leaving player (skip if connection is already closed)
+        # notify the leaving player (ignore errors if connection is already closed)
         if notify_player:
-            await connection.send_message(GameLeftMessage().model_dump())
+            with contextlib.suppress(RuntimeError, OSError):
+                await connection.send_message(GameLeftMessage().model_dump())
 
         # notify remaining players
         await self._broadcast_to_game(
@@ -169,14 +179,52 @@ class SessionManager:
             message=PlayerLeftMessage(player_name=player_name).model_dump(),
         )
 
+        # replace disconnected human with bot in a started game
+        # (only if other humans remain -- no point running all-bot games)
+        if game.started and not game.is_empty and player_seat is not None:
+            await self._replace_with_bot(game, player_name, player_seat)
+
         # clean up empty games
         if game.is_empty:
             logger.info(f"game {game.game_id} is empty, cleaning up")
             self._games.pop(game.game_id, None)
-            timer = self._timers.pop(game.game_id, None)
-            if timer:
-                timer.cancel()
+            timers = self._timers.pop(game.game_id, None)
+            if timers:
+                for timer in timers.values():
+                    timer.cancel()
             self._game_locks.pop(game.game_id, None)
+            self._game_service.cleanup_game(game.game_id)
+
+    async def _replace_with_bot(self, game: Game, player_name: str, seat: int) -> None:
+        """
+        Replace a disconnected human with a bot and process any pending bot actions.
+
+        Must be called BEFORE the is_empty cleanup check, and only when other
+        humans remain in the game.
+        """
+        self._game_service.replace_player_with_bot(game.game_id, player_name)
+
+        # cancel the disconnected player's timer to prevent stale callbacks
+        timers = self._timers.get(game.game_id)
+        if timers:
+            player_timer = timers.pop(seat, None)
+            if player_timer:
+                player_timer.cancel()
+
+        # process bot actions if the replaced player had a pending turn or call.
+        # if _handle_timeout already processed this seat's action before we acquired
+        # the lock, process_bot_actions_after_replacement safely returns empty events
+        # (the game state has already advanced past this seat's turn/call).
+        lock = self._game_locks.get(game.game_id)
+        if lock is None:
+            return
+
+        async with lock:
+            events = await self._game_service.process_bot_actions_after_replacement(game.game_id, seat)
+            if events:
+                await self._broadcast_events(game, events)
+                await self._maybe_start_timer(game, events)
+                await self._close_connections_on_game_end(game, events)
 
     async def handle_game_action(
         self,
@@ -204,11 +252,20 @@ class SessionManager:
                 data=data,
             )
 
-            # only deduct bank time if the action progressed the game state.
-            # failed actions (errors) should not consume bank time or cancel the timer.
-            timer = self._timers.get(game_id)
-            if timer and self._has_game_events(events):
-                timer.stop()
+            # failed actions (errors) should not consume bank time or cancel timers.
+            # successful actions that produce no events (e.g. partial pass while
+            # other callers are still pending) still stop the acting player's timer
+            # but don't cancel other players' meld timers.
+            timers = self._timers.get(game_id)
+            if timers and player.seat is not None and not self._has_error_events(events):
+                player_timer = timers.get(player.seat)
+                if player_timer:
+                    player_timer.stop()
+                # cancel meld timers for other players only when the prompt resolved
+                if self._has_game_events(events):
+                    for seat, timer in timers.items():
+                        if seat != player.seat:
+                            timer.cancel()
 
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
@@ -238,28 +295,50 @@ class SessionManager:
 
     async def _start_mahjong_game(self, game: Game) -> None:
         """
-        Start the mahjong game when first human joins.
-
-        Calls the game service to initialize the game with the human player
-        and bots, then broadcasts the initial state to all players.
+        Start the mahjong game when num_humans_needed players have joined.
         """
+        game.started = True
         player_names = game.player_names
         events = await self._game_service.start_game(game.game_id, player_names)
 
-        # assign seats to session players
+        # assign seats to session players still connected after the await
         for player in game.players.values():
             seat = self._game_service.get_player_seat(game.game_id, player.name)
             if seat is not None:
                 player.seat = seat
 
-        # create timer and lock for this game
-        timer = TurnTimer()
-        self._timers[game.game_id] = timer
+        # create per-player timers and lock for this game
+        timers: dict[int, TurnTimer] = {}
+        for player in game.players.values():
+            if player.seat is not None:
+                timers[player.seat] = TurnTimer()
+        self._timers[game.game_id] = timers
         self._game_locks[game.game_id] = asyncio.Lock()
 
         async with self._game_locks[game.game_id]:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
+
+            # replace players who disconnected during start_game or the
+            # subsequent broadcasts (before leave_game could do bot replacement
+            # because seats/locks were not yet set up).
+            connected_names = set(game.player_names)
+            for name in player_names:
+                if name not in connected_names and not game.is_empty:
+                    seat = self._game_service.get_player_seat(game.game_id, name)
+                    if seat is not None:
+                        self._game_service.replace_player_with_bot(game.game_id, name)
+                        # remove stale timer for the disconnected player's seat
+                        player_timer = timers.pop(seat, None)
+                        if player_timer:
+                            player_timer.cancel()
+                        bot_events = await self._game_service.process_bot_actions_after_replacement(
+                            game.game_id, seat
+                        )
+                        if bot_events:
+                            await self._broadcast_events(game, bot_events)
+                            await self._maybe_start_timer(game, bot_events)
+                            await self._close_connections_on_game_end(game, bot_events)
 
     async def _broadcast_events(
         self,
@@ -315,13 +394,14 @@ class SessionManager:
         if self._cleanup_timer_on_game_end(game, events):
             return
 
-        timer = self._timers.get(game.game_id)
-        if timer is None:
+        timers = self._timers.get(game.game_id)
+        if timers is None:
             return
 
-        # add round bonus once when a new round starts
+        # add round bonus to all player timers when a new round starts
         if any(isinstance(event.data, RoundStartedEvent) for event in events):
-            timer.add_round_bonus()
+            for timer in timers.values():
+                timer.add_round_bonus()
 
         game_id = game.game_id
 
@@ -329,30 +409,55 @@ class SessionManager:
         for event in events:
             if isinstance(event.data, TurnEvent):
                 seat = event.data.current_seat
-                if self._get_player_at_seat(game, seat) is not None:
+                timer = timers.get(seat)
+                if timer is not None and self._get_player_at_seat(game, seat) is not None:
                     timer.start_turn_timer(
                         lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.TURN, s)
                     )
                     return
 
-        # check for call prompts targeting a connected player
-        seat = self._find_connected_caller_seat(game, events)
-        if seat is not None:
-            timer.start_meld_timer(lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.MELD, s))
+        # start meld timers for all connected callers (PvP can have multiple human callers)
+        caller_seats = self._find_connected_caller_seats(game, events)
+        for seat in caller_seats:
+            timer = timers.get(seat)
+            if timer is not None:
+                timer.start_meld_timer(
+                    lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.MELD, s)
+                )
 
     def _cleanup_timer_on_game_end(self, game: Game, events: list[ServiceEvent]) -> bool:
         """
-        Clean up timer when the game ends. Returns True if game ended.
+        Clean up timers when the game ends. Returns True if game ended.
 
-        Only cancels the timer here. Lock and timer dict cleanup happens in leave_game
+        Only cancels the timers here. Lock and timer dict cleanup happens in leave_game
         when the game becomes empty, to avoid removing the lock while it is still held.
         """
         if not any(isinstance(event.data, GameEndedEvent) for event in events):
             return False
-        timer = self._timers.get(game.game_id)
-        if timer:
-            timer.cancel()
+        timers = self._timers.get(game.game_id)
+        if timers:
+            for timer in timers.values():
+                timer.cancel()
         return True
+
+    async def close_game_on_error(self, connection: ConnectionProtocol) -> None:  # pragma: no cover
+        """
+        Close all player connections after an unrecoverable error.
+
+        The WebSocket disconnect handlers will clean up session state
+        (remove players, clean up empty game) when connections close.
+        """
+        player = self._players.get(connection.connection_id)
+        if player is None or player.game_id is None:
+            return
+
+        game = self._games.get(player.game_id)
+        if game is None:
+            return
+
+        for p in list(game.players.values()):
+            with contextlib.suppress(RuntimeError, OSError):
+                await p.connection.close(code=1011, reason="internal_error")
 
     async def _close_connections_on_game_end(self, game: Game, events: list[ServiceEvent]) -> None:
         """
@@ -376,6 +481,9 @@ class SessionManager:
     def _has_game_events(self, events: list[ServiceEvent]) -> bool:
         return any(not isinstance(event.data, ErrorEvent) for event in events)
 
+    def _has_error_events(self, events: list[ServiceEvent]) -> bool:
+        return any(isinstance(event.data, ErrorEvent) for event in events)
+
     def _get_caller_seats(self, callers: list[int] | list[MeldCaller]) -> list[int]:
         # deduplicate: a player with both pon and chi options appears as multiple callers
         seen: set[int] = set()
@@ -387,13 +495,17 @@ class SessionManager:
                 seats.append(seat)
         return seats
 
-    def _find_connected_caller_seat(self, game: Game, events: list[ServiceEvent]) -> int | None:
+    def _find_connected_caller_seats(self, game: Game, events: list[ServiceEvent]) -> list[int]:
+        """Return all connected human seats that have a pending meld decision."""
+        seats: list[int] = []
         for event in events:
             if isinstance(event.data, CallPromptEvent):
-                for seat in self._get_caller_seats(event.data.callers):
-                    if self._get_player_at_seat(game, seat) is not None:
-                        return seat
-        return None
+                seats.extend(
+                    seat
+                    for seat in self._get_caller_seats(event.data.callers)
+                    if self._get_player_at_seat(game, seat) is not None
+                )
+        return seats
 
     async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
         lock = self._game_locks.get(game_id)
@@ -411,9 +523,11 @@ class SessionManager:
 
             # deduct elapsed bank time without cancelling the task, since this
             # callback executes within the timer task itself
-            timer = self._timers.get(game_id)
-            if timer:
-                timer.consume_bank()
+            timers = self._timers.get(game_id)
+            if timers:
+                player_timer = timers.get(seat)
+                if player_timer:
+                    player_timer.consume_bank()
 
             events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
             await self._broadcast_events(game, events)

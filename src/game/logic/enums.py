@@ -120,6 +120,13 @@ class TimeoutType(str, Enum):
     MELD = "meld"
 
 
+class GameMode(str, Enum):
+    """Game modes for matchmaking."""
+
+    BOT = "bot"
+    PVP = "pvp"
+
+
 class MeldViewType(str, Enum):
     """Meld type names for client-facing view."""
 

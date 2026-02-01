@@ -1,7 +1,9 @@
+import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, RedirectResponse
@@ -9,6 +11,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from lobby.games.service import GameCreationError, GamesService
+from lobby.games.types import CreateGameRequest
 from lobby.registry.manager import RegistryManager
 from shared.logging import setup_logging
 
@@ -51,8 +54,17 @@ async def create_game(request: Request) -> JSONResponse:
     games_service: GamesService = request.app.state.games_service
 
     try:
-        result = await games_service.create_game()
+        body = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        body = {}
 
+    try:
+        req = CreateGameRequest(**body)
+    except (TypeError, ValidationError) as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+
+    try:
+        result = await games_service.create_game(num_bots=req.num_bots)
         return JSONResponse(
             {
                 "game_id": result.game_id,
@@ -95,7 +107,8 @@ def create_app(config_path: Path | None = None) -> Starlette:
 
     registry = RegistryManager(config_path)
     app.state.registry = registry
-    app.state.games_service = GamesService(registry)
+    games_service = GamesService(registry)
+    app.state.games_service = games_service
 
     logger.info("lobby server ready")
     return app

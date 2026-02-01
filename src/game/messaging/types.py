@@ -145,6 +145,7 @@ class GameStartedMessage(BaseModel):
     """
 
     type: Literal[ServerMessageType.GAME_STARTED] = ServerMessageType.GAME_STARTED
+    game_id: str
     players: list[PlayerIdentity]
 
 

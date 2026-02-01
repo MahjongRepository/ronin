@@ -65,3 +65,32 @@ class GameService(ABC):
         For MELD timeout: pass on the call opportunity.
         """
         ...
+
+    @abstractmethod
+    def cleanup_game(self, game_id: str) -> None:
+        """
+        Remove all game state for a game that was abandoned or cleaned up externally.
+        """
+        ...
+
+    @abstractmethod
+    def replace_player_with_bot(self, game_id: str, player_name: str) -> None:
+        """
+        Replace a human player with a bot at their seat.
+
+        Called when a human disconnects mid-game.
+        """
+        ...
+
+    @abstractmethod
+    async def process_bot_actions_after_replacement(
+        self,
+        game_id: str,
+        seat: int,
+    ) -> list[ServiceEvent]:
+        """
+        Process pending bot actions after a human was replaced with a bot.
+
+        Handles the case where the replaced player had a pending turn or call.
+        """
+        ...

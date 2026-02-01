@@ -428,6 +428,7 @@ class TestCallOpenKan:
         assert meld.called_tile == man_1m[3]
         assert meld.who == 0
         assert meld.from_who == 1
+        assert meld.tiles is not None
         assert len(meld.tiles) == 4
         assert sorted(meld.tiles) == sorted(man_1m)
 
@@ -564,6 +565,7 @@ class TestCallClosedKan:
         assert meld.type == Meld.KAN
         assert meld.opened is False  # closed kan
         assert meld.who == 0
+        assert meld.tiles is not None
         assert len(meld.tiles) == 4
 
     def test_call_closed_kan_does_not_add_to_open_hands(self):
@@ -695,6 +697,7 @@ class TestCallAddedKan:
 
         assert meld.type == Meld.SHOUMINKAN
         assert meld.opened is True
+        assert meld.tiles is not None
         assert len(meld.tiles) == 4
         assert sorted(meld.tiles) == sorted(man_1m)
 

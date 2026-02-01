@@ -10,16 +10,31 @@ The system consists of two backend services and a TypeScript client in a unified
 
 ## Game Creation Flow
 
-API flow:
-1. Client calls `POST /games` on lobby (no body required)
+Unified game creation: the creator specifies `num_bots` (0-3), which determines how many human players are needed (4 - num_bots). Players browse and join existing games from the lobby.
+
+- `num_bots=3` (default): game starts immediately when the creator joins (1 human + 3 bots)
+- `num_bots=0`: game waits for 4 humans before starting (pure PvP)
+- `num_bots=1` or `num_bots=2`: game waits for the required number of humans, then fills remaining seats with bots
+
+### API flow
+
+1. Client calls `POST /games` on lobby with `{"num_bots": N}` (defaults to 3)
 2. Lobby selects a healthy game server
-3. Lobby generates game ID and calls `POST /games` on game server
-4. Game server creates empty game
+3. Lobby generates game ID and calls `POST /games` on game server with `num_bots`
+4. Game server creates empty game with specified bot count
 5. Lobby returns WebSocket URL to client
 6. Client connects to `ws://game-server/ws/{game_id}`
 7. Client sends `join_game` message with player name
+8. Game starts when the required number of humans have joined
 
-Web UI flow (client SPA on port 3000):
+Each human player in the game has independent bank time managed by per-player timers.
+
+### Disconnect-to-bot replacement
+
+When a human player disconnects from a started game, they are replaced with a bot instead of ending the game. The bot takes over the disconnected player's seat and continues playing. When the last human disconnects, the game is cleaned up (no all-bot games run without observers).
+
+### Web UI flow (client SPA on port 3000)
+
 1. User opens `http://localhost:3000` which loads the SPA
 2. Hash-based router renders lobby view at `#/`
 3. Lobby view fetches games via `GET /games` (CORS-enabled on lobby server)
@@ -104,8 +119,11 @@ Using the API directly:
 # List available games
 curl http://localhost:8000/games
 
-# Create a game
+# Create a game with 3 bots (default, starts immediately with 1 human)
 curl -X POST http://localhost:8000/games
+
+# Create a game with custom bot count (waits for required humans)
+curl -X POST http://localhost:8000/games -H 'Content-Type: application/json' -d '{"num_bots": 1}'
 
 # Response:
 # {"game_id": "abc123", "websocket_url": "ws://localhost:8001/ws/abc123", "server_name": "local-1"}

@@ -22,13 +22,19 @@ class WebSocketConnection(ConnectionProtocol):
         return self._connection_id
 
     async def send_bytes(self, data: bytes) -> None:
-        await self._websocket.send_bytes(data)
+        try:
+            await self._websocket.send_bytes(data)
+        except WebSocketDisconnect:
+            raise ConnectionError("WebSocket already disconnected") from None
 
     async def receive_bytes(self) -> bytes:
         return await self._websocket.receive_bytes()
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
-        await self._websocket.close(code=code, reason=reason)
+        try:
+            await self._websocket.close(code=code, reason=reason)
+        except WebSocketDisconnect:
+            raise ConnectionError("WebSocket already disconnected") from None
 
 
 async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> None:

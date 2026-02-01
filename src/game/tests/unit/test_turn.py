@@ -15,6 +15,12 @@ from game.logic.turn import (
     process_discard_phase,
     process_draw_phase,
 )
+from game.messaging.events import (
+    DiscardEvent,
+    DrawEvent,
+    RiichiDeclaredEvent,
+    RoundEndEvent,
+)
 from game.tests.unit.helpers import _default_seat_configs
 
 
@@ -36,6 +42,7 @@ class TestProcessDrawPhase:
         # find draw event
         draw_events = [e for e in events if e.type == "draw"]
         assert len(draw_events) == 1
+        assert isinstance(draw_events[0], DrawEvent)
         assert draw_events[0].seat == 0
 
     def test_draw_phase_returns_draw_event_with_tile(self):
@@ -69,6 +76,7 @@ class TestProcessDrawPhase:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
         assert round_end_events[0].result.type == "exhaustive_draw"
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -90,6 +98,7 @@ class TestProcessDiscardPhase:
 
         discard_events = [e for e in events if e.type == "discard"]
         assert len(discard_events) == 1
+        assert isinstance(discard_events[0], DiscardEvent)
         assert discard_events[0].tile_id == tile_to_discard
         assert discard_events[0].target == "all"
 
@@ -154,6 +163,7 @@ class TestProcessDiscardPhaseWithRiichi:
         if not ron_prompts:
             riichi_events = [e for e in events if e.type == "riichi_declared"]
             assert len(riichi_events) == 1
+            assert isinstance(riichi_events[0], RiichiDeclaredEvent)
             assert riichi_events[0].seat == 0
             assert round_state.players[0].is_riichi is True
 
@@ -253,5 +263,6 @@ class TestProcessDrawPhaseDrawReturnsNone:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
         assert round_end_events[0].result.type == "exhaustive_draw"
         assert round_state.phase == RoundPhase.FINISHED

@@ -282,6 +282,7 @@ class TestCallChi:
         assert meld.who == 1
         assert meld.from_who == 0
         # meld tiles should be sorted and contain all 3 tiles
+        assert meld.tiles is not None
         assert sorted(meld.tiles) == sorted([man_2m, man_3m, man_4m])
 
     def test_call_chi_adds_meld_to_player(self):

@@ -97,7 +97,9 @@ class MahjongGameService(GameService):
         self._bot_controllers[game_id] = bot_controller
 
         events: list[ServiceEvent] = []
-        events.append(self._create_game_started_event(game_state, bot_seats=bot_controller.bot_seats))
+        events.append(
+            self._create_game_started_event(game_id, game_state, bot_seats=bot_controller.bot_seats)
+        )
         events.extend(self._create_round_started_events(game_state, bot_seats=bot_controller.bot_seats))
 
         draw_events = process_draw_phase(game_state.round_state, game_state)
@@ -112,7 +114,7 @@ class MahjongGameService(GameService):
         return events
 
     def _create_game_started_event(
-        self, game_state: MahjongGameState, bot_seats: set[int] | None = None
+        self, game_id: str, game_state: MahjongGameState, bot_seats: set[int] | None = None
     ) -> ServiceEvent:
         """Create a single game_started event broadcast to all players."""
         players = [
@@ -125,7 +127,7 @@ class MahjongGameService(GameService):
         ]
         return ServiceEvent(
             event=EventType.GAME_STARTED,
-            data=GameStartedEvent(players=players),
+            data=GameStartedEvent(game_id=game_id, players=players),
             target="all",
         )
 
@@ -335,6 +337,9 @@ class MahjongGameService(GameService):
             return await self.handle_action(game_id, player_name, GameAction.DISCARD, {"tile_id": tile_id})
 
         if timeout_type == TimeoutType.MELD:
+            prompt = game_state.round_state.pending_call_prompt
+            if prompt is None or seat not in prompt.pending_seats:
+                return []
             return await self.handle_action(game_id, player_name, GameAction.PASS, {})
 
         logger.error(f"game {game_id}: unknown timeout type '{timeout_type}' for player '{player_name}'")
@@ -496,7 +501,7 @@ class MahjongGameService(GameService):
             bot_seats = bot_controller.bot_seats if bot_controller else None
             game_result = finalize_game(game_state, bot_seats=bot_seats)
             logger.info(f"game {game_id}: game ended")
-            self._cleanup_game(game_id)
+            self.cleanup_game(game_id)
             return [
                 ServiceEvent(
                     event=EventType.GAME_END,
@@ -507,10 +512,70 @@ class MahjongGameService(GameService):
 
         return await self._start_next_round(game_id)
 
-    def _cleanup_game(self, game_id: str) -> None:
-        """Clean up game state after game ends."""
+    def cleanup_game(self, game_id: str) -> None:
+        """Remove all game state for a game that was abandoned or cleaned up externally."""
         self._games.pop(game_id, None)
         self._bot_controllers.pop(game_id, None)
+
+    def replace_player_with_bot(self, game_id: str, player_name: str) -> None:
+        """
+        Replace a human player with a bot at their seat.
+        """
+        game_state = self._games.get(game_id)
+        if game_state is None:
+            return
+
+        # find seat BEFORE registering bot (_find_player_seat skips bot seats)
+        seat = self._find_player_seat(game_id, game_state, player_name)
+        if seat is None:
+            return
+
+        bot_controller = self._bot_controllers.get(game_id)
+        if bot_controller is None:
+            return
+
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
+        bot_controller.add_bot(seat, bot)
+        logger.info(f"game {game_id}: replaced '{player_name}' (seat {seat}) with bot")
+
+    async def process_bot_actions_after_replacement(
+        self,
+        game_id: str,
+        seat: int,
+    ) -> list[ServiceEvent]:
+        """
+        Process pending bot actions after a human was replaced with a bot at the given seat.
+        """
+        game_state = self._games.get(game_id)
+        if game_state is None:
+            return []
+
+        round_state = game_state.round_state
+        if round_state.phase != RoundPhase.PLAYING:
+            return []
+
+        events: list[ServiceEvent] = []
+
+        # if the replaced player had a pending call prompt, resolve their response as bot
+        prompt = round_state.pending_call_prompt
+        if prompt is not None and seat in prompt.pending_seats:
+            self._dispatch_bot_call_responses(game_id, events)
+
+            if round_state.pending_call_prompt is not None:
+                # other human callers still pending
+                return events
+
+            # prompt fully resolved - check round end
+            round_end_events = await self._check_and_handle_round_end(game_id, events)
+            if round_end_events is not None:
+                return round_end_events
+
+        # process bot turns if current player is a bot
+        if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
+            bot_events = await self._process_bot_followup(game_id)
+            events.extend(bot_events)
+
+        return events
 
     async def _start_next_round(self, game_id: str) -> list[ServiceEvent]:
         """Start the next round and return events."""

@@ -160,7 +160,7 @@ def calculate_hand_value(
     )
 
     # get dora indicators
-    dora_indicators = list(round_state.dora_indicators) if round_state.dora_indicators else None
+    dora_indicators = list(round_state.dora_indicators) if round_state.dora_indicators else []
 
     # get ura dora if riichi (one ura per dora indicator revealed)
     if player.is_riichi and round_state.dead_wall and round_state.dora_indicators:

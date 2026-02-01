@@ -130,6 +130,7 @@ class TestRotateLogFile:
         setup_logging(log_dir=log_dir)
 
         new_path = rotate_log_file(log_dir)
+        assert new_path is not None
 
         assert new_path.exists()
         assert new_path.parent == log_dir
@@ -143,6 +144,7 @@ class TestRotateLogFile:
             mock_dt.now.return_value = later_time
             mock_dt.strftime = datetime.strftime
             new_path = rotate_log_file(log_dir)
+        assert new_path is not None
 
         root = logging.getLogger()
         file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
@@ -169,6 +171,7 @@ class TestRotateLogFile:
         setup_logging(log_dir=log_dir)
 
         new_path = rotate_log_file(log_dir)
+        assert new_path is not None
         test_logger = logging.getLogger("test.rotate")
         test_logger.info("after rotation")
 

@@ -564,7 +564,10 @@ def handle_pass(
 
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        return ActionResult(events)
+        logger.warning(f"invalid pass from seat {seat}: no pending call prompt")
+        return ActionResult(
+            [ErrorEvent(code="invalid_pass", message="no pending call prompt", target=f"seat_{seat}")]
+        )
 
     # apply furiten for passing on ron/chankan opportunity
     if prompt.call_type in (CallType.RON, CallType.CHANKAN):

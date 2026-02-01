@@ -396,7 +396,7 @@ class TestHandlePass:
         """Create a game state for testing."""
         return init_game(_default_seat_configs(), seed=12345.0)
 
-    def test_handle_pass_no_pending_prompt_returns_empty(self):
+    def test_handle_pass_no_pending_prompt_returns_error(self):
         game_state = self._create_game_state()
         round_state = game_state.round_state
         draw_tile(round_state)
@@ -404,7 +404,9 @@ class TestHandlePass:
         result = handle_pass(round_state, game_state, seat=0)
 
         assert isinstance(result, ActionResult)
-        assert result.events == []
+        assert len(result.events) == 1
+        assert isinstance(result.events[0], ErrorEvent)
+        assert result.events[0].code == "invalid_pass"
 
     def test_handle_pass_after_discard_advances_turn(self):
         game_state = self._create_game_state()
@@ -561,6 +563,7 @@ class TestHandleKanFourKansAbort:
 
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -681,6 +684,7 @@ class TestHandlePassRiichiFinalization:
         assert round_state.players[0].is_riichi is True
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -784,6 +788,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -1001,8 +1006,8 @@ class TestResolveCallPrompt:
         assert round_state.players[1].is_temporary_furiten is True
         assert round_state.players[1].is_riichi_furiten is True
 
-    def test_handle_pass_not_caller_returns_empty(self):
-        """Passing when not a pending caller returns empty events."""
+    def test_handle_pass_not_caller_returns_error(self):
+        """Passing when not a pending caller returns an error event."""
         game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
@@ -1019,7 +1024,9 @@ class TestResolveCallPrompt:
 
         result = handle_pass(round_state, game_state, seat=3)
 
-        assert result.events == []
+        assert len(result.events) == 1
+        assert isinstance(result.events[0], ErrorEvent)
+        assert result.events[0].code == "invalid_pass"
         # prompt should still be pending for seat 1
         assert round_state.pending_call_prompt is not None
         assert 1 in round_state.pending_call_prompt.pending_seats
@@ -1065,6 +1072,7 @@ class TestResolveCallPrompt:
         assert round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.TRIPLE_RON
 
     def test_handle_ron_waiting_for_other_callers(self):
@@ -1312,6 +1320,7 @@ class TestResolveCallPrompt:
         assert round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
 
     def test_handle_open_kan_not_pending_caller(self):

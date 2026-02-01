@@ -16,6 +16,7 @@ from game.logic.bot import (
     should_call_pon,
     should_call_ron,
 )
+from game.logic.enums import KanType
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.tests.unit.helpers import _string_to_34_tile
 
@@ -126,7 +127,7 @@ class TestShouldCallKan:
         player, round_state = self._create_player_and_round_state(tiles)
 
         result = should_call_kan(
-            bot, player, kan_type="open", tile_34=_string_to_34_tile(man="1"), round_state=round_state
+            bot, player, kan_type=KanType.OPEN, tile_34=_string_to_34_tile(man="1"), round_state=round_state
         )
 
         assert result is False
@@ -138,7 +139,7 @@ class TestShouldCallKan:
         player, round_state = self._create_player_and_round_state(tiles)
 
         result = should_call_kan(
-            bot, player, kan_type="closed", tile_34=_string_to_34_tile(man="1"), round_state=round_state
+            bot, player, kan_type=KanType.CLOSED, tile_34=_string_to_34_tile(man="1"), round_state=round_state
         )
 
         assert result is False
@@ -152,7 +153,7 @@ class TestShouldCallKan:
         player, round_state = self._create_player_and_round_state(hand, melds=[pon])
 
         result = should_call_kan(
-            bot, player, kan_type="added", tile_34=_string_to_34_tile(man="1"), round_state=round_state
+            bot, player, kan_type=KanType.ADDED, tile_34=_string_to_34_tile(man="1"), round_state=round_state
         )
 
         assert result is False

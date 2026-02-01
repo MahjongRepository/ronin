@@ -102,6 +102,42 @@ class TestBotControllerBotSeats:
         assert controller.bot_seats == set()
 
 
+class TestBotControllerAddBot:
+    def test_add_bot_registers_bot_at_seat(self):
+        """add_bot registers a new bot at the given seat."""
+        controller = BotController({})
+        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
+
+        controller.add_bot(2, bot)
+
+        assert controller.is_bot(2) is True
+        assert controller._get_bot(2) is bot
+
+    def test_add_bot_to_existing_controller(self):
+        """add_bot adds a bot alongside existing bots."""
+        bots = {1: BotPlayer(), 3: BotPlayer()}
+        controller = BotController(bots)
+        new_bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
+
+        controller.add_bot(0, new_bot)
+
+        assert controller.is_bot(0) is True
+        assert controller.is_bot(1) is True
+        assert controller.is_bot(3) is True
+        assert controller.bot_seats == {0, 1, 3}
+
+    def test_add_bot_overwrites_existing_bot(self):
+        """add_bot replaces an existing bot at the same seat."""
+        old_bot = BotPlayer()
+        controller = BotController({2: old_bot})
+        new_bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
+
+        controller.add_bot(2, new_bot)
+
+        assert controller._get_bot(2) is new_bot
+        assert controller._get_bot(2) is not old_bot
+
+
 class TestBotControllerGetTurnAction:
     def _create_round_state(self, current_seat: int = 1) -> MahjongRoundState:
         """Create round state for testing."""

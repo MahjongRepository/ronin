@@ -104,4 +104,72 @@ class TestMatchmakerFillSeats:
         for c1, c2 in zip(configs1, configs2, strict=True):
             assert c1.name == c2.name
             assert c1.bot_type == c2.bot_type
+
+
+class TestMatchmakerFourHumans:
+    """Tests for fill_seats with 4 human players (PVP mode)."""
+
+    def test_four_humans_all_seats_human(self):
+        """4 humans: all seats assigned to humans, 0 bots."""
+        matchmaker = Matchmaker()
+        names = ["Alice", "Bob", "Charlie", "Dave"]
+
+        configs = matchmaker.fill_seats(names)
+
+        assert len(configs) == 4
+        human_count = sum(1 for c in configs if c.bot_type is None)
+        bot_count = sum(1 for c in configs if c.bot_type is not None)
+        assert human_count == 4
+        assert bot_count == 0
+
+    def test_four_humans_all_names_present(self):
+        """4 humans: all player names appear in configs."""
+        matchmaker = Matchmaker()
+        names = ["Alice", "Bob", "Charlie", "Dave"]
+
+        configs = matchmaker.fill_seats(names)
+
+        config_names = {c.name for c in configs}
+        assert config_names == set(names)
+
+    def test_four_humans_with_seed_randomizes_seats(self):
+        """4 humans with seed: names are randomly assigned to seats (not always input order)."""
+        matchmaker = Matchmaker()
+        names = ["Alice", "Bob", "Charlie", "Dave"]
+
+        # try multiple seeds to find at least one where order differs from input
+        found_different = False
+        for seed in [1.0, 2.0, 3.0, 42.0, 100.0]:
+            configs = matchmaker.fill_seats(names, seed=seed)
+            seat_names = [c.name for c in configs]
+            if seat_names != names:
+                found_different = True
+                break
+
+        assert found_different, "seat assignment should differ from input order for at least one seed"
+
+    def test_four_humans_same_seed_deterministic(self):
+        """4 humans with same seed: deterministic seat assignment."""
+        matchmaker = Matchmaker()
+        names = ["Alice", "Bob", "Charlie", "Dave"]
+
+        configs1 = matchmaker.fill_seats(names, seed=12345.0)
+        configs2 = matchmaker.fill_seats(names, seed=12345.0)
+
+        for c1, c2 in zip(configs1, configs2, strict=True):
+            assert c1.name == c2.name
             assert c1.bot_type == c2.bot_type
+
+    def test_four_humans_different_seeds_different_assignments(self):
+        """4 humans with different seeds: different seat assignments."""
+        matchmaker = Matchmaker()
+        names = ["Alice", "Bob", "Charlie", "Dave"]
+
+        # collect seat orderings from several seeds
+        orderings: set[tuple[str, ...]] = set()
+        for seed in [0.0, 1.0, 2.0, 42.0, 100.0]:
+            configs = matchmaker.fill_seats(names, seed=seed)
+            ordering = tuple(c.name for c in configs)
+            orderings.add(ordering)
+
+        assert len(orderings) > 1, "different seeds should produce different seat assignments"

@@ -9,7 +9,7 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 - `GET /health` - Health check
 - `GET /status` - Server status (active games, capacity)
 - `GET /games` - List all active games
-- `POST /games` - Create a game (called by lobby)
+- `POST /games` - Create a game (called by lobby). Accepts optional `num_bots` field (0-3, defaults to 3)
 - `GET /static/*` - Static file serving
 
 ## WebSocket API
@@ -86,7 +86,9 @@ All messages use MessagePack binary format with a `type` field. The server only 
 ```
 
 Error codes:
-- `game_full` - Game has reached maximum player capacity (4)
+- `game_not_found` - The requested game does not exist
+- `game_started` - Game has already started and cannot accept new players
+- `game_full` - Game has reached its human player capacity (4 - num_bots)
 - `already_in_game` - Player tried to join a game while already in one
 - `name_taken` - Player name is already used in the game
 - `not_in_game` - Player tried to perform an action without being in a game
@@ -116,11 +118,12 @@ MessagePack encode/decode (encoder.py)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (game/player management, timer lifecycle, concurrency locks)
+SessionManager (game/player management, per-player timer lifecycle, concurrency locks)
     │
     ▼
 GameService (game logic interface) → returns list[ServiceEvent]
-    Methods: start_game, handle_action, get_player_seat, handle_timeout
+    Methods: start_game, handle_action, get_player_seat, handle_timeout,
+             replace_player_with_bot, process_bot_actions_after_replacement
 ```
 
 This enables:
@@ -148,9 +151,9 @@ The `logic/` module implements Riichi Mahjong rules:
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
 - **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()`
-- **Matchmaker** - Assigns human players to random seats and fills remaining with bots; returns `list[SeatConfig]`
-- **TurnTimer** - Server-side bank time management with async timeout callbacks for turns and meld decisions
-- **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation
+- **Matchmaker** - Assigns human players to randomized seats and fills remaining seats with bots; supports 1-4 humans based on `num_bots` setting; returns `list[SeatConfig]`
+- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns and meld decisions; each human player gets an independent timer instance
+- **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `add_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; supports runtime bot addition for disconnect-to-bot replacement
 - **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`; `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller` (seat and call_type only, no server-internal fields), `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
@@ -187,6 +190,36 @@ This eliminates the previous duplication where bot and human call responses had 
 3. Bot call responses are dispatched through `_dispatch_bot_call_responses()` -> `_call_handler()` -> same action handlers
 
 `BotController` is a pure decision-maker: `get_turn_action()` returns action data for a bot's turn, `get_call_response()` returns the bot's response to a call prompt. Neither method modifies game state or calls handlers directly. All state mutation flows through `MahjongGameService`.
+
+### Unified Game Creation
+
+Games use a `num_bots` parameter (0-3) instead of separate game modes. The `num_bots` value determines how many human players are needed: `num_humans_needed = 4 - num_bots`.
+
+- `num_bots=3` (default): game starts when 1 human joins, 3 seats filled with bots
+- `num_bots=0`: game waits for 4 humans, no bots
+- `num_bots=1` or `num_bots=2`: game waits for the required humans, remaining seats filled with bots
+
+The `num_bots` is set at game creation time via `POST /games` and stored on the `Game` dataclass. `SessionManager.join_game()` starts the game when `player_count == num_humans_needed`.
+
+### Disconnect-to-Bot Replacement
+
+When a human player disconnects from a started game:
+1. The player is removed from the session layer (`game.players`)
+2. If other humans remain, `replace_player_with_bot()` registers a bot at the disconnected player's seat
+3. The disconnected player's timer is cancelled
+4. `process_bot_actions_after_replacement()` handles any pending turn or call prompt for the replaced seat
+5. If the last human disconnects, the game is cleaned up (no all-bot games)
+
+### Per-Player Timers
+
+Each human player gets an independent `TurnTimer` instance, stored as `dict[str, dict[int, TurnTimer]]` (game_id -> seat -> timer) in `SessionManager`.
+
+Timer behavior:
+- On round start, round bonus is added to all player timers
+- On turn start, the current seat's timer starts counting bank time
+- On call prompt, meld timers start for all connected human callers (PvP can have multiple simultaneous callers)
+- When a player acts, their timer stops (bank time deducted) and other callers' meld timers are cancelled (no bank time deducted)
+- On game end, all player timers are cleaned up
 
 ### Bot Identity Separation
 

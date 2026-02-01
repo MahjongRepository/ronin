@@ -47,6 +47,7 @@ class TestGameCreationAndJoin:
         event = game_started_events[0]
         assert isinstance(event.data, GameStartedEvent)
         assert event.target == "all"
+        assert event.data.game_id == "game1"
         assert len(event.data.players) == 4
 
         for player in event.data.players:

@@ -37,6 +37,15 @@ CHI_MIDDLE_MIN_VALUE = 1  # tile can be middle if value >= 1
 CHI_MIDDLE_MAX_VALUE = 7  # tile can be middle if value <= 7
 CHI_HIGHEST_MIN_VALUE = 2  # tile can be highest (e.g., 3 in 123) if value >= 2
 
+DRAGON_SET_COUNT_FOR_PAO = 3  # pao triggers on 3rd dragon set (daisangen)
+WIND_SET_COUNT_FOR_PAO = 4  # pao triggers on 4th wind set (daisuushii)
+
+_DRAGON_TILES = frozenset(DRAGONS_34)
+_WIND_TILES = frozenset(WINDS_34)
+
+# pao-eligible meld types (pon, open kan, added kan)
+_PAO_MELD_TYPES = (Meld.PON, Meld.KAN, Meld.SHOUMINKAN)
+
 
 def _count_total_kans(round_state: MahjongRoundState) -> int:
     """
@@ -46,16 +55,6 @@ def _count_total_kans(round_state: MahjongRoundState) -> int:
     for player in round_state.players:
         total += sum(1 for m in player.melds if m.type in (Meld.KAN, Meld.SHOUMINKAN))
     return total
-
-
-DRAGON_SET_COUNT_FOR_PAO = 3  # pao triggers on 3rd dragon set (daisangen)
-WIND_SET_COUNT_FOR_PAO = 4  # pao triggers on 4th wind set (daisuushii)
-
-_DRAGON_TILES = frozenset(DRAGONS_34)
-_WIND_TILES = frozenset(WINDS_34)
-
-# pao-eligible meld types (pon, open kan, added kan)
-_PAO_MELD_TYPES = (Meld.PON, Meld.KAN, Meld.SHOUMINKAN)
 
 
 def _check_pao(player: MahjongPlayer, discarder_seat: int, called_tile_34: int) -> None:

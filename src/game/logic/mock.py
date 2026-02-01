@@ -101,7 +101,7 @@ class MockGameService(GameService):
         return [
             ServiceEvent(
                 event=EventType.GAME_STARTED,
-                data=GameStartedEvent(players=players),
+                data=GameStartedEvent(game_id=game_id, players=players),
                 target="all",
             ),
             ServiceEvent(
@@ -113,6 +113,23 @@ class MockGameService(GameService):
                 target="seat_0",
             ),
         ]
+
+    def cleanup_game(self, game_id: str) -> None:
+        self._player_seats.pop(game_id, None)
+
+    def replace_player_with_bot(
+        self,
+        game_id: str,
+        player_name: str,
+    ) -> None:
+        pass
+
+    async def process_bot_actions_after_replacement(
+        self,
+        game_id: str,  # noqa: ARG002
+        seat: int,  # noqa: ARG002
+    ) -> list[ServiceEvent]:
+        return []
 
     async def handle_timeout(
         self,

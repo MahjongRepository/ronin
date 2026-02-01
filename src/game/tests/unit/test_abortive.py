@@ -348,7 +348,7 @@ class TestCheckFourKans:
         ]
         return MahjongRoundState(players=players)
 
-    def _create_kan_meld(self, tiles: list[int], meld_type: int = Meld.KAN) -> Meld:
+    def _create_kan_meld(self, tiles: list[int], meld_type: str = Meld.KAN) -> Meld:
         """Create a kan meld for testing."""
         return Meld(meld_type=meld_type, tiles=tiles, opened=True)
 

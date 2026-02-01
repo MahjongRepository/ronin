@@ -13,6 +13,7 @@ from game.logic.types import (
     DoubleRonResult,
     ExhaustiveDrawResult,
     GameEndResult,
+    NagashiManganResult,
     PlayerStanding,
     RonResult,
     RoundResult,
@@ -127,7 +128,7 @@ def process_round_end(game_state: MahjongGameState, result: RoundResult) -> None
     # determine if dealer should rotate based on result type
     if result_type in (RoundResultType.ABORTIVE_DRAW, RoundResultType.EXHAUSTIVE_DRAW):
         should_rotate = _process_draw_result(game_state, result)
-    elif result_type == RoundResultType.NAGASHI_MANGAN:
+    elif result_type == RoundResultType.NAGASHI_MANGAN and isinstance(result, NagashiManganResult):
         # nagashi mangan: no honba increment, dealer rotates if noten
         should_rotate = round_state.dealer_seat not in result.tempai_seats
     elif result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):

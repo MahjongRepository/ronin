@@ -123,6 +123,7 @@ class GameStartedEvent(GameEvent):
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
     target: str = "all"
+    game_id: str
     players: list[GamePlayerInfo]
 
 

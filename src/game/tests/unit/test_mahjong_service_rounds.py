@@ -154,13 +154,39 @@ class TestMahjongGameServiceHandleTimeout:
             events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
             assert events == []
 
-    async def test_meld_timeout_sends_pass(self, service):
+    async def test_meld_timeout_no_pending_prompt_returns_empty(self, service):
         await service.start_game("game1", ["Human"])
 
         events = await service.handle_timeout("game1", "Human", TimeoutType.MELD)
 
-        # pass with no pending prompt returns empty events
+        # meld timeout with no pending prompt is ignored
         assert events == []
+
+    async def test_meld_timeout_with_pending_prompt_sends_pass(self, service):
+        await service.start_game("game1", ["Human"])
+        game_state = service._games["game1"]
+        round_state = game_state.round_state
+        human = _find_human_player(round_state, "Human")
+
+        # set up a pending call prompt where the human is a caller
+        round_state.pending_call_prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=0,
+            from_seat=(human.seat + 1) % 4,
+            pending_seats={human.seat},
+            callers=[MeldCaller(seat=human.seat, call_type=MeldCallType.PON)],
+        )
+
+        mock_events = [
+            ServiceEvent(
+                event="turn", data=ErrorEvent(code="mock", message="mock", target="all"), target="all"
+            )
+        ]
+        with patch.object(service, "handle_action", return_value=mock_events) as mock_action:
+            events = await service.handle_timeout("game1", "Human", TimeoutType.MELD)
+
+        mock_action.assert_called_once_with("game1", "Human", "pass", {})
+        assert events == mock_events
 
     async def test_timeout_nonexistent_game_returns_empty(self, service):
         events = await service.handle_timeout("nonexistent", "Human", TimeoutType.TURN)
@@ -178,7 +204,7 @@ class TestMahjongGameServiceHandleTimeout:
         await service.start_game("game1", ["Human"])
 
         with pytest.raises(ValueError, match="Unknown timeout type"):
-            await service.handle_timeout("game1", "Human", "invalid")  # type: ignore[arg-type]
+            await service.handle_timeout("game1", "Human", "invalid")
 
     async def test_get_player_seat_returns_seat(self, service):
         await service.start_game("game1", ["Human"])

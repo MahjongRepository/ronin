@@ -57,14 +57,12 @@ class MessageRouter:
                     action=message.action,
                     data=message.data,
                 )
-            except (
-                ValueError,
-                KeyError,
-                TypeError,
-                RuntimeError,
-            ) as e:
+            except (ValueError, KeyError, TypeError) as e:
                 logger.exception(f"action failed for {connection.connection_id}")
                 await connection.send_message(ErrorMessage(code="action_failed", message=str(e)).model_dump())
+            except Exception:  # pragma: no cover
+                logger.exception(f"fatal error during game action for {connection.connection_id}")
+                await self._session_manager.close_game_on_error(connection)
         elif isinstance(message, ChatMessage):
             await self._session_manager.broadcast_chat(
                 connection=connection,

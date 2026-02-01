@@ -160,6 +160,7 @@ class TestCallPon:
         assert meld.who == 0
         assert meld.from_who == 1
         # meld tiles should be sorted and contain all 3 tiles
+        assert meld.tiles is not None
         assert sorted(meld.tiles) == sorted(man_1m)
 
     def test_call_pon_adds_meld_to_player(self):
@@ -265,6 +266,7 @@ class TestCallPon:
         assert man_1m[3] in player.tiles
         assert pin_1p in player.tiles
         # meld should have man_1m[0], man_1m[1], and the called tile man_1m[2]
+        assert meld.tiles is not None
         assert sorted(meld.tiles) == sorted([man_1m[0], man_1m[1], man_1m[2]])
 
 

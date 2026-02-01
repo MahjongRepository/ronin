@@ -17,20 +17,23 @@ def fill_seats(human_names: list[str], seed: float | None = None) -> list[SeatCo
     Create seat configurations for a game.
 
     Assigns human players to random seats and fills remaining with tsumogiri bots.
+    The sample ordering determines which seats get humans AND the order of name assignment,
+    so seat randomization works correctly even with all-human games.
     """
     rng = random.Random(seed)  # noqa: S311
 
-    all_seats = list(range(NUM_PLAYERS))
-    human_seats = set(rng.sample(all_seats, len(human_names)))
+    # sample determines which seats get humans AND the order of name assignment
+    human_seat_order = rng.sample(range(NUM_PLAYERS), len(human_names))
+
+    # map seat -> human name
+    seat_to_human: dict[int, str] = dict(zip(human_seat_order, human_names, strict=True))
 
     configs: list[SeatConfig] = []
-    human_index = 0
     bot_number = 1
 
     for seat in range(NUM_PLAYERS):
-        if seat in human_seats:
-            configs.append(SeatConfig(name=human_names[human_index]))
-            human_index += 1
+        if seat in seat_to_human:
+            configs.append(SeatConfig(name=seat_to_human[seat]))
         else:
             configs.append(
                 SeatConfig(

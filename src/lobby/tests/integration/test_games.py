@@ -33,23 +33,26 @@ servers:
         assert len(data["servers"]) == 1
         assert data["servers"][0]["name"] == "test-server"
 
-    def test_create_game_success(self, client):
-        # Mock the httpx client to simulate game server responses
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
+    def _mock_httpx_for_create(self):
+        """
+        Return a patch context manager that mocks httpx for game creation.
+        """
         mock_health_response = AsyncMock()
         mock_health_response.status_code = 200
         mock_create_response = AsyncMock()
         mock_create_response.status_code = 201
 
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_instance = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_instance
-            # health check returns 200
-            mock_instance.get.return_value = mock_health_response
-            # game creation returns 201
-            mock_instance.post.return_value = mock_create_response
+        patcher = patch("httpx.AsyncClient")
+        mock_client = patcher.start()
+        mock_instance = AsyncMock()
+        mock_client.return_value.__aenter__.return_value = mock_instance
+        mock_instance.get.return_value = mock_health_response
+        mock_instance.post.return_value = mock_create_response
+        return patcher, mock_instance
 
+    def test_create_game_success(self, client):
+        patcher, _mock_instance = self._mock_httpx_for_create()
+        try:
             response = client.post("/games")
 
             assert response.status_code == 201
@@ -58,6 +61,54 @@ servers:
             assert "websocket_url" in data
             assert data["server_name"] == "test-server"
             assert "ws://localhost:8001/ws/" in data["websocket_url"]
+        finally:
+            patcher.stop()
+
+    def test_create_game_with_num_bots(self, client):
+        patcher, mock_instance = self._mock_httpx_for_create()
+        try:
+            response = client.post("/games", json={"num_bots": 2})
+
+            assert response.status_code == 201
+            # verify num_bots=2 was passed to the game server
+            call_args = mock_instance.post.call_args
+            assert call_args[1]["json"]["num_bots"] == 2
+        finally:
+            patcher.stop()
+
+    def test_create_game_no_body_defaults_to_3_bots(self, client):
+        patcher, mock_instance = self._mock_httpx_for_create()
+        try:
+            response = client.post("/games")
+
+            assert response.status_code == 201
+            # verify num_bots=3 (default) was passed to the game server
+            call_args = mock_instance.post.call_args
+            assert call_args[1]["json"]["num_bots"] == 3
+        finally:
+            patcher.stop()
+
+    def test_create_game_invalid_num_bots(self, client):
+        response = client.post("/games", json={"num_bots": 5})
+
+        assert response.status_code == 422
+        assert "error" in response.json()
+
+    def test_create_game_negative_num_bots(self, client):
+        response = client.post("/games", json={"num_bots": -1})
+
+        assert response.status_code == 422
+        assert "error" in response.json()
+
+    def test_create_game_non_object_json_body(self, client):
+        """Non-object JSON (null, array) returns 422 instead of 500."""
+        response = client.post("/games", content="null", headers={"Content-Type": "application/json"})
+        assert response.status_code == 422
+        assert "error" in response.json()
+
+        response = client.post("/games", content="[1,2]", headers={"Content-Type": "application/json"})
+        assert response.status_code == 422
+        assert "error" in response.json()
 
     def test_create_game_no_healthy_servers(self, client):
         with patch("httpx.AsyncClient") as mock_client:

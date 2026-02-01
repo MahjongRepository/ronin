@@ -9,12 +9,14 @@ from game.messaging.router import MessageRouter
 from game.messaging.types import (
     AvailableAction,
     CallPromptMessage,
+    ChatMessage,
     ClientMessageType,
     DiscardInfo,
     DiscardMessage,
     DrawMessage,
     GameEndMessage,
     GameStartedMessage,
+    JoinGameMessage,
     MeldInfo,
     MeldMessage,
     PlayerIdentity,
@@ -34,6 +36,7 @@ class TestParseClientMessage:
         data = {"type": "join_game", "game_id": "game1", "player_name": "Alice"}
         msg = parse_client_message(data)
         assert msg.type == ClientMessageType.JOIN_GAME
+        assert isinstance(msg, JoinGameMessage)
         assert msg.game_id == "game1"
         assert msg.player_name == "Alice"
 
@@ -41,6 +44,7 @@ class TestParseClientMessage:
         data = {"type": "chat", "text": "Hello!"}
         msg = parse_client_message(data)
         assert msg.type == ClientMessageType.CHAT
+        assert isinstance(msg, ChatMessage)
         assert msg.text == "Hello!"
 
     def test_parse_invalid_type(self):
@@ -256,8 +260,9 @@ class TestMahjongMessageTypes:
 
     def test_game_started_message(self):
         player = PlayerIdentity(seat=0, name="Alice", is_bot=False)
-        msg = GameStartedMessage(players=[player])
+        msg = GameStartedMessage(game_id="game1", players=[player])
         assert msg.type == ServerMessageType.GAME_STARTED
+        assert msg.game_id == "game1"
         assert len(msg.players) == 1
         assert msg.players[0].seat == 0
         assert msg.players[0].name == "Alice"
@@ -401,9 +406,10 @@ class TestMahjongMessageTypes:
 
     def test_game_started_message_serialization(self):
         player = PlayerIdentity(seat=0, name="Alice", is_bot=False)
-        msg = GameStartedMessage(players=[player])
+        msg = GameStartedMessage(game_id="game1", players=[player])
         data = msg.model_dump()
         assert data["type"] == "game_started"
+        assert data["game_id"] == "game1"
         assert len(data["players"]) == 1
         assert data["players"][0]["name"] == "Alice"
 
@@ -504,3 +510,16 @@ class TestMockGameServiceGetPlayerSeat:
         result = service.get_player_seat("nonexistent_game", "Alice")
 
         assert result is None
+
+
+class TestMockGameServiceBotReplacement:
+    """Tests for bot replacement stub methods."""
+
+    def test_replace_player_with_bot_does_nothing(self):
+        service = MockGameService()
+        service.replace_player_with_bot("game1", "Alice")
+
+    async def test_process_bot_actions_after_replacement_returns_empty(self):
+        service = MockGameService()
+        result = await service.process_bot_actions_after_replacement("game1", seat=0)
+        assert result == []

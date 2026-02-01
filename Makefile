@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
-.PHONY: test test-lobby test-game run-lobby run-game run-client run-all run-debug lint format typecheck typecheck-client lint-client format-client check-agent process-logs
+.PHONY: test test-lobby test-game run-lobby run-game run-client run-all run-debug lint format typecheck typecheck-client format-client lint-client check-agent run-games
 
 test:
 	uv run pytest -v
@@ -21,7 +21,7 @@ run-client:
 	cd client && bun run dev
 
 run-all:
-	@bash ./bin/run_all.sh
+	@bash ./bin/run-all.sh
 
 lint:
 	uv run ruff format --check src
@@ -37,12 +37,11 @@ typecheck:
 typecheck-client:
 	cd client && bun run typecheck
 
-lint-client:
-	cd client && bun run lint
-
 format-client:
 	cd client && bun run fmt
-	cd client && bun run lint:fix
+
+lint-client:
+	cd client && bun run lint
 
 run-debug:
 	PYTHONPATH=src uv run python src/debug.py
@@ -50,5 +49,6 @@ run-debug:
 check-agent:
 	@bash ./bin/check-agent.sh || true
 
-process-logs:
-	@bash ./bin/process-logs.sh
+# make run-games N=10
+run-games:
+	@bash ./bin/run-games.sh $(N)

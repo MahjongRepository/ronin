@@ -17,6 +17,7 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
+from game.messaging.events import MeldEvent, RoundEndEvent
 from game.tests.unit.helpers import _default_seat_configs
 
 
@@ -46,6 +47,7 @@ class TestProcessMeldCall:
 
         meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
+        assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.PON
         assert meld_events[0].caller_seat == 1
         assert meld_events[0].from_seat == 0
@@ -76,6 +78,7 @@ class TestProcessMeldCall:
 
         meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
+        assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.CHI
         assert meld_events[0].caller_seat == 1
         assert round_state.current_player_seat == 1
@@ -120,6 +123,7 @@ class TestProcessRonCall:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
         assert result.type == "ron"
         assert result.winner_seat == 1
@@ -164,6 +168,7 @@ class TestProcessRonCallOpenHand:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
         assert result.type == "ron"
         assert result.winner_seat == 1
@@ -191,6 +196,7 @@ class TestProcessTsumoCall:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
         assert result.type == "tsumo"
         assert result.winner_seat == 0
@@ -232,6 +238,7 @@ class TestOpenKanMeldCall:
 
         meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
+        assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.KAN
         assert meld_events[0].kan_type == "open"
 
@@ -258,6 +265,7 @@ class TestClosedKanMeldCall:
 
         meld_events = [e for e in events if e.type == "meld"]
         assert len(meld_events) == 1
+        assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.KAN
         assert meld_events[0].kan_type == "closed"
 
@@ -313,7 +321,11 @@ class TestProcessMeldCallUnknownType:
         tile_1m = TilesConverter.string_to_136_array(man="1")[0]
         with pytest.raises(ValueError, match="unknown call_type"):
             process_meld_call(
-                round_state, game_state, caller_seat=0, call_type="invalid_type", tile_id=tile_1m
+                round_state,
+                game_state,
+                caller_seat=0,
+                call_type="invalid_type",  # type: ignore[arg-type]
+                tile_id=tile_1m,
             )
 
 

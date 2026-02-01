@@ -66,9 +66,9 @@ async def create_game(request: Request) -> JSONResponse:
     if session_manager.get_game(game_request.game_id):
         return JSONResponse({"error": "Game already exists"}, status_code=409)
 
-    session_manager.create_game(game_request.game_id)
+    session_manager.create_game(game_request.game_id, num_bots=game_request.num_bots)
     return JSONResponse(
-        {"game_id": game_request.game_id, "status": "created"},
+        {"game_id": game_request.game_id, "num_bots": game_request.num_bots, "status": "created"},
         status_code=201,
     )
 

@@ -4,7 +4,7 @@ Tests for game event classes.
 
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import AbortiveDrawType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.enums import AbortiveDrawType, CallType, KanType, MeldCallType, MeldViewType, PlayerAction
 from game.logic.types import (
     AbortiveDrawResult,
     AvailableActionItem,
@@ -172,7 +172,7 @@ class TestCallPromptEvent:
     def test_ron_call_prompt(self) -> None:
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         event = CallPromptEvent(
-            call_type="ron",
+            call_type=CallType.RON,
             tile_id=tile_id,
             from_seat=0,
             callers=[1, 2],
@@ -192,7 +192,7 @@ class TestCallPromptEvent:
             MeldCaller(seat=2, call_type=MeldCallType.CHI, options=[(4, 8)]),
         ]
         event = CallPromptEvent(
-            call_type="meld",
+            call_type=CallType.MELD,
             tile_id=TilesConverter.string_to_136_array(man="6")[0],
             from_seat=0,
             callers=callers,
@@ -204,7 +204,7 @@ class TestCallPromptEvent:
 
     def test_chankan_call_prompt(self) -> None:
         event = CallPromptEvent(
-            call_type="chankan",
+            call_type=CallType.CHANKAN,
             tile_id=TilesConverter.string_to_136_array(pin="4")[0],
             from_seat=2,
             callers=[0, 3],
@@ -401,11 +401,14 @@ class TestEventUnionType:
             DiscardEvent(seat=0, tile_id=man_1_tile_id, is_tsumogiri=False, is_riichi=False),
             MeldEvent(meld_type=MeldViewType.PON, caller_seat=0, tile_ids=man_1_pon_ids),
             TurnEvent(current_seat=0, available_actions=[], wall_count=70, target="seat_0"),
-            CallPromptEvent(call_type="ron", tile_id=man_1_tile_id, from_seat=0, callers=[1], target="all"),
+            CallPromptEvent(
+                call_type=CallType.RON, tile_id=man_1_tile_id, from_seat=0, callers=[1], target="all"
+            ),
             RoundEndEvent(result=AbortiveDrawResult(reason=AbortiveDrawType.NINE_TERMINALS), target="all"),
             RiichiDeclaredEvent(seat=0, target="all"),
             ErrorEvent(code="test", message="test", target="all"),
             GameStartedEvent(
+                game_id="test_game",
                 players=[GamePlayerInfo(seat=i, name=f"Player{i}", is_bot=i > 0) for i in range(4)],
             ),
             RoundStartedEvent(view=mock_view, target="seat_0"),

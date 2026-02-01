@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -8,6 +9,7 @@ from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import GameEndResult, GameView, MeldCaller, PlayerStanding, PlayerView
 from game.messaging.events import (
     CallPromptEvent,
+    EventType,
     GameEndedEvent,
     RoundStartedEvent,
     ServiceEvent,
@@ -95,12 +97,12 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Bob")
 
-        # conn1 should have received: game_joined + game_started + player_joined
+        # conn1 should have received: game_joined + player_joined + game_started
         player_joined_msgs = [
             m for m in conn1.sent_messages if m.get("type") == ServerMessageType.PLAYER_JOINED
         ]
@@ -112,7 +114,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Bob")
@@ -126,20 +128,42 @@ class TestSessionManager:
         assert conn1.sent_messages[0]["type"] == ServerMessageType.PLAYER_LEFT
         assert conn1.sent_messages[0]["player_name"] == "Bob"
 
-    async def test_game_full_error(self, manager):
+    async def test_join_started_game_error(self, manager):
         connections = [MockConnection() for _ in range(5)]
         for conn in connections:
             manager.register_connection(conn)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=0)
 
-        # join 4 players (max)
+        # join 4 players, game starts automatically
         for i, conn in enumerate(connections[:4]):
             await manager.join_game(conn, "game1", f"Player{i}")
 
-        # 5th player should get error
+        # 5th player should get error since game already started
         await manager.join_game(connections[4], "game1", "Player4")
 
         msg = connections[4].sent_messages[0]
+        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["code"] == "game_started"
+
+    async def test_game_full_error(self, manager):
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        conn3 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.register_connection(conn3)
+        # num_bots=2 means only 2 humans needed
+        manager.create_game("game1", num_bots=2)
+
+        game = manager.get_game("game1")
+        # directly inject 2 players to fill capacity without triggering start
+        game.players["fake1"] = Player(connection=conn1, name="Fake1", game_id="game1")
+        game.players["fake2"] = Player(connection=conn2, name="Fake2", game_id="game1")
+
+        # 3rd player gets game_full (game hasn't started, but at capacity)
+        await manager.join_game(conn3, "game1", "Player2")
+
+        msg = conn3.sent_messages[0]
         assert msg["type"] == ServerMessageType.ERROR
         assert msg["code"] == "game_full"
 
@@ -148,7 +172,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Alice")
@@ -200,7 +224,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Bob")
@@ -231,7 +255,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Bob")
@@ -253,7 +277,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Bob")
@@ -286,7 +310,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
         await manager.join_game(conn2, "game1", "Bob")
@@ -319,21 +343,28 @@ class TestSessionManager:
         assert len(conn2.sent_messages) == 0
 
     async def test_start_game_not_called_on_second_player(self, manager):
-        """start_game is called once when first player joins, not on subsequent joins."""
+        """start_game is called once when both players join, not again on subsequent actions."""
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_game("game1")
+        manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conn1, "game1", "Alice")
 
-        conn1._outbox.clear()
+        # game should not have started yet (needs 2 humans)
+        game = manager.get_game("game1")
+        assert game.started is False
+
         await manager.join_game(conn2, "game1", "Bob")
 
-        # conn1 should not receive any new game_started events
-        new_game_started = [m for m in conn1.sent_messages if m.get("type") == "game_started"]
-        assert len(new_game_started) == 0
+        # game starts on second join
+        assert game.started is True
+
+        # each connection should have exactly one game_started event
+        for c in [conn1, conn2]:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 1
 
 
 class TestSessionManagerTimers:
@@ -343,7 +374,7 @@ class TestSessionManagerTimers:
         return SessionManager(game_service)
 
     async def test_timer_created_on_game_start(self, manager):
-        """Timer is created when a game starts."""
+        """Per-player timer dict is created when a game starts."""
         conn = MockConnection()
         manager.register_connection(conn)
         manager.create_game("game1")
@@ -351,7 +382,10 @@ class TestSessionManagerTimers:
         await manager.join_game(conn, "game1", "Alice")
 
         assert "game1" in manager._timers
-        assert isinstance(manager._timers["game1"], TurnTimer)
+        assert isinstance(manager._timers["game1"], dict)
+        # seat 0 should have a timer (Alice is at seat 0 in mock service)
+        assert 0 in manager._timers["game1"]
+        assert isinstance(manager._timers["game1"][0], TurnTimer)
 
     async def test_lock_created_on_game_start(self, manager):
         """Asyncio lock is created when a game starts."""
@@ -364,14 +398,14 @@ class TestSessionManagerTimers:
         assert "game1" in manager._game_locks
 
     async def test_timer_gets_initial_round_bonus(self, manager):
-        """Timer receives the first round bonus on game start."""
+        """Player timer receives the first round bonus on game start."""
         conn = MockConnection()
         manager.register_connection(conn)
         manager.create_game("game1")
 
         await manager.join_game(conn, "game1", "Alice")
 
-        timer = manager._timers["game1"]
+        timer = manager._timers["game1"][0]
         config = TimerConfig()
         assert timer.remaining_bank == config.initial_bank_seconds + config.round_bonus_seconds
 
@@ -605,15 +639,15 @@ class TestSessionManagerTimerIntegration:
         assert manager._get_caller_seats(callers) == [0]
 
     def test_cleanup_timer_on_game_end_cancels_timer(self, manager):
-        """_cleanup_timer_on_game_end cancels active timer when GameEndedEvent is present."""
+        """_cleanup_timer_on_game_end cancels all player timers when GameEndedEvent is present."""
         game, _player, _conn = self._make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = timer
+        manager._timers["game1"] = {0: timer}
 
         game_end_event = ServiceEvent(
             event="game_end",
             data=GameEndedEvent(
-                type="game_end",
+                type=EventType.GAME_END,
                 target="all",
                 result=GameEndResult(
                     winner_seat=0,
@@ -652,13 +686,13 @@ class TestSessionManagerTimerIntegration:
         """_maybe_start_timer starts a turn timer when TurnEvent targets the human player."""
         game, _player, _conn = self._make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = timer
+        manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
 
         turn_event = ServiceEvent(
             event="turn",
             data=TurnEvent(
-                type="turn",
+                type=EventType.TURN,
                 target="seat_0",
                 current_seat=0,
                 available_actions=[],
@@ -677,13 +711,13 @@ class TestSessionManagerTimerIntegration:
         """_maybe_start_timer starts a meld timer when CallPromptEvent targets the human player."""
         game, _player, _conn = self._make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = timer
+        manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
 
         call_event = ServiceEvent(
             event="call_prompt",
             data=CallPromptEvent(
-                type="call_prompt",
+                type=EventType.CALL_PROMPT,
                 target="seat_0",
                 call_type=CallType.MELD,
                 tile_id=0,
@@ -700,16 +734,16 @@ class TestSessionManagerTimerIntegration:
         timer.cancel()
 
     async def test_maybe_start_timer_with_round_started_event(self, manager):
-        """_maybe_start_timer adds round bonus when RoundStartedEvent is present."""
+        """_maybe_start_timer adds round bonus to all player timers when RoundStartedEvent is present."""
         game, _player, _conn = self._make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = timer
+        manager._timers["game1"] = {0: timer}
         initial_bank = timer.remaining_bank
 
         round_event = ServiceEvent(
             event="round_started",
             data=RoundStartedEvent(
-                type="round_started",
+                type=EventType.ROUND_STARTED,
                 target="seat_0",
                 view=_make_dummy_game_view(),
             ),
@@ -722,15 +756,15 @@ class TestSessionManagerTimerIntegration:
         assert timer.remaining_bank == initial_bank + config.round_bonus_seconds
 
     async def test_maybe_start_timer_with_game_ended_event(self, manager):
-        """_maybe_start_timer returns early and cleans up timer when GameEndedEvent is present."""
+        """_maybe_start_timer returns early and cleans up timers when GameEndedEvent is present."""
         game, _player, _conn = self._make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = timer
+        manager._timers["game1"] = {0: timer}
 
         game_end_event = ServiceEvent(
             event="game_end",
             data=GameEndedEvent(
-                type="game_end",
+                type=EventType.GAME_END,
                 target="all",
                 result=GameEndResult(
                     winner_seat=0,
@@ -791,12 +825,12 @@ class TestSessionManagerTimerIntegration:
         manager._games["game1"] = game
 
         timer = TurnTimer()
-        manager._timers["game1"] = timer
+        manager._timers["game1"] = {0: timer, 1: TurnTimer()}
 
         turn_event = ServiceEvent(
             event="turn",
             data=TurnEvent(
-                type="turn",
+                type=EventType.TURN,
                 target="seat_0",
                 current_seat=0,
                 available_actions=[],
@@ -856,7 +890,7 @@ class TestSessionManagerGameEnd:
         return ServiceEvent(
             event="game_end",
             data=GameEndedEvent(
-                type="game_end",
+                type=EventType.GAME_END,
                 target="all",
                 result=GameEndResult(
                     winner_seat=0,
@@ -912,3 +946,827 @@ class TestSessionManagerGameEnd:
 
         assert conn1.is_closed is True
         assert conn2.is_closed is True
+
+
+class TestSessionManagerNumBots:
+    """Tests for unified num_bots game creation in SessionManager."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    async def test_num_bots_0_does_not_start_on_first_join(self, manager):
+        """Game with num_bots=0 does NOT auto-start when first player joins."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1", num_bots=0)
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        game_started_events = [m for m in conn.sent_messages if m.get("type") == "game_started"]
+        assert len(game_started_events) == 0
+
+    async def test_num_bots_0_does_not_start_on_second_join(self, manager):
+        """Game with num_bots=0 does NOT auto-start when 2nd player joins."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        for c in conns:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 0
+
+    async def test_num_bots_0_does_not_start_on_third_join(self, manager):
+        """Game with num_bots=0 does NOT auto-start when 3rd player joins."""
+        conns = [MockConnection() for _ in range(3)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        for c in conns:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 0
+
+    async def test_num_bots_0_starts_on_fourth_join(self, manager):
+        """Game with num_bots=0 auto-starts when 4th player joins."""
+        conns = [MockConnection() for _ in range(4)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        for c in conns:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 1
+
+    async def test_num_bots_0_all_players_assigned_seats(self, manager):
+        """All 4 human players are assigned seats after game starts."""
+        conns = [MockConnection() for _ in range(4)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        game = manager.get_game("game1")
+        for player in game.players.values():
+            assert player.seat is not None
+
+    async def test_num_bots_3_starts_on_first_join(self, manager):
+        """Game with num_bots=3 (default) auto-starts on first join."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        game_started_events = [m for m in conn.sent_messages if m.get("type") == "game_started"]
+        assert len(game_started_events) == 1
+
+    async def test_num_bots_2_starts_on_second_join(self, manager):
+        """Game with num_bots=2 auto-starts when 2nd human joins."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        game_started_events = [m for m in conns[0].sent_messages if m.get("type") == "game_started"]
+        assert len(game_started_events) == 0
+
+        await manager.join_game(conns[1], "game1", "Bob")
+        for c in conns:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 1
+
+    async def test_num_bots_1_starts_on_third_join(self, manager):
+        """Game with num_bots=1 auto-starts when 3rd human joins."""
+        conns = [MockConnection() for _ in range(3)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=1)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        for c in conns[:2]:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 0
+
+        await manager.join_game(conns[2], "game1", "Charlie")
+        for c in conns:
+            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            assert len(game_started_events) == 1
+
+    async def test_create_game_with_num_bots(self, manager):
+        """create_game stores num_bots on the Game object."""
+        manager.create_game("game1", num_bots=2)
+
+        game = manager.get_game("game1")
+        assert game.num_bots == 2
+
+    async def test_create_game_default_num_bots(self, manager):
+        """create_game without num_bots defaults to 3."""
+        manager.create_game("game1")
+
+        game = manager.get_game("game1")
+        assert game.num_bots == 3
+
+    async def test_create_game_invalid_num_bots(self):
+        """Game rejects num_bots outside 0-3 range."""
+        with pytest.raises(ValueError, match="num_bots must be 0-3"):
+            Game(game_id="game1", num_bots=5)
+
+        with pytest.raises(ValueError, match="num_bots must be 0-3"):
+            Game(game_id="game1", num_bots=-1)
+
+    async def test_get_games_info_includes_num_bots(self, manager):
+        """get_games_info includes num_bots field for each game."""
+        manager.create_game("game1", num_bots=3)
+        manager.create_game("game2", num_bots=0)
+
+        infos = manager.get_games_info()
+        info_map = {info.game_id: info for info in infos}
+
+        assert info_map["game1"].num_bots == 3
+        assert info_map["game2"].num_bots == 0
+
+    async def test_get_games_info_includes_started(self, manager):
+        """get_games_info includes started field reflecting game state."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1", num_bots=3)
+        manager.create_game("game2", num_bots=0)
+
+        # game1 not started yet
+        infos = manager.get_games_info()
+        info_map = {info.game_id: info for info in infos}
+        assert info_map["game1"].started is False
+        assert info_map["game2"].started is False
+
+        # start game1 by joining (num_bots=3, needs 1 human)
+        await manager.join_game(conn, "game1", "Alice")
+
+        infos = manager.get_games_info()
+        info_map = {info.game_id: info for info in infos}
+        assert info_map["game1"].started is True
+        assert info_map["game2"].started is False
+
+
+class TestPerPlayerTimers:
+    """Tests for per-player timer independence."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    def _make_pvp_game_with_two_humans(
+        self, manager
+    ) -> tuple[Game, Player, Player, MockConnection, MockConnection]:
+        """Create a game with two human players at seats 0 and 1."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        game = Game(game_id="game1")
+        player1 = Player(connection=conn1, name="Alice", game_id="game1", seat=0)
+        player2 = Player(connection=conn2, name="Bob", game_id="game1", seat=1)
+        game.players[conn1.connection_id] = player1
+        game.players[conn2.connection_id] = player2
+        manager._games["game1"] = game
+        manager._players[conn1.connection_id] = player1
+        manager._players[conn2.connection_id] = player2
+        manager._connections[conn1.connection_id] = conn1
+        manager._connections[conn2.connection_id] = conn2
+        return game, player1, player2, conn1, conn2
+
+    async def test_pvp_game_creates_timer_per_player(self, manager):
+        """PVP game with 4 players creates a timer for each player."""
+        conns = [MockConnection() for _ in range(4)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        timers = manager._timers["game1"]
+        assert len(timers) == 4
+        for seat in range(4):
+            assert seat in timers
+            assert isinstance(timers[seat], TurnTimer)
+
+    async def test_player_timers_are_independent_instances(self, manager):
+        """Each player gets a separate TurnTimer instance."""
+        conns = [MockConnection() for _ in range(4)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        timers = manager._timers["game1"]
+        timer_ids = [id(t) for t in timers.values()]
+        # all timers should be different objects
+        assert len(set(timer_ids)) == 4
+
+    async def test_round_bonus_added_to_all_player_timers(self, manager):
+        """Round bonus is added to all player timers when round starts."""
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        initial_bank_0 = timer0.remaining_bank
+        initial_bank_1 = timer1.remaining_bank
+
+        round_event = ServiceEvent(
+            event="round_started",
+            data=RoundStartedEvent(
+                type=EventType.ROUND_STARTED,
+                target="seat_0",
+                view=_make_dummy_game_view(),
+            ),
+            target="seat_0",
+        )
+
+        await manager._maybe_start_timer(game, [round_event])
+
+        config = TimerConfig()
+        assert timer0.remaining_bank == initial_bank_0 + config.round_bonus_seconds
+        assert timer1.remaining_bank == initial_bank_1 + config.round_bonus_seconds
+
+    async def test_game_end_cancels_all_player_timers(self, manager):
+        """Game cleanup cancels all player timers."""
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+
+        game_end_event = ServiceEvent(
+            event="game_end",
+            data=GameEndedEvent(
+                type=EventType.GAME_END,
+                target="all",
+                result=GameEndResult(
+                    winner_seat=0,
+                    standings=[
+                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
+                        PlayerStanding(seat=1, name="Bob", score=25000, final_score=0, is_bot=False),
+                    ],
+                ),
+            ),
+            target="all",
+        )
+
+        result = manager._cleanup_timer_on_game_end(game, [game_end_event])
+        assert result is True
+
+    async def test_multiple_meld_timers_for_multiple_callers(self, manager):
+        """When 2+ humans can call the same discard, each gets their own meld timer."""
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        # both seat 0 and seat 1 can call
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                type=EventType.CALL_PROMPT,
+                target="all",
+                call_type=CallType.MELD,
+                tile_id=42,
+                from_seat=2,
+                callers=[0, 1],
+            ),
+            target="all",
+        )
+
+        await manager._maybe_start_timer(game, [call_event])
+
+        # both timers should have active tasks (meld timer started for each)
+        assert timer0._active_task is not None
+        assert timer1._active_task is not None
+        timer0.cancel()
+        timer1.cancel()
+
+    async def test_sibling_meld_timer_cancellation(self, manager):
+        """When one caller acts, other callers' meld timers are cancelled."""
+        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        # start meld timers for both callers
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                type=EventType.CALL_PROMPT,
+                target="all",
+                call_type=CallType.MELD,
+                tile_id=42,
+                from_seat=2,
+                callers=[0, 1],
+            ),
+            target="all",
+        )
+        await manager._maybe_start_timer(game, [call_event])
+        assert timer0._active_task is not None
+        assert timer1._active_task is not None
+
+        # player at seat 0 acts (handle_game_action)
+        conn1._outbox.clear()
+        await manager.handle_game_action(conn1, "test_action", {})
+
+        # seat 0's timer should be stopped (bank time deducted), seat 1's cancelled
+        assert timer1._active_task is None
+
+    async def test_partial_pass_stops_acting_player_timer(self, manager):
+        """When a pass returns empty events (other callers pending), the passer's timer is stopped."""
+        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        # start meld timers for both callers
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                type=EventType.CALL_PROMPT,
+                target="all",
+                call_type=CallType.MELD,
+                tile_id=42,
+                from_seat=2,
+                callers=[0, 1],
+            ),
+            target="all",
+        )
+        await manager._maybe_start_timer(game, [call_event])
+        assert timer0._active_task is not None
+        assert timer1._active_task is not None
+
+        # mock returns empty events (partial pass, other callers still pending)
+        manager._game_service.handle_action = AsyncMock(return_value=[])
+        conn1._outbox.clear()
+        await manager.handle_game_action(conn1, "pass", {})
+
+        # seat 0's timer should be stopped, seat 1's timer should still be running
+        assert timer0._active_task is None
+        assert timer1._active_task is not None
+        timer1.cancel()
+
+    async def test_partial_pass_does_not_cancel_other_timers(self, manager):
+        """When a pass returns empty events, other callers' meld timers keep running."""
+        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        # start meld timers for both callers
+        call_event = ServiceEvent(
+            event="call_prompt",
+            data=CallPromptEvent(
+                type=EventType.CALL_PROMPT,
+                target="all",
+                call_type=CallType.MELD,
+                tile_id=42,
+                from_seat=2,
+                callers=[0, 1],
+            ),
+            target="all",
+        )
+        await manager._maybe_start_timer(game, [call_event])
+
+        # mock returns empty events (partial pass)
+        manager._game_service.handle_action = AsyncMock(return_value=[])
+        conn1._outbox.clear()
+        await manager.handle_game_action(conn1, "pass", {})
+
+        # seat 1's meld timer is still running (not cancelled)
+        assert timer1._active_task is not None
+        assert not timer1._active_task.done()
+        timer1.cancel()
+
+    async def test_turn_timer_starts_for_specific_player(self, manager):
+        """Turn timer starts only for the player whose turn it is."""
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        timer0 = TurnTimer()
+        timer1 = TurnTimer()
+        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        turn_event = ServiceEvent(
+            event="turn",
+            data=TurnEvent(
+                type=EventType.TURN,
+                target="seat_0",
+                current_seat=0,
+                available_actions=[],
+                wall_count=70,
+            ),
+            target="seat_0",
+        )
+
+        await manager._maybe_start_timer(game, [turn_event])
+
+        # only seat 0's timer should be active
+        assert timer0._active_task is not None
+        assert timer1._active_task is None
+        timer0.cancel()
+
+    async def test_leave_game_cancels_all_player_timers(self, manager):
+        """Leaving a game cancels all player timers when game becomes empty."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.create_game("game1", num_bots=0)
+
+        # join 4 players to start the game
+        conns = [conn1, conn2, MockConnection(), MockConnection()]
+        for c in conns[2:]:
+            manager.register_connection(c)
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        assert "game1" in manager._timers
+
+        # all players leave
+        for c in conns:
+            await manager.leave_game(c)
+
+        assert "game1" not in manager._timers
+
+
+class TestSessionManagerDisconnect:
+    """Tests for disconnect handling."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    async def test_reject_join_after_game_started_num_bots_0(self, manager):
+        """Joining a started game with num_bots=0 is rejected."""
+        conns = [MockConnection() for _ in range(5)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i in range(4):
+            await manager.join_game(conns[i], "game1", f"Player{i}")
+
+        game = manager.get_game("game1")
+        assert game.started is True
+
+        await manager.join_game(conns[4], "game1", "Latecomer")
+
+        error_msgs = [m for m in conns[4].sent_messages if m.get("type") == "error"]
+        assert len(error_msgs) == 1
+        assert error_msgs[0]["code"] == "game_started"
+
+    async def test_reject_join_after_game_started_num_bots_3(self, manager):
+        """Joining a started game with num_bots=3 is also rejected."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.create_game("game1", num_bots=3)
+
+        await manager.join_game(conn1, "game1", "Alice")
+
+        game = manager.get_game("game1")
+        assert game.started is True
+
+        await manager.join_game(conn2, "game1", "Bob")
+
+        error_msgs = [m for m in conn2.sent_messages if m.get("type") == "error"]
+        assert len(error_msgs) == 1
+        assert error_msgs[0]["code"] == "game_started"
+
+    async def test_disconnect_from_bot_game_cleans_up(self, manager):
+        """Disconnecting from a num_bots=3 game cleans up when empty."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1", num_bots=3)
+        await manager.join_game(conn, "game1", "Alice")
+
+        game = manager.get_game("game1")
+        assert game.started is True
+
+        await manager.leave_game(conn)
+
+        assert manager.get_game("game1") is None
+
+    async def test_disconnect_replaces_human_with_bot(self, manager):
+        """Disconnecting a human from a started multi-human game calls replace_player_with_bot."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        game = manager.get_game("game1")
+        assert game.started is True
+
+        # track replace_player_with_bot calls
+        replace_calls = []
+        original_replace = manager._game_service.replace_player_with_bot
+
+        def tracking_replace(game_id, player_name):
+            replace_calls.append((game_id, player_name))
+            return original_replace(game_id, player_name)
+
+        manager._game_service.replace_player_with_bot = tracking_replace
+
+        await manager.leave_game(conns[0])
+
+        assert len(replace_calls) == 1
+        assert replace_calls[0] == ("game1", "Alice")
+        # game should still exist (Bob is still in)
+        assert manager.get_game("game1") is not None
+
+    async def test_last_human_disconnect_does_not_replace_with_bot(self, manager):
+        """When the last human leaves, bot replacement is skipped and the game is cleaned up."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        game = manager.get_game("game1")
+        assert game.started is True
+
+        replace_calls = []
+        original_replace = manager._game_service.replace_player_with_bot
+
+        def tracking_replace(game_id, player_name):
+            replace_calls.append((game_id, player_name))
+            return original_replace(game_id, player_name)
+
+        manager._game_service.replace_player_with_bot = tracking_replace
+
+        # first player leaves (triggers bot replacement)
+        await manager.leave_game(conns[0])
+        assert len(replace_calls) == 1
+
+        # second player leaves (last human -- no bot replacement, game cleaned up)
+        await manager.leave_game(conns[1])
+        assert len(replace_calls) == 1  # no additional call
+        assert manager.get_game("game1") is None
+
+    async def test_disconnect_cancels_player_timer(self, manager):
+        """Disconnecting a human cancels their timer in the timers dict."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        # verify timers exist for both seats
+        assert 0 in manager._timers["game1"]
+        assert 1 in manager._timers["game1"]
+
+        await manager.leave_game(conns[0])
+
+        # seat 0's timer should be removed from the dict
+        assert 0 not in manager._timers["game1"]
+        # seat 1's timer should remain
+        assert 1 in manager._timers["game1"]
+
+    async def test_disconnect_from_non_started_game_does_not_replace(self, manager):
+        """Disconnecting from a game that has not started does not trigger bot replacement."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1", num_bots=0)
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        game = manager.get_game("game1")
+        assert game.started is False
+
+        replace_calls = []
+        original_replace = manager._game_service.replace_player_with_bot
+
+        def tracking_replace(game_id, player_name):
+            replace_calls.append((game_id, player_name))
+            return original_replace(game_id, player_name)
+
+        manager._game_service.replace_player_with_bot = tracking_replace
+
+        await manager.leave_game(conn)
+
+        assert len(replace_calls) == 0
+        assert manager.get_game("game1") is None
+
+    async def test_bot_replacement_broadcasts_events(self, manager):
+        """When bot replacement produces events, they are broadcast to remaining players."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+        conns[1]._outbox.clear()
+
+        # make process_bot_actions_after_replacement return an event
+        bot_event = ServiceEvent(
+            event="test_bot_action",
+            data=MockResultEvent(
+                type="test_bot_action",
+                target="all",
+                player="Bot",
+                action="discard",
+                input={},
+                success=True,
+            ),
+            target="all",
+        )
+        manager._game_service.process_bot_actions_after_replacement = AsyncMock(return_value=[bot_event])
+
+        await manager.leave_game(conns[0])
+
+        # Bob should receive the bot action event
+        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == "test_bot_action"]
+        assert len(bot_msgs) == 1
+
+    async def test_stale_timeout_after_replacement_is_noop(self, manager):
+        """A timeout callback for a replaced player's seat is safely ignored."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        # Alice disconnects
+        await manager.leave_game(conns[0])
+        conns[1]._outbox.clear()
+
+        # stale timeout fires for Alice's old seat (seat 0)
+        # should be a no-op because _get_player_at_seat returns None for seat 0
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
+
+        assert len(conns[1].sent_messages) == 0
+
+    async def test_disconnect_during_start_game_replaces_with_bot(self, manager):
+        """Player disconnecting during start_game (before seat assignment) triggers bot replacement."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+
+        # patch start_game to simulate a disconnect happening during the await.
+        # remove Alice from game.players (as leave_game would) before
+        # _start_mahjong_game can assign seats.
+        original_start = manager._game_service.start_game
+        game = manager.get_game("game1")
+
+        async def disconnecting_start(game_id, player_names):
+            result = await original_start(game_id, player_names)
+            # simulate Alice disconnecting during start_game
+            for conn_id, player in list(game.players.items()):
+                if player.name == "Alice":
+                    game.players.pop(conn_id)
+                    player.game_id = None
+                    break
+            return result
+
+        manager._game_service.start_game = disconnecting_start
+
+        replace_calls = []
+        original_replace = manager._game_service.replace_player_with_bot
+
+        def tracking_replace(game_id, player_name):
+            replace_calls.append((game_id, player_name))
+            return original_replace(game_id, player_name)
+
+        manager._game_service.replace_player_with_bot = tracking_replace
+
+        # join Bob -- triggers start; Alice is removed during start_game
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        # post-start recovery should detect Alice disconnected and replace with bot
+        assert ("game1", "Alice") in replace_calls
+
+    async def test_disconnect_during_start_cancels_timer_and_broadcasts(self, manager):
+        """Post-start recovery cancels the disconnected player's timer and broadcasts bot events."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+
+        original_start = manager._game_service.start_game
+        game = manager.get_game("game1")
+
+        # remove Alice AFTER timer creation by injecting the removal
+        # between timer setup and the lock acquisition in _start_mahjong_game.
+        # we achieve this by removing her after start_game returns but ensuring
+        # the timer loop still sees her (she's in game.players during that loop).
+        alice_removed = False
+
+        async def late_disconnecting_start(game_id, player_names):
+            return await original_start(game_id, player_names)
+
+        manager._game_service.start_game = late_disconnecting_start
+
+        # patch _broadcast_events to remove Alice just before the recovery loop runs.
+        # the first call to _broadcast_events is for start events, then the recovery loop
+        # checks connected_names. we remove Alice after the seat/timer assignment but
+        # before the lock block re-checks game.player_names.
+        original_broadcast = manager._broadcast_events
+
+        async def removing_broadcast(g, events):
+            nonlocal alice_removed
+            await original_broadcast(g, events)
+            if not alice_removed:
+                alice_removed = True
+                for conn_id, player in list(game.players.items()):
+                    if player.name == "Alice":
+                        game.players.pop(conn_id)
+                        player.game_id = None
+                        break
+
+        manager._broadcast_events = removing_broadcast
+
+        # mock process_bot_actions_after_replacement to return an event
+        bot_event = ServiceEvent(
+            event="test_bot_action",
+            data=MockResultEvent(
+                type="test_bot_action",
+                target="all",
+                player="Bot",
+                action="discard",
+                input={},
+                success=True,
+            ),
+            target="all",
+        )
+        manager._game_service.process_bot_actions_after_replacement = AsyncMock(return_value=[bot_event])
+
+        # join Bob -- triggers start; Alice is removed during first broadcast
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        # Bob should receive the bot action event
+        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == "test_bot_action"]
+        assert len(bot_msgs) == 1
+
+    async def test_replace_with_bot_returns_when_lock_missing(self, manager):
+        """_replace_with_bot returns early when game lock has been cleaned up."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        game = manager.get_game("game1")
+
+        # remove the game lock to simulate cleanup race
+        manager._game_locks.pop("game1", None)
+
+        process_calls = []
+        original_process = manager._game_service.process_bot_actions_after_replacement
+
+        async def tracking_process(game_id, seat):
+            process_calls.append((game_id, seat))
+            return await original_process(game_id, seat)
+
+        manager._game_service.process_bot_actions_after_replacement = tracking_process
+
+        # directly call _replace_with_bot (lock is missing)
+        await manager._replace_with_bot(game, "Alice", 0)
+
+        # replace_player_with_bot was called but process_bot_actions was NOT
+        # (early return due to missing lock)
+        assert len(process_calls) == 0

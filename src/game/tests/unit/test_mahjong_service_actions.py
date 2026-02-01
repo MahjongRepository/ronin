@@ -166,12 +166,14 @@ class TestMahjongGameServicePass:
     def service(self):
         return MahjongGameService()
 
-    async def test_pass_returns_empty_without_pending_prompt(self, service):
+    async def test_pass_returns_error_without_pending_prompt(self, service):
         await service.start_game("game1", ["Human"])
 
         events = await service.handle_action("game1", "Human", "pass", {})
 
-        assert events == []
+        assert len(events) == 1
+        assert isinstance(events[0].data, ErrorEvent)
+        assert events[0].data.code == "invalid_pass"
 
 
 class TestMahjongGameServiceErrors:

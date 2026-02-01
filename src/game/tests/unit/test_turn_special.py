@@ -18,6 +18,8 @@ from game.logic.turn import (
     process_meld_call,
     process_ron_call,
 )
+from game.logic.types import AbortiveDrawResult
+from game.messaging.events import CallPromptEvent, RoundEndEvent, TurnEvent
 from game.tests.unit.helpers import _default_seat_configs
 
 
@@ -53,6 +55,8 @@ class TestFourWindsAbortiveDraw:
             if i == 3:  # fourth discard triggers four winds
                 round_end_events = [e for e in events if e.type == "round_end"]
                 assert len(round_end_events) == 1
+                assert isinstance(round_end_events[0], RoundEndEvent)
+                assert isinstance(round_end_events[0].result, AbortiveDrawResult)
                 assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_WINDS
                 assert round_state.phase == RoundPhase.FINISHED
 
@@ -116,6 +120,7 @@ class TestRiichiPlayerExcludedFromMeldCallers:
             e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "meld"
         ]
         if call_prompts:
+            assert isinstance(call_prompts[0], CallPromptEvent)
             callers = call_prompts[0].callers
             caller_seats = [c.seat if hasattr(c, "seat") else c for c in callers]
             assert 1 in caller_seats
@@ -133,6 +138,7 @@ class TestRiichiPlayerExcludedFromMeldCallers:
             e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "meld"
         ]
         if call_prompts:
+            assert isinstance(call_prompts[0], CallPromptEvent)
             callers = call_prompts[0].callers
             caller_seats = [c.seat if hasattr(c, "seat") else c for c in callers]
             # player 1 should NOT be in callers since they're in riichi
@@ -196,6 +202,7 @@ class TestKyuushuInDrawPhase:
 
         turn_events = [e for e in events if e.type == "turn"]
         assert len(turn_events) == 1
+        assert isinstance(turn_events[0], TurnEvent)
         actions = turn_events[0].available_actions
         kyuushu_actions = [a for a in actions if a.action == "kyuushu"]
         assert len(kyuushu_actions) == 1
@@ -223,6 +230,7 @@ class TestRonCallersAfterDiscard:
         call_prompts = [e for e in events if e.type == "call_prompt"]
         ron_prompts = [e for e in call_prompts if e.call_type == "ron"]
         assert len(ron_prompts) == 1
+        assert isinstance(ron_prompts[0], CallPromptEvent)
         assert 1 in ron_prompts[0].callers
 
 
@@ -253,6 +261,7 @@ class TestDoubleRon:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
         assert result.type == "double_ron"
         assert round_state.phase == RoundPhase.FINISHED
@@ -284,6 +293,8 @@ class TestFourRiichiDuringDiscard:
         if not ron_prompts:
             round_end_events = [e for e in events if e.type == "round_end"]
             if round_end_events:
+                assert isinstance(round_end_events[0], RoundEndEvent)
+                assert isinstance(round_end_events[0].result, AbortiveDrawResult)
                 assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
 
 
@@ -335,6 +346,8 @@ class TestFourKansAbortDuringKan:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -376,6 +389,7 @@ class TestChankanDuringAddedKan:
         call_prompts = [e for e in events if e.type == "call_prompt"]
         chankan_prompts = [e for e in call_prompts if e.call_type == CallType.CHANKAN]
         assert len(chankan_prompts) == 1
+        assert isinstance(chankan_prompts[0], CallPromptEvent)
         assert 1 in chankan_prompts[0].callers
 
 
@@ -404,6 +418,7 @@ class TestOpenKanDetectionAfterDiscard:
             e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == CallType.MELD
         ]
         assert len(call_prompts) >= 1
+        assert isinstance(call_prompts[0], CallPromptEvent)
         callers = call_prompts[0].callers
         open_kan_callers = [c for c in callers if c.call_type == MeldCallType.OPEN_KAN]
         assert len(open_kan_callers) == 1
@@ -458,5 +473,7 @@ class TestFourKansAbortAfterClosedKan:
 
         round_end_events = [e for e in events if e.type == "round_end"]
         assert len(round_end_events) == 1
+        assert isinstance(round_end_events[0], RoundEndEvent)
+        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
         assert round_state.phase == RoundPhase.FINISHED

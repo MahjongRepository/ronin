@@ -44,6 +44,12 @@ class BotController:
         """
         return seat in self._bots
 
+    def add_bot(self, seat: int, bot: BotPlayer) -> None:
+        """
+        Register a bot at a seat (replacing a disconnected human).
+        """
+        self._bots[seat] = bot
+
     @property
     def bot_seats(self) -> set[int]:
         """
