@@ -168,32 +168,3 @@ servers:
             assert response.status_code == 200
             data = response.json()
             assert data == {"games": []}
-
-
-class TestStaticFiles:
-    @pytest.fixture
-    def client(self, tmp_path):
-        config_file = tmp_path / "servers.yaml"
-        config_file.write_text("""
-servers:
-  - name: "test-server"
-    url: "http://localhost:8001"
-""")
-        app = create_app(config_path=config_file)
-        return TestClient(app)
-
-    def test_root_redirects_to_static_index(self, client):
-        response = client.get("/", follow_redirects=False)
-        assert response.status_code == 307
-        assert response.headers["location"] == "/static/index.html"
-
-    def test_static_index_html_served(self, client):
-        response = client.get("/static/index.html")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "Ronin Lobby" in response.text
-
-    def test_root_redirect_follows_to_index(self, client):
-        response = client.get("/", follow_redirects=True)
-        assert response.status_code == 200
-        assert "Ronin Lobby" in response.text

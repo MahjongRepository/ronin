@@ -47,8 +47,6 @@ When a human player disconnects from a started game, they are replaced with a bo
 ## Web UI
 
 - **Client** (`client/`, port 3000) - Primary frontend. TypeScript + SASS single-page application served by Bun's dev server. Uses lit-html for templating, hash-based routing (`#/` for lobby, `#/game/:id` for game), and MessagePack for WebSocket communication. Entry point is `client/index.html`.
-- **Lobby Page** (`/static/index.html` on port 8000) - Legacy standalone lobby page, kept for reference.
-- **Legacy Game Page** (`/static/game.legacy.html` on port 8001) - Legacy vanilla JS game interface, kept for reference. Uses JSON WebSocket (incompatible with current MessagePack server).
 
 ## Project Structure
 
@@ -89,7 +87,6 @@ ronin/
 │   │   ├── messaging/
 │   │   ├── session/
 │   │   ├── logic/              # Riichi Mahjong rules implementation
-│   │   ├── static/             # Legacy game HTML pages
 │   │   └── tests/
 │   └── shared/                 # Shared code (future use)
 ```

@@ -316,16 +316,3 @@ class TestWebSocketConnection:
 
         with pytest.raises(ConnectionError, match="WebSocket already disconnected"):
             await conn.close()
-
-
-class TestStaticFiles:
-    @pytest.fixture
-    def client(self):
-        app = create_app()
-        return TestClient(app)
-
-    def test_static_game_html_served(self, client):
-        response = client.get("/static/game.legacy.html")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "Ronin Game" in response.text

@@ -10,8 +10,6 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 - `GET /status` - Server status (active games, capacity)
 - `GET /games` - List all active games
 - `POST /games` - Create a game (called by lobby). Accepts optional `num_bots` field (0-3, defaults to 3)
-- `GET /static/*` - Static file serving
-
 ## WebSocket API
 
 ### Connection
@@ -272,8 +270,6 @@ ronin/
         │   ├── matchmaker.py       # Seat assignment and bot filling
         │   ├── timer.py            # Turn timer with bank time management
         │   └── mock.py             # MockGameService for testing
-        ├── static/
-        │   └── game.legacy.html  # Legacy game WebSocket UI
         └── tests/
             ├── unit/
             └── integration/

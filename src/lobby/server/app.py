@@ -1,14 +1,12 @@
 import json
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse, RedirectResponse
-from starlette.routing import Mount, Route
-from starlette.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from lobby.games.service import GameCreationError, GamesService
 from lobby.games.types import CreateGameRequest
@@ -18,6 +16,8 @@ from shared.logging import setup_logging
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from starlette.requests import Request
 
 
@@ -77,24 +77,12 @@ async def create_game(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=503)
 
 
-async def redirect_to_index(_request: Request) -> RedirectResponse:
-    """
-    Redirect root path to the static index page.
-    """
-    return RedirectResponse(url="/static/index.html")
-
-
 def create_app(config_path: Path | None = None) -> Starlette:
-    # path to static files directory
-    static_dir = Path(__file__).parent.parent / "static"
-
     routes = [
-        Route("/", redirect_to_index, methods=["GET"]),
         Route("/health", health, methods=["GET"]),
         Route("/servers", list_servers, methods=["GET"]),
         Route("/games", list_games, methods=["GET"]),
         Route("/games", create_game, methods=["POST"]),
-        Mount("/static", app=StaticFiles(directory=static_dir), name="static"),
     ]
 
     app = Starlette(routes=routes)

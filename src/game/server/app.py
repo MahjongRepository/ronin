@@ -1,14 +1,12 @@
 import json
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route, WebSocketRoute
-from starlette.staticfiles import StaticFiles
+from starlette.routing import Route, WebSocketRoute
 
 from game.logic.mahjong_service import MahjongGameService
 from game.messaging.router import MessageRouter
@@ -90,16 +88,12 @@ def create_app(
     async def ws_endpoint(websocket: WebSocket) -> None:
         await websocket_endpoint(websocket, message_router)
 
-    # path to static files directory
-    static_dir = Path(__file__).parent.parent / "static"
-
     routes = [
         Route("/health", health, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
         Route("/games", list_games, methods=["GET"]),
         Route("/games", create_game, methods=["POST"]),
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
-        Mount("/static", app=StaticFiles(directory=static_dir), name="static"),
     ]
 
     app = Starlette(routes=routes)

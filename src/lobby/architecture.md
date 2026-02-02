@@ -6,12 +6,10 @@ Portal service for game discovery and creation.
 
 ## REST API
 
-- `GET /` - Redirect to `/static/index.html`
 - `GET /health` - Health check
 - `GET /servers` - List available game servers with health status
 - `GET /games` - List all available games across all healthy servers
 - `POST /games` - Create a new game with optional `num_bots` parameter (0-3, defaults to 3)
-- `GET /static/*` - Static file serving
 
 ### List Games Response
 
@@ -82,8 +80,6 @@ ronin/
         ├── games/
         │   ├── types.py        # CreateGameRequest, CreateGameResponse
         │   └── service.py      # GamesService
-        ├── static/
-        │   └── index.html      # Games list and creation UI
         └── tests/
             ├── unit/
             └── integration/
