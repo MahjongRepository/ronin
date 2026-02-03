@@ -19,3 +19,6 @@ logs
 bot
 
 src/debug.py
+
+AGENTS.md
+AGENTS.override.md
