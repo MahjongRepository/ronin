@@ -4,6 +4,7 @@ type MessageHandler = (message: Record<string, unknown>) => void;
 
 export class GameSocket {
     private ws: WebSocket | null = null;
+    private pingInterval: ReturnType<typeof setInterval> | null = null;
     private onMessage: MessageHandler;
     private onStatusChange: (status: string) => void;
 
@@ -24,6 +25,9 @@ export class GameSocket {
                 return;
             }
             this.onStatusChange("connected");
+            this.pingInterval = setInterval(() => {
+                this.send({ type: "ping" });
+            }, 10_000);
         };
 
         ws.onmessage = (event: MessageEvent) => {
@@ -48,6 +52,7 @@ export class GameSocket {
             if (this.ws !== ws) {
                 return;
             }
+            this.clearPingInterval();
             this.onStatusChange("disconnected");
             this.ws = null;
         };
@@ -67,15 +72,24 @@ export class GameSocket {
     }
 
     disconnect(): void {
+        this.clearPingInterval();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
     }
 
+    private clearPingInterval(): void {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
+        }
+    }
+
     // detach handlers before closing to prevent stale onclose from
     // nullifying the reference to a new socket created below
     private disconnectExisting(): void {
+        this.clearPingInterval();
         if (!this.ws) {
             return;
         }

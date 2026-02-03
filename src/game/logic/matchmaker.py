@@ -44,17 +44,3 @@ def fill_seats(human_names: list[str], seed: float | None = None) -> list[SeatCo
             bot_number += 1
 
     return configs
-
-
-class Matchmaker:
-    """
-    Stateless seat assignment wrapper.
-
-    Delegates to fill_seats module function.
-    """
-
-    def fill_seats(self, human_names: list[str], seed: float | None = None) -> list[SeatConfig]:
-        """
-        Create seat configurations for a game.
-        """
-        return fill_seats(human_names, seed)

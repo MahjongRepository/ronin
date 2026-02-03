@@ -9,25 +9,17 @@ class ClientMessageType(str, Enum):
     LEAVE_GAME = "leave_game"
     GAME_ACTION = "game_action"
     CHAT = "chat"
+    PING = "ping"
 
 
-class ServerMessageType(str, Enum):
+class SessionMessageType(str, Enum):
     GAME_JOINED = "game_joined"
     GAME_LEFT = "game_left"
     PLAYER_JOINED = "player_joined"
     PLAYER_LEFT = "player_left"
     CHAT = "chat"
-    ERROR = "error"
-    # mahjong-specific message types
-    GAME_STARTED = "game_started"
-    DRAW = "draw"
-    DISCARD = "discard"
-    MELD = "meld"
-    RIICHI = "riichi"
-    TURN = "turn"
-    CALL_PROMPT = "call_prompt"
-    ROUND_END = "round_end"
-    GAME_END = "game_end"
+    ERROR = "session_error"
+    PONG = "pong"
 
 
 class JoinGameMessage(BaseModel):
@@ -51,219 +43,50 @@ class ChatMessage(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
 
 
+class PingMessage(BaseModel):
+    type: Literal[ClientMessageType.PING] = ClientMessageType.PING
+
+
 ClientMessage = Annotated[
-    JoinGameMessage | LeaveGameMessage | GameActionMessage | ChatMessage,
+    JoinGameMessage | LeaveGameMessage | GameActionMessage | ChatMessage | PingMessage,
     Field(discriminator="type"),
 ]
 
 
 class GameJoinedMessage(BaseModel):
-    type: Literal[ServerMessageType.GAME_JOINED] = ServerMessageType.GAME_JOINED
+    type: Literal[SessionMessageType.GAME_JOINED] = SessionMessageType.GAME_JOINED
     game_id: str
     players: list[str]
 
 
 class GameLeftMessage(BaseModel):
-    type: Literal[ServerMessageType.GAME_LEFT] = ServerMessageType.GAME_LEFT
+    type: Literal[SessionMessageType.GAME_LEFT] = SessionMessageType.GAME_LEFT
 
 
 class PlayerJoinedMessage(BaseModel):
-    type: Literal[ServerMessageType.PLAYER_JOINED] = ServerMessageType.PLAYER_JOINED
+    type: Literal[SessionMessageType.PLAYER_JOINED] = SessionMessageType.PLAYER_JOINED
     player_name: str
 
 
 class PlayerLeftMessage(BaseModel):
-    type: Literal[ServerMessageType.PLAYER_LEFT] = ServerMessageType.PLAYER_LEFT
+    type: Literal[SessionMessageType.PLAYER_LEFT] = SessionMessageType.PLAYER_LEFT
     player_name: str
 
 
-class ServerChatMessage(BaseModel):
-    type: Literal[ServerMessageType.CHAT] = ServerMessageType.CHAT
+class SessionChatMessage(BaseModel):
+    type: Literal[SessionMessageType.CHAT] = SessionMessageType.CHAT
     player_name: str
     text: str
 
 
 class ErrorMessage(BaseModel):
-    type: Literal[ServerMessageType.ERROR] = ServerMessageType.ERROR
+    type: Literal[SessionMessageType.ERROR] = SessionMessageType.ERROR
     code: str
     message: str
 
 
-# mahjong-specific message types
-
-
-class DiscardInfo(BaseModel):
-    """Discard information for messages."""
-
-    tile_id: int
-    is_tsumogiri: bool = False
-    is_riichi_discard: bool = False
-
-
-class MeldInfo(BaseModel):
-    """Meld information for messages."""
-
-    type: str  # "chi", "pon", "kan", "chankan", "shouminkan"
-    tile_ids: list[int]
-    opened: bool
-    from_who: int | None = None
-
-
-class PlayerInfo(BaseModel):
-    """Player information for messages."""
-
-    seat: int
-    name: str
-    is_bot: bool
-    score: int
-    is_riichi: bool
-    discards: list[DiscardInfo]
-    melds: list[MeldInfo]
-    tile_count: int
-    # only included for the receiving player
-    tiles: list[int] | None = None
-
-
-class AvailableAction(BaseModel):
-    """An available action for the player."""
-
-    action: str  # "discard", "riichi", "tsumo", "pon", "chi", "kan", "ron", "pass"
-    tiles: list[int] | None = None  # tiles that can be used for this action
-
-
-class PlayerIdentity(BaseModel):
-    """Player identity for game start message."""
-
-    seat: int
-    name: str
-    is_bot: bool
-
-
-class GameStartedMessage(BaseModel):
-    """
-    Broadcast to all players when the game starts with player identities.
-    """
-
-    type: Literal[ServerMessageType.GAME_STARTED] = ServerMessageType.GAME_STARTED
-    game_id: str
-    players: list[PlayerIdentity]
-
-
-class DrawMessage(BaseModel):
-    """
-    Sent only to the player who drew a tile.
-    """
-
-    type: Literal[ServerMessageType.DRAW] = ServerMessageType.DRAW
-    tile_id: int
-
-
-class DiscardMessage(BaseModel):
-    """
-    Broadcast when any player discards a tile.
-    """
-
-    type: Literal[ServerMessageType.DISCARD] = ServerMessageType.DISCARD
-    seat: int
-    tile_id: int
-    is_tsumogiri: bool
-    is_riichi: bool
-
-
-class MeldMessage(BaseModel):
-    """
-    Broadcast when a player calls a meld (pon, chi, kan).
-    """
-
-    type: Literal[ServerMessageType.MELD] = ServerMessageType.MELD
-    caller_seat: int
-    meld_type: str  # "chi", "pon", "kan"
-    tile_ids: list[int]
-    from_seat: int | None = None
-
-
-class RiichiMessage(BaseModel):
-    """
-    Broadcast when a player declares riichi.
-    """
-
-    type: Literal[ServerMessageType.RIICHI] = ServerMessageType.RIICHI
-    seat: int
-
-
-class TurnMessage(BaseModel):
-    """
-    Sent to notify whose turn it is and available actions.
-    """
-
-    type: Literal[ServerMessageType.TURN] = ServerMessageType.TURN
-    current_seat: int
-    available_actions: list[AvailableAction]
-
-
-class CallPromptMessage(BaseModel):
-    """
-    Sent to a player who can make an optional call (pon, chi, kan, ron).
-    """
-
-    type: Literal[ServerMessageType.CALL_PROMPT] = ServerMessageType.CALL_PROMPT
-    available_calls: list[AvailableAction]
-    timeout_seconds: int = 10
-
-
-class YakuInfo(BaseModel):
-    """Information about a yaku (winning condition)."""
-
-    name: str
-    han: int
-
-
-class RoundEndMessage(BaseModel):
-    """
-    Sent when a round ends with results.
-    """
-
-    type: Literal[ServerMessageType.ROUND_END] = ServerMessageType.ROUND_END
-    result_type: str  # "tsumo", "ron", "draw", "abortive"
-    winner_seats: list[int] = Field(default_factory=list)
-    loser_seat: int | None = None
-    winning_hand: str | None = None
-    yaku: list[YakuInfo] = Field(default_factory=list)
-    han: int | None = None
-    fu: int | None = None
-    score_changes: dict[int, int] = Field(default_factory=dict)  # seat -> change
-    final_scores: dict[int, int] = Field(default_factory=dict)  # seat -> score
-
-
-class GameEndMessage(BaseModel):
-    """
-    Sent when the entire game ends.
-    """
-
-    type: Literal[ServerMessageType.GAME_END] = ServerMessageType.GAME_END
-    final_scores: dict[int, int]  # seat -> score
-    winner_seat: int
-    placements: list[int]  # seats in order of placement (1st, 2nd, 3rd, 4th)
-
-
-ServerMessage = (
-    GameJoinedMessage
-    | GameLeftMessage
-    | PlayerJoinedMessage
-    | PlayerLeftMessage
-    | ServerChatMessage
-    | ErrorMessage
-    # mahjong-specific messages
-    | GameStartedMessage
-    | DrawMessage
-    | DiscardMessage
-    | MeldMessage
-    | RiichiMessage
-    | TurnMessage
-    | CallPromptMessage
-    | RoundEndMessage
-    | GameEndMessage
-)
+class PongMessage(BaseModel):
+    type: Literal[SessionMessageType.PONG] = SessionMessageType.PONG
 
 
 _client_message_adapter = TypeAdapter(ClientMessage)

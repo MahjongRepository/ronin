@@ -28,6 +28,7 @@ class GameAction(str, Enum):
     CALL_KAN = "call_kan"
     CALL_KYUUSHU = "call_kyuushu"
     PASS = "pass"  # noqa: S105
+    CONFIRM_ROUND = "confirm_round"
 
 
 class MeldCallType(str, Enum):
@@ -118,6 +119,7 @@ class TimeoutType(str, Enum):
 
     TURN = "turn"
     MELD = "meld"
+    ROUND_ADVANCE = "round_advance"
 
 
 class GameMode(str, Enum):

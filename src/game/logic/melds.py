@@ -363,33 +363,6 @@ def can_call_open_kan(player: MahjongPlayer, discarded_tile: int, round_state: M
     return matching_count >= TILES_FOR_OPEN_KAN
 
 
-def can_call_closed_kan(player: MahjongPlayer, tile_34: int, round_state: MahjongRoundState) -> bool:
-    """
-    Check if player can call closed kan (ankan) for a specific tile type.
-
-    Requirements:
-    - Player has 4 of the tile in hand
-    - Wall must have at least 2 tiles remaining (need replacement draw)
-    - Total kans in round must be less than 4
-    - If in riichi, kan must not change waiting tiles
-    """
-    if len(round_state.wall) < MIN_WALL_FOR_KAN:
-        return False
-
-    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
-        return False
-
-    matching_count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
-
-    if matching_count < TILES_FOR_CLOSED_KAN:
-        return False
-
-    if player.is_riichi:
-        return _kan_preserves_waits_for_riichi(player, tile_34)
-
-    return True
-
-
 def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool:
     """
     Check if declaring kan on this tile preserves the waiting tiles.
@@ -436,43 +409,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     new_waits = get_waiting_tiles(temp_player)
 
     return new_waits == original_waits
-
-
-def can_call_added_kan(player: MahjongPlayer, tile_34: int, round_state: MahjongRoundState) -> bool:
-    """
-    Check if player can call added kan (shouminkan) for a specific tile type.
-
-    Requirements:
-    - Player has an existing pon of this tile type
-    - Player has the 4th tile in hand
-    - Wall must have at least 2 tiles remaining
-    - Total kans in round must be less than 4
-    - Player is not in riichi (cannot add kan in riichi)
-    """
-    if player.is_riichi:
-        return False
-
-    if len(round_state.wall) < MIN_WALL_FOR_KAN:
-        return False
-
-    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
-        return False
-
-    # check for existing pon of this tile type
-    has_pon = False
-    for meld in player.melds:
-        if meld.type == Meld.PON and meld.tiles:
-            meld_tile_34 = tile_to_34(meld.tiles[0])
-            if meld_tile_34 == tile_34:
-                has_pon = True
-                break
-
-    if not has_pon:
-        return False
-
-    # check for 4th tile in hand
-    matching_count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
-    return matching_count >= 1
 
 
 def call_open_kan(

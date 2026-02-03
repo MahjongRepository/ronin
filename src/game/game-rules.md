@@ -84,19 +84,72 @@ A quad is a set of four identical tiles. It must be declared to function as a se
 * Types of Quads:
     * Concealed Quad (Ankan): Revealing four identical concealed tiles from the hand. This set is considered "concealed"
       for scoring purposes.
-    * Claimed Quad (Daiminkan): Calling "Kan" on an opponent's discard.
+    * Claimed Quad (Daiminkan): Calling "Kan" on an opponent's discard when holding three matching tiles.
     * Extended Quad (Shouminkan): Adding a drawn tile to a previously melded triplet (Pon).
-* Quad Mechanics:
-    1. Declaration: The player reveals the tiles.
-    2. Replacement Tile: The player draws a replacement tile (*Rinshanpai*) from the Dead Wall to maintain the correct
-       number of tiles in hand.
-    3. Dora Indicator: A new Kan Dora indicator is revealed.
-        * *Concealed:* Indicator revealed immediately (before discard).
-        * *Claimed/Extended:* Indicator revealed after the discard (and strictly *after* the replacement tile is drawn).
-        * *Exception:* If an Extended Quad is robbed for a win (*Chankan*), the new indicator is not opened.
-    4. Dead Wall Adjustment: The last tile of the live wall is moved to the Dead Wall to maintain a constant 14 tiles.
 * Limits: A maximum of four quads can be declared in a single hand. If four quads are declared by the *same* player,
   play continues. If four quads are declared by *two or more different* players, the hand ends in an Abortive Draw.
+
+#### 5a. Concealed Quad (Ankan) Flow
+
+Declared during the player's own turn (after drawing), using four identical tiles from hand.
+
+1. Player declares Ankan, reveals the four tiles.
+2. New Kan Dora indicator is revealed **immediately** (before discard).
+3. Player draws a replacement tile (*Rinshanpai*) from the Dead Wall.
+4. Dead Wall Adjustment: the last tile of the live wall is moved to the Dead Wall (maintains 14 tiles).
+5. Player may now:
+    * Declare **another** Concealed/Extended Quad if the replacement tile completes a set of four (repeat from step 1).
+    * Declare *Tsumo* if the replacement tile completes a winning hand (*Rinshan Kaihou*).
+    * Discard a tile to end the turn.
+6. The hand remains closed. Ippatsu is cleared for all players.
+
+*Note:* Consecutive Concealed Quads are allowed without discarding between them, each revealing a new Dora indicator
+immediately. The only limits are four quads per hand and at least two tiles remaining in the live wall.
+
+#### 5b. Claimed Quad (Daiminkan) Flow
+
+Declared by claiming an opponent's discarded tile when holding three matching tiles. Opens the hand.
+
+1. Player calls Kan on the discard, reveals the three tiles from hand plus the claimed tile.
+2. Player draws a replacement tile (*Rinshanpai*) from the Dead Wall.
+3. Dead Wall Adjustment: the last tile of the live wall is moved to the Dead Wall (maintains 14 tiles).
+4. Player may now:
+    * Declare *Tsumo* if the replacement tile completes a winning hand (*Rinshan Kaihou*). The Kan Dora is
+      **not** revealed (the hand ends before the discard).
+    * Discard a tile.
+5. **After the discard passes** (is not claimed for Ron):
+    * The new Kan Dora indicator is revealed.
+    * If the discard is claimed for Ron, the Kan Dora indicator is **not** revealed.
+
+*Note:* The deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chi). The Dora
+indicator is revealed once the discard survives the Ron check, regardless of whether another player then calls a meld.
+
+#### 5c. Extended Quad (Shouminkan) Flow
+
+Declared during the player's own turn by adding a drawn fourth tile to an existing open triplet (Pon).
+
+1. Player declares Shouminkan, adds the tile to the existing Pon.
+2. **Chankan check:** opponents who are waiting on the added tile may declare Ron (*Chankan*).
+    * If Chankan succeeds: the quad is **not** completed. No Kan Dora is revealed. Ippatsu is **not** cleared (the
+      kan never happened). The Chankan winner scores with 1 extra han for the *Chankan* yaku.
+    * If all opponents decline Chankan: continue to step 3.
+3. Player draws a replacement tile (*Rinshanpai*) from the Dead Wall.
+4. Dead Wall Adjustment: the last tile of the live wall is moved to the Dead Wall (maintains 14 tiles).
+5. Player may now:
+    * Declare *Tsumo* if the replacement tile completes a winning hand (*Rinshan Kaihou*). The Kan Dora is
+      **not** revealed (the hand ends before the discard).
+    * Discard a tile.
+6. **After the discard passes** (is not claimed for Ron):
+    * The new Kan Dora indicator is revealed.
+    * If the discard is claimed for Ron, the Kan Dora indicator is **not** revealed.
+
+#### 5d. Kan Dora Timing Summary
+
+| Quad Type              | Dora Reveal Timing                                  | On Rinshan Kaihou | On Ron of Discard |
+|------------------------|-----------------------------------------------------|-------------------|-------------------|
+| Concealed (Ankan)      | Immediately after declaration                       | Dora applies      | N/A (before discard) |
+| Claimed (Daiminkan)    | After the replacement discard passes (not ron'd)    | Dora not revealed | Dora not revealed |
+| Extended (Shouminkan)  | After the replacement discard passes (not ron'd)    | Dora not revealed | Dora not revealed |
 
 ### 6. Riichi
 
@@ -187,29 +240,23 @@ A hand ends in one of three ways:
 
 * Dora: Specific tiles that add value to the hand.
     * Red Dora (Akadora): The set contains red versions of #5 tiles (one for each suit) which act as permanent Dora.
-* Renhou (Blessing of Man): A non-dealer wins by Ron before their first draw, with no calls (including closed kans)
-  having been made by any player. Scored as a 5-han yaku (mangan level).
+* Renhou (Blessing of Man): A non-dealer wins by Ron before their first draw, with no calls (including closed kans) having been made by any player. Scored as a 5-han yaku (mangan level).
 * Double Yakuman: Four hands score as double yakuman (2x the base yakuman value):
-    * Daburu Kokushi Musou (ダブル国士無双): Thirteen Orphans with a 13-sided wait (waiting on any of the 13
-      terminal/honor tiles).
+    * Daburu Kokushi Musou (ダブル国士無双): Thirteen Orphans with a 13-sided wait (waiting on any of the 13 terminal/honor tiles).
     * Suuankou Tanki (四暗刻単騎): Four Concealed Triplets with a pair wait.
     * Daburu Chuuren Poutou (ダブル九蓮宝燈): Nine Gates with a 9-sided wait (1112345678999 + any tile in the suit).
     * Daisuushii (大四喜): Big Four Winds (four wind triplets).
     * Kazoe yakuman (13+ han from regular yaku) remains at single yakuman level.
 * Nagashi Mangan: A special condition occurring at an Exhaustive Draw.
-    * If a player's discard pile consists *only* of terminal and honor tiles, and none of their discards were claimed by
-      opponents, they receive a special payment.
+    * If a player's discard pile consists *only* of terminal and honor tiles, and none of their discards were claimed by opponents, they receive a special payment.
     * This is treated as a special draw, not a win. No Riichi sticks are collected, and no Honba is added.
 
 ### 13. Uma/Oka (End-Game Scoring)
 
-After the game ends, raw scores are adjusted using the Tenhou-standard uma/oka system
-(25000点持ち/30000点返し, ウマ10-20).
+After the game ends, raw scores are adjusted using the uma/oka system (25000点持ち/30000点返し, ウマ10-20).
 
-* Oka (オカ): Each player starts with 25,000 but the target is 30,000. The difference of 5,000 per player (20,000
-  total, or 20 points after dividing by 1,000) is awarded as a bonus to 1st place.
-* Uma (ウマ): Placement bonus/penalty applied after oka. Format 10-20 means 3rd-to-2nd pays 10, 4th-to-1st pays 20.
-  Applied as: 1st +20, 2nd +10, 3rd -10, 4th -20.
+* Oka (オカ): Each player starts with 25,000 but the target is 30,000. The difference of 5,000 per player (20,000 total, or 20 points after dividing by 1,000) is awarded as a bonus to 1st place.
+* Uma (ウマ): Placement bonus/penalty applied after oka. Format 10-20 means 3rd-to-2nd pays 10, 4th-to-1st pays 20. Applied as: 1st +20, 2nd +10, 3rd -10, 4th -20.
 * Calculation:
     1. Subtract target score (30,000) from each player's raw score.
     2. Divide by 1,000.

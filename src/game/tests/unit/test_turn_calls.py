@@ -17,7 +17,7 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
-from game.messaging.events import MeldEvent, RoundEndEvent
+from game.messaging.events import DoraRevealedEvent, MeldEvent, RoundEndEvent
 from game.tests.unit.helpers import _default_seat_configs
 
 
@@ -51,6 +51,7 @@ class TestProcessMeldCall:
         assert meld_events[0].meld_type == MeldViewType.PON
         assert meld_events[0].caller_seat == 1
         assert meld_events[0].from_seat == 0
+        assert meld_events[0].called_tile_id == tile_to_pon
         assert round_state.current_player_seat == 1
 
     def test_process_chi_call(self):
@@ -81,6 +82,7 @@ class TestProcessMeldCall:
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.CHI
         assert meld_events[0].caller_seat == 1
+        assert meld_events[0].called_tile_id == tile_to_chi
         assert round_state.current_player_seat == 1
 
     def test_process_chi_call_requires_sequence_tiles(self):
@@ -213,6 +215,17 @@ class TestProcessTsumoCall:
         # tsumo win clears pending dora (not revealed for the winning hand)
         assert round_state.pending_dora_count == 0
 
+    def test_process_tsumo_no_dora_revealed_event(self):
+        """Tsumo win after kan does not emit dora_revealed event (pending dora cleared)."""
+        game_state = self._create_game_state_with_tsumo()
+        round_state = game_state.round_state
+        round_state.pending_dora_count = 1
+
+        events = process_tsumo_call(round_state, game_state, winner_seat=0)
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
+
 
 class TestOpenKanMeldCall:
     """Tests open kan meld call processing."""
@@ -241,6 +254,27 @@ class TestOpenKanMeldCall:
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.KAN
         assert meld_events[0].kan_type == "open"
+        assert meld_events[0].called_tile_id == tile_to_kan
+
+    def test_process_open_kan_no_immediate_dora_revealed(self):
+        """Open kan does not emit dora_revealed event (dora is deferred to next discard)."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        round_state.players[1].tiles = TilesConverter.string_to_136_array(man="111", pin="23456", sou="23456")
+        tile_to_kan = TilesConverter.string_to_136_array(man="1111")[3]
+        round_state.current_player_seat = 0
+
+        events = process_meld_call(
+            round_state,
+            game_state,
+            caller_seat=1,
+            call_type=MeldCallType.OPEN_KAN,
+            tile_id=tile_to_kan,
+        )
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
 
 
 class TestClosedKanMeldCall:
@@ -268,6 +302,33 @@ class TestClosedKanMeldCall:
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.KAN
         assert meld_events[0].kan_type == "closed"
+        assert meld_events[0].called_tile_id is None
+
+    def test_process_closed_kan_emits_dora_revealed(self):
+        """Closed kan emits a dora_revealed event immediately after the meld event."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # give player 0 four 1m tiles plus other tiles
+        round_state.players[0].tiles = TilesConverter.string_to_136_array(man="1111", pin="2345", sou="23456")
+        round_state.current_player_seat = 0
+
+        events = process_meld_call(
+            round_state,
+            game_state,
+            caller_seat=0,
+            call_type=MeldCallType.CLOSED_KAN,
+            tile_id=TilesConverter.string_to_136_array(man="1")[0],
+        )
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 1
+        assert dora_events[0].tile_id == round_state.dora_indicators[-1]
+        assert dora_events[0].dora_indicators == list(round_state.dora_indicators)
+        # dora_revealed comes after meld event
+        meld_idx = next(i for i, e in enumerate(events) if isinstance(e, MeldEvent))
+        dora_idx = next(i for i, e in enumerate(events) if isinstance(e, DoraRevealedEvent))
+        assert dora_idx > meld_idx
 
 
 class TestAddedKanMeldCall:
@@ -308,6 +369,42 @@ class TestAddedKanMeldCall:
         meld_events = [e for e in events if e.type == "meld"]
         chankan_prompts = [e for e in events if e.type == "call_prompt"]
         assert len(meld_events) > 0 or len(chankan_prompts) > 0
+        # added kan: called_tile_id is None (tile comes from own hand, not discard)
+        for meld_event in meld_events:
+            assert isinstance(meld_event, MeldEvent)
+            assert meld_event.called_tile_id is None
+
+    def test_process_added_kan_no_immediate_dora_revealed(self):
+        """Added kan does not emit dora_revealed event (dora is deferred to next discard)."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        player = round_state.players[0]
+
+        pon_tiles = TilesConverter.string_to_136_array(man="111")
+        fourth_1m = TilesConverter.string_to_136_array(man="1111")[3]
+        pon_meld = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=pon_tiles,
+            opened=True,
+            called_tile=pon_tiles[2],
+            who=0,
+            from_who=1,
+        )
+        player.melds = [pon_meld]
+        player.tiles = [fourth_1m, *TilesConverter.string_to_136_array(pin="12345", sou="1234567")]
+        round_state.current_player_seat = 0
+        round_state.players_with_open_hands = [0]
+
+        events = process_meld_call(
+            round_state,
+            game_state,
+            caller_seat=0,
+            call_type=MeldCallType.ADDED_KAN,
+            tile_id=fourth_1m,
+        )
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
 
 
 class TestProcessMeldCallUnknownType:

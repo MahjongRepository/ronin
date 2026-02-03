@@ -9,9 +9,6 @@ from game.logic.round import is_tempai
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
 
-# ura dora positions in dead wall: indices 7, 8, 9, 10, 11 (beneath each dora indicator)
-FIRST_URA_DORA_INDEX = 7
-
 # riichi point cost
 RIICHI_COST = 1000
 
@@ -77,20 +74,3 @@ def declare_riichi(player: MahjongPlayer, game_state: MahjongGameState) -> None:
 
     # increment riichi sticks
     game_state.riichi_sticks += 1
-
-
-def get_ura_dora(round_state: MahjongRoundState, num_dora: int) -> list[int]:
-    """
-    Get ura dora tiles revealed when winning with riichi.
-
-    The ura dora indicators are at dead wall indices 7, 8, 9, 10, 11
-    (beneath each dora indicator at indices 2, 3, 4, 5, 6).
-    One ura dora is revealed per dora indicator (up to num_dora).
-    Returns the tile_ids of the ura dora indicator tiles.
-    """
-    ura_dora = []
-    for i in range(num_dora):
-        index = FIRST_URA_DORA_INDEX + i
-        if index < len(round_state.dead_wall):
-            ura_dora.append(round_state.dead_wall[index])
-    return ura_dora

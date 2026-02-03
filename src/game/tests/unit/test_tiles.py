@@ -24,13 +24,10 @@ from game.logic.tiles import (
     TERMINALS_34,
     WEST_34,
     WINDS_34,
-    format_hand,
     generate_wall,
-    is_dragon,
     is_honor,
     is_terminal,
     is_terminal_or_honor,
-    is_wind,
     sort_tiles,
     tile_34_to_string,
     tile_to_34,
@@ -200,29 +197,6 @@ class TestIsHonor:
         assert is_honor(26) is False  # 9s
 
 
-class TestIsWind:
-    def test_wind_tiles(self):
-        assert is_wind(27) is True  # east
-        assert is_wind(28) is True  # south
-        assert is_wind(29) is True  # west
-        assert is_wind(30) is True  # north
-
-    def test_non_wind_tiles(self):
-        assert is_wind(31) is False  # haku (dragon)
-        assert is_wind(0) is False  # 1m
-
-
-class TestIsDragon:
-    def test_dragon_tiles(self):
-        assert is_dragon(31) is True  # haku
-        assert is_dragon(32) is True  # hatsu
-        assert is_dragon(33) is True  # chun
-
-    def test_non_dragon_tiles(self):
-        assert is_dragon(27) is False  # east (wind)
-        assert is_dragon(0) is False  # 1m
-
-
 class TestIsTerminalOrHonor:
     def test_terminal_tiles(self):
         assert is_terminal_or_honor(0) is True  # 1m
@@ -260,45 +234,6 @@ class TestGenerateWall:
         wall1 = generate_wall(0.5, 0)
         wall2 = generate_wall(0.6, 0)
         assert wall1 != wall2
-
-
-class TestFormatHand:
-    def test_empty_hand(self):
-        assert format_hand([]) == ""
-
-    def test_single_tile(self):
-        assert format_hand(TilesConverter.string_to_136_array(man="1")) == "1m"
-
-    def test_man_tiles_grouped(self):
-        assert format_hand(TilesConverter.string_to_136_array(man="123")) == "123m"
-
-    def test_mixed_suits(self):
-        hand = TilesConverter.string_to_136_array(man="1", pin="1", sou="1")
-        result = format_hand(hand)
-        assert result == "1m 1p 1s"
-
-    def test_honor_tiles(self):
-        hand = TilesConverter.string_to_136_array(honors="125")
-        result = format_hand(hand)
-        assert result == "E S Haku"
-
-    def test_full_hand(self):
-        # typical starting hand: 123m 456p 789s EEE Haku Haku
-        hand = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="11155")
-        result = format_hand(hand)
-        assert "123m" in result
-        assert "456p" in result
-        assert "789s" in result
-
-    def test_tiles_are_sorted(self):
-        # hand in reverse suit order to verify sorting
-        sou = TilesConverter.string_to_136_array(sou="1")
-        man = TilesConverter.string_to_136_array(man="1")
-        pin = TilesConverter.string_to_136_array(pin="1")
-        hand = [*sou, *man, *pin]
-        result = format_hand(hand)
-        # should be sorted: man, pin, sou
-        assert result == "1m 1p 1s"
 
 
 class TestSortTiles:

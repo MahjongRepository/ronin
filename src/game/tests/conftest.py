@@ -1,10 +1,9 @@
 import pytest
 
-from game.logic.mock import MockGameService
-from game.messaging.mock import MockConnection
 from game.messaging.router import MessageRouter
 from game.server.app import create_app
 from game.session.manager import SessionManager
+from game.tests.mocks import MockConnection, MockGameService
 
 
 @pytest.fixture

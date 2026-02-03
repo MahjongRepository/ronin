@@ -151,6 +151,20 @@ def is_furiten(player: MahjongPlayer) -> bool:
     return False
 
 
+def is_effective_furiten(player: MahjongPlayer) -> bool:
+    """
+    Check if player is in any form of furiten state.
+
+    Combines temporary furiten, riichi furiten, and discard furiten.
+    Short-circuits on cheap boolean flags before computing expensive discard furiten.
+    """
+    if player.is_temporary_furiten:
+        return True
+    if player.is_riichi_furiten:
+        return True
+    return is_furiten(player)
+
+
 def can_call_ron(player: MahjongPlayer, discarded_tile: int, round_state: MahjongRoundState) -> bool:
     """
     Check if player can call ron on a discarded tile.

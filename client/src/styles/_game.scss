@@ -66,9 +66,12 @@
         color: $text-secondary;
     }
 
-    &.log-error {
+    /* stylelint-disable selector-class-pattern -- class generated from protocol type */
+    &.log-error,
+    &.log-session_error {
         color: $danger;
     }
+    /* stylelint-enable selector-class-pattern */
 }
 
 .log-time {

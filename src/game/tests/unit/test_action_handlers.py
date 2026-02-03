@@ -36,6 +36,7 @@ from game.logic.types import (
 from game.messaging.events import (
     CallPromptEvent,
     DiscardEvent,
+    DoraRevealedEvent,
     DrawEvent,
     ErrorEvent,
     MeldEvent,
@@ -723,6 +724,11 @@ class TestCompleteAddedKanAfterChankanDecline:
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.KAN
         assert meld_events[0].kan_type == KanType.ADDED
+        assert meld_events[0].called_tile_id is None
+
+        # added kan defers dora, so no dora_revealed event at meld time
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
 
         # should also have draw and turn events (no four kans abort)
         draw_events = [e for e in events if isinstance(e, DrawEvent)]

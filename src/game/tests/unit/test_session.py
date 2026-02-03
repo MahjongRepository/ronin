@@ -1,24 +1,33 @@
 import asyncio
-from unittest.mock import AsyncMock
+import contextlib
+import time
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from game.logic.enums import CallType, MeldCallType, TimeoutType
-from game.logic.mock import MockGameService, MockResultEvent
 from game.logic.timer import TimerConfig, TurnTimer
-from game.logic.types import GameEndResult, GameView, MeldCaller, PlayerStanding, PlayerView
+from game.logic.types import (
+    ExhaustiveDrawResult,
+    GameEndResult,
+    GameView,
+    MeldCaller,
+    PlayerStanding,
+    PlayerView,
+)
 from game.messaging.events import (
     CallPromptEvent,
     EventType,
     GameEndedEvent,
+    RoundEndEvent,
     RoundStartedEvent,
     ServiceEvent,
     TurnEvent,
 )
-from game.messaging.mock import MockConnection
-from game.messaging.types import ServerMessageType
-from game.session.manager import SessionManager
+from game.messaging.types import SessionMessageType
+from game.session.manager import HEARTBEAT_TIMEOUT, SessionManager
 from game.session.models import Game, Player
+from game.tests.mocks import MockConnection, MockGameService, MockResultEvent
 
 
 def _make_dummy_game_view() -> GameView:
@@ -78,7 +87,7 @@ class TestSessionManager:
         # first message is game_joined, then game_started event from start_game
         assert len(conn.sent_messages) >= 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == ServerMessageType.GAME_JOINED
+        assert msg["type"] == SessionMessageType.GAME_JOINED
 
     async def test_join_game_starts_game_on_first_player(self, manager):
         """When first player joins, start_game is called and game_started events are sent."""
@@ -104,7 +113,7 @@ class TestSessionManager:
 
         # conn1 should have received: game_joined + player_joined + game_started
         player_joined_msgs = [
-            m for m in conn1.sent_messages if m.get("type") == ServerMessageType.PLAYER_JOINED
+            m for m in conn1.sent_messages if m.get("type") == SessionMessageType.PLAYER_JOINED
         ]
         assert len(player_joined_msgs) == 1
         assert player_joined_msgs[0]["player_name"] == "Bob"
@@ -125,7 +134,7 @@ class TestSessionManager:
         await manager.leave_game(conn2)
 
         assert len(conn1.sent_messages) == 1
-        assert conn1.sent_messages[0]["type"] == ServerMessageType.PLAYER_LEFT
+        assert conn1.sent_messages[0]["type"] == SessionMessageType.PLAYER_LEFT
         assert conn1.sent_messages[0]["player_name"] == "Bob"
 
     async def test_join_started_game_error(self, manager):
@@ -142,7 +151,7 @@ class TestSessionManager:
         await manager.join_game(connections[4], "game1", "Player4")
 
         msg = connections[4].sent_messages[0]
-        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == "game_started"
 
     async def test_game_full_error(self, manager):
@@ -164,7 +173,7 @@ class TestSessionManager:
         await manager.join_game(conn3, "game1", "Player2")
 
         msg = conn3.sent_messages[0]
-        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == "game_full"
 
     async def test_duplicate_name_error(self, manager):
@@ -178,7 +187,7 @@ class TestSessionManager:
         await manager.join_game(conn2, "game1", "Alice")
 
         msg = conn2.sent_messages[0]
-        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == "name_taken"
 
     async def test_empty_game_is_cleaned_up(self, manager):
@@ -200,7 +209,7 @@ class TestSessionManager:
 
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == "game_not_found"
 
     async def test_handle_game_action_broadcasts_events(self, manager):
@@ -514,7 +523,7 @@ class TestSessionManagerDefensiveChecks:
 
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == "already_in_game"
 
     async def test_leave_game_when_game_is_none(self, manager):
@@ -541,7 +550,7 @@ class TestSessionManagerDefensiveChecks:
 
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == ServerMessageType.ERROR
+        assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == "not_in_game"
 
     async def test_handle_game_action_game_is_none(self, manager):
@@ -754,6 +763,35 @@ class TestSessionManagerTimerIntegration:
 
         config = TimerConfig()
         assert timer.remaining_bank == initial_bank + config.round_bonus_seconds
+
+    async def test_maybe_start_timer_with_round_end_event(self, manager):
+        """_maybe_start_timer starts fixed round-advance timers when RoundEndEvent is present."""
+        game, _player, _conn = self._make_game_with_human(manager)
+        timer = TurnTimer()
+        manager._timers["game1"] = {0: timer}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        round_end_event = ServiceEvent(
+            event="round_end",
+            data=RoundEndEvent(
+                type=EventType.ROUND_END,
+                target="all",
+                result=ExhaustiveDrawResult(
+                    tempai_seats=[0],
+                    noten_seats=[1, 2, 3],
+                    score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
+                ),
+            ),
+            target="all",
+        )
+
+        await manager._maybe_start_timer(game, [round_end_event])
+
+        # timer should have an active task (round advance timer started)
+        assert timer._active_task is not None
+        # fixed timer doesn't consume bank time
+        assert timer._turn_start_time is None
+        timer.cancel()
 
     async def test_maybe_start_timer_with_game_ended_event(self, manager):
         """_maybe_start_timer returns early and cleans up timers when GameEndedEvent is present."""
@@ -1438,7 +1476,7 @@ class TestSessionManagerDisconnect:
 
         await manager.join_game(conns[4], "game1", "Latecomer")
 
-        error_msgs = [m for m in conns[4].sent_messages if m.get("type") == "error"]
+        error_msgs = [m for m in conns[4].sent_messages if m.get("type") == "session_error"]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == "game_started"
 
@@ -1457,7 +1495,7 @@ class TestSessionManagerDisconnect:
 
         await manager.join_game(conn2, "game1", "Bob")
 
-        error_msgs = [m for m in conn2.sent_messages if m.get("type") == "error"]
+        error_msgs = [m for m in conn2.sent_messages if m.get("type") == "session_error"]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == "game_started"
 
@@ -1770,3 +1808,136 @@ class TestSessionManagerDisconnect:
         # replace_player_with_bot was called but process_bot_actions was NOT
         # (early return due to missing lock)
         assert len(process_calls) == 0
+
+
+class TestHeartbeat:
+    """Tests for heartbeat (ping/pong) and per-game heartbeat monitor."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    async def test_ping_responds_with_pong(self, manager):
+        """handle_ping sends a pong message and updates last activity timestamp."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        initial_time = manager._last_ping[conn.connection_id]
+
+        # small delay so monotonic time advances
+        await asyncio.sleep(0.01)
+        await manager.handle_ping(conn)
+
+        assert len(conn.sent_messages) == 1
+        assert conn.sent_messages[0]["type"] == SessionMessageType.PONG
+        assert manager._last_ping[conn.connection_id] > initial_time
+
+    async def test_register_connection_initializes_ping_timestamp(self, manager):
+        """register_connection sets initial ping timestamp."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+
+        assert conn.connection_id in manager._last_ping
+        assert isinstance(manager._last_ping[conn.connection_id], float)
+
+    async def test_unregister_connection_cleans_up_ping_tracking(self, manager):
+        """unregister_connection removes ping tracking."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        assert conn.connection_id in manager._last_ping
+
+        manager.unregister_connection(conn)
+        assert conn.connection_id not in manager._last_ping
+
+    async def test_heartbeat_monitor_disconnects_stale_connection(self, manager):
+        """Heartbeat monitor disconnects connections that haven't pinged within timeout."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+
+        game = manager.get_game("game1")
+        assert game is not None
+
+        # set the last ping to well past the timeout
+        manager._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
+
+        # manually add the game to internal state (bypass start for this test)
+        # and run one iteration of the heartbeat check
+        with patch("game.session.manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.side_effect = [None, asyncio.CancelledError()]
+            with contextlib.suppress(asyncio.CancelledError):
+                await manager._heartbeat_loop("game1")
+
+        assert conn.is_closed
+
+    async def test_heartbeat_monitor_keeps_active_connections(self, manager):
+        """Heartbeat monitor does not disconnect connections with recent pings."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+
+        # last ping is fresh (just registered)
+        with patch("game.session.manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.side_effect = [None, asyncio.CancelledError()]
+            with contextlib.suppress(asyncio.CancelledError):
+                await manager._heartbeat_loop("game1")
+
+        assert not conn.is_closed
+
+    async def test_heartbeat_starts_with_game(self, manager):
+        """Heartbeat task is created when the game starts."""
+        conns = [MockConnection() for _ in range(4)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        assert "game1" in manager._heartbeat_tasks
+        task = manager._heartbeat_tasks["game1"]
+        assert not task.done()
+
+        # clean up: cancel the heartbeat task
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    async def test_heartbeat_stops_on_game_cleanup(self, manager):
+        """Heartbeat task is cancelled when game becomes empty."""
+        conns = [MockConnection() for _ in range(4)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=0)
+
+        for i, c in enumerate(conns):
+            await manager.join_game(c, "game1", f"Player{i}")
+
+        assert "game1" in manager._heartbeat_tasks
+        heartbeat_task = manager._heartbeat_tasks["game1"]
+
+        # leave all players -- game becomes empty, cleanup runs
+        for c in conns:
+            await manager.leave_game(c)
+
+        assert "game1" not in manager._heartbeat_tasks
+        assert heartbeat_task.done()
+
+    async def test_heartbeat_loop_stops_when_game_removed(self, manager):
+        """Heartbeat loop returns when the game is no longer in the games dict."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+        await manager.join_game(conn, "game1", "Alice")
+
+        # remove the game from the dict
+        manager._games.pop("game1", None)
+
+        with patch("game.session.manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.return_value = None
+            # should return without error when game is missing
+            await manager._heartbeat_loop("game1")
+
+        assert not conn.is_closed

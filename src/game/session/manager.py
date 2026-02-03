@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import TimeoutType
@@ -8,7 +9,9 @@ from game.logic.timer import TurnTimer
 from game.messaging.events import (
     CallPromptEvent,
     ErrorEvent,
+    FuritenEvent,
     GameEndedEvent,
+    RoundEndEvent,
     RoundStartedEvent,
     TurnEvent,
 )
@@ -18,11 +21,16 @@ from game.messaging.types import (
     GameLeftMessage,
     PlayerJoinedMessage,
     PlayerLeftMessage,
-    ServerChatMessage,
+    PongMessage,
+    SessionChatMessage,
 )
 from game.session.models import Game, Player
 from game.session.types import GameInfo
 from shared.logging import rotate_log_file
+
+HEARTBEAT_CHECK_INTERVAL = 5  # seconds between heartbeat checks
+HEARTBEAT_TIMEOUT = 30  # seconds before disconnecting an idle client
+ROUND_ADVANCE_TIMEOUT = 15  # seconds to confirm round advancement
 
 if TYPE_CHECKING:
     from game.logic.service import GameService
@@ -44,13 +52,17 @@ class SessionManager:
         self._games: dict[str, Game] = {}  # game_id -> Game
         self._timers: dict[str, dict[int, TurnTimer]] = {}  # game_id -> {seat -> TurnTimer}
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
+        self._last_ping: dict[str, float] = {}  # connection_id -> monotonic timestamp
+        self._heartbeat_tasks: dict[str, asyncio.Task[None]] = {}  # game_id -> heartbeat task
 
     def register_connection(self, connection: ConnectionProtocol) -> None:
         self._connections[connection.connection_id] = connection
+        self._last_ping[connection.connection_id] = time.monotonic()
 
     def unregister_connection(self, connection: ConnectionProtocol) -> None:
         self._connections.pop(connection.connection_id, None)
         self._players.pop(connection.connection_id, None)
+        self._last_ping.pop(connection.connection_id, None)
 
     def get_player(self, connection: ConnectionProtocol) -> Player | None:
         return self._players.get(connection.connection_id)
@@ -184,15 +196,15 @@ class SessionManager:
         if game.started and not game.is_empty and player_seat is not None:
             await self._replace_with_bot(game, player_name, player_seat)
 
-        # clean up empty games
-        if game.is_empty:
+        # clean up empty games (use pop to ensure only one task performs cleanup)
+        if game.is_empty and self._games.pop(game.game_id, None) is not None:
             logger.info(f"game {game.game_id} is empty, cleaning up")
-            self._games.pop(game.game_id, None)
             timers = self._timers.pop(game.game_id, None)
             if timers:
                 for timer in timers.values():
                     timer.cancel()
             self._game_locks.pop(game.game_id, None)
+            await self._stop_heartbeat_for_game(game.game_id)
             self._game_service.cleanup_game(game.game_id)
 
     async def _replace_with_bot(self, game: Game, player_name: str, seat: int) -> None:
@@ -287,11 +299,47 @@ class SessionManager:
 
         await self._broadcast_to_game(
             game=game,
-            message=ServerChatMessage(
+            message=SessionChatMessage(
                 player_name=player.name,
                 text=text,
             ).model_dump(),
         )
+
+    async def handle_ping(self, connection: ConnectionProtocol) -> None:
+        """Respond to client ping with pong and update activity timestamp."""
+        self._last_ping[connection.connection_id] = time.monotonic()
+        await connection.send_message(PongMessage().model_dump())
+
+    def _start_heartbeat_for_game(self, game_id: str) -> None:
+        """Start the heartbeat monitor for a specific game."""
+        self._heartbeat_tasks[game_id] = asyncio.create_task(self._heartbeat_loop(game_id))
+
+    async def _stop_heartbeat_for_game(self, game_id: str) -> None:
+        """Stop the heartbeat monitor for a specific game."""
+        task = self._heartbeat_tasks.pop(game_id, None)
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    async def _heartbeat_loop(self, game_id: str) -> None:
+        """Periodically check for stale connections in a specific game."""
+        while True:
+            await asyncio.sleep(HEARTBEAT_CHECK_INTERVAL)
+            game = self._games.get(game_id)
+            if game is None:
+                return
+
+            now = time.monotonic()
+            for player in list(game.players.values()):
+                conn_id = player.connection_id
+                last_ping = self._last_ping.get(conn_id)
+                if last_ping is not None and now - last_ping > HEARTBEAT_TIMEOUT:
+                    connection = self._connections.get(conn_id)
+                    if connection:
+                        logger.info(f"heartbeat timeout for {conn_id} in game {game_id}, disconnecting")
+                        with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+                            await connection.close(code=1000, reason="heartbeat_timeout")
 
     async def _start_mahjong_game(self, game: Game) -> None:
         """
@@ -314,6 +362,7 @@ class SessionManager:
                 timers[player.seat] = TurnTimer()
         self._timers[game.game_id] = timers
         self._game_locks[game.game_id] = asyncio.Lock()
+        self._start_heartbeat_for_game(game.game_id)
 
         async with self._game_locks[game.game_id]:
             await self._broadcast_events(game, events)
@@ -403,9 +452,29 @@ class SessionManager:
             for timer in timers.values():
                 timer.add_round_bonus()
 
-        game_id = game.game_id
+        # check for round end events -- start round advance timers for human players
+        if any(isinstance(event.data, RoundEndEvent) for event in events):
+            self._start_round_advance_timers(game, timers)
+            return
 
-        # check for turn events targeting a connected player
+        if self._start_turn_timer_from_events(game, timers, events):
+            return
+
+        # start meld timers for all connected callers (PvP can have multiple human callers)
+        game_id = game.game_id
+        caller_seats = self._find_connected_caller_seats(game, events)
+        for seat in caller_seats:
+            timer = timers.get(seat)
+            if timer is not None:
+                timer.start_meld_timer(
+                    lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.MELD, s)
+                )
+
+    def _start_turn_timer_from_events(
+        self, game: Game, timers: dict[int, TurnTimer], events: list[ServiceEvent]
+    ) -> bool:
+        """Start a turn timer if events contain a TurnEvent for a connected player."""
+        game_id = game.game_id
         for event in events:
             if isinstance(event.data, TurnEvent):
                 seat = event.data.current_seat
@@ -414,16 +483,22 @@ class SessionManager:
                     timer.start_turn_timer(
                         lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.TURN, s)
                     )
-                    return
+                    return True
+        return False
 
-        # start meld timers for all connected callers (PvP can have multiple human callers)
-        caller_seats = self._find_connected_caller_seats(game, events)
-        for seat in caller_seats:
-            timer = timers.get(seat)
-            if timer is not None:
-                timer.start_meld_timer(
-                    lambda gid=game_id, s=seat: self._handle_timeout(gid, TimeoutType.MELD, s)
-                )
+    def _start_round_advance_timers(self, game: Game, timers: dict[int, TurnTimer]) -> None:
+        """Start fixed-duration timers for human players to confirm round advancement."""
+        game_id = game.game_id
+        for player in game.players.values():
+            if player.seat is not None:
+                timer = timers.get(player.seat)
+                if timer is not None:
+                    timer.start_fixed_timer(
+                        ROUND_ADVANCE_TIMEOUT,
+                        lambda gid=game_id, s=player.seat: self._handle_timeout(
+                            gid, TimeoutType.ROUND_ADVANCE, s
+                        ),
+                    )
 
     def _cleanup_timer_on_game_end(self, game: Game, events: list[ServiceEvent]) -> bool:
         """
@@ -479,7 +554,7 @@ class SessionManager:
         return None
 
     def _has_game_events(self, events: list[ServiceEvent]) -> bool:
-        return any(not isinstance(event.data, ErrorEvent) for event in events)
+        return any(not isinstance(event.data, (ErrorEvent, FuritenEvent)) for event in events)
 
     def _has_error_events(self, events: list[ServiceEvent]) -> bool:
         return any(isinstance(event.data, ErrorEvent) for event in events)
@@ -521,13 +596,15 @@ class SessionManager:
             if player is None:
                 return
 
-            # deduct elapsed bank time without cancelling the task, since this
-            # callback executes within the timer task itself
-            timers = self._timers.get(game_id)
-            if timers:
-                player_timer = timers.get(seat)
-                if player_timer:
-                    player_timer.consume_bank()
+            # only consume bank for TURN timeouts.
+            # ROUND_ADVANCE and MELD timers use fixed durations (_turn_start_time is None),
+            # so consume_bank() would be a no-op anyway, but being explicit is cleaner.
+            if timeout_type == TimeoutType.TURN:
+                timers = self._timers.get(game_id)
+                if timers:
+                    player_timer = timers.get(seat)
+                    if player_timer:
+                        player_timer.consume_bank()
 
             events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
             await self._broadcast_events(game, events)

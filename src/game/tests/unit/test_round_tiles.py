@@ -393,89 +393,70 @@ class TestRevealPendingDora:
         round_state = self._create_round_state_with_pending_dora(pending_count=1)
         initial_dora_count = len(round_state.dora_indicators)
 
-        reveal_pending_dora(round_state)
+        revealed = reveal_pending_dora(round_state)
 
         assert len(round_state.dora_indicators) == initial_dora_count + 1
         assert round_state.pending_dora_count == 0
+        assert len(revealed) == 1
+        assert revealed[0] == round_state.dora_indicators[-1]
 
     def test_reveal_pending_dora_multiple(self):
         round_state = self._create_round_state_with_pending_dora(pending_count=2)
         initial_dora_count = len(round_state.dora_indicators)
 
-        reveal_pending_dora(round_state)
+        revealed = reveal_pending_dora(round_state)
 
         assert len(round_state.dora_indicators) == initial_dora_count + 2
         assert round_state.pending_dora_count == 0
+        assert len(revealed) == 2
+        # verify ordering: revealed in the same order as added to dora_indicators
+        assert revealed[0] == round_state.dora_indicators[-2]
+        assert revealed[1] == round_state.dora_indicators[-1]
 
     def test_reveal_pending_dora_noop_when_zero(self):
         round_state = self._create_round_state_with_pending_dora(pending_count=0)
         initial_dora_count = len(round_state.dora_indicators)
 
-        reveal_pending_dora(round_state)
+        revealed = reveal_pending_dora(round_state)
 
         assert len(round_state.dora_indicators) == initial_dora_count
         assert round_state.pending_dora_count == 0
+        assert revealed == []
 
 
-class TestDiscardTileRevealsPendingDora:
-    def _create_round_state(self) -> MahjongRoundState:
-        """Create a round state with pending dora and dead wall."""
-        # 14 tiles: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
+class TestDiscardTileDoesNotRevealPendingDora:
+    """Verify discard_tile does not reveal pending dora.
+
+    Deferred dora (from open/added kan) is revealed at the turn level
+    after confirming the discard was not ron'd, not inside discard_tile.
+    """
+
+    def test_discard_preserves_pending_dora(self):
+        """discard_tile leaves pending_dora_count and dora_indicators unchanged."""
         dead_wall = [
             *TilesConverter.string_to_136_array(honors="4444")[2:],
             *TilesConverter.string_to_136_array(honors="555566667777"),
         ]
-        man_3 = TilesConverter.string_to_136_array(man="3333")
-        man_4 = TilesConverter.string_to_136_array(man="4444")
         man_6 = TilesConverter.string_to_136_array(man="6666")
-        man_8 = TilesConverter.string_to_136_array(man="8888")
-        man_9 = TilesConverter.string_to_136_array(man="9999")
-        pin_2 = TilesConverter.string_to_136_array(pin="2222")
         players = [
-            MahjongPlayer(seat=0, name="Player1", tiles=[man_3[2], man_6[0], man_8[2], pin_2[0]]),
-            MahjongPlayer(seat=1, name="Bot1", tiles=[man_3[3], man_6[1], man_8[3], pin_2[1]]),
-            MahjongPlayer(seat=2, name="Bot2", tiles=[man_4[0], man_6[2], man_9[0], pin_2[2]]),
-            MahjongPlayer(seat=3, name="Bot3", tiles=[man_4[1], man_6[3], man_9[1], pin_2[3]]),
+            MahjongPlayer(seat=0, name="Player1", tiles=[man_6[0]]),
+            MahjongPlayer(seat=1, name="Bot1"),
+            MahjongPlayer(seat=2, name="Bot2"),
+            MahjongPlayer(seat=3, name="Bot3"),
         ]
-        return MahjongRoundState(
+        round_state = MahjongRoundState(
             players=players,
             current_player_seat=0,
             dead_wall=dead_wall,
             dora_indicators=[dead_wall[FIRST_DORA_INDEX]],
             pending_dora_count=1,
         )
-
-    def test_discard_reveals_pending_dora(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
         initial_dora_count = len(round_state.dora_indicators)
 
-        discard_tile(round_state, seat=0, tile_id=man_6)
-
-        assert len(round_state.dora_indicators) == initial_dora_count + 1
-        assert round_state.pending_dora_count == 0
-
-    def test_discard_reveals_multiple_pending_dora(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
-        round_state.pending_dora_count = 2
-        initial_dora_count = len(round_state.dora_indicators)
-
-        discard_tile(round_state, seat=0, tile_id=man_6)
-
-        assert len(round_state.dora_indicators) == initial_dora_count + 2
-        assert round_state.pending_dora_count == 0
-
-    def test_discard_without_pending_dora_unchanged(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
-        round_state.pending_dora_count = 0
-        initial_dora_count = len(round_state.dora_indicators)
-
-        discard_tile(round_state, seat=0, tile_id=man_6)
+        discard_tile(round_state, seat=0, tile_id=man_6[0])
 
         assert len(round_state.dora_indicators) == initial_dora_count
-        assert round_state.pending_dora_count == 0
+        assert round_state.pending_dora_count == 1
 
 
 class TestInitRoundResetsPendingDora:

@@ -103,20 +103,6 @@ def is_honor(tile_34: int) -> bool:
     return HONOR_34_START <= tile_34 <= HONOR_34_END
 
 
-def is_wind(tile_34: int) -> bool:
-    """
-    Check if tile is a wind (E, S, W, N).
-    """
-    return tile_34 in WINDS_34
-
-
-def is_dragon(tile_34: int) -> bool:
-    """
-    Check if tile is a dragon (Haku, Hatsu, Chun).
-    """
-    return tile_34 in DRAGONS_34
-
-
 def is_terminal_or_honor(tile_34: int) -> bool:
     """
     Check if tile is terminal or honor (yaochuuhai).
@@ -149,56 +135,6 @@ def _randomly_shuffle_array(array: list) -> None:
         src = x
         dst = rand_seeds[x]
         array[src], array[dst] = array[dst], array[src]
-
-
-def format_hand(tiles: list[int]) -> str:
-    """
-    Format a hand of tiles for display.
-
-    Groups tiles by suit and returns a readable string like "123m 456p 789s EEE".
-    """
-    if not tiles:
-        return ""
-
-    grouped = _group_tiles_by_suit(sorted(tiles))
-    return _build_hand_string(grouped)
-
-
-def _group_tiles_by_suit(sorted_tiles: list[int]) -> dict[str, list[int]]:
-    """
-    Group tiles by suit category.
-    """
-    grouped: dict[str, list[int]] = {"man": [], "pin": [], "sou": [], "honor": []}
-
-    for tile_id in sorted_tiles:
-        tile_34 = tile_to_34(tile_id)
-        if MAN_34_START <= tile_34 <= MAN_34_END:
-            grouped["man"].append(tile_34 - MAN_34_START + 1)
-        elif PIN_34_START <= tile_34 <= PIN_34_END:
-            grouped["pin"].append(tile_34 - PIN_34_START + 1)
-        elif SOU_34_START <= tile_34 <= SOU_34_END:
-            grouped["sou"].append(tile_34 - SOU_34_START + 1)
-        else:
-            grouped["honor"].append(tile_34)
-
-    return grouped
-
-
-def _build_hand_string(grouped: dict[str, list[int]]) -> str:
-    """
-    Build display string from grouped tiles.
-    """
-    parts = []
-    if grouped["man"]:
-        parts.append("".join(str(n) for n in grouped["man"]) + "m")
-    if grouped["pin"]:
-        parts.append("".join(str(n) for n in grouped["pin"]) + "p")
-    if grouped["sou"]:
-        parts.append("".join(str(n) for n in grouped["sou"]) + "s")
-    if grouped["honor"]:
-        parts.extend(tile_34_to_string(t) for t in grouped["honor"])
-
-    return " ".join(parts)
 
 
 def sort_tiles(tiles: list[int]) -> list[int]:

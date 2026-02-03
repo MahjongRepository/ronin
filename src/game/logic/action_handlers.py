@@ -29,6 +29,7 @@ from game.logic.state import (
     RoundPhase,
 )
 from game.logic.turn import (
+    emit_deferred_dora_events,
     process_discard_phase,
     process_draw_phase,
     process_meld_call,
@@ -201,10 +202,13 @@ def _resolve_all_passed(
     """
     Handle resolution when all callers passed.
 
-    Finalize pending riichi, check four riichi abortive draw,
-    advance turn, and draw for next player.
+    Reveal deferred dora (if ron prompt was declined), finalize pending riichi,
+    check four riichi abortive draw, advance turn, and draw for next player.
     """
     events: list[GameEvent] = []
+
+    # reveal deferred dora now that the discard passed the ron check
+    emit_deferred_dora_events(round_state, events)
 
     discarder = round_state.players[prompt.from_seat]
     if discarder.discards and discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:

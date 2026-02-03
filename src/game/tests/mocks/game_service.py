@@ -16,8 +16,7 @@ class MockResultEvent(GameEvent):
 
 
 class MockGameService(GameService):
-    """
-    Mock game service for testing.
+    """Mock game service for testing.
 
     Simply echoes back actions as events.
     """
@@ -26,9 +25,7 @@ class MockGameService(GameService):
         self._player_seats: dict[str, dict[str, int]] = {}  # game_id -> {player_name -> seat}
 
     def get_player_seat(self, game_id: str, player_name: str) -> int | None:
-        """
-        Get the seat number for a player by name.
-        """
+        """Get the seat number for a player by name."""
         game_seats = self._player_seats.get(game_id)
         if game_seats is None:
             return None

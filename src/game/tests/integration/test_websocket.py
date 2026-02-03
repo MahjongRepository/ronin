@@ -4,10 +4,10 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from game.logic.mock import MockGameService
 from game.messaging.encoder import decode, encode
 from game.server.app import create_app
 from game.server.websocket import WebSocketConnection
+from game.tests.mocks import MockGameService
 
 
 class TestWebSocketIntegration:
@@ -172,7 +172,7 @@ class TestWebSocketIntegration:
             self._send_message(ws, {"type": "invalid"})
 
             response = self._receive_message(ws)
-            assert response["type"] == "error"
+            assert response["type"] == "session_error"
             assert response["code"] == "invalid_message"
 
     def test_list_games_empty(self, client):

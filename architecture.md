@@ -31,7 +31,11 @@ Each human player in the game has independent bank time managed by per-player ti
 
 ### Disconnect-to-bot replacement
 
-When a human player disconnects from a started game, they are replaced with a bot instead of ending the game. The bot takes over the disconnected player's seat and continues playing. When the last human disconnects, the game is cleaned up (no all-bot games run without observers).
+When a human player disconnects from a started game, they are replaced with a bot instead of ending the game. The bot takes over the disconnected player's seat and continues playing. An application-level heartbeat (ping/pong) monitors client liveness; if no ping is received within 30 seconds, the server disconnects the client and triggers bot replacement. When the last human disconnects, the game is cleaned up (no all-bot games run without observers).
+
+### Round Advancement
+
+After a round ends, the server enters a waiting state. Human players must send a `confirm_round` action (or a 15-second timeout fires) before the next round begins. Bot seats are auto-confirmed. This allows clients to display round results before advancing.
 
 ### Web UI flow (client SPA on port 3000)
 

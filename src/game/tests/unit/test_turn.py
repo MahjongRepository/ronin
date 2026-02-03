@@ -16,7 +16,9 @@ from game.logic.turn import (
     process_draw_phase,
 )
 from game.messaging.events import (
+    CallPromptEvent,
     DiscardEvent,
+    DoraRevealedEvent,
     DrawEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
@@ -132,6 +134,140 @@ class TestProcessDiscardPhase:
         call_prompts = [e for e in events if e.type == "call_prompt"]
         if not call_prompts:
             assert round_state.current_player_seat == (initial_seat + 1) % 4
+
+
+class TestProcessDiscardPhaseDoraRevealed:
+    """Tests that deferred dora events are emitted during discard phase."""
+
+    def _create_game_state_with_pending_dora(self):
+        """Create game state with pending dora from a previous open/added kan."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        # simulate pending dora from a previous open kan
+        round_state.pending_dora_count = 1
+        # draw a tile for the dealer
+        draw_tile(round_state)
+        return game_state
+
+    def test_discard_phase_emits_dora_revealed_for_deferred_dora(self):
+        """Discard after open/added kan emits dora_revealed event."""
+        game_state = self._create_game_state_with_pending_dora()
+        round_state = game_state.round_state
+        tile_to_discard = round_state.players[0].tiles[0]
+        initial_dora_count = len(round_state.dora_indicators)
+
+        events = process_discard_phase(round_state, game_state, tile_to_discard)
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 1
+        assert dora_events[0].tile_id == round_state.dora_indicators[-1]
+        assert len(dora_events[0].dora_indicators) == initial_dora_count + 1
+
+    def test_discard_phase_dora_revealed_follows_discard_event(self):
+        """dora_revealed event comes after discard event in event list."""
+        game_state = self._create_game_state_with_pending_dora()
+        round_state = game_state.round_state
+        tile_to_discard = round_state.players[0].tiles[0]
+
+        events = process_discard_phase(round_state, game_state, tile_to_discard)
+
+        discard_idx = next(i for i, e in enumerate(events) if isinstance(e, DiscardEvent))
+        dora_idx = next(i for i, e in enumerate(events) if isinstance(e, DoraRevealedEvent))
+        assert dora_idx > discard_idx
+
+    def test_discard_phase_emits_multiple_dora_revealed_events(self):
+        """Discard with multiple pending dora emits multiple dora_revealed events."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        round_state.pending_dora_count = 2
+        draw_tile(round_state)
+        tile_to_discard = round_state.players[0].tiles[0]
+        initial_dora_count = len(round_state.dora_indicators)
+
+        events = process_discard_phase(round_state, game_state, tile_to_discard)
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 2
+        assert dora_events[0].tile_id != dora_events[1].tile_id
+        assert len(round_state.dora_indicators) == initial_dora_count + 2
+
+    def test_discard_phase_no_dora_revealed_without_pending(self):
+        """No dora_revealed event when there are no pending dora indicators."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        assert round_state.pending_dora_count == 0
+        draw_tile(round_state)
+        tile_to_discard = round_state.players[0].tiles[0]
+
+        events = process_discard_phase(round_state, game_state, tile_to_discard)
+
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
+
+
+class TestDeferredDoraNotRevealedOnRon:
+    """Deferred dora (from open/added kan) must not be revealed when the discard is ron'd.
+
+    Under our rules, open/added kan dora is revealed after the discard
+    passes (is not claimed for ron). If someone rons the discard, the kan
+    dora indicator should remain hidden and pending_dora_count should be
+    preserved so it can be revealed on a future discard.
+    """
+
+    def test_pending_dora_not_revealed_when_discard_is_ronned(self):
+        """Dora indicators must not change when the discard triggers a ron prompt."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # simulate pending dora from a previous open kan
+        round_state.pending_dora_count = 1
+        initial_dora_count = len(round_state.dora_indicators)
+
+        # give player 1 a tempai hand waiting for 2p (pair wait)
+        # 123m 456m 789m 111p -- needs 2p for the pair
+        round_state.players[1].tiles = TilesConverter.string_to_136_array(man="123456789", pin="1112")
+
+        # draw a tile for player 0
+        draw_tile(round_state)
+
+        # player 0 discards the winning tile (2p) so player 1 can ron
+        win_tile = TilesConverter.string_to_136_array(pin="22")[1]
+        round_state.players[0].tiles.append(win_tile)
+
+        events = process_discard_phase(round_state, game_state, win_tile)
+
+        # ron prompt should be generated
+        ron_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == "ron"]
+        assert len(ron_prompts) == 1
+        assert 1 in ron_prompts[0].callers
+
+        # the deferred dora must NOT have been revealed
+        assert len(round_state.dora_indicators) == initial_dora_count
+        assert round_state.pending_dora_count == 1
+
+        # no DoraRevealedEvent should be in the events
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
+
+    def test_pending_dora_not_revealed_in_events_when_discard_is_ronned(self):
+        """DoraRevealedEvent must not appear before a ron prompt in event list."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        round_state.pending_dora_count = 1
+
+        # give player 1 a tempai hand waiting for 2p
+        round_state.players[1].tiles = TilesConverter.string_to_136_array(man="123456789", pin="1112")
+
+        draw_tile(round_state)
+        win_tile = TilesConverter.string_to_136_array(pin="22")[1]
+        round_state.players[0].tiles.append(win_tile)
+
+        events = process_discard_phase(round_state, game_state, win_tile)
+
+        # no dora_revealed events should precede the ron prompt
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
 
 
 class TestProcessDiscardPhaseWithRiichi:

@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
-.PHONY: test test-lobby test-game run-lobby run-game run-client run-all run-debug lint format typecheck typecheck-client format-client lint-client check-agent run-games
+.PHONY: test test-lobby test-game run-lobby run-game run-client run-all run-debug lint format typecheck typecheck-client format-client lint-client check-agent run-games deadcode
 
 test:
 	uv run pytest -v
@@ -48,6 +48,9 @@ run-debug:
 
 check-agent:
 	@bash ./bin/check-agent.sh || true
+
+deadcode:
+	uv run python bin/check-dead-code.py src
 
 # make run-games N=10
 run-games:

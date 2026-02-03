@@ -29,7 +29,7 @@ WEST_WIND_MAX_DEALERS = 12
 # winning score threshold
 WINNING_SCORE_THRESHOLD = 30000
 
-# uma/oka scoring constants (Tenhou standard: 25000持ち/30000返し, ウマ10-20)
+# uma/oka scoring constants
 STARTING_SCORE = 25000
 TARGET_SCORE = 30000
 UMA_SPREAD = [20, 10, -10, -20]  # 1st, 2nd, 3rd, 4th
@@ -248,7 +248,7 @@ def finalize_game(game_state: MahjongGameState, bot_seats: set[int] | None = Non
 
     Winner is the player with highest score. Ties broken by seat order (lower seat wins).
     Winner receives remaining riichi_sticks * 1000 points.
-    Final scores are adjusted with uma/oka (Tenhou standard).
+    Final scores are adjusted with uma/oka.
     """
     round_state = game_state.round_state
 

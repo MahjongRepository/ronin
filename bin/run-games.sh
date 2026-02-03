@@ -145,7 +145,7 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
     GAME_START=$(date +%s)
 
-    make -C "$PROJECT_ROOT/bot" run > /dev/null 2>&1 &
+    make -C "$PROJECT_ROOT/bot" run-ronin-multi > /dev/null 2>&1 &
     BOT_PID=$!
     ELAPSED=0
 

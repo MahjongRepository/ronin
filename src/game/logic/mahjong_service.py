@@ -5,6 +5,8 @@ Orchestrates game logic, bot turns, and event generation for the session manager
 """
 
 import logging
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any
 
 from pydantic import ValidationError
@@ -40,10 +42,12 @@ from game.logic.types import (
     RiichiActionData,
     RoundResult,
 )
+from game.logic.win import is_effective_furiten
 from game.messaging.events import (
     CallPromptEvent,
     ErrorEvent,
     EventType,
+    FuritenEvent,
     GameEndedEvent,
     GameStartedEvent,
     RoundStartedEvent,
@@ -59,6 +63,18 @@ _BOT_TYPE_TO_STRATEGY: dict[BotType, BotStrategy] = {
 }
 
 
+@dataclass
+class PendingRoundAdvance:
+    """Tracks which players have confirmed readiness for the next round."""
+
+    confirmed_seats: set[int] = dataclass_field(default_factory=set)
+    required_seats: set[int] = dataclass_field(default_factory=set)  # human seats only
+
+    @property
+    def all_confirmed(self) -> bool:
+        return self.required_seats.issubset(self.confirmed_seats)
+
+
 class MahjongGameService(GameService):
     """
     Game service for Mahjong implementing the GameService interface.
@@ -70,6 +86,8 @@ class MahjongGameService(GameService):
     def __init__(self) -> None:
         self._games: dict[str, MahjongGameState] = {}
         self._bot_controllers: dict[str, BotController] = {}
+        self._furiten_state: dict[str, dict[int, bool]] = {}
+        self._pending_advances: dict[str, PendingRoundAdvance] = {}
 
     async def start_game(
         self,
@@ -86,6 +104,7 @@ class MahjongGameService(GameService):
         seat_configs = fill_seats(player_names)
         game_state = init_game(seat_configs)
         self._games[game_id] = game_state
+        self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
         bots: dict[int, BotPlayer] = {}
         for seat, config in enumerate(seat_configs):
@@ -161,7 +180,8 @@ class MahjongGameService(GameService):
         """
         game_state = self._games.get(game_id)
         if game_state is None:
-            logger.warning(f"game {game_id}: action from '{player_name}' but game not found")
+            # debug level: this is expected for confirm_round after game ends (race condition)
+            logger.debug(f"game {game_id}: action from '{player_name}' but game not found")
             return self._create_error_event("game_error", "game not found")
 
         seat = self._find_player_seat(game_id, game_state, player_name)
@@ -170,6 +190,17 @@ class MahjongGameService(GameService):
             return self._create_error_event("game_error", "player not in game")
 
         logger.info(f"game {game_id}: player '{player_name}' (seat {seat}) action={action}")
+
+        # handle confirm_round before dispatching to game logic
+        if action == GameAction.CONFIRM_ROUND:
+            return await self._handle_confirm_round(game_id, seat)
+
+        # reject game actions when the round is not in progress
+        if game_state.round_state.phase != RoundPhase.PLAYING:
+            return self._create_error_event(
+                "invalid_action", "round is not in progress", target=f"seat_{seat}"
+            )
+
         events = await self._dispatch_and_process(game_id, seat, action, data)
 
         # trigger bot followup if round is playing and no pending callers
@@ -202,7 +233,8 @@ class MahjongGameService(GameService):
         handler = no_data_handlers.get(action)
         if handler is not None:
             result = handler()
-            return await self._process_action_result_internal(game_id, result)
+            events = await self._process_action_result_internal(game_id, result)
+            return self._append_furiten_changes(game_id, events)
 
         # actions with data parameters
         try:
@@ -219,7 +251,8 @@ class MahjongGameService(GameService):
                 "unknown_action", f"unknown action: {action}", target=f"seat_{seat}"
             )
 
-        return await self._process_action_result_internal(game_id, result)
+        events = await self._process_action_result_internal(game_id, result)
+        return self._append_furiten_changes(game_id, events)
 
     def _execute_data_action(
         self, game_state: MahjongGameState, seat: int, action: str, data: dict[str, Any]
@@ -319,6 +352,7 @@ class MahjongGameService(GameService):
 
         For TURN timeout: tsumogiri (discard last drawn tile).
         For MELD timeout: pass on the call opportunity.
+        For ROUND_ADVANCE timeout: auto-confirm round advancement.
         """
         game_state = self._games.get(game_id)
         if game_state is None:
@@ -329,21 +363,33 @@ class MahjongGameService(GameService):
             return []
 
         if timeout_type == TimeoutType.TURN:
-            # tsumogiri: discard the last tile in hand (most recently drawn)
-            player = game_state.round_state.players[seat]
-            if game_state.round_state.current_player_seat != seat or not player.tiles:
-                return []
-            tile_id = player.tiles[-1]
-            return await self.handle_action(game_id, player_name, GameAction.DISCARD, {"tile_id": tile_id})
-
+            return await self._handle_turn_timeout(game_id, game_state, player_name, seat)
         if timeout_type == TimeoutType.MELD:
-            prompt = game_state.round_state.pending_call_prompt
-            if prompt is None or seat not in prompt.pending_seats:
-                return []
-            return await self.handle_action(game_id, player_name, GameAction.PASS, {})
+            return await self._handle_meld_timeout(game_id, game_state, player_name, seat)
+        if timeout_type == TimeoutType.ROUND_ADVANCE:
+            return await self._handle_confirm_round(game_id, seat)
 
         logger.error(f"game {game_id}: unknown timeout type '{timeout_type}' for player '{player_name}'")
         raise ValueError(f"Unknown timeout type: {timeout_type}")
+
+    async def _handle_turn_timeout(
+        self, game_id: str, game_state: MahjongGameState, player_name: str, seat: int
+    ) -> list[ServiceEvent]:
+        """Handle TURN timeout: tsumogiri (discard the last tile in hand)."""
+        player = game_state.round_state.players[seat]
+        if game_state.round_state.current_player_seat != seat or not player.tiles:
+            return []
+        tile_id = player.tiles[-1]
+        return await self.handle_action(game_id, player_name, GameAction.DISCARD, {"tile_id": tile_id})
+
+    async def _handle_meld_timeout(
+        self, game_id: str, game_state: MahjongGameState, player_name: str, seat: int
+    ) -> list[ServiceEvent]:
+        """Handle MELD timeout: pass on the call opportunity."""
+        prompt = game_state.round_state.pending_call_prompt
+        if prompt is None or seat not in prompt.pending_seats:
+            return []
+        return await self.handle_action(game_id, player_name, GameAction.PASS, {})
 
     def _find_player_seat(self, game_id: str, game_state: MahjongGameState, player_name: str) -> int | None:
         """Find the seat number for a human player by name."""
@@ -484,7 +530,7 @@ class MahjongGameService(GameService):
     async def _handle_round_end(
         self, game_id: str, round_result: RoundResult | None = None
     ) -> list[ServiceEvent]:
-        """Handle the end of a round and start next round or end game."""
+        """Handle the end of a round -- enter waiting state for confirmations."""
         game_state = self._games[game_id]
 
         if round_result is None:
@@ -510,12 +556,92 @@ class MahjongGameService(GameService):
                 )
             ]
 
+        # enter waiting state for round confirmation
+        bot_controller = self._bot_controllers.get(game_id)
+        bot_seats = bot_controller.bot_seats if bot_controller else set()
+        human_seats = {seat for seat in range(4) if seat not in bot_seats}
+
+        pending = PendingRoundAdvance(
+            confirmed_seats=set(bot_seats),  # bots auto-confirm
+            required_seats=human_seats,
+        )
+        self._pending_advances[game_id] = pending
+
+        # if all bots (no humans), advance immediately
+        if pending.all_confirmed:
+            self._pending_advances.pop(game_id, None)
+            return await self._start_next_round(game_id)
+
+        # return empty -- the RoundEndEvent is already in the caller's events list
+        return []
+
+    async def _handle_confirm_round(self, game_id: str, seat: int) -> list[ServiceEvent]:
+        """Handle a player confirming readiness for the next round."""
+        pending = self._pending_advances.get(game_id)
+        if pending is None:
+            return self._create_error_event(
+                "invalid_action", "no round pending confirmation", target=f"seat_{seat}"
+            )
+
+        pending.confirmed_seats.add(seat)
+
+        if not pending.all_confirmed:
+            return []  # still waiting for other players
+
+        # all confirmed -- start next round
+        # _start_next_round already handles bot dealer followup
+        self._pending_advances.pop(game_id, None)
         return await self._start_next_round(game_id)
+
+    def _append_furiten_changes(self, game_id: str, events: list[ServiceEvent]) -> list[ServiceEvent]:
+        """Append furiten state-change events if round is still playing."""
+        game_state = self._games.get(game_id)
+        if game_state is None:
+            return events
+        if game_state.round_state.phase == RoundPhase.PLAYING:
+            events.extend(self._check_furiten_changes(game_id, list(range(4))))
+        return events
+
+    def _check_furiten_changes(self, game_id: str, seats: list[int]) -> list[ServiceEvent]:
+        """
+        Check if furiten state changed for the given seats and emit events.
+
+        Only emits an event if the effective furiten state differs from the last known state.
+        """
+        game_state = self._games.get(game_id)
+        if game_state is None or game_state.round_state.phase == RoundPhase.FINISHED:
+            return []
+
+        furiten_state = self._furiten_state.get(game_id, {})
+        events: list[ServiceEvent] = []
+
+        for seat in seats:
+            player = game_state.round_state.players[seat]
+            current = is_effective_furiten(player)
+            previous = furiten_state.get(seat, False)
+
+            if current != previous:
+                furiten_state[seat] = current
+                events.append(
+                    ServiceEvent(
+                        event=EventType.FURITEN,
+                        data=FuritenEvent(
+                            is_furiten=current,
+                            target=f"seat_{seat}",
+                        ),
+                        target=f"seat_{seat}",
+                    )
+                )
+
+        self._furiten_state[game_id] = furiten_state
+        return events
 
     def cleanup_game(self, game_id: str) -> None:
         """Remove all game state for a game that was abandoned or cleaned up externally."""
         self._games.pop(game_id, None)
         self._bot_controllers.pop(game_id, None)
+        self._furiten_state.pop(game_id, None)
+        self._pending_advances.pop(game_id, None)
 
     def replace_player_with_bot(self, game_id: str, player_name: str) -> None:
         """
@@ -538,6 +664,16 @@ class MahjongGameService(GameService):
         bot_controller.add_bot(seat, bot)
         logger.info(f"game {game_id}: replaced '{player_name}' (seat {seat}) with bot")
 
+    async def _auto_confirm_pending_advance(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
+        """Auto-confirm a seat's pending round advance after bot replacement.
+
+        Returns events if the pending advance was handled, None if not applicable.
+        """
+        pending = self._pending_advances.get(game_id)
+        if pending is None or seat not in pending.required_seats:
+            return None
+        return await self._handle_confirm_round(game_id, seat)
+
     async def process_bot_actions_after_replacement(
         self,
         game_id: str,
@@ -549,6 +685,11 @@ class MahjongGameService(GameService):
         game_state = self._games.get(game_id)
         if game_state is None:
             return []
+
+        # if there's a pending round advance, auto-confirm for the replaced player
+        advance_events = await self._auto_confirm_pending_advance(game_id, seat)
+        if advance_events is not None:
+            return advance_events
 
         round_state = game_state.round_state
         if round_state.phase != RoundPhase.PLAYING:
@@ -582,6 +723,7 @@ class MahjongGameService(GameService):
         game_state = self._games[game_id]
         logger.info(f"game {game_id}: starting next round")
         init_round(game_state)
+        self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
         bot_controller = self._bot_controllers[game_id]
         bot_seats = bot_controller.bot_seats

@@ -251,8 +251,8 @@ class TestMahjongGameServiceRoundEndCallback:
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_round_end_returns_events(self, service):
-        """Verify _handle_round_end returns events."""
+    async def test_handle_round_end_enters_waiting_state(self, service):
+        """Verify _handle_round_end enters waiting state for human confirmation."""
         await service.start_game("game1", ["Human"])
 
         result = ExhaustiveDrawResult(
@@ -263,8 +263,10 @@ class TestMahjongGameServiceRoundEndCallback:
 
         events = await service._handle_round_end("game1", result)
 
-        # the result should contain round_started or game_end events
-        assert len(events) > 0
+        # returns empty (waiting for human confirmation)
+        assert events == []
+        # pending advance should exist
+        assert "game1" in service._pending_advances
 
 
 class TestMahjongGameServiceHandleRoundEnd:
@@ -285,8 +287,8 @@ class TestMahjongGameServiceHandleRoundEnd:
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == "missing_round_result"
 
-    async def test_handle_round_end_starts_next_round(self, service):
-        """Verify _handle_round_end starts the next round when game is not over."""
+    async def test_handle_round_end_waits_for_confirmation(self, service):
+        """Verify _handle_round_end enters waiting state when humans are present."""
         await service.start_game("game1", ["Human"])
 
         result = ExhaustiveDrawResult(
@@ -297,9 +299,9 @@ class TestMahjongGameServiceHandleRoundEnd:
 
         events = await service._handle_round_end("game1", round_result=result)
 
-        # should get round_started events for next round
-        round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
-        assert len(round_started) == 4
+        # returns empty (waiting for human confirmation)
+        assert events == []
+        assert "game1" in service._pending_advances
 
     async def test_handle_round_end_ends_game_on_negative_score(self, service):
         """Verify _handle_round_end ends game when a player has negative score."""
@@ -390,8 +392,9 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         result = await service._check_and_handle_round_end("game1", events)
 
         assert result is not None
-        # should have the original event plus round end handling events
-        assert len(result) > 1
+        # should have the original round_end event (round advance is now deferred)
+        assert len(result) >= 1
+        assert any(e.event == EventType.ROUND_END for e in result)
 
     async def test_check_round_end_handles_no_result_in_events(self, service):
         """Verify round end handling when no round result is in events."""

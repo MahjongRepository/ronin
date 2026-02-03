@@ -137,17 +137,22 @@ def add_dora_indicator(round_state: MahjongRoundState) -> int:
     return new_indicator
 
 
-def reveal_pending_dora(round_state: MahjongRoundState) -> None:
+def reveal_pending_dora(round_state: MahjongRoundState) -> list[int]:
     """
     Reveal any pending dora indicators queued by open/added kan.
 
     Called after a discard to implement the rule that open and added kan
     dora indicators are revealed after the replacement tile is discarded,
     not immediately when the kan is declared.
+
+    Returns list of newly revealed dora indicator tile_ids.
     """
+    revealed: list[int] = []
     while round_state.pending_dora_count > 0:
-        add_dora_indicator(round_state)
+        new_indicator = add_dora_indicator(round_state)
+        revealed.append(new_indicator)
         round_state.pending_dora_count -= 1
+    return revealed
 
 
 def create_players(seat_configs: list[SeatConfig]) -> list[MahjongPlayer]:
@@ -250,9 +255,6 @@ def discard_tile(
 
     # clear kuikae restriction after discard
     player.kuikae_tiles = []
-
-    # reveal pending dora indicators (from open/added kan)
-    reveal_pending_dora(round_state)
 
     return discard
 

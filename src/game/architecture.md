@@ -42,6 +42,11 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "chat", "text": "Hello!"}
 ```
 
+**Ping** (heartbeat keep-alive)
+```json
+{"type": "ping"}
+```
+
 #### Server -> Client
 
 **Game Joined**
@@ -66,11 +71,20 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "round_started", "view": {"seat": 0, "round_wind": "East", ...}}
 {"type": "draw", "seat": 0, "tile_id": 42}
 {"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true, "is_riichi": false}
-{"type": "meld", "meld_type": "pon", "caller_seat": 1, "tile_ids": [8, 9, 10], "from_seat": 0}
+{"type": "meld", "meld_type": "pon", "caller_seat": 1, "tile_ids": [8, 9, 10], "from_seat": 0, "called_tile_id": 10}
+{"type": "dora_revealed", "tile_id": 42, "dora_indicators": [10, 42]}
 {"type": "turn", "current_seat": 0, "available_actions": [...], "wall_count": 69}
 {"type": "call_prompt", "call_type": "meld", "tile_id": 55, "from_seat": 2, "callers": [...]}
 {"type": "round_end", "result": {...}}
+{"type": "furiten", "is_furiten": true}
 {"type": "game_end", "result": {...}}
+```
+
+Note: The `furiten` event is sent only to the affected player (target `seat_N`), not broadcast.
+
+**Game Action: confirm_round** (sent after `round_end` to acknowledge round results)
+```json
+{"type": "game_action", "action": "confirm_round", "data": {}}
 ```
 
 **Chat**
@@ -78,9 +92,14 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "chat", "player_name": "Alice", "text": "Hello!"}
 ```
 
+**Pong** (heartbeat response)
+```json
+{"type": "pong"}
+```
+
 **Error**
 ```json
-{"type": "error", "code": "game_full", "message": "Game is full"}
+{"type": "session_error", "code": "game_full", "message": "Game is full"}
 ```
 
 Error codes:
@@ -133,7 +152,7 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base) - Domain events like DrawEvent, DiscardEvent, MeldEvent, TurnEvent, RoundEndEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (target="all", lightweight broadcast with player identities) followed by `RoundStartedEvent` (target="seat_N", per-seat events with full GameView).
+- **GameEvent** (Pydantic base) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (target="all", lightweight broadcast with player identities) followed by `RoundStartedEvent` (target="seat_N", per-seat events with full GameView).
 - **ServiceEvent** - Transport container wrapping a GameEvent with routing metadata (event type string, target). Events are serialized as flat top-level messages on the wire (no wrapper envelope).
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists
@@ -143,16 +162,16 @@ The game service communicates through a typed event pipeline:
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`) and bot call response dispatch (`_dispatch_bot_call_responses`); returns `list[ServiceEvent]`
+- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`) and bot call response dispatch (`_dispatch_bot_call_responses`); tracks per-player furiten state and emits `FuritenEvent` on state transitions; manages round-advance confirmation waiting state (`PendingRoundAdvance`) between rounds; returns `list[ServiceEvent]`
 - **MahjongGame** - Manages game state across multiple rounds (hanchan); uma/oka end-game score adjustment
 - **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
 - **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()`
 - **Matchmaker** - Assigns human players to randomized seats and fills remaining seats with bots; supports 1-4 humans based on `num_bots` setting; returns `list[SeatConfig]`
-- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns and meld decisions; each human player gets an independent timer instance
+- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each human player gets an independent timer instance
 - **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `add_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; supports runtime bot addition for disconnect-to-bot replacement
-- **Enums** - String enum definitions: `GameAction`, `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType`; `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
+- **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller` (seat and call_type only, no server-internal fields), `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
 - **Melds** - Detection of valid chi, pon, and kan combinations; kuikae restriction calculation; pao liability detection
@@ -205,7 +224,7 @@ When a human player disconnects from a started game:
 1. The player is removed from the session layer (`game.players`)
 2. If other humans remain, `replace_player_with_bot()` registers a bot at the disconnected player's seat
 3. The disconnected player's timer is cancelled
-4. `process_bot_actions_after_replacement()` handles any pending turn or call prompt for the replaced seat
+4. `process_bot_actions_after_replacement()` handles any pending turn, call prompt, or round-advance confirmation for the replaced seat
 5. If the last human disconnects, the game is cleaned up (no all-bot games)
 
 ### Per-Player Timers
@@ -216,6 +235,7 @@ Timer behavior:
 - On round start, round bonus is added to all player timers
 - On turn start, the current seat's timer starts counting bank time
 - On call prompt, meld timers start for all connected human callers (PvP can have multiple simultaneous callers)
+- On round end, fixed-duration round-advance timers start for all human players; when a player confirms (or the timer expires), they are marked as ready; once all humans confirm, the next round begins
 - When a player acts, their timer stops (bank time deducted) and other callers' meld timers are cancelled (no bank time deducted)
 - On game end, all player timers are cleaned up
 

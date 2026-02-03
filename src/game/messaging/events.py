@@ -33,10 +33,12 @@ class EventType(str, Enum):
     CALL_PROMPT = "call_prompt"
     ROUND_END = "round_end"
     RIICHI_DECLARED = "riichi_declared"
+    DORA_REVEALED = "dora_revealed"
     ERROR = "error"
     GAME_STARTED = "game_started"
     ROUND_STARTED = "round_started"
     GAME_END = "game_end"
+    FURITEN = "furiten"
 
 
 class GameEvent(BaseModel):
@@ -75,6 +77,7 @@ class MeldEvent(GameEvent):
     caller_seat: int
     from_seat: int | None = None  # None for closed kans
     tile_ids: list[int]
+    called_tile_id: int | None = None  # tile taken from discard, None for closed/added kans
 
 
 class TurnEvent(GameEvent):
@@ -110,6 +113,15 @@ class RiichiDeclaredEvent(GameEvent):
     seat: int
 
 
+class DoraRevealedEvent(GameEvent):
+    """Event broadcast when a new dora indicator is revealed (after kan)."""
+
+    type: Literal[EventType.DORA_REVEALED] = EventType.DORA_REVEALED
+    target: str = "all"
+    tile_id: int  # the new dora indicator tile
+    dora_indicators: list[int]  # full list of current dora indicators (for state sync)
+
+
 class ErrorEvent(GameEvent):
     """Event sent to a player when an error occurs."""
 
@@ -141,6 +153,13 @@ class GameEndedEvent(GameEvent):
     result: GameEndResult
 
 
+class FuritenEvent(GameEvent):
+    """Event sent to a player when their furiten state changes."""
+
+    type: Literal[EventType.FURITEN] = EventType.FURITEN
+    is_furiten: bool
+
+
 Event = (
     DrawEvent
     | DiscardEvent
@@ -149,10 +168,12 @@ Event = (
     | CallPromptEvent
     | RoundEndEvent
     | RiichiDeclaredEvent
+    | DoraRevealedEvent
     | ErrorEvent
     | GameStartedEvent
     | RoundStartedEvent
     | GameEndedEvent
+    | FuritenEvent
 )
 
 

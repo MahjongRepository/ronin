@@ -71,6 +71,14 @@ function connectToGame(wsUrl: string, gameId: string, playerName: string): void 
                 type: String(message.type || "unknown"),
             });
             updateLogPanel();
+
+            // auto-confirm round advancement after a short delay
+            if (message.type === "round_end" && socket) {
+                const currentSocket = socket;
+                setTimeout(() => {
+                    currentSocket.send({ action: "confirm_round", data: {}, type: "game_action" });
+                }, 1000);
+            }
         },
         (status) => {
             connectionStatus = status;

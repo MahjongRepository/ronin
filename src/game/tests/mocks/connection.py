@@ -44,13 +44,9 @@ class MockConnection(ConnectionProtocol):
         self._close_reason = reason
 
     async def simulate_receive(self, data: dict[str, Any]) -> None:
-        """
-        Simulate receiving a message from the client.
-        """
+        """Simulate receiving a message from the client."""
         await self._inbox.put(encode(data))
 
     def simulate_receive_nowait(self, data: dict[str, Any]) -> None:
-        """
-        Simulate receiving a message from the client (non-blocking).
-        """
+        """Simulate receiving a message from the client (non-blocking)."""
         self._inbox.put_nowait(encode(data))

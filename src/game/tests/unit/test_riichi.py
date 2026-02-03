@@ -6,10 +6,8 @@ from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
 from game.logic.riichi import (
-    FIRST_URA_DORA_INDEX,
     can_declare_riichi,
     declare_riichi,
-    get_ura_dora,
 )
 from game.logic.state import (
     Discard,
@@ -269,97 +267,3 @@ class TestDeclareRiichi:
         declare_riichi(player, game_state)
 
         assert player.is_daburi is False
-
-
-class TestGetUraDora:
-    def _create_round_state_with_dead_wall(self, dead_wall_size: int = 14) -> MahjongRoundState:
-        """Create a round state with a dead wall for testing."""
-        dead_wall = list(range(122, 122 + dead_wall_size))
-        return MahjongRoundState(dead_wall=dead_wall)
-
-    def test_get_ura_dora_returns_one_tile(self):
-        """Get one ura dora tile when num_dora is 1."""
-        round_state = self._create_round_state_with_dead_wall()
-
-        result = get_ura_dora(round_state, num_dora=1)
-
-        assert len(result) == 1
-        assert result[0] == round_state.dead_wall[FIRST_URA_DORA_INDEX]
-
-    def test_get_ura_dora_returns_two_tiles(self):
-        """Get two ura dora tiles when num_dora is 2."""
-        round_state = self._create_round_state_with_dead_wall()
-
-        result = get_ura_dora(round_state, num_dora=2)
-
-        assert len(result) == 2
-        assert result[0] == round_state.dead_wall[FIRST_URA_DORA_INDEX]
-        assert result[1] == round_state.dead_wall[FIRST_URA_DORA_INDEX + 1]
-
-    def test_get_ura_dora_returns_four_tiles(self):
-        """Get four ura dora tiles when num_dora is 4."""
-        round_state = self._create_round_state_with_dead_wall()
-
-        result = get_ura_dora(round_state, num_dora=4)
-
-        assert len(result) == 4
-        for i in range(4):
-            assert result[i] == round_state.dead_wall[FIRST_URA_DORA_INDEX + i]
-
-    def test_get_ura_dora_returns_five_tiles(self):
-        """Get five ura dora tiles when num_dora is 5 (max after 4 kans)."""
-        round_state = self._create_round_state_with_dead_wall()
-
-        result = get_ura_dora(round_state, num_dora=5)
-
-        assert len(result) == 5
-        for i in range(5):
-            assert result[i] == round_state.dead_wall[FIRST_URA_DORA_INDEX + i]
-
-    def test_get_ura_dora_unaffected_by_dead_wall_replacement_draws(self):
-        """Ura dora indices (7-11) are not affected by replacement draws at index 13."""
-        round_state = self._create_round_state_with_dead_wall()
-        # record original ura dora tiles
-        original_ura = [round_state.dead_wall[FIRST_URA_DORA_INDEX + i] for i in range(5)]
-
-        # simulate 4 replacement draws (pop from end, append replenishment)
-        for replacement_tile in [200, 201, 202, 203]:
-            round_state.dead_wall.pop()
-            round_state.dead_wall.append(replacement_tile)
-
-        result = get_ura_dora(round_state, num_dora=5)
-
-        assert len(result) == 5
-        assert result == original_ura
-
-    def test_get_ura_dora_returns_empty_for_zero(self):
-        """Get empty list when num_dora is 0."""
-        round_state = self._create_round_state_with_dead_wall()
-
-        result = get_ura_dora(round_state, num_dora=0)
-
-        assert result == []
-
-    def test_get_ura_dora_handles_small_dead_wall(self):
-        """Handles cases where dead wall is smaller than expected."""
-        # smaller dead wall that doesn't have all ura dora tiles
-        round_state = self._create_round_state_with_dead_wall(dead_wall_size=8)
-
-        result = get_ura_dora(round_state, num_dora=4)
-
-        # should only return what's available (indices 7 exists, but not 8, 9, 10)
-        assert len(result) == 1
-        assert result[0] == round_state.dead_wall[FIRST_URA_DORA_INDEX]
-
-    def test_get_ura_dora_correct_positions(self):
-        """Verify ura dora are at correct dead wall positions (7, 8, 9, 10, 11)."""
-        round_state = self._create_round_state_with_dead_wall()
-
-        result = get_ura_dora(round_state, num_dora=5)
-
-        # ura dora at indices 7, 8, 9, 10, 11 (beneath dora indicators at 2, 3, 4, 5, 6)
-        assert result[0] == round_state.dead_wall[7]
-        assert result[1] == round_state.dead_wall[8]
-        assert result[2] == round_state.dead_wall[9]
-        assert result[3] == round_state.dead_wall[10]
-        assert result[4] == round_state.dead_wall[11]

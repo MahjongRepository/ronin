@@ -33,6 +33,7 @@ from game.logic.round import (
     discard_tile,
     draw_tile,
     process_exhaustive_draw,
+    reveal_pending_dora,
 )
 from game.logic.scoring import (
     apply_double_ron_score,
@@ -52,6 +53,7 @@ from game.logic.win import (
 from game.messaging.events import (
     CallPromptEvent,
     DiscardEvent,
+    DoraRevealedEvent,
     DrawEvent,
     GameEvent,
     MeldEvent,
@@ -127,6 +129,24 @@ def process_draw_phase(round_state: MahjongRoundState, game_state: MahjongGameSt
     return events
 
 
+def emit_deferred_dora_events(round_state: MahjongRoundState, events: list[GameEvent]) -> None:
+    """
+    Reveal deferred dora indicators (from open/added kan) and emit events.
+
+    Called after a discard passes the ron check. Under our rules,
+    open/added kan dora is revealed only after the replacement discard
+    is accepted (not ron'd).
+    """
+    revealed = reveal_pending_dora(round_state)
+    events.extend(
+        DoraRevealedEvent(
+            tile_id=dora_tile_id,
+            dora_indicators=list(round_state.dora_indicators),
+        )
+        for dora_tile_id in revealed
+    )
+
+
 def process_discard_phase(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
@@ -143,10 +163,11 @@ def process_discard_phase(
     3. Check for four winds abortive draw
     4. Check for ron from other players
        - If 3 players can ron: triple ron abortive draw
-       - If 1-2 players can ron: process win(s)
-    5. If no ron and is_riichi: finalize riichi step 2
-    6. Check for meld calls with priority: kan > pon > chi
-    7. If no calls, advance turn
+       - If 1-2 players can ron: set up pending prompt (dora NOT revealed yet)
+    5. Reveal deferred dora (from open/added kan) now that the discard passed
+    6. If no ron and is_riichi: finalize riichi step 2
+    7. Check for meld calls with priority: kan > pon > chi
+    8. If no calls, advance turn
 
     Returns list of typed events describing what happened.
     """
@@ -214,7 +235,10 @@ def process_discard_phase(
         )
         return events
 
-    # step 5: finalize riichi if no ron
+    # step 5: reveal deferred dora (from open/added kan) now that the discard passed
+    emit_deferred_dora_events(round_state, events)
+
+    # step 6: finalize riichi if no ron
     if riichi_pending:
         declare_riichi(player, game_state)
         events.append(RiichiDeclaredEvent(seat=current_seat, target="all"))
@@ -226,7 +250,7 @@ def process_discard_phase(
             events.append(RoundEndEvent(result=result, target="all"))
             return events
 
-    # step 6: check for meld calls (priority: kan > pon > chi)
+    # step 7: check for meld calls (priority: kan > pon > chi)
     meld_calls = _find_meld_callers(round_state, tile_id, current_seat)
 
     if meld_calls:
@@ -249,7 +273,7 @@ def process_discard_phase(
         )
         return events
 
-    # step 7: no calls, advance turn
+    # step 8: no calls, advance turn
     advance_turn(round_state)
 
     return events
@@ -294,6 +318,7 @@ def _process_pon_call(ctx: MeldCallContext) -> None:
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             from_seat=ctx.discarder_seat,
+            called_tile_id=ctx.tile_id,
         )
     )
 
@@ -311,6 +336,7 @@ def _process_chi_call(ctx: MeldCallContext) -> None:
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             from_seat=ctx.discarder_seat,
+            called_tile_id=ctx.tile_id,
         )
     )
 
@@ -326,6 +352,7 @@ def _process_open_kan_call(ctx: MeldCallContext) -> bool:
             tile_ids=tile_ids,
             from_seat=ctx.discarder_seat,
             kan_type=KanType.OPEN,
+            called_tile_id=ctx.tile_id,
         )
     )
     return ctx.check_four_kans_abort()
@@ -341,6 +368,13 @@ def _process_closed_kan_call(ctx: MeldCallContext) -> bool:
             caller_seat=ctx.caller_seat,
             tile_ids=tile_ids,
             kan_type=KanType.CLOSED,
+        )
+    )
+    # closed kan reveals dora immediately (done inside call_closed_kan)
+    ctx.events.append(
+        DoraRevealedEvent(
+            tile_id=ctx.round_state.dora_indicators[-1],
+            dora_indicators=list(ctx.round_state.dora_indicators),
         )
     )
     return ctx.check_four_kans_abort()

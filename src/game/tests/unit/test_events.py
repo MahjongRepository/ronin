@@ -4,33 +4,24 @@ Tests for game event classes.
 
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import AbortiveDrawType, CallType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
 from game.logic.types import (
-    AbortiveDrawResult,
     AvailableActionItem,
     ExhaustiveDrawResult,
-    GameEndResult,
-    GamePlayerInfo,
-    GameView,
     HandResultInfo,
     MeldCaller,
-    PlayerStanding,
-    PlayerView,
     RonResult,
     TsumoResult,
 )
 from game.messaging.events import (
     CallPromptEvent,
     DiscardEvent,
+    DoraRevealedEvent,
     DrawEvent,
     ErrorEvent,
-    Event,
-    GameEndedEvent,
-    GameStartedEvent,
     MeldEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
-    RoundStartedEvent,
     TurnEvent,
 )
 
@@ -86,11 +77,13 @@ class TestDiscardEvent:
 class TestMeldEvent:
     def test_create_pon_event(self) -> None:
         pon_tile_ids = TilesConverter.string_to_136_array(man="333")
+        called_tile = pon_tile_ids[2]
         event = MeldEvent(
             meld_type=MeldViewType.PON,
             caller_seat=1,
             tile_ids=pon_tile_ids,
             from_seat=0,
+            called_tile_id=called_tile,
         )
 
         assert event.type == "meld"
@@ -99,18 +92,23 @@ class TestMeldEvent:
         assert event.from_seat == 0
         assert event.tile_ids == pon_tile_ids
         assert event.kan_type is None
+        assert event.called_tile_id == called_tile
         assert event.target == "all"
 
     def test_create_chi_event(self) -> None:
+        chi_tile_ids = TilesConverter.string_to_136_array(man="123")
+        called_tile = chi_tile_ids[0]
         event = MeldEvent(
             meld_type=MeldViewType.CHI,
             caller_seat=2,
-            tile_ids=TilesConverter.string_to_136_array(man="123"),
+            tile_ids=chi_tile_ids,
             from_seat=1,
+            called_tile_id=called_tile,
         )
 
         assert event.meld_type == MeldViewType.CHI
         assert event.from_seat == 1
+        assert event.called_tile_id == called_tile
 
     def test_create_closed_kan_event(self) -> None:
         event = MeldEvent(
@@ -123,18 +121,23 @@ class TestMeldEvent:
         assert event.meld_type == MeldViewType.KAN
         assert event.kan_type == KanType.CLOSED
         assert event.from_seat is None
+        assert event.called_tile_id is None
 
     def test_create_open_kan_event(self) -> None:
+        kan_tile_ids = TilesConverter.string_to_136_array(sou="1111")
+        called_tile = kan_tile_ids[3]
         event = MeldEvent(
             meld_type=MeldViewType.KAN,
             caller_seat=3,
-            tile_ids=TilesConverter.string_to_136_array(sou="1111"),
+            tile_ids=kan_tile_ids,
             from_seat=2,
             kan_type=KanType.OPEN,
+            called_tile_id=called_tile,
         )
 
         assert event.kan_type == KanType.OPEN
         assert event.from_seat == 2
+        assert event.called_tile_id == called_tile
 
     def test_create_added_kan_event(self) -> None:
         event = MeldEvent(
@@ -145,6 +148,17 @@ class TestMeldEvent:
         )
 
         assert event.kan_type == KanType.ADDED
+        assert event.called_tile_id is None
+
+    def test_called_tile_id_defaults_to_none(self) -> None:
+        """called_tile_id defaults to None when not provided."""
+        event = MeldEvent(
+            meld_type=MeldViewType.PON,
+            caller_seat=0,
+            tile_ids=TilesConverter.string_to_136_array(man="111"),
+        )
+
+        assert event.called_tile_id is None
 
 
 class TestTurnEvent:
@@ -260,6 +274,34 @@ class TestRiichiDeclaredEvent:
         assert event.target == "all"
 
 
+class TestDoraRevealedEvent:
+    def test_create_dora_revealed_event(self) -> None:
+        dora_tile = TilesConverter.string_to_136_array(man="5")[0]
+        all_indicators = TilesConverter.string_to_136_array(man="13")
+        all_indicators.append(dora_tile)
+        event = DoraRevealedEvent(
+            tile_id=dora_tile,
+            dora_indicators=all_indicators,
+        )
+
+        assert event.type == "dora_revealed"
+        assert event.tile_id == dora_tile
+        assert event.dora_indicators == all_indicators
+        assert event.target == "all"
+
+    def test_dora_revealed_event_single_indicator(self) -> None:
+        """First additional dora indicator (after initial one from round start)."""
+        initial_dora = TilesConverter.string_to_136_array(pin="3")[0]
+        new_dora = TilesConverter.string_to_136_array(sou="7")[0]
+        event = DoraRevealedEvent(
+            tile_id=new_dora,
+            dora_indicators=[initial_dora, new_dora],
+        )
+
+        assert event.tile_id == new_dora
+        assert len(event.dora_indicators) == 2
+
+
 class TestErrorEvent:
     def test_create_error_event(self) -> None:
         event = ErrorEvent(
@@ -319,11 +361,13 @@ class TestEventModelDump:
 
     def test_meld_event_to_wire(self) -> None:
         pon_tile_ids = TilesConverter.string_to_136_array(man="333")
+        called_tile = pon_tile_ids[2]
         event = MeldEvent(
             meld_type=MeldViewType.PON,
             caller_seat=1,
             tile_ids=pon_tile_ids,
             from_seat=0,
+            called_tile_id=called_tile,
         )
         wire = event.model_dump()
 
@@ -333,7 +377,36 @@ class TestEventModelDump:
         assert wire["from_seat"] == 0
         assert wire["tile_ids"] == pon_tile_ids
         assert wire["kan_type"] is None
+        assert wire["called_tile_id"] == called_tile
         assert wire["target"] == "all"
+
+    def test_meld_event_to_wire_closed_kan_no_called_tile(self) -> None:
+        """Wire format includes called_tile_id as None for closed kan."""
+        event = MeldEvent(
+            meld_type=MeldViewType.KAN,
+            caller_seat=0,
+            tile_ids=TilesConverter.string_to_136_array(pin="1111"),
+            kan_type=KanType.CLOSED,
+        )
+        wire = event.model_dump()
+
+        assert wire["called_tile_id"] is None
+
+    def test_dora_revealed_event_to_wire(self) -> None:
+        dora_tile = TilesConverter.string_to_136_array(sou="3")[0]
+        indicators = [TilesConverter.string_to_136_array(man="1")[0], dora_tile]
+        event = DoraRevealedEvent(
+            tile_id=dora_tile,
+            dora_indicators=indicators,
+        )
+        wire = event.model_dump()
+
+        assert wire == {
+            "type": "dora_revealed",
+            "target": "all",
+            "tile_id": dora_tile,
+            "dora_indicators": indicators,
+        }
 
     def test_turn_event_to_wire(self) -> None:
         discard_tiles = TilesConverter.string_to_136_array(man="3")
@@ -363,64 +436,3 @@ class TestEventModelDump:
         assert wire["type"] == "round_end"
         assert wire["result"]["type"] == "tsumo"
         assert wire["result"]["winner_seat"] == 0
-
-
-class TestEventUnionType:
-    def test_event_union_type_contains_all_events(self) -> None:
-        # verify all event types can be assigned to Event
-        mock_view = GameView(
-            seat=0,
-            round_wind="East",
-            round_number=1,
-            dealer_seat=0,
-            current_player_seat=0,
-            wall_count=70,
-            dora_indicators=[],
-            honba_sticks=0,
-            riichi_sticks=0,
-            players=[
-                PlayerView(
-                    seat=i,
-                    name=f"Player{i}",
-                    is_bot=i > 0,
-                    score=25000,
-                    is_riichi=False,
-                    discards=[],
-                    melds=[],
-                    tile_count=13,
-                )
-                for i in range(4)
-            ],
-            phase="playing",
-            game_phase="east",
-        )
-        man_1_tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        man_1_pon_ids = TilesConverter.string_to_136_array(man="111")
-        events: list[Event] = [
-            DrawEvent(seat=0, tile_id=man_1_tile_id, target="seat_0"),
-            DiscardEvent(seat=0, tile_id=man_1_tile_id, is_tsumogiri=False, is_riichi=False),
-            MeldEvent(meld_type=MeldViewType.PON, caller_seat=0, tile_ids=man_1_pon_ids),
-            TurnEvent(current_seat=0, available_actions=[], wall_count=70, target="seat_0"),
-            CallPromptEvent(
-                call_type=CallType.RON, tile_id=man_1_tile_id, from_seat=0, callers=[1], target="all"
-            ),
-            RoundEndEvent(result=AbortiveDrawResult(reason=AbortiveDrawType.NINE_TERMINALS), target="all"),
-            RiichiDeclaredEvent(seat=0, target="all"),
-            ErrorEvent(code="test", message="test", target="all"),
-            GameStartedEvent(
-                game_id="test_game",
-                players=[GamePlayerInfo(seat=i, name=f"Player{i}", is_bot=i > 0) for i in range(4)],
-            ),
-            RoundStartedEvent(view=mock_view, target="seat_0"),
-            GameEndedEvent(
-                result=GameEndResult(
-                    winner_seat=0,
-                    standings=[
-                        PlayerStanding(seat=0, name="Player0", score=30000, final_score=40, is_bot=False),
-                    ],
-                ),
-                target="all",
-            ),
-        ]
-
-        assert len(events) == 11
