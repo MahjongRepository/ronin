@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 import yaml
 
-from lobby.registry.types import GameServer, ServerStatus
+from lobby.registry.types import GameServer
 
 
 def _get_default_config_path() -> Path:
@@ -54,13 +54,3 @@ class RegistryManager:
                         server.healthy = False
                 except httpx.RequestError:
                     server.healthy = False
-
-    async def get_server_status(self, server: GameServer) -> ServerStatus | None:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            try:
-                response = await client.get(f"{server.url}/status")
-                if response.status_code == HTTPStatus.OK:
-                    return ServerStatus(**response.json())
-            except httpx.RequestError:
-                pass
-        return None

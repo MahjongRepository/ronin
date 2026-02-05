@@ -101,16 +101,11 @@ Requires [uv](https://docs.astral.sh/uv/) for Python package management and [Bun
 
 ```bash
 # Run all servers together (recommended for local testing)
-make run-all
-
-# Or run servers separately:
-make run-game      # Game server on port 8001
-make run-lobby     # Lobby server on port 8000
-make run-client    # Client dev server on port 3000
+make run-local-server
 ```
 
 Using the Web UI:
-1. Run `make run-all` to start all servers
+1. Run `make run-local-server` to start all servers
 2. Open http://localhost:3000 in your browser
 3. Create or join a game from the lobby view
 4. Game view connects via WebSocket and displays server messages in a log panel
@@ -133,14 +128,7 @@ curl -X POST http://localhost:8000/games -H 'Content-Type: application/json' -d 
 ## Development
 
 ```bash
-make test              # Run all tests
-make test-lobby        # Run lobby tests only
-make test-game         # Run game tests only
-make lint              # Check code style
-make format            # Auto-format code
-make typecheck         # Run Python type checking (ty)
-make typecheck-client  # Run TypeScript type checking
-make check-agent       # Run all checks (format, lint, typecheck, test, client typecheck)
+make run-all-checks       # Run all checks (format, lint, typecheck, test, client typecheck)
 ```
 
 ## Next Steps

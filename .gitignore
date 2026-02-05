@@ -20,10 +20,18 @@ bot
 
 src/debug.py
 
+# ---
+
 # AI stuff
 AGENTS.md
 AGENTS.override.md
-.claude
 Dockerfile.agent
-thoughts
 Makefile.agent
+agent-run.sh
+.claude
+thoughts
+
+# bots run things
+bin/run-bots-games.sh
+Makefile.bots
+run-bots-games.sh

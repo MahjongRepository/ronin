@@ -65,9 +65,6 @@ class SessionManager:
         self._players.pop(connection.connection_id, None)
         self._last_ping.pop(connection.connection_id, None)
 
-    def get_player(self, connection: ConnectionProtocol) -> Player | None:
-        return self._players.get(connection.connection_id)
-
     def get_game(self, game_id: str) -> Game | None:
         return self._games.get(game_id)
 

@@ -142,13 +142,6 @@ class TimeoutType(str, Enum):
     ROUND_ADVANCE = "round_advance"
 
 
-class GameMode(str, Enum):
-    """Game modes for matchmaking."""
-
-    BOT = "bot"
-    PVP = "pvp"
-
-
 class MeldViewType(str, Enum):
     """Meld type names for client-facing view."""
 

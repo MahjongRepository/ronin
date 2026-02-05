@@ -493,23 +493,23 @@ class TestSessionManagerDefensiveChecks:
         return SessionManager(game_service)
 
     async def test_get_player_returns_player(self, manager):
-        """get_player returns the player after joining a game."""
+        """Player mapping is populated after joining a game."""
         conn = MockConnection()
         manager.register_connection(conn)
         manager.create_game("game1")
 
         await manager.join_game(conn, "game1", "Alice")
 
-        player = manager.get_player(conn)
+        player = manager._players.get(conn.connection_id)
         assert player is not None
         assert player.name == "Alice"
 
     async def test_get_player_returns_none_for_unknown(self, manager):
-        """get_player returns None for a connection that has not joined a game."""
+        """Player mapping is empty for a connection that has not joined a game."""
         conn = MockConnection()
         manager.register_connection(conn)
 
-        player = manager.get_player(conn)
+        player = manager._players.get(conn.connection_id)
         assert player is None
 
     async def test_join_game_already_in_game_returns_error(self, manager):

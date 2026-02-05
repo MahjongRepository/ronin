@@ -56,7 +56,7 @@ class TurnTimer:
         """Start the turn timer using bank time."""
         self.cancel()
         self._turn_start_time = time.monotonic()
-        self._active_task = asyncio.create_task(self._run_timer(self._bank_seconds, on_timeout))
+        self._active_task = asyncio.create_task(self._run_timer(self.remaining_bank, on_timeout))
 
     def start_meld_timer(self, on_timeout: Callable[[], Awaitable[None]]) -> None:
         """Start a fixed meld decision timer (does not consume bank time)."""

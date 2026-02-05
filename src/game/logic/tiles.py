@@ -47,9 +47,6 @@ DRAGONS_34 = [HAKU_34, HATSU_34, CHUN_34]
 # terminal tiles in 34-format (1 and 9 of each suit)
 TERMINALS_34 = [0, 8, 9, 17, 18, 26]
 
-# lookup table for honor tile names (indexed by tile_34 - HONOR_34_START)
-_HONOR_NAMES = ["E", "S", "W", "N", "Haku", "Hatsu", "Chun"]
-
 
 def tile_to_34(tile_id: int) -> int:
     """
@@ -59,34 +56,6 @@ def tile_to_34(tile_id: int) -> int:
     In 34-format, each tile type is represented by a single index (0-33).
     """
     return tile_id // 4
-
-
-def tile_to_string(tile_id: int) -> str:
-    """
-    Convert tile ID (0-135) to string notation.
-
-    Returns format like "1m", "5p", "9s", "E", "S", "W", "N", "Haku", "Hatsu", "Chun".
-    """
-    tile_34 = tile_to_34(tile_id)
-    return tile_34_to_string(tile_34)
-
-
-def tile_34_to_string(tile_34: int) -> str:
-    """
-    Convert 34-format tile to string notation.
-    """
-    if tile_34 < 0 or tile_34 > HONOR_34_END:
-        raise ValueError(f"Invalid tile_34 value: {tile_34}")
-
-    if MAN_34_START <= tile_34 <= MAN_34_END:
-        return f"{tile_34 - MAN_34_START + 1}m"
-    if PIN_34_START <= tile_34 <= PIN_34_END:
-        return f"{tile_34 - PIN_34_START + 1}p"
-    if SOU_34_START <= tile_34 <= SOU_34_END:
-        return f"{tile_34 - SOU_34_START + 1}s"
-
-    # must be honor tile
-    return _HONOR_NAMES[tile_34 - HONOR_34_START]
 
 
 def is_terminal(tile_34: int) -> bool:

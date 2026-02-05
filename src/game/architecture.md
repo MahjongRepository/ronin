@@ -298,15 +298,7 @@ ronin/
 ## Running
 
 ```bash
-make run-all           # Run game, client, and lobby servers
-make run-game          # Start server on port 8001
-make run-client        # Start client dev server on port 3000
-make test-game         # Run game tests
-make lint              # Run linter
-make format            # Format code
-make typecheck         # Run Python type checking (ty)
-make typecheck-client  # Run TypeScript type checking
-make check-agent       # Run all checks
+make run-all-checks       # Run all checks
 ```
 
 ## Testing Strategy

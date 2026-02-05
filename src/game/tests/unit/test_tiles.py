@@ -2,7 +2,6 @@
 Unit tests for tile representation utilities.
 """
 
-import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.tiles import (
@@ -29,9 +28,7 @@ from game.logic.tiles import (
     is_terminal,
     is_terminal_or_honor,
     sort_tiles,
-    tile_34_to_string,
     tile_to_34,
-    tile_to_string,
 )
 
 
@@ -99,66 +96,6 @@ class TestTileTo34:
         # chun (red dragon): 132-135 map to 33
         assert tile_to_34(132) == 33
         assert tile_to_34(135) == 33
-
-
-class TestTileToString:
-    def test_man_tiles(self):
-        assert tile_to_string(0) == "1m"
-        assert tile_to_string(4) == "2m"
-        assert tile_to_string(35) == "9m"
-
-    def test_pin_tiles(self):
-        assert tile_to_string(36) == "1p"
-        assert tile_to_string(40) == "2p"
-        assert tile_to_string(71) == "9p"
-
-    def test_sou_tiles(self):
-        assert tile_to_string(72) == "1s"
-        assert tile_to_string(76) == "2s"
-        assert tile_to_string(107) == "9s"
-
-    def test_wind_tiles(self):
-        assert tile_to_string(108) == "E"
-        assert tile_to_string(112) == "S"
-        assert tile_to_string(116) == "W"
-        assert tile_to_string(120) == "N"
-
-    def test_dragon_tiles(self):
-        assert tile_to_string(124) == "Haku"
-        assert tile_to_string(128) == "Hatsu"
-        assert tile_to_string(132) == "Chun"
-
-
-class TestTile34ToString:
-    def test_man_tiles(self):
-        assert tile_34_to_string(0) == "1m"
-        assert tile_34_to_string(4) == "5m"
-        assert tile_34_to_string(8) == "9m"
-
-    def test_pin_tiles(self):
-        assert tile_34_to_string(9) == "1p"
-        assert tile_34_to_string(13) == "5p"
-        assert tile_34_to_string(17) == "9p"
-
-    def test_sou_tiles(self):
-        assert tile_34_to_string(18) == "1s"
-        assert tile_34_to_string(22) == "5s"
-        assert tile_34_to_string(26) == "9s"
-
-    def test_honor_tiles(self):
-        assert tile_34_to_string(27) == "E"
-        assert tile_34_to_string(28) == "S"
-        assert tile_34_to_string(29) == "W"
-        assert tile_34_to_string(30) == "N"
-        assert tile_34_to_string(31) == "Haku"
-        assert tile_34_to_string(32) == "Hatsu"
-        assert tile_34_to_string(33) == "Chun"
-
-    def test_invalid_tile_raises_error(self):
-        with pytest.raises(ValueError, match="Invalid tile_34 value: 34"):
-            tile_34_to_string(34)
-        with pytest.raises(ValueError, match="Invalid tile_34 value: -1"):
-            tile_34_to_string(-1)
 
 
 class TestIsTerminal:
