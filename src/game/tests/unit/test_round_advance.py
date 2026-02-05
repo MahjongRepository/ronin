@@ -9,9 +9,8 @@ import asyncio
 
 import pytest
 
-from game.logic.enums import GameAction, TimeoutType
+from game.logic.enums import GameAction, GameErrorCode, RoundPhase, TimeoutType
 from game.logic.mahjong_service import MahjongGameService, PendingRoundAdvance
-from game.logic.state import RoundPhase
 from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import ExhaustiveDrawResult
 from game.messaging.events import (
@@ -191,7 +190,7 @@ class TestConfirmRound:
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == "invalid_action"
+        assert events[0].data.code == GameErrorCode.INVALID_ACTION
 
     async def test_confirm_round_twice_is_idempotent(self, service):
         """Confirming twice doesn't cause errors or double-advance."""
@@ -246,7 +245,7 @@ class TestConfirmRound:
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == "invalid_action"
+        assert events[0].data.code == GameErrorCode.INVALID_ACTION
         assert "not in progress" in events[0].data.message
 
 
@@ -461,7 +460,7 @@ class TestRoundAdvanceHandleRoundEndNone:
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
-        assert events[0].data.code == "missing_round_result"
+        assert events[0].data.code == GameErrorCode.MISSING_ROUND_RESULT
 
 
 class TestRoundAdvanceFullRound:
@@ -490,7 +489,7 @@ class TestRoundAdvanceFullRound:
             if not human.tiles:
                 break
             tile_id = human.tiles[-1]
-            await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+            await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
         # check if we reached round end with pending advance
         game_state = service._games.get("game1")

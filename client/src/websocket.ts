@@ -1,3 +1,4 @@
+import { ClientMessageType, ConnectionStatus, InternalMessageType } from "./protocol";
 import { decode, encode } from "@msgpack/msgpack";
 
 type MessageHandler = (message: Record<string, unknown>) => void;
@@ -6,16 +7,16 @@ export class GameSocket {
     private ws: WebSocket | null = null;
     private pingInterval: ReturnType<typeof setInterval> | null = null;
     private onMessage: MessageHandler;
-    private onStatusChange: (status: string) => void;
+    private onStatusChange: (status: ConnectionStatus) => void;
 
-    constructor(onMessage: MessageHandler, onStatusChange: (status: string) => void) {
+    constructor(onMessage: MessageHandler, onStatusChange: (status: ConnectionStatus) => void) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
     }
 
     connect(websocketUrl: string): void {
         this.disconnectExisting();
-        this.onStatusChange("connecting");
+        this.onStatusChange(ConnectionStatus.CONNECTING);
         const ws = new WebSocket(websocketUrl);
         this.ws = ws;
         ws.binaryType = "arraybuffer";
@@ -24,9 +25,9 @@ export class GameSocket {
             if (this.ws !== ws) {
                 return;
             }
-            this.onStatusChange("connected");
+            this.onStatusChange(ConnectionStatus.CONNECTED);
             this.pingInterval = setInterval(() => {
-                this.send({ type: "ping" });
+                this.send({ type: ClientMessageType.PING });
             }, 10_000);
         };
 
@@ -42,7 +43,7 @@ export class GameSocket {
                 } catch {
                     this.onMessage({
                         error: "failed to decode MessagePack frame",
-                        type: "decode_error",
+                        type: InternalMessageType.DECODE_ERROR,
                     });
                 }
             }
@@ -53,7 +54,7 @@ export class GameSocket {
                 return;
             }
             this.clearPingInterval();
-            this.onStatusChange("disconnected");
+            this.onStatusChange(ConnectionStatus.DISCONNECTED);
             this.ws = null;
         };
 
@@ -61,7 +62,7 @@ export class GameSocket {
             if (this.ws !== ws) {
                 return;
             }
-            this.onStatusChange("error");
+            this.onStatusChange(ConnectionStatus.ERROR);
         };
     }
 

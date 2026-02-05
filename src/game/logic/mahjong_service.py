@@ -25,12 +25,12 @@ from game.logic.action_handlers import (
 )
 from game.logic.bot import BotPlayer, BotStrategy
 from game.logic.bot_controller import BotController
-from game.logic.enums import BotType, CallType, GameAction, TimeoutType
+from game.logic.enums import BotType, CallType, GameAction, GameErrorCode, RoundPhase, TimeoutType
 from game.logic.game import check_game_end, finalize_game, init_game, process_round_end
 from game.logic.matchmaker import fill_seats
 from game.logic.round import init_round
 from game.logic.service import GameService
-from game.logic.state import MahjongGameState, PendingCallPrompt, RoundPhase, get_player_view
+from game.logic.state import MahjongGameState, PendingCallPrompt, get_player_view
 from game.logic.turn import process_draw_phase
 from game.logic.types import (
     ChiActionData,
@@ -170,7 +170,7 @@ class MahjongGameService(GameService):
         self,
         game_id: str,
         player_name: str,
-        action: str,
+        action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
         """
@@ -182,12 +182,12 @@ class MahjongGameService(GameService):
         if game_state is None:
             # debug level: this is expected for confirm_round after game ends (race condition)
             logger.debug(f"game {game_id}: action from '{player_name}' but game not found")
-            return self._create_error_event("game_error", "game not found")
+            return self._create_error_event(GameErrorCode.GAME_ERROR, "game not found")
 
         seat = self._find_player_seat(game_id, game_state, player_name)
         if seat is None:
             logger.warning(f"game {game_id}: action from '{player_name}' but player not in game")
-            return self._create_error_event("game_error", "player not in game")
+            return self._create_error_event(GameErrorCode.GAME_ERROR, "player not in game")
 
         logger.info(f"game {game_id}: player '{player_name}' (seat {seat}) action={action}")
 
@@ -198,7 +198,7 @@ class MahjongGameService(GameService):
         # reject game actions when the round is not in progress
         if game_state.round_state.phase != RoundPhase.PLAYING:
             return self._create_error_event(
-                "invalid_action", "round is not in progress", target=f"seat_{seat}"
+                GameErrorCode.INVALID_ACTION, "round is not in progress", target=f"seat_{seat}"
             )
 
         events = await self._dispatch_and_process(game_id, seat, action, data)
@@ -212,7 +212,7 @@ class MahjongGameService(GameService):
         return events
 
     async def _dispatch_and_process(
-        self, game_id: str, seat: int, action: str, data: dict[str, Any]
+        self, game_id: str, seat: int, action: GameAction, data: dict[str, Any]
     ) -> list[ServiceEvent]:
         """
         Dispatch action to handler and process result.
@@ -242,20 +242,24 @@ class MahjongGameService(GameService):
         except ValidationError as e:
             logger.warning(f"game {game_id}: validation error for seat {seat} action={action}: {e}")
             return self._create_error_event(
-                "validation_error", f"invalid action data: {e}", target=f"seat_{seat}"
+                GameErrorCode.VALIDATION_ERROR,
+                f"invalid action data: {e}",
+                target=f"seat_{seat}",
             )
 
         if result is None:
             logger.warning(f"game {game_id}: unknown action '{action}' from seat {seat}")
             return self._create_error_event(
-                "unknown_action", f"unknown action: {action}", target=f"seat_{seat}"
+                GameErrorCode.UNKNOWN_ACTION,
+                f"unknown action: {action}",
+                target=f"seat_{seat}",
             )
 
         events = await self._process_action_result_internal(game_id, result)
         return self._append_furiten_changes(game_id, events)
 
     def _execute_data_action(
-        self, game_state: MahjongGameState, seat: int, action: str, data: dict[str, Any]
+        self, game_state: MahjongGameState, seat: int, action: GameAction, data: dict[str, Any]
     ) -> ActionResult | None:
         """Execute data-requiring actions and return the result."""
         round_state = game_state.round_state
@@ -401,7 +405,9 @@ class MahjongGameService(GameService):
                 return player.seat
         return None
 
-    def _create_error_event(self, code: str, message: str, target: str = "all") -> list[ServiceEvent]:
+    def _create_error_event(
+        self, code: GameErrorCode, message: str, target: str = "all"
+    ) -> list[ServiceEvent]:
         """Create an error event wrapped in a ServiceEvent."""
         return [
             ServiceEvent(
@@ -504,7 +510,13 @@ class MahjongGameService(GameService):
             result = self._call_handler(game_state, seat, action, data)
             events.extend(convert_events(result.events))
 
-    def _call_handler(self, game_state: MahjongGameState, seat: int, action: str, data: dict) -> ActionResult:
+    def _call_handler(
+        self,
+        game_state: MahjongGameState,
+        seat: int,
+        action: GameAction,
+        data: dict,
+    ) -> ActionResult:
         """Call the appropriate action handler directly."""
         round_state = game_state.round_state
         if action == GameAction.PASS:
@@ -536,7 +548,7 @@ class MahjongGameService(GameService):
         if round_result is None:
             logger.error(f"game {game_id}: round finished but no round result found in events")
             return self._create_error_event(
-                "missing_round_result",
+                GameErrorCode.MISSING_ROUND_RESULT,
                 "round finished but no round result found",
             )
         logger.info(f"game {game_id}: round ended")
@@ -580,7 +592,9 @@ class MahjongGameService(GameService):
         pending = self._pending_advances.get(game_id)
         if pending is None:
             return self._create_error_event(
-                "invalid_action", "no round pending confirmation", target=f"seat_{seat}"
+                GameErrorCode.INVALID_ACTION,
+                "no round pending confirmation",
+                target=f"seat_{seat}",
             )
 
         pending.confirmed_seats.add(seat)

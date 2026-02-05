@@ -10,6 +10,7 @@ from game.messaging.types import (
     JoinGameMessage,
     LeaveGameMessage,
     PingMessage,
+    SessionErrorCode,
     parse_client_message,
 )
 
@@ -40,7 +41,9 @@ class MessageRouter:
             message = parse_client_message(raw_message)
         except (ValidationError, KeyError, TypeError, ValueError) as e:
             logger.warning(f"invalid message from {connection.connection_id}: {e}")
-            await connection.send_message(ErrorMessage(code="invalid_message", message=str(e)).model_dump())
+            await connection.send_message(
+                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump()
+            )
             return
 
         if isinstance(message, JoinGameMessage):
@@ -60,7 +63,9 @@ class MessageRouter:
                 )
             except (ValueError, KeyError, TypeError) as e:
                 logger.exception(f"action failed for {connection.connection_id}")
-                await connection.send_message(ErrorMessage(code="action_failed", message=str(e)).model_dump())
+                await connection.send_message(
+                    ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump()
+                )
             except Exception:  # pragma: no cover
                 logger.exception(f"fatal error during game action for {connection.connection_id}")
                 await self._session_manager.close_game_on_error(connection)

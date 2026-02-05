@@ -5,29 +5,14 @@ Game state models for Mahjong.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 
 from mahjong.meld import Meld
 
-from game.logic.enums import CallType, GameAction, MeldViewType, WindName
+from game.logic.enums import CallType, GameAction, GamePhase, MeldViewType, RoundPhase, WindName
+from game.logic.tiles import WINDS_34
 from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView
 
 NUM_WINDS = 4
-
-
-class RoundPhase(Enum):
-    """Phase of a mahjong round."""
-
-    WAITING = "waiting"
-    PLAYING = "playing"
-    FINISHED = "finished"
-
-
-class GamePhase(Enum):
-    """Phase of a mahjong game."""
-
-    IN_PROGRESS = "in_progress"
-    FINISHED = "finished"
 
 
 @dataclass
@@ -217,8 +202,8 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
         honba_sticks=game_state.honba_sticks,
         riichi_sticks=game_state.riichi_sticks,
         players=players_view,
-        phase=round_state.phase.value,
-        game_phase=game_state.game_phase.value,
+        phase=round_state.phase,
+        game_phase=game_state.game_phase,
     )
 
 
@@ -242,7 +227,7 @@ def _meld_to_view(meld: Meld) -> MeldView:
     )
 
 
-def _wind_name(wind: int) -> str:
+def _wind_name(wind: int) -> WindName:
     """
     Convert wind index to name.
     """
@@ -252,8 +237,10 @@ def _wind_name(wind: int) -> str:
 
 def seat_to_wind(seat: int, dealer_seat: int) -> int:
     """
-    Calculate player's wind based on seat position relative to dealer.
+    Calculate player's wind tile constant based on seat position relative to dealer.
 
-    Dealer is always East (0), and winds rotate counter-clockwise from there.
+    Dealer is always East, and winds rotate counter-clockwise from there.
+    Returns the wind tile constant (27-30) for use with mahjong library HandConfig.
     """
-    return (seat - dealer_seat) % 4
+    relative_position = (seat - dealer_seat) % 4
+    return WINDS_34[relative_position]

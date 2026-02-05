@@ -28,7 +28,7 @@ lint:
 	uv run ruff check src
 
 format:
-	uv run ruff check --select I --fix src
+	uv run ruff check --fix --unsafe-fixes src
 	uv run ruff format src
 
 typecheck:

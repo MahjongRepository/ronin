@@ -4,7 +4,10 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from game.logic.enums import GameAction
 from game.messaging.encoder import decode, encode
+from game.messaging.events import EventType
+from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.server.websocket import WebSocketConnection
 from game.tests.mocks import MockGameService
@@ -41,14 +44,14 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": "join_game",
+                    "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "TestPlayer",
                 },
             )
 
             response = self._receive_message(ws)
-            assert response["type"] == "game_joined"
+            assert response["type"] == SessionMessageType.GAME_JOINED
             assert response["game_id"] == "test_game"
             assert response["players"] == ["TestPlayer"]
 
@@ -59,7 +62,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws1,
                 {
-                    "type": "join_game",
+                    "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "Player1",
                 },
@@ -70,7 +73,7 @@ class TestWebSocketIntegration:
                 self._send_message(
                     ws2,
                     {
-                        "type": "join_game",
+                        "type": ClientMessageType.JOIN_GAME,
                         "game_id": "test_game",
                         "player_name": "Player2",
                     },
@@ -78,12 +81,12 @@ class TestWebSocketIntegration:
 
                 # Player2 receives game_joined
                 response = self._receive_message(ws2)
-                assert response["type"] == "game_joined"
+                assert response["type"] == SessionMessageType.GAME_JOINED
                 assert set(response["players"]) == {"Player1", "Player2"}
 
                 # Player1 receives player_joined notification
                 notification = self._receive_message(ws1)
-                assert notification["type"] == "player_joined"
+                assert notification["type"] == SessionMessageType.PLAYER_JOINED
                 assert notification["player_name"] == "Player2"
 
     def test_chat_message(self, client):
@@ -93,7 +96,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws1,
                 {
-                    "type": "join_game",
+                    "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "Player1",
                 },
@@ -104,7 +107,7 @@ class TestWebSocketIntegration:
                 self._send_message(
                     ws2,
                     {
-                        "type": "join_game",
+                        "type": ClientMessageType.JOIN_GAME,
                         "game_id": "test_game",
                         "player_name": "Player2",
                     },
@@ -121,7 +124,7 @@ class TestWebSocketIntegration:
                 self._send_message(
                     ws1,
                     {
-                        "type": "chat",
+                        "type": ClientMessageType.CHAT,
                         "text": "Hello!",
                     },
                 )
@@ -130,7 +133,7 @@ class TestWebSocketIntegration:
                 chat1 = self._receive_message(ws1)
                 chat2 = self._receive_message(ws2)
 
-                assert chat1["type"] == "chat"
+                assert chat1["type"] == SessionMessageType.CHAT
                 assert chat1["player_name"] == "Player1"
                 assert chat1["text"] == "Hello!"
                 assert chat2 == chat1
@@ -142,7 +145,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": "join_game",
+                    "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "Player1",
                 },
@@ -154,15 +157,16 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": "game_action",
-                    "action": "test_action",
+                    "type": ClientMessageType.GAME_ACTION,
+                    "action": GameAction.DISCARD,
                     "data": {"foo": "bar"},
                 },
             )
 
             response = self._receive_message(ws)
-            assert response["type"] == "test_action_result"
+            assert response["type"] == EventType.DRAW
             assert response["player"] == "Player1"
+            assert response["action"] == GameAction.DISCARD
             assert response["success"] is True
 
     def test_invalid_message(self, client):
@@ -172,8 +176,8 @@ class TestWebSocketIntegration:
             self._send_message(ws, {"type": "invalid"})
 
             response = self._receive_message(ws)
-            assert response["type"] == "session_error"
-            assert response["code"] == "invalid_message"
+            assert response["type"] == SessionMessageType.ERROR
+            assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
     def test_list_games_empty(self, client):
         response = client.get("/games")

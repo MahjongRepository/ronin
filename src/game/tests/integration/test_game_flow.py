@@ -7,18 +7,17 @@ dealer rotation, and game end conditions.
 
 import pytest
 
-from game.logic.enums import BotType
+from game.logic.enums import BotType, GameAction, RoundPhase, RoundResultType
 from game.logic.game import check_game_end, finalize_game, init_game, process_round_end
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.melds import call_pon
 from game.logic.riichi import declare_riichi
 from game.logic.round import advance_turn, discard_tile, draw_tile
 from game.logic.scoring import HandResult, apply_ron_score, apply_tsumo_score
-from game.logic.state import RoundPhase
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_draw_phase
 from game.logic.types import HandResultInfo, RonResult, SeatConfig, TsumoResult
-from game.messaging.events import GameStartedEvent
+from game.messaging.events import EventType, GameStartedEvent
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -41,7 +40,7 @@ class TestGameCreationAndJoin:
         """Create game and verify game_started broadcast event is received."""
         events = await service.start_game("game1", ["Human"])
 
-        game_started_events = [e for e in events if e.event == "game_started"]
+        game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
 
         event = game_started_events[0]
@@ -68,7 +67,7 @@ class TestGameCreationAndJoin:
         """Verify game_started broadcast contains only player identities, no hand data."""
         events = await service.start_game("game1", ["Human"])
 
-        game_started = next(e for e in events if e.event == "game_started")
+        game_started = next(e for e in events if e.event == EventType.GAME_STARTED)
         assert isinstance(game_started.data, GameStartedEvent)
 
         # game_started only has player identities (seat, name, is_bot)
@@ -105,7 +104,7 @@ class TestTsumoWin:
 
         result = apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
 
-        assert result.type == "tsumo"
+        assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 0
 
         winner = game_state.round_state.players[0]
@@ -152,7 +151,7 @@ class TestRonWin:
 
         result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
 
-        assert result.type == "ron"
+        assert result.type == RoundResultType.RON
         assert result.winner_seat == 0
         assert result.loser_seat == 1
 
@@ -197,7 +196,7 @@ class TestExhaustiveDraw:
         # process draw phase which should detect exhaustive draw
         events = process_draw_phase(round_state, game_state)
 
-        round_end_event = next((e for e in events if e.type == "round_end"), None)
+        round_end_event = next((e for e in events if e.type == EventType.ROUND_END), None)
         assert round_end_event is not None
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -462,7 +461,7 @@ class TestGameEndConditions:
 
         result = finalize_game(game_state)
 
-        assert result.type == "game_end"
+        assert result.type == RoundResultType.GAME_END
         assert result.winner_seat == 0
         assert result.standings[0].seat == 0
 
@@ -499,10 +498,15 @@ class TestGameServiceIntegration:
         assert len(human.tiles) >= 13
         tile_to_discard = human.tiles[-1]
 
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": tile_to_discard})
+        events = await service.handle_action(
+            "game1",
+            "Human",
+            GameAction.DISCARD,
+            {"tile_id": tile_to_discard},
+        )
 
         # should have discard event
-        discard_events = [e for e in events if e.event == "discard"]
+        discard_events = [e for e in events if e.event == EventType.DISCARD]
         assert len(discard_events) >= 1
 
     async def test_multiple_rounds_through_service(self, service):
@@ -523,7 +527,12 @@ class TestGameServiceIntegration:
 
             if player.name == "Human" and player.tiles:
                 tile_to_discard = player.tiles[-1]
-                await service.handle_action("game1", player.name, "discard", {"tile_id": tile_to_discard})
+                await service.handle_action(
+                    "game1",
+                    player.name,
+                    GameAction.DISCARD,
+                    {"tile_id": tile_to_discard},
+                )
 
         # game should still be running or have progressed
         assert game_state.round_number >= initial_round

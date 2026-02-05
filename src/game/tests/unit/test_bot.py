@@ -16,7 +16,7 @@ from game.logic.bot import (
     should_call_pon,
     should_call_ron,
 )
-from game.logic.enums import KanType
+from game.logic.enums import KanType, PlayerAction
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.tests.unit.helpers import _string_to_34_tile
 
@@ -264,7 +264,7 @@ class TestGetBotAction:
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result.action == "discard"
+        assert result.action == PlayerAction.DISCARD
         assert result.tile_id == tiles[-1]
 
     def test_discards_last_tile_from_winning_hand(self):
@@ -275,7 +275,7 @@ class TestGetBotAction:
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result.action == "discard"
+        assert result.action == PlayerAction.DISCARD
         assert result.tile_id == tiles[-1]
 
     def test_discards_last_tile_from_tempai_hand(self):
@@ -286,5 +286,5 @@ class TestGetBotAction:
 
         result = get_bot_action(bot, player, round_state)
 
-        assert result.action == "discard"
+        assert result.action == PlayerAction.DISCARD
         assert result.tile_id == tiles[-1]

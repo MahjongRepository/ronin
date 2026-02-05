@@ -7,11 +7,17 @@ from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_riichi
 from game.logic.actions import get_available_actions
-from game.logic.enums import AbortiveDrawType, CallType, MeldCallType
+from game.logic.enums import (
+    AbortiveDrawType,
+    CallType,
+    MeldCallType,
+    PlayerAction,
+    RoundPhase,
+    RoundResultType,
+)
 from game.logic.game import init_game
 from game.logic.melds import can_call_chi
 from game.logic.round import draw_tile
-from game.logic.state import RoundPhase
 from game.logic.turn import (
     process_discard_phase,
     process_draw_phase,
@@ -19,7 +25,7 @@ from game.logic.turn import (
     process_ron_call,
 )
 from game.logic.types import AbortiveDrawResult
-from game.messaging.events import CallPromptEvent, RoundEndEvent, TurnEvent
+from game.messaging.events import CallPromptEvent, EventType, RoundEndEvent, TurnEvent
 from game.tests.unit.helpers import _default_seat_configs
 
 
@@ -53,7 +59,7 @@ class TestFourWindsAbortiveDraw:
             events = process_discard_phase(round_state, game_state, east_tiles[i])
 
             if i == 3:  # fourth discard triggers four winds
-                round_end_events = [e for e in events if e.type == "round_end"]
+                round_end_events = [e for e in events if e.type == EventType.ROUND_END]
                 assert len(round_end_events) == 1
                 assert isinstance(round_end_events[0], RoundEndEvent)
                 assert isinstance(round_end_events[0].result, AbortiveDrawResult)
@@ -117,7 +123,9 @@ class TestRiichiPlayerExcludedFromMeldCallers:
         # player 1 is NOT in riichi - should be able to call pon
         events = process_discard_phase(round_state, game_state, tile_to_discard)
         call_prompts = [
-            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "meld"
+            e
+            for e in events
+            if e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.MELD
         ]
         if call_prompts:
             assert isinstance(call_prompts[0], CallPromptEvent)
@@ -135,7 +143,9 @@ class TestRiichiPlayerExcludedFromMeldCallers:
 
         events = process_discard_phase(round_state, game_state, tile_to_discard)
         call_prompts = [
-            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "meld"
+            e
+            for e in events
+            if e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.MELD
         ]
         if call_prompts:
             assert isinstance(call_prompts[0], CallPromptEvent)
@@ -157,7 +167,7 @@ class TestRiichiPlayerExcludedFromMeldCallers:
         actions = get_available_actions(round_state, game_state, seat=0)
 
         # find the discard action
-        discard_action = next((a for a in actions if a.action == "discard"), None)
+        discard_action = next((a for a in actions if a.action == PlayerAction.DISCARD), None)
         assert discard_action is not None
         # should only be able to discard the drawn tile
         assert discard_action.tiles is not None
@@ -200,11 +210,11 @@ class TestKyuushuInDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        turn_events = [e for e in events if e.type == "turn"]
+        turn_events = [e for e in events if e.type == EventType.TURN]
         assert len(turn_events) == 1
         assert isinstance(turn_events[0], TurnEvent)
         actions = turn_events[0].available_actions
-        kyuushu_actions = [a for a in actions if a.action == "kyuushu"]
+        kyuushu_actions = [a for a in actions if a.action == PlayerAction.KYUUSHU]
         assert len(kyuushu_actions) == 1
 
 
@@ -227,8 +237,8 @@ class TestRonCallersAfterDiscard:
 
         events = process_discard_phase(round_state, game_state, win_tile)
 
-        call_prompts = [e for e in events if e.type == "call_prompt"]
-        ron_prompts = [e for e in call_prompts if e.call_type == "ron"]
+        call_prompts = [e for e in events if e.type == EventType.CALL_PROMPT]
+        ron_prompts = [e for e in call_prompts if e.call_type == CallType.RON]
         assert len(ron_prompts) == 1
         assert isinstance(ron_prompts[0], CallPromptEvent)
         assert 1 in ron_prompts[0].callers
@@ -259,11 +269,11 @@ class TestDoubleRon:
             discarder_seat=0,
         )
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
-        assert result.type == "double_ron"
+        assert result.type == RoundResultType.DOUBLE_RON
         assert round_state.phase == RoundPhase.FINISHED
 
 
@@ -288,10 +298,12 @@ class TestFourRiichiDuringDiscard:
 
         # check for ron prompts first (a riichi player might be able to ron)
         ron_prompts = [
-            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "ron"
+            e
+            for e in events
+            if e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.RON
         ]
         if not ron_prompts:
-            round_end_events = [e for e in events if e.type == "round_end"]
+            round_end_events = [e for e in events if e.type == EventType.ROUND_END]
             if round_end_events:
                 assert isinstance(round_end_events[0], RoundEndEvent)
                 assert isinstance(round_end_events[0].result, AbortiveDrawResult)
@@ -344,7 +356,7 @@ class TestFourKansAbortDuringKan:
             round_state, game_state, caller_seat=3, call_type=MeldCallType.OPEN_KAN, tile_id=tile_to_kan
         )
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
         assert isinstance(round_end_events[0].result, AbortiveDrawResult)
@@ -386,7 +398,7 @@ class TestChankanDuringAddedKan:
             round_state, game_state, caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_3p
         )
 
-        call_prompts = [e for e in events if e.type == "call_prompt"]
+        call_prompts = [e for e in events if e.type == EventType.CALL_PROMPT]
         chankan_prompts = [e for e in call_prompts if e.call_type == CallType.CHANKAN]
         assert len(chankan_prompts) == 1
         assert isinstance(chankan_prompts[0], CallPromptEvent)
@@ -415,7 +427,9 @@ class TestOpenKanDetectionAfterDiscard:
 
         # meld call prompt should include open_kan option for player 1
         call_prompts = [
-            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == CallType.MELD
+            e
+            for e in events
+            if e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.MELD
         ]
         assert len(call_prompts) >= 1
         assert isinstance(call_prompts[0], CallPromptEvent)
@@ -471,7 +485,7 @@ class TestFourKansAbortAfterClosedKan:
             round_state, game_state, caller_seat=3, call_type=MeldCallType.CLOSED_KAN, tile_id=tile_4m
         )
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
         assert isinstance(round_end_events[0].result, AbortiveDrawResult)

@@ -10,11 +10,14 @@ from pydantic import BaseModel, Field
 from game.logic.enums import (
     AbortiveDrawType,
     BotType,
+    GamePhase,
     KanType,
     MeldCallType,
     MeldViewType,
     PlayerAction,
+    RoundPhase,
     RoundResultType,
+    WindName,
 )
 
 
@@ -217,7 +220,7 @@ class GameView(BaseModel):
     """Complete game view for a specific player."""
 
     seat: int
-    round_wind: str
+    round_wind: WindName
     round_number: int
     dealer_seat: int
     current_player_seat: int
@@ -226,8 +229,8 @@ class GameView(BaseModel):
     honba_sticks: int
     riichi_sticks: int
     players: list[PlayerView]
-    phase: str
-    game_phase: str
+    phase: RoundPhase
+    game_phase: GamePhase
 
 
 # discriminated union for all round results

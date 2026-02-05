@@ -5,7 +5,7 @@ Unit tests for round initialization and management.
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import BotType
+from game.logic.enums import BotType, RoundPhase
 from game.logic.round import (
     DEAD_WALL_SIZE,
     FIRST_DORA_INDEX,
@@ -14,12 +14,7 @@ from game.logic.round import (
     create_players,
     init_round,
 )
-from game.logic.state import (
-    MahjongGameState,
-    MahjongPlayer,
-    MahjongRoundState,
-    RoundPhase,
-)
+from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
 from game.logic.types import SeatConfig
 from game.tests.unit.helpers import _string_to_34_tiles
 

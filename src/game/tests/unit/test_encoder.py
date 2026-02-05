@@ -5,12 +5,14 @@ Tests for MessagePack encoder module.
 import msgpack
 import pytest
 
+from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction, RoundResultType
 from game.messaging.encoder import DecodeError, decode, encode
+from game.messaging.events import EventType
 
 
 class TestEncode:
     def test_encode_simple_dict(self) -> None:
-        data = {"type": "draw", "seat": 0, "tile_id": 0}
+        data = {"type": EventType.DRAW, "seat": 0, "tile_id": 0}
         result = encode(data)
 
         assert isinstance(result, bytes)
@@ -24,8 +26,8 @@ class TestEncode:
 
     def test_encode_nested_dict(self) -> None:
         data = {
-            "type": "round_end",
-            "result": {"type": "tsumo", "winner_seat": 0, "hand": {"han": 3, "fu": 30}},
+            "type": EventType.ROUND_END,
+            "result": {"type": RoundResultType.TSUMO, "winner_seat": 0, "hand": {"han": 3, "fu": 30}},
         }
         result = encode(data)
 
@@ -33,7 +35,7 @@ class TestEncode:
 
     def test_encode_with_list(self) -> None:
         data = {
-            "type": "meld",
+            "type": EventType.MELD,
             "tile_ids": [10, 11, 12],
         }
         result = encode(data)
@@ -43,7 +45,7 @@ class TestEncode:
 
 class TestDecode:
     def test_decode_simple_dict(self) -> None:
-        data = {"type": "draw", "seat": 0, "tile_id": 0}
+        data = {"type": EventType.DRAW, "seat": 0, "tile_id": 0}
         encoded = encode(data)
 
         result = decode(encoded)
@@ -60,8 +62,8 @@ class TestDecode:
 
     def test_decode_nested_dict(self) -> None:
         data = {
-            "type": "round_end",
-            "result": {"type": "tsumo", "winner_seat": 0, "hand": {"han": 3, "fu": 30}},
+            "type": EventType.ROUND_END,
+            "result": {"type": RoundResultType.TSUMO, "winner_seat": 0, "hand": {"han": 3, "fu": 30}},
         }
         encoded = encode(data)
 
@@ -71,7 +73,7 @@ class TestDecode:
 
     def test_decode_with_list(self) -> None:
         data = {
-            "type": "meld",
+            "type": EventType.MELD,
             "tile_ids": [10, 11, 12],
         }
         encoded = encode(data)
@@ -83,13 +85,13 @@ class TestDecode:
 
 class TestRoundTrip:
     def test_round_trip_draw_event(self) -> None:
-        data = {"type": "draw", "seat": 0, "tile_id": 42, "target": "seat_0"}
+        data = {"type": EventType.DRAW, "seat": 0, "tile_id": 42, "target": "seat_0"}
 
         assert decode(encode(data)) == data
 
     def test_round_trip_discard_event(self) -> None:
         data = {
-            "type": "discard",
+            "type": EventType.DISCARD,
             "seat": 1,
             "tile_id": 50,
             "is_tsumogiri": True,
@@ -101,11 +103,11 @@ class TestRoundTrip:
 
     def test_round_trip_turn_event(self) -> None:
         data = {
-            "type": "turn",
+            "type": EventType.TURN,
             "current_seat": 2,
             "available_actions": [
-                {"action": "discard", "tiles": [10, 20, 30]},
-                {"action": "riichi"},
+                {"action": PlayerAction.DISCARD, "tiles": [10, 20, 30]},
+                {"action": PlayerAction.RIICHI},
             ],
             "wall_count": 70,
             "target": "seat_2",
@@ -115,13 +117,13 @@ class TestRoundTrip:
 
     def test_round_trip_call_prompt_event(self) -> None:
         data = {
-            "type": "call_prompt",
-            "call_type": "meld",
+            "type": EventType.CALL_PROMPT,
+            "call_type": CallType.MELD,
             "tile_id": 20,
             "from_seat": 0,
             "callers": [
-                {"seat": 1, "call_type": "pon"},
-                {"seat": 2, "call_type": "chi", "options": [[4, 8]]},
+                {"seat": 1, "call_type": MeldCallType.PON},
+                {"seat": 2, "call_type": MeldCallType.CHI, "options": [[4, 8]]},
             ],
             "target": "all",
         }
@@ -130,11 +132,11 @@ class TestRoundTrip:
 
     def test_round_trip_with_none_values(self) -> None:
         data = {
-            "type": "meld",
-            "meld_type": "kan",
+            "type": EventType.MELD,
+            "meld_type": MeldViewType.KAN,
             "caller_seat": 0,
             "from_seat": None,
-            "kan_type": "closed",
+            "kan_type": KanType.CLOSED,
             "tile_ids": [36, 37, 38, 39],
             "target": "all",
         }

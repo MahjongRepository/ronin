@@ -3,6 +3,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from game.logic.enums import GameAction
+
 
 class ClientMessageType(str, Enum):
     JOIN_GAME = "join_game"
@@ -22,6 +24,17 @@ class SessionMessageType(str, Enum):
     PONG = "pong"
 
 
+class SessionErrorCode(str, Enum):
+    ALREADY_IN_GAME = "already_in_game"
+    GAME_NOT_FOUND = "game_not_found"
+    GAME_STARTED = "game_started"
+    GAME_FULL = "game_full"
+    NAME_TAKEN = "name_taken"
+    NOT_IN_GAME = "not_in_game"
+    INVALID_MESSAGE = "invalid_message"
+    ACTION_FAILED = "action_failed"
+
+
 class JoinGameMessage(BaseModel):
     type: Literal[ClientMessageType.JOIN_GAME] = ClientMessageType.JOIN_GAME
     game_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
@@ -34,7 +47,7 @@ class LeaveGameMessage(BaseModel):
 
 class GameActionMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: str = Field(min_length=1, max_length=100)
+    action: GameAction
     data: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -81,7 +94,7 @@ class SessionChatMessage(BaseModel):
 
 class ErrorMessage(BaseModel):
     type: Literal[SessionMessageType.ERROR] = SessionMessageType.ERROR
-    code: str
+    code: SessionErrorCode
     message: str
 
 

@@ -2,13 +2,16 @@ import pytest
 from mahjong.tile import TilesConverter
 from pydantic import ValidationError
 
+from game.logic.enums import GameAction
 from game.messaging.encoder import decode, encode
+from game.messaging.events import EventType
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
     ChatMessage,
     ClientMessageType,
     JoinGameMessage,
     PingMessage,
+    SessionErrorCode,
     SessionMessageType,
     parse_client_message,
 )
@@ -18,7 +21,7 @@ from game.tests.mocks import MockConnection, MockGameService
 
 class TestParseClientMessage:
     def test_parse_join_game(self):
-        data = {"type": "join_game", "game_id": "game1", "player_name": "Alice"}
+        data = {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"}
         msg = parse_client_message(data)
         assert msg.type == ClientMessageType.JOIN_GAME
         assert isinstance(msg, JoinGameMessage)
@@ -26,14 +29,14 @@ class TestParseClientMessage:
         assert msg.player_name == "Alice"
 
     def test_parse_chat(self):
-        data = {"type": "chat", "text": "Hello!"}
+        data = {"type": ClientMessageType.CHAT, "text": "Hello!"}
         msg = parse_client_message(data)
         assert msg.type == ClientMessageType.CHAT
         assert isinstance(msg, ChatMessage)
         assert msg.text == "Hello!"
 
     def test_parse_ping(self):
-        data = {"type": "ping"}
+        data = {"type": ClientMessageType.PING}
         msg = parse_client_message(data)
         assert msg.type == ClientMessageType.PING
         assert isinstance(msg, PingMessage)
@@ -61,7 +64,7 @@ class TestMessageRouter:
         await router.handle_message(
             connection,
             {
-                "type": "join_game",
+                "type": ClientMessageType.JOIN_GAME,
                 "game_id": "game1",
                 "player_name": "Alice",
             },
@@ -75,10 +78,10 @@ class TestMessageRouter:
         assert response["players"] == ["Alice"]
         # second message is game_started (flat, no game_event wrapper)
         game_event = connection.sent_messages[1]
-        assert game_event["type"] == "game_started"
+        assert game_event["type"] == EventType.GAME_STARTED
         # third message is round_started for seat_0
         round_event = connection.sent_messages[2]
-        assert round_event["type"] == "round_started"
+        assert round_event["type"] == EventType.ROUND_STARTED
 
     async def test_invalid_message_returns_error(self, setup):
         router, connection, _ = setup
@@ -88,7 +91,7 @@ class TestMessageRouter:
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == "invalid_message"
+        assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
     async def test_chat_requires_game(self, setup):
         router, connection, _ = setup
@@ -96,7 +99,7 @@ class TestMessageRouter:
         await router.handle_message(
             connection,
             {
-                "type": "chat",
+                "type": ClientMessageType.CHAT,
                 "text": "Hello!",
             },
         )
@@ -104,7 +107,7 @@ class TestMessageRouter:
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == "not_in_game"
+        assert response["code"] == SessionErrorCode.NOT_IN_GAME
 
     async def test_leave_game_message(self, setup):
         """Leave game message calls session_manager.leave_game."""
@@ -112,11 +115,11 @@ class TestMessageRouter:
         session_manager.create_game("game1")
         await router.handle_message(
             connection,
-            {"type": "join_game", "game_id": "game1", "player_name": "Alice"},
+            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
         )
         connection._outbox.clear()
 
-        await router.handle_message(connection, {"type": "leave_game"})
+        await router.handle_message(connection, {"type": ClientMessageType.LEAVE_GAME})
 
         # player should have received game_left
         assert any(m.get("type") == SessionMessageType.GAME_LEFT for m in connection.sent_messages)
@@ -127,15 +130,15 @@ class TestMessageRouter:
         session_manager.create_game("game1")
         await router.handle_message(
             connection,
-            {"type": "join_game", "game_id": "game1", "player_name": "Alice"},
+            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
         )
         connection._outbox.clear()
 
         await router.handle_message(
             connection,
             {
-                "type": "game_action",
-                "action": "discard",
+                "type": ClientMessageType.GAME_ACTION,
+                "action": GameAction.DISCARD,
                 "data": {"tile_id": TilesConverter.string_to_136_array(man="1")[0]},
             },
         )
@@ -149,7 +152,7 @@ class TestMessageRouter:
         session_manager.create_game("game1")
         await router.handle_message(
             connection,
-            {"type": "join_game", "game_id": "game1", "player_name": "Alice"},
+            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
         )
         connection._outbox.clear()
 
@@ -166,8 +169,8 @@ class TestMessageRouter:
         await router.handle_message(
             connection,
             {
-                "type": "game_action",
-                "action": "discard",
+                "type": ClientMessageType.GAME_ACTION,
+                "action": GameAction.DISCARD,
                 "data": {"tile_id": TilesConverter.string_to_136_array(man="1")[0]},
             },
         )
@@ -175,14 +178,14 @@ class TestMessageRouter:
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == "action_failed"
+        assert response["code"] == SessionErrorCode.ACTION_FAILED
         assert response["message"] == "invalid tile"
 
     async def test_ping_responds_with_pong(self, setup):
         """Ping message is handled by the router and responds with pong."""
         router, connection, _ = setup
 
-        await router.handle_message(connection, {"type": "ping"})
+        await router.handle_message(connection, {"type": ClientMessageType.PING})
 
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]

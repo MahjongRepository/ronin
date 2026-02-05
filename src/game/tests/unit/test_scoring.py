@@ -5,6 +5,7 @@ Unit tests for scoring calculation.
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import RoundResultType
 from game.logic.scoring import (
     HandResult,
     apply_double_ron_score,
@@ -14,60 +15,59 @@ from game.logic.scoring import (
     calculate_hand_value,
 )
 from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState, seat_to_wind
+from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
+
+
+def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> MahjongGameState:
+    """
+    Create a game state with 4 players for scoring tests.
+
+    Set up a mid-game state (some discards, non-empty wall) to avoid
+    triggering Tenhou/Chiihou.
+    """
+    players = [MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4)]
+    dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
+    dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
+    round_state = MahjongRoundState(
+        dealer_seat=dealer_seat,
+        current_player_seat=0,
+        round_wind=round_wind,
+        dora_indicators=dora_indicator_tiles,  # 1m as dora indicator (makes 2m dora)
+        wall=list(range(70)),  # some tiles in wall (not empty)
+        dead_wall=list(range(14)),  # dummy dead wall for ura dora
+        players=players,
+        all_discards=dummy_discard_tiles,  # some discards to avoid tenhou/chiihou
+    )
+    return MahjongGameState(round_state=round_state)
 
 
 class TestSeatToWind:
     def test_dealer_is_east(self):
-        # dealer at seat 0, player at seat 0 -> East (0)
-        assert seat_to_wind(0, 0) == 0
+        assert seat_to_wind(0, 0) == EAST_34
 
     def test_dealer_plus_one_is_south(self):
-        # dealer at seat 0, player at seat 1 -> South (1)
-        assert seat_to_wind(1, 0) == 1
+        assert seat_to_wind(1, 0) == SOUTH_34
 
     def test_dealer_plus_two_is_west(self):
-        # dealer at seat 0, player at seat 2 -> West (2)
-        assert seat_to_wind(2, 0) == 2
+        assert seat_to_wind(2, 0) == WEST_34
 
     def test_dealer_plus_three_is_north(self):
-        # dealer at seat 0, player at seat 3 -> North (3)
-        assert seat_to_wind(3, 0) == 3
+        assert seat_to_wind(3, 0) == NORTH_34
 
     def test_dealer_at_seat_2(self):
         # dealer at seat 2
         # seat 2 = East, seat 3 = South, seat 0 = West, seat 1 = North
-        assert seat_to_wind(2, 2) == 0  # East
-        assert seat_to_wind(3, 2) == 1  # South
-        assert seat_to_wind(0, 2) == 2  # West
-        assert seat_to_wind(1, 2) == 3  # North
+        assert seat_to_wind(2, 2) == EAST_34
+        assert seat_to_wind(3, 2) == SOUTH_34
+        assert seat_to_wind(0, 2) == WEST_34
+        assert seat_to_wind(1, 2) == NORTH_34
 
 
 class TestCalculateHandValue:
-    def _create_game_state(self, dealer_seat: int = 0) -> MahjongGameState:
-        """
-        Create a game state with 4 players for testing.
-
-        Sets up a mid-game state (some discards) to avoid triggering Tenhou.
-        """
-        players = [MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4)]
-        dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
-        dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
-        round_state = MahjongRoundState(
-            dealer_seat=dealer_seat,
-            current_player_seat=0,
-            round_wind=0,  # east
-            dora_indicators=dora_indicator_tiles,  # 1m as dora indicator (makes 2m dora)
-            wall=list(range(70)),  # some tiles in wall (not empty)
-            dead_wall=list(range(14)),  # dummy dead wall for ura dora
-            players=players,
-            all_discards=dummy_discard_tiles,  # some discards to avoid tenhou/chiihou
-        )
-        return MahjongGameState(round_state=round_state)
-
     def test_menzen_tsumo_hand(self):
         # 123m 456m 789m 123p 55p - pinfu tsumo
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         player.tiles = tiles
 
@@ -83,7 +83,7 @@ class TestCalculateHandValue:
     def test_riichi_hand(self):
         # closed hand with riichi
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         player.tiles = tiles
         player.is_riichi = True
@@ -98,7 +98,7 @@ class TestCalculateHandValue:
     def test_ippatsu_hand(self):
         # riichi with ippatsu
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         player.tiles = tiles
         player.is_riichi = True
@@ -113,7 +113,7 @@ class TestCalculateHandValue:
 
     def test_ron_hand(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         player.tiles = tiles
         player.is_riichi = True
@@ -128,7 +128,7 @@ class TestCalculateHandValue:
     def test_haitei_tsumo(self):
         # last tile draw (haitei)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         game_state.round_state.wall = []  # empty wall = last tile
         player = game_state.round_state.players[0]
         player.tiles = tiles
@@ -142,7 +142,7 @@ class TestCalculateHandValue:
     def test_houtei_ron(self):
         # last discard ron (houtei)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         game_state.round_state.wall = []  # empty wall = last discard possible
         player = game_state.round_state.players[0]
         player.tiles = tiles
@@ -165,7 +165,7 @@ class TestCalculateHandValue:
             meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[0], who=0, from_who=1
         )
 
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         player.tiles = all_tiles
         player.melds = [pon]
@@ -185,7 +185,7 @@ class TestCalculateHandValue:
             meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
         )
 
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         # only closed tiles in hand (matching actual gameplay after meld call)
         player.tiles = closed_tiles
@@ -211,7 +211,7 @@ class TestCalculateHandValue:
             meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
         )
 
-        game_state = self._create_game_state()
+        game_state = _create_scoring_game_state()
         player = game_state.round_state.players[0]
         # only closed tiles in hand (matching actual gameplay after meld call)
         player.tiles = closed_tiles
@@ -251,7 +251,7 @@ class TestApplyTsumoScore:
         # other non-dealers pay 500 each
         assert game_state.round_state.players[2].score == 25000 - 500
         assert game_state.round_state.players[3].score == 25000 - 500
-        assert result.type == "tsumo"
+        assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 1
 
     def test_dealer_tsumo_basic(self):
@@ -325,7 +325,7 @@ class TestApplyRonScore:
         # others unaffected
         assert game_state.round_state.players[2].score == 25000
         assert game_state.round_state.players[3].score == 25000
-        assert result.type == "ron"
+        assert result.type == RoundResultType.RON
 
     def test_ron_with_honba(self):
         # ron with 3 honba sticks = +900 total
@@ -386,7 +386,7 @@ class TestApplyDoubleRonScore:
         assert game_state.round_state.players[1].score == 25000 - 6000
         # seat 3 unaffected
         assert game_state.round_state.players[3].score == 25000
-        assert result.type == "double_ron"
+        assert result.type == RoundResultType.DOUBLE_RON
 
     def test_double_ron_with_honba(self):
         # both winners get honba bonus
@@ -479,7 +479,7 @@ class TestApplyNagashiManganScore:
             game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3]
         )
 
-        assert result.type == "nagashi_mangan"
+        assert result.type == RoundResultType.NAGASHI_MANGAN
         assert result.qualifying_seats == [0]
         assert result.score_changes[0] == 12000
         assert result.score_changes[1] == -4000
@@ -716,6 +716,147 @@ class TestPaoRonScoring:
         assert game_state.round_state.players[1].score == 25000 - 2000
 
 
+class TestChankanYakuScoring:
+    """Test that chankan yaku is correctly credited in hand value calculation."""
+
+    def test_chankan_yaku_credited_in_hand_value(self):
+        """Chankan win should include chankan yaku (1 han) in scoring."""
+        # setup: player with riichi hand waiting on a tile
+        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
+        game_state = _create_scoring_game_state()
+        player = game_state.round_state.players[0]
+        player.tiles = tiles
+        player.is_riichi = True
+
+        win_tile = tiles[-1]  # 5p
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, is_tsumo=False, is_chankan=True
+        )
+
+        assert result.error is None
+        assert "Chankan" in result.yaku
+        # riichi + chankan = 2 han
+        assert result.han >= 2
+
+    def test_chankan_only_yaku_for_open_hand(self):
+        """Open hand with no other yaku should succeed when is_chankan=True."""
+        # setup: open hand with pon of 1m (no yaku)
+        pon_tiles = TilesConverter.string_to_136_array(man="111")
+        pon = Meld(
+            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[2], who=0, from_who=1
+        )
+        closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
+
+        game_state = _create_scoring_game_state()
+        player = game_state.round_state.players[0]
+        # in actual gameplay, meld tiles are removed from player.tiles
+        player.tiles = closed_tiles
+        player.melds = [pon]
+
+        # add win tile (5m)
+        win_tile = TilesConverter.string_to_136_array(man="5")[0]
+        player.tiles.append(win_tile)
+
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, is_tsumo=False, is_chankan=True
+        )
+
+        # chankan provides the yaku, hand should succeed
+        assert result.error is None
+        assert "Chankan" in result.yaku
+        assert result.han >= 1
+
+    def test_chankan_only_yaku_for_open_hand_fails_without_flag(self):
+        """Open hand with no other yaku fails without is_chankan flag."""
+        # setup: same open hand as above
+        pon_tiles = TilesConverter.string_to_136_array(man="111")
+        pon = Meld(
+            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[2], who=0, from_who=1
+        )
+        closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
+
+        game_state = _create_scoring_game_state()
+        player = game_state.round_state.players[0]
+        player.tiles = closed_tiles
+        player.melds = [pon]
+
+        # add win tile (5m)
+        win_tile = TilesConverter.string_to_136_array(man="5")[0]
+        player.tiles.append(win_tile)
+
+        # call without is_chankan flag (default is False)
+        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+
+        # without chankan flag, the open hand has no yaku
+        assert result.error == "no_yaku"
+
+
+class TestWindYakuhaiScoring:
+    """Test that wind yakuhai (seat and round wind) are correctly credited."""
+
+    def test_dealer_east_wind_yakuhai_in_east_round(self):
+        """Dealer (East seat) with East triplet in East round gets double yakuhai."""
+        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=0)
+        player = game_state.round_state.players[0]  # dealer = East seat
+
+        # 123m 456p 789s 111z (East) 55z (South pair)
+        player.tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="11155")
+
+        win_tile = player.tiles[-1]
+        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+
+        assert result.error is None
+        # Should have both seat wind (East) and round wind (East) yakuhai
+        assert "Yakuhai (wind of place)" in result.yaku
+        assert "Yakuhai (wind of round)" in result.yaku
+
+    def test_non_dealer_seat_wind_yakuhai(self):
+        """Non-dealer with their seat wind triplet gets seat wind yakuhai."""
+        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=0)
+        player = game_state.round_state.players[1]  # South seat
+
+        # 123m 456p 789s 222z (South) 55z (pair)
+        player.tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="22255")
+
+        win_tile = player.tiles[-1]
+        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+
+        assert result.error is None
+        assert "Yakuhai (wind of place)" in result.yaku
+        assert "Yakuhai (wind of round)" not in result.yaku
+
+    def test_round_wind_yakuhai_south_round(self):
+        """Player with South triplet in South round gets round wind yakuhai."""
+        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=1)  # South round
+        player = game_state.round_state.players[2]  # West seat (not South)
+
+        # 123m 456p 789s 222z (South) 55z (pair)
+        player.tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="22255")
+
+        win_tile = player.tiles[-1]
+        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+
+        assert result.error is None
+        assert "Yakuhai (wind of round)" in result.yaku
+        assert "Yakuhai (wind of place)" not in result.yaku
+
+    def test_is_dealer_affects_scoring(self):
+        """Verify is_dealer flag is correctly set for dealer payment calculations."""
+        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=0)
+        dealer = game_state.round_state.players[0]
+
+        # Winning hand with East yakuhai
+        dealer.tiles = TilesConverter.string_to_136_array(man="123456789", pin="11", honors="111")
+
+        win_tile = dealer.tiles[-1]
+        result = calculate_hand_value(dealer, game_state.round_state, win_tile, is_tsumo=True)
+
+        assert result.error is None
+        # Dealer tsumo: all non-dealers pay the same amount
+        # For dealer win, cost_additional is 0 since there's only one payment amount
+        assert result.cost_additional in (0, result.cost_main)
+
+
 class TestPaoDoubleRonScoring:
     """Tests for pao (liability) in double ron wins."""
 
@@ -753,7 +894,7 @@ class TestPaoDoubleRonScoring:
         assert game_state.round_state.players[1].score == 25000 - 18000
         assert game_state.round_state.players[2].score == 25000 + 2000
         assert game_state.round_state.players[3].score == 25000 - 16000
-        assert result.type == "double_ron"
+        assert result.type == RoundResultType.DOUBLE_RON
         # pao_seat is propagated to individual winner results
         assert result.winners[0].pao_seat == 3
         assert result.winners[1].pao_seat is None

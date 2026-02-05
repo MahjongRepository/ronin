@@ -4,9 +4,10 @@ Unit tests for MahjongGameService initialization and lifecycle.
 
 import pytest
 
-from game.logic.enums import CallType
+from game.logic.enums import CallType, GameAction, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt, RoundPhase
+from game.logic.state import PendingCallPrompt
+from game.messaging.events import EventType
 from game.tests.unit.helpers import _find_human_player
 
 
@@ -46,7 +47,7 @@ class TestMahjongGameServiceInit:
         events = await service.start_game("game1", ["Human"])
 
         # single game_started event broadcast to all
-        game_started_events = [e for e in events if e.event == "game_started"]
+        game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
         assert game_started_events[0].target == "all"
         assert game_started_events[0].data.game_id == "game1"
@@ -55,13 +56,13 @@ class TestMahjongGameServiceInit:
     async def test_start_game_includes_draw_event_for_dealer(self, service):
         events = await service.start_game("game1", ["Human"])
 
-        draw_events = [e for e in events if e.event == "draw"]
+        draw_events = [e for e in events if e.event == EventType.DRAW]
         assert len(draw_events) >= 1
 
     async def test_start_game_includes_turn_event_for_dealer(self, service):
         events = await service.start_game("game1", ["Human"])
 
-        turn_events = [e for e in events if e.event == "turn"]
+        turn_events = [e for e in events if e.event == EventType.TURN]
         assert len(turn_events) >= 1
 
     async def test_start_game_creates_bot_controllers(self, service):
@@ -170,7 +171,7 @@ class TestMahjongGameServiceMultipleGames:
         bob = _find_human_player(game2.round_state, "Bob")
         bob_tiles_before = len(bob.tiles)
 
-        await service.handle_action("game1", "Alice", "discard", {"tile_id": tile_id})
+        await service.handle_action("game1", "Alice", GameAction.DISCARD, {"tile_id": tile_id})
 
         # game2 should be unaffected - bob's tile count should be unchanged
         assert len(bob.tiles) == bob_tiles_before
@@ -221,7 +222,7 @@ class TestMahjongGameServiceAllHumans:
         """All 4 players marked as is_bot=False in game_started event."""
         events = await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
 
-        game_started_events = [e for e in events if e.event == "game_started"]
+        game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
 
         players = game_started_events[0].data.players
@@ -234,7 +235,7 @@ class TestMahjongGameServiceAllHumans:
         names = ["Alice", "Bob", "Charlie", "Dave"]
         events = await service.start_game("game1", names)
 
-        game_started_events = [e for e in events if e.event == "game_started"]
+        game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         player_names = {p.name for p in game_started_events[0].data.players}
         assert player_names == set(names)
 
@@ -244,7 +245,7 @@ class TestMahjongGameServiceAllHumans:
 
         # with 4 humans, exactly 1 turn event should be present for the dealer
         # (no bot followup chain that would generate additional events)
-        turn_events = [e for e in events if e.event == "turn"]
+        turn_events = [e for e in events if e.event == EventType.TURN]
         assert len(turn_events) == 1
 
     async def test_four_humans_creates_four_players(self, service):
@@ -481,5 +482,5 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         events = await service.process_bot_actions_after_replacement("game1", alice.seat)
 
         # should contain round_end event (round ended due to exhaustive draw)
-        round_end_events = [e for e in events if e.event == "round_end"]
+        round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) >= 1

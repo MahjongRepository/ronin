@@ -20,5 +20,10 @@ bot
 
 src/debug.py
 
+# AI stuff
 AGENTS.md
 AGENTS.override.md
+.claude
+Dockerfile.agent
+thoughts
+Makefile.agent

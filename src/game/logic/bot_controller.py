@@ -5,6 +5,8 @@ Provides bot identification and decision methods.
 Orchestration is handled by MahjongGameService.
 """
 
+from typing import Any
+
 from game.logic.bot import (
     BotPlayer,
     get_bot_action,
@@ -57,9 +59,13 @@ class BotController:
         """
         return set(self._bots.keys())
 
-    def get_turn_action(self, seat: int, round_state: MahjongRoundState) -> tuple[str, dict] | None:
+    def get_turn_action(
+        self,
+        seat: int,
+        round_state: MahjongRoundState,
+    ) -> tuple[GameAction, dict[str, Any]] | None:
         """
-        Get the bot's turn action as (action_string, data_dict).
+        Get the bot's turn action as (action, data).
 
         Returns None if seat is not a bot.
         """
@@ -89,9 +95,9 @@ class BotController:
         call_type: CallType,
         tile_id: int,
         caller_info: int | MeldCaller,
-    ) -> tuple[str, dict] | None:
+    ) -> tuple[GameAction, dict[str, Any]] | None:
         """
-        Get the bot's call response as (action_string, data_dict).
+        Get the bot's call response as (action, data).
 
         Returns None if the bot declines (passes).
         """
@@ -123,11 +129,11 @@ def _get_bot_meld_response(
     caller_info: MeldCaller,
     tile_id: int,
     round_state: MahjongRoundState,
-) -> tuple[str, dict] | None:
+) -> tuple[GameAction, dict[str, Any]] | None:
     """
     Check bot's meld response.
 
-    Returns (action_string, data_dict) or None if bot declines.
+    Returns (action, data) or None if bot declines.
     """
     meld_call_type = caller_info.call_type
     caller_options = caller_info.options

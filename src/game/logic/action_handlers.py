@@ -17,7 +17,16 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.actions import get_available_actions
-from game.logic.enums import MELD_CALL_PRIORITY, CallType, GameAction, KanType, MeldCallType, MeldViewType
+from game.logic.enums import (
+    MELD_CALL_PRIORITY,
+    CallType,
+    GameAction,
+    GameErrorCode,
+    KanType,
+    MeldCallType,
+    MeldViewType,
+    RoundPhase,
+)
 from game.logic.melds import call_added_kan
 from game.logic.riichi import declare_riichi
 from game.logic.round import advance_turn
@@ -26,7 +35,6 @@ from game.logic.state import (
     MahjongGameState,
     MahjongRoundState,
     PendingCallPrompt,
-    RoundPhase,
 )
 from game.logic.turn import (
     emit_deferred_dora_events,
@@ -71,7 +79,9 @@ class ActionResult(NamedTuple):
 
 def _create_not_your_turn_error(seat: int) -> ActionResult:
     """Create an error result for when it's not a player's turn."""
-    return ActionResult([ErrorEvent(code="not_your_turn", message="not your turn", target=f"seat_{seat}")])
+    return ActionResult(
+        [ErrorEvent(code=GameErrorCode.NOT_YOUR_TURN, message="not your turn", target=f"seat_{seat}")]
+    )
 
 
 def _create_turn_event(
@@ -151,7 +161,10 @@ def _resolve_ron_responses(
 
     # double ron or single ron
     ron_seats = [r.seat for r in ron_responses]
-    events = process_ron_call(round_state, game_state, ron_seats, prompt.tile_id, prompt.from_seat)
+    is_chankan = prompt.call_type == CallType.CHANKAN
+    events = process_ron_call(
+        round_state, game_state, ron_seats, prompt.tile_id, prompt.from_seat, is_chankan=is_chankan
+    )
     round_state.pending_call_prompt = None
     return ActionResult(events)
 
@@ -259,7 +272,7 @@ def _pick_best_meld_response(
 
 
 def _action_to_meld_call_type(action: GameAction) -> MeldCallType:
-    """Convert a GameAction string to MeldCallType."""
+    """Convert a GameAction to MeldCallType."""
     mapping = {
         GameAction.CALL_PON: MeldCallType.PON,
         GameAction.CALL_CHI: MeldCallType.CHI,
@@ -291,7 +304,9 @@ def handle_discard(
         return ActionResult(events, needs_post_discard=True)
     except ValueError as e:
         logger.warning(f"invalid discard from seat {seat}: {e}")
-        return ActionResult([ErrorEvent(code="invalid_discard", message=str(e), target=f"seat_{seat}")])
+        return ActionResult(
+            [ErrorEvent(code=GameErrorCode.INVALID_DISCARD, message=str(e), target=f"seat_{seat}")]
+        )
 
 
 def handle_riichi(
@@ -313,7 +328,9 @@ def handle_riichi(
         return ActionResult(events, needs_post_discard=True)
     except ValueError as e:
         logger.warning(f"invalid riichi from seat {seat}: {e}")
-        return ActionResult([ErrorEvent(code="invalid_riichi", message=str(e), target=f"seat_{seat}")])
+        return ActionResult(
+            [ErrorEvent(code=GameErrorCode.INVALID_RIICHI, message=str(e), target=f"seat_{seat}")]
+        )
 
 
 def handle_tsumo(
@@ -334,7 +351,9 @@ def handle_tsumo(
         return ActionResult(events)
     except ValueError as e:
         logger.warning(f"invalid tsumo from seat {seat}: {e}")
-        return ActionResult([ErrorEvent(code="invalid_tsumo", message=str(e), target=f"seat_{seat}")])
+        return ActionResult(
+            [ErrorEvent(code=GameErrorCode.INVALID_TSUMO, message=str(e), target=f"seat_{seat}")]
+        )
 
 
 def handle_ron(
@@ -352,7 +371,13 @@ def handle_ron(
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning(f"invalid ron from seat {seat}: no pending call prompt")
         return ActionResult(
-            [ErrorEvent(code="invalid_ron", message="no pending call prompt", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_RON,
+                    message="no pending call prompt",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     prompt.responses.append(CallResponse(seat=seat, action=GameAction.CALL_RON))
@@ -381,7 +406,13 @@ def handle_pon(
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning(f"invalid pon from seat {seat}: no pending call prompt")
         return ActionResult(
-            [ErrorEvent(code="invalid_pon", message="no pending call prompt", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_PON,
+                    message="no pending call prompt",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     if prompt.tile_id != data.tile_id:
@@ -389,7 +420,13 @@ def handle_pon(
             f"invalid pon from seat {seat}: tile_id mismatch (expected={prompt.tile_id}, got={data.tile_id})"
         )
         return ActionResult(
-            [ErrorEvent(code="invalid_pon", message="tile_id mismatch", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_PON,
+                    message="tile_id mismatch",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     prompt.responses.append(CallResponse(seat=seat, action=GameAction.CALL_PON))
@@ -418,7 +455,13 @@ def handle_chi(
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning(f"invalid chi from seat {seat}: no pending call prompt")
         return ActionResult(
-            [ErrorEvent(code="invalid_chi", message="no pending call prompt", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_CHI,
+                    message="no pending call prompt",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     if prompt.tile_id != data.tile_id:
@@ -426,7 +469,13 @@ def handle_chi(
             f"invalid chi from seat {seat}: tile_id mismatch (expected={prompt.tile_id}, got={data.tile_id})"
         )
         return ActionResult(
-            [ErrorEvent(code="invalid_chi", message="tile_id mismatch", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_CHI,
+                    message="tile_id mismatch",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     prompt.responses.append(
@@ -455,7 +504,13 @@ def _handle_open_kan_call_response(
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning(f"invalid open kan from seat {seat}: not a pending caller")
         return ActionResult(
-            [ErrorEvent(code="invalid_kan", message="not a pending caller", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_KAN,
+                    message="not a pending caller",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     prompt.responses.append(CallResponse(seat=seat, action=GameAction.CALL_KAN))
@@ -493,7 +548,9 @@ def handle_kan(
         events = process_meld_call(round_state, game_state, seat, meld_call_type, data.tile_id)
     except ValueError as e:
         logger.warning(f"invalid kan from seat {seat}: {e}")
-        return ActionResult([ErrorEvent(code="invalid_kan", message=str(e), target=f"seat_{seat}")])
+        return ActionResult(
+            [ErrorEvent(code=GameErrorCode.INVALID_KAN, message=str(e), target=f"seat_{seat}")]
+        )
 
     if round_state.phase == RoundPhase.FINISHED:
         return ActionResult(events)
@@ -540,7 +597,9 @@ def handle_kyuushu(
         return ActionResult(
             [
                 ErrorEvent(
-                    code="cannot_call_kyuushu", message="cannot call kyuushu kyuuhai", target=f"seat_{seat}"
+                    code=GameErrorCode.CANNOT_CALL_KYUUSHU,
+                    message="cannot call kyuushu kyuuhai",
+                    target=f"seat_{seat}",
                 )
             ]
         )
@@ -570,7 +629,13 @@ def handle_pass(
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning(f"invalid pass from seat {seat}: no pending call prompt")
         return ActionResult(
-            [ErrorEvent(code="invalid_pass", message="no pending call prompt", target=f"seat_{seat}")]
+            [
+                ErrorEvent(
+                    code=GameErrorCode.INVALID_PASS,
+                    message="no pending call prompt",
+                    target=f"seat_{seat}",
+                )
+            ]
         )
 
     # apply furiten for passing on ron/chankan opportunity

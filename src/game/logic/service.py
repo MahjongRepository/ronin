@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import TimeoutType
+from game.logic.enums import GameAction, TimeoutType
 
 if TYPE_CHECKING:
     from game.messaging.events import ServiceEvent
@@ -21,7 +21,7 @@ class GameService(ABC):
         self,
         game_id: str,
         player_name: str,
-        action: str,
+        action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
         """

@@ -1,0 +1,60 @@
+export enum ClientMessageType {
+    JOIN_GAME = "join_game",
+    LEAVE_GAME = "leave_game",
+    GAME_ACTION = "game_action",
+    CHAT = "chat",
+    PING = "ping",
+}
+
+export enum SessionMessageType {
+    GAME_JOINED = "game_joined",
+    GAME_LEFT = "game_left",
+    PLAYER_JOINED = "player_joined",
+    PLAYER_LEFT = "player_left",
+    CHAT = "chat",
+    ERROR = "session_error",
+    PONG = "pong",
+}
+
+export enum EventType {
+    DRAW = "draw",
+    DISCARD = "discard",
+    MELD = "meld",
+    TURN = "turn",
+    CALL_PROMPT = "call_prompt",
+    ROUND_END = "round_end",
+    RIICHI_DECLARED = "riichi_declared",
+    DORA_REVEALED = "dora_revealed",
+    ERROR = "error",
+    GAME_STARTED = "game_started",
+    ROUND_STARTED = "round_started",
+    GAME_END = "game_end",
+    FURITEN = "furiten",
+}
+
+export enum GameAction {
+    DISCARD = "discard",
+    DECLARE_RIICHI = "declare_riichi",
+    DECLARE_TSUMO = "declare_tsumo",
+    CALL_RON = "call_ron",
+    CALL_PON = "call_pon",
+    CALL_CHI = "call_chi",
+    CALL_KAN = "call_kan",
+    CALL_KYUUSHU = "call_kyuushu",
+    PASS = "pass",
+    CONFIRM_ROUND = "confirm_round",
+}
+
+export enum ConnectionStatus {
+    CONNECTING = "connecting",
+    CONNECTED = "connected",
+    DISCONNECTED = "disconnected",
+    ERROR = "error",
+}
+
+export enum InternalMessageType {
+    DECODE_ERROR = "decode_error",
+}
+
+export const LOG_TYPE_SYSTEM = "system";
+export const LOG_TYPE_UNKNOWN = "unknown";

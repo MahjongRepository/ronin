@@ -10,9 +10,9 @@ Each event has a target field indicating who should receive it:
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
-from game.logic.enums import CallType, KanType, MeldViewType
+from game.logic.enums import CallType, GameErrorCode, KanType, MeldViewType
 from game.logic.types import (
     AvailableActionItem,
     GameEndResult,
@@ -41,10 +41,16 @@ class EventType(str, Enum):
     FURITEN = "furiten"
 
 
+def _normalize_event_value(value: str | Enum) -> str:
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
+
 class GameEvent(BaseModel):
     """Base class for all game events."""
 
-    type: str
+    type: EventType
     target: str
 
 
@@ -126,7 +132,7 @@ class ErrorEvent(GameEvent):
     """Event sent to a player when an error occurs."""
 
     type: Literal[EventType.ERROR] = EventType.ERROR
-    code: str
+    code: GameErrorCode
     message: str
 
 
@@ -180,9 +186,17 @@ Event = (
 class ServiceEvent(BaseModel):
     """Event transport container for game service layer."""
 
-    event: str
+    event: EventType
     data: GameEvent
     target: str = "all"
+
+    @model_validator(mode="after")
+    def _ensure_event_matches_data(self) -> ServiceEvent:
+        event_value = _normalize_event_value(self.event)
+        data_value = _normalize_event_value(self.data.type)
+        if event_value != data_value:
+            raise ValueError(f"ServiceEvent.event '{event_value}' does not match data.type '{data_value}'")
+        return self
 
 
 def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:

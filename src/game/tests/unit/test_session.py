@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from game.logic.enums import CallType, MeldCallType, TimeoutType
+from game.logic.enums import CallType, GameAction, GamePhase, MeldCallType, RoundPhase, TimeoutType, WindName
 from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import (
     ExhaustiveDrawResult,
@@ -24,7 +24,7 @@ from game.messaging.events import (
     ServiceEvent,
     TurnEvent,
 )
-from game.messaging.types import SessionMessageType
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import HEARTBEAT_TIMEOUT, SessionManager
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockGameService, MockResultEvent
@@ -34,7 +34,7 @@ def _make_dummy_game_view() -> GameView:
     """Create a minimal GameView for testing."""
     return GameView(
         seat=0,
-        round_wind="East",
+        round_wind=WindName.EAST,
         round_number=1,
         dealer_seat=0,
         current_player_seat=0,
@@ -54,8 +54,8 @@ def _make_dummy_game_view() -> GameView:
                 tile_count=13,
             ),
         ],
-        phase="playing",
-        game_phase="east",
+        phase=RoundPhase.PLAYING,
+        game_phase=GamePhase.IN_PROGRESS,
     )
 
 
@@ -98,7 +98,7 @@ class TestSessionManager:
         await manager.join_game(conn, "game1", "Alice")
 
         # should receive: game_joined + game_started (broadcast) + round_started (seat_0)
-        game_started_events = [m for m in conn.sent_messages if m.get("type") == "game_started"]
+        game_started_events = [m for m in conn.sent_messages if m.get("type") == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
 
     async def test_second_player_notifies_first(self, manager):
@@ -152,7 +152,7 @@ class TestSessionManager:
 
         msg = connections[4].sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == "game_started"
+        assert msg["code"] == SessionErrorCode.GAME_STARTED
 
     async def test_game_full_error(self, manager):
         conn1 = MockConnection()
@@ -174,7 +174,7 @@ class TestSessionManager:
 
         msg = conn3.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == "game_full"
+        assert msg["code"] == SessionErrorCode.GAME_FULL
 
     async def test_duplicate_name_error(self, manager):
         conn1 = MockConnection()
@@ -188,7 +188,7 @@ class TestSessionManager:
 
         msg = conn2.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == "name_taken"
+        assert msg["code"] == SessionErrorCode.NAME_TAKEN
 
     async def test_empty_game_is_cleaned_up(self, manager):
         conn = MockConnection()
@@ -210,7 +210,7 @@ class TestSessionManager:
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == "game_not_found"
+        assert msg["code"] == SessionErrorCode.GAME_NOT_FOUND
 
     async def test_handle_game_action_broadcasts_events(self, manager):
         """handle_game_action processes list of events and broadcasts them."""
@@ -220,12 +220,13 @@ class TestSessionManager:
         await manager.join_game(conn, "game1", "Alice")
         conn._outbox.clear()
 
-        await manager.handle_game_action(conn, "test_action", {"key": "value"})
+        await manager.handle_game_action(conn, GameAction.DISCARD, {"key": "value"})
 
         # mock service returns one event with target "all"
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == "test_action_result"
+        assert msg["type"] == EventType.DRAW
+        assert msg["action"] == GameAction.DISCARD
 
     async def test_targeted_events_only_sent_to_target_player(self, manager):
         """Events with seat_N target go only to the player at that seat."""
@@ -243,7 +244,7 @@ class TestSessionManager:
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
         seat_event = ServiceEvent(
-            event="turn",
+            event=EventType.TURN,
             data=TurnEvent(
                 current_seat=0,
                 available_actions=[],
@@ -272,13 +273,15 @@ class TestSessionManager:
         conn2._outbox.clear()
 
         # perform action that generates broadcast event
-        await manager.handle_game_action(conn1, "test_action", {})
+        await manager.handle_game_action(conn1, GameAction.DISCARD, {})
 
         # both players should receive the event
         assert len(conn1.sent_messages) == 1
         assert len(conn2.sent_messages) == 1
-        assert conn1.sent_messages[0]["type"] == "test_action_result"
-        assert conn2.sent_messages[0]["type"] == "test_action_result"
+        assert conn1.sent_messages[0]["type"] == EventType.DRAW
+        assert conn1.sent_messages[0]["action"] == GameAction.DISCARD
+        assert conn2.sent_messages[0]["type"] == EventType.DRAW
+        assert conn2.sent_messages[0]["action"] == GameAction.DISCARD
 
     async def test_call_prompt_only_sent_to_callers(self, manager):
         """CallPromptEvent is only sent to seats listed in callers, not to all players."""
@@ -296,7 +299,7 @@ class TestSessionManager:
         # manually broadcast a call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.RON,
                 tile_id=42,
@@ -310,7 +313,7 @@ class TestSessionManager:
 
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conn1.sent_messages) == 1
-        assert conn1.sent_messages[0]["type"] == "call_prompt"
+        assert conn1.sent_messages[0]["type"] == EventType.CALL_PROMPT
         assert len(conn2.sent_messages) == 0
 
     async def test_call_prompt_sent_once_when_player_has_multiple_meld_options(self, manager):
@@ -333,7 +336,7 @@ class TestSessionManager:
             MeldCaller(seat=0, call_type=MeldCallType.CHI, options=[(57, 63)]),
         ]
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.MELD,
                 tile_id=55,
@@ -347,7 +350,7 @@ class TestSessionManager:
 
         # seat 0 should receive the call_prompt exactly once
         assert len(conn1.sent_messages) == 1
-        assert conn1.sent_messages[0]["type"] == "call_prompt"
+        assert conn1.sent_messages[0]["type"] == EventType.CALL_PROMPT
         # seat 1 (Bob) should not receive it
         assert len(conn2.sent_messages) == 0
 
@@ -372,7 +375,7 @@ class TestSessionManager:
 
         # each connection should have exactly one game_started event
         for c in [conn1, conn2]:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 1
 
 
@@ -442,8 +445,8 @@ class TestSessionManagerTimers:
 
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
-        # mock service returns a timeout_turn event with target "all"
-        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == "timeout_turn"]
+        # mock service returns a draw event with target "all"
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == EventType.DRAW]
         assert len(timeout_msgs) == 1
 
     async def test_meld_timeout_broadcasts_events(self, manager):
@@ -456,7 +459,7 @@ class TestSessionManagerTimers:
 
         await manager._handle_timeout("game1", TimeoutType.MELD, seat=0)
 
-        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == "timeout_meld"]
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == EventType.DRAW]
         assert len(timeout_msgs) == 1
 
     async def test_timeout_on_missing_game_does_nothing(self, manager):
@@ -524,7 +527,7 @@ class TestSessionManagerDefensiveChecks:
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == "already_in_game"
+        assert msg["code"] == SessionErrorCode.ALREADY_IN_GAME
 
     async def test_leave_game_when_game_is_none(self, manager):
         """Leaving when the game mapping is missing does not raise."""
@@ -546,12 +549,12 @@ class TestSessionManagerDefensiveChecks:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.handle_game_action(conn, "test_action", {})
+        await manager.handle_game_action(conn, GameAction.DISCARD, {})
 
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == "not_in_game"
+        assert msg["code"] == SessionErrorCode.NOT_IN_GAME
 
     async def test_handle_game_action_game_is_none(self, manager):
         """Performing a game action when game is missing from mapping does not raise."""
@@ -566,7 +569,7 @@ class TestSessionManagerDefensiveChecks:
         manager._games.pop("game1", None)
 
         # should return silently without error
-        await manager.handle_game_action(conn, "test_action", {})
+        await manager.handle_game_action(conn, GameAction.DISCARD, {})
         assert len(conn.sent_messages) == 0
 
     async def test_broadcast_chat_game_is_none(self, manager):
@@ -654,7 +657,7 @@ class TestSessionManagerTimerIntegration:
         manager._timers["game1"] = {0: timer}
 
         game_end_event = ServiceEvent(
-            event="game_end",
+            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
                 target="all",
@@ -676,12 +679,12 @@ class TestSessionManagerTimerIntegration:
         game, _player, _conn = self._make_game_with_human(manager)
 
         generic_event = ServiceEvent(
-            event="test",
+            event=EventType.DRAW,
             data=MockResultEvent(
-                type="test",
+                type=EventType.DRAW,
                 target="all",
                 player="Alice",
-                action="test",
+                action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
@@ -699,7 +702,7 @@ class TestSessionManagerTimerIntegration:
         manager._game_locks["game1"] = asyncio.Lock()
 
         turn_event = ServiceEvent(
-            event="turn",
+            event=EventType.TURN,
             data=TurnEvent(
                 type=EventType.TURN,
                 target="seat_0",
@@ -724,7 +727,7 @@ class TestSessionManagerTimerIntegration:
         manager._game_locks["game1"] = asyncio.Lock()
 
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 type=EventType.CALL_PROMPT,
                 target="seat_0",
@@ -750,7 +753,7 @@ class TestSessionManagerTimerIntegration:
         initial_bank = timer.remaining_bank
 
         round_event = ServiceEvent(
-            event="round_started",
+            event=EventType.ROUND_STARTED,
             data=RoundStartedEvent(
                 type=EventType.ROUND_STARTED,
                 target="seat_0",
@@ -772,7 +775,7 @@ class TestSessionManagerTimerIntegration:
         manager._game_locks["game1"] = asyncio.Lock()
 
         round_end_event = ServiceEvent(
-            event="round_end",
+            event=EventType.ROUND_END,
             data=RoundEndEvent(
                 type=EventType.ROUND_END,
                 target="all",
@@ -800,7 +803,7 @@ class TestSessionManagerTimerIntegration:
         manager._timers["game1"] = {0: timer}
 
         game_end_event = ServiceEvent(
-            event="game_end",
+            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
                 target="all",
@@ -829,7 +832,7 @@ class TestSessionManagerTimerIntegration:
 
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
-        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == "timeout_turn"]
+        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == EventType.DRAW]
         assert len(timeout_msgs) == 1
 
     async def test_maybe_start_timer_returns_when_timer_is_none(self, manager):
@@ -838,12 +841,12 @@ class TestSessionManagerTimerIntegration:
         # do not set up a timer for the game
 
         generic_event = ServiceEvent(
-            event="test",
+            event=EventType.DRAW,
             data=MockResultEvent(
-                type="test",
+                type=EventType.DRAW,
                 target="all",
                 player="Alice",
-                action="test",
+                action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
@@ -866,7 +869,7 @@ class TestSessionManagerTimerIntegration:
         manager._timers["game1"] = {0: timer, 1: TurnTimer()}
 
         turn_event = ServiceEvent(
-            event="turn",
+            event=EventType.TURN,
             data=TurnEvent(
                 type=EventType.TURN,
                 target="seat_0",
@@ -926,7 +929,7 @@ class TestSessionManagerGameEnd:
 
     def _make_game_end_event(self) -> ServiceEvent:
         return ServiceEvent(
-            event="game_end",
+            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
                 target="all",
@@ -956,12 +959,12 @@ class TestSessionManagerGameEnd:
         game, _player, conn = self._make_game_with_human(manager)
 
         generic_event = ServiceEvent(
-            event="test",
+            event=EventType.DRAW,
             data=MockResultEvent(
-                type="test",
+                type=EventType.DRAW,
                 target="all",
                 player="Alice",
-                action="test",
+                action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
@@ -1002,7 +1005,7 @@ class TestSessionManagerNumBots:
 
         await manager.join_game(conn, "game1", "Alice")
 
-        game_started_events = [m for m in conn.sent_messages if m.get("type") == "game_started"]
+        game_started_events = [m for m in conn.sent_messages if m.get("type") == EventType.GAME_STARTED]
         assert len(game_started_events) == 0
 
     async def test_num_bots_0_does_not_start_on_second_join(self, manager):
@@ -1016,7 +1019,7 @@ class TestSessionManagerNumBots:
         await manager.join_game(conns[1], "game1", "Bob")
 
         for c in conns:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 0
 
     async def test_num_bots_0_does_not_start_on_third_join(self, manager):
@@ -1030,7 +1033,7 @@ class TestSessionManagerNumBots:
             await manager.join_game(c, "game1", f"Player{i}")
 
         for c in conns:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 0
 
     async def test_num_bots_0_starts_on_fourth_join(self, manager):
@@ -1044,7 +1047,7 @@ class TestSessionManagerNumBots:
             await manager.join_game(c, "game1", f"Player{i}")
 
         for c in conns:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 1
 
     async def test_num_bots_0_all_players_assigned_seats(self, manager):
@@ -1069,7 +1072,7 @@ class TestSessionManagerNumBots:
 
         await manager.join_game(conn, "game1", "Alice")
 
-        game_started_events = [m for m in conn.sent_messages if m.get("type") == "game_started"]
+        game_started_events = [m for m in conn.sent_messages if m.get("type") == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
 
     async def test_num_bots_2_starts_on_second_join(self, manager):
@@ -1080,12 +1083,12 @@ class TestSessionManagerNumBots:
         manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conns[0], "game1", "Alice")
-        game_started_events = [m for m in conns[0].sent_messages if m.get("type") == "game_started"]
+        game_started_events = [m for m in conns[0].sent_messages if m.get("type") == EventType.GAME_STARTED]
         assert len(game_started_events) == 0
 
         await manager.join_game(conns[1], "game1", "Bob")
         for c in conns:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 1
 
     async def test_num_bots_1_starts_on_third_join(self, manager):
@@ -1099,12 +1102,12 @@ class TestSessionManagerNumBots:
         await manager.join_game(conns[1], "game1", "Bob")
 
         for c in conns[:2]:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 0
 
         await manager.join_game(conns[2], "game1", "Charlie")
         for c in conns:
-            game_started_events = [m for m in c.sent_messages if m.get("type") == "game_started"]
+            game_started_events = [m for m in c.sent_messages if m.get("type") == EventType.GAME_STARTED]
             assert len(game_started_events) == 1
 
     async def test_create_game_with_num_bots(self, manager):
@@ -1231,7 +1234,7 @@ class TestPerPlayerTimers:
         initial_bank_1 = timer1.remaining_bank
 
         round_event = ServiceEvent(
-            event="round_started",
+            event=EventType.ROUND_STARTED,
             data=RoundStartedEvent(
                 type=EventType.ROUND_STARTED,
                 target="seat_0",
@@ -1254,7 +1257,7 @@ class TestPerPlayerTimers:
         manager._timers["game1"] = {0: timer0, 1: timer1}
 
         game_end_event = ServiceEvent(
-            event="game_end",
+            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
                 target="all",
@@ -1282,7 +1285,7 @@ class TestPerPlayerTimers:
 
         # both seat 0 and seat 1 can call
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 type=EventType.CALL_PROMPT,
                 target="all",
@@ -1312,7 +1315,7 @@ class TestPerPlayerTimers:
 
         # start meld timers for both callers
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 type=EventType.CALL_PROMPT,
                 target="all",
@@ -1329,7 +1332,7 @@ class TestPerPlayerTimers:
 
         # player at seat 0 acts (handle_game_action)
         conn1._outbox.clear()
-        await manager.handle_game_action(conn1, "test_action", {})
+        await manager.handle_game_action(conn1, GameAction.DISCARD, {})
 
         # seat 0's timer should be stopped (bank time deducted), seat 1's cancelled
         assert timer1._active_task is None
@@ -1344,7 +1347,7 @@ class TestPerPlayerTimers:
 
         # start meld timers for both callers
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 type=EventType.CALL_PROMPT,
                 target="all",
@@ -1362,7 +1365,7 @@ class TestPerPlayerTimers:
         # mock returns empty events (partial pass, other callers still pending)
         manager._game_service.handle_action = AsyncMock(return_value=[])
         conn1._outbox.clear()
-        await manager.handle_game_action(conn1, "pass", {})
+        await manager.handle_game_action(conn1, GameAction.PASS, {})
 
         # seat 0's timer should be stopped, seat 1's timer should still be running
         assert timer0._active_task is None
@@ -1379,7 +1382,7 @@ class TestPerPlayerTimers:
 
         # start meld timers for both callers
         call_event = ServiceEvent(
-            event="call_prompt",
+            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 type=EventType.CALL_PROMPT,
                 target="all",
@@ -1395,7 +1398,7 @@ class TestPerPlayerTimers:
         # mock returns empty events (partial pass)
         manager._game_service.handle_action = AsyncMock(return_value=[])
         conn1._outbox.clear()
-        await manager.handle_game_action(conn1, "pass", {})
+        await manager.handle_game_action(conn1, GameAction.PASS, {})
 
         # seat 1's meld timer is still running (not cancelled)
         assert timer1._active_task is not None
@@ -1411,7 +1414,7 @@ class TestPerPlayerTimers:
         manager._game_locks["game1"] = asyncio.Lock()
 
         turn_event = ServiceEvent(
-            event="turn",
+            event=EventType.TURN,
             data=TurnEvent(
                 type=EventType.TURN,
                 target="seat_0",
@@ -1476,9 +1479,9 @@ class TestSessionManagerDisconnect:
 
         await manager.join_game(conns[4], "game1", "Latecomer")
 
-        error_msgs = [m for m in conns[4].sent_messages if m.get("type") == "session_error"]
+        error_msgs = [m for m in conns[4].sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
-        assert error_msgs[0]["code"] == "game_started"
+        assert error_msgs[0]["code"] == SessionErrorCode.GAME_STARTED
 
     async def test_reject_join_after_game_started_num_bots_3(self, manager):
         """Joining a started game with num_bots=3 is also rejected."""
@@ -1495,9 +1498,9 @@ class TestSessionManagerDisconnect:
 
         await manager.join_game(conn2, "game1", "Bob")
 
-        error_msgs = [m for m in conn2.sent_messages if m.get("type") == "session_error"]
+        error_msgs = [m for m in conn2.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
-        assert error_msgs[0]["code"] == "game_started"
+        assert error_msgs[0]["code"] == SessionErrorCode.GAME_STARTED
 
     async def test_disconnect_from_bot_game_cleans_up(self, manager):
         """Disconnecting from a num_bots=3 game cleans up when empty."""
@@ -1633,12 +1636,12 @@ class TestSessionManagerDisconnect:
 
         # make process_bot_actions_after_replacement return an event
         bot_event = ServiceEvent(
-            event="test_bot_action",
+            event=EventType.DRAW,
             data=MockResultEvent(
-                type="test_bot_action",
+                type=EventType.DRAW,
                 target="all",
                 player="Bot",
-                action="discard",
+                action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
@@ -1649,7 +1652,7 @@ class TestSessionManagerDisconnect:
         await manager.leave_game(conns[0])
 
         # Bob should receive the bot action event
-        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == "test_bot_action"]
+        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
         assert len(bot_msgs) == 1
 
     async def test_stale_timeout_after_replacement_is_noop(self, manager):
@@ -1758,12 +1761,12 @@ class TestSessionManagerDisconnect:
 
         # mock process_bot_actions_after_replacement to return an event
         bot_event = ServiceEvent(
-            event="test_bot_action",
+            event=EventType.DRAW,
             data=MockResultEvent(
-                type="test_bot_action",
+                type=EventType.DRAW,
                 target="all",
                 player="Bot",
-                action="discard",
+                action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
@@ -1775,7 +1778,7 @@ class TestSessionManagerDisconnect:
         await manager.join_game(conns[1], "game1", "Bob")
 
         # Bob should receive the bot action event
-        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == "test_bot_action"]
+        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
         assert len(bot_msgs) == 1
 
     async def test_replace_with_bot_returns_when_lock_missing(self, manager):

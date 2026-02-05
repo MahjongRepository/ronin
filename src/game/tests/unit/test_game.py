@@ -4,7 +4,7 @@ Unit tests for game initialization and progression.
 
 from unittest.mock import MagicMock
 
-from game.logic.enums import AbortiveDrawType, BotType, RoundResultType
+from game.logic.enums import AbortiveDrawType, BotType, GamePhase, RoundPhase, RoundResultType
 from game.logic.game import (
     _goshashonyu_round,
     _process_draw_result,
@@ -14,13 +14,7 @@ from game.logic.game import (
     init_game,
     process_round_end,
 )
-from game.logic.state import (
-    GamePhase,
-    MahjongGameState,
-    MahjongPlayer,
-    MahjongRoundState,
-    RoundPhase,
-)
+from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
 from game.logic.types import (
     AbortiveDrawResult,
     DoubleRonResult,
@@ -599,7 +593,7 @@ class TestFinalizeGame:
 
         result = finalize_game(game_state)
 
-        assert result.type == "game_end"
+        assert result.type == RoundResultType.GAME_END
 
     def test_standings_tied_scores_sorted_by_seat(self):
         game_state = self._create_game_state()

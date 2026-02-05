@@ -5,6 +5,7 @@ from uuid import uuid4
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from game.messaging.protocol import ConnectionProtocol
+from game.messaging.types import ClientMessageType
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
         while True:
             data = await connection.receive_message()
             # if game_id is in path, inject it into join_game messages
-            if game_id and data.get("type") == "join_game":
+            if game_id and data.get("type") == ClientMessageType.JOIN_GAME:
                 data["game_id"] = game_id
             await router.handle_message(connection, data)
     except (WebSocketDisconnect, RuntimeError):

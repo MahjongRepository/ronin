@@ -13,7 +13,7 @@ from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
 from mahjong.shanten import Shanten
 
 from game.logic.state import seat_to_wind
-from game.logic.tiles import hand_to_34_array, tile_to_34
+from game.logic.tiles import WINDS_34, hand_to_34_array, tile_to_34
 
 if TYPE_CHECKING:
     from mahjong.meld import Meld
@@ -234,7 +234,7 @@ def _has_yaku_for_ron(
         is_chankan=is_chankan,
         is_houtei=is_houtei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
-        round_wind=round_state.round_wind,
+        round_wind=WINDS_34[round_state.round_wind],
         options=GAME_OPTIONAL_RULES,
     )
 
@@ -271,7 +271,7 @@ def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundStat
         is_rinshan=player.is_rinshan,
         is_haitei=is_haitei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
-        round_wind=round_state.round_wind,
+        round_wind=WINDS_34[round_state.round_wind],
         options=GAME_OPTIONAL_RULES,
     )
 

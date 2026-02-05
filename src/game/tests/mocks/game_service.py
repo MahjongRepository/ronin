@@ -1,6 +1,6 @@
 from typing import Any
 
-from game.logic.enums import TimeoutType
+from game.logic.enums import GameAction, GamePhase, RoundPhase, TimeoutType, WindName
 from game.logic.service import GameService
 from game.logic.types import GamePlayerInfo, GameView, PlayerView
 from game.messaging.events import EventType, GameEvent, GameStartedEvent, RoundStartedEvent, ServiceEvent
@@ -10,7 +10,7 @@ class MockResultEvent(GameEvent):
     """Mock event for action results in tests."""
 
     player: str
-    action: str
+    action: GameAction | str
     input: dict[str, Any]
     success: bool
 
@@ -35,14 +35,15 @@ class MockGameService(GameService):
         self,
         game_id: str,  # noqa: ARG002
         player_name: str,
-        action: str,
+        action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
+        event_type = EventType.DRAW
         return [
             ServiceEvent(
-                event=f"{action}_result",
+                event=event_type,
                 data=MockResultEvent(
-                    type=f"{action}_result",
+                    type=event_type,
                     target="all",
                     player=player_name,
                     action=action,
@@ -66,7 +67,7 @@ class MockGameService(GameService):
 
         mock_view = GameView(
             seat=0,
-            round_wind="East",
+            round_wind=WindName.EAST,
             round_number=0,
             dealer_seat=0,
             current_player_seat=0,
@@ -87,8 +88,8 @@ class MockGameService(GameService):
                 )
                 for i, name in enumerate(all_names)
             ],
-            phase="playing",
-            game_phase="playing",
+            phase=RoundPhase.PLAYING,
+            game_phase=GamePhase.IN_PROGRESS,
         )
 
         players = [
@@ -134,11 +135,12 @@ class MockGameService(GameService):
         player_name: str,
         timeout_type: TimeoutType,
     ) -> list[ServiceEvent]:
+        event_type = EventType.DRAW
         return [
             ServiceEvent(
-                event=f"timeout_{timeout_type.value}",
+                event=event_type,
                 data=MockResultEvent(
-                    type=f"timeout_{timeout_type.value}",
+                    type=event_type,
                     target="all",
                     player=player_name,
                     action=f"timeout_{timeout_type.value}",

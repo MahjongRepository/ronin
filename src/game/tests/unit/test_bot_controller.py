@@ -6,11 +6,12 @@ from mahjong.tile import TilesConverter
 
 from game.logic.bot import BotPlayer, BotStrategy
 from game.logic.bot_controller import BotController
-from game.logic.enums import CallType, GameAction, MeldCallType
-from game.logic.state import MahjongPlayer, MahjongRoundState, RoundPhase
+from game.logic.enums import CallType, GameAction, MeldCallType, RoundPhase, RoundResultType
+from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.types import HandResultInfo, MeldCaller, TsumoResult
 from game.messaging.events import (
     DrawEvent,
+    EventType,
     RoundEndEvent,
     ServiceEvent,
     convert_events,
@@ -244,7 +245,7 @@ class TestConvertEvents:
 
         assert len(result) == 1
         assert isinstance(result[0], ServiceEvent)
-        assert result[0].event == "draw"
+        assert result[0].event == EventType.DRAW
         assert isinstance(result[0].data, DrawEvent)
         assert result[0].data.seat == 0
         assert result[0].target == "seat_0"
@@ -261,28 +262,28 @@ class TestExtractRoundResult:
         )
         events = [
             ServiceEvent(
-                event="draw",
+                event=EventType.DRAW,
                 data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
             ),
-            ServiceEvent(event="round_end", data=RoundEndEvent(result=tsumo_result, target="all")),
+            ServiceEvent(event=EventType.ROUND_END, data=RoundEndEvent(result=tsumo_result, target="all")),
         ]
 
         result = extract_round_result(events)
 
         assert result is not None
         assert isinstance(result, TsumoResult)
-        assert result.type == "tsumo"
+        assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 0
 
     def test_extract_round_result_no_round_end(self):
         """extract_round_result returns None when no round_end event."""
         events = [
             ServiceEvent(
-                event="draw",
+                event=EventType.DRAW,
                 data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
             ),
             ServiceEvent(
-                event="discard",
+                event=EventType.DRAW,
                 data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
             ),
         ]

@@ -8,9 +8,9 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.actions import get_available_actions
+from game.logic.enums import CallType, PlayerAction, RoundPhase, RoundResultType
 from game.logic.game import init_game
 from game.logic.round import draw_tile
-from game.logic.state import RoundPhase
 from game.logic.turn import (
     process_discard_phase,
     process_draw_phase,
@@ -20,6 +20,7 @@ from game.messaging.events import (
     DiscardEvent,
     DoraRevealedEvent,
     DrawEvent,
+    EventType,
     RiichiDeclaredEvent,
     RoundEndEvent,
 )
@@ -42,7 +43,7 @@ class TestProcessDrawPhase:
         assert len(round_state.wall) == initial_wall_len - 1
         assert len(round_state.players[0].tiles) == initial_hand_len + 1
         # find draw event
-        draw_events = [e for e in events if e.type == "draw"]
+        draw_events = [e for e in events if e.type == EventType.DRAW]
         assert len(draw_events) == 1
         assert isinstance(draw_events[0], DrawEvent)
         assert draw_events[0].seat == 0
@@ -53,7 +54,7 @@ class TestProcessDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        draw_event = next(e for e in events if e.type == "draw")
+        draw_event = next(e for e in events if e.type == EventType.DRAW)
         assert hasattr(draw_event, "tile_id")
         assert draw_event.target == "seat_0"
 
@@ -63,7 +64,7 @@ class TestProcessDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        turn_events = [e for e in events if e.type == "turn"]
+        turn_events = [e for e in events if e.type == EventType.TURN]
         assert len(turn_events) == 1
         assert hasattr(turn_events[0], "available_actions")
         assert turn_events[0].target == "seat_0"
@@ -76,10 +77,10 @@ class TestProcessDrawPhase:
 
         events = process_draw_phase(round_state, game_state)
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
-        assert round_end_events[0].result.type == "exhaustive_draw"
+        assert round_end_events[0].result.type == RoundResultType.EXHAUSTIVE_DRAW
         assert round_state.phase == RoundPhase.FINISHED
 
 
@@ -98,7 +99,7 @@ class TestProcessDiscardPhase:
 
         events = process_discard_phase(round_state, game_state, tile_to_discard)
 
-        discard_events = [e for e in events if e.type == "discard"]
+        discard_events = [e for e in events if e.type == EventType.DISCARD]
         assert len(discard_events) == 1
         assert isinstance(discard_events[0], DiscardEvent)
         assert discard_events[0].tile_id == tile_to_discard
@@ -131,7 +132,7 @@ class TestProcessDiscardPhase:
         events = process_discard_phase(round_state, game_state, tile_to_discard)
 
         # if no call_prompt events, turn should advance
-        call_prompts = [e for e in events if e.type == "call_prompt"]
+        call_prompts = [e for e in events if e.type == EventType.CALL_PROMPT]
         if not call_prompts:
             assert round_state.current_player_seat == (initial_seat + 1) % 4
 
@@ -237,7 +238,7 @@ class TestDeferredDoraNotRevealedOnRon:
         events = process_discard_phase(round_state, game_state, win_tile)
 
         # ron prompt should be generated
-        ron_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == "ron"]
+        ron_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.RON]
         assert len(ron_prompts) == 1
         assert 1 in ron_prompts[0].callers
 
@@ -294,10 +295,12 @@ class TestProcessDiscardPhaseWithRiichi:
 
         # check for riichi declared event (if no ron calls)
         ron_prompts = [
-            e for e in events if e.type == "call_prompt" and getattr(e, "call_type", None) == "ron"
+            e
+            for e in events
+            if e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.RON
         ]
         if not ron_prompts:
-            riichi_events = [e for e in events if e.type == "riichi_declared"]
+            riichi_events = [e for e in events if e.type == EventType.RIICHI_DECLARED]
             assert len(riichi_events) == 1
             assert isinstance(riichi_events[0], RiichiDeclaredEvent)
             assert riichi_events[0].seat == 0
@@ -322,7 +325,7 @@ class TestGetAvailableActions:
         draw_tile(game_state.round_state)
         return game_state
 
-    def _find_action(self, actions: list, action_type: str):
+    def _find_action(self, actions: list, action_type: PlayerAction):
         """Find an action by type in the actions list."""
         for action in actions:
             if action.action == action_type:
@@ -335,7 +338,7 @@ class TestGetAvailableActions:
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
-        discard_action = self._find_action(actions, "discard")
+        discard_action = self._find_action(actions, PlayerAction.DISCARD)
         assert discard_action is not None
         assert discard_action.tiles is not None
         assert len(discard_action.tiles) == 14  # 13 dealt + 1 drawn
@@ -376,7 +379,7 @@ class TestGetAvailableActions:
         actions = get_available_actions(round_state, game_state, seat=0)
 
         # in riichi, can only discard the drawn tile
-        discard_action = self._find_action(actions, "discard")
+        discard_action = self._find_action(actions, PlayerAction.DISCARD)
         assert discard_action is not None
         assert discard_action.tiles is not None
         assert len(discard_action.tiles) == 1
@@ -397,8 +400,8 @@ class TestProcessDrawPhaseDrawReturnsNone:
         ):
             events = process_draw_phase(round_state, game_state)
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
-        assert round_end_events[0].result.type == "exhaustive_draw"
+        assert round_end_events[0].result.type == RoundResultType.EXHAUSTIVE_DRAW
         assert round_state.phase == RoundPhase.FINISHED

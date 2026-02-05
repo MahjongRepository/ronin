@@ -7,9 +7,9 @@ from unittest.mock import patch
 import pytest
 
 from game.logic.action_handlers import ActionResult
-from game.logic.enums import CallType, MeldCallType, TimeoutType
+from game.logic.enums import CallType, GameAction, GameErrorCode, MeldCallType, RoundPhase, TimeoutType
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt, RoundPhase
+from game.logic.state import PendingCallPrompt
 from game.logic.types import (
     ExhaustiveDrawResult,
     MeldCaller,
@@ -49,7 +49,7 @@ async def _play_human_turns(
             break
 
         tile_id = human.tiles[-1]
-        events = await service.handle_action(game_id, player_name, "discard", {"tile_id": tile_id})
+        events = await service.handle_action(game_id, player_name, GameAction.DISCARD, {"tile_id": tile_id})
         all_events.extend(events)
     return all_events
 
@@ -67,7 +67,7 @@ class TestMahjongGameServiceBotTurns:
         tile_id = human.tiles[-1]
 
         # after human discards, bots should take turns until human's turn again
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
         # should have multiple events from bot turns
         assert len(events) > 1
@@ -79,7 +79,7 @@ class TestMahjongGameServiceBotTurns:
         human = _find_human_player(game_state.round_state, "Human")
         tile_id = human.tiles[-1]
 
-        await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+        await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
         # after bot turns complete, should be human's turn again (unless round ended)
         round_state = game_state.round_state
@@ -143,7 +143,7 @@ class TestMahjongGameServiceHandleTimeout:
             events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
             assert len(events) > 0
             # tsumogiri produces a discard event (bot turns may follow)
-            assert any(e.event == "discard" for e in events)
+            assert any(e.event == EventType.DISCARD for e in events)
 
     async def test_turn_timeout_returns_empty_when_not_players_turn(self, service):
         await service.start_game("game1", ["Human"])
@@ -179,13 +179,15 @@ class TestMahjongGameServiceHandleTimeout:
 
         mock_events = [
             ServiceEvent(
-                event="turn", data=ErrorEvent(code="mock", message="mock", target="all"), target="all"
+                event=EventType.ERROR,
+                data=ErrorEvent(code=GameErrorCode.GAME_ERROR, message="mock", target="all"),
+                target="all",
             )
         ]
         with patch.object(service, "handle_action", return_value=mock_events) as mock_action:
             events = await service.handle_timeout("game1", "Human", TimeoutType.MELD)
 
-        mock_action.assert_called_once_with("game1", "Human", "pass", {})
+        mock_action.assert_called_once_with("game1", "Human", GameAction.PASS, {})
         assert events == mock_events
 
     async def test_timeout_nonexistent_game_returns_empty(self, service):
@@ -285,7 +287,7 @@ class TestMahjongGameServiceHandleRoundEnd:
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == "missing_round_result"
+        assert events[0].data.code == GameErrorCode.MISSING_ROUND_RESULT
 
     async def test_handle_round_end_waits_for_confirmation(self, service):
         """Verify _handle_round_end enters waiting state when humans are present."""
@@ -597,7 +599,7 @@ class TestMahjongGameServiceFullRound:
                 break
 
             tile_id = human.tiles[-1]
-            await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+            await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
 
 class TestMahjongGameServiceTimeoutIntegration:
@@ -624,7 +626,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
 
         assert len(events) > 0
-        assert any(e.event == "discard" for e in events)
+        assert any(e.event == EventType.DISCARD for e in events)
 
     async def test_timeout_turn_not_players_turn_returns_empty(self, service):
         """Verify TURN timeout returns empty when it's not the player's turn."""
@@ -855,7 +857,7 @@ class TestMahjongGameServiceCallHandlerBranches:
             "game.logic.mahjong_service.handle_pon",
             return_value=ActionResult([]),
         ) as mock_pon:
-            service._call_handler(game_state, 0, "call_pon", {"tile_id": 1})
+            service._call_handler(game_state, 0, GameAction.CALL_PON, {"tile_id": 1})
 
         mock_pon.assert_called_once()
 
@@ -868,7 +870,12 @@ class TestMahjongGameServiceCallHandlerBranches:
             "game.logic.mahjong_service.handle_chi",
             return_value=ActionResult([]),
         ) as mock_chi:
-            service._call_handler(game_state, 0, "call_chi", {"tile_id": 1, "sequence_tiles": (2, 3)})
+            service._call_handler(
+                game_state,
+                0,
+                GameAction.CALL_CHI,
+                {"tile_id": 1, "sequence_tiles": (2, 3)},
+            )
 
         mock_chi.assert_called_once()
 
@@ -881,7 +888,7 @@ class TestMahjongGameServiceCallHandlerBranches:
             "game.logic.mahjong_service.handle_ron",
             return_value=ActionResult([]),
         ) as mock_ron:
-            service._call_handler(game_state, 0, "call_ron", {"tile_id": 1, "from_seat": 2})
+            service._call_handler(game_state, 0, GameAction.CALL_RON, {"tile_id": 1, "from_seat": 2})
 
         mock_ron.assert_called_once()
 
@@ -894,7 +901,7 @@ class TestMahjongGameServiceCallHandlerBranches:
             "game.logic.mahjong_service.handle_kan",
             return_value=ActionResult([]),
         ) as mock_kan:
-            service._call_handler(game_state, 0, "call_kan", {"tile_id": 1})
+            service._call_handler(game_state, 0, GameAction.CALL_KAN, {"tile_id": 1})
 
         mock_kan.assert_called_once()
 
@@ -933,7 +940,11 @@ class TestMahjongGameServiceDispatchBotCallResponsesBranches:
 
         # mock bot to return a pon action instead of pass
         with (
-            patch.object(bot_controller, "get_call_response", return_value=("call_pon", {"tile_id": 0})),
+            patch.object(
+                bot_controller,
+                "get_call_response",
+                return_value=(GameAction.CALL_PON, {"tile_id": 0}),
+            ),
             patch(
                 "game.logic.mahjong_service.handle_pon",
                 return_value=ActionResult([]),

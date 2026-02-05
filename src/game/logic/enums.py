@@ -31,6 +31,26 @@ class GameAction(str, Enum):
     CONFIRM_ROUND = "confirm_round"
 
 
+class GameErrorCode(str, Enum):
+    """Error codes sent to clients for invalid game actions."""
+
+    NOT_YOUR_TURN = "not_your_turn"
+    INVALID_DISCARD = "invalid_discard"
+    INVALID_RIICHI = "invalid_riichi"
+    INVALID_TSUMO = "invalid_tsumo"
+    INVALID_RON = "invalid_ron"
+    INVALID_PON = "invalid_pon"
+    INVALID_CHI = "invalid_chi"
+    INVALID_KAN = "invalid_kan"
+    CANNOT_CALL_KYUUSHU = "cannot_call_kyuushu"
+    INVALID_PASS = "invalid_pass"  # noqa: S105
+    GAME_ERROR = "game_error"
+    INVALID_ACTION = "invalid_action"
+    VALIDATION_ERROR = "validation_error"
+    UNKNOWN_ACTION = "unknown_action"
+    MISSING_ROUND_RESULT = "missing_round_result"
+
+
 class MeldCallType(str, Enum):
     """Types of meld calls that can be made on a discarded tile."""
 
@@ -138,3 +158,18 @@ class MeldViewType(str, Enum):
     CHANKAN = "chankan"
     SHOUMINKAN = "shouminkan"
     UNKNOWN = "unknown"
+
+
+class RoundPhase(str, Enum):
+    """Phase of a mahjong round."""
+
+    WAITING = "waiting"
+    PLAYING = "playing"
+    FINISHED = "finished"
+
+
+class GamePhase(str, Enum):
+    """Phase of a mahjong game."""
+
+    IN_PROGRESS = "in_progress"
+    FINISHED = "finished"

@@ -1,3 +1,11 @@
+import {
+    ClientMessageType,
+    ConnectionStatus,
+    EventType,
+    GameAction,
+    LOG_TYPE_SYSTEM,
+    LOG_TYPE_UNKNOWN,
+} from "../protocol";
 import { type TemplateResult, html, render } from "lit-html";
 import { GameSocket } from "../websocket";
 import { navigate } from "../router";
@@ -12,7 +20,7 @@ const MAX_LOG_ENTRIES = 500;
 
 let socket: GameSocket | null = null;
 let logs: LogEntry[] = [];
-let connectionStatus = "disconnected";
+let connectionStatus = ConnectionStatus.DISCONNECTED;
 // incremented on each gameView call, checked in deferred connectToGame
 // to prevent orphaned connections after rapid navigation
 let viewGeneration = 0;
@@ -34,7 +42,7 @@ export function gameView(gameId: string): TemplateResult {
 
     // reset state for fresh connection
     logs = [];
-    connectionStatus = "disconnected";
+    connectionStatus = ConnectionStatus.DISCONNECTED;
     const generation = ++viewGeneration;
 
     // connect after render; bail if navigation happened before timeout fires
@@ -68,15 +76,19 @@ function connectToGame(wsUrl: string, gameId: string, playerName: string): void 
             appendLog({
                 raw: JSON.stringify(message, null, 2),
                 timestamp: new Date().toLocaleTimeString(),
-                type: String(message.type || "unknown"),
+                type: String(message.type || LOG_TYPE_UNKNOWN),
             });
             updateLogPanel();
 
             // auto-confirm round advancement after a short delay
-            if (message.type === "round_end" && socket) {
+            if (message.type === EventType.ROUND_END && socket) {
                 const currentSocket = socket;
                 setTimeout(() => {
-                    currentSocket.send({ action: "confirm_round", data: {}, type: "game_action" });
+                    currentSocket.send({
+                        action: GameAction.CONFIRM_ROUND,
+                        data: {},
+                        type: ClientMessageType.GAME_ACTION,
+                    });
                 }, 1000);
             }
         },
@@ -85,16 +97,16 @@ function connectToGame(wsUrl: string, gameId: string, playerName: string): void 
             updateStatusDisplay();
 
             // send join_game when connected
-            if (status === "connected" && socket) {
+            if (status === ConnectionStatus.CONNECTED && socket) {
                 socket.send({
                     game_id: gameId,
                     player_name: playerName,
-                    type: "join_game",
+                    type: ClientMessageType.JOIN_GAME,
                 });
                 appendLog({
                     raw: `Sent join_game as "${playerName}"`,
                     timestamp: new Date().toLocaleTimeString(),
-                    type: "system",
+                    type: LOG_TYPE_SYSTEM,
                 });
                 updateLogPanel();
             }

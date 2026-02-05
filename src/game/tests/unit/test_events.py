@@ -2,9 +2,18 @@
 Tests for game event classes.
 """
 
+import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.enums import (
+    CallType,
+    GameErrorCode,
+    KanType,
+    MeldCallType,
+    MeldViewType,
+    PlayerAction,
+    RoundResultType,
+)
 from game.logic.types import (
     AvailableActionItem,
     ExhaustiveDrawResult,
@@ -19,11 +28,18 @@ from game.messaging.events import (
     DoraRevealedEvent,
     DrawEvent,
     ErrorEvent,
+    EventType,
     MeldEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
+    ServiceEvent,
     TurnEvent,
+    _normalize_event_value,
 )
+
+
+def test_normalize_event_value_accepts_string() -> None:
+    assert _normalize_event_value("draw") == "draw"
 
 
 class TestDrawEvent:
@@ -31,7 +47,7 @@ class TestDrawEvent:
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         event = DrawEvent(seat=0, tile_id=tile_id, target="seat_0")
 
-        assert event.type == "draw"
+        assert event.type == EventType.DRAW
         assert event.seat == 0
         assert event.tile_id == tile_id
         assert event.target == "seat_0"
@@ -54,7 +70,7 @@ class TestDiscardEvent:
             is_riichi=False,
         )
 
-        assert event.type == "discard"
+        assert event.type == EventType.DISCARD
         assert event.seat == 1
         assert event.tile_id == tile_id
         assert event.is_tsumogiri is True
@@ -86,7 +102,7 @@ class TestMeldEvent:
             called_tile_id=called_tile,
         )
 
-        assert event.type == "meld"
+        assert event.type == EventType.MELD
         assert event.meld_type == MeldViewType.PON
         assert event.caller_seat == 1
         assert event.from_seat == 0
@@ -175,7 +191,7 @@ class TestTurnEvent:
             target="seat_2",
         )
 
-        assert event.type == "turn"
+        assert event.type == EventType.TURN
         assert event.current_seat == 2
         assert event.available_actions == available_actions
         assert event.wall_count == 70
@@ -193,8 +209,8 @@ class TestCallPromptEvent:
             target="all",
         )
 
-        assert event.type == "call_prompt"
-        assert event.call_type == "ron"
+        assert event.type == EventType.CALL_PROMPT
+        assert event.call_type == CallType.RON
         assert event.tile_id == tile_id
         assert event.from_seat == 0
         assert event.callers == [1, 2]
@@ -213,7 +229,7 @@ class TestCallPromptEvent:
             target="all",
         )
 
-        assert event.call_type == "meld"
+        assert event.call_type == CallType.MELD
         assert len(event.callers) == 2
 
     def test_chankan_call_prompt(self) -> None:
@@ -225,7 +241,7 @@ class TestCallPromptEvent:
             target="all",
         )
 
-        assert event.call_type == "chankan"
+        assert event.call_type == CallType.CHANKAN
 
 
 class TestRoundEndEvent:
@@ -238,7 +254,7 @@ class TestRoundEndEvent:
         )
         event = RoundEndEvent(result=result, target="all")
 
-        assert event.type == "round_end"
+        assert event.type == EventType.ROUND_END
         assert event.result == result
         assert event.target == "all"
 
@@ -252,7 +268,7 @@ class TestRoundEndEvent:
         )
         event = RoundEndEvent(result=result, target="all")
 
-        assert event.result.type == "ron"
+        assert event.result.type == RoundResultType.RON
 
     def test_exhaustive_draw_round_end(self) -> None:
         result = ExhaustiveDrawResult(
@@ -262,14 +278,14 @@ class TestRoundEndEvent:
         )
         event = RoundEndEvent(result=result, target="all")
 
-        assert event.result.type == "exhaustive_draw"
+        assert event.result.type == RoundResultType.EXHAUSTIVE_DRAW
 
 
 class TestRiichiDeclaredEvent:
     def test_riichi_declared_event(self) -> None:
         event = RiichiDeclaredEvent(seat=1, target="all")
 
-        assert event.type == "riichi_declared"
+        assert event.type == EventType.RIICHI_DECLARED
         assert event.seat == 1
         assert event.target == "all"
 
@@ -284,7 +300,7 @@ class TestDoraRevealedEvent:
             dora_indicators=all_indicators,
         )
 
-        assert event.type == "dora_revealed"
+        assert event.type == EventType.DORA_REVEALED
         assert event.tile_id == dora_tile
         assert event.dora_indicators == all_indicators
         assert event.target == "all"
@@ -305,24 +321,34 @@ class TestDoraRevealedEvent:
 class TestErrorEvent:
     def test_create_error_event(self) -> None:
         event = ErrorEvent(
-            code="invalid_action",
+            code=GameErrorCode.INVALID_ACTION,
             message="Cannot discard that tile",
             target="all",
         )
 
-        assert event.type == "error"
-        assert event.code == "invalid_action"
+        assert event.type == EventType.ERROR
+        assert event.code == GameErrorCode.INVALID_ACTION
         assert event.message == "Cannot discard that tile"
         assert event.target == "all"
 
     def test_create_error_event_with_target(self) -> None:
         event = ErrorEvent(
-            code="not_your_turn",
+            code=GameErrorCode.NOT_YOUR_TURN,
             message="Wait for your turn",
             target="seat_2",
         )
 
         assert event.target == "seat_2"
+
+
+class TestServiceEvent:
+    def test_event_mismatch_raises(self) -> None:
+        tile_id = TilesConverter.string_to_136_array(man="1")[0]
+        with pytest.raises(ValueError, match=r"does not match data\.type"):
+            ServiceEvent(
+                event=EventType.DISCARD,
+                data=DrawEvent(seat=0, tile_id=tile_id, target="seat_0"),
+            )
 
 
 class TestEventModelDump:
@@ -334,7 +360,7 @@ class TestEventModelDump:
         wire = event.model_dump()
 
         assert wire == {
-            "type": "draw",
+            "type": EventType.DRAW,
             "seat": 0,
             "tile_id": tile_id,
             "target": "seat_0",
@@ -351,7 +377,7 @@ class TestEventModelDump:
         wire = event.model_dump()
 
         assert wire == {
-            "type": "discard",
+            "type": EventType.DISCARD,
             "seat": 1,
             "tile_id": tile_id,
             "is_tsumogiri": True,
@@ -371,8 +397,8 @@ class TestEventModelDump:
         )
         wire = event.model_dump()
 
-        assert wire["type"] == "meld"
-        assert wire["meld_type"] == "pon"
+        assert wire["type"] == EventType.MELD
+        assert wire["meld_type"] == MeldViewType.PON
         assert wire["caller_seat"] == 1
         assert wire["from_seat"] == 0
         assert wire["tile_ids"] == pon_tile_ids
@@ -402,7 +428,7 @@ class TestEventModelDump:
         wire = event.model_dump()
 
         assert wire == {
-            "type": "dora_revealed",
+            "type": EventType.DORA_REVEALED,
             "target": "all",
             "tile_id": dora_tile,
             "dora_indicators": indicators,
@@ -417,9 +443,9 @@ class TestEventModelDump:
         event = TurnEvent(current_seat=0, available_actions=available_actions, wall_count=50, target="seat_0")
         wire = event.model_dump()
 
-        assert wire["type"] == "turn"
+        assert wire["type"] == EventType.TURN
         assert wire["current_seat"] == 0
-        assert wire["available_actions"][0]["action"] == "discard"
+        assert wire["available_actions"][0]["action"] == PlayerAction.DISCARD
         assert wire["available_actions"][0]["tiles"] == discard_tiles
         assert wire["wall_count"] == 50
 
@@ -433,6 +459,6 @@ class TestEventModelDump:
         event = RoundEndEvent(result=result, target="all")
         wire = event.model_dump()
 
-        assert wire["type"] == "round_end"
-        assert wire["result"]["type"] == "tsumo"
+        assert wire["type"] == EventType.ROUND_END
+        assert wire["result"]["type"] == RoundResultType.TSUMO
         assert wire["result"]["winner_seat"] == 0

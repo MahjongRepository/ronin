@@ -5,13 +5,12 @@ Unit tests for game state models.
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import GamePhase, MeldViewType, RoundPhase, WindName
 from game.logic.state import (
     Discard,
-    GamePhase,
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
-    RoundPhase,
     get_player_view,
 )
 
@@ -262,14 +261,14 @@ class TestGetPlayerView:
         view = get_player_view(game_state, seat=0)
 
         assert view.seat == 0
-        assert view.round_wind == "East"
+        assert view.round_wind == WindName.EAST
         assert view.round_number == 0
         assert view.dealer_seat == 0
         assert view.current_player_seat == 0
         assert view.honba_sticks == 0
         assert view.riichi_sticks == 0
-        assert view.phase == "playing"
-        assert view.game_phase == "in_progress"
+        assert view.phase == RoundPhase.PLAYING
+        assert view.game_phase == GamePhase.IN_PROGRESS
 
     def test_view_contains_wall_count(self):
         game_state = self._create_test_game_state()
@@ -342,7 +341,7 @@ class TestGetPlayerView:
         view = get_player_view(game_state, seat=0)
         bot2_melds = view.players[2].melds
         assert len(bot2_melds) == 1
-        assert bot2_melds[0].type == "pon"
+        assert bot2_melds[0].type == MeldViewType.PON
         assert bot2_melds[0].tile_ids == TilesConverter.string_to_136_array(honors="111")[:3]
         assert bot2_melds[0].opened is True
 

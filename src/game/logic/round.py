@@ -7,8 +7,9 @@ import logging
 from mahjong.agari import Agari
 from mahjong.shanten import Shanten
 
+from game.logic.enums import RoundPhase
 from game.logic.scoring import apply_nagashi_mangan_score
-from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState, RoundPhase
+from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState
 from game.logic.tiles import generate_wall, hand_to_34_array, is_terminal_or_honor, sort_tiles, tile_to_34
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, SeatConfig
 from game.logic.win import MAX_TILE_COPIES

@@ -7,9 +7,9 @@ from unittest.mock import patch
 import pytest
 
 from game.logic.action_handlers import ActionResult
-from game.logic.enums import CallType
+from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt, RoundPhase
+from game.logic.state import PendingCallPrompt
 from game.logic.types import (
     ExhaustiveDrawResult,
 )
@@ -41,15 +41,15 @@ class TestMahjongGameServiceDiscard:
             while len(player.tiles) > 13:
                 player.tiles.pop()
 
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": 0})
-        assert any(e.event == "error" for e in events)
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": 0})
+        assert any(e.event == EventType.ERROR for e in events)
 
     async def test_discard_requires_tile_id(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "discard", {})
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
     async def test_discard_validates_tile_in_hand(self, service):
         await service.start_game("game1", ["Human"])
@@ -57,9 +57,9 @@ class TestMahjongGameServiceDiscard:
         # use a tile that's definitely not in any hand
         invalid_tile = 999
 
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": invalid_tile})
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": invalid_tile})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
     async def test_discard_creates_discard_event(self, service):
         await service.start_game("game1", ["Human"])
@@ -68,9 +68,9 @@ class TestMahjongGameServiceDiscard:
         human = _find_human_player(game_state.round_state, "Human")
         tile_id = human.tiles[-1]  # discard last tile
 
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
-        discard_events = [e for e in events if e.event == "discard"]
+        discard_events = [e for e in events if e.event == EventType.DISCARD]
         assert len(discard_events) >= 1
 
     async def test_discard_removes_tile_from_hand(self, service):
@@ -81,7 +81,7 @@ class TestMahjongGameServiceDiscard:
         tile_id = human.tiles[-1]
         initial_count = human.tiles.count(tile_id)
 
-        await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+        await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
         # tile count should decrease
         assert human.tiles.count(tile_id) == initial_count - 1
@@ -95,9 +95,9 @@ class TestMahjongGameServiceRiichi:
     async def test_riichi_requires_tile_id(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "declare_riichi", {})
+        events = await service.handle_action("game1", "Human", GameAction.DECLARE_RIICHI, {})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
 
 class TestMahjongGameServiceTsumo:
@@ -117,8 +117,8 @@ class TestMahjongGameServiceTsumo:
             while len(player.tiles) > 13:
                 player.tiles.pop()
 
-        events = await service.handle_action("game1", "Human", "declare_tsumo", {})
-        assert any(e.event == "error" for e in events)
+        events = await service.handle_action("game1", "Human", GameAction.DECLARE_TSUMO, {})
+        assert any(e.event == EventType.ERROR for e in events)
 
 
 class TestMahjongGameServiceRon:
@@ -129,9 +129,9 @@ class TestMahjongGameServiceRon:
     async def test_ron_requires_tile_id_and_from_seat(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "call_ron", {})
+        events = await service.handle_action("game1", "Human", GameAction.CALL_RON, {})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
 
 class TestMahjongGameServiceMelds:
@@ -142,23 +142,23 @@ class TestMahjongGameServiceMelds:
     async def test_pon_requires_tile_id(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "call_pon", {})
+        events = await service.handle_action("game1", "Human", GameAction.CALL_PON, {})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
     async def test_chi_requires_tile_id_and_sequence(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "call_chi", {})
+        events = await service.handle_action("game1", "Human", GameAction.CALL_CHI, {})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
     async def test_kan_requires_tile_id(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "call_kan", {})
+        events = await service.handle_action("game1", "Human", GameAction.CALL_KAN, {})
 
-        assert any(e.event == "error" for e in events)
+        assert any(e.event == EventType.ERROR for e in events)
 
 
 class TestMahjongGameServicePass:
@@ -169,11 +169,11 @@ class TestMahjongGameServicePass:
     async def test_pass_returns_error_without_pending_prompt(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Human", "pass", {})
+        events = await service.handle_action("game1", "Human", GameAction.PASS, {})
 
         assert len(events) == 1
         assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == "invalid_pass"
+        assert events[0].data.code == GameErrorCode.INVALID_PASS
 
 
 class TestMahjongGameServiceErrors:
@@ -182,20 +182,20 @@ class TestMahjongGameServiceErrors:
         return MahjongGameService()
 
     async def test_handle_action_game_not_found(self, service):
-        events = await service.handle_action("nonexistent", "Human", "discard", {"tile_id": 0})
+        events = await service.handle_action("nonexistent", "Human", GameAction.DISCARD, {"tile_id": 0})
 
-        assert any(e.event == "error" for e in events)
-        error_event = next(e for e in events if e.event == "error")
+        assert any(e.event == EventType.ERROR for e in events)
+        error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
         assert "not found" in error_event.data.message
 
     async def test_handle_action_player_not_in_game(self, service):
         await service.start_game("game1", ["Human"])
 
-        events = await service.handle_action("game1", "Unknown", "discard", {"tile_id": 0})
+        events = await service.handle_action("game1", "Unknown", GameAction.DISCARD, {"tile_id": 0})
 
-        assert any(e.event == "error" for e in events)
-        error_event = next(e for e in events if e.event == "error")
+        assert any(e.event == EventType.ERROR for e in events)
+        error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
         assert "not in game" in error_event.data.message
 
@@ -204,8 +204,8 @@ class TestMahjongGameServiceErrors:
 
         events = await service.handle_action("game1", "Human", "unknown_action", {})
 
-        assert any(e.event == "error" for e in events)
-        error_event = next(e for e in events if e.event == "error")
+        assert any(e.event == EventType.ERROR for e in events)
+        error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
         assert "unknown action" in error_event.data.message
 
@@ -222,12 +222,12 @@ class TestMahjongGameServiceValidationError:
         await service.start_game("game1", ["Human"])
 
         # send discard with tile_id as a non-integer string that fails pydantic validation
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": "not_an_int"})
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": "not_an_int"})
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == "validation_error"
+        assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
         assert "invalid action data" in events[0].data.message
 
     async def test_dispatch_action_unknown_data_action(self, service):
@@ -240,7 +240,7 @@ class TestMahjongGameServiceValidationError:
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == "unknown_action"
+        assert events[0].data.code == GameErrorCode.UNKNOWN_ACTION
 
 
 class TestMahjongGameServiceProcessActionResult:

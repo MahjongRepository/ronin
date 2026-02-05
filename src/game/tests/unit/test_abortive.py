@@ -17,6 +17,7 @@ from game.logic.abortive import (
     check_triple_ron,
     process_abortive_draw,
 )
+from game.logic.enums import RoundResultType
 from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState
 
 
@@ -224,7 +225,7 @@ class TestCallKyuushuKyuuhai:
 
         result = call_kyuushu_kyuuhai(round_state)
 
-        assert result.type == "abortive_draw"
+        assert result.type == RoundResultType.ABORTIVE_DRAW
         assert result.reason == AbortiveDrawType.NINE_TERMINALS
 
     def test_includes_calling_player_seat(self):
@@ -592,7 +593,7 @@ class TestProcessAbortiveDraw:
 
         result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)
 
-        assert result.type == "abortive_draw"
+        assert result.type == RoundResultType.ABORTIVE_DRAW
         assert result.reason == AbortiveDrawType.TRIPLE_RON
 
     def test_includes_score_changes_of_zero(self):
@@ -609,5 +610,5 @@ class TestProcessAbortiveDraw:
             game_state = self._create_game_state()
             result = process_abortive_draw(game_state, draw_type)
 
-            assert result.type == "abortive_draw"
+            assert result.type == RoundResultType.ABORTIVE_DRAW
             assert result.reason == draw_type

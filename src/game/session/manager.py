@@ -4,7 +4,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import TimeoutType
+from game.logic.enums import GameAction, TimeoutType
 from game.logic.timer import TurnTimer
 from game.messaging.events import (
     CallPromptEvent,
@@ -23,6 +23,7 @@ from game.messaging.types import (
     PlayerLeftMessage,
     PongMessage,
     SessionChatMessage,
+    SessionErrorCode,
 )
 from game.session.models import Game, Player
 from game.session.types import GameInfo
@@ -97,7 +98,7 @@ class SessionManager:
         logger.info(f"game created: {game_id} num_bots={num_bots}")
         return game
 
-    async def _send_error(self, connection: ConnectionProtocol, code: str, message: str) -> None:
+    async def _send_error(self, connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
 
     async def join_game(
@@ -109,26 +110,34 @@ class SessionManager:
         # check if already in a game
         existing_player = self._players.get(connection.connection_id)
         if existing_player and existing_player.game_id:
-            await self._send_error(connection, "already_in_game", "You must leave your current game first")
+            await self._send_error(
+                connection,
+                SessionErrorCode.ALREADY_IN_GAME,
+                "You must leave your current game first",
+            )
             return
 
         game = self._games.get(game_id)
         if game is None:
-            await self._send_error(connection, "game_not_found", "Game does not exist")
+            await self._send_error(connection, SessionErrorCode.GAME_NOT_FOUND, "Game does not exist")
             return
 
         # block all joins to started or full games
         if game.started:
-            await self._send_error(connection, "game_started", "Game has already started")
+            await self._send_error(connection, SessionErrorCode.GAME_STARTED, "Game has already started")
             return
 
         if game.player_count >= game.num_humans_needed:
-            await self._send_error(connection, "game_full", "Game is full")
+            await self._send_error(connection, SessionErrorCode.GAME_FULL, "Game is full")
             return
 
         # check for duplicate name in game
         if player_name in [p.name for p in game.players.values()]:
-            await self._send_error(connection, "name_taken", "That name is already taken in this game")
+            await self._send_error(
+                connection,
+                SessionErrorCode.NAME_TAKEN,
+                "That name is already taken in this game",
+            )
             return
 
         # create player and add to game
@@ -241,12 +250,12 @@ class SessionManager:
     async def handle_game_action(
         self,
         connection: ConnectionProtocol,
-        action: str,
+        action: GameAction,
         data: dict[str, Any],
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await self._send_error(connection, "not_in_game", "You must join a game first")
+            await self._send_error(connection, SessionErrorCode.NOT_IN_GAME, "You must join a game first")
             return
 
         game = self._games.get(player.game_id)
@@ -290,7 +299,7 @@ class SessionManager:
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await self._send_error(connection, "not_in_game", "You must join a game first")
+            await self._send_error(connection, SessionErrorCode.NOT_IN_GAME, "You must join a game first")
             return
 
         game = self._games.get(player.game_id)

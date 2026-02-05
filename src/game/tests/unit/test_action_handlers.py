@@ -19,10 +19,20 @@ from game.logic.action_handlers import (
     handle_tsumo,
     resolve_call_prompt,
 )
-from game.logic.enums import AbortiveDrawType, BotType, CallType, KanType, MeldCallType, MeldViewType
+from game.logic.enums import (
+    AbortiveDrawType,
+    BotType,
+    CallType,
+    GameErrorCode,
+    KanType,
+    MeldCallType,
+    MeldViewType,
+    RoundPhase,
+    RoundResultType,
+)
 from game.logic.game import init_game
 from game.logic.round import discard_tile, draw_tile
-from game.logic.state import MahjongGameState, PendingCallPrompt, RoundPhase
+from game.logic.state import MahjongGameState, PendingCallPrompt
 from game.logic.types import (
     AbortiveDrawResult,
     ChiActionData,
@@ -87,7 +97,7 @@ class TestHandleDiscard:
         assert isinstance(result, ActionResult)
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "not_your_turn"
+        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
 
 class TestHandleRiichi:
@@ -123,7 +133,7 @@ class TestHandleRiichi:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "not_your_turn"
+        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
     def test_handle_riichi_not_tempai(self):
         game_state = init_game(_default_seat_configs(), seed=12345.0)
@@ -137,7 +147,7 @@ class TestHandleRiichi:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_riichi"
+        assert error_events[0].code == GameErrorCode.INVALID_RIICHI
 
 
 class TestHandleTsumo:
@@ -160,7 +170,7 @@ class TestHandleTsumo:
         assert isinstance(result, ActionResult)
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == "tsumo"
+        assert round_end_events[0].result.type == RoundResultType.TSUMO
 
     def test_handle_tsumo_wrong_turn(self):
         game_state = self._create_winning_game_state()
@@ -170,7 +180,7 @@ class TestHandleTsumo:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "not_your_turn"
+        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
     def test_handle_tsumo_no_winning_hand(self):
         game_state = init_game(_default_seat_configs(), seed=12345.0)
@@ -181,7 +191,7 @@ class TestHandleTsumo:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_tsumo"
+        assert error_events[0].code == GameErrorCode.INVALID_TSUMO
 
 
 class TestHandleRon:
@@ -217,7 +227,7 @@ class TestHandleRon:
         assert isinstance(result, ActionResult)
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == "ron"
+        assert round_end_events[0].result.type == RoundResultType.RON
 
 
 class TestHandlePon:
@@ -378,7 +388,7 @@ class TestHandleKyuushu:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "not_your_turn"
+        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
     def test_handle_kyuushu_not_eligible(self):
         game_state = init_game(_default_seat_configs(), seed=12345.0)
@@ -389,7 +399,7 @@ class TestHandleKyuushu:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "cannot_call_kyuushu"
+        assert error_events[0].code == GameErrorCode.CANNOT_CALL_KYUUSHU
 
 
 class TestHandlePass:
@@ -407,7 +417,7 @@ class TestHandlePass:
         assert isinstance(result, ActionResult)
         assert len(result.events) == 1
         assert isinstance(result.events[0], ErrorEvent)
-        assert result.events[0].code == "invalid_pass"
+        assert result.events[0].code == GameErrorCode.INVALID_PASS
 
     def test_handle_pass_after_discard_advances_turn(self):
         game_state = self._create_game_state()
@@ -457,7 +467,7 @@ class TestHandlePonError:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_pon"
+        assert error_events[0].code == GameErrorCode.INVALID_PON
 
 
 class TestHandleChiError:
@@ -478,7 +488,7 @@ class TestHandleChiError:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_chi"
+        assert error_events[0].code == GameErrorCode.INVALID_CHI
 
 
 class TestHandleKanError:
@@ -496,7 +506,7 @@ class TestHandleKanError:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_kan"
+        assert error_events[0].code == GameErrorCode.INVALID_KAN
 
 
 class TestHandleRonValueError:
@@ -511,7 +521,7 @@ class TestHandleRonValueError:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_ron"
+        assert error_events[0].code == GameErrorCode.INVALID_RON
         assert error_events[0].message == "no pending call prompt"
 
 
@@ -919,7 +929,7 @@ class TestResolveCallPrompt:
         assert round_state.pending_call_prompt is None
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == "ron"
+        assert round_end_events[0].result.type == RoundResultType.RON
 
     def test_pon_beats_chi_in_resolution(self):
         """When both pon and chi are recorded, pon wins by priority."""
@@ -1032,7 +1042,7 @@ class TestResolveCallPrompt:
 
         assert len(result.events) == 1
         assert isinstance(result.events[0], ErrorEvent)
-        assert result.events[0].code == "invalid_pass"
+        assert result.events[0].code == GameErrorCode.INVALID_PASS
         # prompt should still be pending for seat 1
         assert round_state.pending_call_prompt is not None
         assert 1 in round_state.pending_call_prompt.pending_seats
@@ -1124,7 +1134,7 @@ class TestResolveCallPrompt:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_pon"
+        assert error_events[0].code == GameErrorCode.INVALID_PON
         assert error_events[0].message == "tile_id mismatch"
 
     def test_handle_pon_waiting_for_other_callers(self):
@@ -1177,7 +1187,7 @@ class TestResolveCallPrompt:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_chi"
+        assert error_events[0].code == GameErrorCode.INVALID_CHI
         assert error_events[0].message == "tile_id mismatch"
 
     def test_handle_chi_resolves_as_sole_caller(self):
@@ -1351,7 +1361,7 @@ class TestResolveCallPrompt:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_kan"
+        assert error_events[0].code == GameErrorCode.INVALID_KAN
         assert error_events[0].message == "not a pending caller"
 
     def test_handle_open_kan_waiting_for_other_callers(self):
@@ -1393,7 +1403,7 @@ class TestResolveCallPrompt:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "not_your_turn"
+        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
     def test_handle_kan_invalid_closed_kan(self):
         """Closed kan with invalid tiles returns error."""
@@ -1410,4 +1420,161 @@ class TestResolveCallPrompt:
 
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
         assert len(error_events) == 1
-        assert error_events[0].code == "invalid_kan"
+        assert error_events[0].code == GameErrorCode.INVALID_KAN
+
+
+class TestChankanRonScoring:
+    """Test that chankan ron flow correctly credits chankan yaku."""
+
+    def test_chankan_ron_includes_chankan_yaku(self):
+        """Full chankan flow should result in hand with chankan yaku credited."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # player 0 has pon of 5m and the 4th 5m in hand for added kan
+        man_5_tiles = TilesConverter.string_to_136_array(man="5555")
+        pon_meld = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=man_5_tiles[:3],
+            opened=True,
+            called_tile=man_5_tiles[2],
+            who=0,
+            from_who=1,
+        )
+        round_state.players[0].melds = [pon_meld]
+        round_state.players[0].tiles = [
+            man_5_tiles[3],
+            *TilesConverter.string_to_136_array(man="123456789"),
+        ]
+        round_state.players_with_open_hands = [0]
+        round_state.current_player_seat = 0
+        draw_tile(round_state)
+
+        # player 1 has open hand waiting for 5m (chankan is only yaku)
+        # closed: 34m 234p 55567s = 10 tiles, waiting for 2m or 5m
+        # + pon of 111m (3 tiles) = 13 total
+        pon_tiles_p1 = TilesConverter.string_to_136_array(man="111")
+        pon_meld_p1 = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=pon_tiles_p1,
+            opened=True,
+            called_tile=pon_tiles_p1[2],
+            who=1,
+            from_who=2,
+        )
+        round_state.players[1].melds = [pon_meld_p1]
+        round_state.players[1].tiles = TilesConverter.string_to_136_array(man="34", pin="234", sou="55567")
+        round_state.players_with_open_hands.append(1)
+
+        # player 0 attempts added kan with 5m, triggers chankan prompt
+        result = handle_kan(
+            round_state,
+            game_state,
+            seat=0,
+            data=KanActionData(tile_id=man_5_tiles[3], kan_type=KanType.ADDED),
+        )
+
+        # verify chankan prompt was created
+        call_prompts = [
+            e for e in result.events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN
+        ]
+        assert len(call_prompts) == 1
+        assert 1 in call_prompts[0].callers
+
+        # player 1 calls chankan ron
+        result = handle_ron(round_state, game_state, seat=1)
+
+        # verify round ended with ron result and chankan yaku is credited
+        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
+        assert len(round_end_events) == 1
+        assert round_end_events[0].result.type == RoundResultType.RON
+        assert round_end_events[0].result.winner_seat == 1
+        assert round_end_events[0].result.loser_seat == 0
+        # chankan yaku should be credited
+        assert "Chankan" in round_end_events[0].result.hand_result.yaku
+
+    def test_double_ron_on_chankan(self):
+        """Two players waiting on same tile both call chankan ron."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # player 0 has pon of 5m and the 4th 5m in hand for added kan
+        man_5_tiles = TilesConverter.string_to_136_array(man="5555")
+        pon_meld = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=man_5_tiles[:3],
+            opened=True,
+            called_tile=man_5_tiles[2],
+            who=0,
+            from_who=1,
+        )
+        round_state.players[0].melds = [pon_meld]
+        round_state.players[0].tiles = [
+            man_5_tiles[3],
+            *TilesConverter.string_to_136_array(man="123456789"),
+        ]
+        round_state.players_with_open_hands = [0]
+        round_state.current_player_seat = 0
+        draw_tile(round_state)
+
+        # player 1 has open hand waiting for 5m (chankan is only yaku)
+        # closed: 34m 234p 55567s = 10 tiles, waiting for 2m or 5m
+        pon_tiles_p1 = TilesConverter.string_to_136_array(man="111")
+        pon_meld_p1 = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=pon_tiles_p1,
+            opened=True,
+            called_tile=pon_tiles_p1[2],
+            who=1,
+            from_who=2,
+        )
+        round_state.players[1].melds = [pon_meld_p1]
+        round_state.players[1].tiles = TilesConverter.string_to_136_array(man="34", pin="234", sou="55567")
+        round_state.players_with_open_hands.append(1)
+
+        pon_tiles_p3 = TilesConverter.string_to_136_array(honors="555")  # haku
+        pon_meld_p3 = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=pon_tiles_p3,
+            opened=True,
+            called_tile=pon_tiles_p3[2],
+            who=3,
+            from_who=2,
+        )
+        round_state.players[3].melds = [pon_meld_p3]
+        # 34m 234p 55567s = 10 tiles waiting for 2m or 5m
+        round_state.players[3].tiles = TilesConverter.string_to_136_array(man="34", pin="234", sou="55567")
+        round_state.players_with_open_hands.append(3)
+
+        # player 0 attempts added kan with 5m, triggers chankan prompt
+        result = handle_kan(
+            round_state,
+            game_state,
+            seat=0,
+            data=KanActionData(tile_id=man_5_tiles[3], kan_type=KanType.ADDED),
+        )
+
+        # verify chankan prompt was created for both players 1 and 3
+        call_prompts = [
+            e for e in result.events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN
+        ]
+        assert len(call_prompts) == 1
+        assert 1 in call_prompts[0].callers
+        assert 3 in call_prompts[0].callers
+
+        # both players call chankan ron - player 1 first
+        result = handle_ron(round_state, game_state, seat=1)
+        assert result.events == []  # waiting for player 3
+
+        # player 3 calls ron
+        result = handle_ron(round_state, game_state, seat=3)
+
+        # verify double ron result
+        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
+        assert len(round_end_events) == 1
+        assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
+        assert round_end_events[0].result.loser_seat == 0
+
+        # both winners should have chankan yaku
+        for winner in round_end_events[0].result.winners:
+            assert "Chankan" in winner.hand_result.yaku

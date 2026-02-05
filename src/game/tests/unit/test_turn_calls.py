@@ -8,16 +8,15 @@ import pytest
 from mahjong.meld import Meld as MahjongMeld
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import MeldCallType, MeldViewType
+from game.logic.enums import KanType, MeldCallType, MeldViewType, RoundPhase, RoundResultType
 from game.logic.game import init_game
 from game.logic.scoring import HandResult
-from game.logic.state import RoundPhase
 from game.logic.turn import (
     process_meld_call,
     process_ron_call,
     process_tsumo_call,
 )
-from game.messaging.events import DoraRevealedEvent, MeldEvent, RoundEndEvent
+from game.messaging.events import DoraRevealedEvent, EventType, MeldEvent, RoundEndEvent
 from game.tests.unit.helpers import _default_seat_configs
 
 
@@ -45,7 +44,7 @@ class TestProcessMeldCall:
             round_state, game_state, caller_seat=1, call_type=MeldCallType.PON, tile_id=tile_to_pon
         )
 
-        meld_events = [e for e in events if e.type == "meld"]
+        meld_events = [e for e in events if e.type == EventType.MELD]
         assert len(meld_events) == 1
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.PON
@@ -77,7 +76,7 @@ class TestProcessMeldCall:
             sequence_tiles=(tile_2m, tile_3m),
         )
 
-        meld_events = [e for e in events if e.type == "meld"]
+        meld_events = [e for e in events if e.type == EventType.MELD]
         assert len(meld_events) == 1
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.CHI
@@ -123,11 +122,11 @@ class TestProcessRonCall:
             round_state, game_state, ron_callers=[1], tile_id=win_tile, discarder_seat=discarder_seat
         )
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
-        assert result.type == "ron"
+        assert result.type == RoundResultType.RON
         assert result.winner_seat == 1
         assert result.loser_seat == 0
         assert round_state.phase == RoundPhase.FINISHED
@@ -168,11 +167,11 @@ class TestProcessRonCallOpenHand:
             round_state, game_state, ron_callers=[1], tile_id=win_tile, discarder_seat=0
         )
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
-        assert result.type == "ron"
+        assert result.type == RoundResultType.RON
         assert result.winner_seat == 1
         assert result.loser_seat == 0
         assert round_state.phase == RoundPhase.FINISHED
@@ -196,11 +195,11 @@ class TestProcessTsumoCall:
 
         events = process_tsumo_call(round_state, game_state, winner_seat=0)
 
-        round_end_events = [e for e in events if e.type == "round_end"]
+        round_end_events = [e for e in events if e.type == EventType.ROUND_END]
         assert len(round_end_events) == 1
         assert isinstance(round_end_events[0], RoundEndEvent)
         result = round_end_events[0].result
-        assert result.type == "tsumo"
+        assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 0
         assert round_state.phase == RoundPhase.FINISHED
 
@@ -249,11 +248,11 @@ class TestOpenKanMeldCall:
             tile_id=tile_to_kan,
         )
 
-        meld_events = [e for e in events if e.type == "meld"]
+        meld_events = [e for e in events if e.type == EventType.MELD]
         assert len(meld_events) == 1
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == "open"
+        assert meld_events[0].kan_type == KanType.OPEN
         assert meld_events[0].called_tile_id == tile_to_kan
 
     def test_process_open_kan_no_immediate_dora_revealed(self):
@@ -297,11 +296,11 @@ class TestClosedKanMeldCall:
             tile_id=TilesConverter.string_to_136_array(man="1")[0],
         )
 
-        meld_events = [e for e in events if e.type == "meld"]
+        meld_events = [e for e in events if e.type == EventType.MELD]
         assert len(meld_events) == 1
         assert isinstance(meld_events[0], MeldEvent)
         assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == "closed"
+        assert meld_events[0].kan_type == KanType.CLOSED
         assert meld_events[0].called_tile_id is None
 
     def test_process_closed_kan_emits_dora_revealed(self):
@@ -366,8 +365,8 @@ class TestAddedKanMeldCall:
 
         # should produce at least one event (meld event or chankan prompt)
         assert len(events) > 0
-        meld_events = [e for e in events if e.type == "meld"]
-        chankan_prompts = [e for e in events if e.type == "call_prompt"]
+        meld_events = [e for e in events if e.type == EventType.MELD]
+        chankan_prompts = [e for e in events if e.type == EventType.CALL_PROMPT]
         assert len(meld_events) > 0 or len(chankan_prompts) > 0
         # added kan: called_tile_id is None (tile comes from own hand, not discard)
         for meld_event in meld_events:
@@ -484,3 +483,133 @@ class TestProcessTsumoCallHandError:
             pytest.raises(ValueError, match="tsumo calculation error"),
         ):
             process_tsumo_call(round_state, game_state, 0)
+
+
+class TestRinshanKaihouDoraVisibility:
+    """
+    Document dora visibility rules during Rinshan Kaihou.
+
+    Per game-rules.md:
+    - Closed (Ankan): Dora revealed immediately, applies to winning hand
+    - Open (Daiminkan): Dora deferred, NOT revealed on Rinshan Kaihou
+    - Added (Shouminkan): Dora deferred, NOT revealed on Rinshan Kaihou
+    """
+
+    def test_closed_kan_rinshan_dora_in_indicators(self):
+        """After closed kan, dora is in dora_indicators before tsumo."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # initial dora indicator count
+        initial_dora_count = len(round_state.dora_indicators)
+
+        # give player 0 four 1m tiles for closed kan
+        round_state.players[0].tiles = TilesConverter.string_to_136_array(man="1111", pin="2345", sou="23456")
+        round_state.current_player_seat = 0
+
+        # process closed kan
+        events = process_meld_call(
+            round_state,
+            game_state,
+            caller_seat=0,
+            call_type=MeldCallType.CLOSED_KAN,
+            tile_id=TilesConverter.string_to_136_array(man="1")[0],
+        )
+
+        # verify dora was revealed immediately
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 1
+        assert len(round_state.dora_indicators) == initial_dora_count + 1
+        assert round_state.pending_dora_count == 0
+
+    def test_open_kan_rinshan_dora_not_in_indicators(self):
+        """After open kan, new dora is NOT in dora_indicators (is pending)."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # initial dora indicator count
+        initial_dora_count = len(round_state.dora_indicators)
+
+        # give player 1 three 1m tiles for open kan
+        round_state.players[1].tiles = TilesConverter.string_to_136_array(man="111", pin="23456", sou="23456")
+        tile_to_kan = TilesConverter.string_to_136_array(man="1111")[3]  # 4th 1m tile
+        round_state.current_player_seat = 0
+
+        # process open kan
+        events = process_meld_call(
+            round_state,
+            game_state,
+            caller_seat=1,
+            call_type=MeldCallType.OPEN_KAN,
+            tile_id=tile_to_kan,
+        )
+
+        # verify no dora was revealed (pending instead)
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
+        assert len(round_state.dora_indicators) == initial_dora_count  # unchanged
+        assert round_state.pending_dora_count == 1
+
+    def test_added_kan_rinshan_dora_not_in_indicators(self):
+        """After added kan, new dora is NOT in dora_indicators (is pending)."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        player = round_state.players[0]
+
+        # initial dora indicator count
+        initial_dora_count = len(round_state.dora_indicators)
+
+        # give player a pon meld and the 4th tile in hand
+        pon_tiles = TilesConverter.string_to_136_array(man="111")
+        fourth_1m = TilesConverter.string_to_136_array(man="1111")[3]
+        pon_meld = MahjongMeld(
+            meld_type=MahjongMeld.PON,
+            tiles=pon_tiles,
+            opened=True,
+            called_tile=pon_tiles[2],
+            who=0,
+            from_who=1,
+        )
+        player.melds = [pon_meld]
+        player.tiles = [fourth_1m, *TilesConverter.string_to_136_array(pin="12345", sou="1234567")]
+        round_state.current_player_seat = 0
+        round_state.players_with_open_hands = [0]
+
+        # process added kan (assuming no chankan possible)
+        events = process_meld_call(
+            round_state,
+            game_state,
+            caller_seat=0,
+            call_type=MeldCallType.ADDED_KAN,
+            tile_id=fourth_1m,
+        )
+
+        # verify no dora was revealed (pending instead)
+        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
+        assert len(dora_events) == 0
+        assert len(round_state.dora_indicators) == initial_dora_count  # unchanged
+        assert round_state.pending_dora_count == 1
+
+    def test_rinshan_tsumo_uses_current_dora_indicators(self):
+        """Rinshan Kaihou scoring uses dora_indicators at win time (pending dora excluded)."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+        player = round_state.players[0]
+
+        # set up a pending dora count (simulating open/added kan that drew replacement tile)
+        round_state.pending_dora_count = 1
+
+        # give player a winning hand after kan replacement draw
+        # 123m 456m 789m 111p 22p = winning hand with menzen tsumo
+        player.tiles = TilesConverter.string_to_136_array(man="123456789", pin="11122")
+
+        # process tsumo
+        events = process_tsumo_call(round_state, game_state, winner_seat=0)
+
+        # verify pending dora was cleared (not included in scoring)
+        assert round_state.pending_dora_count == 0
+
+        # verify round ended with tsumo
+        round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
+        assert len(round_end_events) == 1
+        assert round_end_events[0].result.type == RoundResultType.TSUMO

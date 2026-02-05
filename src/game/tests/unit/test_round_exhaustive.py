@@ -5,6 +5,7 @@ Unit tests for exhaustive draw processing, tempai detection, and nagashi mangan.
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import RoundResultType
 from game.logic.round import (
     check_exhaustive_draw,
     check_nagashi_mangan,
@@ -327,7 +328,7 @@ class TestProcessExhaustiveDraw:
 
         result = process_exhaustive_draw(game_state)
 
-        assert result.type == "exhaustive_draw"
+        assert result.type == RoundResultType.EXHAUSTIVE_DRAW
 
 
 class TestCheckNagashiMangan:
@@ -486,7 +487,7 @@ class TestProcessExhaustiveDrawNagashiMangan:
         result = process_exhaustive_draw(game_state)
 
         assert isinstance(result, NagashiManganResult)
-        assert result.type == "nagashi_mangan"
+        assert result.type == RoundResultType.NAGASHI_MANGAN
         assert result.qualifying_seats == [0]
 
     def test_nagashi_mangan_dealer_scoring(self):

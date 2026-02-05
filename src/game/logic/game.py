@@ -2,13 +2,9 @@
 Game initialization and progression for Mahjong.
 """
 
-from game.logic.enums import RoundResultType
+from game.logic.enums import GamePhase, RoundResultType
 from game.logic.round import create_players, init_round
-from game.logic.state import (
-    GamePhase,
-    MahjongGameState,
-    MahjongRoundState,
-)
+from game.logic.state import MahjongGameState, MahjongRoundState
 from game.logic.types import (
     DoubleRonResult,
     ExhaustiveDrawResult,

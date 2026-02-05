@@ -8,12 +8,9 @@ effective furiten state transitions on/off.
 import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import GameAction, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import (
-    Discard,
-    MahjongPlayer,
-    RoundPhase,
-)
+from game.logic.state import Discard, MahjongPlayer
 from game.logic.win import is_effective_furiten
 from game.messaging.events import EventType, FuritenEvent, ServiceEvent
 from game.tests.unit.helpers import _find_human_player
@@ -83,7 +80,7 @@ class TestFuritenEvent:
     def test_model_dump(self):
         event = FuritenEvent(is_furiten=True, target="seat_1")
         data = event.model_dump()
-        assert data["type"] == "furiten"
+        assert data["type"] == EventType.FURITEN
         assert data["is_furiten"] is True
         assert data["target"] == "seat_1"
 
@@ -247,7 +244,7 @@ class TestFuritenEventsInGameFlow:
         service._furiten_state["game1"][human.seat] = True
 
         tile_id = human.tiles[-1]
-        events = await service.handle_action("game1", "Human", "discard", {"tile_id": tile_id})
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
         # If the round ended (e.g. a bot won), furiten checks are skipped
         round_ended = any(e.event == EventType.ROUND_END for e in events)

@@ -15,7 +15,15 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.actions import get_available_actions
-from game.logic.enums import MELD_CALL_PRIORITY, CallType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.enums import (
+    MELD_CALL_PRIORITY,
+    CallType,
+    KanType,
+    MeldCallType,
+    MeldViewType,
+    PlayerAction,
+    RoundPhase,
+)
 from game.logic.melds import (
     call_added_kan,
     call_chi,
@@ -41,7 +49,7 @@ from game.logic.scoring import (
     apply_tsumo_score,
     calculate_hand_value,
 )
-from game.logic.state import PendingCallPrompt, RoundPhase
+from game.logic.state import PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.types import AvailableActionItem, MeldCaller
 from game.logic.win import (
@@ -456,12 +464,14 @@ def process_meld_call(  # noqa: PLR0913
     return ctx.events
 
 
-def process_ron_call(
+def process_ron_call(  # noqa: PLR0913
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     ron_callers: list[int],
     tile_id: int,
     discarder_seat: int,
+    *,
+    is_chankan: bool = False,
 ) -> list[GameEvent]:
     """
     Process ron call(s) from one or more players.
@@ -477,7 +487,9 @@ def process_ron_call(
 
         # temporarily add the tile to calculate hand value
         winner.tiles.append(tile_id)
-        hand_result = calculate_hand_value(winner, round_state, tile_id, is_tsumo=False)
+        hand_result = calculate_hand_value(
+            winner, round_state, tile_id, is_tsumo=False, is_chankan=is_chankan
+        )
         winner.tiles.remove(tile_id)
 
         if hand_result.error:
@@ -497,7 +509,9 @@ def process_ron_call(
         for winner_seat in ron_callers:
             winner = round_state.players[winner_seat]
             winner.tiles.append(tile_id)
-            hand_result = calculate_hand_value(winner, round_state, tile_id, is_tsumo=False)
+            hand_result = calculate_hand_value(
+                winner, round_state, tile_id, is_tsumo=False, is_chankan=is_chankan
+            )
             winner.tiles.remove(tile_id)
 
             if hand_result.error:
