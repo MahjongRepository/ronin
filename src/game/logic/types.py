@@ -5,7 +5,7 @@ Contains typed models for round results, bot actions, available actions,
 meld callers, and player views that cross component boundaries.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import (
     AbortiveDrawType,
@@ -164,11 +164,17 @@ class GameEndResult(BaseModel):
 
 
 class MeldCaller(BaseModel):
-    """Information about a player who can call a meld on a discarded tile."""
+    """
+    Immutable meld caller information.
+
+    Uses tuple instead of list for options to prevent nested mutation.
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     seat: int
     call_type: MeldCallType
-    options: list[tuple[int, int]] | None = None
+    options: tuple[tuple[int, int], ...] | None = None
 
 
 class BotAction(BaseModel):

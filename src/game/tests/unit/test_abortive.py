@@ -2,7 +2,6 @@
 Unit tests for abortive draw conditions.
 """
 
-from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import (
@@ -18,21 +17,40 @@ from game.logic.abortive import (
     process_abortive_draw,
 )
 from game.logic.enums import RoundResultType
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState
 
 
 class TestCanCallKyuushuKyuuhai:
-    def _create_round_state(self, tiles: list[int]) -> MahjongRoundState:
+    def _create_round_state(
+        self,
+        tiles: list[int],
+        *,
+        player_discards: tuple[Discard, ...] | None = None,
+        other_player_discards: tuple[Discard, ...] | None = None,
+        players_with_open_hands: tuple[int, ...] = (),
+    ) -> MahjongRoundState:
         """Create a round state with a player holding specific tiles."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", tiles=tiles),
-            MahjongPlayer(seat=1, name="Bot1", tiles=[]),
-            MahjongPlayer(seat=2, name="Bot2", tiles=[]),
-            MahjongPlayer(seat=3, name="Bot3", tiles=[]),
-        ]
+        players = (
+            MahjongPlayer(
+                seat=0,
+                name="Player1",
+                tiles=tuple(tiles),
+                discards=player_discards or (),
+            ),
+            MahjongPlayer(
+                seat=1,
+                name="Bot1",
+                tiles=(),
+                discards=other_player_discards or (),
+            ),
+            MahjongPlayer(seat=2, name="Bot2", tiles=()),
+            MahjongPlayer(seat=3, name="Bot3", tiles=()),
+        )
         return MahjongRoundState(
             players=players,
             current_player_seat=0,
+            players_with_open_hands=players_with_open_hands,
         )
 
     def _create_kyuushu_hand(self) -> list[int]:
@@ -101,11 +119,8 @@ class TestCanCallKyuushuKyuuhai:
     def test_cannot_call_if_discards_exist(self):
         """Player cannot call if any discards have been made."""
         tiles = self._create_kyuushu_hand()
-        round_state = self._create_round_state(tiles)
-        # add a discard to player 1
-        round_state.players[1].discards.append(
-            Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
-        )
+        discard = Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
+        round_state = self._create_round_state(tiles, other_player_discards=(discard,))
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
 
@@ -114,11 +129,8 @@ class TestCanCallKyuushuKyuuhai:
     def test_cannot_call_if_player_discarded(self):
         """Player cannot call if they have already discarded."""
         tiles = self._create_kyuushu_hand()
-        round_state = self._create_round_state(tiles)
-        # add a discard to the calling player
-        round_state.players[0].discards.append(
-            Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
-        )
+        discard = Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
+        round_state = self._create_round_state(tiles, player_discards=(discard,))
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
 
@@ -127,9 +139,7 @@ class TestCanCallKyuushuKyuuhai:
     def test_cannot_call_if_melds_exist(self):
         """Player cannot call if any melds have been made."""
         tiles = self._create_kyuushu_hand()
-        round_state = self._create_round_state(tiles)
-        # mark that player 2 has an open hand
-        round_state.players_with_open_hands.append(2)
+        round_state = self._create_round_state(tiles, players_with_open_hands=(2,))
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
 
@@ -206,7 +216,7 @@ class TestCountTerminalHonorTypes:
 
 
 class TestCallKyuushuKyuuhai:
-    def _create_round_state(self) -> MahjongRoundState:
+    def _create_round_state(self, current_player_seat: int = 0) -> MahjongRoundState:
         """Create a round state for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
@@ -216,34 +226,31 @@ class TestCallKyuushuKyuuhai:
         ]
         return MahjongRoundState(
             players=players,
-            current_player_seat=0,
+            current_player_seat=current_player_seat,
         )
 
     def test_returns_abortive_draw_result(self):
         """Returns correct result dict for abortive draw."""
         round_state = self._create_round_state()
 
-        result = call_kyuushu_kyuuhai(round_state)
+        _new_round_state, result = call_kyuushu_kyuuhai(round_state)
 
         assert result.type == RoundResultType.ABORTIVE_DRAW
         assert result.reason == AbortiveDrawType.NINE_TERMINALS
 
     def test_includes_calling_player_seat(self):
         """Result includes the seat of the player who called."""
-        round_state = self._create_round_state()
-        round_state.current_player_seat = 2
+        round_state = self._create_round_state(current_player_seat=2)
 
-        result = call_kyuushu_kyuuhai(round_state)
+        _new_round_state, result = call_kyuushu_kyuuhai(round_state)
 
         assert result.seat == 2
 
     def test_different_seats(self):
         """Works correctly for any seat."""
-        round_state = self._create_round_state()
-
         for seat in range(4):
-            round_state.current_player_seat = seat
-            result = call_kyuushu_kyuuhai(round_state)
+            round_state = self._create_round_state(current_player_seat=seat)
+            _new_round_state, result = call_kyuushu_kyuuhai(round_state)
             assert result.seat == seat
 
 
@@ -254,21 +261,22 @@ class TestKyuushuConstant:
 
 
 class TestCheckFourRiichi:
-    def _create_round_state(self) -> MahjongRoundState:
+    def _create_round_state(
+        self,
+        riichi_seats: tuple[int, ...] = (),
+    ) -> MahjongRoundState:
         """Create a round state with 4 players."""
         players = [
-            MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1"),
-            MahjongPlayer(seat=2, name="Bot2"),
-            MahjongPlayer(seat=3, name="Bot3"),
+            MahjongPlayer(seat=0, name="Player1", is_riichi=(0 in riichi_seats)),
+            MahjongPlayer(seat=1, name="Bot1", is_riichi=(1 in riichi_seats)),
+            MahjongPlayer(seat=2, name="Bot2", is_riichi=(2 in riichi_seats)),
+            MahjongPlayer(seat=3, name="Bot3", is_riichi=(3 in riichi_seats)),
         ]
         return MahjongRoundState(players=players)
 
     def test_four_riichi_returns_true(self):
         """Returns True when all 4 players have declared riichi."""
-        round_state = self._create_round_state()
-        for p in round_state.players:
-            p.is_riichi = True
+        round_state = self._create_round_state(riichi_seats=(0, 1, 2, 3))
 
         result = check_four_riichi(round_state)
 
@@ -276,11 +284,7 @@ class TestCheckFourRiichi:
 
     def test_three_riichi_returns_false(self):
         """Returns False when only 3 players have declared riichi."""
-        round_state = self._create_round_state()
-        round_state.players[0].is_riichi = True
-        round_state.players[1].is_riichi = True
-        round_state.players[2].is_riichi = True
-        # player 3 has not declared riichi
+        round_state = self._create_round_state(riichi_seats=(0, 1, 2))
 
         result = check_four_riichi(round_state)
 
@@ -288,7 +292,7 @@ class TestCheckFourRiichi:
 
     def test_no_riichi_returns_false(self):
         """Returns False when no players have declared riichi."""
-        round_state = self._create_round_state()
+        round_state = self._create_round_state(riichi_seats=())
 
         result = check_four_riichi(round_state)
 
@@ -296,8 +300,7 @@ class TestCheckFourRiichi:
 
     def test_one_riichi_returns_false(self):
         """Returns False when only 1 player has declared riichi."""
-        round_state = self._create_round_state()
-        round_state.players[2].is_riichi = True
+        round_state = self._create_round_state(riichi_seats=(2,))
 
         result = check_four_riichi(round_state)
 
@@ -339,34 +342,35 @@ class TestCheckTripleRon:
 
 
 class TestCheckFourKans:
-    def _create_round_state(self) -> MahjongRoundState:
+    def _create_round_state(
+        self,
+        player0_melds: tuple[FrozenMeld, ...] = (),
+        player1_melds: tuple[FrozenMeld, ...] = (),
+        player2_melds: tuple[FrozenMeld, ...] = (),
+        player3_melds: tuple[FrozenMeld, ...] = (),
+    ) -> MahjongRoundState:
         """Create a round state with 4 players."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1"),
-            MahjongPlayer(seat=2, name="Bot2"),
-            MahjongPlayer(seat=3, name="Bot3"),
-        ]
+        players = (
+            MahjongPlayer(seat=0, name="Player1", melds=player0_melds),
+            MahjongPlayer(seat=1, name="Bot1", melds=player1_melds),
+            MahjongPlayer(seat=2, name="Bot2", melds=player2_melds),
+            MahjongPlayer(seat=3, name="Bot3", melds=player3_melds),
+        )
         return MahjongRoundState(players=players)
 
-    def _create_kan_meld(self, tiles: list[int], meld_type: str = Meld.KAN) -> Meld:
+    def _create_kan_meld(self, tiles: list[int], meld_type: str = FrozenMeld.KAN) -> FrozenMeld:
         """Create a kan meld for testing."""
-        return Meld(meld_type=meld_type, tiles=tiles, opened=True)
+        return FrozenMeld(meld_type=meld_type, tiles=tuple(tiles), opened=True)
 
     def test_four_kans_by_multiple_players_returns_true(self):
         """Returns True when 4 kans declared by 2+ different players."""
-        round_state = self._create_round_state()
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(man="1111"))
-        )
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111"))
-        )
-        round_state.players[1].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"))
-        )
-        round_state.players[2].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"))
+        round_state = self._create_round_state(
+            player0_melds=(
+                self._create_kan_meld(TilesConverter.string_to_136_array(man="1111")),
+                self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),
+            ),
+            player1_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
+            player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),),
         )
 
         result = check_four_kans(round_state)
@@ -375,18 +379,13 @@ class TestCheckFourKans:
 
     def test_four_kans_by_one_player_returns_false(self):
         """Returns False when 4 kans declared by single player (suukantsu possible)."""
-        round_state = self._create_round_state()
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(man="1111"))
-        )
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111"))
-        )
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"))
-        )
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"))
+        round_state = self._create_round_state(
+            player0_melds=(
+                self._create_kan_meld(TilesConverter.string_to_136_array(man="1111")),
+                self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),
+                self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),
+                self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),
+            ),
         )
 
         result = check_four_kans(round_state)
@@ -395,15 +394,10 @@ class TestCheckFourKans:
 
     def test_three_kans_returns_false(self):
         """Returns False when only 3 kans have been declared."""
-        round_state = self._create_round_state()
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(man="1111"))
-        )
-        round_state.players[1].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111"))
-        )
-        round_state.players[2].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"))
+        round_state = self._create_round_state(
+            player0_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(man="1111")),),
+            player1_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),),
+            player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
         )
 
         result = check_four_kans(round_state)
@@ -420,18 +414,17 @@ class TestCheckFourKans:
 
     def test_shouminkan_counts_as_kan(self):
         """Shouminkan (added kan) counts towards the 4 kan limit."""
-        round_state = self._create_round_state()
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(man="1111"), Meld.SHOUMINKAN)
-        )
-        round_state.players[0].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111"), Meld.KAN)
-        )
-        round_state.players[1].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"), Meld.SHOUMINKAN)
-        )
-        round_state.players[2].melds.append(
-            self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"), Meld.KAN)
+        round_state = self._create_round_state(
+            player0_melds=(
+                self._create_kan_meld(TilesConverter.string_to_136_array(man="1111"), FrozenMeld.SHOUMINKAN),
+                self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111"), FrozenMeld.KAN),
+            ),
+            player1_melds=(
+                self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"), FrozenMeld.SHOUMINKAN),
+            ),
+            player2_melds=(
+                self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"), FrozenMeld.KAN),
+            ),
         )
 
         result = check_four_kans(round_state)
@@ -440,7 +433,11 @@ class TestCheckFourKans:
 
 
 class TestCheckFourWinds:
-    def _create_round_state(self) -> MahjongRoundState:
+    def _create_round_state(
+        self,
+        all_discards: tuple[int, ...] = (),
+        players_with_open_hands: tuple[int, ...] = (),
+    ) -> MahjongRoundState:
         """Create a round state with 4 players."""
         players = [
             MahjongPlayer(seat=0, name="Player1"),
@@ -448,12 +445,17 @@ class TestCheckFourWinds:
             MahjongPlayer(seat=2, name="Bot2"),
             MahjongPlayer(seat=3, name="Bot3"),
         ]
-        return MahjongRoundState(players=players)
+        return MahjongRoundState(
+            players=players,
+            all_discards=all_discards,
+            players_with_open_hands=players_with_open_hands,
+        )
 
     def test_four_east_winds_returns_true(self):
         """Returns True when first 4 discards are all East winds."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="1111")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="1111"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -461,8 +463,9 @@ class TestCheckFourWinds:
 
     def test_four_south_winds_returns_true(self):
         """Returns True when first 4 discards are all South winds."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="2222")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="2222"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -470,8 +473,9 @@ class TestCheckFourWinds:
 
     def test_four_west_winds_returns_true(self):
         """Returns True when first 4 discards are all West winds."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="3333")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="3333"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -479,8 +483,9 @@ class TestCheckFourWinds:
 
     def test_four_north_winds_returns_true(self):
         """Returns True when first 4 discards are all North winds."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="4444")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="4444"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -488,9 +493,10 @@ class TestCheckFourWinds:
 
     def test_mixed_winds_returns_false(self):
         """Returns False when first 4 discards are different wind tiles."""
-        round_state = self._create_round_state()
         # E, S, W, N
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="1234")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="1234"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -498,9 +504,10 @@ class TestCheckFourWinds:
 
     def test_non_wind_tiles_returns_false(self):
         """Returns False when first 4 discards are non-wind tiles."""
-        round_state = self._create_round_state()
         # 1m tiles
-        round_state.all_discards = TilesConverter.string_to_136_array(man="1111")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(man="1111"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -508,8 +515,9 @@ class TestCheckFourWinds:
 
     def test_four_dragons_returns_false(self):
         """Returns False when first 4 discards are same dragon (not wind)."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="5555")
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="5555"))
+        )
 
         result = check_four_winds(round_state)
 
@@ -517,8 +525,9 @@ class TestCheckFourWinds:
 
     def test_less_than_4_discards_returns_false(self):
         """Returns False when less than 4 discards have been made."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="111")[:3]
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="111")[:3])
+        )
 
         result = check_four_winds(round_state)
 
@@ -526,11 +535,12 @@ class TestCheckFourWinds:
 
     def test_more_than_4_discards_returns_false(self):
         """Returns False when more than 4 discards have been made."""
-        round_state = self._create_round_state()
-        round_state.all_discards = [
-            *TilesConverter.string_to_136_array(honors="1111"),
-            TilesConverter.string_to_136_array(honors="22")[0],
-        ]
+        round_state = self._create_round_state(
+            all_discards=(
+                *TilesConverter.string_to_136_array(honors="1111"),
+                TilesConverter.string_to_136_array(honors="22")[0],
+            )
+        )
 
         result = check_four_winds(round_state)
 
@@ -538,9 +548,10 @@ class TestCheckFourWinds:
 
     def test_open_meld_exists_returns_false(self):
         """Returns False when an open meld has been called."""
-        round_state = self._create_round_state()
-        round_state.all_discards = TilesConverter.string_to_136_array(honors="1111")
-        round_state.players_with_open_hands = [1]
+        round_state = self._create_round_state(
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="1111")),
+            players_with_open_hands=(1,),
+        )
 
         result = check_four_winds(round_state)
 
@@ -558,7 +569,7 @@ class TestAbortiveDrawType:
 
 
 class TestProcessAbortiveDraw:
-    def _create_game_state(self) -> MahjongGameState:
+    def _create_game_state(self, honba_sticks: int = 0) -> MahjongGameState:
         """Create a game state for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1", score=25000),
@@ -567,11 +578,11 @@ class TestProcessAbortiveDraw:
             MahjongPlayer(seat=3, name="Bot3", score=25000),
         ]
         round_state = MahjongRoundState(players=players)
-        return MahjongGameState(round_state=round_state, honba_sticks=0)
+        return MahjongGameState(round_state=round_state, honba_sticks=honba_sticks)
 
     def test_does_not_increment_honba(self):
         """Honba is not modified by process_abortive_draw (handled by process_round_end)."""
-        game_state = self._create_game_state()
+        game_state = self._create_game_state(honba_sticks=0)
         initial_honba = game_state.honba_sticks
 
         process_abortive_draw(game_state, AbortiveDrawType.FOUR_RIICHI)
@@ -580,8 +591,7 @@ class TestProcessAbortiveDraw:
 
     def test_preserves_existing_honba(self):
         """Honba value is preserved (increment handled by process_round_end)."""
-        game_state = self._create_game_state()
-        game_state.honba_sticks = 3
+        game_state = self._create_game_state(honba_sticks=3)
 
         process_abortive_draw(game_state, AbortiveDrawType.NINE_TERMINALS)
 

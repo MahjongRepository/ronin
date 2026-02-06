@@ -4,6 +4,8 @@ Available actions builder for Mahjong game.
 Consolidates logic for determining what actions a player can take during their turn.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from game.logic.enums import PlayerAction
@@ -14,7 +16,10 @@ from game.logic.types import AvailableActionItem
 from game.logic.win import can_declare_tsumo
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongGameState, MahjongRoundState
+    from game.logic.state import (
+        MahjongGameState,
+        MahjongRoundState,
+    )
 
 
 def get_available_actions(

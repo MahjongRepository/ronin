@@ -287,3 +287,44 @@ class TestMockGameServiceBotReplacement:
         service = MockGameService()
         result = await service.process_bot_actions_after_replacement("game1", seat=0)
         assert result == []
+
+
+class TestMessageRouterUnexpectedException:
+    """Test the except Exception branch in router.handle_message."""
+
+    async def test_unexpected_exception_triggers_close_game_on_error(self):
+        """Fatal exception during game action triggers close_game_on_error."""
+        game_service = MockGameService()
+        session_manager = SessionManager(game_service)
+        router = MessageRouter(session_manager)
+        connection = MockConnection()
+        await router.handle_connect(connection)
+
+        session_manager.create_game("game1")
+        await router.handle_message(
+            connection,
+            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
+        )
+        connection._outbox.clear()
+
+        # patch handle_game_action to raise an unexpected Exception (not ValueError/KeyError/TypeError)
+        async def raise_runtime_error(
+            connection: object,  # noqa: ARG001
+            action: object,  # noqa: ARG001
+            data: object,  # noqa: ARG001
+        ) -> None:
+            raise RuntimeError("unexpected crash")
+
+        session_manager.handle_game_action = raise_runtime_error  # type: ignore[assignment]
+
+        await router.handle_message(
+            connection,
+            {
+                "type": ClientMessageType.GAME_ACTION,
+                "action": GameAction.DISCARD,
+                "data": {"tile_id": 0},
+            },
+        )
+
+        # connection should be closed due to close_game_on_error
+        assert connection.is_closed

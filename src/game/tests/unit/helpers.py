@@ -1,8 +1,17 @@
+from typing import TYPE_CHECKING
+
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import BotType
-from game.logic.state import MahjongPlayer, MahjongRoundState
+from game.logic.state import (
+    MahjongGameState,
+    MahjongPlayer,
+    MahjongRoundState,
+)
 from game.logic.types import SeatConfig
+
+if TYPE_CHECKING:
+    from game.logic.mahjong_service import MahjongGameService
 
 
 def _string_to_34_tiles(
@@ -63,3 +72,62 @@ def _default_seat_configs() -> list[SeatConfig]:
         SeatConfig(name="Tsumogiri 2", bot_type=BotType.TSUMOGIRI),
         SeatConfig(name="Tsumogiri 3", bot_type=BotType.TSUMOGIRI),
     ]
+
+
+def _update_round_state(
+    service: MahjongGameService,
+    game_id: str,
+    **updates: object,
+) -> MahjongRoundState:
+    """
+    Update round state for testing with frozen state.
+
+    Creates a new frozen round state with the given updates and assigns it to the game.
+    Returns the new round state.
+    """
+    game_state = service._games[game_id]  # noqa: SLF001
+    new_round = game_state.round_state.model_copy(update=updates)
+    new_game = game_state.model_copy(update={"round_state": new_round})
+    service._games[game_id] = new_game  # noqa: SLF001
+    return new_round
+
+
+def _update_player(
+    service: MahjongGameService,
+    game_id: str,
+    seat: int,
+    **updates: object,
+) -> MahjongPlayer:
+    """
+    Update a player's state for testing with frozen state.
+
+    Creates a new frozen player with the given updates and assigns it to the game.
+    Returns the new player.
+    """
+    game_state = service._games[game_id]  # noqa: SLF001
+    round_state = game_state.round_state
+    players = list(round_state.players)
+    old_player = players[seat]
+    new_player = old_player.model_copy(update=updates)
+    players[seat] = new_player
+    new_round = round_state.model_copy(update={"players": tuple(players)})
+    new_game = game_state.model_copy(update={"round_state": new_round})
+    service._games[game_id] = new_game  # noqa: SLF001
+    return new_player
+
+
+def _update_game_state(
+    service: MahjongGameService,
+    game_id: str,
+    **updates: object,
+) -> MahjongGameState:
+    """
+    Update game state for testing with frozen state.
+
+    Creates a new frozen game state with the given updates and assigns it.
+    Returns the new game state.
+    """
+    game_state = service._games[game_id]  # noqa: SLF001
+    new_game = game_state.model_copy(update=updates)
+    service._games[game_id] = new_game  # noqa: SLF001
+    return new_game

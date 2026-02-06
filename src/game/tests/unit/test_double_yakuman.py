@@ -5,16 +5,18 @@ Tests that suuankou tanki, daisuushii, daburu kokushi, and daburu chuuren poutou
 score as double yakuman (26 han) while regular variants remain at single yakuman (13 han).
 """
 
-from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import (
     HandResult,
     apply_ron_score,
     apply_tsumo_score,
     calculate_hand_value,
 )
-from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
+from game.logic.state import MahjongGameState
+from game.logic.state_utils import update_player
+from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
 def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
@@ -23,20 +25,20 @@ def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
 
     Sets up a mid-game state (some discards) to avoid triggering tenhou/chiihou.
     """
-    players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
+    players = tuple(create_player(seat=i, score=25000) for i in range(4))
     dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
     dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
-    round_state = MahjongRoundState(
+    round_state = create_round_state(
+        players=players,
         dealer_seat=dealer_seat,
         current_player_seat=0,
         round_wind=0,
         dora_indicators=dora_indicator_tiles,
-        wall=list(range(70)),
-        dead_wall=list(range(14)),
-        players=players,
+        wall=tuple(range(70)),
+        dead_wall=tuple(range(14)),
         all_discards=dummy_discard_tiles,
     )
-    return MahjongGameState(round_state=round_state)
+    return create_game_state(round_state=round_state)
 
 
 class TestSuuankouTankiDoubleYakuman:
@@ -46,17 +48,16 @@ class TestSuuankouTankiDoubleYakuman:
         # hand: 111m 333p 555s 777s + tanki (pair) wait on 9s
         tiles = TilesConverter.string_to_136_array(man="111", pin="333", sou="555777")
         pair_tiles = TilesConverter.string_to_136_array(sou="99")
-        all_tiles = tiles + pair_tiles[:1]
+        all_tiles = (*tuple(tiles), pair_tiles[0])
 
         game_state = _create_game_state()
-        player = game_state.round_state.players[1]  # non-dealer
-        player.tiles = all_tiles
-
         # win tile is the second 9s (completing the pair)
         win_tile = pair_tiles[1]
-        player.tiles.append(win_tile)
+        final_tiles = (*all_tiles, win_tile)
+        round_state = update_player(game_state.round_state, 1, tiles=final_tiles)  # non-dealer
+        player = round_state.players[1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert result.han == 26
@@ -69,17 +70,16 @@ class TestSuuankouTankiDoubleYakuman:
         man_tiles = TilesConverter.string_to_136_array(man="111")
         tiles = TilesConverter.string_to_136_array(pin="333", sou="555777")
         pair_tiles = TilesConverter.string_to_136_array(sou="99")
-        all_tiles = man_tiles[:2] + tiles + pair_tiles
+        all_tiles = tuple(man_tiles[:2]) + tuple(tiles) + tuple(pair_tiles)
 
         game_state = _create_game_state()
-        player = game_state.round_state.players[1]  # non-dealer
-        player.tiles = all_tiles
-
         # win on 1m (third copy, completing the triplet)
         win_tile = man_tiles[2]
-        player.tiles.append(win_tile)
+        final_tiles = (*all_tiles, win_tile)
+        round_state = update_player(game_state.round_state, 1, tiles=final_tiles)  # non-dealer
+        player = round_state.players[1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert result.han == 13
@@ -96,11 +96,11 @@ class TestDaisuushiiDoubleYakuman:
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
         man_pair = TilesConverter.string_to_136_array(man="11")
-        all_tiles = east_tiles + closed_tiles + man_pair[:1]
+        all_tiles = tuple(east_tiles) + tuple(closed_tiles) + (man_pair[0],)
 
-        east_pon = Meld(
-            meld_type=Meld.PON,
-            tiles=east_tiles,
+        east_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(east_tiles),
             opened=True,
             called_tile=east_tiles[0],
             who=1,
@@ -108,15 +108,14 @@ class TestDaisuushiiDoubleYakuman:
         )
 
         game_state = _create_game_state()
-        player = game_state.round_state.players[1]  # non-dealer
-        player.tiles = all_tiles
-        player.melds = [east_pon]
-
         # win on second 1m (completing the pair)
         win_tile = man_pair[1]
-        player.tiles.append(win_tile)
+        final_tiles = (*all_tiles, win_tile)
+        # non-dealer
+        round_state = update_player(game_state.round_state, 1, tiles=final_tiles, melds=(east_pon,))
+        player = round_state.players[1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert result.han == 26
@@ -131,22 +130,26 @@ class TestDoubleYakumanRonScoring:
         # simulate double yakuman ron result
         hand_result = HandResult(han=26, fu=0, cost_main=64000, cost_additional=0, yaku=["Suuankou Tanki"])
 
-        apply_ron_score(game_state, winner_seat=1, loser_seat=2, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=1, loser_seat=2, hand_result=hand_result
+        )
 
-        assert game_state.round_state.players[1].score == 25000 + 64000
-        assert game_state.round_state.players[2].score == 25000 - 64000
-        assert game_state.round_state.players[0].score == 25000
-        assert game_state.round_state.players[3].score == 25000
+        assert new_round_state.players[1].score == 25000 + 64000
+        assert new_round_state.players[2].score == 25000 - 64000
+        assert new_round_state.players[0].score == 25000
+        assert new_round_state.players[3].score == 25000
 
     def test_dealer_double_yakuman_ron_payment(self):
         game_state = _create_game_state()
         # dealer double yakuman ron = 96000
         hand_result = HandResult(han=26, fu=0, cost_main=96000, cost_additional=0, yaku=["Daisuushii"])
 
-        apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
-        assert game_state.round_state.players[0].score == 25000 + 96000
-        assert game_state.round_state.players[1].score == 25000 - 96000
+        assert new_round_state.players[0].score == 25000 + 96000
+        assert new_round_state.players[1].score == 25000 - 96000
 
 
 class TestDoubleYakumanTsumoScoring:
@@ -159,26 +162,30 @@ class TestDoubleYakumanTsumoScoring:
             han=26, fu=0, cost_main=32000, cost_additional=16000, yaku=["Suuankou Tanki"]
         )
 
-        apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # winner receives 64000 total from three losers
-        assert game_state.round_state.players[1].score == 25000 + 64000
-        assert game_state.round_state.players[0].score == 25000 - 32000  # dealer
-        assert game_state.round_state.players[2].score == 25000 - 16000  # non-dealer
-        assert game_state.round_state.players[3].score == 25000 - 16000  # non-dealer
+        assert new_round_state.players[1].score == 25000 + 64000
+        assert new_round_state.players[0].score == 25000 - 32000  # dealer
+        assert new_round_state.players[2].score == 25000 - 16000  # non-dealer
+        assert new_round_state.players[3].score == 25000 - 16000  # non-dealer
 
     def test_dealer_double_yakuman_tsumo_payment(self):
         # dealer double yakuman tsumo: each non-dealer pays 32000
         game_state = _create_game_state()
         hand_result = HandResult(han=26, fu=0, cost_main=32000, cost_additional=0, yaku=["Daisuushii"])
 
-        apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_tsumo_score(
+            game_state, winner_seat=0, hand_result=hand_result
+        )
 
         # winner receives 96000 total from three losers
-        assert game_state.round_state.players[0].score == 25000 + 96000
-        assert game_state.round_state.players[1].score == 25000 - 32000
-        assert game_state.round_state.players[2].score == 25000 - 32000
-        assert game_state.round_state.players[3].score == 25000 - 32000
+        assert new_round_state.players[0].score == 25000 + 96000
+        assert new_round_state.players[1].score == 25000 - 32000
+        assert new_round_state.players[2].score == 25000 - 32000
+        assert new_round_state.players[3].score == 25000 - 32000
 
 
 class TestKazoeYakumanStaysSingle:
@@ -190,7 +197,9 @@ class TestKazoeYakumanStaysSingle:
         game_state = _create_game_state()
         hand_result = HandResult(han=13, fu=0, cost_main=32000, cost_additional=0, yaku=["Riichi", "Dora 12"])
 
-        apply_ron_score(game_state, winner_seat=1, loser_seat=2, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=1, loser_seat=2, hand_result=hand_result
+        )
 
-        assert game_state.round_state.players[1].score == 25000 + 32000
-        assert game_state.round_state.players[2].score == 25000 - 32000
+        assert new_round_state.players[1].score == 25000 + 32000
+        assert new_round_state.players[2].score == 25000 - 32000

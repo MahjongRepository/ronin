@@ -2,16 +2,21 @@
 Abortive draw conditions for Mahjong.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from mahjong.meld import Meld
-
 from game.logic.enums import AbortiveDrawType
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.tiles import WINDS_34, is_terminal_or_honor, tile_to_34
 from game.logic.types import AbortiveDrawResult
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
+    from game.logic.state import (
+        MahjongGameState,
+        MahjongPlayer,
+        MahjongRoundState,
+    )
 
 
 # minimum number of different terminal/honor tile types for kyuushu kyuuhai
@@ -24,7 +29,10 @@ MIN_PLAYERS_FOR_KAN_ABORT = 2
 FOUR_WINDS_DISCARD_COUNT = 4
 
 
-def can_call_kyuushu_kyuuhai(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+def can_call_kyuushu_kyuuhai(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> bool:
     """
     Check if a player can declare kyuushu kyuuhai (nine terminals abortive draw).
 
@@ -47,7 +55,7 @@ def can_call_kyuushu_kyuuhai(player: MahjongPlayer, round_state: MahjongRoundSta
     return terminal_honor_types >= KYUUSHU_MIN_TYPES
 
 
-def _count_terminal_honor_types(tiles: list[int]) -> int:
+def _count_terminal_honor_types(tiles: list[int] | tuple[int, ...]) -> int:
     """
     Count the number of different terminal/honor tile types in a hand.
     """
@@ -59,14 +67,20 @@ def _count_terminal_honor_types(tiles: list[int]) -> int:
     return len(unique_types)
 
 
-def call_kyuushu_kyuuhai(round_state: MahjongRoundState) -> AbortiveDrawResult:
+def call_kyuushu_kyuuhai(
+    round_state: MahjongRoundState,
+) -> tuple[MahjongRoundState, AbortiveDrawResult]:
     """
     Execute kyuushu kyuuhai abortive draw.
+
+    Returns (unchanged_round_state, result).
+    The round_state is not modified by this function - phase change is done by caller.
     """
-    return AbortiveDrawResult(
+    result = AbortiveDrawResult(
         reason=AbortiveDrawType.NINE_TERMINALS,
         seat=round_state.current_player_seat,
     )
+    return round_state, result
 
 
 def check_four_riichi(round_state: MahjongRoundState) -> bool:
@@ -98,7 +112,7 @@ def check_four_kans(round_state: MahjongRoundState) -> bool:
     players_with_kans = set()
 
     for player in round_state.players:
-        player_kans = sum(1 for m in player.melds if m.type in (Meld.KAN, Meld.SHOUMINKAN))
+        player_kans = sum(1 for m in player.melds if m.type in (FrozenMeld.KAN, FrozenMeld.SHOUMINKAN))
         total_kans += player_kans
         if player_kans > 0:
             players_with_kans.add(player.seat)
@@ -135,7 +149,10 @@ def check_four_winds(round_state: MahjongRoundState) -> bool:
     return all(t == first_tile for t in discard_34s)
 
 
-def process_abortive_draw(game_state: MahjongGameState, draw_type: AbortiveDrawType) -> AbortiveDrawResult:
+def process_abortive_draw(
+    game_state: MahjongGameState,
+    draw_type: AbortiveDrawType,
+) -> AbortiveDrawResult:
     """
     Process an abortive draw.
 

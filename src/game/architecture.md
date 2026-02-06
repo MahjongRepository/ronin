@@ -180,7 +180,9 @@ The `logic/` module implements Riichi Mahjong rules:
 - **Riichi** - Riichi declaration validation and tenpai detection
 - **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.); returns `AbortiveDrawResult`
 - **Bot** - AI player for filling empty seats; returns `BotAction` model
-- **State** - Game state dataclasses including `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, and `CallResponse`
+- **State** - Frozen Pydantic game state models: `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, `CallResponse`; all state is immutable (`frozen=True`); state updates use `model_copy(update={...})` pattern
+- **MeldWrapper** (`meld_wrapper.py`) - `FrozenMeld` immutable wrapper for external `mahjong.meld.Meld` class; provides true immutability by storing meld data in frozen Pydantic model; converts to/from `Meld` at boundaries for library compatibility; `frozen_melds_to_melds()` utility for batch conversion
+- **StateUtils** (`state_utils.py`) - Helper functions for immutable state updates: `update_player()`, `add_tile_to_player()`, `remove_tile_from_player()`, `add_discard()`, `add_meld()`, `reveal_dora()`, `advance_turn()`, etc.
 
 ### Pending Call Prompt System
 

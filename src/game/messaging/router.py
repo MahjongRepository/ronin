@@ -66,7 +66,7 @@ class MessageRouter:
                 await connection.send_message(
                     ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump()
                 )
-            except Exception:  # pragma: no cover
+            except Exception:
                 logger.exception(f"fatal error during game action for {connection.connection_id}")
                 await self._session_manager.close_game_on_error(connection)
         elif isinstance(message, PingMessage):

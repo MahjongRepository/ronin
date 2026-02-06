@@ -21,7 +21,11 @@ from game.messaging.events import (
     RoundEndEvent,
     ServiceEvent,
 )
-from game.tests.unit.helpers import _find_human_player
+from game.tests.unit.helpers import (
+    _find_human_player,
+    _update_player,
+    _update_round_state,
+)
 
 
 class TestMahjongGameServiceDiscard:
@@ -34,12 +38,16 @@ class TestMahjongGameServiceDiscard:
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
-        # force current player to a different seat so the human is out of turn
-        round_state.current_player_seat = 1
-        # ensure all players have 13 tiles so subsequent draws work correctly
+        # Build updated players with max 13 tiles
+        new_players = []
         for player in round_state.players:
-            while len(player.tiles) > 13:
-                player.tiles.pop()
+            if len(player.tiles) > 13:
+                new_players.append(player.model_copy(update={"tiles": tuple(list(player.tiles)[:13])}))
+            else:
+                new_players.append(player)
+
+        # force current player to a different seat so the human is out of turn
+        _update_round_state(service, "game1", current_player_seat=1, players=tuple(new_players))
 
         events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": 0})
         assert any(e.event == EventType.ERROR for e in events)
@@ -83,8 +91,11 @@ class TestMahjongGameServiceDiscard:
 
         await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
+        # Refresh reference to get updated state
+        updated_human = _find_human_player(service._games["game1"].round_state, "Human")
+
         # tile count should decrease
-        assert human.tiles.count(tile_id) == initial_count - 1
+        assert updated_human.tiles.count(tile_id) == initial_count - 1
 
 
 class TestMahjongGameServiceRiichi:
@@ -110,12 +121,16 @@ class TestMahjongGameServiceTsumo:
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
-        # force current player to a different seat so the human is out of turn
-        round_state.current_player_seat = 1
-        # ensure all players have 13 tiles so subsequent draws work correctly
+        # Build updated players with max 13 tiles
+        new_players = []
         for player in round_state.players:
-            while len(player.tiles) > 13:
-                player.tiles.pop()
+            if len(player.tiles) > 13:
+                new_players.append(player.model_copy(update={"tiles": tuple(list(player.tiles)[:13])}))
+            else:
+                new_players.append(player)
+
+        # force current player to a different seat so the human is out of turn
+        _update_round_state(service, "game1", current_player_seat=1, players=tuple(new_players))
 
         events = await service.handle_action("game1", "Human", GameAction.DECLARE_TSUMO, {})
         assert any(e.event == EventType.ERROR for e in events)
@@ -253,10 +268,9 @@ class TestMahjongGameServiceProcessActionResult:
     async def test_process_action_result_round_end(self, service):
         """Verify _process_action_result_internal returns round end events when round is finished."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # set phase to FINISHED to trigger round end path
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         round_result = ExhaustiveDrawResult(
             tempai_seats=[],
@@ -280,9 +294,10 @@ class TestMahjongGameServiceProcessActionResult:
         round_state = game_state.round_state
 
         # ensure current player has 13 tiles (simulating post-discard state)
-        current_player = round_state.players[round_state.current_player_seat]
-        while len(current_player.tiles) > 13:
-            current_player.tiles.pop()
+        current_seat = round_state.current_player_seat
+        current_player = round_state.players[current_seat]
+        if len(current_player.tiles) > 13:
+            _update_player(service, "game1", current_seat, tiles=tuple(list(current_player.tiles)[:13]))
 
         result = ActionResult(
             events=[
@@ -307,20 +322,20 @@ class TestMahjongGameServiceProcessActionResult:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
-        round_state = game_state.round_state
 
         # find bot seats
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
 
         # set up pending call prompt for chankan
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
             from_seat=human.seat,
-            pending_seats={bot_seats[0]},
-            callers=[bot_seats[0]],
+            pending_seats=frozenset({bot_seats[0]}),
+            callers=(bot_seats[0],),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         chankan_prompt = CallPromptEvent(
             call_type=CallType.CHANKAN,
@@ -335,9 +350,11 @@ class TestMahjongGameServiceProcessActionResult:
         )
 
         # mock complete_added_kan_after_chankan_decline to avoid tile validation issues
+        # The mock returns updated state with cleared prompt
+        cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
             "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
-            return_value=[],
+            return_value=(cleared_round, game_state, []),
         ):
             events = await service._process_action_result_internal("game1", result)
 
@@ -357,16 +374,16 @@ class TestMahjongGameServiceHandleChankanPrompt:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
-        round_state = game_state.round_state
 
         # set up pending call prompt with human caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
             from_seat=0,
-            pending_seats={human.seat},
-            callers=[human.seat],
+            pending_seats=frozenset({human.seat}),
+            callers=(human.seat,),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -381,7 +398,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
         )
         events = [chankan_prompt]
 
-        result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
+        result = await service._handle_chankan_prompt("game1", events)
 
         # should return immediately with events since human needs to respond
         assert result == events
@@ -390,20 +407,20 @@ class TestMahjongGameServiceHandleChankanPrompt:
         """Verify chankan processes bot responses when no human caller."""
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
-        round_state = game_state.round_state
 
         # find bot seats
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
 
         # set up pending call prompt with only bot callers
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
             from_seat=bot_seats[0],
-            pending_seats={bot_seats[1]},
-            callers=[bot_seats[1]],
+            pending_seats=frozenset({bot_seats[1]}),
+            callers=(bot_seats[1],),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -419,11 +436,13 @@ class TestMahjongGameServiceHandleChankanPrompt:
         events = [chankan_prompt]
 
         # mock complete_added_kan_after_chankan_decline to avoid tile validation issues
+        # The mock returns updated state with cleared prompt
+        cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
             "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
-            return_value=[],
+            return_value=(cleared_round, game_state, []),
         ):
-            result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
+            result = await service._handle_chankan_prompt("game1", events)
 
         # bot should have responded, prompt resolved
         assert len(result) >= 1
@@ -445,7 +464,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
         )
         events = [chankan_prompt]
 
-        result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
+        result = await service._handle_chankan_prompt("game1", events)
 
         # should return immediately with no pending prompt
         assert result == events

@@ -11,7 +11,10 @@ from game.logic.enums import KanType, PlayerAction
 from game.logic.types import BotAction
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongPlayer, MahjongRoundState
+    from game.logic.state import (
+        MahjongPlayer,
+        MahjongRoundState,
+    )
 
 
 class BotStrategy(Enum):
@@ -45,7 +48,7 @@ def should_call_chi(
     bot: BotPlayer,  # noqa: ARG001
     player: MahjongPlayer,  # noqa: ARG001
     discarded_tile: int,  # noqa: ARG001
-    chi_options: list[tuple[int, int]],  # noqa: ARG001
+    chi_options: tuple[tuple[int, int], ...] | None,  # noqa: ARG001
     round_state: MahjongRoundState,  # noqa: ARG001
 ) -> tuple[int, int] | None:
     """

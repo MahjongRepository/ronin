@@ -2,12 +2,19 @@
 Riichi declaration and related mechanics for Mahjong game.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from game.logic.round import is_tempai
+from game.logic.state import MahjongPlayer
+from game.logic.state_utils import update_player
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
+    from game.logic.state import (
+        MahjongGameState,
+        MahjongRoundState,
+    )
 
 # riichi point cost
 RIICHI_COST = 1000
@@ -16,7 +23,10 @@ RIICHI_COST = 1000
 MIN_WALL_FOR_RIICHI = 4
 
 
-def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+def can_declare_riichi(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> bool:
     """
     Check if a player can declare riichi.
 
@@ -44,33 +54,44 @@ def can_declare_riichi(player: MahjongPlayer, round_state: MahjongRoundState) ->
         return False
 
     # must be in tempai
-    return is_tempai(player)
+    return is_tempai(player.tiles, player.melds)
 
 
-def declare_riichi(player: MahjongPlayer, game_state: MahjongGameState) -> None:
+def declare_riichi(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    seat: int,
+) -> tuple[MahjongRoundState, MahjongGameState]:
     """
     Execute riichi declaration for a player.
 
     Sets riichi flags, deducts 1000 points, and increments riichi sticks.
     Should be called after validating with can_declare_riichi.
-    """
-    round_state = game_state.round_state
 
-    # set riichi flag
-    player.is_riichi = True
+    Returns (new_round_state, new_game_state).
+    """
+    player = round_state.players[seat]
 
     # check for double riichi (daburi)
     # double riichi is possible if:
     # 1. this is the player's first discard (riichi discard already added, so len == 1)
     # 2. no open melds have been called by anyone
-    if len(player.discards) == 1 and len(round_state.players_with_open_hands) == 0:
-        player.is_daburi = True
+    is_daburi = len(player.discards) == 1 and len(round_state.players_with_open_hands) == 0
 
-    # set ippatsu flag (cleared after any discard or meld call)
-    player.is_ippatsu = True
+    new_round_state = update_player(
+        round_state,
+        seat,
+        is_riichi=True,
+        is_ippatsu=True,
+        is_daburi=is_daburi,
+        score=player.score - RIICHI_COST,
+    )
 
-    # deduct 1000 points
-    player.score -= 1000
+    new_game_state = game_state.model_copy(
+        update={
+            "riichi_sticks": game_state.riichi_sticks + 1,
+            "round_state": new_round_state,
+        }
+    )
 
-    # increment riichi sticks
-    game_state.riichi_sticks += 1
+    return new_round_state, new_game_state

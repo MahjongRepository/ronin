@@ -219,7 +219,7 @@ class TestCallPromptEvent:
     def test_meld_call_prompt(self) -> None:
         callers = [
             MeldCaller(seat=1, call_type=MeldCallType.PON),
-            MeldCaller(seat=2, call_type=MeldCallType.CHI, options=[(4, 8)]),
+            MeldCaller(seat=2, call_type=MeldCallType.CHI, options=((4, 8),)),
         ]
         event = CallPromptEvent(
             call_type=CallType.MELD,

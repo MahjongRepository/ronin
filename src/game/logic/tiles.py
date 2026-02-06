@@ -113,7 +113,7 @@ def sort_tiles(tiles: list[int]) -> list[int]:
     return sorted(tiles)
 
 
-def hand_to_34_array(tiles: list[int]) -> list[int]:
+def hand_to_34_array(tiles: list[int] | tuple[int, ...]) -> list[int]:
     """
     Convert a list of 136-format tile IDs to a 34-array (tile counts).
 

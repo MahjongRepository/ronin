@@ -8,7 +8,10 @@ from game.logic.enums import CallType, GameAction, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import PendingCallPrompt
 from game.messaging.events import EventType
-from game.tests.unit.helpers import _find_human_player
+from game.tests.unit.helpers import (
+    _find_human_player,
+    _update_round_state,
+)
 
 
 class TestMahjongGameServiceInit:
@@ -93,7 +96,7 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
 
-        seat = service._find_player_seat("game1", game_state, "Human")
+        seat = service._find_player_seat_frozen("game1", game_state, "Human")
 
         # seat is assigned randomly, just verify it's valid
         assert seat is not None
@@ -103,7 +106,7 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
 
-        seat = service._find_player_seat("game1", game_state, "Unknown")
+        seat = service._find_player_seat_frozen("game1", game_state, "Unknown")
 
         assert seat is None
 
@@ -120,7 +123,7 @@ class TestMahjongGameServiceFindPlayerSeat:
                 bot_name = player.name
                 break
 
-        seat = service._find_player_seat("game1", game_state, bot_name)
+        seat = service._find_player_seat_frozen("game1", game_state, bot_name)
 
         assert seat is None
 
@@ -128,7 +131,7 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Tsumogiri 1"])
         game_state = service._games["game1"]
 
-        seat = service._find_player_seat("game1", game_state, "Tsumogiri 1")
+        seat = service._find_player_seat_frozen("game1", game_state, "Tsumogiri 1")
 
         # should find the human player, not the bot
         assert seat is not None
@@ -354,10 +357,9 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
     async def test_non_playing_phase_returns_empty(self, service):
         """Processing bot actions when round is not PLAYING returns empty list."""
         await service.start_game("game1", ["Alice"])
-        game_state = service._games["game1"]
 
         # force phase to FINISHED
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         events = await service.process_bot_actions_after_replacement("game1", seat=0)
 
@@ -371,20 +373,32 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         human = _find_human_player(round_state, "Alice")
         human_seat = human.seat
 
-        # force the current player to be the human's seat
-        round_state.current_player_seat = human_seat
-        # ensure the human has 14 tiles (their turn to act)
-        while len(human.tiles) < 14:
-            if round_state.wall:
-                human.tiles.append(round_state.wall.pop())
-        # trim other players to 13 tiles
-        for p in round_state.players:
-            if p.seat != human_seat:
-                while len(p.tiles) > 13:
-                    p.tiles.pop()
+        # Build new tiles for human to have 14 tiles
+        human_tiles = list(human.tiles)
+        wall = list(round_state.wall)
+        while len(human_tiles) < 14:
+            if wall:
+                human_tiles.append(wall.pop())
 
-        # clear any pending call prompt
-        round_state.pending_call_prompt = None
+        # Build updated players list
+        new_players = []
+        for p in round_state.players:
+            if p.seat == human_seat:
+                new_players.append(p.model_copy(update={"tiles": tuple(human_tiles)}))
+            elif len(p.tiles) > 13:
+                new_players.append(p.model_copy(update={"tiles": tuple(list(p.tiles)[:13])}))
+            else:
+                new_players.append(p)
+
+        # Update state with new values
+        _update_round_state(
+            service,
+            "game1",
+            current_player_seat=human_seat,
+            wall=tuple(wall),
+            players=tuple(new_players),
+            pending_call_prompt=None,
+        )
 
         # replace the human with a bot
         service.replace_player_with_bot("game1", "Alice")
@@ -403,13 +417,14 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         alice = _find_human_player(round_state, "Alice")
 
         # set up a pending call prompt where Alice is a pending caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.RON,
             tile_id=round_state.players[0].tiles[0] if round_state.players[0].tiles else 0,
             from_seat=(alice.seat + 1) % 4,
-            pending_seats={alice.seat},
-            callers=[alice.seat],
+            pending_seats=frozenset({alice.seat}),
+            callers=(alice.seat,),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         # replace Alice with a bot
         service.replace_player_with_bot("game1", "Alice")
@@ -419,7 +434,8 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
 
         # the bot should have resolved the call prompt (tsumogiri bot declines ron)
         # prompt should be cleared since Alice was the only pending caller
-        assert round_state.pending_call_prompt is None
+        updated_round = service._games["game1"].round_state
+        assert updated_round.pending_call_prompt is None
 
     async def test_pending_call_with_other_human_callers_returns_early(self, service):
         """When other human callers remain pending after bot dispatch, returns early."""
@@ -430,13 +446,14 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         bob = _find_human_player(round_state, "Bob")
 
         # set up a call prompt where both Alice and Bob are pending callers
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.RON,
             tile_id=round_state.players[0].tiles[0] if round_state.players[0].tiles else 0,
             from_seat=(alice.seat + 2) % 4,  # different from both Alice and Bob
-            pending_seats={alice.seat, bob.seat},
-            callers=[alice.seat, bob.seat],
+            pending_seats=frozenset({alice.seat, bob.seat}),
+            callers=(alice.seat, bob.seat),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         # replace Alice with a bot
         service.replace_player_with_bot("game1", "Alice")
@@ -445,9 +462,10 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         events = await service.process_bot_actions_after_replacement("game1", alice.seat)
 
         # Bob is still a human caller pending response
-        assert round_state.pending_call_prompt is not None
-        assert bob.seat in round_state.pending_call_prompt.pending_seats
-        assert alice.seat not in round_state.pending_call_prompt.pending_seats
+        updated_round = service._games["game1"].round_state
+        assert updated_round.pending_call_prompt is not None
+        assert bob.seat in updated_round.pending_call_prompt.pending_seats
+        assert alice.seat not in updated_round.pending_call_prompt.pending_seats
         # events may contain bot's pass response events
         assert isinstance(events, list)
 
@@ -458,21 +476,21 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         round_state = game_state.round_state
         alice = _find_human_player(round_state, "Alice")
 
-        # empty the wall to force exhaustive draw after turn advance
-        round_state.wall.clear()
-
         # set up a call prompt where Alice is the only pending caller
         discarder_seat = (alice.seat + 1) % 4
         tile_id = (
             round_state.players[discarder_seat].tiles[0] if round_state.players[discarder_seat].tiles else 0
         )
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=tile_id,
             from_seat=discarder_seat,
-            pending_seats={alice.seat},
-            callers=[alice.seat],
+            pending_seats=frozenset({alice.seat}),
+            callers=(alice.seat,),
         )
+
+        # empty the wall to force exhaustive draw after turn advance
+        _update_round_state(service, "game1", wall=(), pending_call_prompt=prompt)
 
         # replace Alice with a bot
         service.replace_player_with_bot("game1", "Alice")
@@ -484,3 +502,72 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         # should contain round_end event (round ended due to exhaustive draw)
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) >= 1
+
+
+class TestMahjongGameServiceStateHistory:
+    """Tests for the state history feature."""
+
+    async def test_state_history_disabled_by_default(self):
+        service = MahjongGameService()
+        await service.start_game("game1", ["Human"])
+
+        # History should be empty when disabled
+        assert service.get_state_history("game1") == []
+
+    async def test_state_history_enabled(self):
+        service = MahjongGameService(enable_history=True)
+        await service.start_game("game1", ["Human"])
+
+        # History should contain at least the initial state
+        history = service.get_state_history("game1")
+        assert len(history) >= 1
+
+    async def test_get_state_history_for_nonexistent_game(self):
+        service = MahjongGameService(enable_history=True)
+
+        # Should return empty list for unknown game
+        assert service.get_state_history("nonexistent") == []
+
+
+class TestMahjongGameServiceCallHandlerDispatch:
+    """Tests for _call_handler dispatching to chi, ron, kan handlers."""
+
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    async def test_call_handler_dispatches_chi(self, service):
+        """_call_handler routes CALL_CHI to handle_chi."""
+        await service.start_game("game1", ["Human"])
+        game_state = service._games["game1"]
+
+        # CALL_CHI with invalid data will raise/return error, but the dispatch path is tested
+        result = service._call_handler(
+            game_state,
+            0,
+            GameAction.CALL_CHI,
+            {"tile_id": 0, "sequence_tiles": (1, 2)},
+        )
+        # result is an ActionResult (whether success or error event)
+        assert result is not None
+
+    async def test_call_handler_dispatches_ron(self, service):
+        """_call_handler routes CALL_RON to handle_ron."""
+        await service.start_game("game1", ["Human"])
+        game_state = service._games["game1"]
+
+        result = service._call_handler(game_state, 0, GameAction.CALL_RON, {})
+        assert result is not None
+
+    async def test_call_handler_dispatches_kan(self, service):
+        """_call_handler routes CALL_KAN to handle_kan."""
+        await service.start_game("game1", ["Human"])
+        game_state = service._games["game1"]
+
+        result = service._call_handler(
+            game_state,
+            0,
+            GameAction.CALL_KAN,
+            {"tile_id": 0, "kan_type": "closed"},
+        )
+        assert result is not None

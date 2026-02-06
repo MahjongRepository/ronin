@@ -5,6 +5,8 @@ Handles checking for winning conditions (tsumo, ron) and furiten detection.
 Scoring functions are in the scoring module.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from mahjong.agari import Agari
@@ -12,13 +14,16 @@ from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
 from mahjong.shanten import Shanten
 
+from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
 from game.logic.state import seat_to_wind
+from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array, tile_to_34
 
 if TYPE_CHECKING:
-    from mahjong.meld import Meld
-
-    from game.logic.state import MahjongPlayer, MahjongRoundState
+    from game.logic.state import (
+        MahjongPlayer,
+        MahjongRoundState,
+    )
 
 # maximum copies of a single tile
 MAX_TILE_COPIES = 4
@@ -42,6 +47,24 @@ def all_player_tiles(player: MahjongPlayer) -> list[int]:
     hand_ids = set(player.tiles)
     all_tiles = list(player.tiles)
     for meld in player.melds:
+        if meld.tiles:
+            all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
+    return all_tiles
+
+
+def all_tiles_from_hand_and_melds(
+    hand_tiles: list[int] | tuple[int, ...],
+    melds: list | tuple,
+) -> list[int]:
+    """
+    Build a complete 136-format tile list from explicit hand tiles and melds.
+
+    Accepts hand tiles and melds directly rather than reading from a player object.
+    Meld tiles that already exist in hand_tiles are not double-counted.
+    """
+    hand_ids = set(hand_tiles)
+    all_tiles = list(hand_tiles)
+    for meld in melds:
         if meld.tiles:
             all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
     return all_tiles
@@ -73,7 +96,10 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     return agari.is_agari(tiles_34, open_sets_34)
 
 
-def can_declare_tsumo(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+def can_declare_tsumo(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> bool:
     """
     Check if player can declare tsumo (self-draw win).
 
@@ -165,92 +191,10 @@ def is_effective_furiten(player: MahjongPlayer) -> bool:
     return is_furiten(player)
 
 
-def can_call_ron(player: MahjongPlayer, discarded_tile: int, round_state: MahjongRoundState) -> bool:
-    """
-    Check if player can call ron on a discarded tile.
-
-    Requirements:
-    - Hand must win with the discarded tile
-    - Player must not be in furiten
-    - For open hands, must have at least one yaku
-    """
-    # temporarily add the discarded tile to check for win
-    original_tiles = list(player.tiles)
-    player.tiles.append(discarded_tile)
-
-    # check if hand wins
-    is_winning = check_tsumo(player)
-
-    if not is_winning:
-        player.tiles = original_tiles
-        return False
-
-    # restore tiles before furiten check (furiten uses hand without win tile)
-    player.tiles = original_tiles
-
-    # check riichi furiten (permanent for the hand)
-    if player.is_riichi_furiten:
-        return False
-
-    # check temporary furiten (passed on ron this go-around)
-    if player.is_temporary_furiten:
-        return False
-
-    # check permanent furiten (discarded a winning tile)
-    if is_furiten(player):
-        return False
-
-    # for closed hands with riichi, ron is always valid (riichi is a yaku)
-    if not player.has_open_melds() and player.is_riichi:
-        return True
-
-    # for all other cases (open hands or closed non-riichi), verify yaku exists
-    # temporarily add tile back for yaku check
-    player.tiles.append(discarded_tile)
-    has_yaku = _has_yaku_for_ron(player, round_state, discarded_tile)
-    player.tiles.pop()
-
-    return has_yaku
-
-
-def _has_yaku_for_ron(
+def _has_yaku_for_open_hand(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
-    win_tile: int,
-    *,
-    is_chankan: bool = False,
 ) -> bool:
-    """
-    Check if a ron call has at least one yaku.
-
-    Similar to _has_yaku_for_open_hand but for ron (not tsumo).
-    """
-    config = HandConfig(
-        is_tsumo=False,
-        is_riichi=player.is_riichi,
-        is_ippatsu=player.is_ippatsu,
-        is_daburu_riichi=player.is_daburi,
-        is_renhou=is_renhou(player, round_state),
-        is_chankan=is_chankan,
-        is_houtei=is_houtei(round_state),
-        player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
-        round_wind=WINDS_34[round_state.round_wind],
-        options=GAME_OPTIONAL_RULES,
-    )
-
-    calculator = HandCalculator()
-    result = calculator.estimate_hand_value(
-        tiles=all_player_tiles(player),
-        win_tile=win_tile,
-        melds=player.melds if player.melds else None,
-        dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
-        config=config,
-    )
-
-    return result.error is None
-
-
-def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
     """
     Check if an open hand has at least one yaku.
 
@@ -279,7 +223,7 @@ def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundStat
     result = calculator.estimate_hand_value(
         tiles=all_player_tiles(player),
         win_tile=win_tile,
-        melds=player.melds if player.melds else None,
+        melds=frozen_melds_to_melds(player.melds),
         dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
         config=config,
     )
@@ -287,7 +231,7 @@ def _has_yaku_for_open_hand(player: MahjongPlayer, round_state: MahjongRoundStat
     return result.error is None
 
 
-def _melds_to_34_sets(melds: list[Meld]) -> list[list[int]] | None:
+def _melds_to_34_sets(melds: tuple[FrozenMeld, ...]) -> list[list[int]] | None:
     """
     Convert melds to 34-format sets for agari check.
 
@@ -304,13 +248,6 @@ def _melds_to_34_sets(melds: list[Meld]) -> list[list[int]] | None:
             open_sets.append(meld_34)
 
     return open_sets if open_sets else None
-
-
-def apply_temporary_furiten(player: MahjongPlayer) -> None:
-    """
-    Apply temporary furiten to a player who passed on a ron opportunity.
-    """
-    player.is_temporary_furiten = True
 
 
 def is_haitei(round_state: MahjongRoundState) -> bool:
@@ -331,7 +268,10 @@ def is_houtei(round_state: MahjongRoundState) -> bool:
     return len(round_state.wall) == 0
 
 
-def is_tenhou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+def is_tenhou(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> bool:
     """
     Check if player's win qualifies as tenhou (heavenly hand).
 
@@ -348,7 +288,10 @@ def is_tenhou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
     )
 
 
-def is_chiihou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+def is_chiihou(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> bool:
     """
     Check if player's win qualifies as chiihou (earthly hand).
 
@@ -365,7 +308,10 @@ def is_chiihou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
     )
 
 
-def is_renhou(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
+def is_renhou(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> bool:
     """
     Check if player's ron qualifies as renhou (blessing of man).
 
@@ -426,3 +372,121 @@ def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_ti
         chankan_seats.append(seat)
 
     return chankan_seats
+
+
+def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
+    """
+    Check if the given tiles form a winning hand (agari).
+
+    Uses a local tile list instead of mutating player.tiles.
+    Used for ron/tsumo checks.
+    """
+    tiles_34 = hand_to_34_array(tiles)
+    # add meld tiles to get full tile count
+    for meld in player.melds:
+        if meld.tiles:
+            for t in meld.tiles:
+                tiles_34[tile_to_34(t)] += 1
+
+    open_sets_34 = _melds_to_34_sets(player.melds)
+    agari = Agari()
+    return agari.is_agari(tiles_34, open_sets_34)
+
+
+def can_call_ron(
+    player: MahjongPlayer,
+    discarded_tile: int,
+    round_state: MahjongRoundState,
+) -> bool:
+    """
+    Check if player can call ron on a discarded tile.
+
+    Uses local tile copies. Requirements:
+    - Hand must win with the discarded tile
+    - Player must not be in furiten
+    - For open hands, must have at least one yaku
+    """
+    # create local tile list with the discarded tile
+    tiles_with_win = [*list(player.tiles), discarded_tile]
+
+    # check if hand wins with local tiles
+    is_winning = check_tsumo_with_tiles(player, tiles_with_win)
+    if not is_winning:
+        return False
+
+    # check riichi furiten (permanent for the hand)
+    if player.is_riichi_furiten:
+        return False
+
+    # check temporary furiten (passed on ron this go-around)
+    if player.is_temporary_furiten:
+        return False
+
+    # check permanent furiten (discarded a winning tile)
+    if is_furiten(player):
+        return False
+
+    # for closed hands with riichi, ron is always valid (riichi is a yaku)
+    if not player.has_open_melds() and player.is_riichi:
+        return True
+
+    # for all other cases (open hands or closed non-riichi), verify yaku exists
+    # use local tile list for yaku check
+    return _has_yaku_for_ron_with_tiles(player, round_state, discarded_tile, tiles_with_win)
+
+
+def _has_yaku_for_ron_with_tiles(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+    win_tile: int,
+    tiles: list[int],
+    *,
+    is_chankan: bool = False,
+) -> bool:
+    """
+    Check if a ron call has at least one yaku, using a local tile list.
+
+    Doesn't rely on player.tiles.
+    """
+    config = HandConfig(
+        is_tsumo=False,
+        is_riichi=player.is_riichi,
+        is_ippatsu=player.is_ippatsu,
+        is_daburu_riichi=player.is_daburi,
+        is_renhou=is_renhou(player, round_state),
+        is_chankan=is_chankan,
+        is_houtei=is_houtei(round_state),
+        player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
+        round_wind=WINDS_34[round_state.round_wind],
+        options=GAME_OPTIONAL_RULES,
+    )
+
+    # build all tiles: local tiles + meld tiles (excluding duplicates already in tiles)
+    tile_ids = set(tiles)
+    all_tiles = list(tiles)
+    for meld in player.melds:
+        if meld.tiles:
+            all_tiles.extend(t for t in meld.tiles if t not in tile_ids)
+
+    calculator = HandCalculator()
+    result = calculator.estimate_hand_value(
+        tiles=all_tiles,
+        win_tile=win_tile,
+        melds=frozen_melds_to_melds(player.melds),
+        dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
+        config=config,
+    )
+
+    return result.error is None
+
+
+def apply_temporary_furiten(
+    round_state: MahjongRoundState,
+    seat: int,
+) -> MahjongRoundState:
+    """
+    Apply temporary furiten to a player who passed on a ron opportunity.
+
+    Returns a new round state with the player's is_temporary_furiten set to True.
+    """
+    return update_player(round_state, seat, is_temporary_furiten=True)

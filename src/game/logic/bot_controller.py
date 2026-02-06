@@ -16,7 +16,10 @@ from game.logic.bot import (
     should_call_ron,
 )
 from game.logic.enums import CallType, GameAction, KanType, MeldCallType, PlayerAction
-from game.logic.state import MahjongPlayer, MahjongRoundState
+from game.logic.state import (
+    MahjongPlayer,
+    MahjongRoundState,
+)
 from game.logic.types import MeldCaller
 
 
@@ -136,16 +139,15 @@ def _get_bot_meld_response(
     Returns (action, data) or None if bot declines.
     """
     meld_call_type = caller_info.call_type
-    caller_options = caller_info.options
 
     if meld_call_type == MeldCallType.PON and should_call_pon(bot, player, tile_id, round_state):
         return GameAction.CALL_PON, {"tile_id": tile_id}
 
     if meld_call_type == MeldCallType.CHI and should_call_chi(
-        bot, player, tile_id, caller_options or [], round_state
+        bot, player, tile_id, caller_info.options, round_state
     ):
-        if caller_options and caller_options[0]:
-            return GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": tuple(caller_options[0])}
+        if caller_info.options:
+            return GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": caller_info.options[0]}
         return None
 
     if meld_call_type == MeldCallType.OPEN_KAN and should_call_kan(

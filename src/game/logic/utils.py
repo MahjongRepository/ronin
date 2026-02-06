@@ -46,7 +46,9 @@ def _hand_config_debug(config: HandConfig) -> dict[str, object]:  # pragma: no c
     }
 
 
-def _melds_debug(melds: list[Any] | None) -> list[dict[str, object]] | None:  # pragma: no cover
+def _melds_debug(  # pragma: no cover
+    melds: list[Any] | tuple[Any, ...] | None,
+) -> list[dict[str, object]] | None:
     if not melds:
         return None
     return [

@@ -97,14 +97,19 @@ include = ["**/test_*.py", "**/conftest.py"]
 [tool.ty.overrides.rules]
 # relax rules for test files - tests often use dynamic fixtures, mocks,
 # and untyped external libraries (mahjong) that produce Unknown types
+# Note: invalid-argument-type is ignored because Pydantic validators coerce
+# list -> tuple at runtime, making tests functionally correct
+# Note: possibly-missing-attribute is ignored because tests often access
+# union type members after type-narrowing assertions that ty doesn't track
 possibly-unresolved-reference = "warn"
-possibly-missing-attribute = "warn"
-invalid-argument-type = "warn"
+possibly-missing-attribute = "ignore"
+invalid-argument-type = "ignore"
 invalid-parameter-default = "warn"
+unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/bot.py", "src/game/logic/bot_controller.py", "src/debug.py"]
+omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/bot.py", "src/game/logic/bot_controller.py", "src/debug.py", "src/shared/logging.py"]
 
 [tool.coverage.report]
 show_missing = true

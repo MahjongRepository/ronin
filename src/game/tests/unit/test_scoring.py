@@ -2,10 +2,10 @@
 Unit tests for scoring calculation.
 """
 
-from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import RoundResultType
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import (
     HandResult,
     apply_double_ron_score,
@@ -14,8 +14,13 @@ from game.logic.scoring import (
     apply_tsumo_score,
     calculate_hand_value,
 )
-from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState, seat_to_wind
+from game.logic.state import (
+    MahjongGameState,
+    seat_to_wind,
+)
+from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
+from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
 def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> MahjongGameState:
@@ -25,20 +30,20 @@ def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> Mah
     Set up a mid-game state (some discards, non-empty wall) to avoid
     triggering Tenhou/Chiihou.
     """
-    players = [MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4)]
+    players = tuple(create_player(seat=i) for i in range(4))
     dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
     dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
-    round_state = MahjongRoundState(
+    round_state = create_round_state(
+        players=players,
         dealer_seat=dealer_seat,
         current_player_seat=0,
         round_wind=round_wind,
         dora_indicators=dora_indicator_tiles,  # 1m as dora indicator (makes 2m dora)
-        wall=list(range(70)),  # some tiles in wall (not empty)
-        dead_wall=list(range(14)),  # dummy dead wall for ura dora
-        players=players,
+        wall=tuple(range(70)),  # some tiles in wall (not empty)
+        dead_wall=tuple(range(14)),  # dummy dead wall for ura dora
         all_discards=dummy_discard_tiles,  # some discards to avoid tenhou/chiihou
     )
-    return MahjongGameState(round_state=round_state)
+    return create_game_state(round_state=round_state)
 
 
 class TestSeatToWind:
@@ -68,11 +73,11 @@ class TestCalculateHandValue:
         # 123m 456m 789m 123p 55p - pinfu tsumo
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles))
+        player = round_state.players[0]
 
         win_tile = tiles[-1]  # 5p
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 1  # at least menzen tsumo
@@ -84,12 +89,11 @@ class TestCalculateHandValue:
         # closed hand with riichi
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
-        player.is_riichi = True
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
+        player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 2  # riichi + menzen tsumo
@@ -99,13 +103,13 @@ class TestCalculateHandValue:
         # riichi with ippatsu
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
-        player.is_riichi = True
-        player.is_ippatsu = True
+        round_state = update_player(
+            game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True, is_ippatsu=True
+        )
+        player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 3  # riichi + ippatsu + menzen tsumo
@@ -114,12 +118,11 @@ class TestCalculateHandValue:
     def test_ron_hand(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
-        player.is_riichi = True
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
+        player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert result.han >= 1  # riichi
@@ -129,12 +132,12 @@ class TestCalculateHandValue:
         # last tile draw (haitei)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        game_state.round_state.wall = []  # empty wall = last tile
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles))
+        round_state = round_state.model_copy(update={"wall": ()})  # empty wall = last tile
+        player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert "Haitei Raoyue" in result.yaku
@@ -143,13 +146,12 @@ class TestCalculateHandValue:
         # last discard ron (houtei)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        game_state.round_state.wall = []  # empty wall = last discard possible
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
-        player.is_riichi = True
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
+        round_state = round_state.model_copy(update={"wall": ()})  # empty wall = last discard possible
+        player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Houtei Raoyui" in result.yaku
@@ -159,18 +161,22 @@ class TestCalculateHandValue:
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
         pon_tiles = TilesConverter.string_to_136_array(man="111")
         win_tile = TilesConverter.string_to_136_array(man="5")[:1]
-        all_tiles = closed_tiles + pon_tiles + win_tile
+        all_tiles = tuple(closed_tiles + pon_tiles + win_tile)
 
-        pon = Meld(
-            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[0], who=0, from_who=1
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(pon_tiles),
+            opened=True,
+            called_tile=pon_tiles[0],
+            who=0,
+            from_who=1,
         )
 
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = all_tiles
-        player.melds = [pon]
+        round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
+        player = round_state.players[0]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile[0], is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile[0], is_tsumo=True)
 
         assert result.error == "no_yaku"
 
@@ -181,21 +187,24 @@ class TestCalculateHandValue:
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
 
-        pon = Meld(
-            meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(haku_tiles),
+            opened=True,
+            called_tile=haku_tiles[0],
+            who=0,
+            from_who=1,
         )
 
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
         # only closed tiles in hand (matching actual gameplay after meld call)
-        player.tiles = closed_tiles
-        player.melds = [pon]
-
         # add ron tile
         win_tile = TilesConverter.string_to_136_array(sou="4")[0]
-        player.tiles.append(win_tile)
+        all_tiles = (*tuple(closed_tiles), win_tile)
+        round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
+        player = round_state.players[0]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert result.han >= 1  # yakuhai (haku)
@@ -207,18 +216,21 @@ class TestCalculateHandValue:
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
 
-        pon = Meld(
-            meld_type=Meld.PON, tiles=haku_tiles, opened=True, called_tile=haku_tiles[0], who=0, from_who=1
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(haku_tiles),
+            opened=True,
+            called_tile=haku_tiles[0],
+            who=0,
+            from_who=1,
         )
 
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        # only closed tiles in hand (matching actual gameplay after meld call)
-        player.tiles = closed_tiles
-        player.melds = [pon]
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(closed_tiles), melds=(pon,))
+        player = round_state.players[0]
 
-        win_tile = player.tiles[-1]  # last tile drawn (5s)
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        win_tile = closed_tiles[-1]  # last tile drawn (5s)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 1  # yakuhai (haku)
@@ -228,29 +240,31 @@ class TestCalculateHandValue:
 class TestApplyTsumoScore:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""
-        players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
-        round_state = MahjongRoundState(
+        players = tuple(create_player(seat=i, score=25000) for i in range(4))
+        round_state = create_round_state(
+            players=players,
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            players=players,
         )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
     def test_non_dealer_tsumo_basic(self):
         # non-dealer wins with 30fu 1han = 1000/500
         game_state = self._create_game_state()
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
 
-        result = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # winner (seat 1) gets 2000 total (1000 from dealer + 500*2 from non-dealers)
-        assert game_state.round_state.players[1].score == 25000 + 2000
+        assert new_round_state.players[1].score == 25000 + 2000
         # dealer (seat 0) pays 1000
-        assert game_state.round_state.players[0].score == 25000 - 1000
+        assert new_round_state.players[0].score == 25000 - 1000
         # other non-dealers pay 500 each
-        assert game_state.round_state.players[2].score == 25000 - 500
-        assert game_state.round_state.players[3].score == 25000 - 500
+        assert new_round_state.players[2].score == 25000 - 500
+        assert new_round_state.players[3].score == 25000 - 500
         assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 1
 
@@ -259,115 +273,127 @@ class TestApplyTsumoScore:
         game_state = self._create_game_state()
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
 
-        apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_tsumo_score(
+            game_state, winner_seat=0, hand_result=hand_result
+        )
 
         # dealer (seat 0) gets 6000 total (2000 * 3)
-        assert game_state.round_state.players[0].score == 25000 + 6000
+        assert new_round_state.players[0].score == 25000 + 6000
         # each non-dealer pays 2000
-        assert game_state.round_state.players[1].score == 25000 - 2000
-        assert game_state.round_state.players[2].score == 25000 - 2000
-        assert game_state.round_state.players[3].score == 25000 - 2000
+        assert new_round_state.players[1].score == 25000 - 2000
+        assert new_round_state.players[2].score == 25000 - 2000
+        assert new_round_state.players[3].score == 25000 - 2000
 
     def test_tsumo_with_honba(self):
         # tsumo with 2 honba sticks = +200 total (100 per loser)
         game_state = self._create_game_state()
-        game_state.honba_sticks = 2
+        game_state = game_state.model_copy(update={"honba_sticks": 2})
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
 
-        apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # winner gets 2000 + 600 (300 * 2 honba, but per-loser so 100*2*3=600)
-        assert game_state.round_state.players[1].score == 25000 + 2600
+        assert new_round_state.players[1].score == 25000 + 2600
         # dealer pays 1000 + 200
-        assert game_state.round_state.players[0].score == 25000 - 1200
+        assert new_round_state.players[0].score == 25000 - 1200
         # non-dealers pay 500 + 200
-        assert game_state.round_state.players[2].score == 25000 - 700
-        assert game_state.round_state.players[3].score == 25000 - 700
+        assert new_round_state.players[2].score == 25000 - 700
+        assert new_round_state.players[3].score == 25000 - 700
 
     def test_tsumo_with_riichi_sticks(self):
         # tsumo with 2 riichi sticks on table
         game_state = self._create_game_state()
-        game_state.riichi_sticks = 2
+        game_state = game_state.model_copy(update={"riichi_sticks": 2})
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
 
-        result = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # winner gets 2000 + 2000 (riichi sticks)
-        assert game_state.round_state.players[1].score == 25000 + 4000
+        assert new_round_state.players[1].score == 25000 + 4000
         # riichi sticks should be cleared
-        assert game_state.riichi_sticks == 0
+        assert new_game_state.riichi_sticks == 0
         assert result.riichi_sticks_collected == 2
 
 
 class TestApplyRonScore:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""
-        players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
-        round_state = MahjongRoundState(
+        players = tuple(create_player(seat=i, score=25000) for i in range(4))
+        round_state = create_round_state(
+            players=players,
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            players=players,
         )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
     def test_ron_basic(self):
         # basic ron with 30fu 2han = 2000
         game_state = self._create_game_state()
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # winner gets 2000
-        assert game_state.round_state.players[0].score == 25000 + 2000
+        assert new_round_state.players[0].score == 25000 + 2000
         # loser pays 2000
-        assert game_state.round_state.players[1].score == 25000 - 2000
+        assert new_round_state.players[1].score == 25000 - 2000
         # others unaffected
-        assert game_state.round_state.players[2].score == 25000
-        assert game_state.round_state.players[3].score == 25000
+        assert new_round_state.players[2].score == 25000
+        assert new_round_state.players[3].score == 25000
         assert result.type == RoundResultType.RON
 
     def test_ron_with_honba(self):
         # ron with 3 honba sticks = +900 total
         game_state = self._create_game_state()
-        game_state.honba_sticks = 3
+        game_state = game_state.model_copy(update={"honba_sticks": 3})
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
 
-        apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # winner gets 2000 + 900
-        assert game_state.round_state.players[0].score == 25000 + 2900
+        assert new_round_state.players[0].score == 25000 + 2900
         # loser pays 2000 + 900
-        assert game_state.round_state.players[1].score == 25000 - 2900
+        assert new_round_state.players[1].score == 25000 - 2900
 
     def test_ron_with_riichi_sticks(self):
         # ron with 3 riichi sticks
         game_state = self._create_game_state()
-        game_state.riichi_sticks = 3
+        game_state = game_state.model_copy(update={"riichi_sticks": 3})
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # winner gets 2000 + 3000
-        assert game_state.round_state.players[0].score == 25000 + 5000
+        assert new_round_state.players[0].score == 25000 + 5000
         # loser only pays 2000
-        assert game_state.round_state.players[1].score == 25000 - 2000
+        assert new_round_state.players[1].score == 25000 - 2000
         # riichi sticks cleared
-        assert game_state.riichi_sticks == 0
+        assert new_game_state.riichi_sticks == 0
         assert result.riichi_sticks_collected == 3
 
 
 class TestApplyDoubleRonScore:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""
-        players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
-        round_state = MahjongRoundState(
+        players = tuple(create_player(seat=i, score=25000) for i in range(4))
+        round_state = create_round_state(
+            players=players,
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            players=players,
         )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
     def test_double_ron_basic(self):
         # two winners ron off one discard
@@ -376,53 +402,59 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=["Riichi", "Tanyao"])
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        result = apply_double_ron_score(game_state, winners=winners, loser_seat=1)
+        new_round_state, _new_game_state, result = apply_double_ron_score(
+            game_state, winners=winners, loser_seat=1
+        )
 
         # seat 0 wins 2000
-        assert game_state.round_state.players[0].score == 25000 + 2000
+        assert new_round_state.players[0].score == 25000 + 2000
         # seat 2 wins 4000
-        assert game_state.round_state.players[2].score == 25000 + 4000
+        assert new_round_state.players[2].score == 25000 + 4000
         # seat 1 pays 6000 total
-        assert game_state.round_state.players[1].score == 25000 - 6000
+        assert new_round_state.players[1].score == 25000 - 6000
         # seat 3 unaffected
-        assert game_state.round_state.players[3].score == 25000
+        assert new_round_state.players[3].score == 25000
         assert result.type == RoundResultType.DOUBLE_RON
 
     def test_double_ron_with_honba(self):
         # both winners get honba bonus
         game_state = self._create_game_state()
-        game_state.honba_sticks = 2
+        game_state = game_state.model_copy(update={"honba_sticks": 2})
         hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        apply_double_ron_score(game_state, winners=winners, loser_seat=1)
+        new_round_state, _new_game_state, _result = apply_double_ron_score(
+            game_state, winners=winners, loser_seat=1
+        )
 
         # each winner gets 2000 + 600 honba
-        assert game_state.round_state.players[0].score == 25000 + 2600
-        assert game_state.round_state.players[2].score == 25000 + 2600
+        assert new_round_state.players[0].score == 25000 + 2600
+        assert new_round_state.players[2].score == 25000 + 2600
         # loser pays both (2000+600)*2 = 5200
-        assert game_state.round_state.players[1].score == 25000 - 5200
+        assert new_round_state.players[1].score == 25000 - 5200
 
     def test_double_ron_riichi_sticks_to_closest(self):
         # riichi sticks go to winner closest to loser's right (counter-clockwise)
         # loser is seat 1, checking seats 2, 3, 0 in order
         # if winners are 0 and 2, seat 2 is checked first
         game_state = self._create_game_state()
-        game_state.riichi_sticks = 2
+        game_state = game_state.model_copy(update={"riichi_sticks": 2})
         hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        result = apply_double_ron_score(game_state, winners=winners, loser_seat=1)
+        new_round_state, new_game_state, result = apply_double_ron_score(
+            game_state, winners=winners, loser_seat=1
+        )
 
         # seat 2 is closer (loser_seat + 1 = seat 2)
         # seat 2 gets 2000 + 2000 riichi
-        assert game_state.round_state.players[2].score == 25000 + 4000
+        assert new_round_state.players[2].score == 25000 + 4000
         # seat 0 only gets 2000
-        assert game_state.round_state.players[0].score == 25000 + 2000
+        assert new_round_state.players[0].score == 25000 + 2000
         # riichi sticks cleared
-        assert game_state.riichi_sticks == 0
+        assert new_game_state.riichi_sticks == 0
 
         # verify which winner got riichi sticks
         for w in result.winners:
@@ -436,46 +468,41 @@ class TestApplyDoubleRonScore:
         # loser is seat 3, checking seats 0, 1, 2 in order
         # if winners are 0 and 2, seat 0 is checked first
         game_state = self._create_game_state()
-        game_state.riichi_sticks = 1
+        game_state = game_state.model_copy(update={"riichi_sticks": 1})
         hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        apply_double_ron_score(game_state, winners=winners, loser_seat=3)
+        new_round_state, _new_game_state, _result = apply_double_ron_score(
+            game_state, winners=winners, loser_seat=3
+        )
 
         # seat 0 is closer (loser_seat + 1 = seat 0)
         # seat 0 gets 2000 + 1000 riichi
-        assert game_state.round_state.players[0].score == 25000 + 3000
+        assert new_round_state.players[0].score == 25000 + 3000
         # seat 2 only gets 2000
-        assert game_state.round_state.players[2].score == 25000 + 2000
+        assert new_round_state.players[2].score == 25000 + 2000
 
 
 class TestApplyNagashiManganScore:
     def _create_game_state(self, dealer_seat: int = 0) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""
         # use non-tempai hands (disconnected tiles) by default
-        players = [
-            MahjongPlayer(
-                seat=i,
-                name=f"Player{i}",
-                score=25000,
-                tiles=TilesConverter.string_to_136_array(man="13579", pin="2468", sou="1357"),
-            )
-            for i in range(4)
-        ]
-        round_state = MahjongRoundState(
+        non_tempai_tiles = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="1357")
+        players = tuple(create_player(seat=i, score=25000, tiles=tuple(non_tempai_tiles)) for i in range(4))
+        round_state = create_round_state(
+            players=players,
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
-            players=players,
         )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
     def test_dealer_nagashi_mangan(self):
         """Dealer nagashi mangan: 4000 from each non-dealer."""
         game_state = self._create_game_state(dealer_seat=0)
 
-        result = apply_nagashi_mangan_score(
+        new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
             game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3]
         )
 
@@ -485,16 +512,16 @@ class TestApplyNagashiManganScore:
         assert result.score_changes[1] == -4000
         assert result.score_changes[2] == -4000
         assert result.score_changes[3] == -4000
-        assert game_state.round_state.players[0].score == 37000
-        assert game_state.round_state.players[1].score == 21000
-        assert game_state.round_state.players[2].score == 21000
-        assert game_state.round_state.players[3].score == 21000
+        assert new_round_state.players[0].score == 37000
+        assert new_round_state.players[1].score == 21000
+        assert new_round_state.players[2].score == 21000
+        assert new_round_state.players[3].score == 21000
 
     def test_non_dealer_nagashi_mangan(self):
         """Non-dealer nagashi mangan: 4000 from dealer + 2000 from each non-dealer."""
         game_state = self._create_game_state(dealer_seat=0)
 
-        result = apply_nagashi_mangan_score(
+        new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
             game_state, qualifying_seats=[1], tempai_seats=[], noten_seats=[0, 1, 2, 3]
         )
 
@@ -502,16 +529,16 @@ class TestApplyNagashiManganScore:
         assert result.score_changes[0] == -4000  # dealer pays 4000
         assert result.score_changes[2] == -2000  # non-dealer pays 2000
         assert result.score_changes[3] == -2000  # non-dealer pays 2000
-        assert game_state.round_state.players[1].score == 33000
-        assert game_state.round_state.players[0].score == 21000
-        assert game_state.round_state.players[2].score == 23000
-        assert game_state.round_state.players[3].score == 23000
+        assert new_round_state.players[1].score == 33000
+        assert new_round_state.players[0].score == 21000
+        assert new_round_state.players[2].score == 23000
+        assert new_round_state.players[3].score == 23000
 
     def test_multiple_qualifying_players(self):
         """Multiple players qualifying: each receives independent mangan payment."""
         game_state = self._create_game_state(dealer_seat=0)
 
-        result = apply_nagashi_mangan_score(
+        _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
             game_state, qualifying_seats=[0, 2], tempai_seats=[], noten_seats=[0, 1, 2, 3]
         )
 
@@ -530,7 +557,7 @@ class TestApplyNagashiManganScore:
         """Tempai/noten seats are passed through to the result."""
         game_state = self._create_game_state(dealer_seat=0)
 
-        result = apply_nagashi_mangan_score(
+        _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
             game_state, qualifying_seats=[0], tempai_seats=[1], noten_seats=[0, 2, 3]
         )
 
@@ -543,90 +570,102 @@ class TestPaoTsumoScoring:
 
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""
-        players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
-        round_state = MahjongRoundState(
+        players = tuple(create_player(seat=i, score=25000) for i in range(4))
+        round_state = create_round_state(
+            players=players,
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            players=players,
         )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
     def test_pao_tsumo_non_dealer_yakuman(self):
         """Pao tsumo: liable player pays the full amount, others pay nothing."""
         game_state = self._create_game_state()
         # seat 1 wins with pao on seat 2
         # yakuman tsumo: dealer pays 16000, non-dealer pays 8000 each
-        game_state.round_state.players[1].pao_seat = 2
+        round_state = update_player(game_state.round_state, 1, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=["Daisangen"])
 
-        result = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # total would be: 16000 (from dealer) + 8000 + 8000 = 32000
         # pao player (seat 2) pays all 32000
         assert result.pao_seat == 2
-        assert game_state.round_state.players[0].score == 25000  # dealer pays nothing
-        assert game_state.round_state.players[1].score == 25000 + 32000  # winner gets all
-        assert game_state.round_state.players[2].score == 25000 - 32000  # pao pays all
-        assert game_state.round_state.players[3].score == 25000  # other pays nothing
+        assert new_round_state.players[0].score == 25000  # dealer pays nothing
+        assert new_round_state.players[1].score == 25000 + 32000  # winner gets all
+        assert new_round_state.players[2].score == 25000 - 32000  # pao pays all
+        assert new_round_state.players[3].score == 25000  # other pays nothing
 
     def test_pao_tsumo_dealer_yakuman(self):
         """Pao tsumo as dealer: liable player pays the full amount."""
         game_state = self._create_game_state()
         # seat 0 (dealer) wins with pao on seat 3
         # dealer yakuman tsumo: each non-dealer pays 16000
-        game_state.round_state.players[0].pao_seat = 3
+        round_state = update_player(game_state.round_state, 0, pao_seat=3)
+        game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=0, yaku=["Daisangen"])
 
-        result = apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=0, hand_result=hand_result
+        )
 
         # total would be: 16000 * 3 = 48000
         assert result.pao_seat == 3
-        assert game_state.round_state.players[0].score == 25000 + 48000
-        assert game_state.round_state.players[1].score == 25000
-        assert game_state.round_state.players[2].score == 25000
-        assert game_state.round_state.players[3].score == 25000 - 48000
+        assert new_round_state.players[0].score == 25000 + 48000
+        assert new_round_state.players[1].score == 25000
+        assert new_round_state.players[2].score == 25000
+        assert new_round_state.players[3].score == 25000 - 48000
 
     def test_pao_tsumo_with_riichi_sticks(self):
         """Pao tsumo: riichi sticks still go to winner."""
         game_state = self._create_game_state()
-        game_state.riichi_sticks = 2
-        game_state.round_state.players[1].pao_seat = 2
+        round_state = update_player(game_state.round_state, 1, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=["Daisangen"])
 
-        result = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # total tsumo: 32000 + 2000 riichi bonus
-        assert game_state.round_state.players[1].score == 25000 + 34000
-        assert game_state.round_state.players[2].score == 25000 - 32000
+        assert new_round_state.players[1].score == 25000 + 34000
+        assert new_round_state.players[2].score == 25000 - 32000
         assert result.riichi_sticks_collected == 2
 
     def test_pao_tsumo_with_honba(self):
         """Pao tsumo with honba: liable player pays full honba too."""
         game_state = self._create_game_state()
-        game_state.honba_sticks = 2
-        game_state.round_state.players[1].pao_seat = 2
+        round_state = update_player(game_state.round_state, 1, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=["Daisangen"])
 
-        apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         # honba: 100 per loser * 2 sticks = 200 per loser, 600 total
         # total normal: 32000 + 600 honba = 32600
-        assert game_state.round_state.players[1].score == 25000 + 32600
-        assert game_state.round_state.players[2].score == 25000 - 32600
+        assert new_round_state.players[1].score == 25000 + 32600
+        assert new_round_state.players[2].score == 25000 - 32600
 
     def test_no_pao_tsumo_normal_scoring(self):
         """Without pao, tsumo scoring is normal."""
         game_state = self._create_game_state()
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
 
-        result = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=1, hand_result=hand_result
+        )
 
         assert result.pao_seat is None
-        assert game_state.round_state.players[0].score == 25000 - 1000
-        assert game_state.round_state.players[1].score == 25000 + 2000
-        assert game_state.round_state.players[2].score == 25000 - 500
-        assert game_state.round_state.players[3].score == 25000 - 500
+        assert new_round_state.players[0].score == 25000 - 1000
+        assert new_round_state.players[1].score == 25000 + 2000
+        assert new_round_state.players[2].score == 25000 - 500
+        assert new_round_state.players[3].score == 25000 - 500
 
 
 class TestPaoRonScoring:
@@ -634,74 +673,84 @@ class TestPaoRonScoring:
 
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""
-        players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
-        round_state = MahjongRoundState(
+        players = tuple(create_player(seat=i, score=25000) for i in range(4))
+        round_state = create_round_state(
+            players=players,
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            players=players,
         )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
     def test_pao_ron_different_player(self):
         """Pao ron: when pao player != loser, payment is split 50/50."""
         game_state = self._create_game_state()
         # seat 0 wins by ron off seat 1, pao on seat 2
-        game_state.round_state.players[0].pao_seat = 2
+        round_state = update_player(game_state.round_state, 0, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # 32000 split: loser pays 16000, pao pays 16000
         assert result.pao_seat == 2
-        assert game_state.round_state.players[0].score == 25000 + 32000
-        assert game_state.round_state.players[1].score == 25000 - 16000
-        assert game_state.round_state.players[2].score == 25000 - 16000
-        assert game_state.round_state.players[3].score == 25000
+        assert new_round_state.players[0].score == 25000 + 32000
+        assert new_round_state.players[1].score == 25000 - 16000
+        assert new_round_state.players[2].score == 25000 - 16000
+        assert new_round_state.players[3].score == 25000
 
     def test_pao_ron_same_player(self):
         """Pao ron: when pao player == loser, normal ron applies."""
         game_state = self._create_game_state()
         # seat 0 wins by ron off seat 1, pao also on seat 1
-        game_state.round_state.players[0].pao_seat = 1
+        round_state = update_player(game_state.round_state, 0, pao_seat=1)
+        game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # pao == loser: normal ron, loser pays full
         assert result.pao_seat == 1
-        assert game_state.round_state.players[0].score == 25000 + 32000
-        assert game_state.round_state.players[1].score == 25000 - 32000
-        assert game_state.round_state.players[2].score == 25000
-        assert game_state.round_state.players[3].score == 25000
+        assert new_round_state.players[0].score == 25000 + 32000
+        assert new_round_state.players[1].score == 25000 - 32000
+        assert new_round_state.players[2].score == 25000
+        assert new_round_state.players[3].score == 25000
 
     def test_pao_ron_with_honba(self):
         """Pao ron with honba: honba is included in the split."""
         game_state = self._create_game_state()
-        game_state.honba_sticks = 2
-        game_state.round_state.players[0].pao_seat = 2
+        round_state = update_player(game_state.round_state, 0, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
 
-        apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # total: 32000 + 600 honba = 32600, split: 16300 each
-        assert game_state.round_state.players[0].score == 25000 + 32600
-        assert game_state.round_state.players[1].score == 25000 - 16300
-        assert game_state.round_state.players[2].score == 25000 - 16300
+        assert new_round_state.players[0].score == 25000 + 32600
+        assert new_round_state.players[1].score == 25000 - 16300
+        assert new_round_state.players[2].score == 25000 - 16300
 
     def test_pao_ron_with_riichi_sticks(self):
         """Pao ron: riichi sticks still go to winner."""
         game_state = self._create_game_state()
-        game_state.riichi_sticks = 1
-        game_state.round_state.players[0].pao_seat = 2
+        round_state = update_player(game_state.round_state, 0, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 1})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         # 32000 split: loser 16000, pao 16000; winner also gets 1000 riichi
-        assert game_state.round_state.players[0].score == 25000 + 33000
-        assert game_state.round_state.players[1].score == 25000 - 16000
-        assert game_state.round_state.players[2].score == 25000 - 16000
+        assert new_round_state.players[0].score == 25000 + 33000
+        assert new_round_state.players[1].score == 25000 - 16000
+        assert new_round_state.players[2].score == 25000 - 16000
         assert result.riichi_sticks_collected == 1
 
     def test_no_pao_ron_normal_scoring(self):
@@ -709,11 +758,13 @@ class TestPaoRonScoring:
         game_state = self._create_game_state()
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         assert result.pao_seat is None
-        assert game_state.round_state.players[0].score == 25000 + 2000
-        assert game_state.round_state.players[1].score == 25000 - 2000
+        assert new_round_state.players[0].score == 25000 + 2000
+        assert new_round_state.players[1].score == 25000 - 2000
 
 
 class TestChankanYakuScoring:
@@ -724,14 +775,11 @@ class TestChankanYakuScoring:
         # setup: player with riichi hand waiting on a tile
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = tiles
-        player.is_riichi = True
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
+        player = round_state.players[0]
 
         win_tile = tiles[-1]  # 5p
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, is_tsumo=False, is_chankan=True
-        )
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False, is_chankan=True)
 
         assert result.error is None
         assert "Chankan" in result.yaku
@@ -742,24 +790,24 @@ class TestChankanYakuScoring:
         """Open hand with no other yaku should succeed when is_chankan=True."""
         # setup: open hand with pon of 1m (no yaku)
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-        pon = Meld(
-            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[2], who=0, from_who=1
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(pon_tiles),
+            opened=True,
+            called_tile=pon_tiles[2],
+            who=0,
+            from_who=1,
         )
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
 
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        # in actual gameplay, meld tiles are removed from player.tiles
-        player.tiles = closed_tiles
-        player.melds = [pon]
-
         # add win tile (5m)
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
-        player.tiles.append(win_tile)
+        all_tiles = (*tuple(closed_tiles), win_tile)
+        round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
+        player = round_state.players[0]
 
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, is_tsumo=False, is_chankan=True
-        )
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False, is_chankan=True)
 
         # chankan provides the yaku, hand should succeed
         assert result.error is None
@@ -770,152 +818,25 @@ class TestChankanYakuScoring:
         """Open hand with no other yaku fails without is_chankan flag."""
         # setup: same open hand as above
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-        pon = Meld(
-            meld_type=Meld.PON, tiles=pon_tiles, opened=True, called_tile=pon_tiles[2], who=0, from_who=1
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(pon_tiles),
+            opened=True,
+            called_tile=pon_tiles[2],
+            who=0,
+            from_who=1,
         )
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
 
         game_state = _create_scoring_game_state()
-        player = game_state.round_state.players[0]
-        player.tiles = closed_tiles
-        player.melds = [pon]
-
         # add win tile (5m)
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
-        player.tiles.append(win_tile)
+        all_tiles = (*tuple(closed_tiles), win_tile)
+        round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
+        player = round_state.players[0]
 
         # call without is_chankan flag (default is False)
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         # without chankan flag, the open hand has no yaku
         assert result.error == "no_yaku"
-
-
-class TestWindYakuhaiScoring:
-    """Test that wind yakuhai (seat and round wind) are correctly credited."""
-
-    def test_dealer_east_wind_yakuhai_in_east_round(self):
-        """Dealer (East seat) with East triplet in East round gets double yakuhai."""
-        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=0)
-        player = game_state.round_state.players[0]  # dealer = East seat
-
-        # 123m 456p 789s 111z (East) 55z (South pair)
-        player.tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="11155")
-
-        win_tile = player.tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
-
-        assert result.error is None
-        # Should have both seat wind (East) and round wind (East) yakuhai
-        assert "Yakuhai (wind of place)" in result.yaku
-        assert "Yakuhai (wind of round)" in result.yaku
-
-    def test_non_dealer_seat_wind_yakuhai(self):
-        """Non-dealer with their seat wind triplet gets seat wind yakuhai."""
-        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=0)
-        player = game_state.round_state.players[1]  # South seat
-
-        # 123m 456p 789s 222z (South) 55z (pair)
-        player.tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="22255")
-
-        win_tile = player.tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
-
-        assert result.error is None
-        assert "Yakuhai (wind of place)" in result.yaku
-        assert "Yakuhai (wind of round)" not in result.yaku
-
-    def test_round_wind_yakuhai_south_round(self):
-        """Player with South triplet in South round gets round wind yakuhai."""
-        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=1)  # South round
-        player = game_state.round_state.players[2]  # West seat (not South)
-
-        # 123m 456p 789s 222z (South) 55z (pair)
-        player.tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="789", honors="22255")
-
-        win_tile = player.tiles[-1]
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
-
-        assert result.error is None
-        assert "Yakuhai (wind of round)" in result.yaku
-        assert "Yakuhai (wind of place)" not in result.yaku
-
-    def test_is_dealer_affects_scoring(self):
-        """Verify is_dealer flag is correctly set for dealer payment calculations."""
-        game_state = _create_scoring_game_state(dealer_seat=0, round_wind=0)
-        dealer = game_state.round_state.players[0]
-
-        # Winning hand with East yakuhai
-        dealer.tiles = TilesConverter.string_to_136_array(man="123456789", pin="11", honors="111")
-
-        win_tile = dealer.tiles[-1]
-        result = calculate_hand_value(dealer, game_state.round_state, win_tile, is_tsumo=True)
-
-        assert result.error is None
-        # Dealer tsumo: all non-dealers pay the same amount
-        # For dealer win, cost_additional is 0 since there's only one payment amount
-        assert result.cost_additional in (0, result.cost_main)
-
-
-class TestPaoDoubleRonScoring:
-    """Tests for pao (liability) in double ron wins."""
-
-    def _create_game_state(self) -> MahjongGameState:
-        """Create a game state with 4 players starting at 25000."""
-        players = [MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4)]
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
-            players=players,
-        )
-        return MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-
-    def test_double_ron_one_winner_has_pao(self):
-        """Double ron where one winner has pao from a different player."""
-        game_state = self._create_game_state()
-        # seat 0 has pao on seat 3, seat 2 has no pao
-        # both ron off seat 1
-        game_state.round_state.players[0].pao_seat = 3
-        hand_result_0 = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-
-        result = apply_double_ron_score(
-            game_state,
-            winners=[(0, hand_result_0), (2, hand_result_2)],
-            loser_seat=1,
-        )
-
-        # seat 0's 32000: split 50/50 between loser(1) and pao(3) -> 16000 each
-        # seat 2's 2000: full from loser(1)
-        # seat 1 total: -16000 - 2000 = -18000
-        # seat 3 total: -16000
-        assert game_state.round_state.players[0].score == 25000 + 32000
-        assert game_state.round_state.players[1].score == 25000 - 18000
-        assert game_state.round_state.players[2].score == 25000 + 2000
-        assert game_state.round_state.players[3].score == 25000 - 16000
-        assert result.type == RoundResultType.DOUBLE_RON
-        # pao_seat is propagated to individual winner results
-        assert result.winners[0].pao_seat == 3
-        assert result.winners[1].pao_seat is None
-
-    def test_double_ron_pao_same_as_loser(self):
-        """Double ron where pao player is the loser -- normal scoring."""
-        game_state = self._create_game_state()
-        game_state.round_state.players[0].pao_seat = 1  # pao == loser
-        hand_result_0 = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-
-        apply_double_ron_score(
-            game_state,
-            winners=[(0, hand_result_0), (2, hand_result_2)],
-            loser_seat=1,
-        )
-
-        # seat 0: pao == loser, normal: loser pays full 32000
-        # seat 2: normal: loser pays 2000
-        # seat 1 total: -34000
-        assert game_state.round_state.players[0].score == 25000 + 32000
-        assert game_state.round_state.players[1].score == 25000 - 34000
-        assert game_state.round_state.players[2].score == 25000 + 2000
-        assert game_state.round_state.players[3].score == 25000

@@ -3,7 +3,6 @@ Unit tests for bot decision making.
 """
 
 import pytest
-from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
 from game.logic.bot import (
@@ -17,6 +16,7 @@ from game.logic.bot import (
     should_call_ron,
 )
 from game.logic.enums import KanType, PlayerAction
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.tests.unit.helpers import _string_to_34_tile
 
@@ -44,11 +44,11 @@ class TestShouldCallPon:
         player = MahjongPlayer(
             seat=0,
             name="Bot",
-            tiles=tiles,
+            tiles=tuple(tiles),
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=list(range(10)),
+            wall=tuple(range(10)),
             players=players,
         )
         return player, round_state
@@ -74,11 +74,11 @@ class TestShouldCallChi:
         player = MahjongPlayer(
             seat=0,
             name="Bot",
-            tiles=tiles,
+            tiles=tuple(tiles),
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=list(range(10)),
+            wall=tuple(range(10)),
             players=players,
         )
         return player, round_state
@@ -104,18 +104,18 @@ class TestShouldCallKan:
         self,
         tiles: list[int],
         *,
-        melds: list | None = None,
+        melds: tuple | None = None,
     ) -> tuple[MahjongPlayer, MahjongRoundState]:
         """Create a player and round state for testing."""
         player = MahjongPlayer(
             seat=0,
             name="Bot",
-            tiles=tiles,
-            melds=melds or [],
+            tiles=tuple(tiles),
+            melds=melds or (),
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=list(range(10)),
+            wall=tuple(range(10)),
             players=players,
         )
         return player, round_state
@@ -148,9 +148,9 @@ class TestShouldCallKan:
         """Tsumogiri bot always passes on added kan."""
         bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
         man_1m = TilesConverter.string_to_136_array(man="1111")
-        pon = Meld(meld_type=Meld.PON, tiles=man_1m[:3], opened=True)
+        pon = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(man_1m[:3]), opened=True)
         hand = [man_1m[3], *TilesConverter.string_to_136_array(pin="1", sou="1")]
-        player, round_state = self._create_player_and_round_state(hand, melds=[pon])
+        player, round_state = self._create_player_and_round_state(hand, melds=(pon,))
 
         result = should_call_kan(
             bot, player, kan_type=KanType.ADDED, tile_34=_string_to_34_tile(man="1"), round_state=round_state
@@ -168,11 +168,11 @@ class TestShouldCallRon:
         player = MahjongPlayer(
             seat=0,
             name="Bot",
-            tiles=tiles,
+            tiles=tuple(tiles),
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=list(range(10)),
+            wall=tuple(range(10)),
             players=players,
         )
         return player, round_state
@@ -198,11 +198,11 @@ class TestSelectDiscard:
         player = MahjongPlayer(
             seat=0,
             name="Bot",
-            tiles=tiles,
+            tiles=tuple(tiles),
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=list(range(10)),
+            wall=tuple(range(10)),
             players=players,
         )
         return player, round_state
@@ -230,9 +230,9 @@ class TestSelectDiscard:
     def test_empty_hand_raises_value_error(self):
         """select_discard raises ValueError on empty hand."""
         bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
-        player = MahjongPlayer(seat=0, name="Bot", tiles=[])
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
-        round_state = MahjongRoundState(wall=list(range(10)), players=players)
+        player = MahjongPlayer(seat=0, name="Bot", tiles=())
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        round_state = MahjongRoundState(wall=tuple(range(10)), players=players)
 
         with pytest.raises(ValueError, match="cannot select discard from empty hand"):
             select_discard(bot, player, round_state)
@@ -247,11 +247,11 @@ class TestGetBotAction:
         player = MahjongPlayer(
             seat=0,
             name="Bot",
-            tiles=tiles,
+            tiles=tuple(tiles),
         )
-        players = [player] + [MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)]
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=list(range(10)),
+            wall=tuple(range(10)),
             players=players,
         )
         return player, round_state

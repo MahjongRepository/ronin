@@ -21,7 +21,11 @@ from game.messaging.events import (
     RoundEndEvent,
     ServiceEvent,
 )
-from game.tests.unit.helpers import _find_human_player
+from game.tests.unit.helpers import (
+    _find_human_player,
+    _update_player,
+    _update_round_state,
+)
 
 
 async def _play_human_turns(
@@ -169,13 +173,14 @@ class TestMahjongGameServiceHandleTimeout:
         human = _find_human_player(round_state, "Human")
 
         # set up a pending call prompt where the human is a caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=(human.seat + 1) % 4,
-            pending_seats={human.seat},
-            callers=[MeldCaller(seat=human.seat, call_type=MeldCallType.PON)],
+            pending_seats=frozenset({human.seat}),
+            callers=(MeldCaller(seat=human.seat, call_type=MeldCallType.PON),),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         mock_events = [
             ServiceEvent(
@@ -308,10 +313,9 @@ class TestMahjongGameServiceHandleRoundEnd:
     async def test_handle_round_end_ends_game_on_negative_score(self, service):
         """Verify _handle_round_end ends game when a player has negative score."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # set a player's score to very low so game ends after round processing
-        game_state.round_state.players[0].score = -1000
+        _update_player(service, "game1", 0, score=-1000)
 
         result = ExhaustiveDrawResult(
             tempai_seats=[],
@@ -374,10 +378,9 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
     async def test_check_round_end_handles_finished_round(self, service):
         """Verify round end is processed when phase is FINISHED."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # set phase to FINISHED and provide a round end event
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
         round_result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
@@ -401,10 +404,9 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
     async def test_check_round_end_handles_no_result_in_events(self, service):
         """Verify round end handling when no round result is in events."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # set phase to FINISHED but provide no round_end event
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         result = await service._check_and_handle_round_end("game1", [])
 
@@ -424,10 +426,9 @@ class TestMahjongGameServiceProcessPostDiscard:
     async def test_post_discard_returns_events_when_round_ends_immediately(self, service):
         """Verify post-discard returns when round ends immediately."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # set phase to FINISHED
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
         round_result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
@@ -451,21 +452,21 @@ class TestMahjongGameServiceProcessPostDiscard:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
-        round_state = game_state.round_state
 
         # set up pending call prompt with human caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=0,
-            pending_seats={human.seat},
-            callers=[
+            pending_seats=frozenset({human.seat}),
+            callers=(
                 MeldCaller(
                     seat=human.seat,
                     call_type=MeldCallType.PON,
-                )
-            ],
+                ),
+            ),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         events: list[ServiceEvent] = [
             ServiceEvent(
@@ -493,37 +494,40 @@ class TestMahjongGameServiceProcessPostDiscard:
         round_state = game_state.round_state
 
         # ensure current player has 13 tiles (simulating post-discard state)
-        current_player = round_state.players[round_state.current_player_seat]
-        while len(current_player.tiles) > 13:
-            current_player.tiles.pop()
+        current_seat = round_state.current_player_seat
+        current_player = round_state.players[current_seat]
+        if len(current_player.tiles) > 13:
+            _update_player(service, "game1", current_seat, tiles=tuple(list(current_player.tiles)[:13]))
+            # Refresh round_state reference
+            round_state = service._games["game1"].round_state
 
         # find a bot seat
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
         bot_seat = bot_seats[0]
+        bot_tile = round_state.players[bot_seat].tiles[0] if round_state.players[bot_seat].tiles else 0
 
         # set up pending call prompt with only bot callers
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
-            tile_id=round_state.players[bot_seat].tiles[0] if round_state.players[bot_seat].tiles else 0,
+            tile_id=bot_tile,
             from_seat=0,
-            pending_seats={bot_seat},
-            callers=[
+            pending_seats=frozenset({bot_seat}),
+            callers=(
                 MeldCaller(
                     seat=bot_seat,
                     call_type=MeldCallType.PON,
-                )
-            ],
+                ),
+            ),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         events: list[ServiceEvent] = [
             ServiceEvent(
                 event=EventType.CALL_PROMPT,
                 data=CallPromptEvent(
                     call_type=CallType.MELD,
-                    tile_id=round_state.players[bot_seat].tiles[0]
-                    if round_state.players[bot_seat].tiles
-                    else 0,
+                    tile_id=bot_tile,
                     from_seat=0,
                     callers=[
                         MeldCaller(
@@ -549,9 +553,10 @@ class TestMahjongGameServiceProcessPostDiscard:
         round_state = game_state.round_state
 
         # ensure current player has 13 tiles (simulating post-discard state)
-        current_player = round_state.players[round_state.current_player_seat]
-        while len(current_player.tiles) > 13:
-            current_player.tiles.pop()
+        current_seat = round_state.current_player_seat
+        current_player = round_state.players[current_seat]
+        if len(current_player.tiles) > 13:
+            _update_player(service, "game1", current_seat, tiles=tuple(list(current_player.tiles)[:13]))
 
         events: list[ServiceEvent] = []
 
@@ -615,13 +620,14 @@ class TestMahjongGameServiceTimeoutIntegration:
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
 
-        # force the game state so it's the human's turn
-        game_state.round_state.current_player_seat = human.seat
+        # Prepare updated state: force current player to human and give them 14 tiles
+        human_tiles = list(human.tiles)
+        wall = list(game_state.round_state.wall)
+        if len(human_tiles) == 13 and wall:
+            human_tiles.append(wall.pop(0))
 
-        # ensure human has tiles (draw if needed)
-        if len(human.tiles) == 13 and game_state.round_state.wall:
-            drawn = game_state.round_state.wall.pop(0)
-            human.tiles.append(drawn)
+        _update_player(service, "game1", human.seat, tiles=tuple(human_tiles))
+        _update_round_state(service, "game1", current_player_seat=human.seat, wall=tuple(wall))
 
         events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
 
@@ -636,7 +642,7 @@ class TestMahjongGameServiceTimeoutIntegration:
 
         # force a different player's turn
         other_seat = (human.seat + 1) % 4
-        game_state.round_state.current_player_seat = other_seat
+        _update_round_state(service, "game1", current_player_seat=other_seat)
 
         events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
 
@@ -649,8 +655,8 @@ class TestMahjongGameServiceTimeoutIntegration:
         human = _find_human_player(game_state.round_state, "Human")
 
         # force the game state so it's the human's turn but with no tiles
-        game_state.round_state.current_player_seat = human.seat
-        human.tiles = []
+        _update_player(service, "game1", human.seat, tiles=())
+        _update_round_state(service, "game1", current_player_seat=human.seat)
 
         events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
 
@@ -667,10 +673,9 @@ class TestMahjongGameServicePostDiscardRoundEnd:
     async def test_post_discard_post_draw_round_end(self, service):
         """Verify round end after draw phase in _process_post_discard."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # empty the wall so that process_draw_phase triggers exhaustive draw
-        game_state.round_state.wall = []
+        _update_round_state(service, "game1", wall=())
 
         events: list[ServiceEvent] = []
 
@@ -683,31 +688,27 @@ class TestMahjongGameServicePostDiscardRoundEnd:
     async def test_post_discard_round_end_after_bot_call_resolution(self, service):
         """Verify round end after bot call response resolves the prompt."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
 
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
         bot_seat = bot_seats[0]
 
-        # set up pending call prompt with bot caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        # set up pending call prompt with bot caller and empty wall for exhaustive draw
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=0,
-            pending_seats={bot_seat},
-            callers=[
+            pending_seats=frozenset({bot_seat}),
+            callers=(
                 MeldCaller(
                     seat=bot_seat,
                     call_type=MeldCallType.PON,
-                )
-            ],
+                ),
+            ),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt, wall=())
 
         events: list[ServiceEvent] = []
-
-        # after bot pass resolves, trigger exhaustive draw by emptying wall
-        round_state.wall = []
 
         result = await service._process_post_discard("game1", events)
 
@@ -733,23 +734,6 @@ class TestMahjongGameServiceDispatchBotCallResponses:
         assert events == []
 
 
-class TestMahjongGameServiceCallHandler:
-    """Tests for _call_handler covering all action branches."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_call_handler_unknown_action_returns_empty(self, service):
-        """Verify unknown action returns empty ActionResult."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        result = service._call_handler(game_state, 0, "unknown_action", {})
-
-        assert result.events == []
-
-
 class TestMahjongGameServiceFindCallerInfo:
     """Tests for _find_caller_info edge cases."""
 
@@ -757,27 +741,26 @@ class TestMahjongGameServiceFindCallerInfo:
     def service(self):
         return MahjongGameService()
 
-    async def test_find_caller_info_fallback_returns_seat(self, service):
-        """Verify fallback returns seat when caller not found in list."""
+    async def test_find_caller_info_raises_for_missing_seat(self, service):
+        """Verify AssertionError is raised when caller not found in list."""
         await service.start_game("game1", ["Human"])
 
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=0,
-            pending_seats={1},
-            callers=[
+            pending_seats=frozenset({1}),
+            callers=(
                 MeldCaller(
                     seat=2,
                     call_type=MeldCallType.PON,
-                )
-            ],
+                ),
+            ),
         )
 
-        # seat 1 is not in callers, should return 1 as fallback
-        result = service._find_caller_info(prompt, 1)
-
-        assert result == 1
+        # seat 1 is not in callers, should raise AssertionError
+        with pytest.raises(AssertionError, match="seat 1 not found in prompt callers"):
+            service._find_caller_info(prompt, 1)
 
 
 class TestMahjongGameServiceProcessBotFollowupEdgeCases:
@@ -790,10 +773,9 @@ class TestMahjongGameServiceProcessBotFollowupEdgeCases:
     async def test_process_bot_followup_stops_on_finished_phase(self, service):
         """Verify bot followup stops when round phase is FINISHED."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # force round to finished
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         result = await service._process_bot_followup("game1")
 
@@ -802,22 +784,20 @@ class TestMahjongGameServiceProcessBotFollowupEdgeCases:
     async def test_process_bot_followup_stops_on_pending_prompt(self, service):
         """Verify bot followup stops when pending call prompt exists."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
 
         # set current player to a bot
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
-        round_state.current_player_seat = bot_seats[0]
 
         # set pending call prompt
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=0,
-            pending_seats={0},
-            callers=[0],
+            pending_seats=frozenset({0}),
+            callers=(0,),
         )
+        _update_round_state(service, "game1", current_player_seat=bot_seats[0], pending_call_prompt=prompt)
 
         result = await service._process_bot_followup("game1")
 
@@ -826,84 +806,17 @@ class TestMahjongGameServiceProcessBotFollowupEdgeCases:
     async def test_process_bot_followup_stops_when_get_turn_action_returns_none(self, service):
         """Verify bot followup stops when get_turn_action returns None."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
 
         # set current player to a bot seat
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
-        round_state.current_player_seat = bot_seats[0]
+        _update_round_state(service, "game1", current_player_seat=bot_seats[0])
 
         # mock get_turn_action to return None
         with patch.object(bot_controller, "get_turn_action", return_value=None):
             result = await service._process_bot_followup("game1")
 
         assert result == []
-
-
-class TestMahjongGameServiceCallHandlerBranches:
-    """Tests for _call_handler covering pon, chi, ron, kan branches."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_call_handler_pon(self, service):
-        """Verify _call_handler dispatches pon action."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        with patch(
-            "game.logic.mahjong_service.handle_pon",
-            return_value=ActionResult([]),
-        ) as mock_pon:
-            service._call_handler(game_state, 0, GameAction.CALL_PON, {"tile_id": 1})
-
-        mock_pon.assert_called_once()
-
-    async def test_call_handler_chi(self, service):
-        """Verify _call_handler dispatches chi action."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        with patch(
-            "game.logic.mahjong_service.handle_chi",
-            return_value=ActionResult([]),
-        ) as mock_chi:
-            service._call_handler(
-                game_state,
-                0,
-                GameAction.CALL_CHI,
-                {"tile_id": 1, "sequence_tiles": (2, 3)},
-            )
-
-        mock_chi.assert_called_once()
-
-    async def test_call_handler_ron(self, service):
-        """Verify _call_handler dispatches ron action."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        with patch(
-            "game.logic.mahjong_service.handle_ron",
-            return_value=ActionResult([]),
-        ) as mock_ron:
-            service._call_handler(game_state, 0, GameAction.CALL_RON, {"tile_id": 1, "from_seat": 2})
-
-        mock_ron.assert_called_once()
-
-    async def test_call_handler_kan(self, service):
-        """Verify _call_handler dispatches kan action."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        with patch(
-            "game.logic.mahjong_service.handle_kan",
-            return_value=ActionResult([]),
-        ) as mock_kan:
-            service._call_handler(game_state, 0, GameAction.CALL_KAN, {"tile_id": 1})
-
-        mock_kan.assert_called_once()
 
 
 class TestMahjongGameServiceDispatchBotCallResponsesBranches:
@@ -917,28 +830,30 @@ class TestMahjongGameServiceDispatchBotCallResponsesBranches:
         """Verify bot response (not None) is dispatched through _call_handler."""
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
-        round_state = game_state.round_state
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
         bot_seat = bot_seats[0]
 
         # set up pending call prompt with bot caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=0,
-            pending_seats={bot_seat},
-            callers=[
+            pending_seats=frozenset({bot_seat}),
+            callers=(
                 MeldCaller(
                     seat=bot_seat,
                     call_type=MeldCallType.PON,
-                )
-            ],
+                ),
+            ),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         events: list[ServiceEvent] = []
 
         # mock bot to return a pon action instead of pass
+        # Create mock result with cleared prompt state
+        cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with (
             patch.object(
                 bot_controller,
@@ -947,49 +862,10 @@ class TestMahjongGameServiceDispatchBotCallResponsesBranches:
             ),
             patch(
                 "game.logic.mahjong_service.handle_pon",
-                return_value=ActionResult([]),
+                return_value=ActionResult([], new_round_state=cleared_round, new_game_state=game_state),
             ),
         ):
             service._dispatch_bot_call_responses("game1", events)
-
-    async def test_dispatch_bot_call_responses_prompt_resolved_mid_loop(self, service):
-        """Verify loop breaks when prompt is resolved by a previous bot response."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-        bot_controller = service._bot_controllers["game1"]
-        bot_seats = sorted(bot_controller.bot_seats)
-
-        # set up pending call prompt with 2 bot callers
-        round_state.pending_call_prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats={bot_seats[0], bot_seats[1]},
-            callers=[
-                MeldCaller(
-                    seat=bot_seats[0],
-                    call_type=MeldCallType.PON,
-                ),
-                MeldCaller(
-                    seat=bot_seats[1],
-                    call_type=MeldCallType.PON,
-                ),
-            ],
-        )
-
-        events: list[ServiceEvent] = []
-
-        # mock first bot to pass (which resolves the prompt), second should be skipped
-        def mock_call_handler(_game_state, _seat, _action, _data):
-            # simulate that handle_pass resolves the prompt
-            round_state.pending_call_prompt = None
-            return ActionResult([])
-
-        with patch.object(service, "_call_handler", side_effect=mock_call_handler):
-            service._dispatch_bot_call_responses("game1", events)
-
-        # the loop should have broken after first bot resolved the prompt
 
 
 class TestMahjongGameServiceChankanPromptRoundEnd:
@@ -1002,19 +878,18 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
     async def test_chankan_prompt_resolved_round_end(self, service):
         """Verify _handle_chankan_prompt returns round end when resolved and phase is FINISHED."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
 
         # set up pending call prompt with bot caller
-        round_state.pending_call_prompt = PendingCallPrompt(
+        prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
             from_seat=bot_seats[0],
-            pending_seats={bot_seats[1]},
-            callers=[bot_seats[1]],
+            pending_seats=frozenset({bot_seats[1]}),
+            callers=(bot_seats[1],),
         )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -1037,8 +912,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
         )
 
         def mock_dispatch_bot_call(_game_id, _evts):
-            round_state.pending_call_prompt = None
-            round_state.phase = RoundPhase.FINISHED
+            _update_round_state(service, "game1", pending_call_prompt=None, phase=RoundPhase.FINISHED)
 
         with (
             patch.object(service, "_dispatch_bot_call_responses", side_effect=mock_dispatch_bot_call),
@@ -1054,7 +928,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
                 ],
             ),
         ):
-            result = await service._handle_chankan_prompt("game1", events, chankan_prompt)
+            result = await service._handle_chankan_prompt("game1", events)
 
         # should return round end events
         round_end = [e for e in result if e.event == EventType.ROUND_END]

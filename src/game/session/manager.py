@@ -521,7 +521,7 @@ class SessionManager:
                 timer.cancel()
         return True
 
-    async def close_game_on_error(self, connection: ConnectionProtocol) -> None:  # pragma: no cover
+    async def close_game_on_error(self, connection: ConnectionProtocol) -> None:
         """
         Close all player connections after an unrecoverable error.
 

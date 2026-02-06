@@ -8,12 +8,18 @@ dealer rotation, and game end conditions.
 import pytest
 
 from game.logic.enums import BotType, GameAction, RoundPhase, RoundResultType
-from game.logic.game import check_game_end, finalize_game, init_game, process_round_end
+from game.logic.game import (
+    check_game_end,
+    finalize_game,
+    init_game,
+    process_round_end,
+)
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.melds import call_pon
 from game.logic.riichi import declare_riichi
-from game.logic.round import advance_turn, discard_tile, draw_tile
+from game.logic.round import discard_tile, draw_tile
 from game.logic.scoring import HandResult, apply_ron_score, apply_tsumo_score
+from game.logic.state_utils import advance_turn, update_player
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_draw_phase
 from game.logic.types import HandResultInfo, RonResult, SeatConfig, TsumoResult
@@ -102,21 +108,23 @@ class TestTsumoWin:
 
         initial_scores = [p.score for p in game_state.round_state.players]
 
-        result = apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=0, hand_result=hand_result
+        )
 
         assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 0
 
-        winner = game_state.round_state.players[0]
+        winner = new_round_state.players[0]
         assert winner.score > initial_scores[0]
 
-        total_score = sum(p.score for p in game_state.round_state.players)
+        total_score = sum(p.score for p in new_round_state.players)
         assert total_score == 100000
 
     def test_tsumo_win_collects_riichi_sticks(self):
         """Tsumo winner collects riichi sticks on the table."""
         game_state = init_game(_default_seat_configs())
-        game_state.riichi_sticks = 2
+        game_state = game_state.model_copy(update={"riichi_sticks": 2})
 
         hand_result = HandResult(
             han=1,
@@ -126,12 +134,14 @@ class TestTsumoWin:
             yaku=["Tanyao"],
         )
 
-        result = apply_tsumo_score(game_state, winner_seat=0, hand_result=hand_result)
+        new_round_state, new_game_state, result = apply_tsumo_score(
+            game_state, winner_seat=0, hand_result=hand_result
+        )
 
         assert result.riichi_sticks_collected == 2
-        assert game_state.riichi_sticks == 0
+        assert new_game_state.riichi_sticks == 0
 
-        winner = game_state.round_state.players[0]
+        winner = new_round_state.players[0]
         assert winner.score > 25000 + 2000
 
 
@@ -149,21 +159,23 @@ class TestRonWin:
             yaku=["Riichi", "Ippatsu", "Menzen Tsumo"],
         )
 
-        result = apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
         assert result.type == RoundResultType.RON
         assert result.winner_seat == 0
         assert result.loser_seat == 1
 
-        winner = game_state.round_state.players[0]
-        loser = game_state.round_state.players[1]
+        winner = new_round_state.players[0]
+        loser = new_round_state.players[1]
         assert winner.score == 25000 + 8000
         assert loser.score == 25000 - 8000
 
     def test_ron_win_includes_honba_bonus(self):
         """Ron win includes honba bonus payment."""
         game_state = init_game(_default_seat_configs())
-        game_state.honba_sticks = 2
+        game_state = game_state.model_copy(update={"honba_sticks": 2})
 
         hand_result = HandResult(
             han=1,
@@ -172,10 +184,12 @@ class TestRonWin:
             yaku=["Tanyao"],
         )
 
-        apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, _new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
-        winner = game_state.round_state.players[0]
-        loser = game_state.round_state.players[1]
+        winner = new_round_state.players[0]
+        loser = new_round_state.players[1]
         # winner gets 1000 + 600 (2 honba * 300)
         assert winner.score == 25000 + 1000 + 600
         # loser pays 1000 + 600
@@ -188,31 +202,31 @@ class TestExhaustiveDraw:
     def test_exhaustive_draw_tempai_payment(self):
         """Exhaustive draw transfers points from noten to tempai players."""
         game_state = init_game(_default_seat_configs())
-        round_state = game_state.round_state
 
-        # manually empty wall and set up for exhaustive draw
-        round_state.wall = []
+        # Empty the wall to trigger exhaustive draw
+        round_state = game_state.round_state.model_copy(update={"wall": ()})
+        game_state = game_state.model_copy(update={"round_state": round_state})
 
         # process draw phase which should detect exhaustive draw
-        events = process_draw_phase(round_state, game_state)
+        new_round_state, _new_game_state, events = process_draw_phase(game_state.round_state, game_state)
 
         round_end_event = next((e for e in events if e.type == EventType.ROUND_END), None)
         assert round_end_event is not None
-        assert round_state.phase == RoundPhase.FINISHED
+        assert new_round_state.phase == RoundPhase.FINISHED
 
     def test_exhaustive_draw_all_noten_no_payment(self):
         """When all players are noten, no payment occurs."""
         game_state = init_game(_default_seat_configs(), seed=42.0)
-        round_state = game_state.round_state
 
         # empty wall
-        round_state.wall = []
+        round_state = game_state.round_state.model_copy(update={"wall": ()})
+        game_state = game_state.model_copy(update={"round_state": round_state})
 
-        process_draw_phase(round_state, game_state)
+        new_round_state, _new_game_state, _events = process_draw_phase(game_state.round_state, game_state)
 
         # check if scores remained unchanged (all noten) or changed (some tempai)
         # the actual outcome depends on dealt hands
-        total_score = sum(p.score for p in round_state.players)
+        total_score = sum(p.score for p in new_round_state.players)
         assert total_score == 100000
 
 
@@ -225,35 +239,31 @@ class TestRiichiAndIppatsu:
         player = game_state.round_state.players[0]
         initial_score = player.score
 
-        player.is_riichi = False
-        # manually set up tempai hand (player must be tempai to riichi)
-        # for this test we just test the point deduction mechanism
-        declare_riichi(player, game_state)
+        new_round_state, new_game_state = declare_riichi(game_state.round_state, game_state, seat=0)
 
-        assert player.score == initial_score - 1000
-        assert game_state.riichi_sticks == 1
+        assert new_round_state.players[0].score == initial_score - 1000
+        assert new_game_state.riichi_sticks == 1
 
     def test_riichi_sets_ippatsu_flag(self):
         """Riichi declaration sets ippatsu flag."""
         game_state = init_game(_default_seat_configs())
-        player = game_state.round_state.players[0]
 
-        declare_riichi(player, game_state)
+        new_round_state, _new_game_state = declare_riichi(game_state.round_state, game_state, seat=0)
 
-        assert player.is_ippatsu is True
+        assert new_round_state.players[0].is_ippatsu is True
 
     def test_ippatsu_cleared_after_discard(self):
         """Ippatsu flag is cleared after any discard."""
         game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
-        player = round_state.players[0]
 
-        player.is_ippatsu = True
-        tile_to_discard = player.tiles[-1]
+        # Set ippatsu on player 0
+        round_state = update_player(round_state, 0, is_ippatsu=True)
+        tile_to_discard = round_state.players[0].tiles[-1]
 
-        discard_tile(round_state, seat=0, tile_id=tile_to_discard)
+        new_round_state, _discard = discard_tile(round_state, seat=0, tile_id=tile_to_discard)
 
-        assert player.is_ippatsu is False
+        assert new_round_state.players[0].is_ippatsu is False
 
 
 class TestPonCallFlow:
@@ -290,16 +300,16 @@ class TestPonCallFlow:
         initial_hand_size = len(caller.tiles)
         initial_meld_count = len(caller.melds)
 
-        call_pon(round_state, caller_seat, discarder_seat, pon_tile_id)
+        new_round_state, _meld = call_pon(round_state, caller_seat, discarder_seat, pon_tile_id)
 
         # caller should have one more meld
-        assert len(caller.melds) == initial_meld_count + 1
+        assert len(new_round_state.players[caller_seat].melds) == initial_meld_count + 1
 
         # caller's hand should have 2 fewer tiles (used for pon)
-        assert len(caller.tiles) == initial_hand_size - 2
+        assert len(new_round_state.players[caller_seat].tiles) == initial_hand_size - 2
 
         # current player should be the caller (they must discard)
-        assert round_state.current_player_seat == caller_seat
+        assert new_round_state.current_player_seat == caller_seat
 
     def test_pon_clears_all_ippatsu(self):
         """Pon call clears ippatsu for all players."""
@@ -307,8 +317,8 @@ class TestPonCallFlow:
         round_state = game_state.round_state
 
         # set ippatsu for multiple players
-        round_state.players[0].is_ippatsu = True
-        round_state.players[2].is_ippatsu = True
+        round_state = update_player(round_state, 0, is_ippatsu=True)
+        round_state = update_player(round_state, 2, is_ippatsu=True)
 
         caller_seat = 1
         caller = round_state.players[caller_seat]
@@ -330,9 +340,10 @@ class TestPonCallFlow:
         assert pon_tile_34 is not None
 
         pon_tile_id = tile_counts[pon_tile_34][0]
-        call_pon(round_state, caller_seat, 0, pon_tile_id)
 
-        for player in round_state.players:
+        new_round_state, _meld = call_pon(round_state, caller_seat, 0, pon_tile_id)
+
+        for player in new_round_state.players:
             assert player.is_ippatsu is False
 
 
@@ -352,9 +363,9 @@ class TestDealerRotation:
             score_changes={},
             riichi_sticks_collected=0,
         )
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        new_dealer = game_state.round_state.dealer_seat
+        new_dealer = new_game_state.round_state.dealer_seat
         assert new_dealer == (initial_dealer + 1) % 4
 
     def test_dealer_stays_after_dealer_win(self):
@@ -369,9 +380,9 @@ class TestDealerRotation:
             score_changes={},
             riichi_sticks_collected=0,
         )
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        new_dealer = game_state.round_state.dealer_seat
+        new_dealer = new_game_state.round_state.dealer_seat
         assert new_dealer == initial_dealer
 
     def test_honba_increments_after_dealer_win(self):
@@ -385,14 +396,14 @@ class TestDealerRotation:
             score_changes={},
             riichi_sticks_collected=0,
         )
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == initial_honba + 1
+        assert new_game_state.honba_sticks == initial_honba + 1
 
     def test_honba_resets_after_non_dealer_win(self):
         """Honba sticks reset to 0 when non-dealer wins."""
         game_state = init_game(_default_seat_configs())
-        game_state.honba_sticks = 3
+        game_state = game_state.model_copy(update={"honba_sticks": 3})
 
         result = RonResult(
             winner_seat=1,
@@ -401,9 +412,9 @@ class TestDealerRotation:
             score_changes={},
             riichi_sticks_collected=0,
         )
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 0
+        assert new_game_state.honba_sticks == 0
 
     def test_wind_progression_after_dealer_rotation(self):
         """Wind progresses after full dealer rotation."""
@@ -420,7 +431,7 @@ class TestDealerRotation:
                 score_changes={},
                 riichi_sticks_collected=0,
             )
-            process_round_end(game_state, result)
+            game_state = process_round_end(game_state, result)
 
         # after 4 rotations, should be in south wind
         assert game_state.unique_dealers == 5
@@ -435,7 +446,8 @@ class TestGameEndConditions:
         game_state = init_game(_default_seat_configs())
 
         # set up a scenario where loser will go negative
-        game_state.round_state.players[1].score = 5000
+        round_state = update_player(game_state.round_state, 1, score=5000)
+        game_state = game_state.model_copy(update={"round_state": round_state})
 
         hand_result = HandResult(
             han=5,
@@ -444,22 +456,30 @@ class TestGameEndConditions:
             yaku=["Mangan"],
         )
 
-        apply_ron_score(game_state, winner_seat=0, loser_seat=1, hand_result=hand_result)
+        new_round_state, new_game_state, _result = apply_ron_score(
+            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
+        )
 
-        loser = game_state.round_state.players[1]
+        loser = new_round_state.players[1]
         assert loser.score < 0
 
-        assert check_game_end(game_state) is True
+        # Create updated game state for check
+        final_game = new_game_state.model_copy(update={"round_state": new_round_state})
+        assert check_game_end(final_game) is True
 
     def test_finalize_game_determines_winner(self):
         """Game finalization correctly determines winner by highest score."""
         game_state = init_game(_default_seat_configs())
-        game_state.round_state.players[0].score = 35000
-        game_state.round_state.players[1].score = 20000
-        game_state.round_state.players[2].score = 30000
-        game_state.round_state.players[3].score = 15000
+        round_state = game_state.round_state
 
-        result = finalize_game(game_state)
+        # Update player scores
+        round_state = update_player(round_state, 0, score=35000)
+        round_state = update_player(round_state, 1, score=20000)
+        round_state = update_player(round_state, 2, score=30000)
+        round_state = update_player(round_state, 3, score=15000)
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        _final_game_state, result = finalize_game(game_state)
 
         assert result.type == RoundResultType.GAME_END
         assert result.winner_seat == 0
@@ -468,12 +488,19 @@ class TestGameEndConditions:
     def test_finalize_game_distributes_riichi_sticks_to_winner(self):
         """Winner receives remaining riichi sticks on game end."""
         game_state = init_game(_default_seat_configs())
-        game_state.riichi_sticks = 3
-        game_state.round_state.players[2].score = 30000
 
-        result = finalize_game(game_state)
+        # Update riichi sticks and set player 2 as highest scorer
+        round_state = update_player(game_state.round_state, 2, score=30000)
+        game_state = game_state.model_copy(
+            update={
+                "round_state": round_state,
+                "riichi_sticks": 3,
+            }
+        )
 
-        winner = game_state.round_state.players[result.winner_seat]
+        final_game_state, result = finalize_game(game_state)
+
+        winner = final_game_state.round_state.players[result.winner_seat]
         # winner should have original score + 3000 (3 riichi sticks)
         assert winner.score >= 30000 + 3000
 
@@ -548,21 +575,21 @@ class TestDrawFromWall:
         player = round_state.players[0]
 
         initial_hand_size = len(player.tiles)
-        round_state.current_player_seat = 0
+        round_state = round_state.model_copy(update={"current_player_seat": 0})
 
-        drawn_tile = draw_tile(round_state)
+        new_round_state, drawn_tile = draw_tile(round_state)
 
         assert drawn_tile is not None
-        assert len(player.tiles) == initial_hand_size + 1
-        assert player.tiles[-1] == drawn_tile
+        assert len(new_round_state.players[0].tiles) == initial_hand_size + 1
+        assert new_round_state.players[0].tiles[-1] == drawn_tile
 
     def test_draw_from_empty_wall_returns_none(self):
         """Drawing from empty wall returns None."""
         game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
-        round_state.wall = []
+        round_state = round_state.model_copy(update={"wall": ()})
 
-        drawn_tile = draw_tile(round_state)
+        _new_round_state, drawn_tile = draw_tile(round_state)
 
         assert drawn_tile is None
 
@@ -574,28 +601,28 @@ class TestTurnAdvancement:
         """Turns advance in counter-clockwise order (0->1->2->3->0)."""
         game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
-        round_state.current_player_seat = 0
+        round_state = round_state.model_copy(update={"current_player_seat": 0})
 
-        advance_turn(round_state)
+        round_state = advance_turn(round_state)
         assert round_state.current_player_seat == 1
 
-        advance_turn(round_state)
+        round_state = advance_turn(round_state)
         assert round_state.current_player_seat == 2
 
-        advance_turn(round_state)
+        round_state = advance_turn(round_state)
         assert round_state.current_player_seat == 3
 
-        advance_turn(round_state)
+        round_state = advance_turn(round_state)
         assert round_state.current_player_seat == 0
 
     def test_turn_count_increments(self):
         """Turn count increments with each advancement."""
         game_state = init_game(_default_seat_configs())
         round_state = game_state.round_state
-        round_state.turn_count = 0
+        round_state = round_state.model_copy(update={"turn_count": 0})
 
-        advance_turn(round_state)
+        round_state = advance_turn(round_state)
         assert round_state.turn_count == 1
 
-        advance_turn(round_state)
+        round_state = advance_turn(round_state)
         assert round_state.turn_count == 2

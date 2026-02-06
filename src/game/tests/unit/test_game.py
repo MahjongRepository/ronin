@@ -2,19 +2,21 @@
 Unit tests for game initialization and progression.
 """
 
-from unittest.mock import MagicMock
-
 from game.logic.enums import AbortiveDrawType, BotType, GamePhase, RoundPhase, RoundResultType
 from game.logic.game import (
     _goshashonyu_round,
-    _process_draw_result,
     calculate_final_scores,
     check_game_end,
     finalize_game,
     init_game,
+    init_round,
     process_round_end,
 )
-from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
+from game.logic.state import (
+    MahjongGameState,
+    MahjongPlayer,
+    MahjongRoundState,
+)
 from game.logic.types import (
     AbortiveDrawResult,
     DoubleRonResult,
@@ -129,13 +131,8 @@ class TestInitGame:
 
 class TestProcessRoundEnd:
     def _create_game_state(self) -> MahjongGameState:
-        """Create a game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
-        ]
+        """Create a frozen game state for testing."""
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
         return MahjongGameState(
             round_state=round_state,
@@ -166,18 +163,18 @@ class TestProcessRoundEnd:
         game_state = self._create_game_state()
         result = AbortiveDrawResult(reason=AbortiveDrawType.FOUR_WINDS)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 1
+        assert new_game_state.honba_sticks == 1
 
     def test_abortive_draw_does_not_rotate_dealer(self):
         game_state = self._create_game_state()
         result = AbortiveDrawResult(reason=AbortiveDrawType.FOUR_WINDS)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 0
-        assert game_state.unique_dealers == 1
+        assert new_game_state.round_state.dealer_seat == 0
+        assert new_game_state.unique_dealers == 1
 
     def test_exhaustive_draw_dealer_tempai_increments_honba(self):
         game_state = self._create_game_state()
@@ -185,9 +182,9 @@ class TestProcessRoundEnd:
             tempai_seats=[0, 2], noten_seats=[1, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 1
+        assert new_game_state.honba_sticks == 1
 
     def test_exhaustive_draw_dealer_tempai_does_not_rotate(self):
         game_state = self._create_game_state()
@@ -195,10 +192,10 @@ class TestProcessRoundEnd:
             tempai_seats=[0], noten_seats=[1, 2, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 0
-        assert game_state.unique_dealers == 1
+        assert new_game_state.round_state.dealer_seat == 0
+        assert new_game_state.unique_dealers == 1
 
     def test_exhaustive_draw_dealer_noten_increments_honba(self):
         game_state = self._create_game_state()
@@ -206,9 +203,9 @@ class TestProcessRoundEnd:
             tempai_seats=[1, 2], noten_seats=[0, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 1
+        assert new_game_state.honba_sticks == 1
 
     def test_exhaustive_draw_dealer_noten_rotates_dealer(self):
         game_state = self._create_game_state()
@@ -216,64 +213,64 @@ class TestProcessRoundEnd:
             tempai_seats=[1], noten_seats=[0, 2, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 1
-        assert game_state.unique_dealers == 2
+        assert new_game_state.round_state.dealer_seat == 1
+        assert new_game_state.unique_dealers == 2
 
     def test_tsumo_dealer_wins_increments_honba(self):
         game_state = self._create_game_state()
         result = self._tsumo(winner_seat=0)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 1
+        assert new_game_state.honba_sticks == 1
 
     def test_tsumo_dealer_wins_does_not_rotate(self):
         game_state = self._create_game_state()
         result = self._tsumo(winner_seat=0)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 0
-        assert game_state.unique_dealers == 1
+        assert new_game_state.round_state.dealer_seat == 0
+        assert new_game_state.unique_dealers == 1
 
     def test_tsumo_dealer_loses_resets_honba(self):
         game_state = self._create_game_state()
-        game_state.honba_sticks = 3
+        game_state = game_state.model_copy(update={"honba_sticks": 3})
         result = self._tsumo(winner_seat=2)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 0
+        assert new_game_state.honba_sticks == 0
 
     def test_tsumo_dealer_loses_rotates_dealer(self):
         game_state = self._create_game_state()
         result = self._tsumo(winner_seat=2)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 1
-        assert game_state.unique_dealers == 2
+        assert new_game_state.round_state.dealer_seat == 1
+        assert new_game_state.unique_dealers == 2
 
     def test_ron_dealer_wins_increments_honba(self):
         game_state = self._create_game_state()
         result = self._ron(winner_seat=0, loser_seat=1)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 1
+        assert new_game_state.honba_sticks == 1
 
     def test_ron_dealer_loses_resets_honba_and_rotates(self):
         game_state = self._create_game_state()
-        game_state.honba_sticks = 2
+        game_state = game_state.model_copy(update={"honba_sticks": 2})
         result = self._ron(winner_seat=3, loser_seat=1)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 0
-        assert game_state.round_state.dealer_seat == 1
-        assert game_state.unique_dealers == 2
+        assert new_game_state.honba_sticks == 0
+        assert new_game_state.round_state.dealer_seat == 1
+        assert new_game_state.unique_dealers == 2
 
     def test_double_ron_dealer_one_of_winners_increments_honba(self):
         game_state = self._create_game_state()
@@ -294,14 +291,14 @@ class TestProcessRoundEnd:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 1
-        assert game_state.round_state.dealer_seat == 0
+        assert new_game_state.honba_sticks == 1
+        assert new_game_state.round_state.dealer_seat == 0
 
     def test_double_ron_dealer_not_winner_resets_honba_and_rotates(self):
         game_state = self._create_game_state()
-        game_state.honba_sticks = 1
+        game_state = game_state.model_copy(update={"honba_sticks": 1})
         result = DoubleRonResult(
             loser_seat=1,
             winners=[
@@ -319,74 +316,77 @@ class TestProcessRoundEnd:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.honba_sticks == 0
-        assert game_state.round_state.dealer_seat == 1
-        assert game_state.unique_dealers == 2
+        assert new_game_state.honba_sticks == 0
+        assert new_game_state.round_state.dealer_seat == 1
+        assert new_game_state.unique_dealers == 2
 
     def test_round_number_increments(self):
         game_state = self._create_game_state()
         result = self._tsumo(winner_seat=0)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_number == 1
+        assert new_game_state.round_number == 1
 
     def test_dealer_rotation_wraps_around(self):
         game_state = self._create_game_state()
-        game_state.round_state.dealer_seat = 3
+        round_state = game_state.round_state.model_copy(update={"dealer_seat": 3})
+        game_state = game_state.model_copy(update={"round_state": round_state})
         result = self._tsumo(winner_seat=0)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 0
+        assert new_game_state.round_state.dealer_seat == 0
 
     def test_wind_progression_stays_east(self):
         game_state = self._create_game_state()
-        game_state.unique_dealers = 3
+        game_state = game_state.model_copy(update={"unique_dealers": 3})
         result = self._tsumo(winner_seat=1)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.unique_dealers == 4
-        assert game_state.round_state.round_wind == 0  # East
+        assert new_game_state.unique_dealers == 4
+        assert new_game_state.round_state.round_wind == 0  # East
 
     def test_wind_progression_to_south(self):
         game_state = self._create_game_state()
-        game_state.unique_dealers = 4
+        game_state = game_state.model_copy(update={"unique_dealers": 4})
         result = self._tsumo(winner_seat=1)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.unique_dealers == 5
-        assert game_state.round_state.round_wind == 1  # South
+        assert new_game_state.unique_dealers == 5
+        assert new_game_state.round_state.round_wind == 1  # South
 
     def test_wind_progression_stays_south(self):
         game_state = self._create_game_state()
-        game_state.unique_dealers = 7
-        game_state.round_state.round_wind = 1
+        game_state = game_state.model_copy(update={"unique_dealers": 7})
+        round_state = game_state.round_state.model_copy(update={"round_wind": 1})
+        game_state = game_state.model_copy(update={"round_state": round_state})
         result = self._tsumo(winner_seat=1)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.unique_dealers == 8
-        assert game_state.round_state.round_wind == 1  # South
+        assert new_game_state.unique_dealers == 8
+        assert new_game_state.round_state.round_wind == 1  # South
 
     def test_wind_progression_to_west(self):
         game_state = self._create_game_state()
-        game_state.unique_dealers = 8
-        game_state.round_state.round_wind = 1
+        game_state = game_state.model_copy(update={"unique_dealers": 8})
+        round_state = game_state.round_state.model_copy(update={"round_wind": 1})
+        game_state = game_state.model_copy(update={"round_state": round_state})
         result = self._tsumo(winner_seat=1)
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.unique_dealers == 9
-        assert game_state.round_state.round_wind == 2  # West
+        assert new_game_state.unique_dealers == 9
+        assert new_game_state.round_state.round_wind == 2  # West
 
     def test_nagashi_mangan_does_not_increment_honba(self):
         game_state = self._create_game_state()
-        game_state.honba_sticks = 2
+        game_state = game_state.model_copy(update={"honba_sticks": 2})
         result = NagashiManganResult(
             qualifying_seats=[1],
             tempai_seats=[0, 1],
@@ -394,10 +394,10 @@ class TestProcessRoundEnd:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
         # honba should remain unchanged (no increment for nagashi mangan)
-        assert game_state.honba_sticks == 2
+        assert new_game_state.honba_sticks == 2
 
     def test_nagashi_mangan_dealer_tempai_does_not_rotate(self):
         game_state = self._create_game_state()
@@ -408,10 +408,10 @@ class TestProcessRoundEnd:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 0
-        assert game_state.unique_dealers == 1
+        assert new_game_state.round_state.dealer_seat == 0
+        assert new_game_state.unique_dealers == 1
 
     def test_nagashi_mangan_dealer_noten_rotates(self):
         game_state = self._create_game_state()
@@ -422,23 +422,26 @@ class TestProcessRoundEnd:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 
-        process_round_end(game_state, result)
+        new_game_state = process_round_end(game_state, result)
 
-        assert game_state.round_state.dealer_seat == 1
-        assert game_state.unique_dealers == 2
+        assert new_game_state.round_state.dealer_seat == 1
+        assert new_game_state.unique_dealers == 2
 
 
 class TestCheckGameEnd:
     def _create_game_state(self) -> MahjongGameState:
-        """Create a game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
-        ]
+        """Create a frozen game state for testing."""
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(players=players)
         return MahjongGameState(round_state=round_state, unique_dealers=1)
+
+    def _update_player_score(self, game_state: MahjongGameState, seat: int, score: int) -> MahjongGameState:
+        """Update a player's score in the immutable game state."""
+        round_state = game_state.round_state
+        players = list(round_state.players)
+        players[seat] = players[seat].model_copy(update={"score": score})
+        new_round_state = round_state.model_copy(update={"players": tuple(players)})
+        return game_state.model_copy(update={"round_state": new_round_state})
 
     def test_game_continues_normally(self):
         game_state = self._create_game_state()
@@ -448,59 +451,58 @@ class TestCheckGameEnd:
         assert result is False
 
     def test_game_ends_player_negative_score(self):
-        game_state = self._create_game_state()
-        game_state.round_state.players[1].score = -1000
+        game_state = init_game(_default_seat_configs())
+        game_state = self._update_player_score(game_state, 1, -1000)
 
         result = check_game_end(game_state)
 
         assert result is True
 
     def test_game_ends_player_exactly_zero_continues(self):
-        game_state = self._create_game_state()
-        game_state.round_state.players[1].score = 0
+        game_state = init_game(_default_seat_configs())
+        game_state = self._update_player_score(game_state, 1, 0)
 
         result = check_game_end(game_state)
 
         assert result is False
 
     def test_south_wind_complete_with_30000_ends(self):
-        game_state = self._create_game_state()
-        game_state.unique_dealers = 9  # south wind complete
-        game_state.round_state.players[0].score = 30000
+        game_state = init_game(_default_seat_configs())
+        game_state = game_state.model_copy(update={"unique_dealers": 9})
+        game_state = self._update_player_score(game_state, 0, 30000)
 
         result = check_game_end(game_state)
 
         assert result is True
 
     def test_south_wind_complete_without_30000_continues(self):
-        game_state = self._create_game_state()
-        game_state.unique_dealers = 9  # south wind complete
-        # all players still at 25000
+        game_state = init_game(_default_seat_configs())
+        game_state = game_state.model_copy(update={"unique_dealers": 9})
 
         result = check_game_end(game_state)
 
         assert result is False
 
     def test_south_wind_not_complete_with_30000_continues(self):
-        game_state = self._create_game_state()
-        game_state.unique_dealers = 8  # still in south
-        game_state.round_state.players[0].score = 50000
+        game_state = init_game(_default_seat_configs())
+        game_state = game_state.model_copy(update={"unique_dealers": 8})
+        game_state = self._update_player_score(game_state, 0, 50000)
 
         result = check_game_end(game_state)
 
         assert result is False
 
     def test_west_wind_complete_ends(self):
-        game_state = self._create_game_state()
-        game_state.unique_dealers = 13  # west wind complete
+        game_state = init_game(_default_seat_configs())
+        game_state = game_state.model_copy(update={"unique_dealers": 13})
 
         result = check_game_end(game_state)
 
         assert result is True
 
     def test_west_wind_in_progress_continues(self):
-        game_state = self._create_game_state()
-        game_state.unique_dealers = 12  # still in west
+        game_state = init_game(_default_seat_configs())
+        game_state = game_state.model_copy(update={"unique_dealers": 12})
 
         result = check_game_end(game_state)
 
@@ -509,56 +511,64 @@ class TestCheckGameEnd:
 
 class TestFinalizeGame:
     def _create_game_state(self) -> MahjongGameState:
-        """Create a game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=30000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=20000),
-        ]
+        """Create a frozen game state for testing."""
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}", score=s)
+            for i, s in enumerate([30000, 25000, 25000, 20000])
+        )
         round_state = MahjongRoundState(players=players)
         return MahjongGameState(round_state=round_state, riichi_sticks=0)
 
     def test_winner_is_highest_score(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         assert result.winner_seat == 0
 
     def test_winner_tie_broken_by_lower_seat(self):
-        game_state = self._create_game_state()
-        game_state.round_state.players[0].score = 25000
-        game_state.round_state.players[1].score = 30000
-        game_state.round_state.players[2].score = 30000
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}", score=s)
+            for i, s in enumerate([25000, 30000, 30000, 20000])
+        )
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state, riichi_sticks=0)
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         # seat 1 wins because lower seat
         assert result.winner_seat == 1
 
     def test_winner_gets_riichi_sticks(self):
-        game_state = self._create_game_state()
-        game_state.riichi_sticks = 2
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}", score=s)
+            for i, s in enumerate([30000, 25000, 25000, 20000])
+        )
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state, riichi_sticks=2)
 
-        finalize_game(game_state)
+        new_state, _result = finalize_game(game_state)
 
         # winner (seat 0 with 30000) gets 2000 from riichi sticks
-        assert game_state.round_state.players[0].score == 32000
-        assert game_state.riichi_sticks == 0
+        assert new_state.round_state.players[0].score == 32000
+        assert new_state.riichi_sticks == 0
 
     def test_riichi_sticks_cleared_after_distribution(self):
-        game_state = self._create_game_state()
-        game_state.riichi_sticks = 3
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}", score=s)
+            for i, s in enumerate([30000, 25000, 25000, 20000])
+        )
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state, riichi_sticks=3)
 
-        finalize_game(game_state)
+        new_state, _result = finalize_game(game_state)
 
-        assert game_state.riichi_sticks == 0
+        assert new_state.riichi_sticks == 0
 
     def test_standings_sorted_by_score(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         standings = result.standings
         assert standings[0].seat == 0
@@ -573,7 +583,7 @@ class TestFinalizeGame:
     def test_standings_include_all_player_info(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         for standing in result.standings:
             assert standing.seat is not None
@@ -584,24 +594,23 @@ class TestFinalizeGame:
     def test_game_phase_set_to_finished(self):
         game_state = self._create_game_state()
 
-        finalize_game(game_state)
+        new_state, _result = finalize_game(game_state)
 
-        assert game_state.game_phase == GamePhase.FINISHED
+        assert new_state.game_phase == GamePhase.FINISHED
 
     def test_result_type_is_game_end(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         assert result.type == RoundResultType.GAME_END
 
     def test_standings_tied_scores_sorted_by_seat(self):
-        game_state = self._create_game_state()
-        # set all to same score
-        for player in game_state.round_state.players:
-            player.score = 25000
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state, riichi_sticks=0)
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         standings = result.standings
         # should be in seat order when scores tied
@@ -609,65 +618,6 @@ class TestFinalizeGame:
         assert standings[1].seat == 1
         assert standings[2].seat == 2
         assert standings[3].seat == 3
-
-
-class TestProcessDrawResultFallback:
-    def _create_game_state(self) -> MahjongGameState:
-        """Create a game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
-        ]
-        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
-        return MahjongGameState(
-            round_state=round_state,
-            round_number=0,
-            unique_dealers=1,
-            honba_sticks=0,
-            riichi_sticks=0,
-        )
-
-    def test_process_draw_result_fallback_returns_false(self):
-        """Exhaustive draw type that is not an ExhaustiveDrawResult falls through to False."""
-        game_state = self._create_game_state()
-        # mock a result with EXHAUSTIVE_DRAW type but not an ExhaustiveDrawResult instance
-        mock_result = MagicMock()
-        mock_result.type = RoundResultType.EXHAUSTIVE_DRAW
-        result = _process_draw_result(game_state, mock_result)
-        assert result is False
-        assert game_state.honba_sticks == 1
-
-
-class TestProcessRoundEndFallback:
-    def _create_game_state(self) -> MahjongGameState:
-        """Create a game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
-        ]
-        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
-        return MahjongGameState(
-            round_state=round_state,
-            round_number=0,
-            unique_dealers=1,
-            honba_sticks=0,
-            riichi_sticks=0,
-        )
-
-    def test_process_round_end_unknown_result_type_does_not_rotate(self):
-        """Unknown result type falls through to should_rotate=False."""
-        game_state = self._create_game_state()
-        mock_result = MagicMock()
-        mock_result.type = "unknown_type"
-        mock_result.tempai_seats = []
-        process_round_end(game_state, mock_result)
-        assert game_state.round_state.dealer_seat == 0
-        assert game_state.unique_dealers == 1
-        assert game_state.round_number == 1
 
 
 class TestGoshashonyuRound:
@@ -820,22 +770,17 @@ class TestFinalizeGameWithUmaOka:
         self,
         scores: list[int] | None = None,
     ) -> MahjongGameState:
-        """Create a game state with specified scores."""
+        """Create a frozen game state with specified scores."""
         if scores is None:
             scores = [42300, 28100, 18600, 11000]
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=scores[0]),
-            MahjongPlayer(seat=1, name="Bot1", score=scores[1]),
-            MahjongPlayer(seat=2, name="Bot2", score=scores[2]),
-            MahjongPlayer(seat=3, name="Bot3", score=scores[3]),
-        ]
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
         round_state = MahjongRoundState(players=players)
         return MahjongGameState(round_state=round_state, riichi_sticks=0)
 
     def test_standings_include_final_score(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         for standing in result.standings:
             assert standing.final_score is not None
@@ -843,7 +788,7 @@ class TestFinalizeGameWithUmaOka:
     def test_final_scores_match_calculation(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         assert result.standings[0].final_score == 52
         assert result.standings[1].final_score == 8
@@ -853,7 +798,7 @@ class TestFinalizeGameWithUmaOka:
     def test_final_scores_zero_sum(self):
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         total = sum(s.final_score for s in result.standings)
         assert total == 0
@@ -862,19 +807,19 @@ class TestFinalizeGameWithUmaOka:
         # winner is determined before uma/oka adjustment
         game_state = self._create_game_state()
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         assert result.winner_seat == 0
 
     def test_riichi_sticks_distributed_before_final_score_calculation(self):
         game_state = self._create_game_state(scores=[42300, 28100, 18600, 11000])
-        game_state.riichi_sticks = 2  # 2000 extra to winner
+        game_state = game_state.model_copy(update={"riichi_sticks": 2})
 
-        result = finalize_game(game_state)
+        new_state, result = finalize_game(game_state)
 
         # winner (seat 0) gets 2000 extra -> 44300
         assert result.standings[0].score == 44300
-        assert game_state.riichi_sticks == 0
+        assert new_state.riichi_sticks == 0
         # final scores include the riichi adjustment in raw score
         # seat 0: diff=14300, goshashonyu=14, +20 oka, +20 uma = 54 (before zero-sum)
         # others: 8, -21, -39 (unchanged), sum = 54+8-21-39 = 2, adj 1st = 52
@@ -885,7 +830,7 @@ class TestFinalizeGameWithUmaOka:
         # all 25000: seat order determines placement for uma
         game_state = self._create_game_state(scores=[25000, 25000, 25000, 25000])
 
-        result = finalize_game(game_state)
+        _new_state, result = finalize_game(game_state)
 
         assert result.standings[0].seat == 0
         assert result.standings[1].seat == 1
@@ -895,3 +840,344 @@ class TestFinalizeGameWithUmaOka:
         assert result.standings[1].final_score == 5
         assert result.standings[2].final_score == -15
         assert result.standings[3].final_score == -25
+
+
+# ============================================================================
+# Tests for Immutable Game Functions (additional tests)
+# ============================================================================
+
+
+class TestInitGameImmutable:
+    """Tests for init_game function."""
+
+    def test_init_game_creates_four_players(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        assert len(game_state.round_state.players) == 4
+
+    def test_init_game_first_player_is_human(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        assert game_state.round_state.players[0].name == "Human"
+
+    def test_init_game_players_have_13_tiles(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        for player in game_state.round_state.players:
+            assert len(player.tiles) == 13
+
+    def test_init_game_initial_phase_is_playing(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        assert game_state.round_state.phase == RoundPhase.PLAYING
+
+    def test_init_game_initial_game_phase(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        assert game_state.game_phase == GamePhase.IN_PROGRESS
+
+    def test_init_game_has_dora_indicator(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        assert len(game_state.round_state.dora_indicators) == 1
+
+
+class TestInitRoundImmutable:
+    """Tests for init_round function."""
+
+    def test_init_round_resets_player_tiles(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        # simulate round end by creating a new round
+        new_game_state = init_round(game_state)
+
+        # players should have 13 tiles each
+        for player in new_game_state.round_state.players:
+            assert len(player.tiles) == 13
+
+    def test_init_round_preserves_scores(self):
+        configs = _default_seat_configs()
+        game_state = init_game(configs)
+
+        # modify a player's score
+        round_state = game_state.round_state
+        players = list(round_state.players)
+        players[0] = players[0].model_copy(update={"score": 30000})
+        round_state = round_state.model_copy(update={"players": tuple(players)})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        new_game_state = init_round(game_state)
+
+        assert new_game_state.round_state.players[0].score == 30000
+
+
+class TestProcessRoundEndImmutableAdditional:
+    """Additional tests for process_round_end function."""
+
+    def _create_game_state(self) -> MahjongGameState:
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
+        return MahjongGameState(round_state=round_state, unique_dealers=1, honba_sticks=0)
+
+    def test_process_round_end_abortive_draw_increments_honba(self):
+        game_state = self._create_game_state()
+        result = AbortiveDrawResult(reason=AbortiveDrawType.FOUR_WINDS)
+
+        new_state = process_round_end(game_state, result)
+
+        assert new_state.honba_sticks == 1
+        # dealer doesn't rotate on abortive draw
+        assert new_state.round_state.dealer_seat == 0
+
+    def test_process_round_end_exhaustive_draw_dealer_tempai(self):
+        game_state = self._create_game_state()
+        result = ExhaustiveDrawResult(
+            tempai_seats=[0],  # dealer is tempai
+            noten_seats=[1, 2, 3],
+            score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        assert new_state.honba_sticks == 1
+        # dealer doesn't rotate when tempai
+        assert new_state.round_state.dealer_seat == 0
+        assert new_state.unique_dealers == 1
+
+    def test_process_round_end_exhaustive_draw_dealer_noten(self):
+        game_state = self._create_game_state()
+        result = ExhaustiveDrawResult(
+            tempai_seats=[1],  # dealer not tempai
+            noten_seats=[0, 2, 3],
+            score_changes={0: -1000, 1: 3000, 2: -1000, 3: -1000},
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        assert new_state.honba_sticks == 1
+        # dealer rotates when noten
+        assert new_state.round_state.dealer_seat == 1
+        assert new_state.unique_dealers == 2
+
+    def test_process_round_end_nagashi_mangan_dealer_tempai(self):
+        game_state = self._create_game_state()
+        result = NagashiManganResult(
+            tempai_seats=[0],  # dealer tempai
+            noten_seats=[1, 2, 3],
+            qualifying_seats=[0],
+            score_changes={0: 12000, 1: -4000, 2: -4000, 3: -4000},
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        # nagashi mangan doesn't change honba
+        assert new_state.honba_sticks == 0
+        # dealer doesn't rotate when tempai
+        assert new_state.round_state.dealer_seat == 0
+
+    def test_process_round_end_nagashi_mangan_dealer_noten(self):
+        game_state = self._create_game_state()
+        result = NagashiManganResult(
+            tempai_seats=[1],  # dealer not tempai
+            noten_seats=[0, 2, 3],
+            qualifying_seats=[1],
+            score_changes={0: -4000, 1: 12000, 2: -4000, 3: -4000},
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        # nagashi mangan doesn't change honba
+        assert new_state.honba_sticks == 0
+        # dealer rotates when noten
+        assert new_state.round_state.dealer_seat == 1
+
+    def test_process_round_end_tsumo_dealer_wins(self):
+        game_state = self._create_game_state()
+        result = TsumoResult(
+            winner_seat=0,  # dealer wins
+            hand_result=HandResultInfo(yaku=[], fu=30, han=3),
+            score_changes={0: 8000, 1: -2000, 2: -2000, 3: -4000},
+            riichi_sticks_collected=0,
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        assert new_state.honba_sticks == 1
+        # dealer doesn't rotate when winning
+        assert new_state.round_state.dealer_seat == 0
+
+    def test_process_round_end_tsumo_non_dealer_wins(self):
+        game_state = self._create_game_state()
+        result = TsumoResult(
+            winner_seat=1,  # non-dealer wins
+            hand_result=HandResultInfo(yaku=[], fu=30, han=3),
+            score_changes={0: -2000, 1: 5000, 2: -1000, 3: -2000},
+            riichi_sticks_collected=0,
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        assert new_state.honba_sticks == 0  # reset
+        # dealer rotates when losing
+        assert new_state.round_state.dealer_seat == 1
+
+    def test_process_round_end_ron_dealer_wins(self):
+        game_state = self._create_game_state()
+        result = RonResult(
+            winner_seat=0,  # dealer wins
+            loser_seat=1,
+            hand_result=HandResultInfo(yaku=[], fu=30, han=3),
+            score_changes={0: 5800, 1: -5800, 2: 0, 3: 0},
+            riichi_sticks_collected=0,
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        assert new_state.honba_sticks == 1
+        assert new_state.round_state.dealer_seat == 0
+
+    def test_process_round_end_double_ron(self):
+        game_state = self._create_game_state()
+        result = DoubleRonResult(
+            loser_seat=1,
+            winners=[
+                DoubleRonWinner(
+                    winner_seat=0,  # dealer wins
+                    hand_result=HandResultInfo(yaku=[], fu=30, han=2),
+                    riichi_sticks_collected=0,
+                ),
+                DoubleRonWinner(
+                    winner_seat=2,
+                    hand_result=HandResultInfo(yaku=[], fu=30, han=2),
+                    riichi_sticks_collected=0,
+                ),
+            ],
+            score_changes={0: 2900, 1: -4900, 2: 2000, 3: 0},
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        # dealer (seat 0) is one of the winners
+        assert new_state.honba_sticks == 1
+        assert new_state.round_state.dealer_seat == 0
+
+    def test_process_round_end_wind_progression_to_south(self):
+        """Test that wind changes from East to South after 4 unique dealers."""
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=0)
+        game_state = MahjongGameState(round_state=round_state, unique_dealers=4, honba_sticks=0)
+
+        result = TsumoResult(
+            winner_seat=1,  # non-dealer wins
+            hand_result=HandResultInfo(yaku=[], fu=30, han=3),
+            score_changes={0: -2000, 1: 5000, 2: -1000, 3: -2000},
+            riichi_sticks_collected=0,
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        # after 5th unique dealer, wind should be South
+        assert new_state.unique_dealers == 5
+        assert new_state.round_state.round_wind == 1  # South
+
+    def test_process_round_end_wind_progression_to_west(self):
+        """Test that wind changes from South to West after 8 unique dealers."""
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players, dealer_seat=0, round_wind=1)  # South
+        game_state = MahjongGameState(round_state=round_state, unique_dealers=8, honba_sticks=0)
+
+        result = TsumoResult(
+            winner_seat=1,  # non-dealer wins
+            hand_result=HandResultInfo(yaku=[], fu=30, han=3),
+            score_changes={0: -2000, 1: 5000, 2: -1000, 3: -2000},
+            riichi_sticks_collected=0,
+        )
+
+        new_state = process_round_end(game_state, result)
+
+        # after 9th unique dealer, wind should be West
+        assert new_state.unique_dealers == 9
+        assert new_state.round_state.round_wind == 2  # West
+
+
+class TestCheckGameEndImmutable:
+    """Tests for check_game_end function."""
+
+    def _create_game_state(self, scores: list[int], unique_dealers: int = 1) -> MahjongGameState:
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
+        round_state = MahjongRoundState(players=players)
+        return MahjongGameState(round_state=round_state, unique_dealers=unique_dealers)
+
+    def test_check_game_end_negative_score(self):
+        game_state = self._create_game_state([25000, 25000, 25000, -100])
+
+        assert check_game_end(game_state) is True
+
+    def test_check_game_end_normal_game_continues(self):
+        game_state = self._create_game_state([25000, 25000, 25000, 25000])
+
+        assert check_game_end(game_state) is False
+
+    def test_check_game_end_south_complete_with_winner(self):
+        # South wind complete (unique_dealers > 8) with someone at 30000+
+        game_state = self._create_game_state([30000, 25000, 25000, 20000], unique_dealers=9)
+
+        assert check_game_end(game_state) is True
+
+    def test_check_game_end_south_complete_no_winner(self):
+        # South wind complete but no one has 30000+
+        game_state = self._create_game_state([29000, 25000, 25000, 21000], unique_dealers=9)
+
+        assert check_game_end(game_state) is False
+
+    def test_check_game_end_west_complete(self):
+        # West wind complete (unique_dealers > 12)
+        game_state = self._create_game_state([25000, 25000, 25000, 25000], unique_dealers=13)
+
+        assert check_game_end(game_state) is True
+
+
+class TestFinalizeGameImmutable:
+    """Tests for finalize_game function."""
+
+    def _create_game_state(self) -> MahjongGameState:
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players)
+        return MahjongGameState(round_state=round_state, riichi_sticks=0)
+
+    def test_finalize_game_returns_new_state(self):
+        game_state = self._create_game_state()
+
+        new_state, _result = finalize_game(game_state)
+
+        assert new_state is not game_state
+        assert new_state.game_phase == GamePhase.FINISHED
+
+    def test_finalize_game_determines_winner(self):
+        game_state = self._create_game_state()
+
+        _new_state, result = finalize_game(game_state)
+
+        # all tied, seat 0 wins by position
+        assert result.winner_seat == 0
+
+    def test_finalize_game_distributes_riichi_sticks(self):
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000 + i * 1000) for i in range(4))
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state, riichi_sticks=2)
+
+        new_state, result = finalize_game(game_state)
+
+        # winner (seat 3 with highest score) gets riichi sticks
+        assert result.winner_seat == 3
+        assert new_state.riichi_sticks == 0
+        # winner's score includes 2000 from riichi sticks
+        winner_player = new_state.round_state.players[3]
+        assert winner_player.score == 28000 + 2000

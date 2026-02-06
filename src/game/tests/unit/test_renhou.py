@@ -2,29 +2,31 @@
 Unit tests for renhou (blessing of man) detection and scoring.
 """
 
-from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import calculate_hand_value
-from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState
+from game.logic.state import Discard
+from game.logic.state_utils import update_player
 from game.logic.win import is_renhou
+from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
 class TestIsRenhou:
-    def _create_round_state(self, dealer_seat: int = 0) -> MahjongRoundState:
+    def _create_round_state(self, dealer_seat: int = 0):
         """
         Create a round state for renhou testing.
 
         No discards and no melds (first go-around conditions).
         """
-        players = [MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4)]
-        return MahjongRoundState(
+        players = tuple(create_player(seat=i) for i in range(4))
+        return create_round_state(
+            players=players,
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
-            players=players,
-            all_discards=[],
-            players_with_open_hands=[],
+            all_discards=(),
+            players_with_open_hands=(),
         )
 
     def test_renhou_non_dealer_first_goaround(self):
@@ -59,7 +61,7 @@ class TestIsRenhou:
     def test_not_renhou_after_open_meld(self):
         # a player called an open meld (pon/chi)
         round_state = self._create_round_state(dealer_seat=0)
-        round_state.players_with_open_hands = [2]  # seat 2 has open hand
+        round_state = round_state.model_copy(update={"players_with_open_hands": (2,)})  # seat 2 has open hand
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
@@ -67,17 +69,17 @@ class TestIsRenhou:
         # a closed kan was made (adds to player's melds)
         round_state = self._create_round_state(dealer_seat=0)
         kan_tiles = TilesConverter.string_to_136_array(man="1111")
-        closed_kan = Meld(meld_type=Meld.KAN, tiles=kan_tiles, opened=False)
-        round_state.players[0].melds = [closed_kan]
+        closed_kan = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(kan_tiles), opened=False)
+        round_state = update_player(round_state, 0, melds=(closed_kan,))
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
     def test_not_renhou_player_has_discards(self):
         # player already discarded (past their first turn)
         round_state = self._create_round_state(dealer_seat=0)
-        player = round_state.players[1]
         tile = TilesConverter.string_to_136_array(man="1")[0]
-        player.discards = [Discard(tile_id=tile)]
+        round_state = update_player(round_state, 1, discards=(Discard(tile_id=tile),))
+        player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
     def test_renhou_other_player_has_discards_but_winner_does_not(self):
@@ -88,8 +90,8 @@ class TestIsRenhou:
         round_state = self._create_round_state(dealer_seat=0)
         # dealer discarded a tile (this is the tile the winner is ron-ing on)
         tile = TilesConverter.string_to_136_array(man="1")[0]
-        round_state.players[0].discards = [Discard(tile_id=tile)]
-        round_state.all_discards = [tile]
+        round_state = update_player(round_state, 0, discards=(Discard(tile_id=tile),))
+        round_state = round_state.model_copy(update={"all_discards": (tile,)})
         player = round_state.players[1]  # non-dealer, no discards
         assert is_renhou(player, round_state) is True
 
@@ -97,34 +99,34 @@ class TestIsRenhou:
         # even if the winner has no melds, if another player has a meld, no renhou
         round_state = self._create_round_state(dealer_seat=0)
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-        open_pon = Meld(meld_type=Meld.PON, tiles=pon_tiles, opened=True)
-        round_state.players[3].melds = [open_pon]
-        round_state.players_with_open_hands = [3]
+        open_pon = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(pon_tiles), opened=True)
+        round_state = update_player(round_state, 3, melds=(open_pon,))
+        round_state = round_state.model_copy(update={"players_with_open_hands": (3,)})
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
 
 class TestRenhouScoring:
-    def _create_game_state(self, dealer_seat: int = 0) -> MahjongGameState:
+    def _create_game_state(self, dealer_seat: int = 0):
         """
         Create a game state for renhou scoring tests.
 
         First go-around conditions: no discards, no melds.
         """
-        players = [MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4)]
+        players = tuple(create_player(seat=i) for i in range(4))
         dora_indicator_tiles = TilesConverter.string_to_136_array(man="9")
-        round_state = MahjongRoundState(
+        round_state = create_round_state(
+            players=players,
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
             dora_indicators=dora_indicator_tiles,
-            wall=list(range(70)),
-            dead_wall=list(range(14)),
-            players=players,
-            all_discards=[],
-            players_with_open_hands=[],
+            wall=tuple(range(70)),
+            dead_wall=tuple(range(14)),
+            all_discards=(),
+            players_with_open_hands=(),
         )
-        return MahjongGameState(round_state=round_state)
+        return create_game_state(round_state=round_state)
 
     def test_renhou_scores_5_han(self):
         # non-dealer ron on first go-around: renhou = 5 han
@@ -132,11 +134,11 @@ class TestRenhouScoring:
         # win tile: 1z (east wind pair, but player is south wind)
         tiles = TilesConverter.string_to_136_array(man="234", pin="234", sou="234678", honors="11")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]  # seat 1 = south wind
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 1, tiles=tuple(tiles))  # seat 1 = south wind
+        player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" in result.yaku
@@ -149,11 +151,11 @@ class TestRenhouScoring:
         # tanyao = 1 han, pinfu = 1 han, renhou = 5 han = 7 han (haneman)
         tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="56755")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 1, tiles=tuple(tiles))
+        player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" in result.yaku
@@ -163,11 +165,11 @@ class TestRenhouScoring:
         # dealer cannot get renhou, even on first go-around
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[0]  # dealer
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles))  # dealer
+        player = round_state.players[0]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         # renhou should not be in yaku list
@@ -177,15 +179,16 @@ class TestRenhouScoring:
         # a call was made before the ron: no renhou
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]
-        player.tiles = tiles
-        win_tile = tiles[-1]
         # simulate a call having been made
-        game_state.round_state.players_with_open_hands = [3]
         pon_tiles = TilesConverter.string_to_136_array(sou="111")
-        game_state.round_state.players[3].melds = [Meld(meld_type=Meld.PON, tiles=pon_tiles, opened=True)]
+        open_pon = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(pon_tiles), opened=True)
+        round_state = update_player(game_state.round_state, 1, tiles=tuple(tiles))
+        round_state = update_player(round_state, 3, melds=(open_pon,))
+        round_state = round_state.model_copy(update={"players_with_open_hands": (3,)})
+        player = round_state.players[1]
+        win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" not in result.yaku
@@ -194,14 +197,15 @@ class TestRenhouScoring:
         # a closed kan was made: no renhou
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]
-        player.tiles = tiles
-        win_tile = tiles[-1]
         # closed kan by dealer
         kan_tiles = TilesConverter.string_to_136_array(sou="1111")
-        game_state.round_state.players[0].melds = [Meld(meld_type=Meld.KAN, tiles=kan_tiles, opened=False)]
+        closed_kan = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(kan_tiles), opened=False)
+        round_state = update_player(game_state.round_state, 1, tiles=tuple(tiles))
+        round_state = update_player(round_state, 0, melds=(closed_kan,))
+        player = round_state.players[1]
+        win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" not in result.yaku
@@ -210,16 +214,17 @@ class TestRenhouScoring:
         # player has already discarded (past first turn): no renhou
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]
-        player.tiles = tiles
-        win_tile = tiles[-1]
         # player already made a discard
         discard_tile = TilesConverter.string_to_136_array(sou="9")[0]
-        player.discards = [Discard(tile_id=discard_tile)]
+        round_state = update_player(
+            game_state.round_state, 1, tiles=tuple(tiles), discards=(Discard(tile_id=discard_tile),)
+        )
         # need some discards in all_discards to avoid library treating it as first go-around
-        game_state.round_state.all_discards = [discard_tile]
+        round_state = round_state.model_copy(update={"all_discards": (discard_tile,)})
+        player = round_state.players[1]
+        win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" not in result.yaku
@@ -230,11 +235,11 @@ class TestRenhouScoring:
         # win tile: 3s (two-sided wait on 23s -> completes 234s pair)
         tiles = TilesConverter.string_to_136_array(man="234678", pin="234", sou="23433")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 1, tiles=tuple(tiles))
+        player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=False)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" in result.yaku
@@ -245,11 +250,11 @@ class TestRenhouScoring:
         # renhou is ron-only; tsumo on first draw would be chiihou (for non-dealer)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = self._create_game_state(dealer_seat=0)
-        player = game_state.round_state.players[1]
-        player.tiles = tiles
+        round_state = update_player(game_state.round_state, 1, tiles=tuple(tiles))
+        player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, game_state.round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
 
         assert result.error is None
         # tsumo on first go-around = chiihou, not renhou

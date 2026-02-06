@@ -1,144 +1,124 @@
 """
 Game state models for Mahjong.
+
+Uses frozen Pydantic models for immutable state management with undo/redo capability.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-from mahjong.meld import Meld
+from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import CallType, GameAction, GamePhase, MeldViewType, RoundPhase, WindName
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.tiles import WINDS_34
 from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView
 
 NUM_WINDS = 4
 
 
-@dataclass
-class Discard:
-    """
-    Represents a discarded tile with metadata.
-    """
+class Discard(BaseModel):
+    """Immutable discard record."""
+
+    model_config = ConfigDict(frozen=True)
 
     tile_id: int
-    is_tsumogiri: bool = False  # true if discarded immediately after draw
-    is_riichi_discard: bool = False  # true if this was the riichi declaration discard
+    is_tsumogiri: bool = False
+    is_riichi_discard: bool = False
 
 
-@dataclass
-class CallResponse:
-    """A player's recorded response to a call prompt."""
+class CallResponse(BaseModel):
+    """Immutable call response record."""
+
+    model_config = ConfigDict(frozen=True)
 
     seat: int
     action: GameAction
-    sequence_tiles: tuple[int, int] | None = None  # for chi: the chosen sequence tiles
+    sequence_tiles: tuple[int, int] | None = None
 
 
-@dataclass
-class PendingCallPrompt:
-    """Tracks pending call responses from eligible players."""
+class PendingCallPrompt(BaseModel):
+    """
+    Immutable pending call prompt.
+
+    Uses frozenset for pending_seats and tuple for responses/callers
+    to ensure complete immutability.
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     call_type: CallType
     tile_id: int
     from_seat: int
-    pending_seats: set[int]  # seats that haven't responded yet
-    callers: list[int] | list[MeldCaller]  # original callers list
-    responses: list[CallResponse] = field(default_factory=list)
+    pending_seats: frozenset[int]
+    callers: tuple[int | MeldCaller, ...]
+    responses: tuple[CallResponse, ...] = ()
 
 
-@dataclass
-class MahjongPlayer:
+class MahjongPlayer(BaseModel):
     """
-    Represents a player in a mahjong game.
+    Immutable player state.
+
+    Uses FrozenMeld wrapper for true immutability of meld data.
     """
 
-    seat: int  # 0-3
+    model_config = ConfigDict(frozen=True)
+
+    seat: int
     name: str
-
-    # hand state
-    tiles: list[int] = field(default_factory=list)  # tiles in hand (136-format)
-    discards: list[Discard] = field(default_factory=list)  # discard history
-    melds: list[Meld] = field(default_factory=list)  # open/closed melds
-
-    # riichi state
-    is_riichi: bool = False  # has declared riichi
-    is_ippatsu: bool = False  # can still get ippatsu (first go-around after riichi)
-    is_daburi: bool = False  # double riichi (riichi on first turn)
-
-    # special conditions
-    is_rinshan: bool = False  # drew from dead wall after kan
-    kuikae_tiles: list[int] = field(
-        default_factory=list
-    )  # tile_34 values forbidden for discard after meld call
-    pao_seat: int | None = None  # seat of player liable for pao (None if no liability)
-    is_temporary_furiten: bool = False  # passed on ron, cannot ron until next discard
-    is_riichi_furiten: bool = False  # riichi player missed a winning tile, permanent for this hand
-
-    # score
+    tiles: tuple[int, ...] = ()
+    discards: tuple[Discard, ...] = ()
+    melds: tuple[FrozenMeld, ...] = ()
+    is_riichi: bool = False
+    is_ippatsu: bool = False
+    is_daburi: bool = False
+    is_rinshan: bool = False
+    kuikae_tiles: tuple[int, ...] = ()
+    pao_seat: int | None = None
+    is_temporary_furiten: bool = False
+    is_riichi_furiten: bool = False
     score: int = 25000
 
     def has_open_melds(self) -> bool:
-        """
-        Check if player has any open melds (excluding closed kans).
-        """
+        """Check if player has any open melds (excluding closed kans)."""
         return any(meld.opened for meld in self.melds)
 
 
-@dataclass
-class MahjongRoundState:
-    """
-    Represents the state of a single mahjong round.
-    """
+class MahjongRoundState(BaseModel):
+    """Immutable round state."""
 
-    # wall tiles
-    wall: list[int] = field(default_factory=list)  # remaining drawable tiles
-    dead_wall: list[int] = field(default_factory=list)  # 14 tiles, kan replacements
-    dora_indicators: list[int] = field(default_factory=list)  # revealed dora indicators
+    model_config = ConfigDict(frozen=True)
 
-    # players
-    players: list[MahjongPlayer] = field(default_factory=list)
-
-    # turn tracking
-    dealer_seat: int = 0  # seat of the dealer (oya)
-    current_player_seat: int = 0  # whose turn it is
-    round_wind: int = 0  # 0=East, 1=South, 2=West, 3=North
-    turn_count: int = 0  # number of turns played (for abortive draw checks)
-
-    # tracking for abortive draws
-    all_discards: list[int] = field(default_factory=list)  # all tile_ids discarded (for four winds check)
-    players_with_open_hands: list[int] = field(default_factory=list)  # seats that have called melds
-
-    # dora timing
-    pending_dora_count: int = 0  # dora indicators to reveal after next discard (for open/added kan)
-
-    # phase
+    wall: tuple[int, ...] = ()
+    dead_wall: tuple[int, ...] = ()
+    dora_indicators: tuple[int, ...] = ()
+    players: tuple[MahjongPlayer, ...] = ()
+    dealer_seat: int = 0
+    current_player_seat: int = 0
+    round_wind: int = 0
+    turn_count: int = 0
+    all_discards: tuple[int, ...] = ()
+    players_with_open_hands: tuple[int, ...] = ()
+    pending_dora_count: int = 0
     phase: RoundPhase = RoundPhase.WAITING
-
-    # pending call prompt for multi-caller response collection
     pending_call_prompt: PendingCallPrompt | None = None
 
 
-@dataclass
-class MahjongGameState:
+class MahjongGameState(BaseModel):
     """
-    Represents the full game state across multiple rounds.
+    Immutable game state.
+
+    NOTE: round_state defaults to an empty MahjongRoundState.
+    For actual game initialization, always provide a properly initialized round_state.
     """
 
-    round_state: MahjongRoundState = field(default_factory=MahjongRoundState)
+    model_config = ConfigDict(frozen=True)
 
-    # game progression
-    round_number: int = 0  # 0-based round counter
-    unique_dealers: int = 1  # tracks dealer rotation for wind progression
-
-    # sticks
-    honba_sticks: int = 0  # continuation sticks
-    riichi_sticks: int = 0  # unclaimed riichi deposits
-
-    # game phase
+    round_state: MahjongRoundState = Field(default_factory=MahjongRoundState)
+    round_number: int = 0
+    unique_dealers: int = 1
+    honba_sticks: int = 0
+    riichi_sticks: int = 0
     game_phase: GamePhase = GamePhase.IN_PROGRESS
-
-    # seed for wall generation
     seed: float = 0.0
 
 
@@ -207,16 +187,16 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
     )
 
 
-def _meld_to_view(meld: Meld) -> MeldView:
+def _meld_to_view(meld: FrozenMeld) -> MeldView:
     """
-    Convert a Meld object to a MeldView model.
+    Convert a FrozenMeld object to a MeldView model.
     """
     meld_type_names = {
-        Meld.CHI: MeldViewType.CHI,
-        Meld.PON: MeldViewType.PON,
-        Meld.KAN: MeldViewType.KAN,
-        Meld.CHANKAN: MeldViewType.CHANKAN,
-        Meld.SHOUMINKAN: MeldViewType.SHOUMINKAN,
+        FrozenMeld.CHI: MeldViewType.CHI,
+        FrozenMeld.PON: MeldViewType.PON,
+        FrozenMeld.KAN: MeldViewType.KAN,
+        FrozenMeld.CHANKAN: MeldViewType.CHANKAN,
+        FrozenMeld.SHOUMINKAN: MeldViewType.SHOUMINKAN,
     }
 
     return MeldView(

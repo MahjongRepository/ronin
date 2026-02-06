@@ -333,7 +333,7 @@ class TestSessionManager:
         game = manager.get_game("game1")
         callers = [
             MeldCaller(seat=0, call_type=MeldCallType.PON),
-            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=[(57, 63)]),
+            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
         ]
         call_event = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -646,7 +646,7 @@ class TestSessionManagerTimerIntegration:
         """_get_caller_seats returns unique seats when same player has multiple meld options."""
         callers = [
             MeldCaller(seat=0, call_type=MeldCallType.PON),
-            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=[(57, 63)]),
+            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
         ]
         assert manager._get_caller_seats(callers) == [0]
 
@@ -1887,6 +1887,60 @@ class TestHeartbeat:
             with contextlib.suppress(asyncio.CancelledError):
                 await manager._heartbeat_loop("game1")
 
+        assert not conn.is_closed
+
+
+class TestSessionManagerCloseGameOnError:
+    """Tests for close_game_on_error method."""
+
+    @pytest.fixture
+    def manager(self):
+        game_service = MockGameService()
+        return SessionManager(game_service)
+
+    async def test_close_game_on_error_closes_all_connections(self, manager):
+        """close_game_on_error closes all player connections in the game."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conn1, "game1", "Alice")
+        await manager.join_game(conn2, "game1", "Bob")
+
+        await manager.close_game_on_error(conn1)
+
+        assert conn1.is_closed
+        assert conn2.is_closed
+        assert conn1._close_code == 1011
+        assert conn1._close_reason == "internal_error"
+
+    async def test_close_game_on_error_no_player(self, manager):
+        """close_game_on_error does nothing for unregistered connection."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+
+        # should not raise
+        await manager.close_game_on_error(conn)
+
+        assert not conn.is_closed
+
+    async def test_close_game_on_error_game_is_none(self, manager):
+        """close_game_on_error does nothing when game has been removed."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1")
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        # remove the game from the internal mapping to simulate cleanup race
+        manager._games.pop("game1", None)
+
+        # should return without error
+        await manager.close_game_on_error(conn)
+
+        # connection should NOT be closed (game is gone)
         assert not conn.is_closed
 
     async def test_heartbeat_starts_with_game(self, manager):

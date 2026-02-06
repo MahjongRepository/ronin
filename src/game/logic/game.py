@@ -2,9 +2,15 @@
 Game initialization and progression for Mahjong.
 """
 
-from game.logic.enums import GamePhase, RoundResultType
-from game.logic.round import create_players, init_round
-from game.logic.state import MahjongGameState, MahjongRoundState
+from game.logic.enums import GamePhase, RoundPhase, RoundResultType
+from game.logic.round import DEAD_WALL_SIZE, FIRST_DORA_INDEX
+from game.logic.state import (
+    MahjongGameState,
+    MahjongPlayer,
+    MahjongRoundState,
+)
+from game.logic.state_utils import update_player
+from game.logic.tiles import generate_wall, sort_tiles
 from game.logic.types import (
     DoubleRonResult,
     ExhaustiveDrawResult,
@@ -30,148 +36,6 @@ STARTING_SCORE = 25000
 TARGET_SCORE = 30000
 UMA_SPREAD = [20, 10, -10, -20]  # 1st, 2nd, 3rd, 4th
 GOSHASHONYU_THRESHOLD = 500  # goshashonyu: remainder <= 500 rounds toward zero
-
-
-def init_game(seat_configs: list[SeatConfig], seed: float = 0.0) -> MahjongGameState:
-    """
-    Initialize a new mahjong game with seat configurations.
-
-    All players start with 25000 points.
-    Dealer starts at seat 0, round wind starts at East.
-    """
-    players = create_players(seat_configs)
-
-    round_state = MahjongRoundState(
-        players=players,
-        dealer_seat=0,
-        round_wind=0,  # East
-    )
-
-    game_state = MahjongGameState(
-        round_state=round_state,
-        round_number=0,
-        unique_dealers=1,  # first dealer counts as 1
-        honba_sticks=0,
-        riichi_sticks=0,
-        game_phase=GamePhase.IN_PROGRESS,
-        seed=seed,
-    )
-
-    # initialize the first round
-    init_round(game_state)
-
-    return game_state
-
-
-def _process_draw_result(game_state: MahjongGameState, result: RoundResult) -> bool:
-    """
-    Process an abortive or exhaustive draw result.
-
-    Returns True if dealer should rotate.
-    """
-    dealer_seat = game_state.round_state.dealer_seat
-
-    if result.type == RoundResultType.ABORTIVE_DRAW:
-        game_state.honba_sticks += 1
-        return False
-
-    # exhaustive draw
-    game_state.honba_sticks += 1
-    if isinstance(result, ExhaustiveDrawResult):
-        return dealer_seat not in result.tempai_seats
-    return False
-
-
-def _process_win_result(game_state: MahjongGameState, result: RoundResult) -> bool:
-    """
-    Process a tsumo, ron, or double ron result.
-
-    Returns True if dealer should rotate.
-    """
-    dealer_seat = game_state.round_state.dealer_seat
-
-    winner_seats: list[int] = []
-    if isinstance(result, (TsumoResult, RonResult)):
-        winner_seats = [result.winner_seat]
-    elif isinstance(result, DoubleRonResult):
-        winner_seats = [w.winner_seat for w in result.winners]
-
-    if dealer_seat in winner_seats:
-        game_state.honba_sticks += 1
-        return False
-
-    game_state.honba_sticks = 0
-    return True
-
-
-def process_round_end(game_state: MahjongGameState, result: RoundResult) -> None:
-    """
-    Process the end of a round and update game state.
-
-    Handles dealer rotation and honba stick management based on round result type:
-    - abortive draw: increment honba, don't rotate dealer
-    - dealer won (or one of multiple winners): increment honba, don't rotate
-    - exhaustive draw with dealer tempai: increment honba, don't rotate
-    - exhaustive draw with dealer noten: increment honba, rotate dealer
-    - nagashi mangan: no honba change, dealer rotates if noten
-    - dealer lost (ron/tsumo, dealer not winner): reset honba to 0, rotate dealer
-
-    Updates unique_dealers when dealer changes, which drives wind progression.
-    """
-    round_state = game_state.round_state
-    result_type = result.type
-
-    # determine if dealer should rotate based on result type
-    if result_type in (RoundResultType.ABORTIVE_DRAW, RoundResultType.EXHAUSTIVE_DRAW):
-        should_rotate = _process_draw_result(game_state, result)
-    elif result_type == RoundResultType.NAGASHI_MANGAN and isinstance(result, NagashiManganResult):
-        # nagashi mangan: no honba increment, dealer rotates if noten
-        should_rotate = round_state.dealer_seat not in result.tempai_seats
-    elif result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):
-        should_rotate = _process_win_result(game_state, result)
-    else:
-        should_rotate = False
-
-    # rotate dealer if needed
-    if should_rotate:
-        round_state.dealer_seat = (round_state.dealer_seat + 1) % 4
-        game_state.unique_dealers += 1
-
-        # wind progression: unique_dealers 1-4 = East, 5-8 = South, 9-12 = West
-        if game_state.unique_dealers <= EAST_WIND_MAX_DEALERS:
-            round_state.round_wind = 0  # East
-        elif game_state.unique_dealers <= SOUTH_WIND_MAX_DEALERS:
-            round_state.round_wind = 1  # South
-        else:
-            round_state.round_wind = 2  # West
-
-    # increment round number
-    game_state.round_number += 1
-
-
-def check_game_end(game_state: MahjongGameState) -> bool:
-    """
-    Check if the game should end.
-
-    Game ends when any of these conditions are met:
-    - Any player has negative points (below 0)
-    - South wind complete (unique_dealers > 8) and someone has 30000+ points
-    - West wind complete (unique_dealers > 12)
-    """
-    round_state = game_state.round_state
-
-    # check if any player has negative points
-    if any(player.score < 0 for player in round_state.players):
-        return True
-
-    # check if South wind complete and someone has 30000+
-    south_complete = game_state.unique_dealers > SOUTH_WIND_MAX_DEALERS
-    has_winner = any(player.score >= WINNING_SCORE_THRESHOLD for player in round_state.players)
-    if south_complete and has_winner:
-        return True
-
-    # check if West wind complete
-    return game_state.unique_dealers > WEST_WIND_MAX_DEALERS
 
 
 def _goshashonyu_round(score: int) -> int:
@@ -238,13 +102,286 @@ def calculate_final_scores(raw_scores: list[tuple[int, int]]) -> list[tuple[int,
     return adjusted
 
 
-def finalize_game(game_state: MahjongGameState, bot_seats: set[int] | None = None) -> GameEndResult:
+def init_game(
+    seat_configs: list[SeatConfig],
+    seed: float = 0.0,
+) -> MahjongGameState:
+    """
+    Initialize a new mahjong game with seat configurations.
+
+    All players start with 25000 points.
+    Dealer starts at seat 0, round wind starts at East.
+    Returns a frozen MahjongGameState.
+    """
+    # Create players
+    players = tuple(MahjongPlayer(seat=i, name=config.name) for i, config in enumerate(seat_configs))
+
+    # Generate wall using seed
+    wall = generate_wall(seed, 0)  # round_number = 0
+
+    # Cut dead wall (14 tiles from end)
+    dead_wall = tuple(wall[-DEAD_WALL_SIZE:])
+    wall = tuple(wall[:-DEAD_WALL_SIZE])
+
+    # Set first dora indicator (dead_wall[2])
+    dora_indicators = (dead_wall[FIRST_DORA_INDEX],)
+
+    # Deal tiles: each player draws 4 tiles x 3, then 1 more (total 13 each)
+    wall_list = list(wall)
+    dealer_seat = 0
+    player_tiles: list[list[int]] = [[], [], [], []]
+
+    # deal 4 tiles x 3 rounds
+    for _ in range(3):
+        for i in range(4):
+            seat = (dealer_seat + i) % 4
+            for _ in range(4):
+                tile = wall_list.pop(0)
+                player_tiles[seat].append(tile)
+
+    # deal 1 more tile to each player
+    for i in range(4):
+        seat = (dealer_seat + i) % 4
+        tile = wall_list.pop(0)
+        player_tiles[seat].append(tile)
+
+    # Sort each player's tiles and create updated players
+    players = tuple(p.model_copy(update={"tiles": tuple(sort_tiles(player_tiles[p.seat]))}) for p in players)
+
+    # Create round state
+    round_state = MahjongRoundState(
+        wall=tuple(wall_list),
+        dead_wall=dead_wall,
+        dora_indicators=dora_indicators,
+        players=players,
+        dealer_seat=dealer_seat,
+        current_player_seat=dealer_seat,
+        round_wind=0,  # East
+        turn_count=0,
+        all_discards=(),
+        players_with_open_hands=(),
+        pending_dora_count=0,
+        phase=RoundPhase.PLAYING,
+        pending_call_prompt=None,
+    )
+
+    # Create game state
+    return MahjongGameState(
+        round_state=round_state,
+        round_number=0,
+        unique_dealers=1,  # first dealer counts as 1
+        honba_sticks=0,
+        riichi_sticks=0,
+        game_phase=GamePhase.IN_PROGRESS,
+        seed=seed,
+    )
+
+
+def init_round(
+    game_state: MahjongGameState,
+) -> MahjongGameState:
+    """
+    Initialize a new round by generating wall, dealing tiles, and setting up dora.
+
+    Returns new game state with the round initialized.
+    """
+    round_state = game_state.round_state
+
+    # generate wall using seed + round_number
+    wall = generate_wall(game_state.seed, game_state.round_number)
+
+    # cut dead wall (14 tiles from end)
+    dead_wall = tuple(wall[-DEAD_WALL_SIZE:])
+    wall_list = list(wall[:-DEAD_WALL_SIZE])
+
+    # Set first dora indicator (dead_wall[2])
+    dora_indicators = (dead_wall[FIRST_DORA_INDEX],)
+
+    # Reset player states and deal tiles
+    dealer_seat = round_state.dealer_seat
+    player_tiles: list[list[int]] = [[], [], [], []]
+
+    # deal 4 tiles x 3 rounds
+    for _ in range(3):
+        for i in range(4):
+            seat = (dealer_seat + i) % 4
+            for _ in range(4):
+                tile = wall_list.pop(0)
+                player_tiles[seat].append(tile)
+
+    # deal 1 more tile to each player
+    for i in range(4):
+        seat = (dealer_seat + i) % 4
+        tile = wall_list.pop(0)
+        player_tiles[seat].append(tile)
+
+    # Create fresh player states with dealt tiles
+    players = tuple(
+        MahjongPlayer(
+            seat=p.seat,
+            name=p.name,
+            tiles=tuple(sort_tiles(player_tiles[p.seat])),
+            discards=(),
+            melds=(),
+            is_riichi=False,
+            is_ippatsu=False,
+            is_daburi=False,
+            is_rinshan=False,
+            kuikae_tiles=(),
+            pao_seat=None,
+            is_temporary_furiten=False,
+            is_riichi_furiten=False,
+            score=p.score,  # preserve score from previous round
+        )
+        for p in round_state.players
+    )
+
+    # Create new round state
+    new_round_state = MahjongRoundState(
+        wall=tuple(wall_list),
+        dead_wall=dead_wall,
+        dora_indicators=dora_indicators,
+        players=players,
+        dealer_seat=round_state.dealer_seat,
+        current_player_seat=round_state.dealer_seat,
+        round_wind=round_state.round_wind,
+        turn_count=0,
+        all_discards=(),
+        players_with_open_hands=(),
+        pending_dora_count=0,
+        phase=RoundPhase.PLAYING,
+        pending_call_prompt=None,
+    )
+
+    return game_state.model_copy(update={"round_state": new_round_state})
+
+
+def _get_honba_and_rotation(
+    game_state: MahjongGameState,
+    result: RoundResult,
+) -> tuple[int, bool]:
+    """Determine honba change and dealer rotation based on result type."""
+    result_type = result.type
+    dealer_seat = game_state.round_state.dealer_seat
+    honba = game_state.honba_sticks
+
+    if result_type == RoundResultType.ABORTIVE_DRAW:
+        return honba + 1, False
+
+    if result_type == RoundResultType.EXHAUSTIVE_DRAW:
+        should_rotate = isinstance(result, ExhaustiveDrawResult) and dealer_seat not in result.tempai_seats
+        return honba + 1, should_rotate
+
+    if result_type == RoundResultType.NAGASHI_MANGAN and isinstance(result, NagashiManganResult):
+        return honba, dealer_seat not in result.tempai_seats
+
+    if result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):
+        winner_seats = _get_winner_seats(result)
+        if dealer_seat in winner_seats:
+            return honba + 1, False
+        return 0, True
+
+    raise AssertionError(f"unexpected round result type: {result_type}")  # pragma: no cover
+
+
+def _get_winner_seats(result: RoundResult) -> list[int]:
+    """Extract winner seats from a result."""
+    if isinstance(result, (TsumoResult, RonResult)):
+        return [result.winner_seat]
+    if isinstance(result, DoubleRonResult):
+        return [w.winner_seat for w in result.winners]
+    raise AssertionError(f"unexpected result type in _get_winner_seats: {type(result)}")  # pragma: no cover
+
+
+def _get_wind_for_unique_dealers(unique_dealers: int) -> int:
+    """Determine round wind based on unique dealers count."""
+    if unique_dealers <= EAST_WIND_MAX_DEALERS:
+        return 0  # East
+    if unique_dealers <= SOUTH_WIND_MAX_DEALERS:
+        return 1  # South
+    return 2  # West
+
+
+def process_round_end(
+    game_state: MahjongGameState,
+    result: RoundResult,
+) -> MahjongGameState:
+    """
+    Process the end of a round and update game state.
+
+    Handles dealer rotation and honba stick management based on round result type.
+    """
+    round_state = game_state.round_state
+    dealer_seat = round_state.dealer_seat
+
+    new_honba, should_rotate = _get_honba_and_rotation(game_state, result)
+
+    # Compute dealer and wind changes
+    new_dealer_seat = dealer_seat
+    new_unique_dealers = game_state.unique_dealers
+    new_round_wind = round_state.round_wind
+
+    if should_rotate:
+        new_dealer_seat = (dealer_seat + 1) % 4
+        new_unique_dealers += 1
+        new_round_wind = _get_wind_for_unique_dealers(new_unique_dealers)
+
+    # Create new round state with updated dealer and round wind
+    new_round_state = round_state.model_copy(
+        update={
+            "dealer_seat": new_dealer_seat,
+            "round_wind": new_round_wind,
+        }
+    )
+
+    # Create new game state
+    return game_state.model_copy(
+        update={
+            "round_state": new_round_state,
+            "round_number": game_state.round_number + 1,
+            "unique_dealers": new_unique_dealers,
+            "honba_sticks": new_honba,
+        }
+    )
+
+
+def check_game_end(game_state: MahjongGameState) -> bool:
+    """
+    Check if the game should end.
+
+    Game ends when any of these conditions are met:
+    - Any player has negative points (below 0)
+    - South wind complete (unique_dealers > 8) and someone has 30000+ points
+    - West wind complete (unique_dealers > 12)
+    """
+    round_state = game_state.round_state
+
+    # check if any player has negative points
+    if any(player.score < 0 for player in round_state.players):
+        return True
+
+    # check if South wind complete and someone has 30000+
+    south_complete = game_state.unique_dealers > SOUTH_WIND_MAX_DEALERS
+    has_winner = any(player.score >= WINNING_SCORE_THRESHOLD for player in round_state.players)
+    if south_complete and has_winner:
+        return True
+
+    # check if West wind complete
+    return game_state.unique_dealers > WEST_WIND_MAX_DEALERS
+
+
+def finalize_game(
+    game_state: MahjongGameState,
+    bot_seats: set[int] | None = None,
+) -> tuple[MahjongGameState, GameEndResult]:
     """
     Finalize the game and determine winner.
 
     Winner is the player with highest score. Ties broken by seat order (lower seat wins).
     Winner receives remaining riichi_sticks * 1000 points.
     Final scores are adjusted with uma/oka.
+
+    Returns (new_game_state, GameEndResult).
     """
     round_state = game_state.round_state
 
@@ -257,12 +394,15 @@ def finalize_game(game_state: MahjongGameState, bot_seats: set[int] | None = Non
             winner_seat = player.seat
 
     # winner gets remaining riichi sticks
-    if game_state.riichi_sticks > 0:
-        round_state.players[winner_seat].score += game_state.riichi_sticks * 1000
-        game_state.riichi_sticks = 0
+    new_round_state = round_state
+    new_riichi_sticks = game_state.riichi_sticks
+    if new_riichi_sticks > 0:
+        new_score = round_state.players[winner_seat].score + new_riichi_sticks * 1000
+        new_round_state = update_player(new_round_state, winner_seat, score=new_score)
+        new_riichi_sticks = 0
 
     # sort players by placement (descending score, ascending seat for ties)
-    sorted_players = sorted(round_state.players, key=lambda p: (-p.score, p.seat))
+    sorted_players = sorted(new_round_state.players, key=lambda p: (-p.score, p.seat))
 
     # calculate uma/oka-adjusted final scores
     raw_scores = [(p.seat, p.score) for p in sorted_players]
@@ -281,10 +421,16 @@ def finalize_game(game_state: MahjongGameState, bot_seats: set[int] | None = Non
         for player in sorted_players
     ]
 
-    # mark game as finished
-    game_state.game_phase = GamePhase.FINISHED
+    # Create new game state marked as finished
+    new_game_state = game_state.model_copy(
+        update={
+            "round_state": new_round_state,
+            "riichi_sticks": new_riichi_sticks,
+            "game_phase": GamePhase.FINISHED,
+        }
+    )
 
-    return GameEndResult(
+    return new_game_state, GameEndResult(
         winner_seat=winner_seat,
         standings=standings,
     )

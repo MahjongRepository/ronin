@@ -17,7 +17,7 @@ from game.messaging.events import (
     ErrorEvent,
     EventType,
 )
-from game.tests.unit.helpers import _find_human_player
+from game.tests.unit.helpers import _find_human_player, _update_player, _update_round_state
 
 
 def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
@@ -229,18 +229,17 @@ class TestConfirmRound:
         await service.start_game("game1", ["Human"])
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
+        tile_id = human.tiles[0]
 
         # end the round to enter waiting state
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
 
         # set phase to FINISHED (normally done by action handler before _handle_round_end)
-        game_state.round_state.phase = RoundPhase.FINISHED
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         # try to discard during FINISHED phase
-        events = await service.handle_action(
-            "game1", "Human", GameAction.DISCARD, {"tile_id": human.tiles[0]}
-        )
+        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -362,10 +361,9 @@ class TestRoundAdvanceCleanup:
     async def test_game_end_does_not_create_pending_advance(self, service):
         """When game ends (not just round), no pending advance is created."""
         await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
 
         # set a player's score very low so game ends
-        game_state.round_state.players[0].score = -1000
+        _update_player(service, "game1", 0, score=-1000)
 
         result = ExhaustiveDrawResult(
             tempai_seats=[],

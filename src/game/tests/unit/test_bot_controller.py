@@ -143,17 +143,17 @@ class TestBotControllerGetTurnAction:
     def _create_round_state(self, current_seat: int = 1) -> MahjongRoundState:
         """Create round state for testing."""
         non_winning_hand = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
-        players = [
-            MahjongPlayer(seat=0, name="Human", tiles=list(non_winning_hand[:13])),
-            MahjongPlayer(seat=1, name="Bot1", tiles=list(non_winning_hand)),
-            MahjongPlayer(seat=2, name="Bot2", tiles=list(non_winning_hand[:13])),
-            MahjongPlayer(seat=3, name="Bot3", tiles=list(non_winning_hand[:13])),
-        ]
+        players = (
+            MahjongPlayer(seat=0, name="Human", tiles=tuple(non_winning_hand[:13])),
+            MahjongPlayer(seat=1, name="Bot1", tiles=tuple(non_winning_hand)),
+            MahjongPlayer(seat=2, name="Bot2", tiles=tuple(non_winning_hand[:13])),
+            MahjongPlayer(seat=3, name="Bot3", tiles=tuple(non_winning_hand[:13])),
+        )
         return MahjongRoundState(
             players=players,
-            wall=list(range(50)),
-            dead_wall=list(range(14)),
-            dora_indicators=TilesConverter.string_to_136_array(man="1"),
+            wall=tuple(range(50)),
+            dead_wall=tuple(range(14)),
+            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             current_player_seat=current_seat,
             phase=RoundPhase.PLAYING,
         )
@@ -185,15 +185,15 @@ class TestBotControllerGetTurnAction:
 class TestBotControllerGetCallResponse:
     def _create_round_state(self) -> MahjongRoundState:
         """Create round state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Human", tiles=[]),
-            MahjongPlayer(seat=1, name="Bot1", tiles=[]),
-            MahjongPlayer(seat=2, name="Bot2", tiles=[]),
-            MahjongPlayer(seat=3, name="Bot3", tiles=[]),
-        ]
+        players = (
+            MahjongPlayer(seat=0, name="Human", tiles=()),
+            MahjongPlayer(seat=1, name="Bot1", tiles=()),
+            MahjongPlayer(seat=2, name="Bot2", tiles=()),
+            MahjongPlayer(seat=3, name="Bot3", tiles=()),
+        )
         return MahjongRoundState(
             players=players,
-            wall=list(range(50)),
+            wall=tuple(range(50)),
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
         )
