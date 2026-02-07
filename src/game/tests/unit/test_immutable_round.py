@@ -5,6 +5,7 @@ Unit tests for immutable round tile operations (draw, discard, advance turn, dor
 import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.exceptions import InvalidActionError, InvalidDiscardError
 from game.logic.round import (
     DEAD_WALL_SIZE,
     FIRST_DORA_INDEX,
@@ -167,7 +168,7 @@ class TestDiscardTileImmutable:
         round_state = self._create_round_state()
         sou_7_copy3 = TilesConverter.string_to_136_array(sou="7777")[3]
 
-        with pytest.raises(ValueError, match=f"tile {sou_7_copy3} not in player's hand"):
+        with pytest.raises(InvalidDiscardError, match=f"tile {sou_7_copy3} not in player's hand"):
             discard_tile(round_state, seat=0, tile_id=sou_7_copy3)
 
     def test_discard_tile_sets_tsumogiri_for_last_tile(self):
@@ -238,7 +239,7 @@ class TestDiscardTileImmutable:
         players[0] = players[0].model_copy(update={"kuikae_tiles": kuikae})
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
-        with pytest.raises(ValueError, match="forbidden by kuikae"):
+        with pytest.raises(InvalidDiscardError, match="forbidden by kuikae"):
             discard_tile(round_state, seat=0, tile_id=man_3_copy2)
 
     def test_discard_tile_allows_non_kuikae_tile(self):
@@ -306,7 +307,7 @@ class TestAddDoraIndicatorImmutable:
     def test_add_dora_indicator_raises_at_max(self):
         round_state = self._create_round_state_with_dora(dora_count=5)
 
-        with pytest.raises(ValueError, match="cannot add more than 5 dora indicators"):
+        with pytest.raises(InvalidActionError, match="cannot add more than 5 dora indicators"):
             add_dora_indicator(round_state)
 
 

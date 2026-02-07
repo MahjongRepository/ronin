@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from game.logic.enums import GameAction, TimeoutType
 
 if TYPE_CHECKING:
-    from game.messaging.events import ServiceEvent
+    from game.logic.events import ServiceEvent
 
 
 class GameService(ABC):

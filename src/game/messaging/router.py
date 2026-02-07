@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from game.logic.exceptions import GameRuleError
 from game.messaging.types import (
     ChatMessage,
     ErrorMessage,
@@ -61,7 +62,7 @@ class MessageRouter:
                     action=message.action,
                     data=message.data,
                 )
-            except (ValueError, KeyError, TypeError) as e:
+            except (GameRuleError, ValueError, KeyError, TypeError) as e:
                 logger.exception(f"action failed for {connection.connection_id}")
                 await connection.send_message(
                     ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump()

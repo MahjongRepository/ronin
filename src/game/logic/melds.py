@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 
 from game.logic.enums import MeldCallType
+from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import (
     add_dora_indicator,
@@ -369,6 +370,39 @@ def _check_pao(
     return None
 
 
+def _remove_matching_tiles(
+    hand: tuple[int, ...],
+    tile_34: int,
+    count: int,
+    meld_name: str,
+    seat: int,
+) -> tuple[list[int], list[int]]:
+    """
+    Find and remove up to ``count`` tiles matching ``tile_34`` from hand.
+
+    Return ``(removed_tiles, new_hand)``.
+    Raise ``InvalidMeldError`` if fewer than ``count`` matching tiles are found.
+    """
+    removed_tiles: list[int] = []
+    new_hand: list[int] = []
+    for t in hand:
+        if tile_to_34(t) == tile_34 and len(removed_tiles) < count:
+            removed_tiles.append(t)
+        else:
+            new_hand.append(t)
+
+    if len(removed_tiles) != count:
+        logger.warning(
+            f"cannot call {meld_name} for seat {seat}: "
+            f"need {count} matching tiles, found {len(removed_tiles)}"
+        )
+        raise InvalidMeldError(
+            f"cannot call {meld_name}: need {count} matching tiles, found {len(removed_tiles)}"
+        )
+
+    return removed_tiles, new_hand
+
+
 def call_pon(
     round_state: MahjongRoundState,
     caller_seat: int,
@@ -385,21 +419,7 @@ def call_pon(
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
 
-    # find and remove 2 matching tiles from hand
-    removed_tiles: list[int] = []
-    new_hand: list[int] = []
-    for t in caller.tiles:
-        if tile_to_34(t) == tile_34 and len(removed_tiles) < TILES_FOR_PON:
-            removed_tiles.append(t)
-        else:
-            new_hand.append(t)
-
-    if len(removed_tiles) != TILES_FOR_PON:
-        logger.warning(
-            f"cannot call pon for seat {caller_seat}: "
-            f"need {TILES_FOR_PON} matching tiles, found {len(removed_tiles)}"
-        )
-        raise ValueError(f"cannot call pon: need {TILES_FOR_PON} matching tiles, found {len(removed_tiles)}")
+    removed_tiles, new_hand = _remove_matching_tiles(caller.tiles, tile_34, TILES_FOR_PON, "pon", caller_seat)
 
     # create meld with all 3 tiles (2 from hand + called tile)
     meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
@@ -519,23 +539,9 @@ def call_open_kan(
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
 
-    # find and remove 3 matching tiles from hand
-    removed_tiles: list[int] = []
-    new_hand: list[int] = []
-    for t in caller.tiles:
-        if tile_to_34(t) == tile_34 and len(removed_tiles) < TILES_FOR_OPEN_KAN:
-            removed_tiles.append(t)
-        else:
-            new_hand.append(t)
-
-    if len(removed_tiles) != TILES_FOR_OPEN_KAN:
-        logger.warning(
-            f"cannot call open kan for seat {caller_seat}: "
-            f"need {TILES_FOR_OPEN_KAN} matching tiles, found {len(removed_tiles)}"
-        )
-        raise ValueError(
-            f"cannot call open kan: need {TILES_FOR_OPEN_KAN} matching tiles, found {len(removed_tiles)}"
-        )
+    removed_tiles, new_hand = _remove_matching_tiles(
+        caller.tiles, tile_34, TILES_FOR_OPEN_KAN, "open kan", caller_seat
+    )
 
     # create meld with all 4 tiles (3 from hand + called tile)
     meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
@@ -597,23 +603,9 @@ def call_closed_kan(
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
-    # find and remove all 4 matching tiles from hand
-    removed_tiles: list[int] = []
-    new_hand: list[int] = []
-    for t in player.tiles:
-        if tile_to_34(t) == tile_34 and len(removed_tiles) < TILES_FOR_CLOSED_KAN:
-            removed_tiles.append(t)
-        else:
-            new_hand.append(t)
-
-    if len(removed_tiles) != TILES_FOR_CLOSED_KAN:
-        logger.warning(
-            f"cannot call closed kan for seat {seat}: "
-            f"need {TILES_FOR_CLOSED_KAN} matching tiles, found {len(removed_tiles)}"
-        )
-        raise ValueError(
-            f"cannot call closed kan: need {TILES_FOR_CLOSED_KAN} matching tiles, found {len(removed_tiles)}"
-        )
+    removed_tiles, new_hand = _remove_matching_tiles(
+        player.tiles, tile_34, TILES_FOR_CLOSED_KAN, "closed kan", seat
+    )
 
     # create meld with all 4 tiles (closed kan - opened=False)
     meld_tiles = tuple(sorted(removed_tiles))
@@ -680,12 +672,12 @@ def call_added_kan(
 
     if pon_meld is None:
         logger.warning(f"cannot call added kan for seat {seat}: no pon of tile type {tile_34}")
-        raise ValueError(f"cannot call added kan: no pon of tile type {tile_34}")
+        raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
 
     # verify tile is in hand
     if tile_id not in player.tiles:
         logger.warning(f"cannot call added kan for seat {seat}: tile {tile_id} not in hand")
-        raise ValueError(f"cannot call added kan: tile {tile_id} not in hand")
+        raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")
 
     # remove the 4th tile from hand
     new_hand = list(player.tiles)
@@ -694,7 +686,7 @@ def call_added_kan(
     # upgrade the meld from pon to kan (shouminkan)
     if not pon_meld.tiles:  # pragma: no cover - defensive check
         logger.error(f"pon meld tiles are None for seat {seat} during kan upgrade")
-        raise ValueError("pon meld tiles cannot be None for kan upgrade")
+        raise InvalidMeldError("pon meld tiles cannot be None for kan upgrade")
     new_tiles = tuple(sorted([*pon_meld.tiles, tile_id]))
     upgraded_meld = FrozenMeld(
         meld_type=FrozenMeld.SHOUMINKAN,

@@ -69,28 +69,21 @@ class HandResult:
 URA_DORA_START_INDEX = 7
 
 
-def calculate_hand_value(
+def _build_hand_config(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
-    win_tile: int,
     *,
     is_tsumo: bool,
     is_chankan: bool = False,
-) -> HandResult:
-    """
-    Calculate the value of a winning hand using the mahjong library's HandCalculator.
-
-    Builds HandConfig with all relevant flags and OptionalRules for scoring.
-    Returns a HandResult with han, fu, cost breakdown, and yaku list.
-    """
-    # determine special conditions using standalone functions
+) -> HandConfig:
+    """Build HandConfig with all relevant flags for scoring."""
     haitei_flag = is_tsumo and is_haitei(round_state)
     houtei_flag = not is_tsumo and is_houtei(round_state)
     tenhou_flag = is_tsumo and is_tenhou(player, round_state)
     chiihou_flag = is_tsumo and is_chiihou(player, round_state)
     renhou_flag = not is_tsumo and is_renhou(player, round_state)
 
-    config = HandConfig(
+    return HandConfig(
         is_tsumo=is_tsumo,
         is_riichi=player.is_riichi,
         is_ippatsu=player.is_ippatsu,
@@ -107,21 +100,33 @@ def calculate_hand_value(
         options=GAME_OPTIONAL_RULES,
     )
 
-    # get dora indicators
+
+def _collect_dora_indicators(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+) -> list[int]:
+    """Collect dora and ura dora indicators for scoring."""
     dora_indicators = list(round_state.dora_indicators) if round_state.dora_indicators else []
 
-    # get ura dora if riichi (one ura per dora indicator revealed)
     if player.is_riichi and round_state.dead_wall and round_state.dora_indicators:
-        ura_indicators = []
         for i in range(len(round_state.dora_indicators)):
             ura_index = URA_DORA_START_INDEX + i
             if ura_index < len(round_state.dead_wall):
-                ura_indicators.append(round_state.dead_wall[ura_index])
-        if ura_indicators:
-            dora_indicators.extend(ura_indicators)
+                dora_indicators.append(round_state.dead_wall[ura_index])
 
+    return dora_indicators
+
+
+def _evaluate_hand(  # noqa: PLR0913
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+    tiles: list[int],
+    win_tile: int,
+    config: HandConfig,
+    dora_indicators: list[int],
+) -> HandResult:
+    """Run hand calculator and return result with error logging."""
     calculator = HandCalculator()
-    tiles = all_player_tiles(player)
     melds = frozen_melds_to_melds(player.melds)
     result = calculator.estimate_hand_value(
         tiles=tiles,
@@ -147,9 +152,7 @@ def calculate_hand_value(
         )
         return HandResult(error=result.error)
 
-    # extract yaku names
     yaku_list = [str(y) for y in result.yaku] if result.yaku else []
-
     return HandResult(
         han=result.han or 0,
         fu=result.fu or 0,
@@ -157,6 +160,26 @@ def calculate_hand_value(
         cost_additional=result.cost["additional"] if result.cost else 0,
         yaku=yaku_list,
     )
+
+
+def calculate_hand_value(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+    win_tile: int,
+    *,
+    is_tsumo: bool,
+    is_chankan: bool = False,
+) -> HandResult:
+    """
+    Calculate the value of a winning hand using the mahjong library's HandCalculator.
+
+    Builds HandConfig with all relevant flags and OptionalRules for scoring.
+    Returns a HandResult with han, fu, cost breakdown, and yaku list.
+    """
+    config = _build_hand_config(player, round_state, is_tsumo=is_tsumo, is_chankan=is_chankan)
+    dora_indicators = _collect_dora_indicators(player, round_state)
+    tiles = all_player_tiles(player)
+    return _evaluate_hand(player, round_state, tiles, win_tile, config, dora_indicators)
 
 
 def calculate_hand_value_with_tiles(  # noqa: PLR0913
@@ -183,79 +206,29 @@ def calculate_hand_value_with_tiles(  # noqa: PLR0913
         is_chankan: Whether this is a chankan win
 
     """
-    # determine special conditions using standalone functions
-    haitei_flag = is_tsumo and is_haitei(round_state)
-    houtei_flag = not is_tsumo and is_houtei(round_state)
-    tenhou_flag = is_tsumo and is_tenhou(player, round_state)
-    chiihou_flag = is_tsumo and is_chiihou(player, round_state)
-    renhou_flag = not is_tsumo and is_renhou(player, round_state)
+    config = _build_hand_config(player, round_state, is_tsumo=is_tsumo, is_chankan=is_chankan)
+    dora_indicators = _collect_dora_indicators(player, round_state)
+    return _evaluate_hand(player, round_state, tiles, win_tile, config, dora_indicators)
 
-    config = HandConfig(
-        is_tsumo=is_tsumo,
-        is_riichi=player.is_riichi,
-        is_ippatsu=player.is_ippatsu,
-        is_daburu_riichi=player.is_daburi,
-        is_rinshan=player.is_rinshan,
-        is_chankan=is_chankan,
-        is_haitei=haitei_flag,
-        is_houtei=houtei_flag,
-        is_tenhou=tenhou_flag,
-        is_chiihou=chiihou_flag,
-        is_renhou=renhou_flag,
-        player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
-        round_wind=WINDS_34[round_state.round_wind],
-        options=GAME_OPTIONAL_RULES,
-    )
 
-    # get dora indicators
-    dora_indicators = list(round_state.dora_indicators) if round_state.dora_indicators else []
+def _apply_score_changes(
+    game_state: MahjongGameState,
+    score_changes: dict[int, int],
+    *,
+    clear_riichi: bool = True,
+) -> tuple[MahjongRoundState, MahjongGameState]:
+    """Apply score changes to round state and optionally clear riichi sticks."""
+    new_round_state = game_state.round_state
+    for seat, change in score_changes.items():
+        player = new_round_state.players[seat]
+        new_round_state = update_player(new_round_state, seat, score=player.score + change)
 
-    # get ura dora if riichi (one ura per dora indicator revealed)
-    if player.is_riichi and round_state.dead_wall and round_state.dora_indicators:
-        ura_indicators = []
-        for i in range(len(round_state.dora_indicators)):
-            ura_index = URA_DORA_START_INDEX + i
-            if ura_index < len(round_state.dead_wall):
-                ura_indicators.append(round_state.dead_wall[ura_index])
-        if ura_indicators:
-            dora_indicators.extend(ura_indicators)
+    updates: dict[str, object] = {"round_state": new_round_state}
+    if clear_riichi:
+        updates["riichi_sticks"] = 0
 
-    calculator = HandCalculator()
-    melds = frozen_melds_to_melds(player.melds)
-    result = calculator.estimate_hand_value(
-        tiles=tiles,
-        win_tile=win_tile,
-        melds=melds,
-        dora_indicators=dora_indicators,
-        config=config,
-    )
-
-    if result.error:
-        tile_counts_34 = hand_to_34_array(tiles)
-        discard_ids = [discard.tile_id for discard in player.discards]
-        logger.error(
-            f"hand calculation error: {result.error} "
-            f"(seat={player.seat} name={player.name} "
-            f"tiles={tiles} tiles_34={tile_counts_34} tiles_count={len(tiles)} "
-            f"win_tile={win_tile} melds={_melds_debug(player.melds)} dora_indicators={dora_indicators} "
-            f"discards={discard_ids} discards_count={len(discard_ids)} "
-            f"round_wind={round_state.round_wind} dealer_seat={round_state.dealer_seat} "
-            f"phase={round_state.phase.value} wall_count={len(round_state.wall)} "
-            f"pending_dora_count={round_state.pending_dora_count} "
-            f"config={_hand_config_debug(config)})"
-        )
-        return HandResult(error=result.error)
-
-    # extract yaku names
-    yaku_list = [str(y) for y in result.yaku] if result.yaku else []
-
-    return HandResult(
-        han=result.han or 0,
-        fu=result.fu or 0,
-        cost_main=result.cost["main"] if result.cost else 0,
-        cost_additional=result.cost["additional"] if result.cost else 0,
-        yaku=yaku_list,
-    )
+    new_game_state = game_state.model_copy(update=updates)
+    return new_round_state, new_game_state
 
 
 def _tsumo_payment_for_seat(
@@ -337,19 +310,7 @@ def apply_tsumo_score(
     riichi_bonus = game_state.riichi_sticks * 1000
     score_changes[winner_seat] += riichi_bonus
 
-    # apply score changes to create new round state
-    new_round_state = round_state
-    for seat, change in score_changes.items():
-        player = new_round_state.players[seat]
-        new_round_state = update_player(new_round_state, seat, score=player.score + change)
-
-    # clear riichi sticks in new game state
-    new_game_state = game_state.model_copy(
-        update={
-            "riichi_sticks": 0,
-            "round_state": new_round_state,
-        }
-    )
+    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
 
     return (
         new_round_state,
@@ -410,19 +371,7 @@ def apply_ron_score(
     # winner receives riichi sticks
     score_changes[winner_seat] += riichi_bonus
 
-    # apply score changes to create new round state
-    new_round_state = round_state
-    for seat, change in score_changes.items():
-        player = new_round_state.players[seat]
-        new_round_state = update_player(new_round_state, seat, score=player.score + change)
-
-    # clear riichi sticks in new game state
-    new_game_state = game_state.model_copy(
-        update={
-            "riichi_sticks": 0,
-            "round_state": new_round_state,
-        }
-    )
+    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
 
     return (
         new_round_state,
@@ -498,19 +447,7 @@ def apply_double_ron_score(
             )
         )
 
-    # apply score changes to create new round state
-    new_round_state = round_state
-    for seat, change in score_changes.items():
-        player = new_round_state.players[seat]
-        new_round_state = update_player(new_round_state, seat, score=player.score + change)
-
-    # clear riichi sticks in new game state
-    new_game_state = game_state.model_copy(
-        update={
-            "riichi_sticks": 0,
-            "round_state": new_round_state,
-        }
-    )
+    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
 
     return (
         new_round_state,
@@ -550,14 +487,7 @@ def apply_nagashi_mangan_score(
             score_changes[seat] -= payment
             score_changes[winner_seat] += payment
 
-    # apply score changes to create new round state
-    new_round_state = round_state
-    for seat, change in score_changes.items():
-        player = new_round_state.players[seat]
-        new_round_state = update_player(new_round_state, seat, score=player.score + change)
-
-    # update game state with new round state
-    new_game_state = game_state.model_copy(update={"round_state": new_round_state})
+    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes, clear_riichi=False)
 
     return (
         new_round_state,

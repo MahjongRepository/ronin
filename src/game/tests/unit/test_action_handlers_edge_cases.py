@@ -7,13 +7,15 @@ Tests cover previously untested code paths (removed pragma: no cover lines).
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
-    ActionResult,
-    _pick_best_meld_response,
-    complete_added_kan_after_chankan_decline,
     handle_chi,
     handle_kan,
     handle_pon,
     handle_tsumo,
+)
+from game.logic.action_result import ActionResult
+from game.logic.call_resolution import (
+    _pick_best_meld_response,
+    complete_added_kan_after_chankan_decline,
     resolve_call_prompt,
 )
 from game.logic.enums import (

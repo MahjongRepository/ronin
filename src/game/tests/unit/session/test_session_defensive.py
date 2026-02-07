@@ -66,6 +66,26 @@ class TestSessionManagerDefensiveChecks:
         await manager.handle_game_action(conn, GameAction.DISCARD, {})
         assert len(conn.sent_messages) == 0
 
+    async def test_handle_game_action_no_lock_returns_error(self, manager):
+        """Performing a game action when the game has no lock (pre-start) returns an error."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1", num_bots=0)
+
+        await manager.join_game(conn, "game1", "Alice")
+        conn._outbox.clear()
+
+        # game exists but hasn't started (no lock)
+        game = manager.get_game("game1")
+        assert game is not None
+        assert "game1" not in manager._game_locks
+
+        await manager.handle_game_action(conn, GameAction.DISCARD, {})
+        assert len(conn.sent_messages) == 1
+        msg = conn.sent_messages[0]
+        assert msg["type"] == SessionMessageType.ERROR
+        assert msg["code"] == SessionErrorCode.GAME_NOT_STARTED
+
     async def test_broadcast_chat_game_is_none(self, manager):
         """Broadcasting chat when game is missing from mapping does not raise."""
         conn = MockConnection()

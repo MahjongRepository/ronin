@@ -12,7 +12,7 @@ from game.logic.enums import GameAction, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import Discard, MahjongPlayer
 from game.logic.win import is_effective_furiten
-from game.messaging.events import EventType, FuritenEvent, ServiceEvent
+from game.messaging.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
 from game.tests.unit.helpers import (
     _find_human_player,
     _update_player,
@@ -125,7 +125,7 @@ class TestCheckFuritenChanges:
         assert events[0].event == EventType.FURITEN
         assert isinstance(events[0].data, FuritenEvent)
         assert events[0].data.is_furiten is True
-        assert events[0].target == f"seat_{human.seat}"
+        assert events[0].target == SeatTarget(seat=human.seat)
 
     async def test_event_emitted_on_furiten_clear(self, service):
         """Clearing furiten triggers a furiten=false event."""
@@ -166,7 +166,7 @@ class TestCheckFuritenChanges:
         events = service._check_furiten_changes("game1", [0, 1, 2, 3])
         # Only seat 1 should get an event
         assert len(events) == 1
-        assert events[0].target == "seat_1"
+        assert events[0].target == SeatTarget(seat=1)
 
     async def test_no_check_when_round_finished(self, service):
         """No furiten check when the round phase is FINISHED."""
@@ -193,7 +193,7 @@ class TestCheckFuritenChanges:
         events = service._check_furiten_changes("game1", [2])
         assert len(events) == 1
         assert events[0].data.is_furiten is True
-        assert events[0].target == "seat_2"
+        assert events[0].target == SeatTarget(seat=2)
 
 
 class TestFuritenEventsInGameFlow:
@@ -235,7 +235,7 @@ class TestFuritenEventsInGameFlow:
         ]
         assert len(furiten_events) >= 1
         assert furiten_events[0].data.is_furiten is False
-        assert furiten_events[0].target == f"seat_{human.seat}"
+        assert furiten_events[0].target == SeatTarget(seat=human.seat)
 
     async def test_start_game_no_spurious_furiten_events(self, service):
         """start_game should not produce furiten events (all state is fresh)."""

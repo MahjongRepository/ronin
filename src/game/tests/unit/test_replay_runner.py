@@ -4,15 +4,15 @@ from typing import Any
 
 import pytest
 
-from game.logic.enums import GameAction, GamePhase
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import MahjongGameState
-from game.messaging.events import (
+from game.logic.enums import GameAction, GameErrorCode, GamePhase
+from game.logic.events import (
+    BroadcastTarget,
     ErrorEvent,
     EventType,
-    GameErrorCode,
     ServiceEvent,
 )
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.state import MahjongGameState
 from game.replay.models import (
     ReplayError,
     ReplayInput,
@@ -300,6 +300,7 @@ async def test_run_replay_async_startup_error_strict():
                     message="test startup error",
                     target="all",
                 ),
+                target=BroadcastTarget(),
             )
             return [error_event, *events]
 
@@ -323,6 +324,7 @@ async def test_run_replay_async_startup_error_non_strict():
                     message="test startup error",
                     target="all",
                 ),
+                target=BroadcastTarget(),
             )
             return [error_event, *events]
 
@@ -423,6 +425,7 @@ async def test_run_replay_async_round_confirm_error_in_strict_mode():
                             message="confirm_round error",
                             target="all",
                         ),
+                        target=BroadcastTarget(),
                     )
                 ]
             events = await super().handle_action(game_id, player_name, action, data)

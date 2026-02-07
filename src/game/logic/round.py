@@ -9,6 +9,7 @@ import logging
 from mahjong.agari import Agari
 from mahjong.shanten import Shanten
 
+from game.logic.exceptions import InvalidActionError, InvalidDiscardError
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.state import (
     Discard,
@@ -108,12 +109,12 @@ def discard_tile(
 
     if tile_id not in player.tiles:
         logger.warning(f"seat {seat} tried to discard tile {tile_id} not in hand, hand={player.tiles}")
-        raise ValueError(f"tile {tile_id} not in player's hand")
+        raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
 
     # validate kuikae restriction
     if player.kuikae_tiles and tile_to_34(tile_id) in player.kuikae_tiles:
         logger.warning(f"seat {seat} tried to discard tile {tile_id} forbidden by kuikae restriction")
-        raise ValueError(f"tile {tile_id} is forbidden by kuikae restriction")
+        raise InvalidDiscardError(f"tile {tile_id} is forbidden by kuikae restriction")
 
     # check if this is tsumogiri (discarding the just-drawn tile)
     is_tsumogiri = len(player.tiles) > 0 and player.tiles[-1] == tile_id
@@ -157,7 +158,7 @@ def add_dora_indicator(
         logger.error(
             f"cannot add more than {MAX_DORA_INDICATORS} dora indicators, current count: {current_count}"
         )
-        raise ValueError("cannot add more than 5 dora indicators")
+        raise InvalidActionError("cannot add more than 5 dora indicators")
 
     # next dora index: 3, 4, 5, 6 for 2nd, 3rd, 4th, 5th dora
     next_index = FIRST_DORA_INDEX + current_count

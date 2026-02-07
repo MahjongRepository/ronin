@@ -1,12 +1,9 @@
 import asyncio
-import contextlib
-import time
 from unittest.mock import AsyncMock, patch
 
 from game.logic.enums import GameAction, TimeoutType
-from game.messaging.events import EventType, ServiceEvent
+from game.messaging.events import BroadcastTarget, EventType, ServiceEvent
 from game.messaging.types import SessionMessageType
-from game.session.manager import HEARTBEAT_TIMEOUT
 from game.tests.mocks import MockConnection, MockResultEvent
 
 
@@ -85,15 +82,50 @@ class TestSessionManagerDisconnect:
         await manager.join_game(conns[1], "game1", "Bob")
 
         # verify timers exist for both seats
-        assert 0 in manager._timers["game1"]
-        assert 1 in manager._timers["game1"]
+        assert manager._timer_manager.get_timer("game1", 0) is not None
+        assert manager._timer_manager.get_timer("game1", 1) is not None
 
         await manager.leave_game(conns[0])
 
-        # seat 0's timer should be removed from the dict
-        assert 0 not in manager._timers["game1"]
+        # seat 0's timer should be removed
+        assert manager._timer_manager.get_timer("game1", 0) is None
         # seat 1's timer should remain
-        assert 1 in manager._timers["game1"]
+        assert manager._timer_manager.get_timer("game1", 1) is not None
+
+    async def test_leave_game_clears_player_seat_and_game_id(self, manager):
+        """After leave_game, both player.game_id and player.seat are cleared to None."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        player = manager._players[conns[0].connection_id]
+        assert player.game_id == "game1"
+        assert player.seat is not None
+
+        await manager.leave_game(conns[0])
+
+        assert player.game_id is None
+        assert player.seat is None
+
+    async def test_leave_pre_start_game_clears_player_state(self, manager):
+        """After leaving a pre-start game, player.game_id and player.seat are cleared."""
+        conn = MockConnection()
+        manager.register_connection(conn)
+        manager.create_game("game1", num_bots=0)
+
+        await manager.join_game(conn, "game1", "Alice")
+
+        player = manager._players[conn.connection_id]
+        assert player.game_id == "game1"
+
+        await manager.leave_game(conn)
+
+        assert player.game_id is None
+        assert player.seat is None
 
     async def test_disconnect_from_non_started_game_does_not_replace(self, manager):
         """Disconnecting from a game that has not started does not trigger bot replacement."""
@@ -142,7 +174,7 @@ class TestSessionManagerDisconnect:
                 input={},
                 success=True,
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
         manager._game_service.process_bot_actions_after_replacement = AsyncMock(return_value=[bot_event])
 
@@ -194,6 +226,7 @@ class TestSessionManagerDisconnect:
                 if player.name == "Alice":
                     game.players.pop(conn_id)
                     player.game_id = None
+                    player.seat = None
                     break
             return result
 
@@ -252,6 +285,7 @@ class TestSessionManagerDisconnect:
                     if player.name == "Alice":
                         game.players.pop(conn_id)
                         player.game_id = None
+                        player.seat = None
                         break
 
         manager._broadcast_events = removing_broadcast
@@ -267,7 +301,7 @@ class TestSessionManagerDisconnect:
                 input={},
                 success=True,
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
         manager._game_service.process_bot_actions_after_replacement = AsyncMock(return_value=[bot_event])
 
@@ -278,8 +312,8 @@ class TestSessionManagerDisconnect:
         bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
         assert len(bot_msgs) == 1
 
-    async def test_replace_with_bot_returns_when_lock_missing(self, manager):
-        """_replace_with_bot returns early when game lock has been cleaned up."""
+    async def test_leave_game_skips_bot_replacement_when_lock_missing(self, manager):
+        """leave_game skips bot replacement when the game lock has been cleaned up."""
         conns = [MockConnection() for _ in range(2)]
         for c in conns:
             manager.register_connection(c)
@@ -288,26 +322,182 @@ class TestSessionManagerDisconnect:
         await manager.join_game(conns[0], "game1", "Alice")
         await manager.join_game(conns[1], "game1", "Bob")
 
-        game = manager.get_game("game1")
-
         # remove the game lock to simulate cleanup race
         manager._game_locks.pop("game1", None)
 
-        process_calls = []
+        replace_calls = []
+        original_replace = manager._game_service.replace_player_with_bot
+
+        def tracking_replace(game_id, player_name):
+            replace_calls.append((game_id, player_name))
+            return original_replace(game_id, player_name)
+
+        manager._game_service.replace_player_with_bot = tracking_replace
+
+        # leave_game should treat the missing lock as pre-start (no bot replacement)
+        await manager.leave_game(conns[0])
+
+        assert len(replace_calls) == 0
+
+
+class TestLockBoundaryRaces:
+    """Tests for lock-boundary hardening: disconnect/action/timeout race scenarios."""
+
+    async def test_leave_game_serialized_with_handle_action(self, manager):
+        """leave_game and handle_game_action are serialized by the per-game lock."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        execution_order = []
+
+        original_handle = manager._game_service.handle_action
+        original_replace = manager._game_service.replace_player_with_bot
         original_process = manager._game_service.process_bot_actions_after_replacement
 
+        async def slow_handle_action(game_id, player_name, action, data):
+            execution_order.append("action_start")
+            result = await original_handle(game_id, player_name, action, data)
+            execution_order.append("action_end")
+            return result
+
+        def tracking_replace(game_id, player_name):
+            execution_order.append("replace_start")
+            return original_replace(game_id, player_name)
+
         async def tracking_process(game_id, seat):
-            process_calls.append((game_id, seat))
+            execution_order.append("process_bot")
             return await original_process(game_id, seat)
 
+        manager._game_service.handle_action = slow_handle_action
+        manager._game_service.replace_player_with_bot = tracking_replace
         manager._game_service.process_bot_actions_after_replacement = tracking_process
 
-        # directly call _replace_with_bot (lock is missing)
-        await manager._replace_with_bot(game, "Alice", 0)
+        # run action and leave concurrently -- they should be serialized by the lock
+        await asyncio.gather(
+            manager.handle_game_action(conns[1], GameAction.DISCARD, {}),
+            manager.leave_game(conns[0]),
+        )
 
-        # replace_player_with_bot was called but process_bot_actions was NOT
-        # (early return due to missing lock)
-        assert len(process_calls) == 0
+        # both operations completed without errors -- verify they didn't interleave
+        # (action_start/action_end should be contiguous, replace should not appear between them)
+        if "action_start" in execution_order and "action_end" in execution_order:
+            start_idx = execution_order.index("action_start")
+            end_idx = execution_order.index("action_end")
+            between = execution_order[start_idx : end_idx + 1]
+            assert "replace_start" not in between
+
+    async def test_leave_game_serialized_with_timeout(self, manager):
+        """leave_game and timeout callback are serialized by the per-game lock."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        execution_order = []
+
+        original_timeout = manager._game_service.handle_timeout
+        original_replace = manager._game_service.replace_player_with_bot
+        original_process = manager._game_service.process_bot_actions_after_replacement
+
+        async def slow_timeout(game_id, player_name, timeout_type):
+            execution_order.append("timeout_start")
+            result = await original_timeout(game_id, player_name, timeout_type)
+            execution_order.append("timeout_end")
+            return result
+
+        def tracking_replace(game_id, player_name):
+            execution_order.append("replace_start")
+            return original_replace(game_id, player_name)
+
+        async def tracking_process(game_id, seat):
+            execution_order.append("process_bot")
+            return await original_process(game_id, seat)
+
+        manager._game_service.handle_timeout = slow_timeout
+        manager._game_service.replace_player_with_bot = tracking_replace
+        manager._game_service.process_bot_actions_after_replacement = tracking_process
+
+        # run timeout and leave concurrently
+        await asyncio.gather(
+            manager._handle_timeout("game1", TimeoutType.TURN, seat=1),
+            manager.leave_game(conns[0]),
+        )
+
+        # timeout and leave should be serialized -- timeout internals should not interleave with replace
+        if "timeout_start" in execution_order and "timeout_end" in execution_order:
+            start_idx = execution_order.index("timeout_start")
+            end_idx = execution_order.index("timeout_end")
+            between = execution_order[start_idx : end_idx + 1]
+            assert "replace_start" not in between
+
+    async def test_double_leave_only_cleans_up_once(self, manager):
+        """Two concurrent leave_game calls for the last player clean up exactly once."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        # Alice leaves first (not last)
+        await manager.leave_game(conns[0])
+        assert manager.get_game("game1") is not None
+
+        cleanup_count = 0
+        original_cleanup = manager._game_service.cleanup_game
+
+        def counting_cleanup(game_id):
+            nonlocal cleanup_count
+            cleanup_count += 1
+            return original_cleanup(game_id)
+
+        manager._game_service.cleanup_game = counting_cleanup
+
+        # Bob leaves -- triggers cleanup. Simulate a second leave_game concurrently.
+        # Because _games.pop is atomic, only one path should run cleanup.
+        await asyncio.gather(
+            manager.leave_game(conns[1]),
+            manager.leave_game(conns[1]),
+        )
+
+        assert cleanup_count <= 1
+        assert manager.get_game("game1") is None
+
+    async def test_leave_game_holds_lock_during_bot_replacement(self, manager):
+        """Bot replacement in leave_game runs under the same lock as action handling."""
+        conns = [MockConnection() for _ in range(2)]
+        for c in conns:
+            manager.register_connection(c)
+        manager.create_game("game1", num_bots=2)
+
+        await manager.join_game(conns[0], "game1", "Alice")
+        await manager.join_game(conns[1], "game1", "Bob")
+
+        lock = manager._get_game_lock("game1")
+        assert lock is not None
+
+        lock_was_held = False
+
+        async def check_lock_process(game_id, seat):  # noqa: ARG001
+            nonlocal lock_was_held
+            # the lock should be held (locked) when this is called
+            lock_was_held = lock.locked()
+            return []
+
+        manager._game_service.process_bot_actions_after_replacement = check_lock_process
+
+        await manager.leave_game(conns[0])
+
+        assert lock_was_held is True
 
 
 class TestHeartbeat:
@@ -317,7 +507,7 @@ class TestHeartbeat:
         """handle_ping sends a pong message and updates last activity timestamp."""
         conn = MockConnection()
         manager.register_connection(conn)
-        initial_time = manager._last_ping[conn.connection_id]
+        initial_time = manager._heartbeat._last_ping.get(conn.connection_id)
 
         # small delay so monotonic time advances
         await asyncio.sleep(0.01)
@@ -325,50 +515,14 @@ class TestHeartbeat:
 
         assert len(conn.sent_messages) == 1
         assert conn.sent_messages[0]["type"] == SessionMessageType.PONG
-        assert manager._last_ping[conn.connection_id] > initial_time
+        assert manager._heartbeat._last_ping.get(conn.connection_id) > initial_time
 
     async def test_unregister_connection_cleans_up_ping_tracking(self, manager):
         """unregister_connection removes ping tracking."""
         conn = MockConnection()
         manager.register_connection(conn)
-        assert conn.connection_id in manager._last_ping
+        assert manager._heartbeat._last_ping.get(conn.connection_id) is not None
 
         manager.unregister_connection(conn)
-        assert conn.connection_id not in manager._last_ping
+        assert manager._heartbeat._last_ping.get(conn.connection_id) is None
 
-    async def test_heartbeat_monitor_disconnects_stale_connection(self, manager):
-        """Heartbeat monitor disconnects connections that haven't pinged within timeout."""
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1")
-        await manager.join_game(conn, "game1", "Alice")
-
-        game = manager.get_game("game1")
-        assert game is not None
-
-        # set the last ping to well past the timeout
-        manager._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
-
-        # manually add the game to internal state (bypass start for this test)
-        # and run one iteration of the heartbeat check
-        with patch("game.session.manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError()]
-            with contextlib.suppress(asyncio.CancelledError):
-                await manager._heartbeat_loop("game1")
-
-        assert conn.is_closed
-
-    async def test_heartbeat_monitor_keeps_active_connections(self, manager):
-        """Heartbeat monitor does not disconnect connections with recent pings."""
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1")
-        await manager.join_game(conn, "game1", "Alice")
-
-        # last ping is fresh (just registered)
-        with patch("game.session.manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError()]
-            with contextlib.suppress(asyncio.CancelledError):
-                await manager._heartbeat_loop("game1")
-
-        assert not conn.is_closed

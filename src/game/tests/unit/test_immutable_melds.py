@@ -6,6 +6,7 @@ import pytest
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
+from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     call_added_kan,
@@ -141,7 +142,7 @@ class TestCallPonImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        with pytest.raises(ValueError, match="need 2 matching tiles"):
+        with pytest.raises(InvalidMeldError, match="need 2 matching tiles"):
             call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[1])
 
 
@@ -373,7 +374,7 @@ class TestCallOpenKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        with pytest.raises(ValueError, match="need 3 matching tiles"):
+        with pytest.raises(InvalidMeldError, match="need 3 matching tiles"):
             call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2])
 
 
@@ -464,7 +465,7 @@ class TestCallClosedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        with pytest.raises(ValueError, match="need 4 matching tiles"):
+        with pytest.raises(InvalidMeldError, match="need 4 matching tiles"):
             call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
 
 
@@ -564,11 +565,11 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)  # No melds
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        with pytest.raises(ValueError, match="no pon of tile type"):
+        with pytest.raises(InvalidMeldError, match="no pon of tile type"):
             call_added_kan(round_state, seat=0, tile_id=man_1m[0])
 
     def test_call_added_kan_raises_on_tile_not_in_hand(self):
-        """Test that ValueError is raised when 4th tile is not in hand."""
+        """Test that InvalidMeldError is raised when 4th tile is not in hand."""
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pon_meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -583,7 +584,7 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        with pytest.raises(ValueError, match="not in hand"):
+        with pytest.raises(InvalidMeldError, match="not in hand"):
             call_added_kan(round_state, seat=0, tile_id=man_1m[3])
 
     def test_call_added_kan_sets_rinshan_flag(self):

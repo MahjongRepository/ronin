@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from game.logic.action_handlers import ActionResult
+from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import PendingCallPrompt
@@ -27,6 +27,7 @@ from game.messaging.events import (
     ErrorEvent,
     EventType,
     RoundEndEvent,
+    SeatTarget,
     ServiceEvent,
 )
 from game.tests.unit.helpers import (
@@ -93,7 +94,7 @@ class TestMahjongGameServiceValidationError:
         [GameAction.DECLARE_RIICHI, GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN],
     )
     async def test_dispatch_data_actions_validation_error(self, service, action):
-        """Exercise _execute_data_action dispatch branches with missing required fields."""
+        """Exercise _dispatch_action dispatch branches with missing required fields."""
         await service.start_game("game1", ["Human"], seed=2.0)
 
         events = await service.handle_action("game1", "Human", action, {})
@@ -173,7 +174,7 @@ class TestMahjongGameServiceProcessActionResult:
 
         cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
-            "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
+            "game.logic.call_resolution.complete_added_kan_after_chankan_decline",
             return_value=(cleared_round, game_state, []),
         ):
             events = await service._process_action_result_internal("game1", result)
@@ -212,7 +213,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
                 callers=[human.seat],
                 target="all",
             ),
-            target="all",
+            target=SeatTarget(seat=human.seat),
         )
         events = [chankan_prompt]
 
@@ -246,13 +247,13 @@ class TestMahjongGameServiceHandleChankanPrompt:
                 callers=[bot_seats[1]],
                 target="all",
             ),
-            target="all",
+            target=SeatTarget(seat=bot_seats[1]),
         )
         events = [chankan_prompt]
 
         cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
-            "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
+            "game.logic.call_resolution.complete_added_kan_after_chankan_decline",
             return_value=(cleared_round, game_state, []),
         ):
             result = await service._handle_chankan_prompt("game1", events)
@@ -272,7 +273,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
                 callers=[1],
                 target="all",
             ),
-            target="all",
+            target=SeatTarget(seat=1),
         )
         events = [chankan_prompt]
 

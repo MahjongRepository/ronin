@@ -290,19 +290,19 @@ class TestMahjongGameServiceProcessBotActionsAfterReplacement:
         assert len(round_end_events) >= 1
 
 
-class TestCallHandlerDispatch:
-    """Tests for _call_handler routing to chi, ron, kan handlers."""
+class TestDispatchAction:
+    """Tests for _dispatch_action unified routing to action handlers."""
 
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_call_handler_dispatches_chi(self, service):
-        """_call_handler routes CALL_CHI to handle_chi."""
+    async def test_dispatch_action_routes_chi(self, service):
+        """_dispatch_action routes CALL_CHI to handle_chi."""
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._call_handler(
+        result = service._dispatch_action(
             game_state,
             0,
             GameAction.CALL_CHI,
@@ -310,26 +310,72 @@ class TestCallHandlerDispatch:
         )
         assert result is not None
 
-    async def test_call_handler_dispatches_ron(self, service):
-        """_call_handler routes CALL_RON to handle_ron."""
+    async def test_dispatch_action_routes_ron(self, service):
+        """_dispatch_action routes CALL_RON to handle_ron."""
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._call_handler(game_state, 0, GameAction.CALL_RON, {})
+        result = service._dispatch_action(game_state, 0, GameAction.CALL_RON, {})
         assert result is not None
 
-    async def test_call_handler_dispatches_kan(self, service):
-        """_call_handler routes CALL_KAN to handle_kan."""
+    async def test_dispatch_action_routes_kan(self, service):
+        """_dispatch_action routes CALL_KAN to handle_kan."""
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._call_handler(
+        result = service._dispatch_action(
             game_state,
             0,
             GameAction.CALL_KAN,
             {"tile_id": 0, "kan_type": "closed"},
         )
         assert result is not None
+
+    async def test_dispatch_action_routes_pass(self, service):
+        """_dispatch_action routes PASS to handle_pass."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(game_state, 0, GameAction.PASS)
+        assert result is not None
+
+    async def test_dispatch_action_routes_tsumo(self, service):
+        """_dispatch_action routes DECLARE_TSUMO to handle_tsumo."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(game_state, 0, GameAction.DECLARE_TSUMO)
+        assert result is not None
+
+    async def test_dispatch_action_routes_discard(self, service):
+        """_dispatch_action routes DISCARD to handle_discard."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(
+            game_state,
+            0,
+            GameAction.DISCARD,
+            {"tile_id": 0},
+        )
+        assert result is not None
+
+    async def test_dispatch_action_routes_kyuushu(self, service):
+        """_dispatch_action routes CALL_KYUUSHU to handle_kyuushu."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(game_state, 0, GameAction.CALL_KYUUSHU)
+        # kyuushu may fail (conditions not met) but the handler is invoked
+        assert result is not None
+
+    async def test_dispatch_action_returns_none_for_unknown(self, service):
+        """_dispatch_action returns None for unrecognized actions."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(game_state, 0, GameAction.CONFIRM_ROUND)
+        assert result is None
 
 
 class TestSeedDeterminism:
@@ -441,6 +487,13 @@ class TestServiceAccessors:
     async def test_get_pending_round_advance_human_names_empty_for_nonexistent(self, service):
         """get_pending_round_advance_human_names returns empty list for unknown game_id."""
         names = service.get_pending_round_advance_human_names("nonexistent")
+        assert names == []
+
+    async def test_get_pending_round_advance_human_names_empty_when_not_pending(self, service):
+        """Returns empty list when game exists but no advance pending."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+
+        names = service.get_pending_round_advance_human_names("game1")
         assert names == []
 
     async def test_get_pending_round_advance_human_names_multi_human(self):

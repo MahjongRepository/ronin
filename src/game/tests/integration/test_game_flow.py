@@ -9,7 +9,7 @@ import pytest
 
 from game.logic.enums import GameAction, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
-from game.messaging.events import EventType, GameStartedEvent
+from game.messaging.events import BroadcastTarget, EventType, GameStartedEvent
 
 
 class TestGameCreationAndJoin:
@@ -28,7 +28,7 @@ class TestGameCreationAndJoin:
 
         event = game_started_events[0]
         assert isinstance(event.data, GameStartedEvent)
-        assert event.target == "all"
+        assert event.target == BroadcastTarget()
         assert event.data.game_id == "game1"
         assert len(event.data.players) == 4
 

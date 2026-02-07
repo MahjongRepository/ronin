@@ -16,8 +16,9 @@ from unittest.mock import patch
 
 import pytest
 
-from game.logic.action_handlers import ActionResult
+from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, MeldCallType, RoundPhase, TimeoutType
+from game.logic.exceptions import InvalidActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import PendingCallPrompt
 from game.logic.types import (
@@ -25,10 +26,12 @@ from game.logic.types import (
     MeldCaller,
 )
 from game.messaging.events import (
+    BroadcastTarget,
     CallPromptEvent,
     ErrorEvent,
     EventType,
     RoundEndEvent,
+    SeatTarget,
     ServiceEvent,
 )
 from game.tests.unit.helpers import (
@@ -71,7 +74,7 @@ class TestMahjongGameServiceHandleTimeout:
             ServiceEvent(
                 event=EventType.ERROR,
                 data=ErrorEvent(code=GameErrorCode.GAME_ERROR, message="mock", target="all"),
-                target="all",
+                target=BroadcastTarget(),
             )
         ]
         with patch.object(service, "handle_action", return_value=mock_events) as mock_action:
@@ -95,7 +98,7 @@ class TestMahjongGameServiceHandleTimeout:
     async def test_timeout_unknown_type_raises(self, service):
         await service.start_game("game1", ["Human"], seed=2.0)
 
-        with pytest.raises(ValueError, match="Unknown timeout type"):
+        with pytest.raises(InvalidActionError, match="Unknown timeout type"):
             await service.handle_timeout("game1", "Human", "invalid")
 
 
@@ -147,7 +150,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
             ServiceEvent(
                 event=EventType.ROUND_END,
                 data=RoundEndEvent(result=round_result, target="all"),
-                target="all",
+                target=BroadcastTarget(),
             )
         ]
 
@@ -189,7 +192,7 @@ class TestMahjongGameServiceProcessPostDiscard:
             ServiceEvent(
                 event=EventType.ROUND_END,
                 data=RoundEndEvent(result=round_result, target="all"),
-                target="all",
+                target=BroadcastTarget(),
             )
         ]
 
@@ -226,7 +229,7 @@ class TestMahjongGameServiceProcessPostDiscard:
                     callers=[human.seat],
                     target="all",
                 ),
-                target="all",
+                target=SeatTarget(seat=human.seat),
             )
         ]
 
@@ -279,7 +282,7 @@ class TestMahjongGameServiceProcessPostDiscard:
                     ],
                     target="all",
                 ),
-                target="all",
+                target=SeatTarget(seat=bot_seat),
             )
         ]
 
@@ -633,7 +636,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
                 callers=[bot_seats[1]],
                 target="all",
             ),
-            target="all",
+            target=SeatTarget(seat=bot_seats[1]),
         )
         events = [chankan_prompt]
 
@@ -655,7 +658,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
                     ServiceEvent(
                         event=EventType.ROUND_END,
                         data=RoundEndEvent(result=round_result, target="all"),
-                        target="all",
+                        target=BroadcastTarget(),
                     )
                 ],
             ),

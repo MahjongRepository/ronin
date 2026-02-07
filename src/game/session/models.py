@@ -9,6 +9,16 @@ MAX_BOTS = 3
 
 @dataclass
 class Player:
+    """Represent a connected player in the session layer.
+
+    Lifecycle:
+    - Created on connection registration (game_id=None, seat=None)
+    - On join_game: game_id is set
+    - On game start (_start_mahjong_game): seat is assigned
+    - On leave_game: game_id and seat are cleared to None
+    - On unregister: Player is removed from the registry entirely
+    """
+
     connection: ConnectionProtocol
     name: str
     game_id: str | None = None

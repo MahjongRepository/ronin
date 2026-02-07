@@ -11,7 +11,8 @@ import asyncio
 import pytest
 
 from game.logic.enums import GameAction, GameErrorCode, RoundPhase, TimeoutType
-from game.logic.mahjong_service import MahjongGameService, PendingRoundAdvance
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.round_advance import PendingRoundAdvance, RoundAdvanceManager
 from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import ExhaustiveDrawResult
 from game.messaging.events import (
@@ -79,14 +80,14 @@ class TestRoundAdvanceWaiting:
         events = await service._handle_round_end("game1", result)
 
         assert events == []
-        assert "game1" in service._pending_advances
-        pending = service._pending_advances["game1"]
+        assert service.is_round_advance_pending("game1")
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
-        assert human.seat in pending.required_seats
+        unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
+        assert human.seat in unconfirmed
         bot_controller = service._bot_controllers["game1"]
         for seat in bot_controller.bot_seats:
-            assert seat in pending.confirmed_seats
+            assert seat not in unconfirmed
 
     async def test_all_bots_game_advances_immediately(self, service):
         """When all seats are bots, round advances immediately without waiting."""
@@ -99,7 +100,7 @@ class TestRoundAdvanceWaiting:
 
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) >= 4
-        assert service._pending_advances.get("game1") is None
+        assert not service.is_round_advance_pending("game1")
 
 
 class TestConfirmRound:
@@ -120,7 +121,7 @@ class TestConfirmRound:
 
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
-        assert "game1" not in service._pending_advances
+        assert not service.is_round_advance_pending("game1")
 
     async def test_partial_confirm_waits(self, service):
         """When only some humans confirm, still waiting."""
@@ -135,10 +136,10 @@ class TestConfirmRound:
         events = await service.handle_action("game1", "Alice", GameAction.CONFIRM_ROUND, {})
 
         assert events == []
-        assert "game1" in service._pending_advances
-        pending = service._pending_advances["game1"]
-        assert alice.seat in pending.confirmed_seats
-        assert bob.seat not in pending.confirmed_seats
+        assert service.is_round_advance_pending("game1")
+        unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
+        assert alice.seat not in unconfirmed
+        assert bob.seat in unconfirmed
 
     async def test_confirm_round_rejected_when_not_pending(self, service):
         """confirm_round returns error when no round is pending."""
@@ -213,9 +214,9 @@ class TestRoundAdvanceBotReplacement:
         events = await service.process_bot_actions_after_replacement("game1", alice.seat)
 
         assert events == []
-        pending = service._pending_advances.get("game1")
-        assert pending is not None
-        assert alice.seat in pending.confirmed_seats
+        assert service.is_round_advance_pending("game1")
+        unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
+        assert alice.seat not in unconfirmed
 
     async def test_last_human_disconnect_advances_round(self, service):
         """When the last human disconnects, all confirm and round advances."""
@@ -232,7 +233,7 @@ class TestRoundAdvanceBotReplacement:
 
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) >= 4
-        assert service._pending_advances.get("game1") is None
+        assert not service.is_round_advance_pending("game1")
 
 
 class TestRoundAdvanceCleanup:
@@ -247,11 +248,11 @@ class TestRoundAdvanceCleanup:
         await service.start_game("game1", ["Human"], seed=2.0)
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
-        assert "game1" in service._pending_advances
+        assert service.is_round_advance_pending("game1")
 
         service.cleanup_game("game1")
 
-        assert "game1" not in service._pending_advances
+        assert not service.is_round_advance_pending("game1")
 
     async def test_game_end_does_not_create_pending_advance(self, service):
         """When game ends (not just round), no pending advance is created."""
@@ -269,7 +270,7 @@ class TestRoundAdvanceCleanup:
 
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
-        assert "game1" not in service._pending_advances
+        assert not service.is_round_advance_pending("game1")
 
 
 class TestRoundAdvanceTimerIntegration:
@@ -352,3 +353,117 @@ class TestRoundAdvanceHandleRoundEndNone:
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.MISSING_ROUND_RESULT
+
+
+class TestRoundAdvanceManager:
+    """Unit tests for RoundAdvanceManager in isolation."""
+
+    @pytest.fixture
+    def manager(self):
+        return RoundAdvanceManager()
+
+    def test_setup_pending_with_humans(self, manager):
+        """setup_pending creates pending state with human seats as required."""
+        result = manager.setup_pending("g1", bot_seats={2, 3})
+
+        assert result is False
+        assert manager.is_pending("g1")
+        assert manager.get_unconfirmed_seats("g1") == {0, 1}
+
+    def test_setup_pending_all_bots_returns_true(self, manager):
+        """setup_pending returns True when all seats are bots (auto-advance)."""
+        result = manager.setup_pending("g1", bot_seats={0, 1, 2, 3})
+
+        assert result is True
+        # No stale pending state -- all bots means immediate advance
+        assert not manager.is_pending("g1")
+
+    def test_setup_pending_no_bots(self, manager):
+        """setup_pending with no bots requires all 4 seats to confirm."""
+        result = manager.setup_pending("g1", bot_seats=set())
+
+        assert result is False
+        assert manager.get_unconfirmed_seats("g1") == {0, 1, 2, 3}
+
+    def test_confirm_seat_partial(self, manager):
+        """confirm_seat returns False when others still need to confirm."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+
+        result = manager.confirm_seat("g1", 0)
+
+        assert result is False
+        assert manager.is_pending("g1")
+        assert manager.get_unconfirmed_seats("g1") == {1}
+
+    def test_confirm_seat_completes(self, manager):
+        """confirm_seat returns True when all required seats are confirmed."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+        manager.confirm_seat("g1", 0)
+
+        result = manager.confirm_seat("g1", 1)
+
+        assert result is True
+        assert not manager.is_pending("g1")
+
+    def test_confirm_seat_no_pending_returns_none(self, manager):
+        """confirm_seat returns None when no pending advance exists."""
+        result = manager.confirm_seat("nonexistent", 0)
+
+        assert result is None
+
+    def test_confirm_seat_idempotent(self, manager):
+        """Confirming the same seat twice does not break state."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+        manager.confirm_seat("g1", 0)
+        manager.confirm_seat("g1", 0)
+
+        assert manager.get_unconfirmed_seats("g1") == {1}
+
+    def test_is_pending_false_for_unknown_game(self, manager):
+        """is_pending returns False for unknown game ids."""
+        assert not manager.is_pending("unknown")
+
+    def test_get_unconfirmed_seats_empty_for_unknown_game(self, manager):
+        """get_unconfirmed_seats returns empty set for unknown game ids."""
+        assert manager.get_unconfirmed_seats("unknown") == set()
+
+    def test_is_seat_required_true(self, manager):
+        """is_seat_required returns True for human seats."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+
+        assert manager.is_seat_required("g1", 0) is True
+        assert manager.is_seat_required("g1", 1) is True
+
+    def test_is_seat_required_false_for_bots(self, manager):
+        """is_seat_required returns False for bot seats."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+
+        assert manager.is_seat_required("g1", 2) is False
+        assert manager.is_seat_required("g1", 3) is False
+
+    def test_is_seat_required_false_for_unknown_game(self, manager):
+        """is_seat_required returns False for unknown game ids."""
+        assert manager.is_seat_required("unknown", 0) is False
+
+    def test_cleanup_game_removes_pending(self, manager):
+        """cleanup_game removes pending state for a game."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+
+        manager.cleanup_game("g1")
+
+        assert not manager.is_pending("g1")
+
+    def test_cleanup_game_safe_for_unknown(self, manager):
+        """cleanup_game is safe to call for unknown game ids."""
+        manager.cleanup_game("unknown")
+
+    def test_multiple_games_independent(self, manager):
+        """Multiple games have independent pending state."""
+        manager.setup_pending("g1", bot_seats={2, 3})
+        manager.setup_pending("g2", bot_seats={1, 2, 3})
+
+        manager.confirm_seat("g2", 0)
+
+        assert manager.is_pending("g1")
+        assert not manager.is_pending("g2")
+        assert manager.get_unconfirmed_seats("g1") == {0, 1}

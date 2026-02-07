@@ -8,8 +8,6 @@ new state objects and produce the expected events.
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
-    ActionResult,
-    complete_added_kan_after_chankan_decline,
     handle_chi,
     handle_discard,
     handle_kan,
@@ -19,6 +17,10 @@ from game.logic.action_handlers import (
     handle_riichi,
     handle_ron,
     handle_tsumo,
+)
+from game.logic.action_result import ActionResult
+from game.logic.call_resolution import (
+    complete_added_kan_after_chankan_decline,
     resolve_call_prompt,
 )
 from game.logic.enums import (
@@ -821,47 +823,6 @@ class TestResolveMeldResponseImmutable:
         assert meld_events[0].meld_type == MeldViewType.PON
 
 
-class TestResolveRonResponsesImmutable:
-    """Tests for _resolve_ron_responses via resolve_call_prompt."""
-
-    def _create_triple_ron_prompt(
-        self,
-    ) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with triple ron responses (abortive draw)."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # create prompt with 3 ron responses
-        prompt = PendingCallPrompt(
-            call_type=CallType.RON,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(1, 2, 3),
-            responses=(
-                CallResponse(seat=1, action=GameAction.CALL_RON),
-                CallResponse(seat=2, action=GameAction.CALL_RON),
-                CallResponse(seat=3, action=GameAction.CALL_RON),
-            ),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        return round_state, game_state
-
-    def test_triple_ron_abortive_draw(self):
-        """Test that triple ron triggers abortive draw."""
-        round_state, game_state = self._create_triple_ron_prompt()
-
-        result = resolve_call_prompt(round_state, game_state)
-
-        assert result.new_round_state is not None
-        assert result.new_round_state.phase == RoundPhase.FINISHED
-        # should have round end event
-        end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(end_events) == 1
-        assert end_events[0].result.reason == AbortiveDrawType.TRIPLE_RON
-
-
 class TestCompleteAddedKanAfterChankanDeclineImmutable:
     def _create_added_kan_state(self) -> tuple[MahjongRoundState, MahjongGameState, int]:
         """Create state where a player has pon and can upgrade to kan."""
@@ -952,62 +913,6 @@ class TestResolveOpenKanResponseImmutable:
         # should have turn event
         turn_events = [e for e in result.events if isinstance(e, TurnEvent)]
         assert len(turn_events) == 1
-
-
-class TestResolveChankanDeclineImmutable:
-    """Tests for chankan all-pass resolution."""
-
-    def _create_chankan_decline_state(
-        self,
-    ) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with chankan prompt where all passed."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
-        new_round_state, _tile = draw_tile(game_state.round_state)
-
-        # give player 0 a pon that can be upgraded to kan
-        tile_ids = TilesConverter.string_to_136_array(man="1111")
-        pon_tiles = tile_ids[:3]
-        fourth_tile = tile_ids[3]
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        # Update player with meld and fourth tile
-        player_tiles = (fourth_tile, *new_round_state.players[0].tiles[:-1])
-        new_round_state = update_player(new_round_state, 0, tiles=player_tiles, melds=(pon_meld,))
-        new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.PLAYING})
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        # create chankan prompt with no ron responses (all passed)
-        prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
-            tile_id=fourth_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(1,),
-            responses=(),  # all passed
-        )
-        new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-        return new_round_state, game_state
-
-    def test_chankan_all_passed_completes_kan(self):
-        """Test that when all pass on chankan, the added kan completes."""
-        round_state, game_state = self._create_chankan_decline_state()
-
-        result = resolve_call_prompt(round_state, game_state)
-
-        assert result.new_round_state is not None
-        # should have meld event for completed kan
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == KanType.ADDED
 
 
 class TestHandleDiscardImmutableWithPrompt:

@@ -25,6 +25,18 @@ from game.logic.enums import (
     PlayerAction,
     RoundPhase,
 )
+from game.logic.events import (
+    CallPromptEvent,
+    DiscardEvent,
+    DoraRevealedEvent,
+    DrawEvent,
+    GameEvent,
+    MeldEvent,
+    RiichiDeclaredEvent,
+    RoundEndEvent,
+    TurnEvent,
+)
+from game.logic.exceptions import InvalidActionError, InvalidMeldError, InvalidRiichiError, InvalidWinError
 from game.logic.melds import (
     call_added_kan,
     call_chi,
@@ -67,17 +79,6 @@ from game.logic.win import (
     can_declare_tsumo,
     get_waiting_tiles,
     is_chankan_possible,
-)
-from game.messaging.events import (
-    CallPromptEvent,
-    DiscardEvent,
-    DoraRevealedEvent,
-    DrawEvent,
-    GameEvent,
-    MeldEvent,
-    RiichiDeclaredEvent,
-    RoundEndEvent,
-    TurnEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -295,7 +296,7 @@ def process_discard_phase(  # noqa: PLR0915
     if is_riichi:
         if not can_declare_riichi(player, round_state):
             logger.error(f"seat {current_seat} cannot declare riichi: conditions not met")
-            raise ValueError("cannot declare riichi: conditions not met")
+            raise InvalidRiichiError("cannot declare riichi: conditions not met")
         riichi_pending = True
 
     # step 2: execute discard
@@ -471,7 +472,7 @@ def process_ron_call(  # noqa: PLR0913
                 f"ron calculation error for seat {winner_seat}: {hand_result.error}, "
                 f"tiles={tiles_with_win}, melds={winner.melds}, win_tile={tile_id}"
             )
-            raise ValueError(f"ron calculation error: {hand_result.error}")
+            raise InvalidWinError(f"ron calculation error: {hand_result.error}")
 
         new_round_state, new_game_state, result = apply_ron_score(
             game_state, winner_seat, discarder_seat, hand_result
@@ -499,7 +500,7 @@ def process_ron_call(  # noqa: PLR0913
                     f"ron calculation error for seat {winner_seat}: {hand_result.error}, "
                     f"tiles={tiles_with_win}, melds={winner.melds}, win_tile={tile_id}"
                 )
-                raise ValueError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
+                raise InvalidWinError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
 
             winners.append((winner_seat, hand_result))
 
@@ -531,7 +532,7 @@ def process_tsumo_call(
             f"seat {winner_seat} cannot declare tsumo: conditions not met, "
             f"tiles={winner.tiles}, melds={winner.melds}"
         )
-        raise ValueError("cannot declare tsumo: conditions not met")
+        raise InvalidWinError("cannot declare tsumo: conditions not met")
 
     # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
     # scores before the deferred dora indicator would have been revealed
@@ -546,7 +547,7 @@ def process_tsumo_call(
             f"tsumo calculation error for seat {winner_seat}: {hand_result.error}, "
             f"tiles={winner.tiles}, melds={winner.melds}, win_tile={win_tile}"
         )
-        raise ValueError(f"tsumo calculation error: {hand_result.error}")
+        raise InvalidWinError(f"tsumo calculation error: {hand_result.error}")
 
     # apply score changes
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
@@ -744,7 +745,7 @@ def process_meld_call(  # noqa: PLR0913
     if call_type == MeldCallType.CHI:
         if sequence_tiles is None:
             logger.error(f"chi call from seat {caller_seat} missing sequence_tiles")
-            raise ValueError("chi call requires sequence_tiles")
+            raise InvalidMeldError("chi call requires sequence_tiles")
         return _process_chi_call(
             round_state, game_state, caller_seat, discarder_seat, tile_id, sequence_tiles
         )
@@ -759,4 +760,4 @@ def process_meld_call(  # noqa: PLR0913
         return _process_added_kan_call(round_state, game_state, caller_seat, tile_id)
 
     logger.error(f"unknown call_type: {call_type} from seat {caller_seat}")  # pragma: no cover
-    raise ValueError(f"unknown call_type: {call_type}")  # pragma: no cover
+    raise InvalidActionError(f"unknown call_type: {call_type}")  # pragma: no cover

@@ -3,7 +3,15 @@ from typing import Any
 from game.logic.enums import GameAction, GamePhase, RoundPhase, TimeoutType, WindName
 from game.logic.service import GameService
 from game.logic.types import GamePlayerInfo, GameView, PlayerView
-from game.messaging.events import EventType, GameEvent, GameStartedEvent, RoundStartedEvent, ServiceEvent
+from game.messaging.events import (
+    BroadcastTarget,
+    EventType,
+    GameEvent,
+    GameStartedEvent,
+    RoundStartedEvent,
+    SeatTarget,
+    ServiceEvent,
+)
 
 
 class MockResultEvent(GameEvent):
@@ -50,7 +58,7 @@ class MockGameService(GameService):
                     input=data,
                     success=True,
                 ),
-                target="all",
+                target=BroadcastTarget(),
             )
         ]
 
@@ -102,7 +110,7 @@ class MockGameService(GameService):
             ServiceEvent(
                 event=EventType.GAME_STARTED,
                 data=GameStartedEvent(game_id=game_id, players=players),
-                target="all",
+                target=BroadcastTarget(),
             ),
             ServiceEvent(
                 event=EventType.ROUND_STARTED,
@@ -110,7 +118,7 @@ class MockGameService(GameService):
                     view=mock_view,
                     target="seat_0",
                 ),
-                target="seat_0",
+                target=SeatTarget(seat=0),
             ),
         ]
 
@@ -149,6 +157,6 @@ class MockGameService(GameService):
                     input={},
                     success=True,
                 ),
-                target="all",
+                target=BroadcastTarget(),
             )
         ]

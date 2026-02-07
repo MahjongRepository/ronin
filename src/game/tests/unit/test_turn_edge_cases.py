@@ -15,6 +15,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
 from game.logic.enums import CallType, MeldCallType, PlayerAction, RoundPhase, RoundResultType
+from game.logic.exceptions import InvalidMeldError, InvalidWinError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult
 from game.logic.state import Discard
@@ -225,7 +226,7 @@ class TestFindRonCallers:
 
 class TestSingleRonHandError:
     def test_single_ron_hand_error_raises(self):
-        """Hand calculation error in single ron raises ValueError."""
+        """Hand calculation error in single ron raises typed domain exception."""
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -246,13 +247,13 @@ class TestSingleRonHandError:
         with patch("game.logic.turn.calculate_hand_value_with_tiles") as mock_calc:
             mock_calc.return_value = HandResult(error="mock error")
 
-            with pytest.raises(ValueError, match="ron calculation error"):
+            with pytest.raises(InvalidWinError, match="ron calculation error"):
                 process_ron_call(round_state, game_state, [1], discard_tile, 0)
 
 
 class TestDoubleRonHandError:
     def test_double_ron_hand_error_raises(self):
-        """Hand calculation error in double ron raises ValueError with seat number."""
+        """Hand calculation error in double ron raises InvalidWinError with seat number."""
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -273,13 +274,13 @@ class TestDoubleRonHandError:
         with patch("game.logic.turn.calculate_hand_value_with_tiles") as mock_calc:
             mock_calc.return_value = HandResult(error="mock error")
 
-            with pytest.raises(ValueError, match="ron calculation error for seat 1"):
+            with pytest.raises(InvalidWinError, match="ron calculation error for seat 1"):
                 process_ron_call(round_state, game_state, [1, 2], discard_tile, 0)
 
 
 class TestTsumoHandError:
     def test_tsumo_hand_error_raises(self):
-        """Hand calculation error in tsumo raises ValueError."""
+        """Hand calculation error in tsumo raises typed domain exception."""
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
 
         players = tuple(create_player(seat=i, tiles=hand_tiles if i == 0 else ()) for i in range(4))
@@ -299,7 +300,7 @@ class TestTsumoHandError:
         with patch("game.logic.turn.calculate_hand_value") as mock_calc:
             mock_calc.return_value = HandResult(error="mock error")
 
-            with pytest.raises(ValueError, match="tsumo calculation error"):
+            with pytest.raises(InvalidWinError, match="tsumo calculation error"):
                 process_tsumo_call(round_state, game_state, 0)
 
 
@@ -354,7 +355,7 @@ class TestAddedKanChankan:
 
 class TestChiSequenceTilesValidation:
     def test_chi_sequence_tiles_none_raises(self):
-        """Chi call with None sequence_tiles raises ValueError."""
+        """Chi call with None sequence_tiles raises typed domain exception."""
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="11")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
@@ -378,7 +379,7 @@ class TestChiSequenceTilesValidation:
         )
         game_state = create_game_state(round_state)
 
-        with pytest.raises(ValueError, match="chi call requires sequence_tiles"):
+        with pytest.raises(InvalidMeldError, match="chi call requires sequence_tiles"):
             process_meld_call(
                 round_state,
                 game_state,

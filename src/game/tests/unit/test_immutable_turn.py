@@ -15,6 +15,7 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import RoundPhase
+from game.logic.exceptions import InvalidRiichiError, InvalidWinError
 from game.logic.turn import (
     emit_deferred_dora_events,
     process_discard_phase,
@@ -102,7 +103,7 @@ class TestDiscardPhaseRiichiError:
         game_state = create_game_state(round_state)
         tile_to_discard = round_state.players[0].tiles[0]
 
-        with pytest.raises(ValueError, match="cannot declare riichi"):
+        with pytest.raises(InvalidRiichiError, match="cannot declare riichi"):
             process_discard_phase(round_state, game_state, tile_to_discard, is_riichi=True)
 
 
@@ -123,5 +124,5 @@ class TestTsumoCallError:
         )
         game_state = create_game_state(round_state)
 
-        with pytest.raises(ValueError, match="cannot declare tsumo"):
+        with pytest.raises(InvalidWinError, match="cannot declare tsumo"):
             process_tsumo_call(round_state, game_state, winner_seat=0)

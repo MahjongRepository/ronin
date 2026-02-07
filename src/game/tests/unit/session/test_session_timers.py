@@ -1,20 +1,21 @@
 import asyncio
 from unittest.mock import AsyncMock
 
-from game.logic.enums import CallType, GameAction, MeldCallType, TimeoutType
+from game.logic.enums import CallType, GameAction, TimeoutType
 from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import (
     ExhaustiveDrawResult,
     GameEndResult,
-    MeldCaller,
     PlayerStanding,
 )
 from game.messaging.events import (
+    BroadcastTarget,
     CallPromptEvent,
     EventType,
     GameEndedEvent,
     RoundEndEvent,
     RoundStartedEvent,
+    SeatTarget,
     ServiceEvent,
     TurnEvent,
 )
@@ -32,11 +33,11 @@ class TestSessionManagerTimers:
         manager.create_game("game1")
 
         await manager.join_game(conn, "game1", "Alice")
-        assert "game1" in manager._timers
+        assert manager._timer_manager.has_game("game1")
         assert "game1" in manager._game_locks
 
         await manager.leave_game(conn)
-        assert "game1" not in manager._timers
+        assert not manager._timer_manager.has_game("game1")
         assert "game1" not in manager._game_locks
 
     async def test_turn_timeout_broadcasts_events(self, manager):
@@ -103,63 +104,11 @@ class TestSessionManagerTimerIntegration:
         result = manager._get_player_at_seat(game, 0)
         assert result is None
 
-    def test_get_caller_seats_deduplicates_meld_callers(self, manager):
-        """_get_caller_seats returns unique seats when same player has multiple meld options."""
-        callers = [
-            MeldCaller(seat=0, call_type=MeldCallType.PON),
-            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
-        ]
-        assert manager._get_caller_seats(callers) == [0]
-
-    def test_cleanup_timer_on_game_end_cancels_timer(self, manager):
-        """_cleanup_timer_on_game_end cancels all player timers when GameEndedEvent is present."""
-        game, _player, _conn = make_game_with_human(manager)
-        timer = TurnTimer()
-        manager._timers["game1"] = {0: timer}
-
-        game_end_event = ServiceEvent(
-            event=EventType.GAME_END,
-            data=GameEndedEvent(
-                type=EventType.GAME_END,
-                target="all",
-                result=GameEndResult(
-                    winner_seat=0,
-                    standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
-                    ],
-                ),
-            ),
-            target="all",
-        )
-
-        result = manager._cleanup_timer_on_game_end(game, [game_end_event])
-        assert result is True
-
-    def test_cleanup_timer_on_game_end_returns_false_without_end_event(self, manager):
-        """_cleanup_timer_on_game_end returns False when no GameEndedEvent is present."""
-        game, _player, _conn = make_game_with_human(manager)
-
-        generic_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=MockResultEvent(
-                type=EventType.DRAW,
-                target="all",
-                player="Alice",
-                action=GameAction.DISCARD,
-                input={},
-                success=True,
-            ),
-            target="all",
-        )
-
-        result = manager._cleanup_timer_on_game_end(game, [generic_event])
-        assert result is False
-
     async def test_maybe_start_timer_with_turn_event(self, manager):
         """_maybe_start_timer starts a turn timer when TurnEvent targets the human player."""
         game, _player, _conn = make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = {0: timer}
+        manager._timer_manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
 
         turn_event = ServiceEvent(
@@ -171,7 +120,7 @@ class TestSessionManagerTimerIntegration:
                 available_actions=[],
                 wall_count=70,
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
 
         await manager._maybe_start_timer(game, [turn_event])
@@ -181,23 +130,23 @@ class TestSessionManagerTimerIntegration:
         timer.cancel()
 
     async def test_maybe_start_timer_with_call_prompt_event(self, manager):
-        """_maybe_start_timer starts a meld timer when CallPromptEvent targets the human player."""
+        """_maybe_start_timer starts a meld timer when per-seat CallPromptEvent targets the human player."""
         game, _player, _conn = make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = {0: timer}
+        manager._timer_manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
 
         call_event = ServiceEvent(
             event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 type=EventType.CALL_PROMPT,
-                target="seat_0",
+                target="all",
                 call_type=CallType.MELD,
                 tile_id=0,
                 from_seat=1,
                 callers=[0],
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
 
         await manager._maybe_start_timer(game, [call_event])
@@ -210,7 +159,7 @@ class TestSessionManagerTimerIntegration:
         """_maybe_start_timer adds round bonus to all player timers when RoundStartedEvent is present."""
         game, _player, _conn = make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = {0: timer}
+        manager._timer_manager._timers["game1"] = {0: timer}
         initial_bank = timer.remaining_bank
 
         round_event = ServiceEvent(
@@ -220,7 +169,7 @@ class TestSessionManagerTimerIntegration:
                 target="seat_0",
                 view=make_dummy_game_view(),
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
 
         await manager._maybe_start_timer(game, [round_event])
@@ -232,7 +181,7 @@ class TestSessionManagerTimerIntegration:
         """_maybe_start_timer starts fixed round-advance timers when RoundEndEvent is present."""
         game, _player, _conn = make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = {0: timer}
+        manager._timer_manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
 
         round_end_event = ServiceEvent(
@@ -246,7 +195,7 @@ class TestSessionManagerTimerIntegration:
                     score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
                 ),
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
 
         await manager._maybe_start_timer(game, [round_end_event])
@@ -261,7 +210,7 @@ class TestSessionManagerTimerIntegration:
         """_maybe_start_timer returns early and cleans up timers when GameEndedEvent is present."""
         game, _player, _conn = make_game_with_human(manager)
         timer = TurnTimer()
-        manager._timers["game1"] = {0: timer}
+        manager._timer_manager._timers["game1"] = {0: timer}
 
         game_end_event = ServiceEvent(
             event=EventType.GAME_END,
@@ -275,7 +224,7 @@ class TestSessionManagerTimerIntegration:
                     ],
                 ),
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
 
         await manager._maybe_start_timer(game, [game_end_event])
@@ -298,7 +247,7 @@ class TestSessionManagerTimerIntegration:
                 input={},
                 success=True,
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
 
         # should return without error
@@ -314,7 +263,7 @@ class TestSessionManagerTimerIntegration:
         manager._games["game1"] = game
 
         timer = TurnTimer()
-        manager._timers["game1"] = {0: timer, 1: TurnTimer()}
+        manager._timer_manager._timers["game1"] = {0: timer, 1: TurnTimer()}
 
         turn_event = ServiceEvent(
             event=EventType.TURN,
@@ -325,7 +274,7 @@ class TestSessionManagerTimerIntegration:
                 available_actions=[],
                 wall_count=70,
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
 
         await manager._maybe_start_timer(game, [turn_event])
@@ -387,18 +336,17 @@ class TestPerPlayerTimers:
         for i, c in enumerate(conns):
             await manager.join_game(c, "game1", f"Player{i}")
 
-        timers = manager._timers["game1"]
-        assert len(timers) == 4
         for seat in range(4):
-            assert seat in timers
-            assert isinstance(timers[seat], TurnTimer)
+            timer = manager._timer_manager.get_timer("game1", seat)
+            assert timer is not None
+            assert isinstance(timer, TurnTimer)
 
     async def test_round_bonus_added_to_all_player_timers(self, manager):
         """Round bonus is added to all player timers when round starts."""
         game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
-        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
         initial_bank_0 = timer0.remaining_bank
@@ -411,7 +359,7 @@ class TestPerPlayerTimers:
                 target="seat_0",
                 view=make_dummy_game_view(),
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
 
         await manager._maybe_start_timer(game, [round_event])
@@ -425,24 +373,24 @@ class TestPerPlayerTimers:
         game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
-        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # both seat 0 and seat 1 can call
-        call_event = ServiceEvent(
-            event=EventType.CALL_PROMPT,
-            data=CallPromptEvent(
-                type=EventType.CALL_PROMPT,
-                target="all",
-                call_type=CallType.MELD,
-                tile_id=42,
-                from_seat=2,
-                callers=[0, 1],
-            ),
+        # both seat 0 and seat 1 can call — per-seat events
+        call_data = CallPromptEvent(
+            type=EventType.CALL_PROMPT,
             target="all",
+            call_type=CallType.MELD,
+            tile_id=42,
+            from_seat=2,
+            callers=[0, 1],
         )
+        call_events = [
+            ServiceEvent(event=EventType.CALL_PROMPT, data=call_data, target=SeatTarget(seat=0)),
+            ServiceEvent(event=EventType.CALL_PROMPT, data=call_data, target=SeatTarget(seat=1)),
+        ]
 
-        await manager._maybe_start_timer(game, [call_event])
+        await manager._maybe_start_timer(game, call_events)
 
         # both timers should have active tasks (meld timer started for each)
         assert timer0._active_task is not None
@@ -455,23 +403,23 @@ class TestPerPlayerTimers:
         game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
-        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # start meld timers for both callers
-        call_event = ServiceEvent(
-            event=EventType.CALL_PROMPT,
-            data=CallPromptEvent(
-                type=EventType.CALL_PROMPT,
-                target="all",
-                call_type=CallType.MELD,
-                tile_id=42,
-                from_seat=2,
-                callers=[0, 1],
-            ),
+        # start meld timers for both callers — per-seat events
+        call_data = CallPromptEvent(
+            type=EventType.CALL_PROMPT,
             target="all",
+            call_type=CallType.MELD,
+            tile_id=42,
+            from_seat=2,
+            callers=[0, 1],
         )
-        await manager._maybe_start_timer(game, [call_event])
+        call_events = [
+            ServiceEvent(event=EventType.CALL_PROMPT, data=call_data, target=SeatTarget(seat=0)),
+            ServiceEvent(event=EventType.CALL_PROMPT, data=call_data, target=SeatTarget(seat=1)),
+        ]
+        await manager._maybe_start_timer(game, call_events)
         assert timer0._active_task is not None
         assert timer1._active_task is not None
 
@@ -487,23 +435,23 @@ class TestPerPlayerTimers:
         game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
-        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # start meld timers for both callers
-        call_event = ServiceEvent(
-            event=EventType.CALL_PROMPT,
-            data=CallPromptEvent(
-                type=EventType.CALL_PROMPT,
-                target="all",
-                call_type=CallType.MELD,
-                tile_id=42,
-                from_seat=2,
-                callers=[0, 1],
-            ),
+        # start meld timers for both callers — per-seat events
+        call_data = CallPromptEvent(
+            type=EventType.CALL_PROMPT,
             target="all",
+            call_type=CallType.MELD,
+            tile_id=42,
+            from_seat=2,
+            callers=[0, 1],
         )
-        await manager._maybe_start_timer(game, [call_event])
+        call_events = [
+            ServiceEvent(event=EventType.CALL_PROMPT, data=call_data, target=SeatTarget(seat=0)),
+            ServiceEvent(event=EventType.CALL_PROMPT, data=call_data, target=SeatTarget(seat=1)),
+        ]
+        await manager._maybe_start_timer(game, call_events)
         assert timer0._active_task is not None
         assert timer1._active_task is not None
 
@@ -522,7 +470,7 @@ class TestPerPlayerTimers:
         game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
-        manager._timers["game1"] = {0: timer0, 1: timer1}
+        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
         turn_event = ServiceEvent(
@@ -534,7 +482,7 @@ class TestPerPlayerTimers:
                 available_actions=[],
                 wall_count=70,
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
 
         await manager._maybe_start_timer(game, [turn_event])
@@ -559,10 +507,10 @@ class TestPerPlayerTimers:
         for i, c in enumerate(conns):
             await manager.join_game(c, "game1", f"Player{i}")
 
-        assert "game1" in manager._timers
+        assert manager._timer_manager.has_game("game1")
 
         # all players leave
         for c in conns:
             await manager.leave_game(c)
 
-        assert "game1" not in manager._timers
+        assert not manager._timer_manager.has_game("game1")

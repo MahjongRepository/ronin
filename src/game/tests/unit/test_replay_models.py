@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from game.logic.enums import GameAction
 from game.messaging.events import (
+    BroadcastTarget,
     DiscardEvent,
     EventType,
     ServiceEvent,
@@ -128,7 +129,7 @@ class TestReplayStep:
             is_riichi=False,
             target="all",
         )
-        service_event = ServiceEvent(event=EventType.DISCARD, data=discard_data)
+        service_event = ServiceEvent(event=EventType.DISCARD, data=discard_data, target=BroadcastTarget())
 
         step = ReplayStep(
             input_event=input_event,

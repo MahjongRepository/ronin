@@ -13,19 +13,25 @@ convert_events utility, extract_round_result utility (happy path + None path).
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.types import (
-    HandResultInfo,
-    RoundResultType,
-    TsumoResult,
-)
-from game.messaging.events import (
+from game.logic.enums import CallType, MeldCallType
+from game.logic.events import (
+    BroadcastTarget,
+    CallPromptEvent,
     DrawEvent,
     EventType,
     RoundEndEvent,
+    SeatTarget,
     ServiceEvent,
     _normalize_event_value,
     convert_events,
     extract_round_result,
+    parse_wire_target,
+)
+from game.logic.types import (
+    HandResultInfo,
+    MeldCaller,
+    RoundResultType,
+    TsumoResult,
 )
 from game.tests.unit.helpers import _string_to_136_tile
 
@@ -44,6 +50,22 @@ class TestServiceEvent:
             )
 
 
+class TestParseWireTarget:
+    def test_broadcast_target(self) -> None:
+        result = parse_wire_target("all")
+        assert isinstance(result, BroadcastTarget)
+
+    def test_seat_targets(self) -> None:
+        for seat in range(4):
+            result = parse_wire_target(f"seat_{seat}")
+            assert isinstance(result, SeatTarget)
+            assert result.seat == seat
+
+    def test_invalid_target_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid target value"):
+            parse_wire_target("bogus")
+
+
 class TestConvertEvents:
     def test_convert_events_handles_typed_events(self):
         """convert_events converts typed events to ServiceEvent format."""
@@ -56,7 +78,61 @@ class TestConvertEvents:
         assert result[0].event == EventType.DRAW
         assert isinstance(result[0].data, DrawEvent)
         assert result[0].data.seat == 0
-        assert result[0].target == "seat_0"
+        assert result[0].target == SeatTarget(seat=0)
+
+    def test_convert_events_splits_call_prompt_per_seat(self):
+        """convert_events splits a CallPromptEvent with 2 callers into 2 per-seat ServiceEvents."""
+        call_prompt = CallPromptEvent(
+            call_type=CallType.MELD,
+            tile_id=42,
+            from_seat=3,
+            callers=[0, 1],
+            target="all",
+        )
+
+        result = convert_events([call_prompt])
+
+        assert len(result) == 2
+        assert result[0].target == SeatTarget(seat=0)
+        assert result[1].target == SeatTarget(seat=1)
+        # both wrappers share the same event data
+        assert result[0].data is result[1].data
+        assert result[0].event == EventType.CALL_PROMPT
+
+    def test_convert_events_deduplicates_meld_callers(self):
+        """convert_events deduplicates MeldCaller entries for the same seat."""
+        callers = [
+            MeldCaller(seat=0, call_type=MeldCallType.PON),
+            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
+        ]
+        call_prompt = CallPromptEvent(
+            call_type=CallType.MELD,
+            tile_id=55,
+            from_seat=3,
+            callers=callers,
+            target="all",
+        )
+
+        result = convert_events([call_prompt])
+
+        assert len(result) == 1
+        assert result[0].target == SeatTarget(seat=0)
+
+    def test_convert_events_single_caller_call_prompt(self):
+        """convert_events produces a single per-seat ServiceEvent for a single-caller CallPromptEvent."""
+        call_prompt = CallPromptEvent(
+            call_type=CallType.RON,
+            tile_id=10,
+            from_seat=2,
+            callers=[1],
+            target="all",
+        )
+
+        result = convert_events([call_prompt])
+
+        assert len(result) == 1
+        assert result[0].target == SeatTarget(seat=1)
+        assert result[0].event == EventType.CALL_PROMPT
 
 
 class TestExtractRoundResult:
@@ -72,8 +148,13 @@ class TestExtractRoundResult:
             ServiceEvent(
                 event=EventType.DRAW,
                 data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
+                target=SeatTarget(seat=0),
             ),
-            ServiceEvent(event=EventType.ROUND_END, data=RoundEndEvent(result=tsumo_result, target="all")),
+            ServiceEvent(
+                event=EventType.ROUND_END,
+                data=RoundEndEvent(result=tsumo_result, target="all"),
+                target=BroadcastTarget(),
+            ),
         ]
 
         result = extract_round_result(events)
@@ -89,10 +170,12 @@ class TestExtractRoundResult:
             ServiceEvent(
                 event=EventType.DRAW,
                 data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
+                target=SeatTarget(seat=0),
             ),
             ServiceEvent(
                 event=EventType.DRAW,
                 data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
+                target=SeatTarget(seat=0),
             ),
         ]
 

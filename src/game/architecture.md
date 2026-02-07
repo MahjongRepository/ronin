@@ -135,7 +135,7 @@ MessagePack encode/decode (encoder.py)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (game/player management, per-player timer lifecycle, concurrency locks)
+SessionManager (game/player management, delegates to TimerManager + HeartbeatMonitor, concurrency locks)
     │
     ▼
 GameService (game logic interface) → returns list[ServiceEvent]
@@ -152,8 +152,8 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (target="all", lightweight broadcast with player identities) followed by `RoundStartedEvent` (target="seat_N", per-seat events with full GameView).
-- **ServiceEvent** - Transport container wrapping a GameEvent with routing metadata (event type string, target). Events are serialized as flat top-level messages on the wire (no wrapper envelope).
+- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Domain events live in the logic layer; `game.messaging.events` is a re-export facade for backward compatibility. Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
+- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope).
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists
 - `extract_round_result()` extracts round results from ServiceEvent lists
@@ -162,12 +162,14 @@ The game service communicates through a typed event pipeline:
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`) and bot call response dispatch (`_dispatch_bot_call_responses`); tracks per-player furiten state and emits `FuritenEvent` on state transitions; manages round-advance confirmation waiting state (`PendingRoundAdvance`) between rounds; returns `list[ServiceEvent]`
+- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`) and bot call response dispatch (`_dispatch_bot_call_responses`); tracks per-player furiten state and emits `FuritenEvent` on state transitions; delegates round-advance confirmation tracking to `RoundAdvanceManager`; returns `list[ServiceEvent]`
+- **RoundAdvanceManager** - Manages round advancement confirmation state (`PendingRoundAdvance`) for all games; tracks which human seats still need to confirm readiness between rounds; bot seats are pre-confirmed at setup; provides `setup_pending()`, `confirm_seat()`, `is_pending()`, `get_unconfirmed_seats()`, `is_seat_required()`, and `cleanup_game()`
 - **MahjongGame** - Manages game state across multiple rounds (hanchan); uma/oka end-game score adjustment
 - **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
-- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()`
+- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`
+- **CallResolution** (`call_resolution.py`) - Resolves pending call prompts after all callers respond; picks winning response by priority (ron > pon/kan > chi > all pass); handles triple ron abortive draw, double/single ron, meld resolution, all-passed flow (deferred dora, riichi finalization, four riichi abort, turn advancement), and chankan decline completion
 - **Matchmaker** - Assigns human players to randomized seats and fills remaining seats with bots; supports 1-4 humans based on `num_bots` setting; returns `list[SeatConfig]`
 - **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each human player gets an independent timer instance
 - **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `add_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; supports runtime bot addition for disconnect-to-bot replacement
@@ -183,6 +185,7 @@ The `logic/` module implements Riichi Mahjong rules:
 - **State** - Frozen Pydantic game state models: `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, `CallResponse`; all state is immutable (`frozen=True`); state updates use `model_copy(update={...})` pattern
 - **MeldWrapper** (`meld_wrapper.py`) - `FrozenMeld` immutable wrapper for external `mahjong.meld.Meld` class; provides true immutability by storing meld data in frozen Pydantic model; converts to/from `Meld` at boundaries for library compatibility; `frozen_melds_to_melds()` utility for batch conversion
 - **StateUtils** (`state_utils.py`) - Helper functions for immutable state updates: `update_player()`, `add_tile_to_player()`, `remove_tile_from_player()`, `add_discard()`, `add_meld()`, `reveal_dora()`, `advance_turn()`, etc.
+- **Exceptions** (`exceptions.py`) - Typed domain exception hierarchy rooted in `GameRuleError`; subclasses: `InvalidDiscardError`, `InvalidMeldError`, `InvalidRiichiError`, `InvalidWinError`, `InvalidActionError`. Domain modules raise these instead of raw `ValueError`. Action handlers catch `GameRuleError` and convert to `ErrorEvent`. The broad `except Exception` containment in `MessageRouter` is preserved as a fatal safety net.
 
 ### Pending Call Prompt System
 
@@ -196,7 +199,7 @@ When a discard or chankan creates call opportunities, `process_discard_phase()` 
 - `callers` - the original eligible callers list
 - `responses` - collected `CallResponse` objects
 
-Each caller responds through the standard action handlers (`handle_pass`, `handle_pon`, `handle_chi`, `handle_ron`, `handle_kan`). These handlers record the response and remove the caller from `pending_seats`. When `pending_seats` is empty, `resolve_call_prompt()` picks the winner by priority (ron > pon/kan > chi > all pass) and executes the action.
+Each caller responds through the standard action handlers (`handle_pass`, `handle_pon`, `handle_chi`, `handle_ron`, `handle_kan`). These handlers record the response and remove the caller from `pending_seats`. When `pending_seats` is empty, `resolve_call_prompt()` (in `call_resolution.py`) picks the winner by priority (ron > pon/kan > chi > all pass) and executes the action.
 
 This eliminates the previous duplication where bot and human call responses had separate orchestration paths.
 
@@ -206,7 +209,7 @@ This eliminates the previous duplication where bot and human call responses had 
 
 1. Human actions enter via `handle_action()` -> `_dispatch_and_process()` -> action handlers
 2. After each human action, `_process_bot_followup()` iterates bot turns through the same `_dispatch_and_process()` path
-3. Bot call responses are dispatched through `_dispatch_bot_call_responses()` -> `_call_handler()` -> same action handlers
+3. Bot call responses are dispatched through `_dispatch_bot_call_responses()` -> `_dispatch_action()` -> same action handlers
 
 `BotController` is a pure decision-maker: `get_turn_action()` returns action data for a bot's turn, `get_call_response()` returns the bot's response to a call prompt. Neither method modifies game state or calls handlers directly. All state mutation flows through `MahjongGameService`.
 
@@ -231,7 +234,7 @@ When a human player disconnects from a started game:
 
 ### Per-Player Timers
 
-Each human player gets an independent `TurnTimer` instance, stored as `dict[str, dict[int, TurnTimer]]` (game_id -> seat -> timer) in `SessionManager`.
+Each human player gets an independent `TurnTimer` instance, managed by `TimerManager` (`session/timer_manager.py`). `SessionManager` delegates all timer operations to `TimerManager` and provides a timeout callback.
 
 Timer behavior:
 - On round start, round bonus is added to all player timers
@@ -275,13 +278,15 @@ ronin/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── mock.py         # MockConnection for testing
         │   ├── types.py        # Message schemas (Pydantic)
-        │   ├── events.py       # Typed events, ServiceEvent, EventType enum
+        │   ├── events.py       # Re-export facade for game.logic.events
         │   ├── encoder.py      # MessagePack encoding/decoding
         │   └── router.py       # Message routing
         ├── session/
-        │   ├── models.py       # Player, Game dataclasses
-        │   ├── types.py        # Pydantic models (GameInfo)
-        │   └── manager.py      # Session/game management
+        │   ├── models.py        # Player, Game dataclasses
+        │   ├── types.py         # Pydantic models (GameInfo)
+        │   ├── manager.py       # Session/game management
+        │   ├── timer_manager.py # Per-player turn timer lifecycle
+        │   └── heartbeat.py     # Client liveness heartbeat monitor
         ├── replay/
         │   ├── __init__.py      # Public API re-exports
         │   ├── models.py        # ReplayInput, ReplayTrace, ReplayStep, error types
@@ -294,6 +299,11 @@ ronin/
         │   ├── turn.py             # Turn processing, returns typed events
         │   ├── actions.py          # Available actions builder
         │   ├── action_handlers.py  # Action validation and processing
+        │   ├── action_result.py    # Shared ActionResult type and helpers
+        │   ├── call_resolution.py  # Call resolution subsystem (ron/meld/pass)
+        │   ├── events.py           # Domain event models, ServiceEvent, convert_events()
+        │   ├── exceptions.py       # Typed domain exceptions (GameRuleError hierarchy)
+        │   ├── round_advance.py    # Round advancement confirmation state machine
         │   ├── bot_controller.py   # Bot turn and call handling
         │   ├── enums.py            # String enum definitions for game concepts
         │   ├── types.py            # Pydantic models for cross-component data

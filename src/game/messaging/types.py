@@ -31,6 +31,7 @@ class SessionErrorCode(str, Enum):
     GAME_FULL = "game_full"
     NAME_TAKEN = "name_taken"
     NOT_IN_GAME = "not_in_game"
+    GAME_NOT_STARTED = "game_not_started"
     INVALID_MESSAGE = "invalid_message"
     ACTION_FAILED = "action_failed"
 

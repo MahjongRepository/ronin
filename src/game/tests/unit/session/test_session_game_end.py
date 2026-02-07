@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 from game.logic.enums import GameAction
 from game.logic.types import GameEndResult, PlayerStanding
-from game.messaging.events import EventType, GameEndedEvent, ServiceEvent
+from game.messaging.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
 from game.session.models import Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
@@ -25,7 +25,7 @@ class TestSessionManagerGameEnd:
                     ],
                 ),
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
 
     async def test_close_connections_on_game_end(self, manager):
@@ -53,7 +53,7 @@ class TestSessionManagerGameEnd:
                 input={},
                 success=True,
             ),
-            target="all",
+            target=BroadcastTarget(),
         )
         await manager._close_connections_on_game_end(game, [generic_event])
 
@@ -132,14 +132,14 @@ class TestSessionManagerCloseGameOnError:
         for i, c in enumerate(conns):
             await manager.join_game(c, "game1", f"Player{i}")
 
-        assert "game1" in manager._heartbeat_tasks
-        heartbeat_task = manager._heartbeat_tasks["game1"]
+        assert "game1" in manager._heartbeat._tasks
+        heartbeat_task = manager._heartbeat._tasks.get("game1")
 
         # leave all players -- game becomes empty, cleanup runs
         for c in conns:
             await manager.leave_game(c)
 
-        assert "game1" not in manager._heartbeat_tasks
+        assert "game1" not in manager._heartbeat._tasks
         assert heartbeat_task.done()
 
     async def test_heartbeat_loop_stops_when_game_removed(self, manager):
@@ -152,9 +152,9 @@ class TestSessionManagerCloseGameOnError:
         # remove the game from the dict
         manager._games.pop("game1", None)
 
-        with patch("game.session.manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.return_value = None
             # should return without error when game is missing
-            await manager._heartbeat_loop("game1")
+            await manager._heartbeat._loop("game1", manager.get_game)
 
         assert not conn.is_closed

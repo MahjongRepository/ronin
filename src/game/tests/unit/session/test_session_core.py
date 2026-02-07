@@ -3,6 +3,7 @@ from game.logic.types import MeldCaller
 from game.messaging.events import (
     CallPromptEvent,
     EventType,
+    SeatTarget,
     ServiceEvent,
     TurnEvent,
 )
@@ -162,7 +163,7 @@ class TestSessionManager:
                 wall_count=70,
                 target="seat_0",
             ),
-            target="seat_0",
+            target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [seat_event])
 
@@ -195,7 +196,7 @@ class TestSessionManager:
         assert conn2.sent_messages[0]["action"] == GameAction.DISCARD
 
     async def test_call_prompt_only_sent_to_callers(self, manager):
-        """CallPromptEvent is only sent to seats listed in callers, not to all players."""
+        """Per-seat CallPromptEvent is only sent to the targeted seat, not to all players."""
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -207,7 +208,7 @@ class TestSessionManager:
         conn1._outbox.clear()
         conn2._outbox.clear()
 
-        # manually broadcast a call_prompt targeting only seat 0 (Alice)
+        # per-seat call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
         call_event = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -218,7 +219,7 @@ class TestSessionManager:
                 callers=[0],
                 target="all",
             ),
-            target="all",
+            target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [call_event])
 
@@ -228,7 +229,7 @@ class TestSessionManager:
         assert len(conn2.sent_messages) == 0
 
     async def test_call_prompt_sent_once_when_player_has_multiple_meld_options(self, manager):
-        """CallPromptEvent is sent once per player even when they have both pon and chi options."""
+        """Per-seat CallPromptEvent is sent once per player even when they have both pon and chi options."""
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -240,7 +241,8 @@ class TestSessionManager:
         conn1._outbox.clear()
         conn2._outbox.clear()
 
-        # seat 0 can both pon and chi the same tile — two MeldCaller entries for the same seat
+        # seat 0 can both pon and chi the same tile — two MeldCaller entries for the same seat.
+        # convert_events deduplicates and produces a single per-seat ServiceEvent.
         game = manager.get_game("game1")
         callers = [
             MeldCaller(seat=0, call_type=MeldCallType.PON),
@@ -255,7 +257,7 @@ class TestSessionManager:
                 callers=callers,
                 target="all",
             ),
-            target="all",
+            target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [call_event])
 

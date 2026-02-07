@@ -6,7 +6,7 @@ from the discarder as a stable tie-breaker when multiple responses share the
 same call priority.
 """
 
-from game.logic.action_handlers import (
+from game.logic.call_resolution import (
     _pick_best_meld_response,
 )
 from game.logic.enums import (
