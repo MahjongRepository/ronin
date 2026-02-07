@@ -11,7 +11,6 @@ __pycache__
 .ruff_cache
 
 progress*.txt
-docs
 
 .coverage
 logs
@@ -27,11 +26,10 @@ AGENTS.md
 AGENTS.override.md
 Dockerfile.agent
 Makefile.agent
-agent-run.sh
+bin/agent-run.sh
 .claude
 thoughts
 
-# bots run things
+# bots run stuff
 bin/run-bots-games.sh
 Makefile.bots
-run-bots-games.sh
