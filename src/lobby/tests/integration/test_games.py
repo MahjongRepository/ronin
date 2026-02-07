@@ -89,14 +89,13 @@ servers:
             patcher.stop()
 
     def test_create_game_invalid_num_bots(self, client):
+        # Above max (le=3)
         response = client.post("/games", json={"num_bots": 5})
-
         assert response.status_code == 422
         assert "error" in response.json()
 
-    def test_create_game_negative_num_bots(self, client):
+        # Below min (ge=0)
         response = client.post("/games", json={"num_bots": -1})
-
         assert response.status_code == 422
         assert "error" in response.json()
 

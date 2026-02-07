@@ -139,6 +139,7 @@ def _pick_best_meld_response(
     Use the caller priority from the original prompt to determine winner.
     Priority is based on the actual response action, not the best available option.
     Priority order: kan(0) > pon(1) > chi(2).
+    Tie-break: counter-clockwise distance from discarder (closer = higher priority).
     """
     # build (seat, call_type) -> priority map from original callers
     caller_priority: dict[tuple[int, MeldCallType], int] = {}
@@ -146,14 +147,19 @@ def _pick_best_meld_response(
         if isinstance(caller, MeldCaller):
             caller_priority[(caller.seat, caller.call_type)] = MELD_CALL_PRIORITY.get(caller.call_type, 99)
 
-    best: CallResponse | None = None
-    best_priority = float("inf")
-    for response in meld_responses:
+    def sort_key(response: CallResponse) -> tuple[int, int]:
         call_type = _action_to_meld_call_type(response.action)
         priority = caller_priority.get((response.seat, call_type), 99)
-        if priority < best_priority:
+        distance = (response.seat - prompt.from_seat) % 4
+        return (priority, distance)
+
+    best: CallResponse | None = None
+    best_key: tuple[int, int] = (999, 999)
+    for response in meld_responses:
+        key = sort_key(response)
+        if key < best_key:
             best = response
-            best_priority = priority
+            best_key = key
     return best
 
 
@@ -164,6 +170,10 @@ def _resolve_ron_responses(
     ron_responses: list[CallResponse],
 ) -> ActionResult:
     """Resolve ron responses from the pending call prompt."""
+    # sort by position in prompt.callers (counter-clockwise from discarder)
+    caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
+    ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, 999))
+
     # triple ron - abortive draw (all three opponents declared ron)
     if len(ron_responses) == TRIPLE_RON_COUNT:
         result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)

@@ -36,11 +36,15 @@ class GameService(ABC):
         self,
         game_id: str,
         player_names: list[str],
+        *,
+        seed: float | None = None,
     ) -> list[ServiceEvent]:
         """
         Start a game with the given players.
 
         Returns a list of initial state events (one per player with their view).
+        When seed is provided, the game is deterministically reproducible.
+        When seed is None, a random seed is generated.
         """
         ...
 

@@ -2,7 +2,7 @@
 Tile representation utilities for Mahjong game.
 """
 
-from random import randint, seed
+import random
 
 # tile ranges in 136-format (4 copies of each tile)
 # man (characters): 0-35 (1m-9m, 4 copies each)
@@ -84,22 +84,23 @@ def generate_wall(seed_value: float, round_number: int) -> list[int]:
     Generate and shuffle a wall of 136 tiles.
 
     Uses seed + round_number to ensure reproducible but unique walls per round.
+    Uses a local RNG instance to avoid polluting global random state.
     """
     wall_seed = seed_value + round_number
-    seed(wall_seed)
+    rng = random.Random(wall_seed)  # noqa: S311
 
     wall = list(range(136))
-    _randomly_shuffle_array(wall)
-    _randomly_shuffle_array(wall)
+    _randomly_shuffle_array(wall, rng)
+    _randomly_shuffle_array(wall, rng)
 
     return wall
 
 
-def _randomly_shuffle_array(array: list) -> None:
+def _randomly_shuffle_array(array: list, rng: random.Random) -> None:
     """
-    Shuffle array in-place.
+    Shuffle array in-place using the provided RNG instance.
     """
-    rand_seeds = [randint(0, len(array) - 1) for _ in range(len(array))]  # noqa: S311
+    rand_seeds = [rng.randint(0, len(array) - 1) for _ in range(len(array))]
     for x in range(len(array)):
         src = x
         dst = rand_seeds[x]

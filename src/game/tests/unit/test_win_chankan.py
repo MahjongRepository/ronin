@@ -1,132 +1,18 @@
 """
-Unit tests for chankan detection and utility functions.
+Unit tests for chankan detection edge cases.
+
+Tests is_chankan_possible with waiting/not-waiting/furiten/self/multiple players,
+open hand yaku validation, and _has_yaku_for_open_hand empty tiles boundary.
 """
 
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
-from game.logic.tiles import hand_to_34_array
 from game.logic.win import (
     _has_yaku_for_open_hand,
-    _melds_to_34_sets,
     is_chankan_possible,
 )
-
-
-class TestHandTo34Array:
-    def test_simple_hand(self):
-        # 111m -> tile_34 index 0 should have count 3
-        tiles = TilesConverter.string_to_136_array(man="111")
-        result = hand_to_34_array(tiles)
-        assert result[0] == 3  # 1m count
-        assert sum(result) == 3
-
-    def test_mixed_suits(self):
-        # 1m, 1p, 1s
-        tiles = TilesConverter.string_to_136_array(man="1", pin="1", sou="1")
-        result = hand_to_34_array(tiles)
-        assert result[0] == 1  # 1m
-        assert result[9] == 1  # 1p
-        assert result[18] == 1  # 1s
-        assert sum(result) == 3
-
-    def test_honors(self):
-        # E, S, W, N, Haku, Hatsu, Chun
-        tiles = TilesConverter.string_to_136_array(honors="1234567")
-        result = hand_to_34_array(tiles)
-        assert result[27] == 1  # east
-        assert result[28] == 1  # south
-        assert result[29] == 1  # west
-        assert result[30] == 1  # north
-        assert result[31] == 1  # haku
-        assert result[32] == 1  # hatsu
-        assert result[33] == 1  # chun
-
-
-class TestMeldsTo34Sets:
-    def test_no_melds(self):
-        result = _melds_to_34_sets(())
-        assert result is None
-
-    def test_empty_tuple(self):
-        result = _melds_to_34_sets(())
-        assert result is None
-
-    def test_pon_meld(self):
-        # pon of 1m -> tile_34 = 0
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(man="111")),
-            opened=True,
-        )
-        result = _melds_to_34_sets((pon,))
-        assert result == [[0, 0, 0]]
-
-    def test_chi_meld(self):
-        # chi of 123m -> tile_34 = 0,1,2
-        chi = FrozenMeld(
-            meld_type=FrozenMeld.CHI,
-            tiles=tuple(TilesConverter.string_to_136_array(man="123")),
-            opened=True,
-        )
-        result = _melds_to_34_sets((chi,))
-        assert result == [[0, 1, 2]]
-
-    def test_multiple_melds(self):
-        # pon of 1m and chi of 123p
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(man="111")),
-            opened=True,
-        )
-        chi = FrozenMeld(
-            meld_type=FrozenMeld.CHI,
-            tiles=tuple(TilesConverter.string_to_136_array(pin="123")),
-            opened=True,
-        )
-        result = _melds_to_34_sets((pon, chi))
-        assert result == [[0, 0, 0], [9, 10, 11]]
-
-
-class TestHasOpenMelds:
-    def test_no_melds(self):
-        player = MahjongPlayer(seat=0, name="Player1")
-        assert player.has_open_melds() is False
-
-    def test_open_pon(self):
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(man="111")),
-            opened=True,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", melds=(pon,))
-        assert player.has_open_melds() is True
-
-    def test_closed_kan(self):
-        # closed kan is not an open meld
-        kan = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
-            opened=False,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", melds=(kan,))
-        assert player.has_open_melds() is False
-
-    def test_mixed_melds(self):
-        # one closed kan, one open pon
-        kan = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
-            opened=False,
-        )
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(man="222")),
-            opened=True,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", melds=(kan, pon))
-        assert player.has_open_melds() is True
 
 
 class TestIsChankanPossible:

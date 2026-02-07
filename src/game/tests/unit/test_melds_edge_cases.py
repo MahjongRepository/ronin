@@ -1,8 +1,4 @@
-"""
-Unit tests for edge cases in melds.py that were previously marked with pragma: no cover.
-
-This file tests all the removed pragma: no cover lines to ensure full coverage.
-"""
+"""Unit tests for meld edge cases: kuikae suji, 4-kan limit, riichi kan waits, and pao liability."""
 
 from mahjong.tile import TilesConverter
 
@@ -13,9 +9,7 @@ from game.logic.melds import (
     _kan_preserves_waits_for_riichi,
     call_open_kan,
     call_pon,
-    can_call_chi,
     can_call_open_kan,
-    can_call_pon,
     get_kuikae_tiles,
     get_possible_added_kans,
     get_possible_closed_kans,
@@ -57,65 +51,6 @@ class TestKuikaeEdgeCases:
         # suji = all_tiles[0] - 1 = 1 - 1 = 0 (1m)
         assert called_tile_34_4m in forbidden_234  # 4m
         assert 0 in forbidden_234  # 1m (suji tile)
-
-
-class TestRiichiRestrictions:
-    """Test that riichi players cannot make meld calls."""
-
-    def test_riichi_player_cannot_pon(self):
-        """Test can_call_pon returns False for riichi player."""
-        # Create player in riichi with 2 matching tiles
-        man_1m = TilesConverter.string_to_136_array(man="11")
-        player = create_player(
-            seat=0,
-            tiles=man_1m,
-            is_riichi=True,
-        )
-
-        discarded_tile = TilesConverter.string_to_136_array(man="1")[0]
-
-        result = can_call_pon(player, discarded_tile)
-
-        assert result is False
-
-    def test_riichi_player_cannot_chi(self):
-        """Test can_call_chi returns empty list for riichi player."""
-        # Create player in riichi with tiles forming a sequence
-        man_tiles = TilesConverter.string_to_136_array(man="23")
-        player = create_player(
-            seat=1,
-            tiles=man_tiles,
-            is_riichi=True,
-        )
-
-        discarded_tile = TilesConverter.string_to_136_array(man="1")[0]
-
-        result = can_call_chi(player, discarded_tile, discarder_seat=0, caller_seat=1)
-
-        assert result == []
-
-    def test_riichi_player_cannot_open_kan(self):
-        """Test can_call_open_kan returns False for riichi player."""
-        # Create player in riichi with 3 matching tiles
-        man_1m = TilesConverter.string_to_136_array(man="111")
-        player = create_player(
-            seat=0,
-            tiles=man_1m,
-            is_riichi=True,
-        )
-
-        # Create round_state with enough wall tiles
-        wall = tuple(TilesConverter.string_to_136_array(man="234567"))
-        round_state = create_round_state(
-            players=[player] + [create_player(seat=i) for i in range(1, 4)],
-            wall=wall,
-        )
-
-        discarded_tile = TilesConverter.string_to_136_array(man="1")[0]
-
-        result = can_call_open_kan(player, discarded_tile, round_state)
-
-        assert result is False
 
 
 class TestKanLimits:

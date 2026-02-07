@@ -7,6 +7,7 @@ that return new state.
 """
 
 import logging
+import random
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from typing import Any
@@ -92,36 +93,38 @@ class MahjongGameService(GameService):
     """
     Game service for Mahjong implementing the GameService interface.
 
-    Maintains game states for multiple concurrent games. State history
-    tracking enables debugging and replay capabilities.
+    Maintains game states for multiple concurrent games.
     """
 
-    def __init__(self, *, enable_history: bool = False) -> None:
+    def __init__(self, *, auto_cleanup: bool = True) -> None:
         self._games: dict[str, MahjongGameState] = {}
         self._bot_controllers: dict[str, BotController] = {}
         self._furiten_state: dict[str, dict[int, bool]] = {}
         self._pending_advances: dict[str, PendingRoundAdvance] = {}
-        # State history for debugging/replay
-        self._enable_history = enable_history
-        self._state_history: dict[str, list[MahjongGameState]] = {}
+        self._auto_cleanup = auto_cleanup
 
     async def start_game(
         self,
         game_id: str,
         player_names: list[str],
+        *,
+        seed: float | None = None,
     ) -> list[ServiceEvent]:
         """
         Start a new mahjong game with the given players.
 
         Uses matchmaker to assign seats randomly and fill with bots.
         Returns initial state events for each player.
+        When seed is provided, the game is deterministically reproducible.
+        When seed is None, a random seed is generated.
         """
+        game_seed = seed if seed is not None else random.random()  # noqa: S311
         logger.info(f"starting game {game_id} with players: {player_names}")
-        seat_configs = fill_seats(player_names)
+        seat_configs = fill_seats(player_names, seed=game_seed)
 
-        frozen_game = init_game(seat_configs)
+        frozen_game = init_game(seat_configs, seed=game_seed)
         self._games[game_id] = frozen_game
-        self._record_state(game_id, frozen_game)
+
         self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
         bots: dict[int, BotPlayer] = {}
@@ -143,7 +146,6 @@ class MahjongGameService(GameService):
             frozen_game.round_state, frozen_game
         )
         self._games[game_id] = new_game_state
-        self._record_state(game_id, new_game_state)
         events.extend(convert_events(draw_events))
 
         # process bot turns if dealer is a bot
@@ -188,17 +190,6 @@ class MahjongGameService(GameService):
             for seat in range(4)
         ]
 
-    def _record_state(self, game_id: str, state: MahjongGameState) -> None:
-        """Record state snapshot for replay capability (if history is enabled)."""
-        if self._enable_history:
-            if game_id not in self._state_history:
-                self._state_history[game_id] = []
-            self._state_history[game_id].append(state)
-
-    def get_state_history(self, game_id: str) -> list[MahjongGameState]:
-        """Get state history for a game (for debugging/replay)."""
-        return self._state_history.get(game_id, [])
-
     async def handle_action(
         self,
         game_id: str,
@@ -237,8 +228,10 @@ class MahjongGameService(GameService):
         events = await self._dispatch_and_process(game_id, seat, action, data)
 
         # trigger bot followup if round is playing and no pending callers
-        # Re-fetch state as it may have been updated
-        game_state = self._games[game_id]
+        # Re-fetch state safely: game may have been cleaned up during game-end handling
+        game_state = self._games.get(game_id)
+        if game_state is None:
+            return events
         round_state = game_state.round_state
         if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
             bot_events = await self._process_bot_followup(game_id)
@@ -300,7 +293,6 @@ class MahjongGameService(GameService):
         """Update stored state from ActionResult if new state was returned."""
         if result.new_game_state is not None:
             self._games[game_id] = result.new_game_state
-            self._record_state(game_id, result.new_game_state)
 
     def _execute_data_action(
         self, game_state: MahjongGameState, seat: int, action: GameAction, data: dict[str, Any]
@@ -391,6 +383,23 @@ class MahjongGameService(GameService):
         if game_state is None:
             return None
         return self._find_player_seat_frozen(game_id, game_state, player_name)
+
+    def get_game_state(self, game_id: str) -> MahjongGameState | None:
+        """Return the current game state, or None if game doesn't exist."""
+        return self._games.get(game_id)
+
+    def is_round_advance_pending(self, game_id: str) -> bool:
+        """Check if a round advance is waiting for human confirmation."""
+        return game_id in self._pending_advances
+
+    def get_pending_round_advance_human_names(self, game_id: str) -> list[str]:
+        """Return human player names that still need to confirm round advance."""
+        pending = self._pending_advances.get(game_id)
+        state = self._games.get(game_id)
+        if pending is None or state is None:
+            return []
+        remaining = pending.required_seats - pending.confirmed_seats
+        return [p.name for p in state.round_state.players if p.seat in remaining]
 
     async def handle_timeout(
         self,
@@ -520,7 +529,7 @@ class MahjongGameService(GameService):
             # no callers - draw for next player (turn already advanced by process_discard_phase)
             _new_round_state, new_game_state, draw_events = process_draw_phase(round_state, game_state)
             self._games[game_id] = new_game_state
-            self._record_state(game_id, new_game_state)
+
             events.extend(convert_events(draw_events))
 
             round_end_events = await self._check_and_handle_round_end(game_id, events)
@@ -548,7 +557,7 @@ class MahjongGameService(GameService):
                 break  # resolved
 
             # Find next bot that needs to respond
-            bot_seats = [s for s in list(prompt.pending_seats) if bot_controller.is_bot(s)]
+            bot_seats = [s for s in sorted(prompt.pending_seats) if bot_controller.is_bot(s)]
             if not bot_seats:
                 break  # No more bots to respond
 
@@ -621,7 +630,11 @@ class MahjongGameService(GameService):
             bot_seats = bot_controller.bot_seats if bot_controller else None
             frozen_game, game_result = finalize_game(frozen_game, bot_seats=bot_seats)
             logger.info(f"game {game_id}: game ended")
-            self.cleanup_game(game_id)
+            # Always store finalized state before cleanup decision
+            self._games[game_id] = frozen_game
+
+            if self._auto_cleanup:
+                self.cleanup_game(game_id)
             return [
                 ServiceEvent(
                     event=EventType.GAME_END,
@@ -632,7 +645,6 @@ class MahjongGameService(GameService):
 
         # Store updated state
         self._games[game_id] = frozen_game
-        self._record_state(game_id, frozen_game)
 
         # enter waiting state for round confirmation
         bot_controller = self._bot_controllers.get(game_id)
@@ -722,7 +734,6 @@ class MahjongGameService(GameService):
         self._bot_controllers.pop(game_id, None)
         self._furiten_state.pop(game_id, None)
         self._pending_advances.pop(game_id, None)
-        self._state_history.pop(game_id, None)
 
     def replace_player_with_bot(self, game_id: str, player_name: str) -> None:
         """
@@ -814,7 +825,7 @@ class MahjongGameService(GameService):
 
         frozen_game = init_round(frozen_game)
         self._games[game_id] = frozen_game
-        self._record_state(game_id, frozen_game)
+
         self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
         bot_controller = self._bot_controllers[game_id]
@@ -826,7 +837,6 @@ class MahjongGameService(GameService):
             frozen_game.round_state, frozen_game
         )
         self._games[game_id] = new_game_state
-        self._record_state(game_id, new_game_state)
         events.extend(convert_events(draw_events))
 
         dealer_seat = new_game_state.round_state.dealer_seat

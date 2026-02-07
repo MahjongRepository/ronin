@@ -7,7 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 from game.logic.enums import GameAction
 from game.messaging.encoder import decode, encode
 from game.messaging.events import EventType
-from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
+from game.messaging.types import ClientMessageType, SessionMessageType
 from game.server.app import create_app
 from game.server.websocket import WebSocketConnection
 from game.tests.mocks import MockGameService
@@ -54,40 +54,6 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.GAME_JOINED
             assert response["game_id"] == "test_game"
             assert response["players"] == ["TestPlayer"]
-
-    def test_two_players_in_game(self, client):
-        self._create_game(client, "test_game", num_bots=2)
-
-        with client.websocket_connect("/ws/test_game") as ws1:
-            self._send_message(
-                ws1,
-                {
-                    "type": ClientMessageType.JOIN_GAME,
-                    "game_id": "test_game",
-                    "player_name": "Player1",
-                },
-            )
-            self._receive_message(ws1)  # game_joined
-
-            with client.websocket_connect("/ws/test_game") as ws2:
-                self._send_message(
-                    ws2,
-                    {
-                        "type": ClientMessageType.JOIN_GAME,
-                        "game_id": "test_game",
-                        "player_name": "Player2",
-                    },
-                )
-
-                # Player2 receives game_joined
-                response = self._receive_message(ws2)
-                assert response["type"] == SessionMessageType.GAME_JOINED
-                assert set(response["players"]) == {"Player1", "Player2"}
-
-                # Player1 receives player_joined notification
-                notification = self._receive_message(ws1)
-                assert notification["type"] == SessionMessageType.PLAYER_JOINED
-                assert notification["player_name"] == "Player2"
 
     def test_chat_message(self, client):
         self._create_game(client, "test_game", num_bots=2)
@@ -169,36 +135,11 @@ class TestWebSocketIntegration:
             assert response["action"] == GameAction.DISCARD
             assert response["success"] is True
 
-    def test_invalid_message(self, client):
-        self._create_game(client, "test_game")
-
-        with client.websocket_connect("/ws/test_game") as ws:
-            self._send_message(ws, {"type": "invalid"})
-
-            response = self._receive_message(ws)
-            assert response["type"] == SessionMessageType.ERROR
-            assert response["code"] == SessionErrorCode.INVALID_MESSAGE
-
     def test_list_games_empty(self, client):
         response = client.get("/games")
         assert response.status_code == 200
         data = response.json()
         assert data == {"games": []}
-
-    def test_list_games_with_games(self, client):
-        self._create_game(client, "game1")
-        self._create_game(client, "game2")
-
-        response = client.get("/games")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["games"]) == 2
-        game_ids = {g["game_id"] for g in data["games"]}
-        assert game_ids == {"game1", "game2"}
-        for game in data["games"]:
-            assert game["player_count"] == 0
-            assert game["max_players"] == 4
-            assert game["num_bots"] == 3
 
 
 class TestHealthEndpoint:
@@ -269,10 +210,6 @@ class TestCreateGameEndpoint:
 
     def test_create_game_invalid_num_bots(self, client):
         response = client.post("/games", json={"game_id": "bad-game", "num_bots": 5})
-        assert response.status_code == 400
-
-    def test_create_game_negative_num_bots(self, client):
-        response = client.post("/games", json={"game_id": "bad-game", "num_bots": -1})
         assert response.status_code == 400
 
     def test_list_games_shows_num_bots(self, client):

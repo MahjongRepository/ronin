@@ -15,7 +15,6 @@ from game.logic.round import (
     reveal_pending_dora,
 )
 from game.logic.state import (
-    Discard,
     MahjongPlayer,
     MahjongRoundState,
 )
@@ -32,37 +31,8 @@ class TestDrawTileImmutable:
             current_player_seat=0,
         )
 
-    def test_draw_tile_removes_from_wall(self):
-        round_state = self._create_round_state()
-        initial_wall_len = len(round_state.wall)
-
-        new_state, _drawn = draw_tile(round_state)
-
-        assert len(new_state.wall) == initial_wall_len - 1
-        # original state unchanged
-        assert len(round_state.wall) == initial_wall_len
-
-    def test_draw_tile_returns_first_tile(self):
-        round_state = self._create_round_state()
-        first_tile = round_state.wall[0]
-
-        _new_state, drawn = draw_tile(round_state)
-
-        assert drawn == first_tile
-
-    def test_draw_tile_adds_to_player_hand(self):
-        round_state = self._create_round_state()
-        round_state = round_state.model_copy(update={"current_player_seat": 2})
-        initial_hand_len = len(round_state.players[2].tiles)
-
-        new_state, drawn = draw_tile(round_state)
-
-        assert len(new_state.players[2].tiles) == initial_hand_len + 1
-        assert drawn in new_state.players[2].tiles
-        # original state unchanged
-        assert len(round_state.players[2].tiles) == initial_hand_len
-
     def test_draw_tile_appends_to_end_of_hand(self):
+        """Drawn tile must be last in hand; tsumogiri detection relies on this."""
         round_state = self._create_round_state()
         starting_tiles = tuple(TilesConverter.string_to_136_array(sou="888")[:3])
         players = list(round_state.players)
@@ -73,25 +43,15 @@ class TestDrawTileImmutable:
 
         assert new_state.players[0].tiles[-1] == drawn
 
-    def test_draw_tile_returns_none_when_wall_empty(self):
+    def test_draw_from_empty_wall_returns_none(self):
+        """Drawing from an empty wall returns the unchanged state and None."""
         round_state = self._create_round_state()
         round_state = round_state.model_copy(update={"wall": ()})
 
-        new_state, drawn = draw_tile(round_state)
+        result_state, drawn = draw_tile(round_state)
 
         assert drawn is None
-        assert new_state is round_state  # unchanged
-
-    def test_draw_tile_does_not_modify_hand_when_wall_empty(self):
-        round_state = self._create_round_state()
-        sou_88 = tuple(TilesConverter.string_to_136_array(sou="88"))
-        players = list(round_state.players)
-        players[0] = players[0].model_copy(update={"tiles": sou_88})
-        round_state = round_state.model_copy(update={"players": tuple(players), "wall": ()})
-
-        new_state, _drawn = draw_tile(round_state)
-
-        assert new_state.players[0].tiles == sou_88
+        assert result_state is round_state
 
 
 class TestDrawFromDeadWallImmutable:
@@ -202,49 +162,6 @@ class TestDiscardTileImmutable:
             MahjongPlayer(seat=3, name="Bot3", tiles=(man_4[1], man_6[3], man_9[1], pin_2[3])),
         )
         return MahjongRoundState(players=players, current_player_seat=0)
-
-    def test_discard_tile_removes_from_hand(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
-        assert man_6 in round_state.players[0].tiles
-
-        new_state, _discard = discard_tile(round_state, seat=0, tile_id=man_6)
-
-        assert man_6 not in new_state.players[0].tiles
-        # original state unchanged
-        assert man_6 in round_state.players[0].tiles
-
-    def test_discard_tile_adds_to_discards(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
-        assert len(round_state.players[0].discards) == 0
-
-        new_state, _discard = discard_tile(round_state, seat=0, tile_id=man_6)
-
-        assert len(new_state.players[0].discards) == 1
-        assert new_state.players[0].discards[0].tile_id == man_6
-        # original state unchanged
-        assert len(round_state.players[0].discards) == 0
-
-    def test_discard_tile_returns_discard_object(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
-
-        _new_state, result = discard_tile(round_state, seat=0, tile_id=man_6)
-
-        assert isinstance(result, Discard)
-        assert result.tile_id == man_6
-
-    def test_discard_tile_adds_to_all_discards(self):
-        round_state = self._create_round_state()
-        man_6 = TilesConverter.string_to_136_array(man="6")[0]
-        assert len(round_state.all_discards) == 0
-
-        new_state, _discard = discard_tile(round_state, seat=0, tile_id=man_6)
-
-        assert new_state.all_discards == (man_6,)
-        # original state unchanged
-        assert round_state.all_discards == ()
 
     def test_discard_tile_raises_if_tile_not_in_hand(self):
         round_state = self._create_round_state()

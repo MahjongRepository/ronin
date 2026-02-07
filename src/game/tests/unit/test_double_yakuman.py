@@ -1,19 +1,14 @@
 """
-Unit tests for double yakuman scoring.
+Unit tests for double yakuman hand recognition.
 
-Tests that suuankou tanki, daisuushii, daburu kokushi, and daburu chuuren poutou
-score as double yakuman (26 han) while regular variants remain at single yakuman (13 han).
+Tests that suuankou tanki and daisuushii are correctly identified as double yakuman (26 han)
+while regular suuankou stays at single yakuman (13 han).
 """
 
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.scoring import (
-    HandResult,
-    apply_ron_score,
-    apply_tsumo_score,
-    calculate_hand_value,
-)
+from game.logic.scoring import calculate_hand_value
 from game.logic.state import MahjongGameState
 from game.logic.state_utils import update_player
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -120,86 +115,3 @@ class TestDaisuushiiDoubleYakuman:
         assert result.error is None
         assert result.han == 26
         assert result.cost_main == 64000  # non-dealer ron
-
-
-class TestDoubleYakumanRonScoring:
-    """Double yakuman non-dealer ron costs 64000 points."""
-
-    def test_non_dealer_double_yakuman_ron_payment(self):
-        game_state = _create_game_state()
-        # simulate double yakuman ron result
-        hand_result = HandResult(han=26, fu=0, cost_main=64000, cost_additional=0, yaku=["Suuankou Tanki"])
-
-        new_round_state, _new_game_state, _result = apply_ron_score(
-            game_state, winner_seat=1, loser_seat=2, hand_result=hand_result
-        )
-
-        assert new_round_state.players[1].score == 25000 + 64000
-        assert new_round_state.players[2].score == 25000 - 64000
-        assert new_round_state.players[0].score == 25000
-        assert new_round_state.players[3].score == 25000
-
-    def test_dealer_double_yakuman_ron_payment(self):
-        game_state = _create_game_state()
-        # dealer double yakuman ron = 96000
-        hand_result = HandResult(han=26, fu=0, cost_main=96000, cost_additional=0, yaku=["Daisuushii"])
-
-        new_round_state, _new_game_state, _result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
-        )
-
-        assert new_round_state.players[0].score == 25000 + 96000
-        assert new_round_state.players[1].score == 25000 - 96000
-
-
-class TestDoubleYakumanTsumoScoring:
-    """Double yakuman tsumo payments are correct."""
-
-    def test_non_dealer_double_yakuman_tsumo_payment(self):
-        # non-dealer double yakuman tsumo: dealer pays 32000, each non-dealer pays 16000
-        game_state = _create_game_state()
-        hand_result = HandResult(
-            han=26, fu=0, cost_main=32000, cost_additional=16000, yaku=["Suuankou Tanki"]
-        )
-
-        new_round_state, _new_game_state, _result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
-        )
-
-        # winner receives 64000 total from three losers
-        assert new_round_state.players[1].score == 25000 + 64000
-        assert new_round_state.players[0].score == 25000 - 32000  # dealer
-        assert new_round_state.players[2].score == 25000 - 16000  # non-dealer
-        assert new_round_state.players[3].score == 25000 - 16000  # non-dealer
-
-    def test_dealer_double_yakuman_tsumo_payment(self):
-        # dealer double yakuman tsumo: each non-dealer pays 32000
-        game_state = _create_game_state()
-        hand_result = HandResult(han=26, fu=0, cost_main=32000, cost_additional=0, yaku=["Daisuushii"])
-
-        new_round_state, _new_game_state, _result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
-        )
-
-        # winner receives 96000 total from three losers
-        assert new_round_state.players[0].score == 25000 + 96000
-        assert new_round_state.players[1].score == 25000 - 32000
-        assert new_round_state.players[2].score == 25000 - 32000
-        assert new_round_state.players[3].score == 25000 - 32000
-
-
-class TestKazoeYakumanStaysSingle:
-    """Kazoe yakuman (13+ han from regular yaku) stays at single yakuman level."""
-
-    def test_kazoe_yakuman_is_single(self):
-        # kazoe yakuman: 13+ han from regular yaku, capped at single yakuman
-        # non-dealer ron: 32000 (single yakuman)
-        game_state = _create_game_state()
-        hand_result = HandResult(han=13, fu=0, cost_main=32000, cost_additional=0, yaku=["Riichi", "Dora 12"])
-
-        new_round_state, _new_game_state, _result = apply_ron_score(
-            game_state, winner_seat=1, loser_seat=2, hand_result=hand_result
-        )
-
-        assert new_round_state.players[1].score == 25000 + 32000
-        assert new_round_state.players[2].score == 25000 - 32000

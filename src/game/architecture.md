@@ -247,6 +247,18 @@ The game logic layer (`MahjongPlayer`, `MahjongRoundState`) has no knowledge of 
 
 Bot identity is managed exclusively by `BotController.is_bot(seat)` at the service layer. Client-facing DTOs (`PlayerView`, `PlayerStanding`, `PlayerInfo`) retain `is_bot` for display purposes, populated from `BotController.bot_seats` when constructing views via `get_player_view(bot_seats=...)` and `finalize_game(bot_seats=...)`.
 
+### Replay System
+
+The replay adapter (`src/game/replay/`) enables deterministic replay of game sessions through `MahjongGameService`'s public API.
+
+- **ReplayInput** defines a versioned input format: a seed, 4 player names, and an ordered sequence of human actions
+- **ReplayTrace** captures full output: startup events, per-step state transitions (`state_before`/`state_after`), and final state
+- **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace
+- **ReplayServiceProtocol** is the replay-facing protocol boundary; default factory uses `MahjongGameService(auto_cleanup=False)`
+- **Determinism contract**: same seed + same input events = identical trace; bot strategies must be deterministic given the same state
+- **Dependency direction**: `game.replay` imports from `game.logic` and `game.messaging`; game logic modules never import from `game.replay`
+- `start_game()` accepts an optional `seed` parameter for deterministic game creation; when omitted, a random seed is generated
+
 ## Project Structure
 
 ```
@@ -270,6 +282,10 @@ ronin/
         │   ├── models.py       # Player, Game dataclasses
         │   ├── types.py        # Pydantic models (GameInfo)
         │   └── manager.py      # Session/game management
+        ├── replay/
+        │   ├── __init__.py      # Public API re-exports
+        │   ├── models.py        # ReplayInput, ReplayTrace, ReplayStep, error types
+        │   └── runner.py        # ReplayServiceProtocol, run_replay/run_replay_async
         ├── logic/
         │   ├── service.py          # GameService interface
         │   ├── mahjong_service.py  # MahjongService orchestration

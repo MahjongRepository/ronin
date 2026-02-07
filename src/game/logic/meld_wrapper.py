@@ -16,7 +16,7 @@ class FrozenMeld(BaseModel):
     """
     Immutable representation of a meld.
 
-    Converts from/to mahjong.meld.Meld at boundaries.
+    Converts to mahjong.meld.Meld at boundaries.
     Provides the same interface as Meld for compatibility.
     """
 
@@ -40,18 +40,6 @@ class FrozenMeld(BaseModel):
     def type(self) -> str:
         """Alias for meld_type to match Meld interface."""
         return self.meld_type
-
-    @classmethod
-    def from_meld(cls, meld: Meld) -> FrozenMeld:
-        """Convert from mahjong.meld.Meld."""
-        return cls(
-            tiles=tuple(meld.tiles) if meld.tiles else (),
-            meld_type=meld.type or "",
-            opened=meld.opened,
-            called_tile=meld.called_tile,
-            who=meld.who or 0,
-            from_who=meld.from_who,
-        )
 
     def to_meld(self) -> Meld:
         """Convert to mahjong.meld.Meld for library compatibility."""

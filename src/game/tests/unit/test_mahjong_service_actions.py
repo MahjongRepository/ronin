@@ -1,5 +1,14 @@
 """
 Unit tests for MahjongGameService action handling.
+
+Covers service-level entry point guards (game not found, player not in game,
+unknown action), ValidationError wrapping in _dispatch_and_process,
+_process_action_result_internal branching (round end, chankan), and
+_handle_chankan_prompt (human caller wait, bot response, no pending prompt).
+
+Tests for individual action handler validation (wrong turn, missing tile,
+invalid tile, no prompt) live in test_action_handlers_immutable.py and
+test_action_handlers_edge_cases.py.
 """
 
 from unittest.mock import patch
@@ -15,7 +24,6 @@ from game.logic.types import (
 )
 from game.messaging.events import (
     CallPromptEvent,
-    DiscardEvent,
     ErrorEvent,
     EventType,
     RoundEndEvent,
@@ -23,172 +31,8 @@ from game.messaging.events import (
 )
 from game.tests.unit.helpers import (
     _find_human_player,
-    _update_player,
     _update_round_state,
 )
-
-
-class TestMahjongGameServiceDiscard:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_discard_validates_player_turn(self, service):
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        # Build updated players with max 13 tiles
-        new_players = []
-        for player in round_state.players:
-            if len(player.tiles) > 13:
-                new_players.append(player.model_copy(update={"tiles": tuple(list(player.tiles)[:13])}))
-            else:
-                new_players.append(player)
-
-        # force current player to a different seat so the human is out of turn
-        _update_round_state(service, "game1", current_player_seat=1, players=tuple(new_players))
-
-        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": 0})
-        assert any(e.event == EventType.ERROR for e in events)
-
-    async def test_discard_requires_tile_id(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-    async def test_discard_validates_tile_in_hand(self, service):
-        await service.start_game("game1", ["Human"])
-
-        # use a tile that's definitely not in any hand
-        invalid_tile = 999
-
-        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": invalid_tile})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-    async def test_discard_creates_discard_event(self, service):
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        human = _find_human_player(game_state.round_state, "Human")
-        tile_id = human.tiles[-1]  # discard last tile
-
-        events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
-
-        discard_events = [e for e in events if e.event == EventType.DISCARD]
-        assert len(discard_events) >= 1
-
-    async def test_discard_removes_tile_from_hand(self, service):
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-
-        human = _find_human_player(game_state.round_state, "Human")
-        tile_id = human.tiles[-1]
-        initial_count = human.tiles.count(tile_id)
-
-        await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": tile_id})
-
-        # Refresh reference to get updated state
-        updated_human = _find_human_player(service._games["game1"].round_state, "Human")
-
-        # tile count should decrease
-        assert updated_human.tiles.count(tile_id) == initial_count - 1
-
-
-class TestMahjongGameServiceRiichi:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_riichi_requires_tile_id(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.DECLARE_RIICHI, {})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-
-class TestMahjongGameServiceTsumo:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_tsumo_validates_turn(self, service):
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        # Build updated players with max 13 tiles
-        new_players = []
-        for player in round_state.players:
-            if len(player.tiles) > 13:
-                new_players.append(player.model_copy(update={"tiles": tuple(list(player.tiles)[:13])}))
-            else:
-                new_players.append(player)
-
-        # force current player to a different seat so the human is out of turn
-        _update_round_state(service, "game1", current_player_seat=1, players=tuple(new_players))
-
-        events = await service.handle_action("game1", "Human", GameAction.DECLARE_TSUMO, {})
-        assert any(e.event == EventType.ERROR for e in events)
-
-
-class TestMahjongGameServiceRon:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_ron_requires_tile_id_and_from_seat(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.CALL_RON, {})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-
-class TestMahjongGameServiceMelds:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_pon_requires_tile_id(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.CALL_PON, {})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-    async def test_chi_requires_tile_id_and_sequence(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.CALL_CHI, {})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-    async def test_kan_requires_tile_id(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.CALL_KAN, {})
-
-        assert any(e.event == EventType.ERROR for e in events)
-
-
-class TestMahjongGameServicePass:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_pass_returns_error_without_pending_prompt(self, service):
-        await service.start_game("game1", ["Human"])
-
-        events = await service.handle_action("game1", "Human", GameAction.PASS, {})
-
-        assert len(events) == 1
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_PASS
 
 
 class TestMahjongGameServiceErrors:
@@ -205,7 +49,7 @@ class TestMahjongGameServiceErrors:
         assert "not found" in error_event.data.message
 
     async def test_handle_action_player_not_in_game(self, service):
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
 
         events = await service.handle_action("game1", "Unknown", GameAction.DISCARD, {"tile_id": 0})
 
@@ -215,7 +59,7 @@ class TestMahjongGameServiceErrors:
         assert "not in game" in error_event.data.message
 
     async def test_handle_action_unknown_action(self, service):
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
 
         events = await service.handle_action("game1", "Human", "unknown_action", {})
 
@@ -234,9 +78,8 @@ class TestMahjongGameServiceValidationError:
 
     async def test_dispatch_action_validation_error_on_invalid_data(self, service):
         """Trigger ValidationError by sending data with wrong types to a data-requiring action."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
 
-        # send discard with tile_id as a non-integer string that fails pydantic validation
         events = await service.handle_action("game1", "Human", GameAction.DISCARD, {"tile_id": "not_an_int"})
 
         assert len(events) == 1
@@ -245,11 +88,24 @@ class TestMahjongGameServiceValidationError:
         assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
         assert "invalid action data" in events[0].data.message
 
+    @pytest.mark.parametrize(
+        "action",
+        [GameAction.DECLARE_RIICHI, GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN],
+    )
+    async def test_dispatch_data_actions_validation_error(self, service, action):
+        """Exercise _execute_data_action dispatch branches with missing required fields."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+
+        events = await service.handle_action("game1", "Human", action, {})
+
+        assert len(events) == 1
+        assert events[0].event == EventType.ERROR
+        assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
+
     async def test_dispatch_action_unknown_data_action(self, service):
         """Trigger unknown action branch for data-requiring actions."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
 
-        # send an action that matches no handler
         events = await service.handle_action("game1", "Human", "unknown_action", {"some": "data"})
 
         assert len(events) == 1
@@ -259,7 +115,7 @@ class TestMahjongGameServiceValidationError:
 
 
 class TestMahjongGameServiceProcessActionResult:
-    """Tests for _process_action_result_internal."""
+    """Tests for _process_action_result_internal branching."""
 
     @pytest.fixture
     def service(self):
@@ -267,9 +123,8 @@ class TestMahjongGameServiceProcessActionResult:
 
     async def test_process_action_result_round_end(self, service):
         """Verify _process_action_result_internal returns round end events when round is finished."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
 
-        # set phase to FINISHED to trigger round end path
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         round_result = ExhaustiveDrawResult(
@@ -284,50 +139,17 @@ class TestMahjongGameServiceProcessActionResult:
 
         events = await service._process_action_result_internal("game1", result)
 
-        # should contain round end handling
-        assert len(events) >= 1
-
-    async def test_process_action_result_post_discard(self, service):
-        """Verify _process_action_result_internal delegates to post-discard processing."""
-        await service.start_game("game1", ["Human"])
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        # ensure current player has 13 tiles (simulating post-discard state)
-        current_seat = round_state.current_player_seat
-        current_player = round_state.players[current_seat]
-        if len(current_player.tiles) > 13:
-            _update_player(service, "game1", current_seat, tiles=tuple(list(current_player.tiles)[:13]))
-
-        result = ActionResult(
-            events=[
-                DiscardEvent(
-                    seat=0,
-                    tile_id=0,
-                    is_tsumogiri=True,
-                    is_riichi=False,
-                    target="all",
-                )
-            ],
-            needs_post_discard=True,
-        )
-
-        events = await service._process_action_result_internal("game1", result)
-
-        # should have processed post-discard logic
         assert len(events) >= 1
 
     async def test_process_action_result_chankan_prompt(self, service):
         """Verify _process_action_result_internal handles chankan prompts."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
 
-        # find bot seats
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
 
-        # set up pending call prompt for chankan
         prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
@@ -349,8 +171,6 @@ class TestMahjongGameServiceProcessActionResult:
             needs_post_discard=False,
         )
 
-        # mock complete_added_kan_after_chankan_decline to avoid tile validation issues
-        # The mock returns updated state with cleared prompt
         cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
             "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
@@ -358,7 +178,6 @@ class TestMahjongGameServiceProcessActionResult:
         ):
             events = await service._process_action_result_internal("game1", result)
 
-        # should have processed chankan
         assert len(events) >= 1
 
 
@@ -371,11 +190,10 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
     async def test_chankan_prompt_returns_events_for_human_caller(self, service):
         """Verify chankan returns events when human is a pending caller."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
         human = _find_human_player(game_state.round_state, "Human")
 
-        # set up pending call prompt with human caller
         prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
@@ -400,19 +218,16 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
         result = await service._handle_chankan_prompt("game1", events)
 
-        # should return immediately with events since human needs to respond
         assert result == events
 
     async def test_chankan_prompt_processes_bot_response(self, service):
         """Verify chankan processes bot responses when no human caller."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        # find bot seats
         bot_controller = service._bot_controllers["game1"]
         bot_seats = sorted(bot_controller.bot_seats)
 
-        # set up pending call prompt with only bot callers
         prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
             tile_id=0,
@@ -435,8 +250,6 @@ class TestMahjongGameServiceHandleChankanPrompt:
         )
         events = [chankan_prompt]
 
-        # mock complete_added_kan_after_chankan_decline to avoid tile validation issues
-        # The mock returns updated state with cleared prompt
         cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
             "game.logic.action_handlers.complete_added_kan_after_chankan_decline",
@@ -444,12 +257,11 @@ class TestMahjongGameServiceHandleChankanPrompt:
         ):
             result = await service._handle_chankan_prompt("game1", events)
 
-        # bot should have responded, prompt resolved
         assert len(result) >= 1
 
     async def test_chankan_prompt_no_pending_prompt(self, service):
         """Verify chankan returns events immediately when no pending prompt."""
-        await service.start_game("game1", ["Human"])
+        await service.start_game("game1", ["Human"], seed=2.0)
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -466,5 +278,4 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
         result = await service._handle_chankan_prompt("game1", events)
 
-        # should return immediately with no pending prompt
         assert result == events

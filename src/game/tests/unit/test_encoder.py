@@ -5,82 +5,9 @@ Tests for MessagePack encoder module.
 import msgpack
 import pytest
 
-from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction, RoundResultType
+from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
 from game.messaging.encoder import DecodeError, decode, encode
 from game.messaging.events import EventType
-
-
-class TestEncode:
-    def test_encode_simple_dict(self) -> None:
-        data = {"type": EventType.DRAW, "seat": 0, "tile_id": 0}
-        result = encode(data)
-
-        assert isinstance(result, bytes)
-        assert len(result) > 0
-
-    def test_encode_empty_dict(self) -> None:
-        data = {}
-        result = encode(data)
-
-        assert isinstance(result, bytes)
-
-    def test_encode_nested_dict(self) -> None:
-        data = {
-            "type": EventType.ROUND_END,
-            "result": {"type": RoundResultType.TSUMO, "winner_seat": 0, "hand": {"han": 3, "fu": 30}},
-        }
-        result = encode(data)
-
-        assert isinstance(result, bytes)
-
-    def test_encode_with_list(self) -> None:
-        data = {
-            "type": EventType.MELD,
-            "tile_ids": [10, 11, 12],
-        }
-        result = encode(data)
-
-        assert isinstance(result, bytes)
-
-
-class TestDecode:
-    def test_decode_simple_dict(self) -> None:
-        data = {"type": EventType.DRAW, "seat": 0, "tile_id": 0}
-        encoded = encode(data)
-
-        result = decode(encoded)
-
-        assert result == data
-
-    def test_decode_empty_dict(self) -> None:
-        data = {}
-        encoded = encode(data)
-
-        result = decode(encoded)
-
-        assert result == data
-
-    def test_decode_nested_dict(self) -> None:
-        data = {
-            "type": EventType.ROUND_END,
-            "result": {"type": RoundResultType.TSUMO, "winner_seat": 0, "hand": {"han": 3, "fu": 30}},
-        }
-        encoded = encode(data)
-
-        result = decode(encoded)
-
-        assert result == data
-
-    def test_decode_with_list(self) -> None:
-        data = {
-            "type": EventType.MELD,
-            "tile_ids": [10, 11, 12],
-        }
-        encoded = encode(data)
-
-        result = decode(encoded)
-
-        assert result == data
 
 
 class TestRoundTrip:

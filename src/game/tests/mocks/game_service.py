@@ -58,6 +58,8 @@ class MockGameService(GameService):
         self,
         game_id: str,
         player_names: list[str],
+        *,
+        seed: float | None = None,  # noqa: ARG002
     ) -> list[ServiceEvent]:
         # store player seat assignments (seat 0 for first player)
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}

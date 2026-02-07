@@ -37,24 +37,6 @@ def update_player(
     return round_state.model_copy(update={"players": tuple(players)})
 
 
-def update_current_player(
-    round_state: MahjongRoundState,
-    **updates: object,
-) -> MahjongRoundState:
-    """
-    Return new round state with current player updated.
-
-    Args:
-        round_state: Current round state
-        **updates: Fields to update on the current player
-
-    Returns:
-        New MahjongRoundState with updated current player
-
-    """
-    return update_player(round_state, round_state.current_player_seat, **updates)
-
-
 def add_tile_to_player(
     round_state: MahjongRoundState,
     seat: int,
@@ -230,24 +212,6 @@ def update_game_with_round(
     return game_state.model_copy(update={"round_state": round_state})
 
 
-def update_round_phase(
-    round_state: MahjongRoundState,
-    phase: object,
-) -> MahjongRoundState:
-    """
-    Return new round state with updated phase.
-
-    Args:
-        round_state: Current round state
-        phase: New RoundPhase value
-
-    Returns:
-        New MahjongRoundState with updated phase
-
-    """
-    return round_state.model_copy(update={"phase": phase})
-
-
 def add_dora_indicator(
     round_state: MahjongRoundState,
     tile_id: int,
@@ -284,33 +248,6 @@ def update_all_discards(
     """
     new_all_discards = (*round_state.all_discards, tile_id)
     return round_state.model_copy(update={"all_discards": new_all_discards})
-
-
-def clear_player_flags(
-    round_state: MahjongRoundState,
-    seat: int,
-) -> MahjongRoundState:
-    """
-    Return new round state with specified player's temporary flags cleared.
-
-    Clears: is_ippatsu, is_temporary_furiten, is_rinshan, kuikae_tiles
-
-    Args:
-        round_state: Current round state
-        seat: Player seat to clear flags for
-
-    Returns:
-        New MahjongRoundState with player flags cleared
-
-    """
-    return update_player(
-        round_state,
-        seat,
-        is_ippatsu=False,
-        is_temporary_furiten=False,
-        is_rinshan=False,
-        kuikae_tiles=(),
-    )
 
 
 def clear_all_players_ippatsu(

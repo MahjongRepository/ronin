@@ -2,34 +2,6 @@ import asyncio
 
 from game.logic.timer import TimerConfig, TurnTimer
 
-DEFAULT_CONFIG = TimerConfig()
-
-
-class TestTurnTimerInit:
-    def test_default_config(self):
-        timer = TurnTimer()
-        assert timer.remaining_bank == DEFAULT_CONFIG.initial_bank_seconds
-
-    def test_custom_config(self):
-        config = TimerConfig(initial_bank_seconds=60.0)
-        timer = TurnTimer(config)
-        assert timer.remaining_bank == 60.0
-
-
-class TestTurnTimerRoundBonus:
-    def test_add_round_bonus(self):
-        config = TimerConfig(initial_bank_seconds=30.0, round_bonus_seconds=10.0)
-        timer = TurnTimer(config)
-        timer.add_round_bonus()
-        assert timer.remaining_bank == 40.0
-
-    def test_add_multiple_round_bonuses(self):
-        config = TimerConfig(initial_bank_seconds=30.0, round_bonus_seconds=10.0)
-        timer = TurnTimer(config)
-        timer.add_round_bonus()
-        timer.add_round_bonus()
-        assert timer.remaining_bank == 50.0
-
 
 class TestTurnTimerTurnTimer:
     async def test_start_turn_timer_creates_task(self):

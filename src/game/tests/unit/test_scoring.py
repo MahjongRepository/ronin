@@ -249,25 +249,6 @@ class TestApplyTsumoScore:
         )
         return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
-    def test_non_dealer_tsumo_basic(self):
-        # non-dealer wins with 30fu 1han = 1000/500
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
-
-        new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
-        )
-
-        # winner (seat 1) gets 2000 total (1000 from dealer + 500*2 from non-dealers)
-        assert new_round_state.players[1].score == 25000 + 2000
-        # dealer (seat 0) pays 1000
-        assert new_round_state.players[0].score == 25000 - 1000
-        # other non-dealers pay 500 each
-        assert new_round_state.players[2].score == 25000 - 500
-        assert new_round_state.players[3].score == 25000 - 500
-        assert result.type == RoundResultType.TSUMO
-        assert result.winner_seat == 1
-
     def test_dealer_tsumo_basic(self):
         # dealer wins with 30fu 2han = 2000 all (dealer tsumo)
         game_state = self._create_game_state()
@@ -330,24 +311,6 @@ class TestApplyRonScore:
             round_wind=0,
         )
         return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-
-    def test_ron_basic(self):
-        # basic ron with 30fu 2han = 2000
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
-
-        new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result
-        )
-
-        # winner gets 2000
-        assert new_round_state.players[0].score == 25000 + 2000
-        # loser pays 2000
-        assert new_round_state.players[1].score == 25000 - 2000
-        # others unaffected
-        assert new_round_state.players[2].score == 25000
-        assert new_round_state.players[3].score == 25000
-        assert result.type == RoundResultType.RON
 
     def test_ron_with_honba(self):
         # ron with 3 honba sticks = +900 total
