@@ -3,11 +3,11 @@
 import pytest
 
 from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase, RoundPhase
+from game.logic.events import ErrorEvent, EventType
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
-from game.messaging.events import ErrorEvent, EventType
 from game.tests.unit.helpers import (
     _find_human_player,
     _update_player,

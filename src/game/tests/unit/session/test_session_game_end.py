@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock, patch
 
 from game.logic.enums import GameAction
+from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
 from game.logic.types import GameEndResult, PlayerStanding
-from game.messaging.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
 from game.session.models import Player
 from game.tests.mocks import MockConnection, MockResultEvent
 

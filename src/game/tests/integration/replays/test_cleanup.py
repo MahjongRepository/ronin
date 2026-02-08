@@ -5,8 +5,8 @@ during game-end handling with auto_cleanup=True.
 """
 
 from game.logic.enums import GameAction, GamePhase
+from game.logic.events import EventType, ServiceEvent
 from game.logic.mahjong_service import MahjongGameService
-from game.messaging.events import EventType, ServiceEvent
 from game.tests.integration.replays.helpers import PLAYER_NAMES, SEED
 
 

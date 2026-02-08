@@ -8,8 +8,8 @@ discard cycle through MahjongGameService.
 import pytest
 
 from game.logic.enums import GameAction, RoundPhase
+from game.logic.events import BroadcastTarget, EventType, GameStartedEvent
 from game.logic.mahjong_service import MahjongGameService
-from game.messaging.events import BroadcastTarget, EventType, GameStartedEvent
 
 
 class TestGameCreationAndJoin:

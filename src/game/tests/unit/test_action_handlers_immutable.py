@@ -35,6 +35,14 @@ from game.logic.enums import (
     RoundPhase,
     RoundResultType,
 )
+from game.logic.events import (
+    DiscardEvent,
+    DrawEvent,
+    ErrorEvent,
+    MeldEvent,
+    RoundEndEvent,
+    TurnEvent,
+)
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -55,14 +63,6 @@ from game.logic.types import (
     PonActionData,
     RiichiActionData,
     SeatConfig,
-)
-from game.messaging.events import (
-    DiscardEvent,
-    DrawEvent,
-    ErrorEvent,
-    MeldEvent,
-    RoundEndEvent,
-    TurnEvent,
 )
 
 

@@ -9,10 +9,10 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import GameAction, RoundPhase
+from game.logic.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import Discard, MahjongPlayer
 from game.logic.win import is_effective_furiten
-from game.messaging.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
 from game.tests.unit.helpers import (
     _find_human_player,
     _update_player,

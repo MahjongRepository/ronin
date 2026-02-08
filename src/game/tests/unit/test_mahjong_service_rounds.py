@@ -18,14 +18,7 @@ import pytest
 
 from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, MeldCallType, RoundPhase, TimeoutType
-from game.logic.exceptions import InvalidActionError
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt
-from game.logic.types import (
-    ExhaustiveDrawResult,
-    MeldCaller,
-)
-from game.messaging.events import (
+from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
     ErrorEvent,
@@ -33,6 +26,13 @@ from game.messaging.events import (
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
+)
+from game.logic.exceptions import InvalidActionError
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.state import PendingCallPrompt
+from game.logic.types import (
+    ExhaustiveDrawResult,
+    MeldCaller,
 )
 from game.tests.unit.helpers import (
     _find_human_player,

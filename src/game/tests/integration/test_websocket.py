@@ -5,8 +5,8 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from game.logic.enums import GameAction
+from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
-from game.messaging.events import EventType
 from game.messaging.types import ClientMessageType, SessionMessageType
 from game.server.app import create_app
 from game.server.websocket import WebSocketConnection

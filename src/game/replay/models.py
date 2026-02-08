@@ -10,8 +10,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from game.logic.enums import GameAction
+from game.logic.events import ErrorEvent, ServiceEvent
 from game.logic.state import MahjongGameState
-from game.messaging.events import ErrorEvent, ServiceEvent
 
 REQUIRED_PLAYER_COUNT = 4
 

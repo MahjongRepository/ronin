@@ -1,10 +1,7 @@
 from typing import Any
 
 from game.logic.enums import GameAction, GamePhase, RoundPhase, TimeoutType, WindName
-from game.logic.service import GameService
-from game.logic.settings import GameSettings
-from game.logic.types import GamePlayerInfo, GameView, PlayerView
-from game.messaging.events import (
+from game.logic.events import (
     BroadcastTarget,
     EventType,
     GameEvent,
@@ -13,6 +10,9 @@ from game.messaging.events import (
     SeatTarget,
     ServiceEvent,
 )
+from game.logic.service import GameService
+from game.logic.settings import GameSettings
+from game.logic.types import GamePlayerInfo, GameView, PlayerView
 
 
 class MockResultEvent(GameEvent):

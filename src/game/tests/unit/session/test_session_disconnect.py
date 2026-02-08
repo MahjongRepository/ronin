@@ -3,7 +3,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, TimeoutType
-from game.messaging.events import BroadcastTarget, EventType, ServiceEvent
+from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.messaging.types import SessionMessageType
 from game.tests.mocks import MockConnection, MockResultEvent
 

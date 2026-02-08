@@ -15,13 +15,13 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import RoundPhase
+from game.logic.events import DoraRevealedEvent
 from game.logic.exceptions import InvalidRiichiError, InvalidWinError
 from game.logic.turn import (
     emit_deferred_dora_events,
     process_discard_phase,
     process_tsumo_call,
 )
-from game.messaging.events import DoraRevealedEvent
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 

@@ -1,6 +1,6 @@
 """Replay scenario: multi-round progression with round advancement and score changes."""
 
-from game.messaging.events import EventType
+from game.logic.events import EventType
 from game.replay.runner import run_replay_async
 from game.tests.integration.replays.helpers import (
     PLAYER_NAMES,

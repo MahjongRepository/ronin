@@ -2,13 +2,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 from game.logic.enums import CallType, GameAction, TimeoutType
-from game.logic.timer import TimerConfig, TurnTimer
-from game.logic.types import (
-    ExhaustiveDrawResult,
-    GameEndResult,
-    PlayerStanding,
-)
-from game.messaging.events import (
+from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
     EventType,
@@ -18,6 +12,12 @@ from game.messaging.events import (
     SeatTarget,
     ServiceEvent,
     TurnEvent,
+)
+from game.logic.timer import TimerConfig, TurnTimer
+from game.logic.types import (
+    ExhaustiveDrawResult,
+    GameEndResult,
+    PlayerStanding,
 )
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockResultEvent

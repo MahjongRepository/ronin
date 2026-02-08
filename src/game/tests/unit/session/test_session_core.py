@@ -1,12 +1,12 @@
 from game.logic.enums import CallType, GameAction, MeldCallType
-from game.logic.types import MeldCaller
-from game.messaging.events import (
+from game.logic.events import (
     CallPromptEvent,
     EventType,
     SeatTarget,
     ServiceEvent,
     TurnEvent,
 )
+from game.logic.types import MeldCaller
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.models import Player
 from game.tests.mocks import MockConnection

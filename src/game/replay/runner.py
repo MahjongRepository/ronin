@@ -14,10 +14,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 from game.logic.enums import GameAction, GamePhase
+from game.logic.events import ErrorEvent, EventType, ServiceEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState
-from game.messaging.events import ErrorEvent, EventType, ServiceEvent
 from game.replay.models import (
     ReplayError,
     ReplayInput,

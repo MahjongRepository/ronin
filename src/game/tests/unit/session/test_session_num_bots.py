@@ -1,6 +1,6 @@
 import pytest
 
-from game.messaging.events import EventType
+from game.logic.events import EventType
 from game.session.models import Game
 from game.tests.mocks import MockConnection
 

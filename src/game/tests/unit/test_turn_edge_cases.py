@@ -15,6 +15,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
 from game.logic.enums import CallType, MeldCallType, PlayerAction, RoundPhase, RoundResultType
+from game.logic.events import CallPromptEvent, RoundEndEvent, TurnEvent
 from game.logic.exceptions import InvalidMeldError, InvalidWinError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult
@@ -26,7 +27,6 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
-from game.messaging.events import CallPromptEvent, RoundEndEvent, TurnEvent
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 

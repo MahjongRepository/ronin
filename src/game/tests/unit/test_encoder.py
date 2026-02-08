@@ -6,8 +6,8 @@ import msgpack
 import pytest
 
 from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.events import EventType
 from game.messaging.encoder import DecodeError, decode, encode
-from game.messaging.events import EventType
 
 
 class TestRoundTrip:

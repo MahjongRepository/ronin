@@ -1,7 +1,7 @@
 """Replay scenario: round-end through exhaustive draw after repeated discards."""
 
 from game.logic.enums import GameAction
-from game.messaging.events import EventType
+from game.logic.events import EventType
 from game.replay.runner import run_replay_async
 from game.tests.integration.replays.helpers import (
     PLAYER_NAMES,

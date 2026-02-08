@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from game.logic.enums import GameAction
-from game.messaging.events import (
+from game.logic.events import (
     BroadcastTarget,
     DiscardEvent,
     EventType,

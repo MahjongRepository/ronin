@@ -5,9 +5,7 @@ ServiceEvent is the transport wrapper used to route events to clients.
 convert_events() maps domain events into ServiceEvent containers with typed
 routing targets.
 
-The logic layer imports exclusively from this module for event types.
-The messaging layer (game.messaging.events) re-exports these types as a
-backward-compatible facade.
+All layers import exclusively from this module for event types.
 """
 
 from __future__ import annotations

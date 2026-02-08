@@ -152,7 +152,7 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Domain events live in the logic layer; `game.messaging.events` is a re-export facade for backward compatibility. Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
+- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
 - **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope).
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists
@@ -260,7 +260,7 @@ The replay adapter (`src/game/replay/`) enables deterministic replay of game ses
 - **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace
 - **ReplayServiceProtocol** is the replay-facing protocol boundary; default factory uses `MahjongGameService(auto_cleanup=False)`
 - **Determinism contract**: same seed + same input events = identical trace; bot strategies must be deterministic given the same state
-- **Dependency direction**: `game.replay` imports from `game.logic` and `game.messaging`; game logic modules never import from `game.replay`
+- **Dependency direction**: `game.replay` imports from `game.logic`; game logic modules never import from `game.replay`
 - `start_game()` accepts an optional `seed` parameter for deterministic game creation; when omitted, a random seed is generated
 
 ## Project Structure
@@ -279,7 +279,6 @@ ronin/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── mock.py         # MockConnection for testing
         │   ├── types.py        # Message schemas (Pydantic)
-        │   ├── events.py       # Re-export facade for game.logic.events
         │   ├── encoder.py      # MessagePack encoding/decoding
         │   └── router.py       # Message routing
         ├── session/

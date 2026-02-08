@@ -17,18 +17,18 @@ import pytest
 
 from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt
-from game.logic.types import (
-    ExhaustiveDrawResult,
-)
-from game.messaging.events import (
+from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
     EventType,
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
+)
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.state import PendingCallPrompt
+from game.logic.types import (
+    ExhaustiveDrawResult,
 )
 from game.tests.unit.helpers import (
     _find_human_player,

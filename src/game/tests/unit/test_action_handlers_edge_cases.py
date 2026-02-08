@@ -28,6 +28,11 @@ from game.logic.enums import (
     MeldCallType,
     RoundPhase,
 )
+from game.logic.events import (
+    CallPromptEvent,
+    ErrorEvent,
+    RoundEndEvent,
+)
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -43,11 +48,6 @@ from game.logic.types import (
     MeldCaller,
     PonActionData,
     SeatConfig,
-)
-from game.messaging.events import (
-    CallPromptEvent,
-    ErrorEvent,
-    RoundEndEvent,
 )
 
 
