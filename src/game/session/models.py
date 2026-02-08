@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from game.logic.settings import GameSettings
+
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
 
@@ -35,6 +37,7 @@ class Game:
     num_bots: int = 3
     started: bool = False
     players: dict[str, Player] = field(default_factory=dict)
+    settings: GameSettings = field(default_factory=GameSettings)
 
     def __post_init__(self) -> None:
         """Validate num_bots is within the allowed range."""

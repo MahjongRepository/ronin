@@ -12,6 +12,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState
 from game.replay.models import (
     ReplayError,
@@ -160,6 +161,7 @@ async def test_run_replay_async_unique_game_ids():
             player_names: list[str],
             *,
             seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             game_ids.add(game_id)
             return await super().start_game(game_id, player_names, seed=seed)

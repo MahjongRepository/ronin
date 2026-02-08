@@ -15,6 +15,7 @@ from game.logic.melds import (
     call_open_kan,
     call_pon,
 )
+from game.logic.settings import GameSettings
 from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
@@ -101,7 +102,14 @@ class TestCallPonImmutable:
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
         # Player 3 discards 1m, player 0 calls pon
-        _new_state, meld = call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2])
+        settings = GameSettings()
+        _new_state, meld = call_pon(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[2],
+            settings=settings,
+        )
 
         # Verify meld properties
         assert meld.type == Meld.PON
@@ -118,7 +126,14 @@ class TestCallPonImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        new_state, _meld = call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2])
+        settings = GameSettings()
+        new_state, _meld = call_pon(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[2],
+            settings=settings,
+        )
 
         assert 0 in new_state.players_with_open_hands
 
@@ -129,7 +144,14 @@ class TestCallPonImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        new_state, _meld = call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2])
+        settings = GameSettings()
+        new_state, _meld = call_pon(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[2],
+            settings=settings,
+        )
 
         # Kuikae should forbid 1m (tile_34 = 0)
         assert tile_to_34(man_1m[0]) in new_state.players[0].kuikae_tiles
@@ -142,8 +164,9 @@ class TestCallPonImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
+        settings = GameSettings()
         with pytest.raises(InvalidMeldError, match="need 2 matching tiles"):
-            call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[1])
+            call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[1], settings=settings)
 
 
 class TestCallChiImmutable:
@@ -162,12 +185,14 @@ class TestCallChiImmutable:
         )
 
         # Player 0 discards 1m, player 1 (kamicha) calls chi with 2m, 3m
+        settings = GameSettings()
         _new_state, meld = call_chi(
             round_state,
             caller_seat=1,
             discarder_seat=0,
             tile_id=man_tiles[0],
             sequence_tiles=(man_tiles[1], man_tiles[2]),
+            settings=settings,
         )
 
         # Verify meld properties
@@ -191,12 +216,14 @@ class TestCallChiImmutable:
             current_player_seat=0,
         )
 
+        settings = GameSettings()
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
             discarder_seat=0,
             tile_id=man_tiles[0],
             sequence_tiles=(man_tiles[1], man_tiles[2]),
+            settings=settings,
         )
 
         # Verify sequence tiles removed
@@ -217,12 +244,14 @@ class TestCallChiImmutable:
             current_player_seat=0,
         )
 
+        settings = GameSettings()
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
             discarder_seat=0,
             tile_id=man_tiles[0],
             sequence_tiles=(man_tiles[1], man_tiles[2]),
+            settings=settings,
         )
 
         assert new_state.current_player_seat == 1
@@ -243,12 +272,14 @@ class TestCallChiImmutable:
         # Player 3 has is_ippatsu=True in the helper
         assert round_state.players[3].is_ippatsu is True
 
+        settings = GameSettings()
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
             discarder_seat=0,
             tile_id=man_tiles[0],
             sequence_tiles=(man_tiles[1], man_tiles[2]),
+            settings=settings,
         )
 
         for p in new_state.players:
@@ -267,12 +298,14 @@ class TestCallChiImmutable:
             current_player_seat=0,
         )
 
+        settings = GameSettings()
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
             discarder_seat=0,
             tile_id=man_tiles[0],
             sequence_tiles=(man_tiles[1], man_tiles[2]),
+            settings=settings,
         )
 
         # Kuikae forbids 1m (called tile)
@@ -289,7 +322,14 @@ class TestCallOpenKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        _new_state, meld = call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[3])
+        settings = GameSettings()
+        _new_state, meld = call_open_kan(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[3],
+            settings=settings,
+        )
 
         # Verify meld properties
         assert meld.type == Meld.KAN
@@ -307,7 +347,14 @@ class TestCallOpenKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        new_state, _meld = call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_open_kan(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[3],
+            settings=settings,
+        )
 
         # Hand should have 9 (pin) + 1 (drawn from dead wall) = 10 tiles
         # But 3 removed for kan, so 9 + 1 = 10
@@ -329,7 +376,14 @@ class TestCallOpenKanImmutable:
 
         original_dead_wall_len = len(round_state.dead_wall)
 
-        new_state, _meld = call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_open_kan(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[3],
+            settings=settings,
+        )
 
         # Dead wall should maintain same size (replenished from live wall)
         assert len(new_state.dead_wall) == original_dead_wall_len
@@ -346,7 +400,14 @@ class TestCallOpenKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        new_state, _meld = call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_open_kan(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[3],
+            settings=settings,
+        )
 
         assert new_state.players[0].is_rinshan is True
 
@@ -362,7 +423,14 @@ class TestCallOpenKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
-        new_state, _meld = call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_open_kan(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[3],
+            settings=settings,
+        )
 
         assert new_state.pending_dora_count == 1
 
@@ -374,8 +442,9 @@ class TestCallOpenKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=3)
 
+        settings = GameSettings()
         with pytest.raises(InvalidMeldError, match="need 3 matching tiles"):
-            call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2])
+            call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2], settings=settings)
 
 
 class TestCallClosedKanImmutable:
@@ -387,7 +456,8 @@ class TestCallClosedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        _new_state, meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
+        settings = GameSettings()
+        _new_state, meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
         # Verify meld properties
         assert meld.type == Meld.KAN
@@ -404,7 +474,8 @@ class TestCallClosedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
+        settings = GameSettings()
+        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
         # Hand should have 9 (pin) + 1 (dead wall draw) = 10 tiles
         assert len(new_state.players[0].tiles) == 10
@@ -416,7 +487,8 @@ class TestCallClosedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
+        settings = GameSettings()
+        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
         assert 0 not in new_state.players_with_open_hands
 
@@ -435,7 +507,8 @@ class TestCallClosedKanImmutable:
 
         original_dora_count = len(round_state.dora_indicators)
 
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
+        settings = GameSettings()
+        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
         # Dora revealed immediately (not pending)
         assert new_state.pending_dora_count == 0
@@ -448,7 +521,8 @@ class TestCallClosedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
+        settings = GameSettings()
+        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
         assert new_state.players[0].is_rinshan is True
 
@@ -465,8 +539,9 @@ class TestCallClosedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
+        settings = GameSettings()
         with pytest.raises(InvalidMeldError, match="need 4 matching tiles"):
-            call_closed_kan(round_state, seat=0, tile_id=man_1m[0])
+            call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
 
 class TestCallAddedKanImmutable:
@@ -486,7 +561,8 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        _new_state, meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3])
+        settings = GameSettings()
+        _new_state, meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
         # Verify meld properties
         assert meld.type == Meld.SHOUMINKAN
@@ -511,7 +587,8 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
         # Hand should have 9 (pin) + 1 (dead wall draw) = 10 tiles
         assert len(new_state.players[0].tiles) == 10
@@ -533,7 +610,8 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
         # Should still have 1 meld, but it's now a shouminkan
         assert len(new_state.players[0].melds) == 1
@@ -554,7 +632,8 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
         assert new_state.pending_dora_count == 1
 
@@ -565,8 +644,9 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles)  # No melds
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
+        settings = GameSettings()
         with pytest.raises(InvalidMeldError, match="no pon of tile type"):
-            call_added_kan(round_state, seat=0, tile_id=man_1m[0])
+            call_added_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
     def test_call_added_kan_raises_on_tile_not_in_hand(self):
         """Test that InvalidMeldError is raised when 4th tile is not in hand."""
@@ -584,8 +664,9 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
+        settings = GameSettings()
         with pytest.raises(InvalidMeldError, match="not in hand"):
-            call_added_kan(round_state, seat=0, tile_id=man_1m[3])
+            call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
     def test_call_added_kan_sets_rinshan_flag(self):
         """Test that is_rinshan flag is set."""
@@ -602,6 +683,7 @@ class TestCallAddedKanImmutable:
         players = _create_frozen_players(player0_tiles=player0_tiles, player0_melds=(pon_meld,))
         round_state = _create_frozen_round_state(players=players, current_player_seat=0)
 
-        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3])
+        settings = GameSettings()
+        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
         assert new_state.players[0].is_rinshan is True

@@ -182,10 +182,11 @@ The `logic/` module implements Riichi Mahjong rules:
 - **Riichi** - Riichi declaration validation and tenpai detection
 - **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.); returns `AbortiveDrawResult`
 - **Bot** - AI player for filling empty seats; returns `BotAction` model
-- **State** - Frozen Pydantic game state models: `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, `CallResponse`; all state is immutable (`frozen=True`); state updates use `model_copy(update={...})` pattern
+- **Settings** (`settings.py`) - `GameSettings` Pydantic model with all configurable game rules; `validate_settings()` startup guard rejecting unsupported combinations; `GameType`/`EnchousenType`/`RenhouValue`/`LeftoverRiichiBets` enums; `build_optional_rules()` for scoring library integration; `get_wind_thresholds()` for wind-round boundary computation
+- **State** - Frozen Pydantic game state models: `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, `CallResponse`; all state is immutable (`frozen=True`); state updates use `model_copy(update={...})` pattern; settings live only on `MahjongGameState`, not on `MahjongRoundState`; `MahjongPlayer.score` is required (no default)
 - **MeldWrapper** (`meld_wrapper.py`) - `FrozenMeld` immutable wrapper for external `mahjong.meld.Meld` class; provides true immutability by storing meld data in frozen Pydantic model; converts to/from `Meld` at boundaries for library compatibility; `frozen_melds_to_melds()` utility for batch conversion
 - **StateUtils** (`state_utils.py`) - Helper functions for immutable state updates: `update_player()`, `add_tile_to_player()`, `remove_tile_from_player()`, `add_discard()`, `add_meld()`, `reveal_dora()`, `advance_turn()`, etc.
-- **Exceptions** (`exceptions.py`) - Typed domain exception hierarchy rooted in `GameRuleError`; subclasses: `InvalidDiscardError`, `InvalidMeldError`, `InvalidRiichiError`, `InvalidWinError`, `InvalidActionError`. Domain modules raise these instead of raw `ValueError`. Action handlers catch `GameRuleError` and convert to `ErrorEvent`. The broad `except Exception` containment in `MessageRouter` is preserved as a fatal safety net.
+- **Exceptions** (`exceptions.py`) - Typed domain exception hierarchy rooted in `GameRuleError`; subclasses: `InvalidDiscardError`, `InvalidMeldError`, `InvalidRiichiError`, `InvalidWinError`, `InvalidActionError`, `UnsupportedSettingsError`. Domain modules raise these instead of raw `ValueError`. Action handlers catch `GameRuleError` and convert to `ErrorEvent`. The broad `except Exception` containment in `MessageRouter` is preserved as a fatal safety net.
 
 ### Pending Call Prompt System
 

@@ -62,6 +62,7 @@ from game.logic.scoring import (
     calculate_hand_value,
     calculate_hand_value_with_tiles,
 )
+from game.logic.settings import GameSettings
 from game.logic.state import (
     MahjongGameState,
     MahjongRoundState,
@@ -83,8 +84,20 @@ from game.logic.win import (
 
 logger = logging.getLogger(__name__)
 
-# number of ron callers for double ron
-DOUBLE_RON_COUNT = 2
+
+def _maybe_emit_dora_event(
+    old_dora_count: int,
+    new_round_state: MahjongRoundState,
+    events: list[GameEvent],
+) -> None:
+    """Append a DoraRevealedEvent if a new dora indicator was revealed."""
+    if len(new_round_state.dora_indicators) > old_dora_count:
+        events.append(
+            DoraRevealedEvent(
+                tile_id=new_round_state.dora_indicators[-1],
+                dora_indicators=list(new_round_state.dora_indicators),
+            )
+        )
 
 
 def emit_deferred_dora_events(
@@ -158,8 +171,9 @@ def process_draw_phase(
     available_actions = get_available_actions(new_round_state, new_game_state, current_seat)
 
     # check for kyuushu kyuuhai and add to actions if available
+    settings = game_state.settings
     player = new_round_state.players[current_seat]
-    if can_call_kyuushu_kyuuhai(player, new_round_state):
+    if settings.has_kyuushu_kyuuhai and can_call_kyuushu_kyuuhai(player, new_round_state, settings):
         available_actions.append(AvailableActionItem(action=PlayerAction.KYUUSHU))
 
     events.append(
@@ -211,6 +225,7 @@ def _find_meld_callers(
     round_state: MahjongRoundState,
     tile_id: int,
     discarder_seat: int,
+    settings: GameSettings,
 ) -> list[MeldCaller]:
     """
     Find all players who can call a meld on the discarded tile.
@@ -227,7 +242,7 @@ def _find_meld_callers(
         player = round_state.players[seat]
 
         # check open kan
-        if can_call_open_kan(player, tile_id, round_state):
+        if can_call_open_kan(player, tile_id, round_state, settings):
             meld_calls.append(
                 MeldCaller(
                     seat=seat,
@@ -290,11 +305,12 @@ def process_discard_phase(  # noqa: PLR0915
     player = round_state.players[current_seat]
     new_round_state = round_state
     new_game_state = game_state
+    settings = game_state.settings
 
     # step 1: mark riichi if declaring
     riichi_pending = False
     if is_riichi:
-        if not can_declare_riichi(player, round_state):
+        if not can_declare_riichi(player, round_state, settings):
             logger.error(f"seat {current_seat} cannot declare riichi: conditions not met")
             raise InvalidRiichiError("cannot declare riichi: conditions not met")
         riichi_pending = True
@@ -313,7 +329,7 @@ def process_discard_phase(  # noqa: PLR0915
     )
 
     # step 3: check for four winds abortive draw
-    if check_four_winds(new_round_state):
+    if settings.has_suufon_renda and check_four_winds(new_round_state, settings):
         result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_WINDS)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
@@ -321,13 +337,13 @@ def process_discard_phase(  # noqa: PLR0915
         return new_round_state, new_game_state, events
 
     # step 4: check for ron from other players
-    ron_callers = _find_ron_callers(new_round_state, tile_id, current_seat)
+    ron_callers = _find_ron_callers(new_round_state, tile_id, current_seat, settings)
 
     # set riichi furiten for riichi players whose winning tile passed
     new_round_state = _check_riichi_furiten(new_round_state, tile_id, current_seat, ron_callers)
     new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
 
-    if check_triple_ron(ron_callers):
+    if settings.has_triple_ron_abort and check_triple_ron(ron_callers, settings.triple_ron_count):
         # triple ron is abortive draw
         result = process_abortive_draw(new_game_state, AbortiveDrawType.TRIPLE_RON)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
@@ -364,11 +380,16 @@ def process_discard_phase(  # noqa: PLR0915
 
     # step 6: finalize riichi if no ron
     if riichi_pending:
-        new_round_state, new_game_state = declare_riichi(new_round_state, new_game_state, current_seat)
+        new_round_state, new_game_state = declare_riichi(
+            new_round_state,
+            new_game_state,
+            current_seat,
+            settings,
+        )
         events.append(RiichiDeclaredEvent(seat=current_seat, target="all"))
 
         # check for four riichi abortive draw
-        if check_four_riichi(new_round_state):
+        if settings.has_suucha_riichi and check_four_riichi(new_round_state, settings):
             result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_RIICHI)
             new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
             new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
@@ -376,7 +397,7 @@ def process_discard_phase(  # noqa: PLR0915
             return new_round_state, new_game_state, events
 
     # step 7: check for meld calls (priority: kan > pon > chi)
-    meld_calls = _find_meld_callers(new_round_state, tile_id, current_seat)
+    meld_calls = _find_meld_callers(new_round_state, tile_id, current_seat, settings)
 
     if meld_calls:
         # set up pending prompt and create call prompt event
@@ -411,6 +432,7 @@ def _find_ron_callers(
     round_state: MahjongRoundState,
     tile_id: int,
     discarder_seat: int,
+    settings: GameSettings,
 ) -> list[int]:
     """
     Find all players who can call ron on the discarded tile.
@@ -424,7 +446,7 @@ def _find_ron_callers(
             continue
 
         player = round_state.players[seat]
-        if can_call_ron(player, tile_id, round_state):
+        if can_call_ron(player, tile_id, round_state, settings):
             ron_callers.append(seat)
 
     # sort by priority: counter-clockwise from discarder (closer = higher priority)
@@ -453,6 +475,7 @@ def process_ron_call(  # noqa: PLR0913
     Returns (new_round_state, new_game_state, events).
     """
     events: list[GameEvent] = []
+    settings = game_state.settings
 
     if len(ron_callers) == 1:
         # single ron
@@ -464,7 +487,7 @@ def process_ron_call(  # noqa: PLR0913
 
         # calculate hand value using explicit tiles list
         hand_result = calculate_hand_value_with_tiles(
-            winner, round_state, tiles_with_win, tile_id, is_tsumo=False, is_chankan=is_chankan
+            winner, round_state, tiles_with_win, tile_id, settings, is_tsumo=False, is_chankan=is_chankan
         )
 
         if hand_result.error:
@@ -481,7 +504,7 @@ def process_ron_call(  # noqa: PLR0913
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(RoundEndEvent(result=result, target="all"))
 
-    elif len(ron_callers) == DOUBLE_RON_COUNT:
+    elif len(ron_callers) == settings.double_ron_count:
         # double ron
         winners = []
         for winner_seat in ron_callers:
@@ -492,7 +515,7 @@ def process_ron_call(  # noqa: PLR0913
 
             # calculate hand value using explicit tiles list
             hand_result = calculate_hand_value_with_tiles(
-                winner, round_state, tiles_with_win, tile_id, is_tsumo=False, is_chankan=is_chankan
+                winner, round_state, tiles_with_win, tile_id, settings, is_tsumo=False, is_chankan=is_chankan
             )
 
             if hand_result.error:
@@ -525,9 +548,10 @@ def process_tsumo_call(
     Returns (new_round_state, new_game_state, events).
     """
     events: list[GameEvent] = []
+    settings = game_state.settings
     winner = round_state.players[winner_seat]
 
-    if not can_declare_tsumo(winner, round_state):
+    if not can_declare_tsumo(winner, round_state, settings):
         logger.error(
             f"seat {winner_seat} cannot declare tsumo: conditions not met, "
             f"tiles={winner.tiles}, melds={winner.melds}"
@@ -540,7 +564,7 @@ def process_tsumo_call(
 
     # the win tile is the last tile in hand (just drawn)
     win_tile = winner.tiles[-1]
-    hand_result = calculate_hand_value(winner, new_round_state, win_tile, is_tsumo=True)
+    hand_result = calculate_hand_value(winner, new_round_state, win_tile, settings, is_tsumo=True)
 
     if hand_result.error:
         logger.error(
@@ -567,7 +591,7 @@ def _process_pon_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a pon meld call."""
-    new_round_state, meld = call_pon(round_state, caller_seat, discarder_seat, tile_id)
+    new_round_state, meld = call_pon(round_state, caller_seat, discarder_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
         MeldEvent(
@@ -590,7 +614,14 @@ def _process_chi_call(  # noqa: PLR0913
     sequence_tiles: tuple[int, int],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a chi meld call."""
-    new_round_state, meld = call_chi(round_state, caller_seat, discarder_seat, tile_id, sequence_tiles)
+    new_round_state, meld = call_chi(
+        round_state,
+        caller_seat,
+        discarder_seat,
+        tile_id,
+        sequence_tiles,
+        game_state.settings,
+    )
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
         MeldEvent(
@@ -610,7 +641,8 @@ def _check_four_kans_abort(
     events: list[GameEvent],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent], bool]:
     """Check for four kans abortive draw. Return (round, game, events, aborted)."""
-    if check_four_kans(round_state):
+    settings = game_state.settings
+    if settings.has_suukaikan and check_four_kans(round_state, settings):
         new_game_state = game_state.model_copy(update={"round_state": round_state})
         result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_KANS)
         new_round_state = round_state.model_copy(update={"phase": RoundPhase.FINISHED})
@@ -628,7 +660,14 @@ def _process_open_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle an open kan meld call."""
-    new_round_state, meld = call_open_kan(round_state, caller_seat, discarder_seat, tile_id)
+    old_dora_count = len(round_state.dora_indicators)
+    new_round_state, meld = call_open_kan(
+        round_state,
+        caller_seat,
+        discarder_seat,
+        tile_id,
+        game_state.settings,
+    )
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
         MeldEvent(
@@ -640,6 +679,7 @@ def _process_open_kan_call(
             called_tile_id=tile_id,
         )
     ]
+    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
     new_round_state, new_game_state, events, _aborted = _check_four_kans_abort(
         new_round_state, game_state, events
     )
@@ -653,7 +693,8 @@ def _process_closed_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a closed kan meld call."""
-    new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id)
+    old_dora_count = len(round_state.dora_indicators)
+    new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
         MeldEvent(
@@ -662,11 +703,8 @@ def _process_closed_kan_call(
             tile_ids=tile_ids,
             kan_type=KanType.CLOSED,
         ),
-        DoraRevealedEvent(
-            tile_id=new_round_state.dora_indicators[-1],
-            dora_indicators=list(new_round_state.dora_indicators),
-        ),
     ]
+    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
     new_round_state, new_game_state, events, _aborted = _check_four_kans_abort(
         new_round_state, game_state, events
     )
@@ -703,7 +741,8 @@ def _process_added_kan_call(
         ]
         return new_round_state, new_game_state, events
 
-    new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id)
+    old_dora_count = len(round_state.dora_indicators)
+    new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles) if meld.tiles else []
     events = [
         MeldEvent(
@@ -713,6 +752,7 @@ def _process_added_kan_call(
             kan_type=KanType.ADDED,
         )
     ]
+    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
     new_round_state, new_game_state, events, _aborted = _check_four_kans_abort(
         new_round_state, game_state, events
     )

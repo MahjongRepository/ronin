@@ -5,6 +5,8 @@ Uses a bank system for turn time (initial + round bonus) and a fixed timer for m
 On timeout, callbacks trigger auto-actions (tsumogiri for turns, pass for melds).
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
@@ -17,14 +19,24 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from game.logic.settings import GameSettings
+
 
 class TimerConfig(BaseModel):
     """Configuration for player turn timers."""
 
-    # TODO: increase these limits for longer games or different game modes
     initial_bank_seconds: float = 3
     round_bonus_seconds: float = 2
     meld_decision_seconds: float = 2
+
+    @classmethod
+    def from_settings(cls, settings: GameSettings) -> TimerConfig:
+        """Build TimerConfig from GameSettings."""
+        return cls(
+            initial_bank_seconds=settings.initial_bank_seconds,
+            round_bonus_seconds=settings.round_bonus_seconds,
+            meld_decision_seconds=settings.meld_decision_seconds,
+        )
 
 
 class TurnTimer:

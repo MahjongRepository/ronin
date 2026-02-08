@@ -65,6 +65,7 @@ class TestWaitingTilesWithFourCopies:
             seat=0,
             name="Player0",
             tiles=tuple(tiles),
+            score=25000,
         )
 
         # Get waiting tiles
@@ -92,11 +93,12 @@ class TestChankanBlockedByRiichiFuriten:
                 name="Player0",
                 tiles=tuple(tiles_p0),
                 is_riichi=True,
-                is_riichi_furiten=True,  # Set riichi furiten flag
+                is_riichi_furiten=True,  # Set riichi furiten flag,
+                score=25000,
             ),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
         )
 
         round_state = MahjongRoundState(
@@ -123,16 +125,17 @@ class TestChankanBlockedByTemporaryFuriten:
         # Create player who is tenpai waiting on 3p but has temporary furiten
         tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         players = (
-            MahjongPlayer(seat=0, name="Player0"),
+            MahjongPlayer(seat=0, name="Player0", score=25000),
             MahjongPlayer(
                 seat=1,
                 name="Player1",
                 tiles=tuple(tiles_p1),
                 is_riichi=True,
-                is_temporary_furiten=True,  # Set temporary furiten flag
+                is_temporary_furiten=True,  # Set temporary furiten flag,
+                score=25000,
             ),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
         )
 
         round_state = MahjongRoundState(

@@ -44,6 +44,7 @@ from game.logic.state_utils import (
     update_game_with_round,
 )
 from game.logic.turn import (
+    _maybe_emit_dora_event,
     emit_deferred_dora_events,
     process_draw_phase,
     process_meld_call,
@@ -52,9 +53,6 @@ from game.logic.turn import (
 from game.logic.types import MeldCaller
 
 logger = logging.getLogger(__name__)
-
-# number of ron callers for triple ron abortive draw
-TRIPLE_RON_COUNT = 3
 
 
 def _action_to_meld_call_type(action: GameAction) -> MeldCallType:
@@ -113,7 +111,8 @@ def _resolve_ron_responses(
     ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, 999))
 
     # triple ron - abortive draw (all three opponents declared ron)
-    if len(ron_responses) == TRIPLE_RON_COUNT:
+    settings = game_state.settings
+    if settings.has_triple_ron_abort and len(ron_responses) == settings.triple_ron_count:
         result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)
         new_round_state = clear_pending_prompt(round_state)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
@@ -121,8 +120,9 @@ def _resolve_ron_responses(
         events: list[GameEvent] = [RoundEndEvent(result=result, target="all")]
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
-    # double ron or single ron
-    ron_seats = [r.seat for r in ron_responses]
+    # atamahane: cap to double_ron_count if double ron enabled, else single winner only
+    max_winners = settings.double_ron_count if settings.has_double_ron else 1
+    ron_seats = [r.seat for r in ron_responses[:max_winners]]
     is_chankan = prompt.call_type == CallType.CHANKAN
     new_round_state, new_game_state, events = process_ron_call(
         round_state, game_state, ron_seats, prompt.tile_id, prompt.from_seat, is_chankan=is_chankan
@@ -191,12 +191,15 @@ def _resolve_all_passed(
     events.extend(dora_events)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
 
+    settings = game_state.settings
     discarder = new_round_state.players[prompt.from_seat]
     if discarder.discards and discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
-        new_round_state, new_game_state = declare_riichi(new_round_state, new_game_state, prompt.from_seat)
+        new_round_state, new_game_state = declare_riichi(
+            new_round_state, new_game_state, prompt.from_seat, settings
+        )
         events.append(RiichiDeclaredEvent(seat=prompt.from_seat, target="all"))
 
-        if check_four_riichi(new_round_state):
+        if settings.has_suucha_riichi and check_four_riichi(new_round_state, settings):
             result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_RIICHI)
             new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
             new_game_state = update_game_with_round(new_game_state, new_round_state)
@@ -226,7 +229,9 @@ def complete_added_kan_after_chankan_decline(
     Furiten is applied per-caller in handle_pass before resolution.
     Returns (new_round_state, new_game_state, events).
     """
-    new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id)
+    settings = game_state.settings
+    old_dora_count = len(round_state.dora_indicators)
+    new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, settings)
     new_game_state = update_game_with_round(game_state, new_round_state)
     tile_ids = list(meld.tiles) if meld.tiles else []
 
@@ -239,8 +244,10 @@ def complete_added_kan_after_chankan_decline(
         )
     ]
 
+    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
+
     # check for four kans abortive draw
-    if check_four_kans(new_round_state):
+    if settings.has_suukaikan and check_four_kans(new_round_state, settings):
         result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_KANS)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = update_game_with_round(new_game_state, new_round_state)

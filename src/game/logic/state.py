@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import CallType, GameAction, GamePhase, MeldViewType, RoundPhase, WindName
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.settings import GameSettings
 from game.logic.tiles import WINDS_34
 from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView
 
@@ -76,7 +77,7 @@ class MahjongPlayer(BaseModel):
     pao_seat: int | None = None
     is_temporary_furiten: bool = False
     is_riichi_furiten: bool = False
-    score: int = 25000
+    score: int
 
     def has_open_melds(self) -> bool:
         """Check if player has any open melds (excluding closed kans)."""
@@ -120,6 +121,7 @@ class MahjongGameState(BaseModel):
     riichi_sticks: int = 0
     game_phase: GamePhase = GamePhase.IN_PROGRESS
     seed: float = 0.0
+    settings: GameSettings = Field(default_factory=GameSettings)
 
 
 def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int] | None = None) -> GameView:

@@ -9,6 +9,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import calculate_hand_value
+from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState
 from game.logic.state_utils import update_player
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -52,7 +53,8 @@ class TestSuuankouTankiDoubleYakuman:
         round_state = update_player(game_state.round_state, 1, tiles=final_tiles)  # non-dealer
         player = round_state.players[1]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert result.han == 26
@@ -74,7 +76,8 @@ class TestSuuankouTankiDoubleYakuman:
         round_state = update_player(game_state.round_state, 1, tiles=final_tiles)  # non-dealer
         player = round_state.players[1]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert result.han == 13
@@ -110,7 +113,8 @@ class TestDaisuushiiDoubleYakuman:
         round_state = update_player(game_state.round_state, 1, tiles=final_tiles, melds=(east_pon,))
         player = round_state.players[1]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
         assert result.han == 26

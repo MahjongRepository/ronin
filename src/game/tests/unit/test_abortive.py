@@ -5,7 +5,6 @@ Unit tests for abortive draw conditions.
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import (
-    KYUUSHU_MIN_TYPES,
     AbortiveDrawType,
     _count_terminal_honor_types,
     call_kyuushu_kyuuhai,
@@ -18,6 +17,7 @@ from game.logic.abortive import (
 )
 from game.logic.enums import RoundResultType
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState
 
 
@@ -37,15 +37,17 @@ class TestCanCallKyuushuKyuuhai:
                 name="Player1",
                 tiles=tuple(tiles),
                 discards=player_discards or (),
+                score=25000,
             ),
             MahjongPlayer(
                 seat=1,
                 name="Bot1",
                 tiles=(),
                 discards=other_player_discards or (),
+                score=25000,
             ),
-            MahjongPlayer(seat=2, name="Bot2", tiles=()),
-            MahjongPlayer(seat=3, name="Bot3", tiles=()),
+            MahjongPlayer(seat=2, name="Bot2", tiles=(), score=25000),
+            MahjongPlayer(seat=3, name="Bot3", tiles=(), score=25000),
         )
         return MahjongRoundState(
             players=players,
@@ -89,8 +91,9 @@ class TestCanCallKyuushuKyuuhai:
         """Player can call with exactly 9 terminal/honor types."""
         tiles = self._create_kyuushu_hand()
         round_state = self._create_round_state(tiles)
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         assert result is True
 
@@ -98,8 +101,9 @@ class TestCanCallKyuushuKyuuhai:
         """Player cannot call with only 8 terminal/honor types."""
         tiles = self._create_non_kyuushu_hand()
         round_state = self._create_round_state(tiles)
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         assert result is False
 
@@ -111,8 +115,9 @@ class TestCanCallKyuushuKyuuhai:
             TilesConverter.string_to_136_array(man="11")[1],  # 1m (duplicate)
         ]
         round_state = self._create_round_state(tiles)
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         assert result is True
 
@@ -121,8 +126,9 @@ class TestCanCallKyuushuKyuuhai:
         tiles = self._create_kyuushu_hand()
         discard = Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
         round_state = self._create_round_state(tiles, other_player_discards=(discard,))
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         assert result is False
 
@@ -131,8 +137,9 @@ class TestCanCallKyuushuKyuuhai:
         tiles = self._create_kyuushu_hand()
         discard = Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
         round_state = self._create_round_state(tiles, player_discards=(discard,))
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         assert result is False
 
@@ -140,8 +147,9 @@ class TestCanCallKyuushuKyuuhai:
         """Player cannot call if any melds have been made."""
         tiles = self._create_kyuushu_hand()
         round_state = self._create_round_state(tiles, players_with_open_hands=(2,))
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         assert result is False
 
@@ -155,8 +163,9 @@ class TestCanCallKyuushuKyuuhai:
             *TilesConverter.string_to_136_array(man="2233"),
         ]
         round_state = self._create_round_state(tiles)
+        settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
 
         # only 8 unique types, not enough
         assert result is False
@@ -219,10 +228,10 @@ class TestCallKyuushuKyuuhai:
     def _create_round_state(self, current_player_seat: int = 0) -> MahjongRoundState:
         """Create a round state for testing."""
         players = [
-            MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1"),
-            MahjongPlayer(seat=2, name="Bot2"),
-            MahjongPlayer(seat=3, name="Bot3"),
+            MahjongPlayer(seat=0, name="Player1", score=25000),
+            MahjongPlayer(seat=1, name="Bot1", score=25000),
+            MahjongPlayer(seat=2, name="Bot2", score=25000),
+            MahjongPlayer(seat=3, name="Bot3", score=25000),
         ]
         return MahjongRoundState(
             players=players,
@@ -256,8 +265,8 @@ class TestCallKyuushuKyuuhai:
 
 class TestKyuushuConstant:
     def test_minimum_types_is_9(self):
-        """Verify the constant for minimum types is 9."""
-        assert KYUUSHU_MIN_TYPES == 9
+        """Verify the default kyuushu min types is 9."""
+        assert GameSettings().kyuushu_min_types == 9
 
 
 class TestCheckFourRiichi:
@@ -267,42 +276,46 @@ class TestCheckFourRiichi:
     ) -> MahjongRoundState:
         """Create a round state with 4 players."""
         players = [
-            MahjongPlayer(seat=0, name="Player1", is_riichi=(0 in riichi_seats)),
-            MahjongPlayer(seat=1, name="Bot1", is_riichi=(1 in riichi_seats)),
-            MahjongPlayer(seat=2, name="Bot2", is_riichi=(2 in riichi_seats)),
-            MahjongPlayer(seat=3, name="Bot3", is_riichi=(3 in riichi_seats)),
+            MahjongPlayer(seat=0, name="Player1", is_riichi=(0 in riichi_seats), score=25000),
+            MahjongPlayer(seat=1, name="Bot1", is_riichi=(1 in riichi_seats), score=25000),
+            MahjongPlayer(seat=2, name="Bot2", is_riichi=(2 in riichi_seats), score=25000),
+            MahjongPlayer(seat=3, name="Bot3", is_riichi=(3 in riichi_seats), score=25000),
         ]
         return MahjongRoundState(players=players)
 
     def test_four_riichi_returns_true(self):
         """Returns True when all 4 players have declared riichi."""
         round_state = self._create_round_state(riichi_seats=(0, 1, 2, 3))
+        settings = GameSettings()
 
-        result = check_four_riichi(round_state)
+        result = check_four_riichi(round_state, settings)
 
         assert result is True
 
     def test_three_riichi_returns_false(self):
         """Returns False when only 3 players have declared riichi."""
         round_state = self._create_round_state(riichi_seats=(0, 1, 2))
+        settings = GameSettings()
 
-        result = check_four_riichi(round_state)
+        result = check_four_riichi(round_state, settings)
 
         assert result is False
 
     def test_no_riichi_returns_false(self):
         """Returns False when no players have declared riichi."""
         round_state = self._create_round_state(riichi_seats=())
+        settings = GameSettings()
 
-        result = check_four_riichi(round_state)
+        result = check_four_riichi(round_state, settings)
 
         assert result is False
 
     def test_one_riichi_returns_false(self):
         """Returns False when only 1 player has declared riichi."""
         round_state = self._create_round_state(riichi_seats=(2,))
+        settings = GameSettings()
 
-        result = check_four_riichi(round_state)
+        result = check_four_riichi(round_state, settings)
 
         assert result is False
 
@@ -312,7 +325,7 @@ class TestCheckTripleRon:
         """Returns True when 3 players call ron."""
         ron_callers = [0, 1, 2]
 
-        result = check_triple_ron(ron_callers)
+        result = check_triple_ron(ron_callers, 3)
 
         assert result is True
 
@@ -320,7 +333,7 @@ class TestCheckTripleRon:
         """Returns False when only 2 players call ron (double ron is allowed)."""
         ron_callers = [1, 3]
 
-        result = check_triple_ron(ron_callers)
+        result = check_triple_ron(ron_callers, 3)
 
         assert result is False
 
@@ -328,7 +341,7 @@ class TestCheckTripleRon:
         """Returns False when only 1 player calls ron."""
         ron_callers = [2]
 
-        result = check_triple_ron(ron_callers)
+        result = check_triple_ron(ron_callers, 3)
 
         assert result is False
 
@@ -336,7 +349,7 @@ class TestCheckTripleRon:
         """Returns False when no players call ron."""
         ron_callers = []
 
-        result = check_triple_ron(ron_callers)
+        result = check_triple_ron(ron_callers, 3)
 
         assert result is False
 
@@ -351,10 +364,10 @@ class TestCheckFourKans:
     ) -> MahjongRoundState:
         """Create a round state with 4 players."""
         players = (
-            MahjongPlayer(seat=0, name="Player1", melds=player0_melds),
-            MahjongPlayer(seat=1, name="Bot1", melds=player1_melds),
-            MahjongPlayer(seat=2, name="Bot2", melds=player2_melds),
-            MahjongPlayer(seat=3, name="Bot3", melds=player3_melds),
+            MahjongPlayer(seat=0, name="Player1", melds=player0_melds, score=25000),
+            MahjongPlayer(seat=1, name="Bot1", melds=player1_melds, score=25000),
+            MahjongPlayer(seat=2, name="Bot2", melds=player2_melds, score=25000),
+            MahjongPlayer(seat=3, name="Bot3", melds=player3_melds, score=25000),
         )
         return MahjongRoundState(players=players)
 
@@ -373,7 +386,9 @@ class TestCheckFourKans:
             player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),),
         )
 
-        result = check_four_kans(round_state)
+        settings = GameSettings()
+
+        result = check_four_kans(round_state, settings)
 
         assert result is True
 
@@ -388,7 +403,9 @@ class TestCheckFourKans:
             ),
         )
 
-        result = check_four_kans(round_state)
+        settings = GameSettings()
+
+        result = check_four_kans(round_state, settings)
 
         assert result is False
 
@@ -400,15 +417,18 @@ class TestCheckFourKans:
             player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
         )
 
-        result = check_four_kans(round_state)
+        settings = GameSettings()
+
+        result = check_four_kans(round_state, settings)
 
         assert result is False
 
     def test_no_kans_returns_false(self):
         """Returns False when no kans have been declared."""
         round_state = self._create_round_state()
+        settings = GameSettings()
 
-        result = check_four_kans(round_state)
+        result = check_four_kans(round_state, settings)
 
         assert result is False
 
@@ -427,7 +447,9 @@ class TestCheckFourKans:
             ),
         )
 
-        result = check_four_kans(round_state)
+        settings = GameSettings()
+
+        result = check_four_kans(round_state, settings)
 
         assert result is True
 
@@ -440,10 +462,10 @@ class TestCheckFourWinds:
     ) -> MahjongRoundState:
         """Create a round state with 4 players."""
         players = [
-            MahjongPlayer(seat=0, name="Player1"),
-            MahjongPlayer(seat=1, name="Bot1"),
-            MahjongPlayer(seat=2, name="Bot2"),
-            MahjongPlayer(seat=3, name="Bot3"),
+            MahjongPlayer(seat=0, name="Player1", score=25000),
+            MahjongPlayer(seat=1, name="Bot1", score=25000),
+            MahjongPlayer(seat=2, name="Bot2", score=25000),
+            MahjongPlayer(seat=3, name="Bot3", score=25000),
         ]
         return MahjongRoundState(
             players=players,
@@ -456,8 +478,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="1111"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is True
 
@@ -466,8 +489,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="2222"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is True
 
@@ -476,8 +500,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="3333"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is True
 
@@ -486,8 +511,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="4444"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is True
 
@@ -497,8 +523,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="1234"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is False
 
@@ -508,8 +535,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(man="1111"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is False
 
@@ -518,8 +546,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="5555"))
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is False
 
@@ -528,8 +557,9 @@ class TestCheckFourWinds:
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="111")[:3])
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is False
 
@@ -541,8 +571,9 @@ class TestCheckFourWinds:
                 TilesConverter.string_to_136_array(honors="22")[0],
             )
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is False
 
@@ -552,8 +583,9 @@ class TestCheckFourWinds:
             all_discards=tuple(TilesConverter.string_to_136_array(honors="1111")),
             players_with_open_hands=(1,),
         )
+        settings = GameSettings()
 
-        result = check_four_winds(round_state)
+        result = check_four_winds(round_state, settings)
 
         assert result is False
 

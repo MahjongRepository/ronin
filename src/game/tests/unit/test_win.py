@@ -10,6 +10,7 @@ is_tenhou/is_chiihou guard clause boundary conditions.
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongPlayer,
@@ -45,7 +46,7 @@ class TestCheckTsumoMeldDedup:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         assert check_tsumo(player) is True
 
     def test_winning_hand_with_meld_tiles_removed_from_hand(self):
@@ -62,7 +63,7 @@ class TestCheckTsumoMeldDedup:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         assert check_tsumo(player) is True
 
 
@@ -78,10 +79,10 @@ class TestCanDeclareTsumo:
 
     def test_non_winning_hand_cannot_declare(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state) is False
+        assert can_declare_tsumo(player, round_state, GameSettings()) is False
 
     def test_open_hand_with_yakuhai_can_declare(self):
         # open hand with haku pon (yakuhai yaku exists)
@@ -97,10 +98,10 @@ class TestCanDeclareTsumo:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state) is True
+        assert can_declare_tsumo(player, round_state, GameSettings()) is True
 
     def test_open_hand_without_yaku_cannot_declare(self):
         # open hand with pon of 1m, no yakuhai, no tanyao -> no yaku
@@ -119,10 +120,10 @@ class TestCanDeclareTsumo:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state) is False
+        assert can_declare_tsumo(player, round_state, GameSettings()) is False
 
     def test_open_tanyao_with_kuitan_enabled(self):
         # open tanyao (kuitan) - all simples with open meld
@@ -138,17 +139,17 @@ class TestCanDeclareTsumo:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state) is True
+        assert can_declare_tsumo(player, round_state, GameSettings()) is True
 
 
 class TestGetWaitingTiles:
     def test_tempai_multiple_waits(self):
         # ryanmen wait: 123m 456m 789m 45p 5p -> waiting for 3p or 6p
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="4555")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
 
@@ -158,7 +159,7 @@ class TestGetWaitingTiles:
     def test_tempai_tanki_wait(self):
         # tanki wait: 111m 222m 333m 444m 5m -> waiting for 5m
         tiles = TilesConverter.string_to_136_array(man="1112223334445")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
 
@@ -167,7 +168,7 @@ class TestGetWaitingTiles:
     def test_chiitoitsu_wait(self):
         # 6 pairs + single: 11m 22m 33m 44p 55p 66s 7s -> waiting for 7s
         tiles = TilesConverter.string_to_136_array(man="112233", pin="4455", sou="667")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
 
@@ -187,7 +188,7 @@ class TestGetWaitingTiles:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
 
         waiting = get_waiting_tiles(player)
 
@@ -198,7 +199,7 @@ class TestGetWaitingTiles:
 class TestIsFuriten:
     def test_not_furiten_no_discards(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         assert is_furiten(player) is False
 
@@ -206,7 +207,7 @@ class TestIsFuriten:
         # tempai waiting for 3p, discarded unrelated 1m
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         discards = (Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0]),)
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is False
 
@@ -214,7 +215,7 @@ class TestIsFuriten:
         # tempai waiting for 3p, already discarded 3p
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         discards = (Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0]),)
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is True
 
@@ -225,14 +226,14 @@ class TestIsFuriten:
             Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0]),
             Discard(tile_id=TilesConverter.string_to_136_array(pin="6")[0]),
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is True
 
     def test_not_tempai_not_furiten(self):
         # not in tempai -> empty waiting set -> not furiten
         tiles = TilesConverter.string_to_136_array(man="1357", pin="2468", sou="13579")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         assert is_furiten(player) is False
 
@@ -251,21 +252,28 @@ class TestCanCallRon:
         # permanent furiten (discarded waiting tile 3p)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         discards = (Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0]),)
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, is_riichi=True)
+        player = MahjongPlayer(
+            seat=0,
+            name="Player1",
+            tiles=tuple(tiles),
+            discards=discards,
+            is_riichi=True,
+            score=25000,
+        )
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state) is False
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is False
 
     def test_cannot_ron_wrong_tile(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), is_riichi=True)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), is_riichi=True, score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(sou="9")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state) is False
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is False
 
     def test_can_ron_open_hand_with_yaku(self):
         # open hand with haku pon (yakuhai) via _has_yaku_for_ron_with_tiles
@@ -282,12 +290,12 @@ class TestCanCallRon:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state) is True
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
 
     def test_cannot_ron_open_hand_no_yaku(self):
         # open hand with pon of 1m, no yakuhai, no tanyao -> no yaku
@@ -304,12 +312,12 @@ class TestCanCallRon:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(man="6")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state) is False
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is False
 
     def test_can_ron_open_tanyao(self):
         # open tanyao (kuitan) ron via _has_yaku_for_ron_with_tiles
@@ -326,12 +334,12 @@ class TestCanCallRon:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(sou="55")[1]
 
-        assert can_call_ron(player, discarded_tile, round_state) is True
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
 
     def test_can_ron_open_hand_meld_tiles_removed(self):
         # meld tiles NOT in player.tiles (actual gameplay after call_pon)
@@ -347,12 +355,12 @@ class TestCanCallRon:
             from_who=1,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state) is True
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
 
     def test_can_ron_open_chi_meld_tiles_removed(self):
         # chi meld tiles NOT in player.tiles (actual gameplay after call_chi)
@@ -368,17 +376,17 @@ class TestCanCallRon:
             from_who=3,
         )
 
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(chi,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(chi,), score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state) is True
+        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
 
 
 class TestIsTenhou:
     def test_tenhou_dealer_first_draw(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=0,
@@ -390,7 +398,7 @@ class TestIsTenhou:
         assert is_tenhou(players[0], round_state) is True
 
     def test_not_tenhou_non_dealer(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=1,
@@ -402,7 +410,7 @@ class TestIsTenhou:
         assert is_tenhou(players[1], round_state) is False
 
     def test_not_tenhou_after_discards(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=0,
@@ -414,7 +422,7 @@ class TestIsTenhou:
         assert is_tenhou(players[0], round_state) is False
 
     def test_not_tenhou_after_meld(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=0,
@@ -428,7 +436,7 @@ class TestIsTenhou:
 
 class TestIsChiihou:
     def test_chiihou_non_dealer_first_draw(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=1,
@@ -440,7 +448,7 @@ class TestIsChiihou:
         assert is_chiihou(players[1], round_state) is True
 
     def test_not_chiihou_dealer(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=0,
@@ -452,7 +460,7 @@ class TestIsChiihou:
         assert is_chiihou(players[0], round_state) is False
 
     def test_not_chiihou_after_discards(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=1,
@@ -464,7 +472,7 @@ class TestIsChiihou:
         assert is_chiihou(players[1], round_state) is False
 
     def test_not_chiihou_after_meld(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=1,

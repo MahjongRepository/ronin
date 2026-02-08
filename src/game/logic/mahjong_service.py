@@ -42,7 +42,7 @@ from game.logic.events import (
     extract_round_result,
     parse_wire_target,
 )
-from game.logic.exceptions import InvalidActionError
+from game.logic.exceptions import InvalidActionError, UnsupportedSettingsError
 from game.logic.game import (
     check_game_end,
     finalize_game,
@@ -53,6 +53,7 @@ from game.logic.game import (
 from game.logic.matchmaker import fill_seats
 from game.logic.round_advance import RoundAdvanceManager
 from game.logic.service import GameService
+from game.logic.settings import GameSettings
 from game.logic.state import (
     MahjongGameState,
     PendingCallPrompt,
@@ -91,12 +92,13 @@ class MahjongGameService(GameService):
     Maintains game states for multiple concurrent games.
     """
 
-    def __init__(self, *, auto_cleanup: bool = True) -> None:
+    def __init__(self, *, auto_cleanup: bool = True, settings: GameSettings | None = None) -> None:
         self._games: dict[str, MahjongGameState] = {}
         self._bot_controllers: dict[str, BotController] = {}
         self._furiten_state: dict[str, dict[int, bool]] = {}
         self._round_advance = RoundAdvanceManager()
         self._auto_cleanup = auto_cleanup
+        self._settings = settings
 
     async def start_game(
         self,
@@ -104,6 +106,7 @@ class MahjongGameService(GameService):
         player_names: list[str],
         *,
         seed: float | None = None,
+        settings: GameSettings | None = None,
     ) -> list[ServiceEvent]:
         """
         Start a new mahjong game with the given players.
@@ -117,7 +120,11 @@ class MahjongGameService(GameService):
         logger.info(f"starting game {game_id} with players: {player_names}")
         seat_configs = fill_seats(player_names, seed=game_seed)
 
-        frozen_game = init_game(seat_configs, seed=game_seed)
+        game_settings = settings or self._settings
+        try:
+            frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings)
+        except UnsupportedSettingsError as e:
+            return self._create_error_event(GameErrorCode.INVALID_ACTION, str(e))
         self._games[game_id] = frozen_game
 
         self._furiten_state[game_id] = dict.fromkeys(range(4), False)

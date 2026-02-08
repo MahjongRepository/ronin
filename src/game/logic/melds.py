@@ -13,6 +13,7 @@ from game.logic.round import (
     add_dora_indicator,
     draw_from_dead_wall,
 )
+from game.logic.settings import GameSettings
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.state_utils import clear_all_players_ippatsu, update_player
 from game.logic.tiles import DRAGONS_34, WINDS_34, is_honor, tile_to_34
@@ -21,12 +22,6 @@ from game.logic.win import get_waiting_tiles
 TILES_PER_SUIT = 9
 
 logger = logging.getLogger(__name__)
-
-# minimum tiles needed in wall to declare kan (need replacement draw)
-MIN_WALL_FOR_KAN = 2
-
-# maximum number of kans allowed per round across all players
-MAX_KANS_PER_ROUND = 4
 
 # meld size constants
 TILES_FOR_PON = 2
@@ -38,9 +33,6 @@ CHI_LOWEST_MAX_VALUE = 6  # tile can be lowest (e.g., 1 in 123) if value <= 6
 CHI_MIDDLE_MIN_VALUE = 1  # tile can be middle if value >= 1
 CHI_MIDDLE_MAX_VALUE = 7  # tile can be middle if value <= 7
 CHI_HIGHEST_MIN_VALUE = 2  # tile can be highest (e.g., 3 in 123) if value >= 2
-
-DRAGON_SET_COUNT_FOR_PAO = 3  # pao triggers on 3rd dragon set (daisangen)
-WIND_SET_COUNT_FOR_PAO = 4  # pao triggers on 4th wind set (daisuushii)
 
 _DRAGON_TILES = frozenset(DRAGONS_34)
 _WIND_TILES = frozenset(WINDS_34)
@@ -202,6 +194,7 @@ def can_call_open_kan(
     player: MahjongPlayer,
     discarded_tile: int,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> bool:
     """
     Check if player can call open kan (daiminkan) on a discarded tile.
@@ -215,10 +208,10 @@ def can_call_open_kan(
     if player.is_riichi:
         return False
 
-    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < settings.min_wall_for_kan:
         return False
 
-    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
+    if _count_total_kans(round_state) >= settings.max_kans_per_round:
         return False
 
     discarded_34 = tile_to_34(discarded_tile)
@@ -243,7 +236,11 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
             break
 
     tenpai_player = MahjongPlayer(
-        seat=player.seat, name=player.name, tiles=tuple(tiles_13), melds=tuple(player.melds)
+        seat=player.seat,
+        name=player.name,
+        tiles=tuple(tiles_13),
+        melds=tuple(player.melds),
+        score=player.score,
     )
     original_waits = get_waiting_tiles(tenpai_player)
 
@@ -270,6 +267,7 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
         name=player.name,
         tiles=tuple(player.tiles),
         melds=(*player.melds, kan_meld),
+        score=player.score,
     )
 
     new_waits = get_waiting_tiles(temp_player)
@@ -280,16 +278,17 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
 def get_possible_closed_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> list[int]:
     """
     Get list of tile_34 values for which player can declare closed kan.
 
     Returns a list of tile_34 indices representing tiles the player has 4 of.
     """
-    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < settings.min_wall_for_kan:
         return []
 
-    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
+    if _count_total_kans(round_state) >= settings.max_kans_per_round:
         return []
 
     tile_counts: dict[int, int] = {}
@@ -312,6 +311,7 @@ def get_possible_closed_kans(
 def get_possible_added_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> list[int]:
     """
     Get list of tile_34 values for which player can declare added kan.
@@ -321,10 +321,10 @@ def get_possible_added_kans(
     if player.is_riichi:
         return []
 
-    if len(round_state.wall) < MIN_WALL_FOR_KAN:
+    if len(round_state.wall) < settings.min_wall_for_kan:
         return []
 
-    if _count_total_kans(round_state) >= MAX_KANS_PER_ROUND:
+    if _count_total_kans(round_state) >= settings.max_kans_per_round:
         return []
 
     possible = []
@@ -342,22 +342,25 @@ def _check_pao(
     player: MahjongPlayer,
     discarder_seat: int,
     called_tile_34: int,
+    settings: GameSettings,
 ) -> int | None:
     """
     Check for pao liability after a meld call (pon, open kan, or added kan).
 
     Pao triggers when:
-    - 3rd dragon set is completed (Big Three Dragons / daisangen)
-    - 4th wind set is completed (Big Four Winds / daisuushii)
+    - daisangen_pao_set_threshold dragon sets are completed (Big Three Dragons / daisangen)
+    - daisuushii_pao_set_threshold wind sets are completed (Big Four Winds / daisuushii)
 
     Returns the pao_seat if triggered, None otherwise.
     """
-    pao_rules: list[tuple[frozenset[int], int]] = [
-        (_DRAGON_TILES, DRAGON_SET_COUNT_FOR_PAO),
-        (_WIND_TILES, WIND_SET_COUNT_FOR_PAO),
+    pao_rules: list[tuple[frozenset[int], int, bool]] = [
+        (_DRAGON_TILES, settings.daisangen_pao_set_threshold, settings.has_daisangen_pao),
+        (_WIND_TILES, settings.daisuushii_pao_set_threshold, settings.has_daisuushii_pao),
     ]
-    for tile_set, threshold in pao_rules:
+    for tile_set, threshold, enabled in pao_rules:
         if called_tile_34 in tile_set:
+            if not enabled:
+                continue
             count = sum(
                 1
                 for m in player.melds
@@ -408,6 +411,7 @@ def call_pon(
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
+    settings: GameSettings,
 ) -> tuple[MahjongRoundState, FrozenMeld]:
     """
     Execute a pon call on a discarded tile.
@@ -435,13 +439,18 @@ def call_pon(
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
-    pao_seat = _check_pao(caller, discarder_seat, tile_34)
+    pao_seat = _check_pao(caller, discarder_seat, tile_34, settings)
+
+    # set kuikae restriction based on settings
+    kuikae_tiles: tuple[int, ...] = ()
+    if settings.has_kuikae:
+        kuikae_tiles = tuple(get_kuikae_tiles(MeldCallType.PON, tile_34))
 
     # update player state
     player_updates: dict[str, object] = {
         "tiles": tuple(new_hand),
         "melds": new_melds,
-        "kuikae_tiles": tuple(get_kuikae_tiles(MeldCallType.PON, tile_34)),
+        "kuikae_tiles": kuikae_tiles,
     }
     if pao_seat is not None:
         player_updates["pao_seat"] = pao_seat
@@ -462,12 +471,13 @@ def call_pon(
     return new_state, meld
 
 
-def call_chi(
+def call_chi(  # noqa: PLR0913
     round_state: MahjongRoundState,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
     sequence_tiles: tuple[int, int],
+    settings: GameSettings,
 ) -> tuple[MahjongRoundState, FrozenMeld]:
     """
     Execute a chi call on a discarded tile.
@@ -496,9 +506,16 @@ def call_chi(
 
     new_melds = (*caller.melds, meld)
 
-    # set kuikae restriction
-    sequence_tiles_34 = [tile_to_34(t) for t in sequence_tiles]
-    kuikae = get_kuikae_tiles(MeldCallType.CHI, tile_to_34(tile_id), sequence_tiles_34)
+    # set kuikae restriction based on settings
+    kuikae: list[int] = []
+    if settings.has_kuikae:
+        called_34 = tile_to_34(tile_id)
+        sequence_tiles_34 = [tile_to_34(t) for t in sequence_tiles]
+        if settings.has_kuikae_suji:
+            kuikae = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_tiles_34)
+        else:
+            # only forbid the called tile type (no suji restriction)
+            kuikae = [called_34]
 
     # update player state
     new_state = update_player(
@@ -528,6 +545,7 @@ def call_open_kan(
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
+    settings: GameSettings,
 ) -> tuple[MahjongRoundState, FrozenMeld]:
     """
     Execute an open kan (daiminkan) call on a discarded tile.
@@ -557,7 +575,7 @@ def call_open_kan(
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
-    pao_seat = _check_pao(caller, discarder_seat, tile_34)
+    pao_seat = _check_pao(caller, discarder_seat, tile_34, settings)
 
     # update player state
     player_updates: dict[str, object] = {
@@ -580,8 +598,12 @@ def call_open_kan(
     # set current player to caller (they will draw from dead wall and then discard)
     new_state = new_state.model_copy(update={"current_player_seat": caller_seat})
 
-    # defer dora indicator reveal until after discard (open kan rule)
-    new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+    # dora handling for open kan, controlled by settings
+    if settings.has_kandora:
+        if settings.kandora_deferred_for_open_kan:
+            new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+        else:
+            new_state, _dora_indicator = add_dora_indicator(new_state)
 
     # draw from dead wall (sets is_rinshan flag)
     new_state, _drawn_tile = draw_from_dead_wall(new_state)
@@ -593,6 +615,7 @@ def call_closed_kan(
     round_state: MahjongRoundState,
     seat: int,
     tile_id: int,
+    settings: GameSettings,
 ) -> tuple[MahjongRoundState, FrozenMeld]:
     """
     Execute a closed kan (ankan) declaration.
@@ -635,8 +658,12 @@ def call_closed_kan(
     # current player remains the same (they will draw and discard)
     new_state = new_state.model_copy(update={"current_player_seat": seat})
 
-    # add new dora indicator (closed kan reveals immediately)
-    new_state, _dora_indicator = add_dora_indicator(new_state)
+    # dora handling for closed kan, controlled by settings
+    if settings.has_kandora:
+        if settings.kandora_immediate_for_closed_kan:
+            new_state, _dora_indicator = add_dora_indicator(new_state)
+        else:
+            new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
 
     # draw from dead wall (sets is_rinshan flag)
     new_state, _drawn_tile = draw_from_dead_wall(new_state)
@@ -648,6 +675,7 @@ def call_added_kan(
     round_state: MahjongRoundState,
     seat: int,
     tile_id: int,
+    settings: GameSettings,
 ) -> tuple[MahjongRoundState, FrozenMeld]:
     """
     Execute an added kan (shouminkan) declaration.
@@ -715,8 +743,12 @@ def call_added_kan(
     # current player remains the same
     new_state = new_state.model_copy(update={"current_player_seat": seat})
 
-    # defer dora indicator reveal until after discard (added kan rule)
-    new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+    # dora handling for added kan, controlled by settings (same rules as open kan)
+    if settings.has_kandora:
+        if settings.kandora_deferred_for_open_kan:
+            new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+        else:
+            new_state, _dora_indicator = add_dora_indicator(new_state)
 
     # draw from dead wall (sets is_rinshan flag)
     new_state, _drawn_tile = draw_from_dead_wall(new_state)

@@ -460,7 +460,7 @@ def handle_kyuushu(
         return _create_not_your_turn_error(seat, round_state, game_state)
 
     player = round_state.players[seat]
-    if not can_call_kyuushu_kyuuhai(player, round_state):
+    if not can_call_kyuushu_kyuuhai(player, round_state, game_state.settings):
         return ActionResult(
             [
                 ErrorEvent(

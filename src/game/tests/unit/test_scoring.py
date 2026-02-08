@@ -8,6 +8,7 @@ from game.logic.enums import RoundResultType
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import (
     HandResult,
+    _collect_dora_indicators,
     apply_double_ron_score,
     apply_nagashi_mangan_score,
     apply_ron_score,
@@ -15,6 +16,7 @@ from game.logic.scoring import (
     calculate_hand_value,
     calculate_hand_value_with_tiles,
 )
+from game.logic.settings import GameSettings
 from game.logic.state import (
     MahjongGameState,
     seat_to_wind,
@@ -78,7 +80,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = tiles[-1]  # 5p
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 1  # at least menzen tsumo
@@ -94,7 +97,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 2  # riichi + menzen tsumo
@@ -110,7 +114,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 3  # riichi + ippatsu + menzen tsumo
@@ -123,7 +128,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
         assert result.han >= 1  # riichi
@@ -138,7 +144,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert "Haitei Raoyue" in result.yaku
@@ -152,7 +159,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
         assert "Houtei Raoyui" in result.yaku
@@ -177,7 +185,8 @@ class TestCalculateHandValue:
         round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
         player = round_state.players[0]
 
-        result = calculate_hand_value(player, round_state, win_tile[0], is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile[0], settings, is_tsumo=True)
 
         assert result.error == "no_yaku"
 
@@ -205,7 +214,8 @@ class TestCalculateHandValue:
         round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
         player = round_state.players[0]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
         assert result.han >= 1  # yakuhai (haku)
@@ -231,7 +241,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         win_tile = closed_tiles[-1]  # last tile drawn (5s)
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 1  # yakuhai (haku)
@@ -743,7 +754,10 @@ class TestChankanYakuScoring:
         player = round_state.players[0]
 
         win_tile = tiles[-1]  # 5p
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False, is_chankan=True)
+        settings = GameSettings()
+        result = calculate_hand_value(
+            player, round_state, win_tile, settings, is_tsumo=False, is_chankan=True
+        )
 
         assert result.error is None
         assert "Chankan" in result.yaku
@@ -771,7 +785,10 @@ class TestChankanYakuScoring:
         round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
         player = round_state.players[0]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False, is_chankan=True)
+        settings = GameSettings()
+        result = calculate_hand_value(
+            player, round_state, win_tile, settings, is_tsumo=False, is_chankan=True
+        )
 
         # chankan provides the yaku, hand should succeed
         assert result.error is None
@@ -800,7 +817,8 @@ class TestChankanYakuScoring:
         player = round_state.players[0]
 
         # call without is_chankan flag (default is False)
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         # without chankan flag, the open hand has no yaku
         assert result.error == "no_yaku"
@@ -817,8 +835,11 @@ class TestHandValueParityBetweenFunctions:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result_a = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
-        result_b = calculate_hand_value_with_tiles(player, round_state, tiles, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result_a = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        result_b = calculate_hand_value_with_tiles(
+            player, round_state, tiles, win_tile, settings, is_tsumo=True
+        )
 
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
@@ -835,8 +856,11 @@ class TestHandValueParityBetweenFunctions:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result_a = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
-        result_b = calculate_hand_value_with_tiles(player, round_state, tiles, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result_a = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        result_b = calculate_hand_value_with_tiles(
+            player, round_state, tiles, win_tile, settings, is_tsumo=False
+        )
 
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
@@ -852,9 +876,12 @@ class TestHandValueParityBetweenFunctions:
         player = round_state.players[0]
 
         win_tile = tiles[-1]
-        result_a = calculate_hand_value(player, round_state, win_tile, is_tsumo=False, is_chankan=True)
+        settings = GameSettings()
+        result_a = calculate_hand_value(
+            player, round_state, win_tile, settings, is_tsumo=False, is_chankan=True
+        )
         result_b = calculate_hand_value_with_tiles(
-            player, round_state, tiles, win_tile, is_tsumo=False, is_chankan=True
+            player, round_state, tiles, win_tile, settings, is_tsumo=False, is_chankan=True
         )
 
         assert result_a.han == result_b.han
@@ -882,9 +909,10 @@ class TestHandValueParityBetweenFunctions:
         round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
         player = round_state.players[0]
 
-        result_a = calculate_hand_value(player, round_state, win_tile[0], is_tsumo=True)
+        settings = GameSettings()
+        result_a = calculate_hand_value(player, round_state, win_tile[0], settings, is_tsumo=True)
         result_b = calculate_hand_value_with_tiles(
-            player, round_state, list(all_tiles), win_tile[0], is_tsumo=True
+            player, round_state, list(all_tiles), win_tile[0], settings, is_tsumo=True
         )
 
         assert result_a.error == result_b.error == "no_yaku"
@@ -939,3 +967,17 @@ class TestScoreApplicationRiichiClearing:
             game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3]
         )
         assert new_game_state.riichi_sticks == 3
+
+
+class TestCollectDoraIndicators:
+    """Tests for _collect_dora_indicators settings toggles."""
+
+    def test_omote_dora_disabled_returns_empty(self):
+        """When has_omote_dora=False, face-up dora indicators are not collected."""
+        settings = GameSettings(has_omote_dora=False)
+        round_state = create_round_state(
+            dora_indicators=(10, 20),
+        )
+        player = create_player(seat=0)
+        result = _collect_dora_indicators(player, round_state, settings)
+        assert result == []

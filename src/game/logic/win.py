@@ -11,10 +11,11 @@ from typing import TYPE_CHECKING
 
 from mahjong.agari import Agari
 from mahjong.hand_calculating.hand import HandCalculator
-from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
+from mahjong.hand_calculating.hand_config import HandConfig
 from mahjong.shanten import Shanten
 
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
+from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array, tile_to_34
@@ -27,13 +28,6 @@ if TYPE_CHECKING:
 
 # maximum copies of a single tile
 MAX_TILE_COPIES = 4
-
-# shared optional rules for hand evaluation (aka dora, open tanyao, double yakuman)
-GAME_OPTIONAL_RULES = OptionalRules(
-    has_aka_dora=True,
-    has_open_tanyao=True,
-    has_double_yakuman=True,
-)
 
 
 def all_player_tiles(player: MahjongPlayer) -> list[int]:
@@ -99,6 +93,7 @@ def check_tsumo(player: MahjongPlayer) -> bool:
 def can_declare_tsumo(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> bool:
     """
     Check if player can declare tsumo (self-draw win).
@@ -116,7 +111,7 @@ def can_declare_tsumo(
         return True
 
     # for open hands, need to verify at least one yaku exists
-    return _has_yaku_for_open_hand(player, round_state)
+    return _has_yaku_for_open_hand(player, round_state, settings)
 
 
 def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
@@ -194,6 +189,7 @@ def is_effective_furiten(player: MahjongPlayer) -> bool:
 def _has_yaku_for_open_hand(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> bool:
     """
     Check if an open hand has at least one yaku.
@@ -210,13 +206,13 @@ def _has_yaku_for_open_hand(
     config = HandConfig(
         is_tsumo=True,
         is_riichi=player.is_riichi,
-        is_ippatsu=player.is_ippatsu,
+        is_ippatsu=player.is_ippatsu and settings.has_ippatsu,
         is_daburu_riichi=player.is_daburi,
         is_rinshan=player.is_rinshan,
         is_haitei=is_haitei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=WINDS_34[round_state.round_wind],
-        options=GAME_OPTIONAL_RULES,
+        options=build_optional_rules(settings),
     )
 
     calculator = HandCalculator()
@@ -397,6 +393,7 @@ def can_call_ron(
     player: MahjongPlayer,
     discarded_tile: int,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> bool:
     """
     Check if player can call ron on a discarded tile.
@@ -432,15 +429,22 @@ def can_call_ron(
 
     # for all other cases (open hands or closed non-riichi), verify yaku exists
     # use local tile list for yaku check
-    return _has_yaku_for_ron_with_tiles(player, round_state, discarded_tile, tiles_with_win)
+    return _has_yaku_for_ron_with_tiles(
+        player,
+        round_state,
+        discarded_tile,
+        tiles_with_win,
+        settings=settings,
+    )
 
 
-def _has_yaku_for_ron_with_tiles(
+def _has_yaku_for_ron_with_tiles(  # noqa: PLR0913
     player: MahjongPlayer,
     round_state: MahjongRoundState,
     win_tile: int,
     tiles: list[int],
     *,
+    settings: GameSettings,
     is_chankan: bool = False,
 ) -> bool:
     """
@@ -451,14 +455,14 @@ def _has_yaku_for_ron_with_tiles(
     config = HandConfig(
         is_tsumo=False,
         is_riichi=player.is_riichi,
-        is_ippatsu=player.is_ippatsu,
+        is_ippatsu=player.is_ippatsu and settings.has_ippatsu,
         is_daburu_riichi=player.is_daburi,
-        is_renhou=is_renhou(player, round_state),
+        is_renhou=settings.renhou_value != RenhouValue.NONE and is_renhou(player, round_state),
         is_chankan=is_chankan,
         is_houtei=is_houtei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=WINDS_34[round_state.round_wind],
-        options=GAME_OPTIONAL_RULES,
+        options=build_optional_rules(settings),
     )
 
     # build all tiles: local tiles + meld tiles (excluding duplicates already in tiles)

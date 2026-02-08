@@ -20,10 +20,10 @@ class TestBotControllerGetTurnAction:
         """Create round state for testing."""
         non_winning_hand = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
         players = (
-            MahjongPlayer(seat=0, name="Human", tiles=tuple(non_winning_hand[:13])),
-            MahjongPlayer(seat=1, name="Bot1", tiles=tuple(non_winning_hand)),
-            MahjongPlayer(seat=2, name="Bot2", tiles=tuple(non_winning_hand[:13])),
-            MahjongPlayer(seat=3, name="Bot3", tiles=tuple(non_winning_hand[:13])),
+            MahjongPlayer(seat=0, name="Human", tiles=tuple(non_winning_hand[:13]), score=25000),
+            MahjongPlayer(seat=1, name="Bot1", tiles=tuple(non_winning_hand), score=25000),
+            MahjongPlayer(seat=2, name="Bot2", tiles=tuple(non_winning_hand[:13]), score=25000),
+            MahjongPlayer(seat=3, name="Bot3", tiles=tuple(non_winning_hand[:13]), score=25000),
         )
         return MahjongRoundState(
             players=players,
@@ -62,10 +62,10 @@ class TestBotControllerGetCallResponse:
     def _create_round_state(self) -> MahjongRoundState:
         """Create round state for testing."""
         players = (
-            MahjongPlayer(seat=0, name="Human", tiles=()),
-            MahjongPlayer(seat=1, name="Bot1", tiles=()),
-            MahjongPlayer(seat=2, name="Bot2", tiles=()),
-            MahjongPlayer(seat=3, name="Bot3", tiles=()),
+            MahjongPlayer(seat=0, name="Human", tiles=(), score=25000),
+            MahjongPlayer(seat=1, name="Bot1", tiles=(), score=25000),
+            MahjongPlayer(seat=2, name="Bot2", tiles=(), score=25000),
+            MahjongPlayer(seat=3, name="Bot3", tiles=(), score=25000),
         )
         return MahjongRoundState(
             players=players,

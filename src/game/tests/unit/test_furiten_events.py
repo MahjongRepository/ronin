@@ -24,15 +24,15 @@ class TestIsEffectiveFuriten:
     """Tests for the is_effective_furiten() helper function."""
 
     def test_not_furiten_by_default(self):
-        player = MahjongPlayer(seat=0, name="P0")
+        player = MahjongPlayer(seat=0, name="P0", score=25000)
         assert is_effective_furiten(player) is False
 
     def test_temporary_furiten(self):
-        player = MahjongPlayer(seat=0, name="P0", is_temporary_furiten=True)
+        player = MahjongPlayer(seat=0, name="P0", is_temporary_furiten=True, score=25000)
         assert is_effective_furiten(player) is True
 
     def test_riichi_furiten(self):
-        player = MahjongPlayer(seat=0, name="P0", is_riichi_furiten=True)
+        player = MahjongPlayer(seat=0, name="P0", is_riichi_furiten=True, score=25000)
         assert is_effective_furiten(player) is True
 
     def test_discard_furiten(self):
@@ -45,6 +45,7 @@ class TestIsEffectiveFuriten:
             name="P0",
             tiles=tuple(tiles),
             discards=(Discard(tile_id=tile_3p),),
+            score=25000,
         )
         assert is_effective_furiten(player) is True
 
@@ -55,6 +56,7 @@ class TestIsEffectiveFuriten:
             name="P0",
             tiles=(),
             is_temporary_furiten=True,
+            score=25000,
         )
         # No tiles = would fail shanten check, but short-circuits on temporary
         assert is_effective_furiten(player) is True
@@ -62,7 +64,7 @@ class TestIsEffectiveFuriten:
     def test_not_in_tenpai_not_furiten(self):
         """Player not in tenpai is not furiten even with discards."""
         tiles = TilesConverter.string_to_136_array(man="1234", pin="1234", sou="12345")
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles))
+        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), score=25000)
         assert is_effective_furiten(player) is False
 
 

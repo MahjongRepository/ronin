@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.logic.round import is_tempai
+from game.logic.settings import GameSettings
 from game.logic.state import MahjongPlayer
 from game.logic.state_utils import update_player
 
@@ -16,16 +17,11 @@ if TYPE_CHECKING:
         MahjongRoundState,
     )
 
-# riichi point cost
-RIICHI_COST = 1000
-
-# minimum tiles required in wall for riichi declaration
-MIN_WALL_FOR_RIICHI = 4
-
 
 def can_declare_riichi(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    settings: GameSettings,
 ) -> bool:
     """
     Check if a player can declare riichi.
@@ -41,16 +37,16 @@ def can_declare_riichi(
     if player.is_riichi:
         return False
 
-    # must have at least 1000 points
-    if player.score < RIICHI_COST:
+    # must have at least riichi_cost points
+    if player.score < settings.riichi_cost:
         return False
 
     # must have closed hand (no open melds)
     if player.has_open_melds():
         return False
 
-    # must have at least 4 tiles remaining in wall so other players can still draw
-    if len(round_state.wall) < MIN_WALL_FOR_RIICHI:
+    # must have enough tiles remaining in wall
+    if len(round_state.wall) < settings.min_wall_for_riichi:
         return False
 
     # must be in tempai
@@ -61,6 +57,7 @@ def declare_riichi(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
+    settings: GameSettings,
 ) -> tuple[MahjongRoundState, MahjongGameState]:
     """
     Execute riichi declaration for a player.
@@ -84,7 +81,7 @@ def declare_riichi(
         is_riichi=True,
         is_ippatsu=True,
         is_daburi=is_daburi,
-        score=player.score - RIICHI_COST,
+        score=player.score - settings.riichi_cost,
     )
 
     new_game_state = game_state.model_copy(

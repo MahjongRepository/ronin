@@ -321,19 +321,20 @@ def process_exhaustive_draw(
             noten_seats.append(player.seat)
 
     # check nagashi mangan first
-    qualifying = check_nagashi_mangan(round_state)
-    if qualifying:
-        return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats)
+    settings = game_state.settings
+    if settings.has_nagashi_mangan:
+        qualifying = check_nagashi_mangan(round_state)
+        if qualifying:
+            return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats)
 
     score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
 
-    # calculate noten payments (3000 total split)
+    # calculate noten payments
     tempai_count = len(tempai_seats)
     noten_count = len(noten_seats)
 
     if tempai_count > 0 and noten_count > 0:
-        # total 3000 points transferred from noten to tempai
-        total_payment = 3000
+        total_payment = settings.noten_penalty_total
         payment_per_noten = total_payment // noten_count
         payment_per_tempai = total_payment // tempai_count
 

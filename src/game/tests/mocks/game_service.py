@@ -2,6 +2,7 @@ from typing import Any
 
 from game.logic.enums import GameAction, GamePhase, RoundPhase, TimeoutType, WindName
 from game.logic.service import GameService
+from game.logic.settings import GameSettings
 from game.logic.types import GamePlayerInfo, GameView, PlayerView
 from game.messaging.events import (
     BroadcastTarget,
@@ -68,6 +69,7 @@ class MockGameService(GameService):
         player_names: list[str],
         *,
         seed: float | None = None,  # noqa: ARG002
+        settings: GameSettings | None = None,  # noqa: ARG002
     ) -> list[ServiceEvent]:
         # store player seat assignments (seat 0 for first player)
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}

@@ -1,4 +1,7 @@
-from game.logic.enums import GameAction
+from unittest.mock import AsyncMock
+
+from game.logic.enums import GameAction, GameErrorCode
+from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.tests.mocks import MockConnection
 
@@ -101,3 +104,41 @@ class TestSessionManagerDefensiveChecks:
         # should return silently without error
         await manager.broadcast_chat(conn, "hello")
         assert len(conn.sent_messages) == 0
+
+    async def test_start_game_failure_rolls_back_started_flag(self, manager):
+        """When start_game returns an ErrorEvent, game.started is rolled back."""
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        manager.create_game("game1", num_bots=2)
+
+        # patch start_game to return an error (simulating unsupported settings)
+        error_events = [
+            ServiceEvent(
+                event=EventType.ERROR,
+                data=ErrorEvent(
+                    code=GameErrorCode.INVALID_ACTION,
+                    message="unsupported settings",
+                    target="all",
+                ),
+                target=BroadcastTarget(),
+            )
+        ]
+        manager._game_service.start_game = AsyncMock(return_value=error_events)
+
+        await manager.join_game(conn1, "game1", "Alice")
+        await manager.join_game(conn2, "game1", "Bob")
+
+        # game.started should be rolled back to False
+        game = manager.get_game("game1")
+        assert game is not None
+        assert game.started is False
+
+        # no lock or heartbeat resources should be allocated
+        assert "game1" not in manager._game_locks
+
+        # error should have been broadcast to players
+        error_msgs = [m for m in conn1.sent_messages if m.get("type") == EventType.ERROR]
+        assert len(error_msgs) == 1
+        assert error_msgs[0]["message"] == "unsupported settings"

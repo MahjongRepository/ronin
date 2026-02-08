@@ -6,6 +6,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.riichi import can_declare_riichi
+from game.logic.settings import GameSettings
 from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
@@ -41,7 +42,7 @@ class TestCanDeclareRiichi:
             score=score,
             melds=melds or (),
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(wall_size)),
             players=players,
@@ -52,7 +53,7 @@ class TestCanDeclareRiichi:
         """Player can declare riichi with tempai and closed hand."""
         player, round_state = self._create_player_and_round_state()
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is True
 
@@ -60,7 +61,7 @@ class TestCanDeclareRiichi:
         """Player cannot declare riichi with less than 1000 points."""
         player, round_state = self._create_player_and_round_state(score=999)
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
@@ -68,7 +69,7 @@ class TestCanDeclareRiichi:
         """Player can declare riichi with exactly 1000 points."""
         player, round_state = self._create_player_and_round_state(score=1000)
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is True
 
@@ -86,7 +87,7 @@ class TestCanDeclareRiichi:
             melds=(open_meld,),
         )
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
@@ -104,7 +105,7 @@ class TestCanDeclareRiichi:
             melds=(closed_kan,),
         )
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is True
 
@@ -112,7 +113,7 @@ class TestCanDeclareRiichi:
         """Player cannot declare riichi without being in tempai."""
         player, round_state = self._create_player_and_round_state(tiles=self._create_non_tempai_hand())
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
@@ -120,7 +121,7 @@ class TestCanDeclareRiichi:
         """Player cannot declare riichi when wall is empty."""
         player, round_state = self._create_player_and_round_state(wall_size=0)
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
@@ -128,7 +129,7 @@ class TestCanDeclareRiichi:
         """Player cannot declare riichi when fewer than 4 tiles remain in wall."""
         player, round_state = self._create_player_and_round_state(wall_size=3)
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
@@ -136,6 +137,6 @@ class TestCanDeclareRiichi:
         """Player can declare riichi with exactly 4 tiles in wall."""
         player, round_state = self._create_player_and_round_state(wall_size=4)
 
-        result = can_declare_riichi(player, round_state)
+        result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is True

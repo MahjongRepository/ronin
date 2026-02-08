@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -5,6 +7,7 @@ from game.logic.enums import GameAction, TimeoutType
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
+    from game.logic.settings import GameSettings
 
 
 class GameService(ABC):
@@ -38,6 +41,7 @@ class GameService(ABC):
         player_names: list[str],
         *,
         seed: float | None = None,
+        settings: GameSettings | None = None,
     ) -> list[ServiceEvent]:
         """
         Start a game with the given players.
@@ -45,6 +49,7 @@ class GameService(ABC):
         Returns a list of initial state events (one per player with their view).
         When seed is provided, the game is deterministically reproducible.
         When seed is None, a random seed is generated.
+        When settings is provided, the game uses the given settings.
         """
         ...
 

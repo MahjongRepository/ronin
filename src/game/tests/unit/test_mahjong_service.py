@@ -2,11 +2,12 @@
 
 import pytest
 
-from game.logic.enums import CallType, GameAction, GamePhase, RoundPhase
+from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase, RoundPhase
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.settings import GameSettings
 from game.logic.state import PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
-from game.messaging.events import EventType
+from game.messaging.events import ErrorEvent, EventType
 from game.tests.unit.helpers import (
     _find_human_player,
     _update_player,
@@ -510,3 +511,19 @@ class TestServiceAccessors:
 
         names = service.get_pending_round_advance_human_names("game1")
         assert set(names) == {"Alice", "Bob", "Charlie", "Dave"}
+
+
+class TestMahjongGameServiceUnsupportedSettings:
+    """Tests for unsupported settings returning ErrorEvent instead of crashing."""
+
+    async def test_unsupported_settings_returns_error_event(self):
+        """start_game with unsupported settings returns ErrorEvent, not exception."""
+        settings = GameSettings(num_players=3)
+        service = MahjongGameService(settings=settings)
+        events = await service.start_game("game1", ["Alice"])
+
+        assert len(events) == 1
+        assert events[0].event == EventType.ERROR
+        assert isinstance(events[0].data, ErrorEvent)
+        assert events[0].data.code == GameErrorCode.INVALID_ACTION
+        assert "num_players=3" in events[0].data.message

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 def get_available_actions(
     round_state: MahjongRoundState,
-    _game_state: MahjongGameState,
+    game_state: MahjongGameState,
     seat: int,
 ) -> list[AvailableActionItem]:
     """
@@ -36,6 +36,7 @@ def get_available_actions(
     - tsumo option (if hand is winning)
     - kan options (closed and added)
     """
+    settings = game_state.settings
     player = round_state.players[seat]
 
     result: list[AvailableActionItem] = []
@@ -52,19 +53,19 @@ def get_available_actions(
         result.append(AvailableActionItem(action=PlayerAction.DISCARD, tiles=discard_tiles))
 
     # check riichi eligibility
-    if can_declare_riichi(player, round_state):
+    if can_declare_riichi(player, round_state, settings):
         result.append(AvailableActionItem(action=PlayerAction.RIICHI))
 
     # check tsumo
-    if can_declare_tsumo(player, round_state):
+    if can_declare_tsumo(player, round_state, settings):
         result.append(AvailableActionItem(action=PlayerAction.TSUMO))
 
     # check kan options
-    closed_kans = get_possible_closed_kans(player, round_state)
+    closed_kans = get_possible_closed_kans(player, round_state, settings)
     if closed_kans:
         result.append(AvailableActionItem(action=PlayerAction.KAN, tiles=closed_kans))
 
-    added_kans = get_possible_added_kans(player, round_state)
+    added_kans = get_possible_added_kans(player, round_state, settings)
     if added_kans:
         result.append(AvailableActionItem(action=PlayerAction.ADDED_KAN, tiles=added_kans))
 

@@ -15,6 +15,7 @@ from game.logic.events import (
     SeatTarget,
     TurnEvent,
 )
+from game.logic.timer import TimerConfig
 from game.messaging.types import (
     ErrorMessage,
     GameJoinedMessage,
@@ -326,7 +327,13 @@ class SessionManager:
         """
         game.started = True
         player_names = game.player_names
-        events = await self._game_service.start_game(game.game_id, player_names)
+        events = await self._game_service.start_game(game.game_id, player_names, settings=game.settings)
+
+        # if startup failed (e.g. unsupported settings), rollback and broadcast error
+        if any(isinstance(e.data, ErrorEvent) for e in events):
+            game.started = False
+            await self._broadcast_events(game, events)
+            return
 
         # assign seats to session players still connected after the await
         for player in game.players.values():
@@ -336,7 +343,8 @@ class SessionManager:
 
         # create per-player timers and lock for this game
         seats = [p.seat for p in game.players.values() if p.seat is not None]
-        self._timer_manager.create_timers(game.game_id, seats)
+        timer_config = TimerConfig.from_settings(game.settings)
+        self._timer_manager.create_timers(game.game_id, seats, config=timer_config)
         self._game_locks[game.game_id] = asyncio.Lock()
         self._heartbeat.start_for_game(game.game_id, self.get_game)
 
@@ -390,7 +398,9 @@ class SessionManager:
         message: dict[str, Any],
         exclude_connection_id: str | None = None,
     ) -> None:
-        for player in game.players.values():
+        # snapshot to avoid RuntimeError if a concurrent leave_game mutates
+        # game.players while we yield on send_message
+        for player in list(game.players.values()):
             if player.connection_id != exclude_connection_id:
                 # ignore connection errors, will be cleaned up on disconnect
                 with contextlib.suppress(RuntimeError, OSError):

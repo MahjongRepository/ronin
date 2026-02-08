@@ -20,6 +20,7 @@ from game.logic.scoring import (
     calculate_hand_value,
     calculate_hand_value_with_tiles,
 )
+from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -74,7 +75,8 @@ class TestCanCallRonFuritenGuards:
         players[0] = players[0].model_copy(update={"is_riichi_furiten": True})
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
-        result = can_call_ron(round_state.players[0], win_tile, round_state)
+        settings = GameSettings()
+        result = can_call_ron(round_state.players[0], win_tile, round_state, settings)
 
         assert result is False
 
@@ -85,7 +87,8 @@ class TestCanCallRonFuritenGuards:
         players[0] = players[0].model_copy(update={"is_temporary_furiten": True})
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
-        result = can_call_ron(round_state.players[0], win_tile, round_state)
+        settings = GameSettings()
+        result = can_call_ron(round_state.players[0], win_tile, round_state, settings)
 
         assert result is False
 
@@ -255,7 +258,7 @@ class TestCalculateHandValueErrors:
         return MahjongRoundState(
             dealer_seat=0,
             round_wind=0,
-            players=tuple(MahjongPlayer(seat=i, name=f"P{i}") for i in range(4)),
+            players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
             dora_indicators=(dead_wall[2],),
             dead_wall=dead_wall,
         )
@@ -265,9 +268,10 @@ class TestCalculateHandValueErrors:
         round_state = self._create_round_state()
         # incomplete hand (only 5 tiles) — no valid yaku possible
         bad_tiles = TilesConverter.string_to_136_array(man="12345")
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles))
+        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles), score=25000)
 
-        result = calculate_hand_value(player, round_state, bad_tiles[0], is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, bad_tiles[0], settings, is_tsumo=True)
 
         assert result.error is not None
 
@@ -275,13 +279,15 @@ class TestCalculateHandValueErrors:
         """calculate_hand_value_with_tiles returns error for invalid tiles."""
         round_state = self._create_round_state()
         bad_tiles = TilesConverter.string_to_136_array(man="12345")
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles))
+        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles), score=25000)
 
+        settings = GameSettings()
         result = calculate_hand_value_with_tiles(
             player,
             round_state,
             list(bad_tiles),
             bad_tiles[0],
+            settings,
             is_tsumo=False,
         )
 
@@ -293,20 +299,22 @@ class TestCalculateHandValueErrors:
         round_state = MahjongRoundState(
             dealer_seat=0,
             round_wind=0,
-            players=tuple(MahjongPlayer(seat=i, name=f"P{i}") for i in range(4)),
+            players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
             dora_indicators=(dead_wall[2],),
             dead_wall=dead_wall,
         )
         # winning hand: 123m 456m 789m 123p 5p (win on 5p by ron)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         win_tile = TilesConverter.string_to_136_array(pin="5")[0]
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), is_riichi=True)
+        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), is_riichi=True, score=25000)
 
+        settings = GameSettings()
         result = calculate_hand_value_with_tiles(
             player,
             round_state,
             list(tiles),
             win_tile,
+            settings,
             is_tsumo=False,
         )
 

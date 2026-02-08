@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from game.logic.enums import GameAction, GamePhase
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState
 from game.messaging.events import ErrorEvent, EventType, ServiceEvent
 from game.replay.models import (
@@ -37,7 +38,12 @@ class ReplayServiceProtocol(Protocol):
     """Replay-facing protocol for game service interaction."""
 
     async def start_game(
-        self, game_id: str, player_names: list[str], *, seed: float | None = None
+        self,
+        game_id: str,
+        player_names: list[str],
+        *,
+        seed: float | None = None,
+        settings: GameSettings | None = None,
     ) -> list[ServiceEvent]: ...
     async def handle_action(
         self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]

@@ -1,5 +1,6 @@
 import asyncio
-from unittest.mock import AsyncMock, patch
+from typing import Any
+from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, TimeoutType
 from game.messaging.events import BroadcastTarget, EventType, ServiceEvent
@@ -219,8 +220,8 @@ class TestSessionManagerDisconnect:
         original_start = manager._game_service.start_game
         game = manager.get_game("game1")
 
-        async def disconnecting_start(game_id, player_names):
-            result = await original_start(game_id, player_names)
+        async def disconnecting_start(game_id, player_names, **kwargs: Any):  # noqa: ANN401
+            result = await original_start(game_id, player_names, **kwargs)
             # simulate Alice disconnecting during start_game
             for conn_id, player in list(game.players.items()):
                 if player.name == "Alice":
@@ -265,8 +266,8 @@ class TestSessionManagerDisconnect:
         # the timer loop still sees her (she's in game.players during that loop).
         alice_removed = False
 
-        async def late_disconnecting_start(game_id, player_names):
-            return await original_start(game_id, player_names)
+        async def late_disconnecting_start(game_id, player_names, **kwargs: Any):  # noqa: ANN401
+            return await original_start(game_id, player_names, **kwargs)
 
         manager._game_service.start_game = late_disconnecting_start
 
@@ -525,4 +526,3 @@ class TestHeartbeat:
 
         manager.unregister_connection(conn)
         assert manager._heartbeat._last_ping.get(conn.connection_id) is None
-

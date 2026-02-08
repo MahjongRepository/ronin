@@ -34,3 +34,7 @@ class InvalidWinError(GameRuleError):
 
 class InvalidActionError(GameRuleError):
     """Action is not valid in the current game state."""
+
+
+class UnsupportedSettingsError(GameRuleError):
+    """Game settings contain unsupported values that cannot be silently ignored."""

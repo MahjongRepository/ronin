@@ -4,6 +4,7 @@ import pytest
 
 from game.logic.enums import RoundPhase
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -89,7 +90,9 @@ def create_round_state(  # noqa: PLR0913
         round_wind=round_wind,
         turn_count=turn_count,
         all_discards=tuple(all_discards) if all_discards is not None else (),
-        players_with_open_hands=tuple(players_with_open_hands) if players_with_open_hands is not None else (),
+        players_with_open_hands=(
+            tuple(players_with_open_hands) if players_with_open_hands is not None else ()
+        ),
         pending_dora_count=pending_dora_count,
         phase=phase,
         pending_call_prompt=pending_call_prompt,
@@ -104,18 +107,22 @@ def create_game_state(  # noqa: PLR0913
     honba_sticks: int = 0,
     riichi_sticks: int = 0,
     seed: float = 0.0,
+    settings: GameSettings | None = None,
 ) -> MahjongGameState:
     """Create a MahjongGameState with sensible defaults for testing."""
     if round_state is None:
         round_state = create_round_state()
-    return MahjongGameState(
-        round_state=round_state,
-        round_number=round_number,
-        unique_dealers=unique_dealers,
-        honba_sticks=honba_sticks,
-        riichi_sticks=riichi_sticks,
-        seed=seed,
-    )
+    kwargs: dict[str, Any] = {
+        "round_state": round_state,
+        "round_number": round_number,
+        "unique_dealers": unique_dealers,
+        "honba_sticks": honba_sticks,
+        "riichi_sticks": riichi_sticks,
+        "seed": seed,
+    }
+    if settings is not None:
+        kwargs["settings"] = settings
+    return MahjongGameState(**kwargs)
 
 
 @pytest.fixture

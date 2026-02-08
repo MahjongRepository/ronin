@@ -45,8 +45,9 @@ class TestShouldCallPon:
             seat=0,
             name="Bot",
             tiles=tuple(tiles),
+            score=25000,
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,
@@ -75,8 +76,9 @@ class TestShouldCallChi:
             seat=0,
             name="Bot",
             tiles=tuple(tiles),
+            score=25000,
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,
@@ -112,8 +114,9 @@ class TestShouldCallKan:
             name="Bot",
             tiles=tuple(tiles),
             melds=melds or (),
+            score=25000,
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,
@@ -169,8 +172,9 @@ class TestShouldCallRon:
             seat=0,
             name="Bot",
             tiles=tuple(tiles),
+            score=25000,
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,
@@ -199,8 +203,9 @@ class TestSelectDiscard:
             seat=0,
             name="Bot",
             tiles=tuple(tiles),
+            score=25000,
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,
@@ -230,8 +235,8 @@ class TestSelectDiscard:
     def test_empty_hand_raises_value_error(self):
         """select_discard raises ValueError on empty hand."""
         bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
-        player = MahjongPlayer(seat=0, name="Bot", tiles=())
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        player = MahjongPlayer(seat=0, name="Bot", tiles=(), score=25000)
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(wall=tuple(range(10)), players=players)
 
         with pytest.raises(ValueError, match="cannot select discard from empty hand"):
@@ -248,8 +253,9 @@ class TestGetBotAction:
             seat=0,
             name="Bot",
             tiles=tuple(tiles),
+            score=25000,
         )
-        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,

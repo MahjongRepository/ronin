@@ -11,6 +11,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import calculate_hand_value
+from game.logic.settings import GameSettings
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
 from game.logic.win import is_renhou
@@ -112,7 +113,8 @@ class TestRenhouScoring:
         player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" in result.yaku
@@ -126,7 +128,8 @@ class TestRenhouScoring:
         player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=False)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
         assert "Renhou" in result.yaku
@@ -141,7 +144,8 @@ class TestRenhouScoring:
         player = round_state.players[1]
         win_tile = tiles[-1]
 
-        result = calculate_hand_value(player, round_state, win_tile, is_tsumo=True)
+        settings = GameSettings()
+        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
         assert "Renhou" not in result.yaku

@@ -25,7 +25,9 @@ from game.tests.unit.helpers import _string_to_34_tiles
 class TestDrawTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         """Create a round state with wall and players for testing."""
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"Bot{i}") for i in range(4))
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"Bot{i}", score=25000) for i in range(4)
+        )
         return MahjongRoundState(
             wall=tuple(TilesConverter.string_to_136_array(man="1111222233")),
             players=players,
@@ -58,7 +60,9 @@ class TestDrawTileImmutable:
 class TestDrawFromDeadWallImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         """Create a round state with dead wall and players for testing."""
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"Bot{i}") for i in range(4))
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"Bot{i}", score=25000) for i in range(4)
+        )
         # 14 tiles for dead wall: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
         dead_wall = (
             *TilesConverter.string_to_136_array(honors="4444")[2:],
@@ -157,10 +161,30 @@ class TestDiscardTileImmutable:
         man_9 = TilesConverter.string_to_136_array(man="9999")
         pin_2 = TilesConverter.string_to_136_array(pin="2222")
         players = (
-            MahjongPlayer(seat=0, name="Player1", tiles=(man_3[2], man_6[0], man_8[2], pin_2[0])),
-            MahjongPlayer(seat=1, name="Bot1", tiles=(man_3[3], man_6[1], man_8[3], pin_2[1])),
-            MahjongPlayer(seat=2, name="Bot2", tiles=(man_4[0], man_6[2], man_9[0], pin_2[2])),
-            MahjongPlayer(seat=3, name="Bot3", tiles=(man_4[1], man_6[3], man_9[1], pin_2[3])),
+            MahjongPlayer(
+                seat=0,
+                name="Player1",
+                tiles=(man_3[2], man_6[0], man_8[2], pin_2[0]),
+                score=25000,
+            ),
+            MahjongPlayer(
+                seat=1,
+                name="Bot1",
+                tiles=(man_3[3], man_6[1], man_8[3], pin_2[1]),
+                score=25000,
+            ),
+            MahjongPlayer(
+                seat=2,
+                name="Bot2",
+                tiles=(man_4[0], man_6[2], man_9[0], pin_2[2]),
+                score=25000,
+            ),
+            MahjongPlayer(
+                seat=3,
+                name="Bot3",
+                tiles=(man_4[1], man_6[3], man_9[1], pin_2[3]),
+                score=25000,
+            ),
         )
         return MahjongRoundState(players=players, current_player_seat=0)
 

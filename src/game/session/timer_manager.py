@@ -5,12 +5,10 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from game.logic.enums import TimeoutType
-from game.logic.timer import TurnTimer
+from game.logic.timer import TimerConfig, TurnTimer
 
 if TYPE_CHECKING:
     from game.session.models import Game
-
-ROUND_ADVANCE_TIMEOUT = 15  # seconds to confirm round advancement
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +28,9 @@ class TimerManager:
         self._timers: dict[str, dict[int, TurnTimer]] = {}
         self._on_timeout = on_timeout
 
-    def create_timers(self, game_id: str, seats: list[int]) -> None:
+    def create_timers(self, game_id: str, seats: list[int], config: TimerConfig | None = None) -> None:
         """Create TurnTimer instances for the given human seats."""
-        self._timers[game_id] = {seat: TurnTimer() for seat in seats}
+        self._timers[game_id] = {seat: TurnTimer(config=config) for seat in seats}
 
     def has_game(self, game_id: str) -> bool:
         """Check if timers exist for a game."""
@@ -109,12 +107,13 @@ class TimerManager:
         timers = self._timers.get(game_id)
         if timers is None:
             return
+        timeout = game.settings.round_advance_timeout_seconds
         for player in game.players.values():
             if player.seat is not None:
                 timer = timers.get(player.seat)
                 if timer is not None:
                     timer.start_fixed_timer(
-                        ROUND_ADVANCE_TIMEOUT,
+                        timeout,
                         lambda gid=game_id, s=player.seat: self._on_timeout(
                             gid, TimeoutType.ROUND_ADVANCE, s
                         ),

@@ -10,6 +10,7 @@ construction not achievable via replays.
 from mahjong.tile import TilesConverter
 
 from game.logic.riichi import declare_riichi
+from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -39,7 +40,7 @@ class TestDeclareRiichiDaburi:
             score=25000,
             discards=player_discards or (),
         )
-        players = (player, *tuple(MahjongPlayer(seat=i, name=f"Bot{i}") for i in range(1, 4)))
+        players = (player, *tuple(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,
@@ -64,7 +65,13 @@ class TestDeclareRiichiDaburi:
         )
         assert round_state.players[0].is_daburi is False
 
-        new_round_state, _new_game_state = declare_riichi(round_state, game_state, seat=0)
+        settings = GameSettings()
+        new_round_state, _new_game_state = declare_riichi(
+            round_state,
+            game_state,
+            seat=0,
+            settings=settings,
+        )
 
         assert new_round_state.players[0].is_daburi is True
         # original state unchanged
@@ -84,7 +91,13 @@ class TestDeclareRiichiDaburi:
             players_with_open_hands=(),
         )
 
-        new_round_state, _new_game_state = declare_riichi(round_state, game_state, seat=0)
+        settings = GameSettings()
+        new_round_state, _new_game_state = declare_riichi(
+            round_state,
+            game_state,
+            seat=0,
+            settings=settings,
+        )
 
         assert new_round_state.players[0].is_daburi is False
 
@@ -97,6 +110,12 @@ class TestDeclareRiichiDaburi:
             players_with_open_hands=(1,),
         )
 
-        new_round_state, _new_game_state = declare_riichi(round_state, game_state, seat=0)
+        settings = GameSettings()
+        new_round_state, _new_game_state = declare_riichi(
+            round_state,
+            game_state,
+            seat=0,
+            settings=settings,
+        )
 
         assert new_round_state.players[0].is_daburi is False

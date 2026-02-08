@@ -8,6 +8,7 @@ open hand yaku validation, and _has_yaku_for_open_hand empty tiles boundary.
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 from game.logic.win import (
     _has_yaku_for_open_hand,
@@ -20,10 +21,10 @@ class TestIsChankanPossible:
         # player 0 is waiting for 3p (tempai hand 123m 456m 789m 12p 55p)
         tiles_p0 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         players = (
-            MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles_p0), is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
+            MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles_p0), is_riichi=True, score=25000),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
         )
         round_state = MahjongRoundState(
             dealer_seat=0,
@@ -43,10 +44,10 @@ class TestIsChankanPossible:
         # player 0 is waiting for 3p (tempai hand 123m 456m 789m 12p 55p)
         tiles_p0 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         players = (
-            MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles_p0), is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
+            MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles_p0), is_riichi=True, score=25000),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
         )
         round_state = MahjongRoundState(
             dealer_seat=0,
@@ -73,10 +74,11 @@ class TestIsChankanPossible:
                 tiles=tuple(tiles_p0),
                 discards=discards_p0,
                 is_riichi=True,
+                score=25000,
             ),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3"),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
         )
         round_state = MahjongRoundState(
             dealer_seat=0,
@@ -96,10 +98,10 @@ class TestIsChankanPossible:
         # player 2 is waiting for 3p and calls kan on 3p - they can't chankan themselves
         tiles_p2 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         players = (
-            MahjongPlayer(seat=0, name="Player0"),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2", tiles=tuple(tiles_p2), is_riichi=True),
-            MahjongPlayer(seat=3, name="Player3"),
+            MahjongPlayer(seat=0, name="Player0", score=25000),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", tiles=tuple(tiles_p2), is_riichi=True, score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
         )
         round_state = MahjongRoundState(
             dealer_seat=0,
@@ -118,10 +120,10 @@ class TestIsChankanPossible:
         # both player 0 and player 3 are waiting for 3p
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         players = (
-            MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles), is_riichi=True),
-            MahjongPlayer(seat=1, name="Player1"),
-            MahjongPlayer(seat=2, name="Player2"),
-            MahjongPlayer(seat=3, name="Player3", tiles=tuple(tiles), is_riichi=True),
+            MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles), is_riichi=True, score=25000),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", tiles=tuple(tiles), is_riichi=True, score=25000),
         )
         round_state = MahjongRoundState(
             dealer_seat=0,
@@ -160,6 +162,7 @@ class TestChankanWithOpenHand:
             name="P1",
             tiles=(*closed_tiles, *haku_tiles),
             melds=(pon_meld,),
+            score=25000,
         )
 
         round_state = MahjongRoundState(
@@ -168,10 +171,10 @@ class TestChankanWithOpenHand:
             round_wind=0,
             wall=tuple(range(20)),
             players=(
-                MahjongPlayer(seat=0, name="P0"),
+                MahjongPlayer(seat=0, name="P0", score=25000),
                 player1,
-                MahjongPlayer(seat=2, name="P2"),
-                MahjongPlayer(seat=3, name="P3"),
+                MahjongPlayer(seat=2, name="P2", score=25000),
+                MahjongPlayer(seat=3, name="P3", score=25000),
             ),
             players_with_open_hands=(1,),
             dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
@@ -204,6 +207,7 @@ class TestChankanWithOpenHand:
             name="P1",
             tiles=(*closed_tiles, *pon_tiles),
             melds=(pon_meld,),
+            score=25000,
         )
 
         round_state = MahjongRoundState(
@@ -212,10 +216,10 @@ class TestChankanWithOpenHand:
             round_wind=0,
             wall=tuple(range(20)),
             players=(
-                MahjongPlayer(seat=0, name="P0"),
+                MahjongPlayer(seat=0, name="P0", score=25000),
                 player1,
-                MahjongPlayer(seat=2, name="P2"),
-                MahjongPlayer(seat=3, name="P3"),
+                MahjongPlayer(seat=2, name="P2", score=25000),
+                MahjongPlayer(seat=3, name="P3", score=25000),
             ),
             players_with_open_hands=(1,),
             dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
@@ -241,12 +245,12 @@ class TestHasYakuForOpenHandEmptyTiles:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=(), melds=(pon,))
+        player = MahjongPlayer(seat=0, name="Player1", tiles=(), melds=(pon,), score=25000)
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
             dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
         )
-        result = _has_yaku_for_open_hand(player, round_state)
+        result = _has_yaku_for_open_hand(player, round_state, GameSettings())
         assert result is False

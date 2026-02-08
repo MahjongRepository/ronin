@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from game.logic.enums import CallType, GameAction, MeldCallType
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
 from game.logic.scoring import calculate_hand_value
+from game.logic.settings import GameSettings
 from game.logic.state import (
     CallResponse,
     Discard,
@@ -70,7 +71,7 @@ class TestImmutabilityContracts:
             caller.seat = 2
 
     def test_player_rejects_mutation(self):
-        player = MahjongPlayer(seat=0, name="Player1")
+        player = MahjongPlayer(seat=0, name="Player1", score=25000)
         with pytest.raises(ValidationError):
             player.score = 30000
 
@@ -105,16 +106,16 @@ class TestImmutabilityContracts:
 class TestMahjongPlayerLogic:
     def test_has_open_melds_with_open(self):
         open_meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True)
-        player = MahjongPlayer(seat=0, name="P1", melds=(open_meld,))
+        player = MahjongPlayer(seat=0, name="P1", melds=(open_meld,), score=25000)
         assert player.has_open_melds() is True
 
     def test_has_open_melds_with_closed(self):
         closed_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False)
-        player = MahjongPlayer(seat=0, name="P2", melds=(closed_meld,))
+        player = MahjongPlayer(seat=0, name="P2", melds=(closed_meld,), score=25000)
         assert player.has_open_melds() is False
 
     def test_has_open_melds_empty(self):
-        player = MahjongPlayer(seat=0, name="P3")
+        player = MahjongPlayer(seat=0, name="P3", score=25000)
         assert player.has_open_melds() is False
 
 
@@ -177,8 +178,8 @@ class TestStateUtilsUpdatePlayer:
 class TestStateUtilsTileOperations:
     def _create_round_state_with_tiles(self) -> MahjongRoundState:
         tiles = tuple(TilesConverter.string_to_136_array(man="123456789"))
-        player = MahjongPlayer(seat=0, name="Player0", tiles=tiles)
-        players = (player, *tuple(MahjongPlayer(seat=i, name=f"Player{i}") for i in range(1, 4)))
+        player = MahjongPlayer(seat=0, name="Player0", tiles=tiles, score=25000)
+        players = (player, *tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(1, 4)))
         return MahjongRoundState(players=players)
 
     def test_add_tile_to_player(self):
@@ -233,7 +234,7 @@ class TestStateUtilsWallOperations:
 
 class TestStateUtilsDiscardOperations:
     def test_add_discard_to_player(self):
-        player = MahjongPlayer(seat=0, name="Player0")
+        player = MahjongPlayer(seat=0, name="Player0", score=25000)
         state = MahjongRoundState(players=(player,))
 
         discard = Discard(tile_id=0, is_tsumogiri=True)
@@ -327,6 +328,7 @@ class TestStateUtilsPlayerFlags:
                 seat=i,
                 name=f"Player{i}",
                 is_ippatsu=(i in {0, 2}),
+                score=25000,
             )
             for i in range(4)
         )
@@ -362,6 +364,7 @@ class TestFrozenMeldScoringIntegration:
                 tiles=tuple(closed_tiles) if i == 0 else (),
                 melds=(frozen_meld,) if i == 0 else (),
                 discards=(discard1,),
+                score=25000,
             )
             for i in range(4)
         )
@@ -375,7 +378,7 @@ class TestFrozenMeldScoringIntegration:
         )
 
         win_tile = closed_tiles[-1]
-        result = calculate_hand_value(players[0], round_state, win_tile, is_tsumo=True)
+        result = calculate_hand_value(players[0], round_state, win_tile, GameSettings(), is_tsumo=True)
 
         assert result.error is None
         assert result.han >= 1
@@ -403,6 +406,7 @@ class TestFrozenMeldScoringIntegration:
                 tiles=tuple(tenpai_tiles) if i == 0 else (),
                 melds=(frozen_meld,) if i == 0 else (),
                 discards=(discard1,),
+                score=25000,
             )
             for i in range(4)
         )
@@ -415,5 +419,5 @@ class TestFrozenMeldScoringIntegration:
             all_discards=(0, 1, 2, 3),
         )
 
-        result = can_declare_tsumo(players[0], round_state)
+        result = can_declare_tsumo(players[0], round_state, GameSettings())
         assert result is True

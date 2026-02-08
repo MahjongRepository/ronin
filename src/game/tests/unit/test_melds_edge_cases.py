@@ -7,6 +7,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     _check_pao,
     _kan_preserves_waits_for_riichi,
+    call_chi,
     call_open_kan,
     call_pon,
     can_call_open_kan,
@@ -14,6 +15,7 @@ from game.logic.melds import (
     get_possible_added_kans,
     get_possible_closed_kans,
 )
+from game.logic.settings import GameSettings
 from game.logic.tiles import tile_to_34
 from game.tests.conftest import create_player, create_round_state
 
@@ -109,7 +111,8 @@ class TestKanLimits:
 
         discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
 
-        result = can_call_open_kan(player2, discarded_tile, round_state)
+        settings = GameSettings()
+        result = can_call_open_kan(player2, discarded_tile, round_state, settings)
 
         assert result is False
 
@@ -162,7 +165,8 @@ class TestKanLimits:
         wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         round_state = create_round_state(players=players, wall=wall)
 
-        result = get_possible_closed_kans(player2, round_state)
+        settings = GameSettings()
+        result = get_possible_closed_kans(player2, round_state, settings)
 
         assert result == []
 
@@ -221,7 +225,8 @@ class TestKanLimits:
         wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         round_state = create_round_state(players=players, wall=wall)
 
-        result = get_possible_added_kans(player2, round_state)
+        settings = GameSettings()
+        result = get_possible_added_kans(player2, round_state, settings)
 
         assert result == []
 
@@ -285,7 +290,8 @@ class TestRiichiKanWaitPreservation:
         dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
         round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
 
-        result = get_possible_closed_kans(player, round_state)
+        settings = GameSettings()
+        result = get_possible_closed_kans(player, round_state, settings)
 
         # 1m should be in the result if it preserves waits
         tile_34_1m = tile_to_34(tiles[0])
@@ -327,7 +333,7 @@ class TestPaoLiability:
         chun_34 = tile_to_34(chun_tile)
         discarder_seat = 2
 
-        result = _check_pao(player, discarder_seat, chun_34)
+        result = _check_pao(player, discarder_seat, chun_34, GameSettings())
 
         assert result == discarder_seat
 
@@ -370,7 +376,7 @@ class TestPaoLiability:
         north_34 = tile_to_34(north_tile)
         discarder_seat = 3
 
-        result = _check_pao(player, discarder_seat, north_34)
+        result = _check_pao(player, discarder_seat, north_34, GameSettings())
 
         assert result == discarder_seat
 
@@ -386,7 +392,7 @@ class TestPaoLiability:
         tile_34 = tile_to_34(man_1m)
         discarder_seat = 1
 
-        result = _check_pao(player, discarder_seat, tile_34)
+        result = _check_pao(player, discarder_seat, tile_34, GameSettings())
 
         assert result is None
 
@@ -402,7 +408,7 @@ class TestPaoLiability:
         haku_34 = tile_to_34(haku_tile)
         discarder_seat = 2
 
-        result = _check_pao(player, discarder_seat, haku_34)
+        result = _check_pao(player, discarder_seat, haku_34, GameSettings())
 
         assert result is None
 
@@ -444,11 +450,13 @@ class TestPaoLiability:
         discarder_seat = 2
         chun_4th = TilesConverter.string_to_136_array(honors="7")[0]
 
+        settings = GameSettings()
         new_state, _meld = call_open_kan(
             round_state,
             caller_seat=0,
             discarder_seat=discarder_seat,
             tile_id=chun_4th,
+            settings=settings,
         )
 
         assert new_state.players[0].pao_seat == discarder_seat
@@ -492,11 +500,87 @@ class TestPaoLiability:
         discarder_seat = 3
         chun_3rd = TilesConverter.string_to_136_array(honors="7")[0]
 
+        settings = GameSettings()
         new_state, _meld = call_pon(
             round_state,
             caller_seat=0,
             discarder_seat=discarder_seat,
             tile_id=chun_3rd,
+            settings=settings,
         )
 
         assert new_state.players[0].pao_seat == discarder_seat
+
+    def test_pao_disabled_returns_none(self):
+        """Test that _check_pao returns None when pao is disabled for the tile type.
+
+        Player has 2 dragon melds and calls 3rd dragon, but has_daisangen_pao=False.
+        Should hit the 'if not enabled: continue' path and return None.
+        """
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+        hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
+
+        melds = (
+            FrozenMeld(
+                meld_type=FrozenMeld.PON,
+                tiles=tuple(haku_tiles),
+                opened=True,
+                who=0,
+            ),
+            FrozenMeld(
+                meld_type=FrozenMeld.PON,
+                tiles=tuple(hatsu_tiles),
+                opened=True,
+                who=0,
+            ),
+        )
+
+        player = create_player(seat=0, melds=melds)
+
+        chun_tile = TilesConverter.string_to_136_array(honors="7")[0]
+        chun_34 = tile_to_34(chun_tile)
+
+        settings = GameSettings(has_daisangen_pao=False)
+        result = _check_pao(player, 2, chun_34, settings)
+
+        assert result is None
+
+
+class TestChiKuikaeWithoutSuji:
+    """Test chi kuikae restriction without suji extension."""
+
+    def test_chi_kuikae_no_suji(self):
+        """Test call_chi with has_kuikae=True, has_kuikae_suji=False.
+
+        When kuikae is enabled but suji is not, only the called tile type
+        should be forbidden (not the suji extension).
+        """
+        man_tiles = TilesConverter.string_to_136_array(man="123")
+        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
+        player1_tiles = (man_tiles[1], man_tiles[2], *pin_tiles)
+
+        players = [
+            create_player(seat=0),
+            create_player(seat=1, tiles=player1_tiles),
+            create_player(seat=2),
+            create_player(seat=3),
+        ]
+
+        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
+        round_state = create_round_state(
+            players=players,
+            current_player_seat=0,
+        )
+
+        new_state, _meld = call_chi(
+            round_state,
+            caller_seat=1,
+            discarder_seat=0,
+            tile_id=man_tiles[0],
+            sequence_tiles=(man_tiles[1], man_tiles[2]),
+            settings=settings,
+        )
+
+        called_34 = tile_to_34(man_tiles[0])
+        # Only the called tile type should be forbidden (no suji)
+        assert new_state.players[1].kuikae_tiles == (called_34,)
