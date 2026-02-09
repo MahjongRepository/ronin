@@ -1,4 +1,3 @@
-import os
 from http import HTTPStatus
 from pathlib import Path
 
@@ -9,9 +8,7 @@ from lobby.registry.types import GameServer
 
 
 def _get_default_config_path() -> Path:
-    env_path = os.environ.get("LOBBY_CONFIG_PATH")
-    if env_path:
-        return Path(env_path)
+    """Return the file-relative default path to servers.yaml."""
     src_root = Path(__file__).parent.parent.parent
     return src_root / "config" / "servers.yaml"
 

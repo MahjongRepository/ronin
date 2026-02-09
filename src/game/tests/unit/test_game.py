@@ -132,15 +132,21 @@ class TestProcessRoundEnd:
             hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
+            closed_tiles=[0, 1, 2, 3],
+            melds=[],
+            win_tile=3,
         )
 
     def _ron(self, winner_seat: int, loser_seat: int) -> RonResult:
         return RonResult(
             winner_seat=winner_seat,
             loser_seat=loser_seat,
+            winning_tile=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
+            closed_tiles=[0, 1, 2],
+            melds=[],
         )
 
     def test_abortive_draw_increments_honba(self):
@@ -260,16 +266,21 @@ class TestProcessRoundEnd:
         game_state = self._create_game_state()
         result = DoubleRonResult(
             loser_seat=1,
+            winning_tile=0,
             winners=[
                 DoubleRonWinner(
                     winner_seat=0,
                     hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
                     riichi_sticks_collected=0,
+                    closed_tiles=[0, 1, 2],
+                    melds=[],
                 ),
                 DoubleRonWinner(
                     winner_seat=2,
                     hand_result=HandResultInfo(han=1, fu=30, yaku=["Tanyao"]),
                     riichi_sticks_collected=0,
+                    closed_tiles=[4, 5, 6],
+                    melds=[],
                 ),
             ],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
@@ -285,16 +296,21 @@ class TestProcessRoundEnd:
         game_state = game_state.model_copy(update={"honba_sticks": 1})
         result = DoubleRonResult(
             loser_seat=1,
+            winning_tile=0,
             winners=[
                 DoubleRonWinner(
                     winner_seat=2,
                     hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
                     riichi_sticks_collected=0,
+                    closed_tiles=[0, 1, 2],
+                    melds=[],
                 ),
                 DoubleRonWinner(
                     winner_seat=3,
                     hand_result=HandResultInfo(han=1, fu=30, yaku=["Tanyao"]),
                     riichi_sticks_collected=0,
+                    closed_tiles=[4, 5, 6],
+                    melds=[],
                 ),
             ],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},

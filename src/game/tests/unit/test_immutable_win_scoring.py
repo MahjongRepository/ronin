@@ -134,7 +134,9 @@ class TestApplyDoubleRonWithPao:
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
 
         winners = [(0, hand_result_0), (2, hand_result_2)]
-        new_round, _new_game, result = apply_double_ron_score(game_state, winners=winners, loser_seat=1)
+        new_round, _new_game, result = apply_double_ron_score(
+            game_state, winners=winners, loser_seat=1, winning_tile=0
+        )
 
         # seat 0's 32000: split 50/50 between loser(1) and pao(3) -> 16000 each
         # seat 2's 2000: full from loser(1)

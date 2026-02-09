@@ -6,6 +6,7 @@ dependencies = [
     "starlette>=0.52.1",
     "uvicorn[standard]>=0.40.0",
     "pydantic>=2.12.5",
+    "pydantic-settings>=2.0",
     "httpx>=0.28.1",
     "pyyaml>=6.0.0",
     "mahjong>=1.4.0",
@@ -64,6 +65,7 @@ ignore = [
     "EM102",  # Exception must not use an f-string literal
     # Pydantic models used in function signatures need runtime imports for validation
     "TC001",  # Move application import into type-checking block
+    "TC003",  # Move stdlib import into type-checking block
     "G004",  # Convert to lazy `%` formatting
     "TD", # TODO comments
     "FIX002",# Line contains TODO

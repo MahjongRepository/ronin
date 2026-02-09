@@ -5,6 +5,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
+from lobby.server.settings import LobbyServerSettings
 
 
 class TestLobbyEndpoints:
@@ -17,7 +18,7 @@ servers:
   - name: "test-server"
     url: "http://localhost:8001"
 """)
-        app = create_app(config_path=config_file)
+        app = create_app(settings=LobbyServerSettings(config_path=config_file))
         return TestClient(app)
 
     def test_health(self, client):

@@ -10,10 +10,13 @@ from starlette.routing import Route, WebSocketRoute
 
 from game.logic.mahjong_service import MahjongGameService
 from game.messaging.router import MessageRouter
+from game.server.settings import GameServerSettings
 from game.server.types import CreateGameRequest
 from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
+from game.session.replay_collector import ReplayCollector
 from shared.logging import setup_logging
+from shared.storage import LocalReplayStorage
 
 logger = logging.getLogger(__name__)
 
@@ -24,21 +27,18 @@ if TYPE_CHECKING:
     from game.logic.service import GameService
 
 
-MAX_GAMES = 100
-GAME_LOG_DIR = "logs/game"
-
-
 async def health(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
 async def status(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
+    settings: GameServerSettings = request.app.state.settings
     return JSONResponse(
         {
             "status": "ok",
             "active_games": session_manager.game_count,
-            "max_games": MAX_GAMES,
+            "max_games": settings.max_games,
         }
     )
 
@@ -51,6 +51,7 @@ async def list_games(request: Request) -> JSONResponse:
 
 async def create_game(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
+    settings: GameServerSettings = request.app.state.settings
 
     try:
         body = await request.json()
@@ -58,7 +59,7 @@ async def create_game(request: Request) -> JSONResponse:
     except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
-    if session_manager.game_count >= MAX_GAMES:
+    if session_manager.game_count >= settings.max_games:
         return JSONResponse({"error": "Server at capacity"}, status_code=503)
 
     if session_manager.get_game(game_request.game_id):
@@ -72,15 +73,23 @@ async def create_game(request: Request) -> JSONResponse:
 
 
 def create_app(
+    settings: GameServerSettings | None = None,
     game_service: GameService | None = None,
     session_manager: SessionManager | None = None,
     message_router: MessageRouter | None = None,
 ) -> Starlette:
+    if settings is None:
+        settings = GameServerSettings()
+
     if game_service is None:
         game_service = MahjongGameService()
 
     if session_manager is None:
-        session_manager = SessionManager(game_service, log_dir=GAME_LOG_DIR)
+        storage = LocalReplayStorage(settings.replay_dir)
+        replay_collector = ReplayCollector(storage)
+        session_manager = SessionManager(
+            game_service, log_dir=settings.log_dir, replay_collector=replay_collector
+        )
 
     if message_router is None:
         message_router = MessageRouter(session_manager)
@@ -99,15 +108,17 @@ def create_app(
     app = Starlette(routes=routes)
     app.add_middleware(
         CORSMiddleware,  # type: ignore[arg-type]
-        allow_origins=["http://localhost:3000"],
+        allow_origins=settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.state.settings = settings
     app.state.session_manager = session_manager
 
     logger.info("game server ready")
     return app
 
 
-setup_logging(log_dir=GAME_LOG_DIR)
-app = create_app()
+settings = GameServerSettings()
+setup_logging(log_dir=settings.log_dir)
+app = create_app(settings=settings)

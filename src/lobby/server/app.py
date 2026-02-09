@@ -11,13 +11,12 @@ from starlette.routing import Route
 from lobby.games.service import GameCreationError, GamesService
 from lobby.games.types import CreateGameRequest
 from lobby.registry.manager import RegistryManager
+from lobby.server.settings import LobbyServerSettings
 from shared.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from starlette.requests import Request
 
 
@@ -77,7 +76,10 @@ async def create_game(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=503)
 
 
-def create_app(config_path: Path | None = None) -> Starlette:
+def create_app(settings: LobbyServerSettings | None = None) -> Starlette:
+    if settings is None:
+        settings = LobbyServerSettings()
+
     routes = [
         Route("/health", health, methods=["GET"]),
         Route("/servers", list_servers, methods=["GET"]),
@@ -88,12 +90,13 @@ def create_app(config_path: Path | None = None) -> Starlette:
     app = Starlette(routes=routes)
     app.add_middleware(
         CORSMiddleware,  # type: ignore[arg-type]
-        allow_origins=["http://localhost:3000"],
+        allow_origins=settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    registry = RegistryManager(config_path)
+    registry = RegistryManager(settings.config_path)
+    app.state.settings = settings
     app.state.registry = registry
     games_service = GamesService(registry)
     app.state.games_service = games_service
@@ -102,5 +105,6 @@ def create_app(config_path: Path | None = None) -> Starlette:
     return app
 
 
-setup_logging(log_dir="logs/lobby")
-app = create_app()
+settings = LobbyServerSettings()
+setup_logging(log_dir=settings.log_dir)
+app = create_app(settings=settings)

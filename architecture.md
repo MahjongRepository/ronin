@@ -92,7 +92,7 @@ ronin/
 │   │   ├── session/
 │   │   ├── logic/              # Riichi Mahjong rules implementation
 │   │   └── tests/
-│   └── shared/                 # Shared code (future use)
+│   └── shared/                 # Shared utilities (logging, validators, storage)
 ```
 
 ## Running Locally
@@ -130,6 +130,25 @@ curl -X POST http://localhost:8000/games -H 'Content-Type: application/json' -d 
 ```bash
 make run-all-checks       # Run all checks (format, lint, typecheck, test, client typecheck)
 ```
+
+## Replay Data Security & Retention
+
+Replay files contain concealed game data (player hands, draw tiles, dora indicators, winner hand details) and are treated as sensitive artifacts.
+
+**Filesystem permissions:**
+- Replay directory: owner-only (`0o700`)
+- Replay files: owner-only read/write (`0o600`)
+- Files are written atomically via `os.open` with explicit mode to avoid TOCTOU permission windows
+
+**Retention:**
+- `LocalReplayStorage.cleanup_old_replays(max_age_seconds)` removes replay files whose modification time is older than the specified threshold
+- Cleanup is designed to be called by an external scheduler (cron job, periodic task) rather than running automatically
+- Errors on individual files are logged and skipped so one bad file does not block the rest
+
+**Access:**
+- Only the process owner (game server) can read or write replay files
+- No read/parse/load functionality exists; replay files are write-only artifacts for post-game analysis
+- Concealed replay data (draw tiles, per-seat hands, winner hand details) is captured from canonical `SeatTarget` events (`DrawEvent`, `RoundStartedEvent`) and broadcast `RoundEndEvent` by the `ReplayCollector`; these events are never delivered to unintended client connections
 
 ## Next Steps
 

@@ -513,7 +513,7 @@ class MahjongGameService(GameService):
         Uses the pending call prompt system: dispatches bot responses through handlers,
         waits for human callers, or advances turn if no callers.
         """
-        # check if round ended immediately
+        # check if round ended immediately (abortive draws)
         round_end_events = await self._check_and_handle_round_end(game_id, events)
         if round_end_events is not None:
             return round_end_events

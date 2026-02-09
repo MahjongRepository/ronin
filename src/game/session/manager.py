@@ -16,6 +16,7 @@ from game.logic.events import (
     TurnEvent,
 )
 from game.logic.timer import TimerConfig
+from game.messaging.event_payload import service_event_payload
 from game.messaging.types import (
     ErrorMessage,
     GameJoinedMessage,
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from game.logic.service import GameService
     from game.messaging.protocol import ConnectionProtocol
+    from game.session.replay_collector import ReplayCollector
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +45,15 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     MAX_PLAYERS_PER_GAME = 4  # Mahjong requires exactly 4 players
 
-    def __init__(self, game_service: GameService, log_dir: str | None = None) -> None:
+    def __init__(
+        self,
+        game_service: GameService,
+        log_dir: str | None = None,
+        replay_collector: ReplayCollector | None = None,
+    ) -> None:
         self._game_service = game_service
         self._log_dir = log_dir
+        self._replay_collector = replay_collector
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
         self._games: dict[str, Game] = {}  # game_id -> Game
@@ -93,6 +101,8 @@ class SessionManager:
             rotate_log_file(self._log_dir)
         game = Game(game_id=game_id, num_bots=num_bots)
         self._games[game_id] = game
+        if self._replay_collector:
+            self._replay_collector.start_game(game_id)
         logger.info(f"game created: {game_id} num_bots={num_bots}")
         return game
 
@@ -219,6 +229,8 @@ class SessionManager:
             self._game_locks.pop(game_id, None)
             await self._heartbeat.stop_for_game(game_id)
             self._game_service.cleanup_game(game_id)
+            if self._replay_collector:
+                self._replay_collector.cleanup_game(game_id)
 
     @staticmethod
     def _remove_player_from_game(game: Game, connection_id: str, player: Player) -> None:
@@ -379,10 +391,13 @@ class SessionManager:
         events: list[ServiceEvent],
     ) -> None:
         """Broadcast events with target-based filtering using typed targets."""
+        if self._replay_collector:
+            self._replay_collector.collect_events(game.game_id, events)
+
         seat_to_player = {p.seat: p for p in game.players.values() if p.seat is not None}
 
         for event in events:
-            message = {"type": event.event, **event.data.model_dump(exclude={"type", "target"})}
+            message = service_event_payload(event)
 
             if isinstance(event.target, BroadcastTarget):
                 await self._broadcast_to_game(game, message)
@@ -473,11 +488,14 @@ class SessionManager:
         """
         Close all player connections after the game ends.
 
-        The WebSocket disconnect handlers will clean up session state
-        (remove players, clean up empty game) when connections close.
+        Persists the replay before closing sockets. The WebSocket disconnect
+        handlers will clean up session state (remove players, clean up empty
+        game) when connections close.
         """
         if not any(isinstance(event.data, GameEndedEvent) for event in events):
             return
+        if self._replay_collector:
+            await self._replay_collector.save_and_cleanup(game.game_id)
         for player in list(game.players.values()):
             with contextlib.suppress(RuntimeError, OSError):
                 await player.connection.close(code=1000, reason="game_ended")

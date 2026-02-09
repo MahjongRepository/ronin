@@ -143,6 +143,9 @@ class TestExtractRoundResult:
             hand_result=HandResultInfo(han=1, fu=30, yaku=["tanyao"]),
             score_changes={0: 1000},
             riichi_sticks_collected=0,
+            closed_tiles=[0, 1, 2, 3],
+            melds=[],
+            win_tile=3,
         )
         events = [
             ServiceEvent(

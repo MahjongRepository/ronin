@@ -175,15 +175,21 @@ class TestRenchanOnDealerWin:
             hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
+            closed_tiles=[0, 1, 2, 3],
+            melds=[],
+            win_tile=3,
         )
 
     def _ron(self, winner_seat: int, loser_seat: int) -> RonResult:
         return RonResult(
             winner_seat=winner_seat,
             loser_seat=loser_seat,
+            winning_tile=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
+            closed_tiles=[0, 1, 2],
+            melds=[],
         )
 
     def test_default_dealer_win_renchan(self):

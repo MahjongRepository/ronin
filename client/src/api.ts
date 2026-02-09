@@ -1,4 +1,6 @@
-const LOBBY_URL = "http://localhost:8000";
+const LOBBY_URL: string =
+    ((window as unknown as Record<string, unknown>).__LOBBY_URL__ as string | undefined) ??
+    "http://localhost:8000";
 
 interface GameInfo {
     game_id: string;

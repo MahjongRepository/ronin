@@ -5,9 +5,9 @@
 
 set -e
 
-GAME_PORT=8001
-LOBBY_PORT=8000
-CLIENT_PORT=3000
+GAME_PORT=${GAME_PORT:-8001}
+LOBBY_PORT=${LOBBY_PORT:-8000}
+CLIENT_PORT=${CLIENT_PORT:-3000}
 MAX_RETRIES=10
 
 kill_tree() {
@@ -17,16 +17,6 @@ kill_tree() {
         kill_tree "$child"
     done
     kill "$pid" 2>/dev/null || true
-}
-
-cleanup() {
-    echo "Stopping servers..."
-    if [ -n "$GAME_PID" ]; then
-        kill_tree "$GAME_PID"
-    fi
-    if [ -n "$CLIENT_PID" ]; then
-        kill_tree "$CLIENT_PID"
-    fi
 }
 
 wait_for_server() {
@@ -44,6 +34,36 @@ wait_for_server() {
     return 1
 }
 
+CONFIG_DIR=$(mktemp -d)
+CONFIG_FILE="$CONFIG_DIR/servers.yaml"
+cat > "$CONFIG_FILE" <<EOF
+servers:
+  - name: "local-1"
+    url: "http://localhost:$GAME_PORT"
+EOF
+export LOBBY_CONFIG_PATH="$CONFIG_FILE"
+
+# Set CORS origins so game and lobby servers accept requests from the client port
+export GAME_CORS_ORIGINS="http://localhost:$CLIENT_PORT"
+export LOBBY_CORS_ORIGINS="http://localhost:$CLIENT_PORT"
+
+# Generate client env config with lobby URL
+mkdir -p client/public
+cat > client/public/env.js <<EOF
+window.__LOBBY_URL__ = "http://localhost:$LOBBY_PORT";
+EOF
+
+cleanup() {
+    echo "Stopping servers..."
+    if [ -n "$GAME_PID" ]; then
+        kill_tree "$GAME_PID"
+    fi
+    if [ -n "$CLIENT_PID" ]; then
+        kill_tree "$CLIENT_PID"
+    fi
+    rm -rf "$CONFIG_DIR"
+}
+
 trap cleanup EXIT INT TERM
 
 echo "Starting game server on port $GAME_PORT..."
@@ -57,7 +77,7 @@ if ! wait_for_server $GAME_PORT; then
 fi
 
 echo "Starting client dev server on port $CLIENT_PORT..."
-(cd client && bun run dev) &
+(cd client && PORT=$CLIENT_PORT bun run dev) &
 CLIENT_PID=$!
 sleep 2
 if ! kill -0 "$CLIENT_PID" 2>/dev/null; then

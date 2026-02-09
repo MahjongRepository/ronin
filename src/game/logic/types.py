@@ -74,6 +74,8 @@ class HandResultInfo(BaseModel):
     han: int
     fu: int
     yaku: list[str]
+    cost_main: int = 0
+    cost_additional: int = 0
 
 
 class TsumoResult(BaseModel):
@@ -84,7 +86,11 @@ class TsumoResult(BaseModel):
     hand_result: HandResultInfo
     score_changes: dict[int, int]
     riichi_sticks_collected: int
+    closed_tiles: list[int]
+    melds: list[MeldView]
+    win_tile: int
     pao_seat: int | None = None
+    ura_dora_indicators: list[int] | None = None
 
 
 class RonResult(BaseModel):
@@ -93,10 +99,14 @@ class RonResult(BaseModel):
     type: RoundResultType = RoundResultType.RON
     winner_seat: int
     loser_seat: int
+    winning_tile: int
     hand_result: HandResultInfo
     score_changes: dict[int, int]
     riichi_sticks_collected: int
+    closed_tiles: list[int]
+    melds: list[MeldView]
     pao_seat: int | None = None
+    ura_dora_indicators: list[int] | None = None
 
 
 class DoubleRonWinner(BaseModel):
@@ -105,7 +115,10 @@ class DoubleRonWinner(BaseModel):
     winner_seat: int
     hand_result: HandResultInfo
     riichi_sticks_collected: int
+    closed_tiles: list[int]
+    melds: list[MeldView]
     pao_seat: int | None = None
+    ura_dora_indicators: list[int] | None = None
 
 
 class DoubleRonResult(BaseModel):
@@ -113,6 +126,7 @@ class DoubleRonResult(BaseModel):
 
     type: RoundResultType = RoundResultType.DOUBLE_RON
     loser_seat: int
+    winning_tile: int
     winners: list[DoubleRonWinner]
     score_changes: dict[int, int]
 

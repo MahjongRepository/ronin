@@ -18,6 +18,7 @@ logs
 bot
 
 src/debug.py
+data/replays
 
 # ---
 
@@ -33,3 +34,4 @@ thoughts
 # bots run stuff
 bin/run-bots-games.sh
 Makefile.bots
+data/*

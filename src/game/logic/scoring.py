@@ -15,7 +15,7 @@ from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.meld_wrapper import frozen_melds_to_melds
 from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
-from game.logic.state import seat_to_wind
+from game.logic.state import meld_to_view, seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array
 from game.logic.types import (
@@ -104,6 +104,31 @@ def _build_hand_config(
     )
 
 
+def collect_ura_dora_indicators(
+    player: MahjongPlayer,
+    round_state: MahjongRoundState,
+    settings: GameSettings,
+) -> list[int] | None:
+    """
+    Collect ura dora indicator tile IDs for a riichi winner.
+
+    Return None when player is not riichi or ura dora is disabled.
+    Return the list of ura dora indicator tile IDs otherwise.
+    """
+    if not settings.has_uradora or not player.is_riichi:
+        return None
+    if not round_state.dead_wall or not round_state.dora_indicators:
+        return None
+
+    ura_count = 1 if not settings.has_kan_uradora else len(round_state.dora_indicators)
+    indicators: list[int] = []
+    for i in range(ura_count):
+        ura_index = URA_DORA_START_INDEX + i
+        if ura_index < len(round_state.dead_wall):
+            indicators.append(round_state.dead_wall[ura_index])
+    return indicators
+
+
 def _collect_dora_indicators(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
@@ -115,14 +140,9 @@ def _collect_dora_indicators(
     else:
         dora_indicators = []
 
-    if settings.has_uradora and player.is_riichi and round_state.dead_wall and round_state.dora_indicators:
-        # base ura dora: always 1 indicator (the first ura beneath the initial dora)
-        # kan ura dora: additional indicators beneath kan-revealed dora (index 1+)
-        ura_count = 1 if not settings.has_kan_uradora else len(round_state.dora_indicators)
-        for i in range(ura_count):
-            ura_index = URA_DORA_START_INDEX + i
-            if ura_index < len(round_state.dead_wall):
-                dora_indicators.append(round_state.dead_wall[ura_index])
+    ura = collect_ura_dora_indicators(player, round_state, settings)
+    if ura:
+        dora_indicators.extend(ura)
 
     return dora_indicators
 
@@ -331,10 +351,20 @@ def apply_tsumo_score(
         new_game_state,
         TsumoResult(
             winner_seat=winner_seat,
-            hand_result=HandResultInfo(han=hand_result.han, fu=hand_result.fu, yaku=hand_result.yaku),
+            hand_result=HandResultInfo(
+                han=hand_result.han,
+                fu=hand_result.fu,
+                yaku=hand_result.yaku,
+                cost_main=hand_result.cost_main,
+                cost_additional=hand_result.cost_additional,
+            ),
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
+            closed_tiles=list(winner.tiles),
+            melds=[meld_to_view(m) for m in winner.melds],
+            win_tile=winner.tiles[-1],
             pao_seat=winner.pao_seat,
+            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
         ),
     )
 
@@ -344,6 +374,7 @@ def apply_ron_score(
     winner_seat: int,
     loser_seat: int,
     hand_result: HandResult,
+    winning_tile: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, RonResult]:
     """
     Apply score changes for a ron win.
@@ -394,10 +425,20 @@ def apply_ron_score(
         RonResult(
             winner_seat=winner_seat,
             loser_seat=loser_seat,
-            hand_result=HandResultInfo(han=hand_result.han, fu=hand_result.fu, yaku=hand_result.yaku),
+            winning_tile=winning_tile,
+            hand_result=HandResultInfo(
+                han=hand_result.han,
+                fu=hand_result.fu,
+                yaku=hand_result.yaku,
+                cost_main=hand_result.cost_main,
+                cost_additional=hand_result.cost_additional,
+            ),
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
+            closed_tiles=list(winner.tiles),
+            melds=[meld_to_view(m) for m in winner.melds],
             pao_seat=winner.pao_seat,
+            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
         ),
     )
 
@@ -406,6 +447,7 @@ def apply_double_ron_score(
     game_state: MahjongGameState,
     winners: list[tuple[int, HandResult]],  # list of (seat, hand_result)
     loser_seat: int,
+    winning_tile: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, DoubleRonResult]:
     """
     Apply score changes for a double ron.
@@ -457,11 +499,20 @@ def apply_double_ron_score(
         winner_results.append(
             DoubleRonWinner(
                 winner_seat=winner_seat,
-                hand_result=HandResultInfo(han=hand_result.han, fu=hand_result.fu, yaku=hand_result.yaku),
+                hand_result=HandResultInfo(
+                    han=hand_result.han,
+                    fu=hand_result.fu,
+                    yaku=hand_result.yaku,
+                    cost_main=hand_result.cost_main,
+                    cost_additional=hand_result.cost_additional,
+                ),
                 riichi_sticks_collected=(
                     riichi_bonus // settings.riichi_stick_value if winner_seat == riichi_receiver else 0
                 ),
+                closed_tiles=list(winner.tiles),
+                melds=[meld_to_view(m) for m in winner.melds],
                 pao_seat=winner.pao_seat,
+                ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
             )
         )
 
@@ -472,6 +523,7 @@ def apply_double_ron_score(
         new_game_state,
         DoubleRonResult(
             loser_seat=loser_seat,
+            winning_tile=winning_tile,
             winners=winner_results,
             score_changes=score_changes,
         ),

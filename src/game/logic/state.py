@@ -167,7 +167,7 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
                     )
                     for d in p.discards
                 ],
-                melds=[_meld_to_view(m) for m in p.melds],
+                melds=[meld_to_view(m) for m in p.melds],
                 tile_count=len(p.tiles),
                 tiles=tiles,
             )
@@ -175,7 +175,7 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
 
     return GameView(
         seat=seat,
-        round_wind=_wind_name(round_state.round_wind),
+        round_wind=wind_name(round_state.round_wind),
         round_number=game_state.round_number,
         dealer_seat=round_state.dealer_seat,
         current_player_seat=round_state.current_player_seat,
@@ -189,7 +189,7 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
     )
 
 
-def _meld_to_view(meld: FrozenMeld) -> MeldView:
+def meld_to_view(meld: FrozenMeld) -> MeldView:
     """
     Convert a FrozenMeld object to a MeldView model.
     """
@@ -209,7 +209,7 @@ def _meld_to_view(meld: FrozenMeld) -> MeldView:
     )
 
 
-def _wind_name(wind: int) -> WindName:
+def wind_name(wind: int) -> WindName:
     """
     Convert wind index to name.
     """

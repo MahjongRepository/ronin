@@ -6,6 +6,7 @@ Neither vulture nor deadcode handles these cases: vulture treats all files equal
 """
 
 import ast
+import importlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +25,7 @@ class _ProductionScan:
     method_aliases: dict[str, set[str]]
     class_methods: dict[str, set[str]]
     class_implicit_methods: dict[str, set[str]]
+    ignored: set[str]
 
 
 @dataclass
@@ -142,6 +144,44 @@ class _ReferenceCollector(ast.NodeVisitor):
             self._add_name_reference(alias.asname or alias.name)
 
 
+def _resolve_base_methods(tree: ast.AST) -> dict[str, set[str]]:
+    """Map class names to method names available on their base classes."""
+    import_map: dict[str, tuple[str, str]] = {}
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                import_map[alias.asname or alias.name] = (node.module, alias.name)
+
+    result: dict[str, set[str]] = {}
+    for node in ast.iter_child_nodes(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        base_methods: set[str] = set()
+        for base_node in node.bases:
+            base_name = base_node.id if isinstance(base_node, ast.Name) else None
+            if base_name is None or base_name not in import_map:
+                continue
+            mod_name, attr_name = import_map[base_name]
+            try:
+                mod = importlib.import_module(mod_name)
+                base_cls = getattr(mod, attr_name, None)
+            except Exception:  # noqa: BLE001
+                continue
+            if base_cls is not None and isinstance(base_cls, type):
+                base_methods.update(dir(base_cls))
+        if base_methods:
+            result[node.name] = base_methods
+    return result
+
+
+_IGNORE_COMMENT = "deadcode: ignore"
+
+
+def _has_ignore_comment(source_lines: list[str], lineno: int) -> bool:
+    """Check if a definition line has a ``# deadcode: ignore`` comment."""
+    return _IGNORE_COMMENT in source_lines[lineno - 1]
+
+
 def _collect_production_scan(src: Path) -> _ProductionScan:
     """Return definitions and production references split by module vs def scope."""
     defs: dict[str, list[str]] = {}
@@ -149,6 +189,7 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
     module_refs = _ReferenceBucket(names=set(), attrs=set())
     class_methods: dict[str, set[str]] = {}
     class_implicit_methods: dict[str, set[str]] = {}
+    ignored: set[str] = set()
     trees: list[tuple[Path, ast.AST]] = []
     implicit_decorators = {
         "model_validator",
@@ -176,13 +217,18 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
         if _is_test_file(py_file):
             continue
         try:
-            tree = ast.parse(py_file.read_text())
+            source = py_file.read_text()
+            tree = ast.parse(source)
         except SyntaxError:
             continue
+        source_lines = source.splitlines()
         trees.append((py_file, tree))
+        base_methods_map = _resolve_base_methods(tree)
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 defs.setdefault(node.name, []).append(f"{py_file.relative_to(src)}:{node.lineno}")
+                if _has_ignore_comment(source_lines, node.lineno):
+                    ignored.add(node.name)
             if isinstance(node, ast.ClassDef):
                 for child in node.body:
                     if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -191,8 +237,14 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
                         defs.setdefault(method_key, []).append(
                             f"{py_file.relative_to(src)}:{child.lineno}",
                         )
-                        if has_implicit_decorator(child):
+                        is_implicit = (
+                            has_implicit_decorator(child)
+                            or child.name in base_methods_map.get(node.name, set())
+                        )
+                        if is_implicit:
                             class_implicit_methods.setdefault(node.name, set()).add(child.name)
+                        if _has_ignore_comment(source_lines, child.lineno):
+                            ignored.add(method_key)
     method_aliases: dict[str, set[str]] = {}
     for class_name, methods in class_methods.items():
         for method_name in methods:
@@ -212,6 +264,7 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
         method_aliases=method_aliases,
         class_methods=class_methods,
         class_implicit_methods=class_implicit_methods,
+        ignored=ignored,
     )
 
 
@@ -315,7 +368,7 @@ def find_dead_code(src: Path) -> DeadCodeReport:
     test_only: list[tuple[str, str]] = []
     unreferenced: list[tuple[str, str]] = []
     for name, locations in sorted(scan.defs.items()):
-        if name in live:
+        if name in live or name in scan.ignored:
             continue
         target = test_only if name in test_referenced_defs else unreferenced
         for loc in locations:

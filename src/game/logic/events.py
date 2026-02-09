@@ -61,7 +61,7 @@ def parse_wire_target(value: str) -> EventTarget:
 
 
 class EventType(str, Enum):
-    """Types of game events sent to clients."""
+    """Types of game events."""
 
     DRAW = "draw"
     DISCARD = "discard"

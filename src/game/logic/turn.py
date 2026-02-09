@@ -498,7 +498,7 @@ def process_ron_call(  # noqa: PLR0913
             raise InvalidWinError(f"ron calculation error: {hand_result.error}")
 
         new_round_state, new_game_state, result = apply_ron_score(
-            game_state, winner_seat, discarder_seat, hand_result
+            game_state, winner_seat, discarder_seat, hand_result, tile_id
         )
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
@@ -527,7 +527,9 @@ def process_ron_call(  # noqa: PLR0913
 
             winners.append((winner_seat, hand_result))
 
-        new_round_state, new_game_state, result = apply_double_ron_score(game_state, winners, discarder_seat)
+        new_round_state, new_game_state, result = apply_double_ron_score(
+            game_state, winners, discarder_seat, tile_id
+        )
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(RoundEndEvent(result=result, target="all"))

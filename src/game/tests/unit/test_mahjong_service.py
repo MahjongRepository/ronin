@@ -1,13 +1,21 @@
 """Unit tests for MahjongGameService lifecycle and service-level edge cases."""
 
+import importlib
+import inspect
+
 import pytest
 
 from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase, RoundPhase
-from game.logic.events import ErrorEvent, EventType
+from game.logic.events import (
+    ErrorEvent,
+    EventType,
+)
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import PendingCallPrompt
-from game.logic.types import ExhaustiveDrawResult
+from game.logic.types import (
+    ExhaustiveDrawResult,
+)
 from game.tests.unit.helpers import (
     _find_human_player,
     _update_player,
@@ -527,3 +535,21 @@ class TestMahjongGameServiceUnsupportedSettings:
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
         assert "num_players=3" in events[0].data.message
+
+
+class TestDomainModuleBoundary:
+    """Verify domain modules have no replay-only imports."""
+
+    async def test_domain_modules_not_modified(self):
+        """Verify domain modules (turn.py, action_handlers.py, call_resolution.py) have no replay imports."""
+        for module_name in [
+            "game.logic.turn",
+            "game.logic.action_handlers",
+            "game.logic.call_resolution",
+        ]:
+            module = importlib.import_module(module_name)
+            source = inspect.getsource(module)
+            assert "ReplayTarget" not in source
+            assert "ReplayDrawEvent" not in source
+            assert "ReplayRoundDataEvent" not in source
+            assert "ReplayWinDetailEvent" not in source
