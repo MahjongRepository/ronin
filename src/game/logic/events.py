@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import CallType, GameErrorCode, KanType, MeldViewType
+from game.logic.enums import CallType, GameErrorCode, MeldViewType
 from game.logic.types import (
     AvailableActionItem,
     GameEndResult,
@@ -66,7 +66,6 @@ class EventType(str, Enum):
     DRAW = "draw"
     DISCARD = "discard"
     MELD = "meld"
-    TURN = "turn"
     CALL_PROMPT = "call_prompt"
     ROUND_END = "round_end"
     RIICHI_DECLARED = "riichi_declared"
@@ -93,11 +92,12 @@ class GameEvent(BaseModel):
 
 
 class DrawEvent(GameEvent):
-    """Event sent to a player when they draw a tile."""
+    """Event sent to a player when they draw a tile (or get their turn after a meld)."""
 
     type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
-    tile_id: int
+    tile_id: int | None = None
+    available_actions: list[AvailableActionItem] = Field(default_factory=list)
 
 
 class DiscardEvent(GameEvent):
@@ -117,20 +117,10 @@ class MeldEvent(GameEvent):
     type: Literal[EventType.MELD] = EventType.MELD
     target: str = "all"
     meld_type: MeldViewType
-    kan_type: KanType | None = None
     caller_seat: int
     from_seat: int | None = None
     tile_ids: list[int]
     called_tile_id: int | None = None
-
-
-class TurnEvent(GameEvent):
-    """Event sent to a player when it's their turn with available actions."""
-
-    type: Literal[EventType.TURN] = EventType.TURN
-    current_seat: int
-    available_actions: list[AvailableActionItem]
-    wall_count: int
 
 
 class CallPromptEvent(GameEvent):
@@ -163,7 +153,6 @@ class DoraRevealedEvent(GameEvent):
     type: Literal[EventType.DORA_REVEALED] = EventType.DORA_REVEALED
     target: str = "all"
     tile_id: int
-    dora_indicators: list[int]
 
 
 class ErrorEvent(GameEvent):
@@ -208,7 +197,6 @@ Event = (
     DrawEvent
     | DiscardEvent
     | MeldEvent
-    | TurnEvent
     | CallPromptEvent
     | RoundEndEvent
     | RiichiDeclaredEvent
@@ -270,20 +258,31 @@ def _get_unique_caller_seats(callers: list[int] | list[MeldCaller]) -> list[int]
     return seats
 
 
+def _filter_callers_for_seat(
+    callers: list[int] | list[MeldCaller], seat: int
+) -> list[int] | list[MeldCaller]:
+    """Filter callers list to only include entries for the given seat."""
+    if callers and isinstance(callers[0], int):
+        return [c for c in callers if isinstance(c, int) and c == seat]
+    return [c for c in callers if isinstance(c, MeldCaller) and c.seat == seat]
+
+
 def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
     """Convert typed events to service events with typed targets.
 
-    CallPromptEvent is split into per-caller-seat events so routing uses the
-    standard target field -- no special-case knowledge of callers is needed
-    in the session layer.
+    CallPromptEvent is split into per-caller-seat events with callers filtered
+    to only the recipient's entries. Each ServiceEvent carries a distinct
+    CallPromptEvent instance (no shared mutable data).
     """
     result: list[ServiceEvent] = []
     for event in raw_events:
         if isinstance(event, CallPromptEvent):
-            result.extend(
-                ServiceEvent(event=event.type, data=event, target=SeatTarget(seat=seat))
-                for seat in _get_unique_caller_seats(event.callers)
-            )
+            for seat in _get_unique_caller_seats(event.callers):
+                per_seat_callers = _filter_callers_for_seat(event.callers, seat)
+                per_seat_event = event.model_copy(update={"callers": per_seat_callers})
+                result.append(
+                    ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat))
+                )
         else:
             result.append(
                 ServiceEvent(

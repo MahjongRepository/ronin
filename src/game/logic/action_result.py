@@ -9,7 +9,7 @@ modules (e.g., call_resolution).
 from typing import NamedTuple
 
 from game.logic.actions import get_available_actions
-from game.logic.events import GameEvent, TurnEvent
+from game.logic.events import DrawEvent, GameEvent
 from game.logic.state import MahjongGameState, MahjongRoundState
 
 
@@ -28,16 +28,17 @@ class ActionResult(NamedTuple):
     new_game_state: MahjongGameState | None = None
 
 
-def create_turn_event(
+def create_draw_event(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-) -> TurnEvent:
-    """Create a turn event for a player with available actions."""
+    tile_id: int | None = None,
+) -> DrawEvent:
+    """Create a draw event for a player with available actions."""
     available_actions = get_available_actions(round_state, game_state, seat)
-    return TurnEvent(
-        current_seat=seat,
+    return DrawEvent(
+        seat=seat,
+        tile_id=tile_id,
         available_actions=available_actions,
-        wall_count=len(round_state.wall),
         target=f"seat_{seat}",
     )

@@ -1,6 +1,6 @@
 from typing import Any
 
-from game.logic.enums import GameAction, GamePhase, RoundPhase, TimeoutType, WindName
+from game.logic.enums import GameAction, TimeoutType, WindName
 from game.logic.events import (
     BroadcastTarget,
     EventType,
@@ -85,25 +85,19 @@ class MockGameService(GameService):
             round_number=0,
             dealer_seat=0,
             current_player_seat=0,
-            wall_count=70,
             dora_indicators=[],
             honba_sticks=0,
             riichi_sticks=0,
+            my_tiles=[],
             players=[
                 PlayerView(
                     seat=i,
                     name=name,
                     is_bot=i >= human_count,
                     score=25000,
-                    is_riichi=False,
-                    discards=[],
-                    melds=[],
-                    tile_count=13,
                 )
                 for i, name in enumerate(all_names)
             ],
-            phase=RoundPhase.PLAYING,
-            game_phase=GamePhase.IN_PROGRESS,
         )
 
         players = [

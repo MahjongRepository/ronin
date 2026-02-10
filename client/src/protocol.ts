@@ -20,7 +20,6 @@ export enum EventType {
     DRAW = "draw",
     DISCARD = "discard",
     MELD = "meld",
-    TURN = "turn",
     CALL_PROMPT = "call_prompt",
     ROUND_END = "round_end",
     RIICHI_DECLARED = "riichi_declared",

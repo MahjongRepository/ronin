@@ -69,12 +69,12 @@ All messages use MessagePack binary format with a `type` field. The server only 
 ```json
 {"type": "game_started", "players": [{"seat": 0, "name": "Alice", "is_bot": false}, ...]}
 {"type": "round_started", "view": {"seat": 0, "round_wind": "East", ...}}
-{"type": "draw", "seat": 0, "tile_id": 42}
+{"type": "draw", "seat": 0, "tile_id": 42, "available_actions": [...]}
 {"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true, "is_riichi": false}
 {"type": "meld", "meld_type": "pon", "caller_seat": 1, "tile_ids": [8, 9, 10], "from_seat": 0, "called_tile_id": 10}
-{"type": "dora_revealed", "tile_id": 42, "dora_indicators": [10, 42]}
-{"type": "turn", "current_seat": 0, "available_actions": [...], "wall_count": 69}
-{"type": "call_prompt", "call_type": "meld", "tile_id": 55, "from_seat": 2, "callers": [...]}
+{"type": "dora_revealed", "tile_id": 42}
+{"type": "call_prompt", "call_type": "ron", "tile_id": 55, "from_seat": 2, "caller_seat": 0}
+{"type": "call_prompt", "call_type": "meld", "tile_id": 55, "from_seat": 2, "caller_seat": 0, "available_calls": [{"call_type": "pon"}, {"call_type": "chi", "options": [[40, 44]]}]}
 {"type": "round_end", "result": {...}}
 {"type": "furiten", "is_furiten": true}
 {"type": "game_end", "result": {...}}
@@ -152,8 +152,8 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
-- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events; per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
+- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
+- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events (null `tile_id` draws excluded, `available_actions` stripped); per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists
 - `extract_round_result()` extracts round results from ServiceEvent lists

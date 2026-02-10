@@ -1,4 +1,4 @@
-from game.logic.enums import GamePhase, RoundPhase, WindName
+from game.logic.enums import WindName
 from game.logic.types import GameView, PlayerView
 from game.session.manager import SessionManager
 from game.session.models import Game, Player
@@ -13,24 +13,18 @@ def make_dummy_game_view() -> GameView:
         round_number=1,
         dealer_seat=0,
         current_player_seat=0,
-        wall_count=70,
         dora_indicators=[],
         honba_sticks=0,
         riichi_sticks=0,
+        my_tiles=[],
         players=[
             PlayerView(
                 seat=0,
                 name="Alice",
                 is_bot=False,
                 score=25000,
-                is_riichi=False,
-                discards=[],
-                melds=[],
-                tile_count=13,
             ),
         ],
-        phase=RoundPhase.PLAYING,
-        game_phase=GamePhase.IN_PROGRESS,
     )
 
 

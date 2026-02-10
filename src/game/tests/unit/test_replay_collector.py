@@ -1,6 +1,6 @@
 import json
 
-from game.logic.enums import CallType, GameErrorCode, GamePhase, MeldViewType, RoundPhase, WindName
+from game.logic.enums import CallType, GameErrorCode, MeldViewType, WindName
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -18,15 +18,16 @@ from game.logic.events import (
     RoundStartedEvent,
     SeatTarget,
     ServiceEvent,
-    TurnEvent,
 )
 from game.logic.types import (
+    AvailableActionItem,
     ExhaustiveDrawResult,
     GameEndResult,
     GamePlayerInfo,
     GameView,
     PlayerStanding,
     PlayerView,
+    TenpaiHand,
 )
 from game.messaging.event_payload import service_event_payload
 from game.session.replay_collector import ReplayCollector
@@ -91,7 +92,7 @@ def _make_riichi_event(seat: int = 0) -> ServiceEvent:
 def _make_dora_event() -> ServiceEvent:
     return ServiceEvent(
         event=EventType.DORA_REVEALED,
-        data=DoraRevealedEvent(tile_id=5, dora_indicators=[5]),
+        data=DoraRevealedEvent(tile_id=5),
         target=BroadcastTarget(),
     )
 
@@ -129,6 +130,7 @@ def _make_round_end_event() -> ServiceEvent:
             result=ExhaustiveDrawResult(
                 tempai_seats=[0],
                 noten_seats=[1, 2, 3],
+                tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
                 score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
             ),
         ),
@@ -141,14 +143,6 @@ def _make_draw_event(seat: int = 0, tile_id: int = 1) -> ServiceEvent:
     return ServiceEvent(
         event=EventType.DRAW,
         data=DrawEvent(seat=seat, tile_id=tile_id, target=f"seat_{seat}"),
-        target=SeatTarget(seat=seat),
-    )
-
-
-def _make_turn_event(seat: int = 0) -> ServiceEvent:
-    return ServiceEvent(
-        event=EventType.TURN,
-        data=TurnEvent(current_seat=seat, available_actions=[], wall_count=70, target=f"seat_{seat}"),
         target=SeatTarget(seat=seat),
     )
 
@@ -184,21 +178,13 @@ def _make_furiten_event(seat: int = 0) -> ServiceEvent:
 
 
 def _make_game_view_for_seat(seat: int) -> GameView:
-    """Create a GameView from the perspective of the given seat.
-
-    The viewing player's tiles are visible; other players' tiles are None.
-    """
+    """Create a GameView from the perspective of the given seat."""
     players = [
         PlayerView(
             seat=s,
             name=f"P{s}",
             is_bot=False,
             score=25000,
-            is_riichi=False,
-            discards=[],
-            melds=[],
-            tile_count=13,
-            tiles=_SEAT_TILES[s] if s == seat else None,
         )
         for s in range(4)
     ]
@@ -208,13 +194,11 @@ def _make_game_view_for_seat(seat: int) -> GameView:
         round_number=1,
         dealer_seat=0,
         current_player_seat=0,
-        wall_count=70,
         dora_indicators=[],
         honba_sticks=0,
         riichi_sticks=0,
+        my_tiles=_SEAT_TILES[seat],
         players=players,
-        phase=RoundPhase.PLAYING,
-        game_phase=GamePhase.IN_PROGRESS,
     )
 
 
@@ -311,7 +295,7 @@ class TestReplayCollectorFiltering:
         assert types == ["discard", "draw", "round_started"]
 
     async def test_excluded_types_are_filtered(self):
-        """TurnEvent, CallPromptEvent, ErrorEvent, FuritenEvent are excluded."""
+        """CallPromptEvent, ErrorEvent, FuritenEvent are excluded."""
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -319,7 +303,6 @@ class TestReplayCollectorFiltering:
         collector.collect_events(
             "game1",
             [
-                _make_turn_event(),
                 _make_call_prompt_event(),
                 _make_error_event(),
                 _make_furiten_event(),
@@ -366,6 +349,51 @@ class TestReplayCollectorFiltering:
         assert record["type"] == "draw"
         assert record["seat"] == 1
         assert record["tile_id"] == 55
+        assert "available_actions" not in record
+
+    async def test_draw_event_with_null_tile_id_excluded(self):
+        """DrawEvent with tile_id=None (post-meld turn) is excluded from replay."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        null_draw = ServiceEvent(
+            event=EventType.DRAW,
+            data=DrawEvent(seat=1, tile_id=None, target="seat_1"),
+            target=SeatTarget(seat=1),
+        )
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", [null_draw, _make_discard_event()])
+        await collector.save_and_cleanup("game1")
+
+        lines = storage.saved["game1"].strip().split("\n")
+        assert len(lines) == 1
+        assert json.loads(lines[0])["type"] == "discard"
+
+    async def test_draw_event_available_actions_stripped(self):
+        """DrawEvent available_actions field is stripped from replay output."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        draw_with_actions = ServiceEvent(
+            event=EventType.DRAW,
+            data=DrawEvent(
+                seat=0,
+                tile_id=42,
+                target="seat_0",
+                available_actions=[AvailableActionItem(action="discard", tiles=[42])],
+            ),
+            target=SeatTarget(seat=0),
+        )
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", [draw_with_actions])
+        await collector.save_and_cleanup("game1")
+
+        record = json.loads(storage.saved["game1"])
+        assert record["type"] == "draw"
+        assert record["tile_id"] == 42
+        assert "available_actions" not in record
 
     async def test_broadcast_gameplay_events_all_collected(self):
         """All broadcast gameplay event types are persisted."""
@@ -439,7 +467,7 @@ class TestReplayCollectorRoundStartedMerge:
         assert record["type"] == "round_started"
 
     async def test_merged_record_contains_all_players_tiles(self):
-        """Merged round_started record has tiles for every player."""
+        """Merged round_started record has tiles for every player from my_tiles."""
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -453,6 +481,9 @@ class TestReplayCollectorRoundStartedMerge:
         for player in players:
             seat = player["seat"]
             assert player["tiles"] == _SEAT_TILES[seat]
+
+        # my_tiles is stripped from the merged output
+        assert "my_tiles" not in record["view"]
 
     async def test_merged_record_uses_first_view_as_base(self):
         """Merged record's view.seat matches the first event's perspective."""
@@ -479,10 +510,12 @@ class TestReplayCollectorRoundStartedMerge:
         assert len(lines) == 1
         record = json.loads(lines[0])
         assert record["type"] == "round_started"
-        # Only seat 2's tiles are populated (single event, no merge partner)
+        # Only seat 2's tiles are populated from my_tiles (single event, no merge partner)
         players = record["view"]["players"]
         seat2_player = next(p for p in players if p["seat"] == 2)
         assert seat2_player["tiles"] == _SEAT_TILES[2]
+        # my_tiles is stripped from the merged output
+        assert "my_tiles" not in record["view"]
 
     async def test_merged_round_started_ordered_before_draw(self):
         """Merged round_started appears before subsequent draw events."""
@@ -576,7 +609,25 @@ class TestReplayCollectorJsonLines:
         assert record["seat"] == 2
         assert record["tile_id"] == 42
         assert record["is_tsumogiri"] is False
-        assert record["is_riichi"] is False
+        assert "is_riichi" not in record
+
+    async def test_riichi_discard_keeps_is_riichi(self):
+        """Riichi discards retain is_riichi=true in replay output."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        riichi_discard = ServiceEvent(
+            event=EventType.DISCARD,
+            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=True),
+            target=BroadcastTarget(),
+        )
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", [riichi_discard])
+        await collector.save_and_cleanup("game1")
+
+        record = json.loads(storage.saved["game1"])
+        assert record["is_riichi"] is True
 
 
 class TestReplayCollectorErrorHandling:

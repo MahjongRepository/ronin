@@ -15,7 +15,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
 from game.logic.enums import CallType, MeldCallType, PlayerAction, RoundPhase, RoundResultType
-from game.logic.events import CallPromptEvent, RoundEndEvent, TurnEvent
+from game.logic.events import CallPromptEvent, DrawEvent, RoundEndEvent
 from game.logic.exceptions import InvalidMeldError, InvalidWinError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult
@@ -56,9 +56,9 @@ class TestKyuushuKyuuhaiDrawPhase:
 
         _new_round, _new_game, events = process_draw_phase(round_state, game_state)
 
-        turn_events = [e for e in events if isinstance(e, TurnEvent)]
-        assert len(turn_events) == 1
-        available_actions = [a.action for a in turn_events[0].available_actions]
+        draw_events = [e for e in events if isinstance(e, DrawEvent) and e.available_actions]
+        assert len(draw_events) == 1
+        available_actions = [a.action for a in draw_events[0].available_actions]
         assert PlayerAction.KYUUSHU in available_actions
 
 

@@ -15,6 +15,7 @@ from game.logic.settings import GameSettings
 from game.logic.state import PendingCallPrompt
 from game.logic.types import (
     ExhaustiveDrawResult,
+    TenpaiHand,
 )
 from game.tests.unit.helpers import (
     _find_human_player,
@@ -85,9 +86,9 @@ class TestMahjongGameServiceAllHumans:
         """Bot followup is not triggered when dealer is human (all humans)."""
         events = await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
 
-        # with 4 humans, exactly 1 turn event (no bot followup chain)
-        turn_events = [e for e in events if e.event == EventType.TURN]
-        assert len(turn_events) == 1
+        # with 4 humans, exactly 1 draw event for dealer (no bot followup chain)
+        draw_events = [e for e in events if e.event == EventType.DRAW]
+        assert len(draw_events) == 1
 
 
 class TestMahjongGameServiceReplacePlayerWithBot:
@@ -434,6 +435,7 @@ class TestAutoCleanup:
         result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = await service._handle_round_end("game1", round_result=result)
@@ -454,6 +456,7 @@ class TestAutoCleanup:
         result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = await service._handle_round_end("game1", round_result=result)
@@ -493,6 +496,7 @@ class TestServiceAccessors:
         result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         await service._handle_round_end("game1", result)
@@ -523,6 +527,7 @@ class TestServiceAccessors:
         result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         await service._handle_round_end("game1", result)

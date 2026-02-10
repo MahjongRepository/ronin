@@ -1,10 +1,10 @@
 from game.logic.enums import CallType, GameAction, MeldCallType
 from game.logic.events import (
     CallPromptEvent,
+    DrawEvent,
     EventType,
     SeatTarget,
     ServiceEvent,
-    TurnEvent,
 )
 from game.logic.types import MeldCaller
 from game.messaging.types import SessionErrorCode, SessionMessageType
@@ -156,11 +156,10 @@ class TestSessionManager:
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
         seat_event = ServiceEvent(
-            event=EventType.TURN,
-            data=TurnEvent(
-                current_seat=0,
+            event=EventType.DRAW,
+            data=DrawEvent(
+                seat=0,
                 available_actions=[],
-                wall_count=70,
                 target="seat_0",
             ),
             target=SeatTarget(seat=0),

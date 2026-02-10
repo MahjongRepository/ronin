@@ -21,7 +21,6 @@ from game.logic.enums import (
     BotType,
     CallType,
     GameAction,
-    KanType,
     MeldCallType,
     MeldViewType,
     RoundPhase,
@@ -31,7 +30,6 @@ from game.logic.events import (
     DrawEvent,
     MeldEvent,
     RoundEndEvent,
-    TurnEvent,
 )
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
@@ -330,13 +328,12 @@ class TestResolveChankanDecline:
         assert result.new_round_state is not None
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == KanType.ADDED
+        assert meld_events[0].meld_type == MeldViewType.ADDED_KAN
 
 
 class TestCompleteAddedKanAfterChankanDecline:
-    def test_completes_kan_with_draw_and_turn_events(self):
-        """Completing added kan after chankan decline emits meld, draw, and turn events."""
+    def test_completes_kan_with_draw_event(self):
+        """Completing added kan after chankan decline emits meld and draw events."""
         game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -365,14 +362,12 @@ class TestCompleteAddedKanAfterChankanDecline:
 
         meld_events = [e for e in events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == KanType.ADDED
+        assert meld_events[0].meld_type == MeldViewType.ADDED_KAN
 
         draw_events = [e for e in events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 1
-
-        turn_events = [e for e in events if isinstance(e, TurnEvent)]
-        assert len(turn_events) == 1
+        assert draw_events[0].tile_id is not None
+        assert draw_events[0].available_actions is not None
 
     def test_four_kans_abort_after_chankan_decline(self):
         """Completing 4th kan from different players triggers four kans abortive draw."""

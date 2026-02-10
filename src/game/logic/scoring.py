@@ -24,6 +24,7 @@ from game.logic.types import (
     HandResultInfo,
     NagashiManganResult,
     RonResult,
+    TenpaiHand,
     TsumoResult,
 )
 from game.logic.utils import _hand_config_debug, _melds_debug
@@ -535,6 +536,7 @@ def apply_nagashi_mangan_score(
     qualifying_seats: list[int],
     tempai_seats: list[int],
     noten_seats: list[int],
+    tenpai_hands: list[TenpaiHand],
 ) -> tuple[MahjongRoundState, MahjongGameState, NagashiManganResult]:
     """
     Apply nagashi mangan scoring.
@@ -571,6 +573,7 @@ def apply_nagashi_mangan_score(
             qualifying_seats=qualifying_seats,
             tempai_seats=tempai_seats,
             noten_seats=noten_seats,
+            tenpai_hands=tenpai_hands,
             score_changes=score_changes,
         ),
     )

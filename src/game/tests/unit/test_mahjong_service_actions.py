@@ -131,6 +131,7 @@ class TestMahjongGameServiceProcessActionResult:
         round_result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         result = ActionResult(

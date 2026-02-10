@@ -172,10 +172,8 @@ def _parse_meld(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayIn
         return _parse_chi_meld(event, player_name)
     if meld_type == "pon":
         return _parse_pon_meld(event, player_name)
-    if meld_type == "kan":
+    if meld_type in ("open_kan", "closed_kan", "added_kan"):
         return _parse_kan_meld(event, player_name)
-    if meld_type == "shouminkan":
-        return _parse_shouminkan_meld(event, player_name)
     raise ReplayLoadError(f"Unknown meld_type: {meld_type!r}")
 
 
@@ -208,15 +206,12 @@ def _parse_pon_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
 
 
 def _parse_kan_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent:
-    """Parse a kan meld event."""
-    kan_type = event.get("kan_type")
-    tile_ids = event.get("tile_ids", [])
-    if tile_ids:
-        tile_id = tile_ids[0]
-    elif "called_tile_id" in event:
-        tile_id = event["called_tile_id"]
-    else:  # pragma: no cover
-        raise ReplayLoadError("kan meld event missing both 'tile_ids' and 'called_tile_id'")
+    """Parse a kan meld event (open_kan, closed_kan, added_kan)."""
+    meld_type = event.get("meld_type")
+    kan_type_map = {"open_kan": "open", "closed_kan": "closed", "added_kan": "added"}
+    kan_type = kan_type_map.get(meld_type, "open")
+
+    tile_id = _extract_kan_tile_id(event)
     return ReplayInputEvent(
         player_name=player_name,
         action=GameAction.CALL_KAN,
@@ -224,17 +219,23 @@ def _parse_kan_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
     )
 
 
-def _parse_shouminkan_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent:
-    """Parse a shouminkan (added kan) meld event."""
-    try:
-        called_tile_id = event["called_tile_id"]
-    except KeyError as exc:  # pragma: no cover
-        raise ReplayLoadError(f"shouminkan meld event missing required field: {exc}") from exc
-    return ReplayInputEvent(
-        player_name=player_name,
-        action=GameAction.CALL_KAN,
-        data={"tile_id": called_tile_id, "kan_type": "added"},
-    )
+def _extract_kan_tile_id(event: dict[str, Any]) -> int:
+    """Extract the representative tile ID from a kan meld event.
+
+    For added_kan, prefer called_tile_id (the tile being added to the pon).
+    For open/closed kan, prefer the first tile from tile_ids.
+    """
+    meld_type = event.get("meld_type")
+    called_tile_id = event.get("called_tile_id")
+    tile_ids = event.get("tile_ids", [])
+
+    if meld_type == "added_kan" and called_tile_id is not None:
+        return called_tile_id
+    if tile_ids:
+        return tile_ids[0]
+    if called_tile_id is not None:
+        return called_tile_id
+    raise ReplayLoadError("kan meld event missing both 'tile_ids' and 'called_tile_id'")  # pragma: no cover
 
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:

@@ -2,7 +2,7 @@
 Tests for game event utility functions and validation.
 
 Constructor tests for individual event types (DrawEvent, DiscardEvent, MeldEvent,
-TurnEvent, CallPromptEvent, RoundEndEvent, RiichiDeclaredEvent, DoraRevealedEvent,
+CallPromptEvent, RoundEndEvent, RiichiDeclaredEvent, DoraRevealedEvent,
 ErrorEvent) and model_dump serialization tests were removed: they tested only
 Pydantic field assignment and built-in model_dump, which Pydantic guarantees.
 
@@ -82,11 +82,15 @@ class TestConvertEvents:
 
     def test_convert_events_splits_call_prompt_per_seat(self):
         """convert_events splits a CallPromptEvent with 2 callers into 2 per-seat ServiceEvents."""
+        callers = [
+            MeldCaller(seat=0, call_type=MeldCallType.PON),
+            MeldCaller(seat=1, call_type=MeldCallType.PON),
+        ]
         call_prompt = CallPromptEvent(
             call_type=CallType.MELD,
             tile_id=42,
             from_seat=3,
-            callers=[0, 1],
+            callers=callers,
             target="all",
         )
 
@@ -95,8 +99,13 @@ class TestConvertEvents:
         assert len(result) == 2
         assert result[0].target == SeatTarget(seat=0)
         assert result[1].target == SeatTarget(seat=1)
-        # both wrappers share the same event data
-        assert result[0].data is result[1].data
+        # each wrapper carries a distinct event copy (no shared mutable data)
+        assert result[0].data is not result[1].data
+        # callers filtered to each seat's entries
+        assert isinstance(result[0].data, CallPromptEvent)
+        assert isinstance(result[1].data, CallPromptEvent)
+        assert result[0].data.callers == [MeldCaller(seat=0, call_type=MeldCallType.PON)]
+        assert result[1].data.callers == [MeldCaller(seat=1, call_type=MeldCallType.PON)]
         assert result[0].event == EventType.CALL_PROMPT
 
     def test_convert_events_deduplicates_meld_callers(self):
@@ -117,6 +126,9 @@ class TestConvertEvents:
 
         assert len(result) == 1
         assert result[0].target == SeatTarget(seat=0)
+        # both call options preserved for the same seat
+        assert isinstance(result[0].data, CallPromptEvent)
+        assert result[0].data.callers == callers
 
     def test_convert_events_single_caller_call_prompt(self):
         """convert_events produces a single per-seat ServiceEvent for a single-caller CallPromptEvent."""
@@ -132,7 +144,31 @@ class TestConvertEvents:
 
         assert len(result) == 1
         assert result[0].target == SeatTarget(seat=1)
+        assert isinstance(result[0].data, CallPromptEvent)
+        assert result[0].data.callers == [1]
         assert result[0].event == EventType.CALL_PROMPT
+
+    def test_convert_events_creates_distinct_call_prompt_instances(self):
+        """Each per-seat ServiceEvent carries a distinct CallPromptEvent (no shared mutable data)."""
+        call_prompt = CallPromptEvent(
+            call_type=CallType.RON,
+            tile_id=42,
+            from_seat=1,
+            callers=[0, 2, 3],
+            target="all",
+        )
+
+        result = convert_events([call_prompt])
+
+        assert len(result) == 3
+        # all data instances are distinct objects
+        data_ids = {id(se.data) for se in result}
+        assert len(data_ids) == 3
+        # each carries only its own seat in callers
+        for se in result:
+            assert isinstance(se.target, SeatTarget)
+            assert isinstance(se.data, CallPromptEvent)
+            assert se.data.callers == [se.target.seat]
 
 
 class TestExtractRoundResult:

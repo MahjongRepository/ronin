@@ -147,9 +147,9 @@ class MeldViewType(str, Enum):
 
     CHI = "chi"
     PON = "pon"
-    KAN = "kan"
-    CHANKAN = "chankan"
-    SHOUMINKAN = "shouminkan"
+    OPEN_KAN = "open_kan"
+    CLOSED_KAN = "closed_kan"
+    ADDED_KAN = "added_kan"
     UNKNOWN = "unknown"
 
 

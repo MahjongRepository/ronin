@@ -37,6 +37,7 @@ from game.logic.types import (
     NagashiManganResult,
     RonResult,
     SeatConfig,
+    TenpaiHand,
     TsumoResult,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -127,7 +128,10 @@ class TestRenchanOnDealerTenpaiDraw:
     def test_default_dealer_tenpai_no_rotation(self):
         gs = self._game_state(renchan_on_dealer_tenpai_draw=True)
         result = ExhaustiveDrawResult(
-            tempai_seats=[0], noten_seats=[1, 2, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
+            tempai_seats=[0],
+            noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 2
@@ -136,7 +140,10 @@ class TestRenchanOnDealerTenpaiDraw:
     def test_default_dealer_noten_rotates(self):
         gs = self._game_state(renchan_on_dealer_tenpai_draw=True)
         result = ExhaustiveDrawResult(
-            tempai_seats=[1], noten_seats=[0, 2, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
+            tempai_seats=[1],
+            noten_seats=[0, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=1, closed_tiles=[], melds=[])],
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 2
@@ -145,7 +152,10 @@ class TestRenchanOnDealerTenpaiDraw:
     def test_no_renchan_dealer_tenpai_still_rotates(self):
         gs = self._game_state(renchan_on_dealer_tenpai_draw=False)
         result = ExhaustiveDrawResult(
-            tempai_seats=[0], noten_seats=[1, 2, 3], score_changes={0: 0, 1: 0, 2: 0, 3: 0}
+            tempai_seats=[0],
+            noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 2
@@ -158,6 +168,7 @@ class TestRenchanOnDealerTenpaiDraw:
             qualifying_seats=[1],
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         _honba, should_rotate = _get_honba_and_rotation(gs, result)

@@ -19,7 +19,6 @@ from game.logic.actions import get_available_actions
 from game.logic.enums import (
     MELD_CALL_PRIORITY,
     CallType,
-    KanType,
     MeldCallType,
     MeldViewType,
     PlayerAction,
@@ -34,7 +33,6 @@ from game.logic.events import (
     MeldEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
-    TurnEvent,
 )
 from game.logic.exceptions import InvalidActionError, InvalidMeldError, InvalidRiichiError, InvalidWinError
 from game.logic.melds import (
@@ -95,7 +93,6 @@ def _maybe_emit_dora_event(
         events.append(
             DoraRevealedEvent(
                 tile_id=new_round_state.dora_indicators[-1],
-                dora_indicators=list(new_round_state.dora_indicators),
             )
         )
 
@@ -117,7 +114,6 @@ def emit_deferred_dora_events(
     events: list[GameEvent] = [
         DoraRevealedEvent(
             tile_id=dora_tile_id,
-            dora_indicators=list(new_state.dora_indicators),
         )
         for dora_tile_id in revealed
     ]
@@ -155,15 +151,6 @@ def process_draw_phase(
     if drawn_tile is None:  # pragma: no cover
         raise AssertionError("drawn_tile is None after exhaustive draw check passed")
 
-    # notify player of drawn tile
-    events.append(
-        DrawEvent(
-            seat=current_seat,
-            tile_id=drawn_tile,
-            target=f"seat_{current_seat}",
-        )
-    )
-
     # update game state with new round state
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
 
@@ -177,10 +164,10 @@ def process_draw_phase(
         available_actions.append(AvailableActionItem(action=PlayerAction.KYUUSHU))
 
     events.append(
-        TurnEvent(
-            current_seat=current_seat,
+        DrawEvent(
+            seat=current_seat,
+            tile_id=drawn_tile,
             available_actions=available_actions,
-            wall_count=len(new_round_state.wall),
             target=f"seat_{current_seat}",
         )
     )
@@ -674,11 +661,10 @@ def _process_open_kan_call(
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
         MeldEvent(
-            meld_type=MeldViewType.KAN,
+            meld_type=MeldViewType.OPEN_KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
             from_seat=discarder_seat,
-            kan_type=KanType.OPEN,
             called_tile_id=tile_id,
         )
     ]
@@ -701,10 +687,9 @@ def _process_closed_kan_call(
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
         MeldEvent(
-            meld_type=MeldViewType.KAN,
+            meld_type=MeldViewType.CLOSED_KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
-            kan_type=KanType.CLOSED,
         ),
     ]
     _maybe_emit_dora_event(old_dora_count, new_round_state, events)
@@ -749,10 +734,9 @@ def _process_added_kan_call(
     tile_ids = list(meld.tiles) if meld.tiles else []
     events = [
         MeldEvent(
-            meld_type=MeldViewType.KAN,
+            meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
-            kan_type=KanType.ADDED,
         )
     ]
     _maybe_emit_dora_event(old_dora_count, new_round_state, events)

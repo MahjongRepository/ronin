@@ -33,6 +33,7 @@ from game.logic.state import PendingCallPrompt
 from game.logic.types import (
     ExhaustiveDrawResult,
     MeldCaller,
+    TenpaiHand,
 )
 from game.tests.unit.helpers import (
     _find_human_player,
@@ -144,6 +145,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         round_result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         events = [
@@ -186,6 +188,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         round_result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = [
@@ -643,6 +646,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
         round_result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 

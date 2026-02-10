@@ -762,7 +762,7 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3]
+            game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
         )
 
         assert result.type == RoundResultType.NAGASHI_MANGAN
@@ -781,7 +781,7 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[1], tempai_seats=[], noten_seats=[0, 1, 2, 3]
+            game_state, qualifying_seats=[1], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
         )
 
         assert result.score_changes[1] == 8000
@@ -798,7 +798,7 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0, 2], tempai_seats=[], noten_seats=[0, 1, 2, 3]
+            game_state, qualifying_seats=[0, 2], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
         )
 
         # seat 0 (dealer): +12000 from nagashi, -4000 paying seat 2 (dealer pays 4000)
@@ -817,7 +817,7 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0], tempai_seats=[1], noten_seats=[0, 2, 3]
+            game_state, qualifying_seats=[0], tempai_seats=[1], noten_seats=[0, 2, 3], tenpai_hands=[]
         )
 
         assert result.tempai_seats == [1]
@@ -1248,7 +1248,7 @@ class TestScoreApplicationRiichiClearing:
         game_state = self._create_game_state()
 
         _new_round_state, new_game_state, _result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3]
+            game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
         )
         assert new_game_state.riichi_sticks == 3
 

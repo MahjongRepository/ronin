@@ -5,7 +5,7 @@ Tests for MessagePack encoder module.
 import msgpack
 import pytest
 
-from game.logic.enums import CallType, KanType, MeldCallType, MeldViewType, PlayerAction
+from game.logic.enums import CallType, MeldCallType, MeldViewType
 from game.logic.events import EventType
 from game.messaging.encoder import DecodeError, decode, encode
 
@@ -28,20 +28,6 @@ class TestRoundTrip:
 
         assert decode(encode(data)) == data
 
-    def test_round_trip_turn_event(self) -> None:
-        data = {
-            "type": EventType.TURN,
-            "current_seat": 2,
-            "available_actions": [
-                {"action": PlayerAction.DISCARD, "tiles": [10, 20, 30]},
-                {"action": PlayerAction.RIICHI},
-            ],
-            "wall_count": 70,
-            "target": "seat_2",
-        }
-
-        assert decode(encode(data)) == data
-
     def test_round_trip_call_prompt_event(self) -> None:
         data = {
             "type": EventType.CALL_PROMPT,
@@ -60,10 +46,9 @@ class TestRoundTrip:
     def test_round_trip_with_none_values(self) -> None:
         data = {
             "type": EventType.MELD,
-            "meld_type": MeldViewType.KAN,
+            "meld_type": MeldViewType.CLOSED_KAN,
             "caller_seat": 0,
             "from_seat": None,
-            "kan_type": KanType.CLOSED,
             "tile_ids": [36, 37, 38, 39],
             "target": "all",
         }

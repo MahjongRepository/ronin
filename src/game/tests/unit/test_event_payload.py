@@ -8,7 +8,11 @@ from game.logic.events import (
     SeatTarget,
     ServiceEvent,
 )
-from game.messaging.event_payload import service_event_payload, service_event_target
+from game.messaging.event_payload import (
+    service_event_payload,
+    service_event_target,
+    shape_call_prompt_payload,
+)
 
 
 class TestServiceEventPayload:
@@ -97,3 +101,105 @@ class TestServiceEventTarget:
         event.__dict__["target"] = "unknown"
         with pytest.raises(ValueError, match="Unknown target type"):
             service_event_target(event)
+
+
+class TestShapeCallPromptPayload:
+    """Tests for call prompt wire payload shaping."""
+
+    def test_ron_prompt_drops_callers_keeps_caller_seat(self):
+        payload = {
+            "type": "call_prompt",
+            "call_type": "ron",
+            "tile_id": 42,
+            "from_seat": 1,
+            "callers": [0],
+        }
+        result = shape_call_prompt_payload(payload)
+
+        assert "callers" not in result
+        assert result == {
+            "type": "call_prompt",
+            "call_type": "ron",
+            "tile_id": 42,
+            "from_seat": 1,
+            "caller_seat": 0,
+        }
+
+    def test_chankan_prompt_drops_callers_keeps_caller_seat(self):
+        payload = {
+            "type": "call_prompt",
+            "call_type": "chankan",
+            "tile_id": 42,
+            "from_seat": 1,
+            "callers": [3],
+        }
+        result = shape_call_prompt_payload(payload)
+
+        assert "callers" not in result
+        assert result["caller_seat"] == 3
+
+    def test_meld_prompt_replaces_callers_with_available_calls(self):
+        payload = {
+            "type": "call_prompt",
+            "call_type": "meld",
+            "tile_id": 42,
+            "from_seat": 1,
+            "callers": [
+                {"seat": 0, "call_type": "pon", "options": None},
+            ],
+        }
+        result = shape_call_prompt_payload(payload)
+
+        assert "callers" not in result
+        assert result["caller_seat"] == 0
+        assert result["available_calls"] == [{"call_type": "pon"}]
+
+    def test_meld_prompt_preserves_chi_options(self):
+        payload = {
+            "type": "call_prompt",
+            "call_type": "meld",
+            "tile_id": 42,
+            "from_seat": 1,
+            "callers": [
+                {"seat": 0, "call_type": "chi", "options": [[40, 44]]},
+            ],
+        }
+        result = shape_call_prompt_payload(payload)
+
+        assert result["caller_seat"] == 0
+        assert result["available_calls"] == [
+            {"call_type": "chi", "options": [[40, 44]]},
+        ]
+
+    def test_unknown_call_type_returns_payload_unchanged(self):
+        payload = {
+            "type": "call_prompt",
+            "call_type": "unknown",
+            "tile_id": 42,
+            "from_seat": 1,
+            "callers": [0],
+        }
+        result = shape_call_prompt_payload(payload)
+
+        assert result == payload
+        assert result["callers"] == [0]
+
+    def test_meld_prompt_multiple_call_types(self):
+        payload = {
+            "type": "call_prompt",
+            "call_type": "meld",
+            "tile_id": 55,
+            "from_seat": 3,
+            "callers": [
+                {"seat": 0, "call_type": "pon", "options": None},
+                {"seat": 0, "call_type": "chi", "options": [[57, 63]]},
+            ],
+        }
+        result = shape_call_prompt_payload(payload)
+
+        assert "callers" not in result
+        assert result["caller_seat"] == 0
+        assert result["available_calls"] == [
+            {"call_type": "pon"},
+            {"call_type": "chi", "options": [[57, 63]]},
+        ]

@@ -41,7 +41,6 @@ from game.logic.events import (
     ErrorEvent,
     MeldEvent,
     RoundEndEvent,
-    TurnEvent,
 )
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
@@ -367,9 +366,9 @@ class TestHandlePonImmutable:
         assert meld_events[0].meld_type == MeldViewType.PON
         assert meld_events[0].caller_seat == 1
 
-        turn_events = [e for e in result.events if isinstance(e, TurnEvent)]
-        assert len(turn_events) == 1
-        assert turn_events[0].current_seat == 1
+        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
+        assert len(draw_events) == 1
+        assert draw_events[0].seat == 1
 
     def test_handle_pon_no_prompt(self):
         game_state = _create_frozen_game_state()
@@ -439,9 +438,9 @@ class TestHandleChiImmutable:
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CHI
 
-        turn_events = [e for e in result.events if isinstance(e, TurnEvent)]
-        assert len(turn_events) == 1
-        assert turn_events[0].current_seat == 1
+        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
+        assert len(draw_events) == 1
+        assert draw_events[0].seat == 1
 
     def test_handle_chi_no_prompt(self):
         game_state = _create_frozen_game_state()
@@ -483,8 +482,7 @@ class TestHandleKanImmutable:
         assert isinstance(result, ActionResult)
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == KanType.CLOSED
+        assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
 
     def test_handle_kan_wrong_turn_closed(self):
         game_state = _create_frozen_game_state()
@@ -537,7 +535,7 @@ class TestHandleKanImmutable:
         assert result.new_round_state.pending_call_prompt is None
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
+        assert meld_events[0].meld_type == MeldViewType.OPEN_KAN
 
     def test_handle_open_kan_no_prompt(self):
         game_state = _create_frozen_game_state()
@@ -861,8 +859,7 @@ class TestCompleteAddedKanAfterChankanDeclineImmutable:
         # check for meld event
         meld_events = [e for e in events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
-        assert meld_events[0].kan_type == KanType.ADDED
+        assert meld_events[0].meld_type == MeldViewType.ADDED_KAN
 
 
 class TestResolveOpenKanResponseImmutable:
@@ -906,13 +903,12 @@ class TestResolveOpenKanResponseImmutable:
         # should have meld event
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.KAN
-        # should have draw event for dead wall tile
+        assert meld_events[0].meld_type == MeldViewType.OPEN_KAN
+        # should have draw event with tile_id and available_actions for dead wall tile
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 1
-        # should have turn event
-        turn_events = [e for e in result.events if isinstance(e, TurnEvent)]
-        assert len(turn_events) == 1
+        assert draw_events[0].tile_id is not None
+        assert draw_events[0].available_actions is not None
 
 
 class TestHandleDiscardImmutableWithPrompt:

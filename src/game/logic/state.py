@@ -12,7 +12,7 @@ from game.logic.enums import CallType, GameAction, GamePhase, MeldViewType, Roun
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
 from game.logic.tiles import WINDS_34
-from game.logic.types import DiscardView, GameView, MeldCaller, MeldView, PlayerView
+from game.logic.types import GameView, MeldCaller, MeldView, PlayerView
 
 NUM_WINDS = 4
 
@@ -125,51 +125,23 @@ class MahjongGameState(BaseModel):
 
 
 def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int] | None = None) -> GameView:
-    """
-    Return the visible game state for a specific player.
-
-    Each player can see:
-    - Their own hand
-    - Their own melds
-    - All players' discards
-    - All players' open melds
-    - All players' riichi status
-    - All players' scores
-    - Dora indicators
-    - Wall count
-    - Round info
-
-    They cannot see:
-    - Other players' hands
-    - Other players' closed kans (tiles hidden)
-    - Wall tiles
-    - Dead wall tiles (except dora indicators)
-    """
+    """Return the round-start view for a specific player."""
     round_state = game_state.round_state
+    effective_bot_seats = bot_seats or set()
 
-    # build player info for all players
     players_view: list[PlayerView] = []
+    my_tiles: list[int] = []
+
     for p in round_state.players:
-        tiles = list(p.tiles) if p.seat == seat else None
+        if p.seat == seat:
+            my_tiles = list(p.tiles)
 
         players_view.append(
             PlayerView(
                 seat=p.seat,
                 name=p.name,
-                is_bot=p.seat in (bot_seats or set()),
+                is_bot=p.seat in effective_bot_seats,
                 score=p.score,
-                is_riichi=p.is_riichi,
-                discards=[
-                    DiscardView(
-                        tile_id=d.tile_id,
-                        is_tsumogiri=d.is_tsumogiri,
-                        is_riichi_discard=d.is_riichi_discard,
-                    )
-                    for d in p.discards
-                ],
-                melds=[meld_to_view(m) for m in p.melds],
-                tile_count=len(p.tiles),
-                tiles=tiles,
             )
         )
 
@@ -179,30 +151,29 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
         round_number=game_state.round_number,
         dealer_seat=round_state.dealer_seat,
         current_player_seat=round_state.current_player_seat,
-        wall_count=len(round_state.wall),
         dora_indicators=list(round_state.dora_indicators),
         honba_sticks=game_state.honba_sticks,
         riichi_sticks=game_state.riichi_sticks,
+        my_tiles=my_tiles,
         players=players_view,
-        phase=round_state.phase,
-        game_phase=game_state.game_phase,
     )
 
 
 def meld_to_view(meld: FrozenMeld) -> MeldView:
-    """
-    Convert a FrozenMeld object to a MeldView model.
-    """
-    meld_type_names = {
-        FrozenMeld.CHI: MeldViewType.CHI,
-        FrozenMeld.PON: MeldViewType.PON,
-        FrozenMeld.KAN: MeldViewType.KAN,
-        FrozenMeld.CHANKAN: MeldViewType.CHANKAN,
-        FrozenMeld.SHOUMINKAN: MeldViewType.SHOUMINKAN,
-    }
+    """Convert a FrozenMeld object to a MeldView model."""
+    if meld.type == FrozenMeld.CHI:
+        view_type = MeldViewType.CHI
+    elif meld.type == FrozenMeld.PON:
+        view_type = MeldViewType.PON
+    elif meld.type == FrozenMeld.KAN:
+        view_type = MeldViewType.OPEN_KAN if meld.opened else MeldViewType.CLOSED_KAN
+    elif meld.type in (FrozenMeld.CHANKAN, FrozenMeld.SHOUMINKAN):
+        view_type = MeldViewType.ADDED_KAN
+    else:
+        view_type = MeldViewType.UNKNOWN
 
     return MeldView(
-        type=meld_type_names.get(meld.type, MeldViewType.UNKNOWN),
+        type=view_type,
         tile_ids=list(meld.tiles) if meld.tiles else [],
         opened=meld.opened,
         from_who=meld.from_who,
@@ -210,9 +181,7 @@ def meld_to_view(meld: FrozenMeld) -> MeldView:
 
 
 def wind_name(wind: int) -> WindName:
-    """
-    Convert wind index to name.
-    """
+    """Convert wind index to name."""
     winds = [WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH]
     return winds[wind] if 0 <= wind < NUM_WINDS else WindName.UNKNOWN
 

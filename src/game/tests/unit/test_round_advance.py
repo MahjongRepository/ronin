@@ -18,7 +18,7 @@ from game.logic.events import (
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.round_advance import PendingRoundAdvance, RoundAdvanceManager
 from game.logic.timer import TimerConfig, TurnTimer
-from game.logic.types import ExhaustiveDrawResult
+from game.logic.types import ExhaustiveDrawResult, TenpaiHand
 from game.tests.unit.helpers import _find_human_player, _update_player, _update_round_state
 
 
@@ -27,6 +27,7 @@ def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
     return ExhaustiveDrawResult(
         tempai_seats=[0],
         noten_seats=[1, 2, 3],
+        tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
         score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
     )
 
@@ -263,6 +264,7 @@ class TestRoundAdvanceCleanup:
         result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 

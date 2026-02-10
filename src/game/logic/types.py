@@ -5,17 +5,17 @@ Contains typed models for round results, bot actions, available actions,
 meld callers, and player views that cross component boundaries.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from game.logic.enums import (
     AbortiveDrawType,
     BotType,
-    GamePhase,
     KanType,
     MeldCallType,
     MeldViewType,
     PlayerAction,
-    RoundPhase,
     RoundResultType,
     WindName,
 )
@@ -131,12 +131,21 @@ class DoubleRonResult(BaseModel):
     score_changes: dict[int, int]
 
 
+class TenpaiHand(BaseModel):
+    """Hand data for a tenpai player revealed at exhaustive draw."""
+
+    seat: int
+    closed_tiles: list[int]
+    melds: list[MeldView]
+
+
 class ExhaustiveDrawResult(BaseModel):
     """Result of an exhaustive draw (wall empty)."""
 
     type: RoundResultType = RoundResultType.EXHAUSTIVE_DRAW
     tempai_seats: list[int]
     noten_seats: list[int]
+    tenpai_hands: list[TenpaiHand]
     score_changes: dict[int, int]
 
 
@@ -156,6 +165,7 @@ class NagashiManganResult(BaseModel):
     qualifying_seats: list[int]
     tempai_seats: list[int]
     noten_seats: list[int]
+    tenpai_hands: list[TenpaiHand]
     score_changes: dict[int, int]
 
 
@@ -204,13 +214,13 @@ class AvailableActionItem(BaseModel):
     action: PlayerAction
     tiles: list[int] | None = None
 
-
-class DiscardView(BaseModel):
-    """Discard display information."""
-
-    tile_id: int
-    is_tsumogiri: bool
-    is_riichi_discard: bool
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        """Omit tiles field when it is None."""
+        d: dict[str, Any] = {"action": self.action}
+        if self.tiles is not None:
+            d["tiles"] = self.tiles
+        return d
 
 
 class MeldView(BaseModel):
@@ -229,11 +239,6 @@ class PlayerView(BaseModel):
     name: str
     is_bot: bool
     score: int
-    is_riichi: bool
-    discards: list[DiscardView]
-    melds: list[MeldView]
-    tile_count: int
-    tiles: list[int] | None = None
 
 
 class GameView(BaseModel):
@@ -244,13 +249,11 @@ class GameView(BaseModel):
     round_number: int
     dealer_seat: int
     current_player_seat: int
-    wall_count: int
     dora_indicators: list[int]
     honba_sticks: int
     riichi_sticks: int
+    my_tiles: list[int]
     players: list[PlayerView]
-    phase: RoundPhase
-    game_phase: GamePhase
 
 
 # discriminated union for all round results

@@ -11,7 +11,7 @@ from game.logic.abortive import (
     call_kyuushu_kyuuhai,
     can_call_kyuushu_kyuuhai,
 )
-from game.logic.action_result import ActionResult, create_turn_event
+from game.logic.action_result import ActionResult, create_draw_event
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     CallType,
@@ -21,7 +21,6 @@ from game.logic.enums import (
     RoundPhase,
 )
 from game.logic.events import (
-    DrawEvent,
     ErrorEvent,
     EventType,
     GameEvent,
@@ -428,19 +427,11 @@ def handle_kan(
     if has_chankan_prompt:
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
-    # after kan, emit draw event for dead wall tile, then turn event
+    # after kan, emit draw event for dead wall tile with available actions
     if new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[seat]
-        if player.tiles:
-            drawn_tile = player.tiles[-1]
-            events.append(
-                DrawEvent(
-                    seat=seat,
-                    tile_id=drawn_tile,
-                    target=f"seat_{seat}",
-                )
-            )
-        events.append(create_turn_event(new_round_state, new_game_state, seat))
+        drawn_tile = player.tiles[-1] if player.tiles else None
+        events.append(create_draw_event(new_round_state, new_game_state, seat, tile_id=drawn_tile))
 
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 

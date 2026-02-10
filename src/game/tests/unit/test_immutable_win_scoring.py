@@ -114,6 +114,10 @@ class TestProcessExhaustiveDrawPayment:
 
         assert result.tempai_seats == [0]
         assert result.noten_seats == [1, 2, 3]
+        assert len(result.tenpai_hands) == 1
+        assert result.tenpai_hands[0].seat == 0
+        assert result.tenpai_hands[0].closed_tiles == list(tempai_hand)
+        assert result.tenpai_hands[0].melds == []
         assert new_round.players[0].score == 28000
         assert new_round.players[1].score == 24000
         assert new_round.players[2].score == 24000

@@ -7,16 +7,16 @@ from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
+    DrawEvent,
     ErrorEvent,
     FuritenEvent,
     GameEndedEvent,
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
-    TurnEvent,
 )
 from game.logic.timer import TimerConfig
-from game.messaging.event_payload import service_event_payload
+from game.messaging.event_payload import service_event_payload, shape_call_prompt_payload
 from game.messaging.types import (
     ErrorMessage,
     GameJoinedMessage,
@@ -405,6 +405,8 @@ class SessionManager:
 
         for event in events:
             message = service_event_payload(event)
+            if isinstance(event.data, CallPromptEvent):
+                message = shape_call_prompt_payload(message)
 
             if isinstance(event.target, BroadcastTarget):
                 await self._broadcast_to_game(game, message)
@@ -455,10 +457,10 @@ class SessionManager:
         self._start_meld_timers_from_events(game, events)
 
     def _start_turn_timer_from_events(self, game: Game, events: list[ServiceEvent]) -> bool:
-        """Start a turn timer if events contain a TurnEvent for a connected player."""
+        """Start a turn timer if events contain a DrawEvent for a connected player."""
         for event in events:
-            if isinstance(event.data, TurnEvent):
-                seat = event.data.current_seat
+            if isinstance(event.data, DrawEvent):
+                seat = event.data.seat
                 if self._get_player_at_seat(game, seat) is not None:
                     self._timer_manager.start_turn_timer(game.game_id, seat)
                     return True

@@ -10,7 +10,7 @@ from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.types import AvailableActionItem, SeatConfig
-from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
+from game.tests.unit.helpers import _string_to_34_tile
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -27,6 +27,19 @@ def _update_player(round_state, seat, **updates: object):
     players = list(round_state.players)
     players[seat] = players[seat].model_copy(update=updates)
     return round_state.model_copy(update={"players": tuple(players)})
+
+
+class TestAvailableActionItemSerialization:
+    def test_serializes_without_tiles_when_none(self):
+        item = AvailableActionItem(action=PlayerAction.TSUMO)
+        data = item.model_dump()
+        assert data == {"action": PlayerAction.TSUMO}
+        assert "tiles" not in data
+
+    def test_serializes_with_tiles_when_present(self):
+        item = AvailableActionItem(action=PlayerAction.KAN, tiles=[1, 2, 3])
+        data = item.model_dump()
+        assert data == {"action": PlayerAction.KAN, "tiles": [1, 2, 3]}
 
 
 class TestGetAvailableActions:
@@ -46,16 +59,15 @@ class TestGetAvailableActions:
         assert isinstance(actions, list)
         assert all(isinstance(action, AvailableActionItem) for action in actions)
 
-    def test_returns_discard_action_with_tiles(self):
+    def test_does_not_return_discard_action(self):
+        """DISCARD is always available and handled implicitly; not in available_actions."""
         game_state = self._create_game_state()
         round_state = game_state.round_state
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
         discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
-        assert len(discard_actions) == 1
-        assert discard_actions[0].tiles is not None
-        assert len(discard_actions[0].tiles) == 14  # 13 dealt + 1 drawn
+        assert len(discard_actions) == 0
 
     def test_riichi_action_when_eligible(self):
         game_state = init_game(_default_seat_configs(), seed=12345.0)
@@ -110,32 +122,6 @@ class TestGetAvailableActions:
             assert kan_actions[0].tiles is not None
             assert isinstance(kan_actions[0].tiles, list)
 
-    def test_riichi_limits_discard_to_drawn_tile(self):
-        game_state = self._create_game_state()
-        round_state = game_state.round_state
-        round_state = _update_player(round_state, 0, is_riichi=True)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        actions = get_available_actions(round_state, game_state, seat=0)
-
-        discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
-        assert len(discard_actions) == 1
-        # in riichi, can only discard the drawn tile (last tile in hand)
-        assert discard_actions[0].tiles is not None
-        assert len(discard_actions[0].tiles) == 1
-        assert discard_actions[0].tiles[0] == round_state.players[0].tiles[-1]
-
-    def test_empty_hand_returns_no_discard_action(self):
-        game_state = self._create_game_state()
-        round_state = game_state.round_state
-        round_state = _update_player(round_state, 0, tiles=())
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        actions = get_available_actions(round_state, game_state, seat=0)
-
-        discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
-        assert len(discard_actions) == 0
-
     def test_no_kan_when_wall_empty(self):
         game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
@@ -153,42 +139,16 @@ class TestGetAvailableActions:
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 0
 
-    def test_kuikae_tiles_filtered_from_discard(self):
+    def test_no_actions_for_empty_hand(self):
+        """Empty hand returns no actions (no tsumo, no kan, etc.)."""
         game_state = self._create_game_state()
         round_state = game_state.round_state
-
-        # set kuikae restriction: forbid 1m (tiles 0-3)
-        kuikae = tuple(_string_to_34_tiles(man="1"))
-        round_state = _update_player(round_state, 0, kuikae_tiles=kuikae)
+        round_state = _update_player(round_state, 0, tiles=())
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
 
-        discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
-        assert len(discard_actions) == 1
-        tiles = discard_actions[0].tiles
-        assert tiles is not None
-        # no 1m tiles should be in the discard list
-        for tile_id in tiles:
-            assert tile_id // 4 != _string_to_34_tile(man="1")
-
-    def test_kuikae_tiles_does_not_affect_non_forbidden_tiles(self):
-        game_state = self._create_game_state()
-        round_state = game_state.round_state
-
-        # forbid a tile_34 that the player doesn't have in hand
-        kuikae = tuple(_string_to_34_tiles(honors="7"))
-        round_state = _update_player(round_state, 0, kuikae_tiles=kuikae)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        actions = get_available_actions(round_state, game_state, seat=0)
-
-        discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
-        assert len(discard_actions) == 1
-        tiles = discard_actions[0].tiles
-        assert tiles is not None
-        # all 14 tiles should be discardable
-        assert len(tiles) == 14
+        assert len(actions) == 0
 
 
 class TestAddedKanAction:

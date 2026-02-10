@@ -22,7 +22,7 @@ GAME_STARTED_LINE = json.dumps(
     }
 )
 
-ROUND_STARTED_LINE = json.dumps({"type": "round_started", "view": {}})
+ROUND_STARTED_LINE = json.dumps({"type": "round_started", "view": {"my_tiles": []}})
 DRAW_LINE = json.dumps({"type": "draw", "seat": 0, "tile_id": 108})
 
 
@@ -116,14 +116,13 @@ def test_meld_chi():
     assert replay.events[0].data == {"tile_id": 20, "sequence_tiles": [24, 28]}
 
 
-def test_meld_kan():
-    """Meld event with type kan maps to CALL_KAN."""
+def test_meld_open_kan():
+    """Meld event with type open_kan maps to CALL_KAN."""
     meld = json.dumps(
         {
             "type": "meld",
-            "meld_type": "kan",
+            "meld_type": "open_kan",
             "caller_seat": 3,
-            "kan_type": "open",
             "tile_ids": [0, 1, 2, 3],
             "called_tile_id": 0,
         }
@@ -137,12 +136,12 @@ def test_meld_kan():
     assert replay.events[0].data == {"tile_id": 0, "kan_type": "open"}
 
 
-def test_meld_shouminkan():
-    """Meld event with type shouminkan maps to CALL_KAN with kan_type=added."""
+def test_meld_added_kan():
+    """Meld event with type added_kan maps to CALL_KAN with kan_type=added."""
     meld = json.dumps(
         {
             "type": "meld",
-            "meld_type": "shouminkan",
+            "meld_type": "added_kan",
             "caller_seat": 0,
             "tile_ids": [4, 5, 6, 7],
             "called_tile_id": 7,
@@ -263,7 +262,7 @@ def test_non_action_events_skipped():
     content = _build_event_log(
         ROUND_STARTED_LINE,
         DRAW_LINE,
-        json.dumps({"type": "dora_revealed", "tile_id": 54, "dora_indicators": [54]}),
+        json.dumps({"type": "dora_revealed", "tile_id": 54}),
         json.dumps({"type": "riichi_declared", "seat": 0}),
         json.dumps({"type": "game_end", "result": {}}),
     )
@@ -414,9 +413,8 @@ def test_meld_kan_falls_back_to_called_tile_id():
     meld = json.dumps(
         {
             "type": "meld",
-            "meld_type": "kan",
+            "meld_type": "closed_kan",
             "caller_seat": 3,
-            "kan_type": "closed",
             "tile_ids": [],
             "called_tile_id": 5,
         }
@@ -434,9 +432,8 @@ def test_error_kan_missing_tile_ids_and_called_tile_id():
     meld = json.dumps(
         {
             "type": "meld",
-            "meld_type": "kan",
+            "meld_type": "closed_kan",
             "caller_seat": 0,
-            "kan_type": "closed",
         }
     )
     content = _build_event_log(meld)

@@ -13,18 +13,16 @@ from game.logic.abortive import (
     check_four_riichi,
     process_abortive_draw,
 )
-from game.logic.action_result import ActionResult, create_turn_event
+from game.logic.action_result import ActionResult, create_draw_event
 from game.logic.enums import (
     MELD_CALL_PRIORITY,
     CallType,
     GameAction,
-    KanType,
     MeldCallType,
     MeldViewType,
     RoundPhase,
 )
 from game.logic.events import (
-    DrawEvent,
     GameEvent,
     MeldEvent,
     RiichiDeclaredEvent,
@@ -154,20 +152,14 @@ def _resolve_meld_response(
     if new_round_state.phase == RoundPhase.FINISHED:
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
-    # open kan draws from dead wall; emit DrawEvent so client knows the drawn tile
+    # open kan draws from dead wall; include tile_id in draw event
+    tile_id = None
     if meld_type == MeldCallType.OPEN_KAN:
         player = new_round_state.players[best.seat]
         if player.tiles:
-            drawn_tile = player.tiles[-1]
-            events.append(
-                DrawEvent(
-                    seat=best.seat,
-                    tile_id=drawn_tile,
-                    target=f"seat_{best.seat}",
-                )
-            )
+            tile_id = player.tiles[-1]
 
-    events.append(create_turn_event(new_round_state, new_game_state, best.seat))
+    events.append(create_draw_event(new_round_state, new_game_state, best.seat, tile_id=tile_id))
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
 
@@ -237,10 +229,9 @@ def complete_added_kan_after_chankan_decline(
 
     events: list[GameEvent] = [
         MeldEvent(
-            meld_type=MeldViewType.KAN,
+            meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
-            kan_type=KanType.ADDED,
         )
     ]
 
@@ -252,21 +243,11 @@ def complete_added_kan_after_chankan_decline(
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = update_game_with_round(new_game_state, new_round_state)
         events.append(RoundEndEvent(result=result, target="all"))
-    else:
-        # emit draw event for the dead wall tile
+    # emit draw event for the dead wall tile with available actions
+    elif new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[caller_seat]
-        if player.tiles:
-            drawn_tile = player.tiles[-1]
-            events.append(
-                DrawEvent(
-                    seat=caller_seat,
-                    tile_id=drawn_tile,
-                    target=f"seat_{caller_seat}",
-                )
-            )
-        # emit turn event so the player knows their available actions
-        if new_round_state.phase == RoundPhase.PLAYING:
-            events.append(create_turn_event(new_round_state, new_game_state, caller_seat))
+        drawn_tile = player.tiles[-1] if player.tiles else None
+        events.append(create_draw_event(new_round_state, new_game_state, caller_seat, tile_id=drawn_tile))
 
     return new_round_state, new_game_state, events
 

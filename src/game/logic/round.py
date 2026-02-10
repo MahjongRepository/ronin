@@ -15,6 +15,7 @@ from game.logic.state import (
     Discard,
     MahjongGameState,
     MahjongRoundState,
+    meld_to_view,
 )
 from game.logic.state_utils import (
     add_discard_to_player,
@@ -28,7 +29,7 @@ from game.logic.state_utils import (
     add_dora_indicator as _add_dora_indicator,
 )
 from game.logic.tiles import hand_to_34_array, is_terminal_or_honor, tile_to_34
-from game.logic.types import ExhaustiveDrawResult, NagashiManganResult
+from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, TenpaiHand
 from game.logic.win import MAX_TILE_COPIES
 
 logger = logging.getLogger(__name__)
@@ -313,10 +314,18 @@ def process_exhaustive_draw(
     # compute tempai/noten (used by both nagashi mangan and normal exhaustive draw)
     tempai_seats = []
     noten_seats = []
+    tenpai_hands = []
 
     for player in round_state.players:
         if is_tempai(player.tiles, player.melds):
             tempai_seats.append(player.seat)
+            tenpai_hands.append(
+                TenpaiHand(
+                    seat=player.seat,
+                    closed_tiles=list(player.tiles),
+                    melds=[meld_to_view(m) for m in player.melds],
+                )
+            )
         else:
             noten_seats.append(player.seat)
 
@@ -325,7 +334,7 @@ def process_exhaustive_draw(
     if settings.has_nagashi_mangan:
         qualifying = check_nagashi_mangan(round_state)
         if qualifying:
-            return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats)
+            return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats, tenpai_hands)
 
     score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
 
@@ -359,6 +368,7 @@ def process_exhaustive_draw(
         ExhaustiveDrawResult(
             tempai_seats=tempai_seats,
             noten_seats=noten_seats,
+            tenpai_hands=tenpai_hands,
             score_changes=score_changes,
         ),
     )
