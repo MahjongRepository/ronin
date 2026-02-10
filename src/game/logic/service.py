@@ -61,6 +61,11 @@ class GameService(ABC):
         ...
 
     @abstractmethod
+    def get_game_seed(self, game_id: str) -> float | None:
+        """Return the seed for a game, or None if game doesn't exist."""
+        ...
+
+    @abstractmethod
     async def handle_timeout(
         self,
         game_id: str,

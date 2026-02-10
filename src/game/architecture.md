@@ -153,7 +153,7 @@ This enables:
 The game service communicates through a typed event pipeline:
 
 - **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent, DiscardEvent, MeldEvent, DoraRevealedEvent, TurnEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
-- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and selected seat-targeted events (`DrawEvent`, `RoundStartedEvent`) for post-game replay; concealed data flows through the canonical event stream rather than duplicate replay-only events.
+- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events; per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists
 - `extract_round_result()` extracts round results from ServiceEvent lists
@@ -285,7 +285,7 @@ ronin/
         │   ├── models.py        # Player, Game dataclasses
         │   ├── types.py         # Pydantic models (GameInfo)
         │   ├── manager.py       # Session/game management
-        │   ├── replay_collector.py # Collects broadcast and selected seat-target events for post-game persistence
+        │   ├── replay_collector.py # Collects broadcast events and merges per-seat round_started views for post-game persistence
         │   ├── timer_manager.py # Per-player turn timer lifecycle
         │   └── heartbeat.py     # Client liveness heartbeat monitor
         ├── replay/

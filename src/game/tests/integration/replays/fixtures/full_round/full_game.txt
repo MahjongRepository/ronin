@@ -1,0 +1,1450 @@
+{"type": "game_started", "game_id": "0316344c-1819-47f8-9e6c-f408e594b827", "players": [{"seat": 0, "name": "Ichihime", "is_bot": false}, {"seat": 1, "name": "Wanjirou", "is_bot": false}, {"seat": 2, "name": "Akagi", "is_bot": false}, {"seat": 3, "name": "Ojisan", "is_bot": false}], "seed": 0.7140525888333568}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 0, "dealer_seat": 0, "current_player_seat": 0, "wall_count": 70, "dora_indicators": [67], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [12, 16, 42, 46, 49, 52, 58, 64, 78, 87, 109, 120, 135]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [3, 18, 19, 28, 32, 60, 70, 76, 89, 111, 112, 118, 127]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [5, 15, 26, 37, 39, 57, 66, 71, 83, 96, 119, 125, 134]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [21, 36, 41, 47, 51, 54, 63, 73, 75, 93, 99, 103, 113]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 0, "tile_id": 115}
+{"type": "discard", "seat": 0, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 53}
+{"type": "discard", "seat": 1, "tile_id": 118, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 90}
+{"type": "discard", "seat": 2, "tile_id": 119, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 11}
+{"type": "discard", "seat": 3, "tile_id": 113, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 108}
+{"type": "discard", "seat": 0, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 8}
+{"type": "discard", "seat": 1, "tile_id": 112, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 100}
+{"type": "discard", "seat": 2, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 69}
+{"type": "discard", "seat": 3, "tile_id": 11, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 123}
+{"type": "discard", "seat": 0, "tile_id": 123, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 33}
+{"type": "discard", "seat": 1, "tile_id": 127, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 116}
+{"type": "discard", "seat": 2, "tile_id": 116, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 0}
+{"type": "discard", "seat": 3, "tile_id": 0, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 72}
+{"type": "discard", "seat": 0, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 4}
+{"type": "discard", "seat": 1, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 77}
+{"type": "discard", "seat": 2, "tile_id": 125, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 110}
+{"type": "discard", "seat": 3, "tile_id": 110, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 23}
+{"type": "discard", "seat": 0, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 13}
+{"type": "discard", "seat": 1, "tile_id": 76, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 84}
+{"type": "discard", "seat": 2, "tile_id": 26, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 128}
+{"type": "discard", "seat": 3, "tile_id": 128, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 6}
+{"type": "discard", "seat": 0, "tile_id": 6, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 1, "from_seat": 0, "tile_ids": [3, 6, 8], "called_tile_id": 6}
+{"type": "discard", "seat": 1, "tile_id": 89, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 38}
+{"type": "discard", "seat": 2, "tile_id": 57, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 122}
+{"type": "discard", "seat": 3, "tile_id": 122, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 129}
+{"type": "discard", "seat": 0, "tile_id": 64, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 88}
+{"type": "discard", "seat": 1, "tile_id": 88, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 130}
+{"type": "discard", "seat": 2, "tile_id": 130, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 98}
+{"type": "discard", "seat": 3, "tile_id": 99, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 29}
+{"type": "discard", "seat": 0, "tile_id": 29, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 2}
+{"type": "discard", "seat": 1, "tile_id": 70, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 27}
+{"type": "discard", "seat": 2, "tile_id": 27, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 10}
+{"type": "discard", "seat": 3, "tile_id": 10, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 45}
+{"type": "discard", "seat": 0, "tile_id": 129, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 30}
+{"type": "discard", "seat": 1, "tile_id": 53, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 114}
+{"type": "discard", "seat": 2, "tile_id": 114, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 94}
+{"type": "discard", "seat": 3, "tile_id": 94, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 80}
+{"type": "discard", "seat": 0, "tile_id": 46, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 0}
+{"type": "draw", "seat": 1, "tile_id": 50}
+{"type": "discard", "seat": 1, "tile_id": 30, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 107}
+{"type": "discard", "seat": 2, "tile_id": 66, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 91}
+{"type": "discard", "seat": 3, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 65}
+{"type": "discard", "seat": 0, "tile_id": 65, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 20}
+{"type": "discard", "seat": 1, "tile_id": 28, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 31}
+{"type": "discard", "seat": 2, "tile_id": 31, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 95}
+{"type": "discard", "seat": 3, "tile_id": 73, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 24}
+{"type": "discard", "seat": 0, "tile_id": 24, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 59}
+{"type": "discard", "seat": 1, "tile_id": 4, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 121}
+{"type": "discard", "seat": 2, "tile_id": 121, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 105}
+{"type": "discard", "seat": 3, "tile_id": 47, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 14}
+{"type": "discard", "seat": 0, "tile_id": 14, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 7}
+{"type": "discard", "seat": 1, "tile_id": 7, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 48}
+{"type": "discard", "seat": 2, "tile_id": 5, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 62}
+{"type": "discard", "seat": 3, "tile_id": 105, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 9}
+{"type": "discard", "seat": 0, "tile_id": 9, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 55}
+{"type": "discard", "seat": 1, "tile_id": 13, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 102}
+{"type": "discard", "seat": 2, "tile_id": 15, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 34}
+{"type": "discard", "seat": 3, "tile_id": 21, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 104}
+{"type": "discard", "seat": 0, "tile_id": 104, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 35}
+{"type": "discard", "seat": 1, "tile_id": 20, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 82}
+{"type": "discard", "seat": 2, "tile_id": 107, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 68}
+{"type": "discard", "seat": 3, "tile_id": 34, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 85}
+{"type": "discard", "seat": 0, "tile_id": 85, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 44}
+{"type": "discard", "seat": 1, "tile_id": 44, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 56}
+{"type": "discard", "seat": 2, "tile_id": 84, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 17}
+{"type": "discard", "seat": 3, "tile_id": 98, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 101}
+{"type": "discard", "seat": 0, "tile_id": 101, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 133}
+{"type": "discard", "seat": 1, "tile_id": 133, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 124}
+{"type": "discard", "seat": 2, "tile_id": 96, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 92}
+{"type": "discard", "seat": 3, "tile_id": 103, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 126}
+{"type": "discard", "seat": 0, "tile_id": 126, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 74}
+{"type": "discard", "seat": 1, "tile_id": 74, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 2, "from_seat": 1, "tile_ids": [74, 77, 82], "called_tile_id": 74}
+{"type": "discard", "seat": 2, "tile_id": 124, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 117}
+{"type": "discard", "seat": 3, "tile_id": 117, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "exhaustive_draw", "tempai_seats": [0], "noten_seats": [1, 2, 3], "score_changes": {"0": 3000, "1": -1000, "2": -1000, "3": -1000}}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 1, "dealer_seat": 0, "current_player_seat": 0, "wall_count": 70, "dora_indicators": [15], "honba_sticks": 1, "riichi_sticks": 1, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 27000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [4, 16, 24, 33, 49, 56, 64, 77, 83, 95, 99, 101, 106]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 24000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [5, 8, 22, 23, 26, 31, 36, 66, 71, 107, 123, 133, 135]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 24000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [1, 10, 14, 20, 41, 43, 53, 84, 85, 86, 89, 94, 97]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 24000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [9, 30, 50, 57, 68, 72, 92, 108, 109, 118, 126, 128, 131]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 0, "tile_id": 62}
+{"type": "discard", "seat": 0, "tile_id": 4, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 11}
+{"type": "discard", "seat": 1, "tile_id": 107, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 75}
+{"type": "discard", "seat": 2, "tile_id": 75, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 132}
+{"type": "discard", "seat": 3, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 29}
+{"type": "discard", "seat": 0, "tile_id": 49, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 21}
+{"type": "discard", "seat": 1, "tile_id": 36, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 37}
+{"type": "discard", "seat": 2, "tile_id": 37, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 59}
+{"type": "discard", "seat": 3, "tile_id": 30, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 7}
+{"type": "discard", "seat": 0, "tile_id": 7, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 61}
+{"type": "discard", "seat": 1, "tile_id": 123, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 45}
+{"type": "discard", "seat": 2, "tile_id": 1, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 129}
+{"type": "discard", "seat": 3, "tile_id": 9, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 78}
+{"type": "discard", "seat": 0, "tile_id": 106, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 125}
+{"type": "discard", "seat": 1, "tile_id": 125, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 65}
+{"type": "discard", "seat": 2, "tile_id": 65, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 54}
+{"type": "discard", "seat": 3, "tile_id": 92, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 17}
+{"type": "discard", "seat": 0, "tile_id": 78, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 0}
+{"type": "draw", "seat": 1, "tile_id": 76}
+{"type": "discard", "seat": 1, "tile_id": 76, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 111}
+{"type": "discard", "seat": 2, "tile_id": 111, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 70}
+{"type": "discard", "seat": 3, "tile_id": 109, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 47}
+{"type": "discard", "seat": 0, "tile_id": 47, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 119}
+{"type": "discard", "seat": 1, "tile_id": 5, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 52}
+{"type": "discard", "seat": 2, "tile_id": 45, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 25}
+{"type": "discard", "seat": 3, "tile_id": 108, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 3}
+{"type": "discard", "seat": 0, "tile_id": 3, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 91}
+{"type": "discard", "seat": 1, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 90}
+{"type": "discard", "seat": 2, "tile_id": 94, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 93}
+{"type": "discard", "seat": 3, "tile_id": 93, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 79}
+{"type": "discard", "seat": 0, "tile_id": 79, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 105}
+{"type": "discard", "seat": 1, "tile_id": 133, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 81}
+{"type": "discard", "seat": 2, "tile_id": 81, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 73}
+{"type": "discard", "seat": 3, "tile_id": 132, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 18}
+{"type": "discard", "seat": 0, "tile_id": 18, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 19}
+{"type": "discard", "seat": 1, "tile_id": 105, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 104}
+{"type": "discard", "seat": 2, "tile_id": 104, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 13}
+{"type": "discard", "seat": 3, "tile_id": 50, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 40}
+{"type": "discard", "seat": 0, "tile_id": 40, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 35}
+{"type": "discard", "seat": 1, "tile_id": 19, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 60}
+{"type": "discard", "seat": 2, "tile_id": 43, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 88}
+{"type": "discard", "seat": 3, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 116}
+{"type": "discard", "seat": 0, "tile_id": 116, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 80}
+{"type": "discard", "seat": 1, "tile_id": 119, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 1}
+{"type": "draw", "seat": 2, "tile_id": 38}
+{"type": "discard", "seat": 2, "tile_id": 38, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 98}
+{"type": "discard", "seat": 3, "tile_id": 118, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 130}
+{"type": "discard", "seat": 0, "tile_id": 130, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 120}
+{"type": "discard", "seat": 1, "tile_id": 120, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 12}
+{"type": "discard", "seat": 2, "tile_id": 41, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 6}
+{"type": "discard", "seat": 3, "tile_id": 6, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 100}
+{"type": "discard", "seat": 0, "tile_id": 100, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 87}
+{"type": "round_end", "result": {"type": "tsumo", "winner_seat": 1, "hand_result": {"han": 3, "fu": 30, "yaku": ["Menzen Tsumo", "Riichi", "Dora 1"], "cost_main": 2000, "cost_additional": 1000}, "score_changes": {"0": -2100, "1": 7300, "2": -1100, "3": -1100}, "riichi_sticks_collected": 3, "closed_tiles": [8, 22, 23, 26, 31, 66, 71, 11, 21, 61, 91, 35, 80, 87], "melds": [], "win_tile": 87, "pao_seat": null, "ura_dora_indicators": [58]}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 2, "dealer_seat": 1, "current_player_seat": 1, "wall_count": 70, "dora_indicators": [24], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 23900, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [11, 13, 14, 35, 36, 39, 67, 91, 98, 99, 106, 110, 130]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 30300, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [2, 7, 26, 32, 46, 62, 77, 78, 81, 82, 86, 102, 114]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 22900, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [3, 4, 8, 20, 48, 57, 58, 63, 95, 101, 126, 133, 134]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 22900, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [5, 15, 21, 25, 29, 40, 59, 61, 64, 69, 72, 93, 111]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 1, "tile_id": 1}
+{"type": "discard", "seat": 1, "tile_id": 114, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 55}
+{"type": "discard", "seat": 2, "tile_id": 126, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 43}
+{"type": "discard", "seat": 3, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 60}
+{"type": "discard", "seat": 0, "tile_id": 110, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 23}
+{"type": "discard", "seat": 1, "tile_id": 32, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 117}
+{"type": "discard", "seat": 2, "tile_id": 117, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 80}
+{"type": "discard", "seat": 3, "tile_id": 69, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 100}
+{"type": "discard", "seat": 0, "tile_id": 130, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 6}
+{"type": "discard", "seat": 1, "tile_id": 102, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 9}
+{"type": "discard", "seat": 2, "tile_id": 9, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 107}
+{"type": "discard", "seat": 3, "tile_id": 107, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 125}
+{"type": "discard", "seat": 0, "tile_id": 125, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 34}
+{"type": "discard", "seat": 1, "tile_id": 62, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 87}
+{"type": "discard", "seat": 2, "tile_id": 20, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 38}
+{"type": "discard", "seat": 3, "tile_id": 38, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 47}
+{"type": "discard", "seat": 0, "tile_id": 35, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 119}
+{"type": "discard", "seat": 1, "tile_id": 119, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 74}
+{"type": "discard", "seat": 2, "tile_id": 74, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 10}
+{"type": "discard", "seat": 3, "tile_id": 93, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 3}
+{"type": "draw", "seat": 0, "tile_id": 127}
+{"type": "discard", "seat": 0, "tile_id": 39, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 120}
+{"type": "discard", "seat": 1, "tile_id": 120, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 83}
+{"type": "discard", "seat": 2, "tile_id": 95, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 33}
+{"type": "discard", "seat": 3, "tile_id": 33, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 116}
+{"type": "discard", "seat": 0, "tile_id": 36, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 16}
+{"type": "discard", "seat": 1, "tile_id": 34, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 68}
+{"type": "discard", "seat": 2, "tile_id": 68, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 50}
+{"type": "discard", "seat": 3, "tile_id": 50, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 66}
+{"type": "discard", "seat": 0, "tile_id": 106, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 51}
+{"type": "discard", "seat": 1, "tile_id": 2, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 75}
+{"type": "discard", "seat": 2, "tile_id": 48, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 132}
+{"type": "discard", "seat": 3, "tile_id": 132, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 37}
+{"type": "discard", "seat": 0, "tile_id": 37, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 90}
+{"type": "discard", "seat": 1, "tile_id": 1, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 118}
+{"type": "discard", "seat": 2, "tile_id": 3, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 44}
+{"type": "discard", "seat": 3, "tile_id": 44, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 113}
+{"type": "discard", "seat": 0, "tile_id": 47, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 96}
+{"type": "discard", "seat": 1, "tile_id": 78, "is_tsumogiri": false, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 3, "loser_seat": 1, "winning_tile": 78, "hand_result": {"han": 2, "fu": 40, "yaku": ["Riichi", "Dora 1"], "cost_main": 2600, "cost_additional": 0}, "score_changes": {"0": 0, "1": -2600, "2": 0, "3": 3600}, "riichi_sticks_collected": 1, "closed_tiles": [5, 15, 21, 25, 29, 40, 59, 61, 64, 72, 43, 80, 10], "melds": [], "pao_seat": null, "ura_dora_indicators": [71]}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 3, "dealer_seat": 2, "current_player_seat": 2, "wall_count": 70, "dora_indicators": [51], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 23900, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [5, 11, 14, 19, 35, 41, 58, 70, 100, 101, 116, 130, 134]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 27700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [18, 27, 38, 49, 59, 60, 61, 62, 89, 104, 106, 112, 131]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 22900, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [6, 12, 46, 50, 52, 66, 72, 75, 93, 94, 99, 111, 118]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 25500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [23, 32, 33, 44, 48, 54, 63, 77, 85, 109, 119, 127, 135]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 2, "tile_id": 43}
+{"type": "discard", "seat": 2, "tile_id": 118, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 1}
+{"type": "discard", "seat": 3, "tile_id": 119, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 47}
+{"type": "discard", "seat": 0, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 102}
+{"type": "discard", "seat": 1, "tile_id": 112, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 45}
+{"type": "discard", "seat": 2, "tile_id": 66, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 71}
+{"type": "discard", "seat": 3, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 98}
+{"type": "discard", "seat": 0, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 3}
+{"type": "discard", "seat": 1, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 84}
+{"type": "discard", "seat": 2, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 56}
+{"type": "discard", "seat": 3, "tile_id": 109, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 91}
+{"type": "discard", "seat": 0, "tile_id": 130, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 2}
+{"type": "discard", "seat": 1, "tile_id": 38, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 65}
+{"type": "discard", "seat": 2, "tile_id": 65, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 8}
+{"type": "discard", "seat": 3, "tile_id": 127, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 17}
+{"type": "discard", "seat": 0, "tile_id": 70, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 76}
+{"type": "discard", "seat": 1, "tile_id": 76, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 83}
+{"type": "discard", "seat": 2, "tile_id": 6, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 15}
+{"type": "discard", "seat": 3, "tile_id": 71, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 107}
+{"type": "discard", "seat": 0, "tile_id": 101, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 87}
+{"type": "discard", "seat": 1, "tile_id": 18, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 67}
+{"type": "discard", "seat": 2, "tile_id": 67, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 39}
+{"type": "discard", "seat": 3, "tile_id": 39, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 68}
+{"type": "discard", "seat": 0, "tile_id": 68, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 123}
+{"type": "discard", "seat": 1, "tile_id": 123, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 69}
+{"type": "discard", "seat": 2, "tile_id": 69, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 129}
+{"type": "discard", "seat": 3, "tile_id": 129, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 28}
+{"type": "discard", "seat": 0, "tile_id": 91, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 86}
+{"type": "discard", "seat": 1, "tile_id": 27, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 22}
+{"type": "discard", "seat": 2, "tile_id": 22, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 113}
+{"type": "discard", "seat": 3, "tile_id": 113, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 25}
+{"type": "discard", "seat": 0, "tile_id": 58, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 0}
+{"type": "draw", "seat": 1, "tile_id": 121}
+{"type": "discard", "seat": 1, "tile_id": 102, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 36}
+{"type": "discard", "seat": 2, "tile_id": 36, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 0, "loser_seat": 2, "winning_tile": 36, "hand_result": {"han": 3, "fu": 30, "yaku": ["Riichi", "Ippatsu", "Pinfu"], "cost_main": 3900, "cost_additional": 0}, "score_changes": {"0": 4900, "1": 0, "2": -3900, "3": 0}, "riichi_sticks_collected": 1, "closed_tiles": [5, 11, 14, 19, 35, 41, 100, 47, 98, 17, 107, 28, 25], "melds": [], "pao_seat": null, "ura_dora_indicators": [105]}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 4, "dealer_seat": 3, "current_player_seat": 3, "wall_count": 70, "dora_indicators": [97], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 27800, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [5, 8, 16, 45, 49, 64, 66, 85, 91, 113, 114, 120, 122]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 27700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [1, 13, 17, 28, 33, 38, 39, 70, 71, 98, 115, 116, 135]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 19000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [12, 23, 24, 29, 37, 50, 86, 87, 89, 95, 125, 131, 134]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 25500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [31, 41, 46, 47, 48, 55, 72, 83, 84, 121, 123, 124, 133]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 3, "tile_id": 27}
+{"type": "discard", "seat": 3, "tile_id": 133, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 25}
+{"type": "discard", "seat": 0, "tile_id": 122, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 106}
+{"type": "discard", "seat": 1, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 112}
+{"type": "discard", "seat": 2, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 129}
+{"type": "discard", "seat": 3, "tile_id": 129, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 42}
+{"type": "discard", "seat": 0, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 62}
+{"type": "discard", "seat": 1, "tile_id": 1, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 0}
+{"type": "discard", "seat": 2, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 75}
+{"type": "discard", "seat": 3, "tile_id": 124, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 130}
+{"type": "discard", "seat": 0, "tile_id": 130, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 73}
+{"type": "discard", "seat": 1, "tile_id": 73, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 4}
+{"type": "discard", "seat": 2, "tile_id": 125, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 14}
+{"type": "discard", "seat": 3, "tile_id": 14, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 90}
+{"type": "discard", "seat": 0, "tile_id": 66, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 80}
+{"type": "discard", "seat": 1, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 65}
+{"type": "discard", "seat": 2, "tile_id": 112, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 0, "from_seat": 2, "tile_ids": [112, 113, 114], "called_tile_id": 112}
+{"type": "discard", "seat": 0, "tile_id": 64, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 117}
+{"type": "discard", "seat": 1, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 20}
+{"type": "discard", "seat": 2, "tile_id": 65, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 99}
+{"type": "discard", "seat": 3, "tile_id": 99, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 53}
+{"type": "discard", "seat": 0, "tile_id": 42, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 40}
+{"type": "discard", "seat": 1, "tile_id": 117, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 96}
+{"type": "discard", "seat": 2, "tile_id": 37, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 61}
+{"type": "discard", "seat": 3, "tile_id": 123, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 32}
+{"type": "discard", "seat": 0, "tile_id": 85, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 58}
+{"type": "discard", "seat": 1, "tile_id": 80, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 74}
+{"type": "discard", "seat": 2, "tile_id": 74, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 100}
+{"type": "discard", "seat": 3, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 108}
+{"type": "discard", "seat": 0, "tile_id": 108, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 77}
+{"type": "discard", "seat": 1, "tile_id": 77, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 11}
+{"type": "discard", "seat": 2, "tile_id": 50, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 2}
+{"type": "draw", "seat": 3, "tile_id": 69}
+{"type": "discard", "seat": 3, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 9}
+{"type": "discard", "seat": 0, "tile_id": 32, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 43}
+{"type": "discard", "seat": 1, "tile_id": 39, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 3}
+{"type": "discard", "seat": 2, "tile_id": 3, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 51}
+{"type": "discard", "seat": 3, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 92}
+{"type": "discard", "seat": 0, "tile_id": 5, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 57}
+{"type": "discard", "seat": 1, "tile_id": 33, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 56}
+{"type": "discard", "seat": 2, "tile_id": 56, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 21}
+{"type": "discard", "seat": 3, "tile_id": 69, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 104}
+{"type": "discard", "seat": 0, "tile_id": 49, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 94}
+{"type": "discard", "seat": 1, "tile_id": 58, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 107}
+{"type": "discard", "seat": 2, "tile_id": 107, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 118}
+{"type": "discard", "seat": 3, "tile_id": 118, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 93}
+{"type": "discard", "seat": 0, "tile_id": 104, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 79}
+{"type": "discard", "seat": 1, "tile_id": 106, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 76}
+{"type": "discard", "seat": 2, "tile_id": 76, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 3, "from_seat": 2, "tile_ids": [76, 83, 84], "called_tile_id": 76}
+{"type": "discard", "seat": 3, "tile_id": 61, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 63}
+{"type": "discard", "seat": 0, "tile_id": 63, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 30}
+{"type": "discard", "seat": 1, "tile_id": 79, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 126}
+{"type": "discard", "seat": 2, "tile_id": 126, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 78}
+{"type": "discard", "seat": 3, "tile_id": 78, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 2}
+{"type": "discard", "seat": 0, "tile_id": 2, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 54}
+{"type": "discard", "seat": 1, "tile_id": 71, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 88}
+{"type": "discard", "seat": 2, "tile_id": 88, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 35}
+{"type": "discard", "seat": 3, "tile_id": 35, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 127}
+{"type": "discard", "seat": 0, "tile_id": 127, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 109}
+{"type": "discard", "seat": 1, "tile_id": 62, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 60}
+{"type": "discard", "seat": 2, "tile_id": 60, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 67}
+{"type": "discard", "seat": 3, "tile_id": 67, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 22}
+{"type": "discard", "seat": 0, "tile_id": 91, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 102}
+{"type": "discard", "seat": 1, "tile_id": 70, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 105}
+{"type": "discard", "seat": 2, "tile_id": 105, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 119}
+{"type": "discard", "seat": 3, "tile_id": 119, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 34}
+{"type": "discard", "seat": 0, "tile_id": 34, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 59}
+{"type": "discard", "seat": 1, "tile_id": 38, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 52}
+{"type": "discard", "seat": 2, "tile_id": 52, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 128}
+{"type": "discard", "seat": 3, "tile_id": 128, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 81}
+{"type": "discard", "seat": 0, "tile_id": 90, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 19}
+{"type": "discard", "seat": 1, "tile_id": 54, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 101}
+{"type": "discard", "seat": 2, "tile_id": 101, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 3, "loser_seat": 2, "winning_tile": 101, "hand_result": {"han": 3, "fu": 30, "yaku": ["Tanyao", "Dora 2"], "cost_main": 5800, "cost_additional": 0}, "score_changes": {"0": 0, "1": 0, "2": -5800, "3": 6800}, "riichi_sticks_collected": 1, "closed_tiles": [31, 41, 46, 47, 48, 55, 27, 100, 51, 21], "melds": [{"type": "chi", "tile_ids": [76, 83, 84], "opened": true, "from_who": 2}], "pao_seat": null, "ura_dora_indicators": null}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 5, "dealer_seat": 3, "current_player_seat": 3, "wall_count": 70, "dora_indicators": [1], "honba_sticks": 1, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 27800, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [21, 26, 33, 49, 52, 63, 65, 67, 78, 81, 89, 131, 135]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 27700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [0, 11, 13, 15, 19, 38, 72, 85, 93, 100, 102, 118, 134]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 12200, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [22, 50, 53, 56, 58, 61, 69, 84, 90, 92, 107, 108, 120]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 32300, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [20, 31, 32, 35, 48, 57, 60, 77, 87, 95, 111, 130, 133]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 3, "tile_id": 75}
+{"type": "discard", "seat": 3, "tile_id": 133, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 116}
+{"type": "discard", "seat": 0, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 101}
+{"type": "discard", "seat": 1, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 3}
+{"type": "discard", "seat": 2, "tile_id": 108, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 5}
+{"type": "discard", "seat": 3, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 125}
+{"type": "discard", "seat": 0, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 109}
+{"type": "discard", "seat": 1, "tile_id": 109, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 115}
+{"type": "discard", "seat": 2, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 119}
+{"type": "discard", "seat": 3, "tile_id": 119, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 46}
+{"type": "discard", "seat": 0, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 51}
+{"type": "discard", "seat": 1, "tile_id": 118, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 106}
+{"type": "discard", "seat": 2, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 39}
+{"type": "discard", "seat": 3, "tile_id": 130, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 18}
+{"type": "discard", "seat": 0, "tile_id": 125, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 25}
+{"type": "discard", "seat": 1, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 64}
+{"type": "discard", "seat": 2, "tile_id": 3, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 71}
+{"type": "discard", "seat": 3, "tile_id": 39, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 36}
+{"type": "discard", "seat": 0, "tile_id": 36, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 96}
+{"type": "discard", "seat": 1, "tile_id": 38, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 43}
+{"type": "discard", "seat": 2, "tile_id": 43, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 79}
+{"type": "discard", "seat": 3, "tile_id": 71, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 74}
+{"type": "discard", "seat": 0, "tile_id": 33, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 2}
+{"type": "discard", "seat": 1, "tile_id": 15, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 59}
+{"type": "discard", "seat": 2, "tile_id": 22, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 2}
+{"type": "draw", "seat": 3, "tile_id": 124}
+{"type": "discard", "seat": 3, "tile_id": 20, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 70}
+{"type": "discard", "seat": 0, "tile_id": 67, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 47}
+{"type": "discard", "seat": 1, "tile_id": 2, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 17}
+{"type": "discard", "seat": 2, "tile_id": 17, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 86}
+{"type": "discard", "seat": 3, "tile_id": 35, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 105}
+{"type": "discard", "seat": 0, "tile_id": 105, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 2, "loser_seat": 0, "winning_tile": 105, "hand_result": {"han": 2, "fu": 40, "yaku": ["Riichi", "Dora 1"], "cost_main": 2600, "cost_additional": 0}, "score_changes": {"0": -2900, "1": 0, "2": 3900, "3": 0}, "riichi_sticks_collected": 1, "closed_tiles": [50, 53, 56, 58, 61, 69, 84, 90, 92, 107, 106, 64, 59], "melds": [], "pao_seat": null, "ura_dora_indicators": [44]}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 6, "dealer_seat": 0, "current_player_seat": 0, "wall_count": 70, "dora_indicators": [88], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 24900, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [13, 31, 40, 53, 73, 74, 82, 90, 99, 111, 118, 120, 128]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 27700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [6, 14, 47, 54, 61, 62, 77, 80, 94, 97, 108, 124, 134]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 15100, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [19, 30, 35, 36, 50, 64, 68, 98, 101, 102, 114, 121, 126]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 32300, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [16, 20, 37, 39, 49, 52, 66, 71, 76, 86, 95, 107, 133]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 0, "tile_id": 130}
+{"type": "discard", "seat": 0, "tile_id": 40, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 89}
+{"type": "discard", "seat": 1, "tile_id": 108, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 79}
+{"type": "discard", "seat": 2, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 10}
+{"type": "discard", "seat": 3, "tile_id": 107, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 33}
+{"type": "discard", "seat": 0, "tile_id": 53, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 21}
+{"type": "discard", "seat": 1, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 113}
+{"type": "discard", "seat": 2, "tile_id": 36, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 109}
+{"type": "discard", "seat": 3, "tile_id": 109, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 81}
+{"type": "discard", "seat": 0, "tile_id": 13, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 75}
+{"type": "discard", "seat": 1, "tile_id": 124, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 96}
+{"type": "discard", "seat": 2, "tile_id": 126, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 48}
+{"type": "discard", "seat": 3, "tile_id": 133, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 131}
+{"type": "discard", "seat": 0, "tile_id": 33, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 87}
+{"type": "discard", "seat": 1, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 0, "from_seat": 1, "tile_ids": [73, 74, 75], "called_tile_id": 75}
+{"type": "discard", "seat": 0, "tile_id": 31, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 83}
+{"type": "discard", "seat": 1, "tile_id": 83, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 0, "from_seat": 1, "tile_ids": [81, 82, 83], "called_tile_id": 83}
+{"type": "discard", "seat": 0, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 91}
+{"type": "discard", "seat": 1, "tile_id": 77, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 85}
+{"type": "discard", "seat": 2, "tile_id": 19, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 100}
+{"type": "discard", "seat": 3, "tile_id": 10, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 27}
+{"type": "discard", "seat": 0, "tile_id": 27, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 105}
+{"type": "discard", "seat": 1, "tile_id": 105, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 51}
+{"type": "discard", "seat": 2, "tile_id": 114, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 129}
+{"type": "discard", "seat": 3, "tile_id": 129, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 60}
+{"type": "discard", "seat": 0, "tile_id": 60, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 17}
+{"type": "discard", "seat": 1, "tile_id": 6, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 1}
+{"type": "draw", "seat": 2, "tile_id": 69}
+{"type": "discard", "seat": 2, "tile_id": 79, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 4}
+{"type": "discard", "seat": 3, "tile_id": 4, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 135}
+{"type": "discard", "seat": 0, "tile_id": 135, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 117}
+{"type": "discard", "seat": 1, "tile_id": 117, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 59}
+{"type": "discard", "seat": 2, "tile_id": 113, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 106}
+{"type": "discard", "seat": 3, "tile_id": 76, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 45}
+{"type": "discard", "seat": 0, "tile_id": 45, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 67}
+{"type": "discard", "seat": 1, "tile_id": 67, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 104}
+{"type": "discard", "seat": 2, "tile_id": 64, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 70}
+{"type": "discard", "seat": 3, "tile_id": 66, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 119}
+{"type": "discard", "seat": 0, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 9}
+{"type": "discard", "seat": 1, "tile_id": 9, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 34}
+{"type": "discard", "seat": 2, "tile_id": 35, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 132}
+{"type": "discard", "seat": 3, "tile_id": 132, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 125}
+{"type": "discard", "seat": 0, "tile_id": 125, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 22}
+{"type": "discard", "seat": 1, "tile_id": 22, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 112}
+{"type": "discard", "seat": 2, "tile_id": 112, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 115}
+{"type": "discard", "seat": 3, "tile_id": 115, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 23}
+{"type": "discard", "seat": 0, "tile_id": 23, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 24}
+{"type": "discard", "seat": 1, "tile_id": 24, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 25}
+{"type": "discard", "seat": 2, "tile_id": 85, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 0}
+{"type": "discard", "seat": 3, "tile_id": 86, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 29}
+{"type": "discard", "seat": 0, "tile_id": 29, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 38}
+{"type": "discard", "seat": 1, "tile_id": 38, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 41}
+{"type": "discard", "seat": 2, "tile_id": 59, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 5}
+{"type": "discard", "seat": 3, "tile_id": 39, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 2}
+{"type": "discard", "seat": 0, "tile_id": 2, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 55}
+{"type": "discard", "seat": 1, "tile_id": 55, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 11}
+{"type": "discard", "seat": 2, "tile_id": 11, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 42}
+{"type": "discard", "seat": 3, "tile_id": 37, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 18}
+{"type": "discard", "seat": 0, "tile_id": 18, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 127}
+{"type": "discard", "seat": 1, "tile_id": 127, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 3}
+{"type": "discard", "seat": 2, "tile_id": 3, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 103}
+{"type": "discard", "seat": 3, "tile_id": 0, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 7}
+{"type": "discard", "seat": 0, "tile_id": 7, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 12}
+{"type": "discard", "seat": 1, "tile_id": 12, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 58}
+{"type": "discard", "seat": 2, "tile_id": 41, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 46}
+{"type": "discard", "seat": 3, "tile_id": 5, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 65}
+{"type": "discard", "seat": 0, "tile_id": 65, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 28}
+{"type": "discard", "seat": 1, "tile_id": 28, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 122}
+{"type": "discard", "seat": 2, "tile_id": 122, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 84}
+{"type": "discard", "seat": 3, "tile_id": 20, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 116}
+{"type": "discard", "seat": 0, "tile_id": 90, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 44}
+{"type": "discard", "seat": 1, "tile_id": 44, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 57}
+{"type": "discard", "seat": 2, "tile_id": 58, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 72}
+{"type": "discard", "seat": 3, "tile_id": 16, "is_tsumogiri": false, "is_riichi": false}
+{"type": "round_end", "result": {"type": "exhaustive_draw", "tempai_seats": [0, 1], "noten_seats": [2, 3], "score_changes": {"0": 1500, "1": 1500, "2": -1500, "3": -1500}}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 7, "dealer_seat": 0, "current_player_seat": 0, "wall_count": 70, "dora_indicators": [115], "honba_sticks": 1, "riichi_sticks": 1, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 26400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [6, 28, 34, 50, 56, 61, 70, 77, 98, 108, 113, 122, 134]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 28200, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [1, 11, 39, 53, 64, 72, 83, 100, 109, 121, 126, 131, 132]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 13600, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [0, 2, 4, 15, 38, 57, 62, 69, 75, 76, 84, 99, 128]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 30800, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [20, 27, 36, 43, 54, 55, 67, 92, 94, 97, 111, 120, 135]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 0, "tile_id": 3}
+{"type": "discard", "seat": 0, "tile_id": 113, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 118}
+{"type": "discard", "seat": 1, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 24}
+{"type": "discard", "seat": 2, "tile_id": 128, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 31}
+{"type": "discard", "seat": 3, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 116}
+{"type": "discard", "seat": 0, "tile_id": 122, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 5}
+{"type": "discard", "seat": 1, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 106}
+{"type": "discard", "seat": 2, "tile_id": 38, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 87}
+{"type": "discard", "seat": 3, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 14}
+{"type": "discard", "seat": 0, "tile_id": 108, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 82}
+{"type": "discard", "seat": 1, "tile_id": 109, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 21}
+{"type": "discard", "seat": 2, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 59}
+{"type": "discard", "seat": 3, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 101}
+{"type": "discard", "seat": 0, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 29}
+{"type": "discard", "seat": 1, "tile_id": 132, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 19}
+{"type": "discard", "seat": 2, "tile_id": 69, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 102}
+{"type": "discard", "seat": 3, "tile_id": 36, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 104}
+{"type": "discard", "seat": 0, "tile_id": 77, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 58}
+{"type": "discard", "seat": 1, "tile_id": 126, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 133}
+{"type": "discard", "seat": 2, "tile_id": 133, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 127}
+{"type": "discard", "seat": 3, "tile_id": 127, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 52}
+{"type": "discard", "seat": 0, "tile_id": 3, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 86}
+{"type": "discard", "seat": 1, "tile_id": 39, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 13}
+{"type": "discard", "seat": 2, "tile_id": 106, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 71}
+{"type": "discard", "seat": 3, "tile_id": 71, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 65}
+{"type": "discard", "seat": 0, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 42}
+{"type": "discard", "seat": 1, "tile_id": 100, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 63}
+{"type": "discard", "seat": 2, "tile_id": 99, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 35}
+{"type": "discard", "seat": 3, "tile_id": 35, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 16}
+{"type": "discard", "seat": 0, "tile_id": 6, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 117}
+{"type": "discard", "seat": 1, "tile_id": 42, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 130}
+{"type": "discard", "seat": 2, "tile_id": 130, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 26}
+{"type": "discard", "seat": 3, "tile_id": 43, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 74}
+{"type": "discard", "seat": 0, "tile_id": 74, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 124}
+{"type": "discard", "seat": 1, "tile_id": 124, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 114}
+{"type": "discard", "seat": 2, "tile_id": 114, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 46}
+{"type": "discard", "seat": 3, "tile_id": 46, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 112}
+{"type": "discard", "seat": 0, "tile_id": 112, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 8}
+{"type": "discard", "seat": 1, "tile_id": 29, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 73}
+{"type": "discard", "seat": 2, "tile_id": 73, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 17}
+{"type": "discard", "seat": 3, "tile_id": 94, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 93}
+{"type": "discard", "seat": 0, "tile_id": 93, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 47}
+{"type": "discard", "seat": 1, "tile_id": 11, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 88}
+{"type": "discard", "seat": 2, "tile_id": 76, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 33}
+{"type": "discard", "seat": 3, "tile_id": 87, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 3}
+{"type": "draw", "seat": 0, "tile_id": 95}
+{"type": "discard", "seat": 0, "tile_id": 95, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 96}
+{"type": "discard", "seat": 1, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 79}
+{"type": "discard", "seat": 2, "tile_id": 2, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 30}
+{"type": "discard", "seat": 3, "tile_id": 30, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 44}
+{"type": "discard", "seat": 0, "tile_id": 44, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 32}
+{"type": "discard", "seat": 1, "tile_id": 32, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 90}
+{"type": "discard", "seat": 2, "tile_id": 0, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 85}
+{"type": "discard", "seat": 3, "tile_id": 85, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 68}
+{"type": "discard", "seat": 0, "tile_id": 70, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 51}
+{"type": "discard", "seat": 1, "tile_id": 86, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 48}
+{"type": "discard", "seat": 2, "tile_id": 84, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 25}
+{"type": "discard", "seat": 3, "tile_id": 25, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 0, "from_seat": 3, "tile_ids": [25, 28, 34], "called_tile_id": 25}
+{"type": "discard", "seat": 0, "tile_id": 14, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 123}
+{"type": "discard", "seat": 1, "tile_id": 123, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 22}
+{"type": "discard", "seat": 2, "tile_id": 15, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 12}
+{"type": "discard", "seat": 3, "tile_id": 12, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 78}
+{"type": "discard", "seat": 0, "tile_id": 78, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 103}
+{"type": "discard", "seat": 1, "tile_id": 47, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 18}
+{"type": "discard", "seat": 2, "tile_id": 79, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 125}
+{"type": "discard", "seat": 3, "tile_id": 125, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 91}
+{"type": "discard", "seat": 0, "tile_id": 91, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 2, "from_seat": 0, "tile_ids": [88, 90, 91], "called_tile_id": 91}
+{"type": "discard", "seat": 2, "tile_id": 4, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 107}
+{"type": "discard", "seat": 3, "tile_id": 107, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 110}
+{"type": "discard", "seat": 0, "tile_id": 110, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 89}
+{"type": "discard", "seat": 1, "tile_id": 1, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 66}
+{"type": "discard", "seat": 2, "tile_id": 66, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 49}
+{"type": "discard", "seat": 3, "tile_id": 49, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 80}
+{"type": "discard", "seat": 0, "tile_id": 80, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "exhaustive_draw", "tempai_seats": [0, 2, 3], "noten_seats": [1], "score_changes": {"0": 1000, "1": -3000, "2": 1000, "3": 1000}}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 8, "dealer_seat": 0, "current_player_seat": 0, "wall_count": 70, "dora_indicators": [91], "honba_sticks": 2, "riichi_sticks": 2, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 27400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [4, 12, 16, 26, 27, 28, 34, 38, 39, 42, 67, 131, 132]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 25200, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [29, 32, 37, 47, 50, 51, 57, 63, 75, 89, 95, 103, 114]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 14600, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [6, 10, 24, 43, 58, 59, 62, 68, 69, 70, 90, 107, 128]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 30800, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [21, 22, 23, 33, 56, 60, 74, 77, 80, 104, 110, 113, 127]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 0, "tile_id": 85}
+{"type": "discard", "seat": 0, "tile_id": 132, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 115}
+{"type": "discard", "seat": 1, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 112}
+{"type": "discard", "seat": 2, "tile_id": 112, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 1, "from_seat": 2, "tile_ids": [112, 114, 115], "called_tile_id": 112}
+{"type": "discard", "seat": 1, "tile_id": 103, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 71}
+{"type": "discard", "seat": 2, "tile_id": 128, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 13}
+{"type": "discard", "seat": 3, "tile_id": 113, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 66}
+{"type": "discard", "seat": 0, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 44}
+{"type": "discard", "seat": 1, "tile_id": 32, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 15}
+{"type": "discard", "seat": 2, "tile_id": 107, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 41}
+{"type": "discard", "seat": 3, "tile_id": 110, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 111}
+{"type": "discard", "seat": 0, "tile_id": 111, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 126}
+{"type": "discard", "seat": 1, "tile_id": 126, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 82}
+{"type": "discard", "seat": 2, "tile_id": 43, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 20}
+{"type": "discard", "seat": 3, "tile_id": 127, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 105}
+{"type": "discard", "seat": 0, "tile_id": 105, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 0}
+{"type": "discard", "seat": 1, "tile_id": 0, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 19}
+{"type": "discard", "seat": 2, "tile_id": 71, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 61}
+{"type": "discard", "seat": 3, "tile_id": 104, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 54}
+{"type": "discard", "seat": 0, "tile_id": 54, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 1, "from_seat": 0, "tile_ids": [54, 57, 63], "called_tile_id": 54}
+{"type": "discard", "seat": 1, "tile_id": 29, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 72}
+{"type": "discard", "seat": 2, "tile_id": 62, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 64}
+{"type": "discard", "seat": 3, "tile_id": 61, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 79}
+{"type": "discard", "seat": 0, "tile_id": 4, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 36}
+{"type": "discard", "seat": 1, "tile_id": 47, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 14}
+{"type": "discard", "seat": 2, "tile_id": 24, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 8}
+{"type": "discard", "seat": 3, "tile_id": 23, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 122}
+{"type": "discard", "seat": 0, "tile_id": 122, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 5}
+{"type": "discard", "seat": 1, "tile_id": 5, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 49}
+{"type": "discard", "seat": 2, "tile_id": 49, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 1, "from_seat": 2, "tile_ids": [49, 50, 51], "called_tile_id": 49}
+{"type": "discard", "seat": 1, "tile_id": 44, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 125}
+{"type": "discard", "seat": 2, "tile_id": 125, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 48}
+{"type": "discard", "seat": 3, "tile_id": 33, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 124}
+{"type": "discard", "seat": 0, "tile_id": 124, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 88}
+{"type": "discard", "seat": 1, "tile_id": 89, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 55}
+{"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 123}
+{"type": "discard", "seat": 3, "tile_id": 13, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 11}
+{"type": "discard", "seat": 0, "tile_id": 27, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 81}
+{"type": "discard", "seat": 1, "tile_id": 81, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 108}
+{"type": "discard", "seat": 2, "tile_id": 108, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 86}
+{"type": "discard", "seat": 3, "tile_id": 74, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 52}
+{"type": "discard", "seat": 0, "tile_id": 34, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 118}
+{"type": "discard", "seat": 1, "tile_id": 118, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 30}
+{"type": "discard", "seat": 2, "tile_id": 30, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 121}
+{"type": "discard", "seat": 3, "tile_id": 8, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 3}
+{"type": "draw", "seat": 0, "tile_id": 92}
+{"type": "discard", "seat": 0, "tile_id": 11, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 40}
+{"type": "discard", "seat": 1, "tile_id": 40, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 3}
+{"type": "discard", "seat": 2, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 87}
+{"type": "discard", "seat": 3, "tile_id": 87, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 1, "loser_seat": 3, "winning_tile": 87, "hand_result": {"han": 4, "fu": 30, "yaku": ["Yakuhai (wind of place)", "Yakuhai (wind of round)", "Dora 1", "Aka Dora 1"], "cost_main": 7700, "cost_additional": 0}, "score_changes": {"0": 0, "1": 11300, "2": 0, "3": -8300}, "riichi_sticks_collected": 3, "closed_tiles": [37, 95, 36, 88], "melds": [{"type": "pon", "tile_ids": [112, 114, 115], "opened": true, "from_who": 2}, {"type": "chi", "tile_ids": [54, 57, 63], "opened": true, "from_who": 0}, {"type": "pon", "tile_ids": [49, 50, 51], "opened": true, "from_who": 2}], "pao_seat": null, "ura_dora_indicators": null}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 9, "dealer_seat": 1, "current_player_seat": 1, "wall_count": 70, "dora_indicators": [132], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 27400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [18, 40, 57, 61, 73, 80, 86, 101, 102, 116, 123, 124, 125]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 36500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [1, 21, 22, 26, 28, 35, 48, 53, 66, 81, 93, 104, 106]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 14600, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [4, 29, 30, 32, 34, 49, 51, 55, 87, 114, 117, 118, 135]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 21500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [14, 37, 63, 71, 72, 78, 83, 91, 115, 121, 126, 128, 130]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 1, "tile_id": 50}
+{"type": "discard", "seat": 1, "tile_id": 66, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 94}
+{"type": "discard", "seat": 2, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 103}
+{"type": "discard", "seat": 3, "tile_id": 37, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 47}
+{"type": "discard", "seat": 0, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 85}
+{"type": "discard", "seat": 1, "tile_id": 1, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 65}
+{"type": "discard", "seat": 2, "tile_id": 114, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 100}
+{"type": "discard", "seat": 3, "tile_id": 14, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 107}
+{"type": "discard", "seat": 0, "tile_id": 18, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 6}
+{"type": "discard", "seat": 1, "tile_id": 6, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 39}
+{"type": "discard", "seat": 2, "tile_id": 39, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 127}
+{"type": "discard", "seat": 3, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 58}
+{"type": "discard", "seat": 0, "tile_id": 123, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 45}
+{"type": "discard", "seat": 1, "tile_id": 93, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 110}
+{"type": "discard", "seat": 2, "tile_id": 110, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 13}
+{"type": "discard", "seat": 3, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 36}
+{"type": "discard", "seat": 0, "tile_id": 73, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 59}
+{"type": "discard", "seat": 1, "tile_id": 106, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 19}
+{"type": "discard", "seat": 2, "tile_id": 65, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 0}
+{"type": "discard", "seat": 3, "tile_id": 0, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 112}
+{"type": "discard", "seat": 0, "tile_id": 112, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 8}
+{"type": "discard", "seat": 1, "tile_id": 8, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 119}
+{"type": "discard", "seat": 2, "tile_id": 4, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 99}
+{"type": "discard", "seat": 3, "tile_id": 13, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 44}
+{"type": "discard", "seat": 0, "tile_id": 47, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 88}
+{"type": "discard", "seat": 1, "tile_id": 104, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 60}
+{"type": "discard", "seat": 2, "tile_id": 19, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 69}
+{"type": "discard", "seat": 3, "tile_id": 91, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 0, "from_seat": 3, "tile_ids": [80, 86, 91], "called_tile_id": 91}
+{"type": "discard", "seat": 0, "tile_id": 107, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 82}
+{"type": "discard", "seat": 1, "tile_id": 82, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 23}
+{"type": "discard", "seat": 2, "tile_id": 60, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 9}
+{"type": "discard", "seat": 3, "tile_id": 9, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 97}
+{"type": "discard", "seat": 0, "tile_id": 97, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 5}
+{"type": "discard", "seat": 1, "tile_id": 5, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 27}
+{"type": "discard", "seat": 2, "tile_id": 30, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 54}
+{"type": "discard", "seat": 3, "tile_id": 71, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 131}
+{"type": "discard", "seat": 0, "tile_id": 131, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 3, "from_seat": 0, "tile_ids": [128, 130, 131], "called_tile_id": 131}
+{"type": "discard", "seat": 3, "tile_id": 69, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 16}
+{"type": "discard", "seat": 0, "tile_id": 16, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 133}
+{"type": "discard", "seat": 1, "tile_id": 133, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 10}
+{"type": "discard", "seat": 2, "tile_id": 10, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 68}
+{"type": "discard", "seat": 3, "tile_id": 68, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 70}
+{"type": "discard", "seat": 0, "tile_id": 70, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 79}
+{"type": "discard", "seat": 1, "tile_id": 79, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 105}
+{"type": "discard", "seat": 2, "tile_id": 105, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 3, "from_seat": 2, "tile_ids": [99, 100, 105], "called_tile_id": 105}
+{"type": "discard", "seat": 3, "tile_id": 103, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 0, "from_seat": 3, "tile_ids": [101, 102, 103], "called_tile_id": 103}
+{"type": "discard", "seat": 0, "tile_id": 61, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 76}
+{"type": "discard", "seat": 1, "tile_id": 76, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 129}
+{"type": "discard", "seat": 2, "tile_id": 129, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 46}
+{"type": "discard", "seat": 3, "tile_id": 63, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 122}
+{"type": "discard", "seat": 0, "tile_id": 122, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 33}
+{"type": "discard", "seat": 1, "tile_id": 35, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 43}
+{"type": "discard", "seat": 2, "tile_id": 51, "is_tsumogiri": false, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 3, "loser_seat": 2, "winning_tile": 51, "hand_result": {"han": 3, "fu": 30, "yaku": ["Yakuhai (hatsu)", "Dora 2"], "cost_main": 3900, "cost_additional": 0}, "score_changes": {"0": 0, "1": 0, "2": -3900, "3": 3900}, "riichi_sticks_collected": 0, "closed_tiles": [72, 78, 83, 126, 127, 54, 46], "melds": [{"type": "pon", "tile_ids": [128, 130, 131], "opened": true, "from_who": 0}, {"type": "chi", "tile_ids": [99, 100, 105], "opened": true, "from_who": 2}], "pao_seat": null, "ura_dora_indicators": null}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 10, "dealer_seat": 2, "current_player_seat": 2, "wall_count": 70, "dora_indicators": [13], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 27400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [0, 47, 52, 61, 74, 92, 93, 97, 112, 119, 120, 125, 129]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 36500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [7, 12, 17, 18, 19, 23, 28, 34, 58, 62, 69, 73, 115]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 10700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [14, 24, 49, 55, 56, 59, 68, 77, 100, 103, 116, 121, 132]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 25400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [11, 22, 35, 40, 64, 70, 89, 91, 95, 99, 101, 107, 131]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 2, "tile_id": 31}
+{"type": "discard", "seat": 2, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 71}
+{"type": "discard", "seat": 3, "tile_id": 35, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 44}
+{"type": "discard", "seat": 0, "tile_id": 119, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 36}
+{"type": "discard", "seat": 1, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 57}
+{"type": "discard", "seat": 2, "tile_id": 132, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 79}
+{"type": "discard", "seat": 3, "tile_id": 131, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 111}
+{"type": "discard", "seat": 0, "tile_id": 112, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 1}
+{"type": "discard", "seat": 1, "tile_id": 73, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 10}
+{"type": "discard", "seat": 2, "tile_id": 68, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 106}
+{"type": "discard", "seat": 3, "tile_id": 11, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 2}
+{"type": "discard", "seat": 0, "tile_id": 129, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 88}
+{"type": "discard", "seat": 1, "tile_id": 69, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 46}
+{"type": "discard", "seat": 2, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 80}
+{"type": "discard", "seat": 3, "tile_id": 71, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 94}
+{"type": "discard", "seat": 0, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 16}
+{"type": "discard", "seat": 1, "tile_id": 36, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 29}
+{"type": "discard", "seat": 2, "tile_id": 77, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 114}
+{"type": "discard", "seat": 3, "tile_id": 114, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 118}
+{"type": "discard", "seat": 0, "tile_id": 118, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 51}
+{"type": "discard", "seat": 1, "tile_id": 51, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 30}
+{"type": "discard", "seat": 2, "tile_id": 24, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 2}
+{"type": "draw", "seat": 3, "tile_id": 26}
+{"type": "discard", "seat": 3, "tile_id": 70, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 104}
+{"type": "discard", "seat": 0, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 67}
+{"type": "discard", "seat": 1, "tile_id": 1, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 82}
+{"type": "discard", "seat": 2, "tile_id": 82, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 38}
+{"type": "discard", "seat": 3, "tile_id": 26, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 130}
+{"type": "discard", "seat": 0, "tile_id": 2, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 54}
+{"type": "discard", "seat": 1, "tile_id": 12, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 133}
+{"type": "discard", "seat": 2, "tile_id": 133, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 134}
+{"type": "discard", "seat": 3, "tile_id": 134, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 124}
+{"type": "discard", "seat": 0, "tile_id": 0, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 60}
+{"type": "discard", "seat": 1, "tile_id": 34, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 32}
+{"type": "discard", "seat": 2, "tile_id": 32, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 123}
+{"type": "discard", "seat": 3, "tile_id": 123, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 84}
+{"type": "discard", "seat": 0, "tile_id": 130, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 63}
+{"type": "discard", "seat": 1, "tile_id": 23, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 4}
+{"type": "round_end", "result": {"type": "tsumo", "winner_seat": 2, "hand_result": {"han": 3, "fu": 30, "yaku": ["Menzen Tsumo", "Riichi", "Tanyao"], "cost_main": 2000, "cost_additional": 2000}, "score_changes": {"0": -2000, "1": -2000, "2": 7000, "3": -2000}, "riichi_sticks_collected": 1, "closed_tiles": [14, 49, 55, 56, 59, 100, 103, 31, 57, 10, 46, 29, 30, 4], "melds": [], "win_tile": 4, "pao_seat": null, "ura_dora_indicators": [83]}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 11, "dealer_seat": 2, "current_player_seat": 2, "wall_count": 70, "dora_indicators": [110], "honba_sticks": 1, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 25400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [4, 21, 26, 48, 51, 65, 66, 73, 89, 92, 102, 129, 134]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 34500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [17, 37, 59, 68, 77, 78, 82, 95, 104, 106, 111, 116, 122]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 16700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [6, 7, 10, 16, 56, 58, 72, 79, 87, 93, 99, 105, 133]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 23400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [29, 34, 39, 45, 46, 60, 75, 81, 84, 85, 109, 118, 119]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 2, "tile_id": 108}
+{"type": "discard", "seat": 2, "tile_id": 108, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 91}
+{"type": "discard", "seat": 3, "tile_id": 109, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 83}
+{"type": "discard", "seat": 0, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 67}
+{"type": "discard", "seat": 1, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 86}
+{"type": "discard", "seat": 2, "tile_id": 133, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 125}
+{"type": "discard", "seat": 3, "tile_id": 125, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 107}
+{"type": "discard", "seat": 0, "tile_id": 129, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 12}
+{"type": "discard", "seat": 1, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 90}
+{"type": "discard", "seat": 2, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 100}
+{"type": "discard", "seat": 3, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 31}
+{"type": "discard", "seat": 0, "tile_id": 4, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 120}
+{"type": "discard", "seat": 1, "tile_id": 37, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 20}
+{"type": "discard", "seat": 2, "tile_id": 87, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 32}
+{"type": "discard", "seat": 3, "tile_id": 100, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 9}
+{"type": "discard", "seat": 0, "tile_id": 9, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 61}
+{"type": "discard", "seat": 1, "tile_id": 95, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 63}
+{"type": "discard", "seat": 2, "tile_id": 10, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 62}
+{"type": "discard", "seat": 3, "tile_id": 85, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 44}
+{"type": "discard", "seat": 0, "tile_id": 107, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 126}
+{"type": "discard", "seat": 1, "tile_id": 126, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 112}
+{"type": "discard", "seat": 2, "tile_id": 58, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 74}
+{"type": "discard", "seat": 3, "tile_id": 74, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 8}
+{"type": "discard", "seat": 0, "tile_id": 8, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 123}
+{"type": "discard", "seat": 1, "tile_id": 68, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 113}
+{"type": "discard", "seat": 2, "tile_id": 7, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 124}
+{"type": "discard", "seat": 3, "tile_id": 124, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 24}
+{"type": "discard", "seat": 0, "tile_id": 102, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 27}
+{"type": "discard", "seat": 1, "tile_id": 27, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 88}
+{"type": "discard", "seat": 2, "tile_id": 6, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 15}
+{"type": "discard", "seat": 3, "tile_id": 15, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 28}
+{"type": "discard", "seat": 0, "tile_id": 73, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 69}
+{"type": "discard", "seat": 1, "tile_id": 69, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 117}
+{"type": "discard", "seat": 2, "tile_id": 117, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 64}
+{"type": "discard", "seat": 3, "tile_id": 62, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 50}
+{"type": "discard", "seat": 0, "tile_id": 83, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 5}
+{"type": "discard", "seat": 1, "tile_id": 5, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 30}
+{"type": "discard", "seat": 2, "tile_id": 79, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 57}
+{"type": "discard", "seat": 3, "tile_id": 46, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 40}
+{"type": "discard", "seat": 0, "tile_id": 51, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 76}
+{"type": "discard", "seat": 1, "tile_id": 82, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 135}
+{"type": "discard", "seat": 2, "tile_id": 135, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 98}
+{"type": "discard", "seat": 3, "tile_id": 98, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 3}
+{"type": "discard", "seat": 0, "tile_id": 3, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 97}
+{"type": "discard", "seat": 1, "tile_id": 97, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 2}
+{"type": "discard", "seat": 2, "tile_id": 2, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 47}
+{"type": "discard", "seat": 3, "tile_id": 47, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 14}
+{"type": "discard", "seat": 0, "tile_id": 50, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 128}
+{"type": "discard", "seat": 1, "tile_id": 128, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 1}
+{"type": "discard", "seat": 2, "tile_id": 1, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 127}
+{"type": "discard", "seat": 3, "tile_id": 127, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 101}
+{"type": "discard", "seat": 0, "tile_id": 101, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 115}
+{"type": "discard", "seat": 1, "tile_id": 115, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 22}
+{"type": "discard", "seat": 2, "tile_id": 30, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 70}
+{"type": "discard", "seat": 3, "tile_id": 70, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 38}
+{"type": "discard", "seat": 0, "tile_id": 38, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 35}
+{"type": "discard", "seat": 1, "tile_id": 35, "is_tsumogiri": true, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 3, "from_seat": 1, "tile_ids": [32, 34, 35], "called_tile_id": 35}
+{"type": "discard", "seat": 3, "tile_id": 29, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 25}
+{"type": "discard", "seat": 0, "tile_id": 14, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 132}
+{"type": "discard", "seat": 1, "tile_id": 132, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 0}
+{"type": "discard", "seat": 2, "tile_id": 0, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 80}
+{"type": "discard", "seat": 3, "tile_id": 81, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 11}
+{"type": "discard", "seat": 0, "tile_id": 11, "is_tsumogiri": true, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 1, "loser_seat": 0, "winning_tile": 11, "hand_result": {"han": 1, "fu": 50, "yaku": ["Yakuhai (wind of place)"], "cost_main": 1600, "cost_additional": 0}, "score_changes": {"0": -1900, "1": 1900, "2": 0, "3": 0}, "riichi_sticks_collected": 0, "closed_tiles": [17, 59, 77, 78, 104, 106, 122, 67, 12, 120, 61, 123, 76], "melds": [], "pao_seat": null, "ura_dora_indicators": null}}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "South", "round_number": 12, "dealer_seat": 3, "current_player_seat": 3, "wall_count": 70, "dora_indicators": [68], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Ichihime", "is_bot": false, "score": 23500, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [5, 16, 17, 24, 27, 42, 50, 54, 72, 93, 112, 114, 122]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 36400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [3, 11, 15, 40, 41, 61, 63, 89, 108, 109, 115, 121, 129]}, {"seat": 2, "name": "Akagi", "is_bot": false, "score": 16700, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [4, 9, 20, 23, 65, 74, 75, 83, 97, 104, 119, 130, 135]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 23400, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [22, 43, 47, 52, 55, 56, 58, 71, 77, 87, 110, 111, 118]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 3, "tile_id": 125}
+{"type": "discard", "seat": 3, "tile_id": 22, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 92}
+{"type": "discard", "seat": 0, "tile_id": 72, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 30}
+{"type": "discard", "seat": 1, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 1}
+{"type": "discard", "seat": 2, "tile_id": 119, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 6}
+{"type": "discard", "seat": 3, "tile_id": 6, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 70}
+{"type": "discard", "seat": 0, "tile_id": 70, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 106}
+{"type": "discard", "seat": 1, "tile_id": 129, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 25}
+{"type": "discard", "seat": 2, "tile_id": 130, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 62}
+{"type": "discard", "seat": 3, "tile_id": 77, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 133}
+{"type": "discard", "seat": 0, "tile_id": 133, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 73}
+{"type": "discard", "seat": 1, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 81}
+{"type": "discard", "seat": 2, "tile_id": 135, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 103}
+{"type": "discard", "seat": 3, "tile_id": 103, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 98}
+{"type": "discard", "seat": 0, "tile_id": 122, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 66}
+{"type": "discard", "seat": 1, "tile_id": 73, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 69}
+{"type": "discard", "seat": 2, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 134}
+{"type": "discard", "seat": 3, "tile_id": 87, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 82}
+{"type": "discard", "seat": 0, "tile_id": 5, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 49}
+{"type": "discard", "seat": 1, "tile_id": 106, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 32}
+{"type": "discard", "seat": 2, "tile_id": 32, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 102}
+{"type": "discard", "seat": 3, "tile_id": 102, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 57}
+{"type": "discard", "seat": 0, "tile_id": 82, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 48}
+{"type": "discard", "seat": 1, "tile_id": 30, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 35}
+{"type": "discard", "seat": 2, "tile_id": 35, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 90}
+{"type": "discard", "seat": 3, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 60}
+{"type": "discard", "seat": 0, "tile_id": 17, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 85}
+{"type": "discard", "seat": 1, "tile_id": 3, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 100}
+{"type": "discard", "seat": 2, "tile_id": 74, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 116}
+{"type": "discard", "seat": 3, "tile_id": 125, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 105}
+{"type": "discard", "seat": 0, "tile_id": 105, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 123}
+{"type": "discard", "seat": 1, "tile_id": 123, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 29}
+{"type": "discard", "seat": 2, "tile_id": 23, "is_tsumogiri": false, "is_riichi": true}
+{"type": "riichi_declared", "seat": 2}
+{"type": "draw", "seat": 3, "tile_id": 78}
+{"type": "discard", "seat": 3, "tile_id": 118, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 53}
+{"type": "discard", "seat": 0, "tile_id": 114, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 88}
+{"type": "discard", "seat": 1, "tile_id": 109, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 7}
+{"type": "discard", "seat": 2, "tile_id": 7, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 127}
+{"type": "discard", "seat": 3, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 124}
+{"type": "discard", "seat": 0, "tile_id": 112, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 38}
+{"type": "discard", "seat": 1, "tile_id": 108, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 80}
+{"type": "discard", "seat": 2, "tile_id": 80, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 99}
+{"type": "discard", "seat": 3, "tile_id": 111, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 131}
+{"type": "discard", "seat": 0, "tile_id": 131, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 14}
+{"type": "discard", "seat": 1, "tile_id": 11, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 128}
+{"type": "discard", "seat": 2, "tile_id": 128, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 101}
+{"type": "discard", "seat": 3, "tile_id": 110, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 94}
+{"type": "discard", "seat": 0, "tile_id": 124, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 26}
+{"type": "discard", "seat": 1, "tile_id": 85, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 39}
+{"type": "discard", "seat": 2, "tile_id": 39, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 95}
+{"type": "discard", "seat": 3, "tile_id": 127, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 0}
+{"type": "discard", "seat": 0, "tile_id": 98, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 12}
+{"type": "discard", "seat": 1, "tile_id": 38, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 126}
+{"type": "discard", "seat": 2, "tile_id": 126, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 44}
+{"type": "discard", "seat": 3, "tile_id": 99, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 96}
+{"type": "discard", "seat": 0, "tile_id": 96, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 8}
+{"type": "discard", "seat": 1, "tile_id": 8, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 132}
+{"type": "discard", "seat": 2, "tile_id": 132, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 37}
+{"type": "discard", "seat": 3, "tile_id": 37, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 33}
+{"type": "discard", "seat": 0, "tile_id": 33, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 2}
+{"type": "discard", "seat": 1, "tile_id": 2, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 107}
+{"type": "discard", "seat": 2, "tile_id": 107, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 46}
+{"type": "discard", "seat": 3, "tile_id": 95, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 120}
+{"type": "discard", "seat": 0, "tile_id": 120, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 91}
+{"type": "discard", "seat": 1, "tile_id": 41, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 19}
+{"type": "discard", "seat": 2, "tile_id": 19, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 18}
+{"type": "discard", "seat": 3, "tile_id": 43, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 64}
+{"type": "discard", "seat": 0, "tile_id": 0, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 31}
+{"type": "discard", "seat": 1, "tile_id": 40, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 59}
+{"type": "discard", "seat": 2, "tile_id": 59, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 113}
+{"type": "discard", "seat": 3, "tile_id": 113, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 51}
+{"type": "discard", "seat": 0, "tile_id": 42, "is_tsumogiri": false, "is_riichi": false}
+{"type": "round_end", "result": {"type": "exhaustive_draw", "tempai_seats": [2], "noten_seats": [0, 1, 3], "score_changes": {"0": -1000, "1": -1000, "2": 3000, "3": -1000}}}
+{"type": "game_end", "result": {"type": "game_end", "winner_seat": 1, "standings": [{"seat": 1, "name": "Wanjirou", "score": 36400, "final_score": 46, "is_bot": false}, {"seat": 0, "name": "Ichihime", "score": 22500, "final_score": 3, "is_bot": false}, {"seat": 3, "name": "Ojisan", "score": 22400, "final_score": -18, "is_bot": false}, {"seat": 2, "name": "Akagi", "score": 18700, "final_score": -31, "is_bot": false}]}}

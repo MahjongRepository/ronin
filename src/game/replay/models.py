@@ -40,6 +40,7 @@ class ReplayInput(BaseModel):
     seed: float
     player_names: tuple[str, str, str, str]
     events: tuple[ReplayInputEvent, ...]
+    wall: tuple[int, ...] | None = None
 
     @model_validator(mode="after")
     def _validate_player_names(self) -> ReplayInput:

@@ -103,12 +103,14 @@ def init_game(
     seat_configs: list[SeatConfig],
     seed: float = 0.0,
     settings: GameSettings | None = None,
+    wall: list[int] | None = None,
 ) -> MahjongGameState:
     """
     Initialize a new mahjong game with seat configurations.
 
     All players start with starting_score points (from settings).
     Dealer starts at seat 0, round wind starts at East.
+    When wall is provided, use it instead of generating from seed.
     Returns a frozen MahjongGameState.
     """
     game_settings = settings or GameSettings()
@@ -121,18 +123,18 @@ def init_game(
         for i, config in enumerate(seat_configs)
     )
 
-    # Generate wall using seed
-    wall = generate_wall(seed, 0)  # round_number = 0
+    # Generate wall using seed, or use provided wall
+    full_wall = wall if wall is not None else generate_wall(seed, 0)
 
     # Cut dead wall (14 tiles from end)
-    dead_wall = tuple(wall[-DEAD_WALL_SIZE:])
-    wall = tuple(wall[:-DEAD_WALL_SIZE])
+    dead_wall = tuple(full_wall[-DEAD_WALL_SIZE:])
+    live_wall = tuple(full_wall[:-DEAD_WALL_SIZE])
 
     # Set first dora indicator (dead_wall[2])
     dora_indicators = (dead_wall[FIRST_DORA_INDEX],)
 
     # Deal tiles: each player draws 4 tiles x 3, then 1 more (total 13 each)
-    wall_list = list(wall)
+    wall_list = list(live_wall)
     dealer_seat = 0
     player_tiles: list[list[int]] = [[], [], [], []]
 

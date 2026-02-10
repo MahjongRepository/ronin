@@ -6,7 +6,7 @@ from pathlib import Path
 
 def test_game_logic_does_not_import_replay():
     """game.logic modules must not import from game.replay (one-way dependency)."""
-    logic_dir = Path(__file__).resolve().parents[3] / "logic"
+    logic_dir = Path(__file__).resolve().parents[2] / "logic"
     violations: list[str] = []
 
     for py_file in logic_dir.rglob("*.py"):

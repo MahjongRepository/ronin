@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, GamePhase
+from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase
 from game.logic.events import (
     BroadcastTarget,
     ErrorEvent,
@@ -13,7 +13,8 @@ from game.logic.events import (
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
-from game.logic.state import MahjongGameState
+from game.logic.state import MahjongGameState, PendingCallPrompt
+from game.replay.loader import ReplayLoadError
 from game.replay.models import (
     ReplayError,
     ReplayInput,
@@ -55,9 +56,15 @@ class _StubService:
         self._inner = MahjongGameService(auto_cleanup=False)
 
     async def start_game(
-        self, game_id: str, player_names: list[str], *, seed: float | None = None
+        self,
+        game_id: str,
+        player_names: list[str],
+        *,
+        seed: float | None = None,
+        settings: GameSettings | None = None,  # noqa: ARG002
+        wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
-        return await self._inner.start_game(game_id, player_names, seed=seed)
+        return await self._inner.start_game(game_id, player_names, seed=seed, wall=wall)
 
     async def handle_action(
         self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
@@ -162,6 +169,7 @@ async def test_run_replay_async_unique_game_ids():
             *,
             seed: float | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             game_ids.add(game_id)
             return await super().start_game(game_id, player_names, seed=seed)
@@ -251,7 +259,13 @@ async def test_run_replay_async_input_after_game_end_strict():
 
     class FinishedService(_StubService):
         async def start_game(
-            self, game_id: str, player_names: list[str], *, seed: float | None = None
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
@@ -271,7 +285,13 @@ async def test_run_replay_async_input_after_game_end_non_strict():
 
     class FinishedService(_StubService):
         async def start_game(
-            self, game_id: str, player_names: list[str], *, seed: float | None = None
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
@@ -292,7 +312,13 @@ async def test_run_replay_async_startup_error_strict():
 
     class ErrorStartupService(_StubService):
         async def start_game(
-            self, game_id: str, player_names: list[str], *, seed: float | None = None
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             error_event = ServiceEvent(
@@ -316,7 +342,13 @@ async def test_run_replay_async_startup_error_non_strict():
 
     class ErrorStartupService(_StubService):
         async def start_game(
-            self, game_id: str, player_names: list[str], *, seed: float | None = None
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             error_event = ServiceEvent(
@@ -364,7 +396,13 @@ async def test_run_replay_async_round_advance_injection():
             self._advance_humans: list[str] = []
 
         async def start_game(
-            self, game_id: str, player_names: list[str], *, seed: float | None = None
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
             self._advance_humans = list(player_names)
             return await super().start_game(game_id, player_names, seed=seed)
@@ -504,7 +542,7 @@ async def test_reject_confirm_round_in_events_with_auto_confirm():
     """Runner rejects CONFIRM_ROUND events in input when auto_confirm_rounds=True."""
     replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
 
-    with pytest.raises(ValueError, match=r"CONFIRM_ROUND.*auto_confirm_rounds=True"):
+    with pytest.raises(ReplayLoadError, match=r"CONFIRM_ROUND.*auto_confirm_rounds=True"):
         await run_replay_async(replay, auto_confirm_rounds=True)
 
 
@@ -516,3 +554,346 @@ async def test_allow_confirm_round_in_events_without_auto_confirm():
     # "no round pending confirmation" but that's a game-logic error, not validation.
     with pytest.raises(ReplayError):
         await run_replay_async(replay, auto_confirm_rounds=False, strict=True)
+
+
+async def test_auto_pass_calls_injects_synthetic_pass_steps():
+    """Runner injects synthetic PASS steps when call prompt is pending."""
+
+    class CallPromptService(_StubService):
+        """Service that reports a call prompt pending after the first discard."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._inject_prompt = False
+
+        async def handle_action(
+            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                # Resolve the call prompt by removing it from state
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                prompt = state.round_state.pending_call_prompt
+                if prompt is not None:
+                    new_pending = prompt.pending_seats - {
+                        next(p.seat for p in state.round_state.players if p.name == player_name)
+                    }
+                    if new_pending:
+                        new_prompt = prompt.model_copy(update={"pending_seats": new_pending})
+                    else:
+                        new_prompt = None
+                    new_round = state.round_state.model_copy(
+                        update={"pending_call_prompt": new_prompt},
+                    )
+                    self._inner._games[game_id] = state.model_copy(
+                        update={"round_state": new_round},
+                    )
+                return []
+
+            events = await super().handle_action(game_id, player_name, action, data)
+            # Inject a fake call prompt after a discard
+            if action == GameAction.DISCARD:
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                seat = next(p.seat for p in state.round_state.players if p.name == player_name)
+                other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
+                prompt = PendingCallPrompt(
+                    call_type=CallType.MELD,
+                    tile_id=0,
+                    from_seat=seat,
+                    pending_seats=other_seats,
+                    callers=tuple(other_seats),
+                )
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": prompt},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={"round_state": new_round},
+                )
+            return events
+
+    name, tile = await _async_probe_current_player_discard()
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+
+    trace = await run_replay_async(
+        replay,
+        strict=False,
+        auto_pass_calls=True,
+        service_factory=CallPromptService,
+    )
+
+    synthetic_steps = [s for s in trace.steps if s.synthetic]
+    assert len(synthetic_steps) == 3  # 3 other players auto-passed
+    for step in synthetic_steps:
+        assert step.input_event.action == GameAction.PASS
+
+
+async def test_reject_pass_in_events_with_auto_pass():
+    """Runner rejects PASS events in input when auto_pass_calls=True."""
+    replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
+
+    with pytest.raises(ReplayLoadError, match=r"PASS.*auto_pass_calls=True"):
+        await run_replay_async(replay, auto_pass_calls=True)
+
+
+async def test_allow_pass_in_events_without_auto_pass():
+    """Runner allows PASS events in input when auto_pass_calls=False."""
+    replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
+
+    # This should not raise ValueError; it may raise ReplayError due to
+    # "no call prompt pending" but that's a game-logic error, not validation.
+    with pytest.raises(ReplayError):
+        await run_replay_async(
+            replay,
+            auto_pass_calls=False,
+            strict=True,
+        )
+
+
+async def test_auto_pass_excludes_call_response_seat():
+    """When input is a call response (e.g. PON), auto-pass skips that player's seat."""
+    # Discover actual seat assignments (seed-dependent)
+    svc_probe = MahjongGameService(auto_cleanup=False)
+    await svc_probe.start_game("probe-seats", list(PLAYER_NAMES), seed=SEED)
+    probe_state = svc_probe.get_game_state("probe-seats")
+    assert probe_state is not None
+    name_to_seat = {p.name: p.seat for p in probe_state.round_state.players}
+    svc_probe.cleanup_game("probe-seats")
+
+    # Pick two seats: pon_player calls PON, auto_passed_player should be auto-passed
+    pon_player = "Bob"
+    auto_passed_player = "Charlie"
+    discarder = "Alice"
+    pon_seat = name_to_seat[pon_player]
+    pass_seat = name_to_seat[auto_passed_player]
+    discarder_seat = name_to_seat[discarder]
+
+    class CallResponseService(_StubService):
+        """Service that simulates call prompt then PON response."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._pass_calls: list[str] = []
+
+        async def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
+        ) -> list[ServiceEvent]:
+            events = await super().start_game(game_id, player_names, seed=seed)
+            state = self._inner.get_game_state(game_id)
+            assert state is not None
+            prompt = PendingCallPrompt(
+                call_type=CallType.MELD,
+                tile_id=0,
+                from_seat=discarder_seat,
+                pending_seats=frozenset({pon_seat, pass_seat}),
+                callers=(pon_seat, pass_seat),
+            )
+            new_round = state.round_state.model_copy(
+                update={"pending_call_prompt": prompt},
+            )
+            self._inner._games[game_id] = state.model_copy(
+                update={"round_state": new_round},
+            )
+            return events
+
+        async def handle_action(
+            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                self._pass_calls.append(player_name)
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                prompt = state.round_state.pending_call_prompt
+                if prompt is not None:
+                    seat = next(p.seat for p in state.round_state.players if p.name == player_name)
+                    new_pending = prompt.pending_seats - {seat}
+                    new_prompt = (
+                        prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
+                    )
+                    new_round = state.round_state.model_copy(
+                        update={"pending_call_prompt": new_prompt},
+                    )
+                    self._inner._games[game_id] = state.model_copy(
+                        update={"round_state": new_round},
+                    )
+                return []
+            if action == GameAction.CALL_PON:
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": None},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={"round_state": new_round},
+                )
+                return []
+            return await super().handle_action(game_id, player_name, action, data)
+
+    replay = _build_replay(actions=((pon_player, GameAction.CALL_PON, {"tile_id": 0}),))
+
+    svc_instance = CallResponseService()
+    trace = await run_replay_async(
+        replay,
+        strict=False,
+        auto_pass_calls=True,
+        service_factory=lambda: svc_instance,
+    )
+
+    # auto_passed_player should have been auto-passed, but NOT pon_player
+    assert svc_instance._pass_calls == [auto_passed_player]
+    synthetic_steps = [s for s in trace.steps if s.synthetic]
+    assert len(synthetic_steps) == 1
+    assert synthetic_steps[0].input_event.player_name == auto_passed_player
+    assert synthetic_steps[0].input_event.action == GameAction.PASS
+
+
+async def test_auto_pass_strict_mode_error():
+    """Strict mode raises ReplayError when synthetic PASS returns errors."""
+
+    class PassErrorService(_StubService):
+        """Service that returns an error for PASS actions."""
+
+        def __init__(self) -> None:
+            super().__init__()
+
+        async def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: float | None = None,
+            settings: GameSettings | None = None,  # noqa: ARG002
+            wall: list[int] | None = None,  # noqa: ARG002
+        ) -> list[ServiceEvent]:
+            events = await super().start_game(game_id, player_names, seed=seed)
+            state = self._inner.get_game_state(game_id)
+            assert state is not None
+            # Inject a fake call prompt
+            prompt = PendingCallPrompt(
+                call_type=CallType.MELD,
+                tile_id=0,
+                from_seat=0,
+                pending_seats=frozenset({1}),
+                callers=(1,),
+            )
+            new_round = state.round_state.model_copy(
+                update={"pending_call_prompt": prompt},
+            )
+            self._inner._games[game_id] = state.model_copy(
+                update={"round_state": new_round},
+            )
+            return events
+
+        async def handle_action(
+            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                return [
+                    ServiceEvent(
+                        event=EventType.ERROR,
+                        data=ErrorEvent(
+                            code=GameErrorCode.INVALID_PASS,
+                            message="synthetic pass error",
+                            target="all",
+                        ),
+                        target=BroadcastTarget(),
+                    )
+                ]
+            return await super().handle_action(game_id, player_name, action, data)
+
+    name, tile = await _async_probe_current_player_discard()
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+
+    with pytest.raises(ReplayError, match="synthetic pass error"):
+        await run_replay_async(
+            replay,
+            strict=True,
+            auto_pass_calls=True,
+            service_factory=PassErrorService,
+        )
+
+
+async def test_trailing_auto_pass_after_all_input_events():
+    """Trailing auto-pass fires when the last input event leaves a call prompt pending.
+
+    The trailing _inject_pass_calls block in _execute_replay runs after the
+    input event loop, handling call prompts that are still pending when no
+    further input events remain.
+    """
+
+    class TrailingPromptService(_StubService):
+        """Service that injects a call prompt after the last discard but has no more input."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._pass_calls: list[str] = []
+
+        async def handle_action(
+            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                self._pass_calls.append(player_name)
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                prompt = state.round_state.pending_call_prompt
+                if prompt is not None:
+                    seat = next(p.seat for p in state.round_state.players if p.name == player_name)
+                    new_pending = prompt.pending_seats - {seat}
+                    new_prompt = (
+                        prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
+                    )
+                    new_round = state.round_state.model_copy(
+                        update={"pending_call_prompt": new_prompt},
+                    )
+                    self._inner._games[game_id] = state.model_copy(
+                        update={"round_state": new_round},
+                    )
+                return []
+
+            events = await super().handle_action(game_id, player_name, action, data)
+            if action == GameAction.DISCARD:
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                seat = next(p.seat for p in state.round_state.players if p.name == player_name)
+                other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
+                prompt = PendingCallPrompt(
+                    call_type=CallType.MELD,
+                    tile_id=0,
+                    from_seat=seat,
+                    pending_seats=other_seats,
+                    callers=tuple(other_seats),
+                )
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": prompt},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={"round_state": new_round},
+                )
+            return events
+
+    name, tile = await _async_probe_current_player_discard()
+    # Single discard is the only input; the trailing block handles the prompt
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+
+    svc_instance = TrailingPromptService()
+    trace = await run_replay_async(
+        replay,
+        strict=False,
+        auto_pass_calls=True,
+        auto_confirm_rounds=False,
+        service_factory=lambda: svc_instance,
+    )
+
+    # The in-loop auto-pass does NOT fire (no subsequent input event to trigger it).
+    # The trailing block after the loop injects PASS for all 3 other seats.
+    synthetic_steps = [s for s in trace.steps if s.synthetic]
+    assert len(synthetic_steps) == 3
+    for step in synthetic_steps:
+        assert step.input_event.action == GameAction.PASS
+    assert len(svc_instance._pass_calls) == 3

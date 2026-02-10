@@ -1,6 +1,6 @@
 import json
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType
+from game.logic.enums import CallType, GameErrorCode, GamePhase, MeldViewType, RoundPhase, WindName
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -24,11 +24,12 @@ from game.logic.types import (
     ExhaustiveDrawResult,
     GameEndResult,
     GamePlayerInfo,
+    GameView,
     PlayerStanding,
+    PlayerView,
 )
+from game.messaging.event_payload import service_event_payload
 from game.session.replay_collector import ReplayCollector
-
-from .session.helpers import make_dummy_game_view
 
 
 class FakeStorage:
@@ -46,6 +47,15 @@ class FailingStorage:
 
     def save_replay(self, game_id: str, content: str) -> None:  # noqa: ARG002
         raise OSError("disk full")
+
+
+# Per-seat tile assignments for 4-player round_started merge tests.
+_SEAT_TILES = {
+    0: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+    1: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
+    2: [27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
+    3: [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52],
+}
 
 
 def _make_discard_event(seat: int = 0, tile_id: int = 10) -> ServiceEvent:
@@ -173,13 +183,53 @@ def _make_furiten_event(seat: int = 0) -> ServiceEvent:
     )
 
 
+def _make_game_view_for_seat(seat: int) -> GameView:
+    """Create a GameView from the perspective of the given seat.
+
+    The viewing player's tiles are visible; other players' tiles are None.
+    """
+    players = [
+        PlayerView(
+            seat=s,
+            name=f"P{s}",
+            is_bot=False,
+            score=25000,
+            is_riichi=False,
+            discards=[],
+            melds=[],
+            tile_count=13,
+            tiles=_SEAT_TILES[s] if s == seat else None,
+        )
+        for s in range(4)
+    ]
+    return GameView(
+        seat=seat,
+        round_wind=WindName.EAST,
+        round_number=1,
+        dealer_seat=0,
+        current_player_seat=0,
+        wall_count=70,
+        dora_indicators=[],
+        honba_sticks=0,
+        riichi_sticks=0,
+        players=players,
+        phase=RoundPhase.PLAYING,
+        game_phase=GamePhase.IN_PROGRESS,
+    )
+
+
 def _make_round_started_event(seat: int = 0) -> ServiceEvent:
     """Seat-target round started event with concealed view (included for replay)."""
     return ServiceEvent(
         event=EventType.ROUND_STARTED,
-        data=RoundStartedEvent(view=make_dummy_game_view(), target=f"seat_{seat}"),
+        data=RoundStartedEvent(view=_make_game_view_for_seat(seat), target=f"seat_{seat}"),
         target=SeatTarget(seat=seat),
     )
+
+
+def _make_all_round_started_events() -> list[ServiceEvent]:
+    """Create 4 seat-targeted round_started events (one per player)."""
+    return [_make_round_started_event(seat) for seat in range(4)]
 
 
 class TestReplayCollectorLifecycle:
@@ -189,7 +239,7 @@ class TestReplayCollectorLifecycle:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_discard_event()])
         collector.collect_events("game1", [_make_meld_event()])
         await collector.save_and_cleanup("game1")
@@ -200,17 +250,15 @@ class TestReplayCollectorLifecycle:
 
         record0 = json.loads(lines[0])
         assert record0["type"] == "discard"
-        assert record0["target"] == "all"
 
         record1 = json.loads(lines[1])
         assert record1["type"] == "meld"
-        assert record1["target"] == "all"
 
     def test_cleanup_discards_buffer(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_discard_event()])
         collector.cleanup_game("game1")
 
@@ -220,7 +268,7 @@ class TestReplayCollectorLifecycle:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_discard_event()])
         await collector.save_and_cleanup("game1")
 
@@ -246,13 +294,13 @@ class TestReplayCollectorFiltering:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events(
             "game1",
             [
                 _make_discard_event(),  # broadcast - collected
                 _make_draw_event(),  # seat-target DrawEvent - collected
-                _make_round_started_event(),  # seat-target RoundStartedEvent - collected
+                _make_round_started_event(),  # seat-target RoundStartedEvent - merged
             ],
         )
         await collector.save_and_cleanup("game1")
@@ -267,7 +315,7 @@ class TestReplayCollectorFiltering:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events(
             "game1",
             [
@@ -295,7 +343,7 @@ class TestReplayCollectorFiltering:
             target=BroadcastTarget(),
         )
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [broadcast_error, _make_discard_event()])
         await collector.save_and_cleanup("game1")
 
@@ -303,27 +351,12 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         assert json.loads(lines[0])["type"] == "discard"
 
-    async def test_round_started_seat_target_persisted(self):
-        """RoundStartedEvent (SeatTarget) carries concealed hand data for replay."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1")
-        collector.collect_events("game1", [_make_round_started_event(seat=2)])
-        await collector.save_and_cleanup("game1")
-
-        lines = storage.saved["game1"].strip().split("\n")
-        assert len(lines) == 1
-        record = json.loads(lines[0])
-        assert record["type"] == "round_started"
-        assert record["target"] == "seat_2"
-
     async def test_draw_event_seat_target_persisted(self):
         """DrawEvent (SeatTarget) carries tile ID data for replay."""
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_draw_event(seat=1, tile_id=55)])
         await collector.save_and_cleanup("game1")
 
@@ -331,7 +364,6 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         record = json.loads(lines[0])
         assert record["type"] == "draw"
-        assert record["target"] == "seat_1"
         assert record["seat"] == 1
         assert record["tile_id"] == 55
 
@@ -340,7 +372,7 @@ class TestReplayCollectorFiltering:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events(
             "game1",
             [
@@ -380,7 +412,7 @@ class TestReplayCollectorFiltering:
             target="unknown_target",  # type: ignore[arg-type]
         )
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [unknown_event, _make_discard_event()])
         await collector.save_and_cleanup("game1")
 
@@ -388,40 +420,139 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         assert json.loads(lines[0])["type"] == "discard"
 
-    async def test_mixed_broadcast_and_seat_target_events_in_order(self):
-        """Broadcast and included seat-target events are persisted in order."""
+
+class TestReplayCollectorRoundStartedMerge:
+    """Tests for merging per-seat RoundStartedEvent views into a single record."""
+
+    async def test_four_round_started_events_merged_into_one(self):
+        """All 4 per-seat round_started events produce a single merged record."""
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", _make_all_round_started_events())
+        await collector.save_and_cleanup("game1")
+
+        lines = storage.saved["game1"].strip().split("\n")
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        assert record["type"] == "round_started"
+
+    async def test_merged_record_contains_all_players_tiles(self):
+        """Merged round_started record has tiles for every player."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", _make_all_round_started_events())
+        await collector.save_and_cleanup("game1")
+
+        record = json.loads(storage.saved["game1"])
+        players = record["view"]["players"]
+        assert len(players) == 4
+        for player in players:
+            seat = player["seat"]
+            assert player["tiles"] == _SEAT_TILES[seat]
+
+    async def test_merged_record_uses_first_view_as_base(self):
+        """Merged record's view.seat matches the first event's perspective."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", _make_all_round_started_events())
+        await collector.save_and_cleanup("game1")
+
+        record = json.loads(storage.saved["game1"])
+        assert record["view"]["seat"] == 0
+
+    async def test_single_round_started_event_produces_one_record(self):
+        """A single round_started event is wrapped as-is (no merge needed)."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", [_make_round_started_event(seat=2)])
+        await collector.save_and_cleanup("game1")
+
+        lines = storage.saved["game1"].strip().split("\n")
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        assert record["type"] == "round_started"
+        # Only seat 2's tiles are populated (single event, no merge partner)
+        players = record["view"]["players"]
+        seat2_player = next(p for p in players if p["seat"] == 2)
+        assert seat2_player["tiles"] == _SEAT_TILES[2]
+
+    async def test_merged_round_started_ordered_before_draw(self):
+        """Merged round_started appears before subsequent draw events."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
         collector.collect_events(
             "game1",
             [
-                _make_round_started_event(seat=0),
-                _make_round_started_event(seat=1),
+                *_make_all_round_started_events(),
                 _make_draw_event(seat=0, tile_id=10),
-                _make_discard_event(seat=0, tile_id=10),
-                _make_draw_event(seat=1, tile_id=20),
             ],
         )
         await collector.save_and_cleanup("game1")
 
         lines = storage.saved["game1"].strip().split("\n")
-        assert len(lines) == 5
+        assert len(lines) == 2
         types = [json.loads(line)["type"] for line in lines]
-        assert types == ["round_started", "round_started", "draw", "discard", "draw"]
-        targets = [json.loads(line)["target"] for line in lines]
-        assert targets == ["seat_0", "seat_1", "seat_0", "all", "seat_1"]
+        assert types == ["round_started", "draw"]
+
+    async def test_game_started_then_merged_round_started_then_draw(self):
+        """Realistic startup: game_started → merged round_started → draw."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events(
+            "game1",
+            [
+                _make_game_started_event(),
+                *_make_all_round_started_events(),
+                _make_draw_event(seat=0, tile_id=10),
+            ],
+        )
+        await collector.save_and_cleanup("game1")
+
+        lines = storage.saved["game1"].strip().split("\n")
+        assert len(lines) == 3
+        types = [json.loads(line)["type"] for line in lines]
+        assert types == ["game_started", "round_started", "draw"]
+
+    async def test_round_started_across_separate_collect_calls(self):
+        """Round_started events in separate collect_events calls produce separate records."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        # First round: all 4 events in one batch
+        collector.collect_events("game1", _make_all_round_started_events())
+        # Some gameplay
+        collector.collect_events("game1", [_make_discard_event()])
+        # Second round: all 4 events in another batch
+        collector.collect_events("game1", _make_all_round_started_events())
+        await collector.save_and_cleanup("game1")
+
+        lines = storage.saved["game1"].strip().split("\n")
+        assert len(lines) == 3
+        types = [json.loads(line)["type"] for line in lines]
+        assert types == ["round_started", "discard", "round_started"]
 
 
 class TestReplayCollectorJsonLines:
-    """Tests for JSON lines format and target metadata."""
+    """Tests for JSON lines format."""
 
     async def test_json_lines_parseable(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events(
             "game1",
             [_make_discard_event(), _make_meld_event(), _make_game_ended_event()],
@@ -432,32 +563,15 @@ class TestReplayCollectorJsonLines:
             record = json.loads(line)
             assert isinstance(record, dict)
 
-    async def test_target_metadata_present(self):
-        """Every record includes a 'target' field with correct routing."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1")
-        collector.collect_events(
-            "game1",
-            [_make_discard_event(), _make_game_started_event(), _make_draw_event(seat=2)],
-        )
-        await collector.save_and_cleanup("game1")
-
-        lines = storage.saved["game1"].strip().split("\n")
-        targets = [json.loads(line)["target"] for line in lines]
-        assert targets == ["all", "all", "seat_2"]
-
     async def test_discard_record_shape(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_discard_event(seat=2, tile_id=42)])
         await collector.save_and_cleanup("game1")
 
         record = json.loads(storage.saved["game1"])
-        assert record["target"] == "all"
         assert record["type"] == "discard"
         assert record["seat"] == 2
         assert record["tile_id"] == 42
@@ -471,7 +585,7 @@ class TestReplayCollectorErrorHandling:
     async def test_storage_failure_does_not_raise(self):
         collector = ReplayCollector(FailingStorage())
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_discard_event()])
 
         # should not raise
@@ -480,7 +594,7 @@ class TestReplayCollectorErrorHandling:
     async def test_storage_failure_cleans_up_buffer(self):
         collector = ReplayCollector(FailingStorage())
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.collect_events("game1", [_make_discard_event()])
         await collector.save_and_cleanup("game1")
 
@@ -495,8 +609,8 @@ class TestReplayCollectorIsolation:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
-        collector.start_game("game2")
+        collector.start_game("game1", seed=0.42)
+        collector.start_game("game2", seed=0.99)
 
         collector.collect_events("game1", [_make_discard_event(seat=0)])
         collector.collect_events("game2", [_make_discard_event(seat=1), _make_meld_event()])
@@ -508,6 +622,90 @@ class TestReplayCollectorIsolation:
         lines2 = storage.saved["game2"].strip().split("\n")
         assert len(lines1) == 1
         assert len(lines2) == 2
+
+
+class TestReplayCollectorSeedInReplay:
+    """Tests that the game seed is included in replay game_started events but never leaks to clients."""
+
+    async def test_game_started_replay_event_includes_seed(self):
+        """The replay game_started event contains the seed for deterministic replay."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.12345)
+        collector.collect_events("game1", [_make_game_started_event()])
+        await collector.save_and_cleanup("game1")
+
+        record = json.loads(storage.saved["game1"])
+        assert record["type"] == "game_started"
+        assert record["seed"] == 0.12345
+
+    async def test_seed_only_in_game_started_event(self):
+        """Seed is injected only into game_started, not into other event types."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events(
+            "game1",
+            [_make_game_started_event(), _make_discard_event(), _make_game_ended_event()],
+        )
+        await collector.save_and_cleanup("game1")
+
+        lines = storage.saved["game1"].strip().split("\n")
+        assert len(lines) == 3
+        game_started = json.loads(lines[0])
+        assert game_started["seed"] == 0.42
+
+        discard = json.loads(lines[1])
+        assert "seed" not in discard
+
+        game_ended = json.loads(lines[2])
+        assert "seed" not in game_ended
+
+    def test_game_started_client_event_excludes_seed(self):
+        """The client-facing GameStartedEvent model has no seed field."""
+        event = _make_game_started_event()
+        payload = service_event_payload(event)
+        assert "seed" not in payload
+
+    async def test_seed_cleaned_up_after_save(self):
+        """Seed is removed from internal state after save_and_cleanup."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.collect_events("game1", [_make_game_started_event()])
+        await collector.save_and_cleanup("game1")
+
+        assert "game1" not in collector._seeds
+
+    def test_seed_cleaned_up_after_cleanup(self):
+        """Seed is removed from internal state after cleanup_game."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.42)
+        collector.cleanup_game("game1")
+
+        assert "game1" not in collector._seeds
+
+    async def test_different_games_have_different_seeds(self):
+        """Each game stores its own seed independently."""
+        storage = FakeStorage()
+        collector = ReplayCollector(storage)
+
+        collector.start_game("game1", seed=0.111)
+        collector.start_game("game2", seed=0.222)
+        collector.collect_events("game1", [_make_game_started_event("game1")])
+        collector.collect_events("game2", [_make_game_started_event("game2")])
+        await collector.save_and_cleanup("game1")
+        await collector.save_and_cleanup("game2")
+
+        record1 = json.loads(storage.saved["game1"])
+        record2 = json.loads(storage.saved["game2"])
+        assert record1["seed"] == 0.111
+        assert record2["seed"] == 0.222
 
 
 class TestReplayCollectorSensitiveDataGuard:
@@ -534,7 +732,7 @@ class TestReplayCollectorSensitiveDataGuard:
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1")
+        collector.start_game("game1", seed=0.42)
         collector.cleanup_game("game1")
 
         collector.collect_events(

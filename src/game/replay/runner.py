@@ -18,6 +18,7 @@ from game.logic.events import ErrorEvent, EventType, ServiceEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState
+from game.replay.loader import ReplayLoadError
 from game.replay.models import (
     ReplayError,
     ReplayInput,
@@ -44,6 +45,7 @@ class ReplayServiceProtocol(Protocol):
         *,
         seed: float | None = None,
         settings: GameSettings | None = None,
+        wall: list[int] | None = None,
     ) -> list[ServiceEvent]: ...
     async def handle_action(
         self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
@@ -54,6 +56,16 @@ class ReplayServiceProtocol(Protocol):
     def get_pending_round_advance_human_names(self, game_id: str) -> list[str]: ...
 
 
+_CALL_RESPONSE_ACTIONS = frozenset(
+    {
+        GameAction.CALL_PON,
+        GameAction.CALL_CHI,
+        GameAction.CALL_KAN,
+        GameAction.CALL_RON,
+    }
+)
+
+
 @dataclass(frozen=True)
 class ReplayOptions:
     """Configuration for a replay run."""
@@ -61,6 +73,7 @@ class ReplayOptions:
     game_id: str
     strict: bool
     auto_confirm_rounds: bool
+    auto_pass_calls: bool
     max_steps: int
 
 
@@ -74,6 +87,7 @@ def run_replay(  # noqa: PLR0913
     game_id: str | None = None,
     strict: bool = True,
     auto_confirm_rounds: bool = True,
+    auto_pass_calls: bool = True,
     max_steps: int = 10_000,
     service_factory: Callable[[], ReplayServiceProtocol] | None = None,
 ) -> ReplayTrace:
@@ -92,6 +106,7 @@ def run_replay(  # noqa: PLR0913
                 game_id=game_id,
                 strict=strict,
                 auto_confirm_rounds=auto_confirm_rounds,
+                auto_pass_calls=auto_pass_calls,
                 max_steps=max_steps,
                 service_factory=service_factory,
             )
@@ -105,6 +120,7 @@ async def run_replay_async(  # noqa: PLR0913
     game_id: str | None = None,
     strict: bool = True,
     auto_confirm_rounds: bool = True,
+    auto_pass_calls: bool = True,
     max_steps: int = 10_000,
     service_factory: Callable[[], ReplayServiceProtocol] | None = None,
 ) -> ReplayTrace:
@@ -118,6 +134,7 @@ async def run_replay_async(  # noqa: PLR0913
         game_id=game_id or f"replay-{uuid.uuid4().hex}",
         strict=strict,
         auto_confirm_rounds=auto_confirm_rounds,
+        auto_pass_calls=auto_pass_calls,
         max_steps=max_steps,
     )
     factory = service_factory or _default_service_factory
@@ -137,8 +154,15 @@ async def _execute_replay(
     """Core replay execution loop."""
     if opts.auto_confirm_rounds:
         _reject_manual_confirm_rounds(replay)
+    if opts.auto_pass_calls:
+        _reject_manual_pass(replay)
 
-    startup_events = await service.start_game(opts.game_id, list(replay.player_names), seed=replay.seed)
+    startup_events = await service.start_game(
+        opts.game_id,
+        list(replay.player_names),
+        seed=replay.seed,
+        wall=list(replay.wall) if replay.wall is not None else None,
+    )
     _check_startup_errors(startup_events, opts.strict)
 
     initial_state = _require_state(
@@ -166,15 +190,21 @@ async def _execute_replay(
                 )
             break
 
-        if opts.auto_confirm_rounds and service.is_round_advance_pending(opts.game_id):
-            step_count = await _inject_round_confirmations(
+        step_count = await _maybe_confirm_round(service, steps, step_count, opts)
+
+        if opts.auto_pass_calls:
+            step_count = await _handle_auto_pass_for_input(
                 service,
-                opts.game_id,
+                input_event,
+                seat_by_player,
                 steps,
                 step_count,
                 opts,
             )
-            _check_step_limit(step_count, opts.max_steps)
+
+        # Auto-pass resolution may end the round (e.g. exhaustive draw after
+        # the last call prompt resolves). Re-check for round advance.
+        step_count = await _maybe_confirm_round(service, steps, step_count, opts)
 
         step_count = await _process_input_event(
             service,
@@ -184,15 +214,18 @@ async def _execute_replay(
             opts,
         )
 
-    # Handle any trailing round advance after all input events are consumed
-    if opts.auto_confirm_rounds and service.is_round_advance_pending(opts.game_id):
-        step_count = await _inject_round_confirmations(
+    # Handle any trailing call prompt after all input events are consumed
+    if opts.auto_pass_calls:
+        step_count = await _inject_pass_calls(
             service,
             opts.game_id,
             steps,
             step_count,
             opts,
         )
+
+    # Handle any trailing round advance after all input events are consumed
+    step_count = await _maybe_confirm_round(service, steps, step_count, opts)
 
     final_state = _require_state(service, opts.game_id, "replay finished but final state is missing")
     return ReplayTrace(
@@ -223,10 +256,26 @@ def _reject_manual_confirm_rounds(replay: ReplayInput) -> None:
     """
     confirm_indices = [i for i, event in enumerate(replay.events) if event.action == GameAction.CONFIRM_ROUND]
     if confirm_indices:
-        raise ValueError(
+        raise ReplayLoadError(
             f"ReplayInput.events contains CONFIRM_ROUND at indices {confirm_indices}, "
             "but auto_confirm_rounds=True. Either remove CONFIRM_ROUND events from "
             "the input or set auto_confirm_rounds=False."
+        )
+
+
+def _reject_manual_pass(replay: ReplayInput) -> None:
+    """Reject PASS events in input when auto_pass_calls is enabled.
+
+    When auto_pass_calls=True, the runner injects synthetic PASS steps
+    automatically. Manual PASS events in the input would conflict and produce
+    duplicate pass errors.
+    """
+    pass_indices = [i for i, event in enumerate(replay.events) if event.action == GameAction.PASS]
+    if pass_indices:
+        raise ReplayLoadError(
+            f"ReplayInput.events contains PASS at indices {pass_indices}, "
+            "but auto_pass_calls=True. Either remove PASS events from "
+            "the input or set auto_pass_calls=False."
         )
 
 
@@ -288,6 +337,19 @@ async def _process_input_event(
     return step_count + 1
 
 
+async def _maybe_confirm_round(
+    service: ReplayServiceProtocol,
+    steps: list[ReplayStep],
+    step_count: int,
+    opts: ReplayOptions,
+) -> int:
+    """Inject round confirmations if a round advance is pending."""
+    if opts.auto_confirm_rounds and service.is_round_advance_pending(opts.game_id):
+        step_count = await _inject_round_confirmations(service, opts.game_id, steps, step_count, opts)
+        _check_step_limit(step_count, opts.max_steps)
+    return step_count
+
+
 async def _inject_round_confirmations(
     service: ReplayServiceProtocol,
     game_id: str,
@@ -330,6 +392,131 @@ async def _inject_round_confirmations(
                 ),
                 synthetic=True,
                 emitted_events=tuple(confirm_events),
+                state_before=synthetic_before,
+                state_after=state_after,
+            )
+        )
+        step_count += 1
+
+    return step_count
+
+
+async def _handle_auto_pass_for_input(  # noqa: PLR0913
+    service: ReplayServiceProtocol,
+    input_event: ReplayInputEvent,
+    seat_by_player: dict[str, int],
+    steps: list[ReplayStep],
+    step_count: int,
+    opts: ReplayOptions,
+) -> int:
+    """Handle auto-pass logic before processing an input event.
+
+    If a call prompt is pending:
+    - If the input is a call response from a pending seat, skip that seat
+      (it will be processed normally) and auto-pass the remaining seats.
+    - Otherwise, auto-pass all pending seats first.
+    """
+    state = _require_state(
+        service,
+        opts.game_id,
+        "game state disappeared before auto-pass check",
+    )
+    prompt = state.round_state.pending_call_prompt
+    if prompt is None:
+        return step_count
+
+    input_seat = seat_by_player.get(input_event.player_name)
+    is_call_response = (
+        input_event.action in _CALL_RESPONSE_ACTIONS
+        and input_seat is not None
+        and input_seat in prompt.pending_seats
+    )
+
+    exclude_seats = frozenset({input_seat}) if is_call_response and input_seat is not None else frozenset()
+    return await _inject_pass_calls(
+        service,
+        opts.game_id,
+        steps,
+        step_count,
+        opts,
+        exclude_seats=exclude_seats,
+    )
+
+
+async def _inject_pass_calls(  # noqa: PLR0913
+    service: ReplayServiceProtocol,
+    game_id: str,
+    steps: list[ReplayStep],
+    step_count: int,
+    opts: ReplayOptions,
+    *,
+    exclude_seats: frozenset[int] = frozenset(),
+) -> int:
+    """Inject synthetic PASS steps for pending call prompt seats.
+
+    exclude_seats: seats to skip (e.g., the seat of the next input event
+    that is itself a call response).
+    """
+    state = _require_state(
+        service,
+        game_id,
+        "game state disappeared before auto-pass injection",
+    )
+    prompt = state.round_state.pending_call_prompt
+    if prompt is None:
+        return step_count
+
+    seat_to_name = {p.seat: p.name for p in state.round_state.players}
+    seats_to_pass = sorted(prompt.pending_seats - exclude_seats)
+    for seat in seats_to_pass:
+        # Re-read prompt state: earlier PASS may have resolved the prompt entirely
+        fresh_state = _require_state(
+            service,
+            game_id,
+            "game state disappeared during auto-pass injection",
+        )
+        if fresh_state.round_state.pending_call_prompt is None:  # pragma: no cover
+            break
+
+        _check_step_limit(step_count, opts.max_steps)
+        player_name = seat_to_name[seat]
+
+        synthetic_before = _require_state(
+            service,
+            game_id,
+            "game state disappeared before synthetic pass",
+        )
+
+        pass_events = await service.handle_action(
+            game_id,
+            player_name,
+            GameAction.PASS,
+            {},
+        )
+
+        if opts.strict:
+            errors = [e for e in pass_events if e.event == EventType.ERROR]
+            if errors:
+                synthetic_event = ReplayInputEvent(
+                    player_name=player_name,
+                    action=GameAction.PASS,
+                )
+                raise ReplayError(step_count, synthetic_event, errors)
+
+        state_after = _require_state(
+            service,
+            game_id,
+            "game state disappeared after synthetic pass",
+        )
+
+        steps.append(
+            ReplayStep(
+                input_event=ReplayInputEvent(
+                    player_name=player_name,
+                    action=GameAction.PASS,
+                ),
+                synthetic=True,
+                emitted_events=tuple(pass_events),
                 state_before=synthetic_before,
                 state_after=state_after,
             )

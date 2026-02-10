@@ -107,6 +107,7 @@ class MahjongGameService(GameService):
         *,
         seed: float | None = None,
         settings: GameSettings | None = None,
+        wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
         """
         Start a new mahjong game with the given players.
@@ -115,6 +116,7 @@ class MahjongGameService(GameService):
         Returns initial state events for each player.
         When seed is provided, the game is deterministically reproducible.
         When seed is None, a random seed is generated.
+        When wall is provided, use it instead of generating from seed.
         """
         game_seed = seed if seed is not None else random.random()  # noqa: S311
         logger.info(f"starting game {game_id} with players: {player_names}")
@@ -122,7 +124,7 @@ class MahjongGameService(GameService):
 
         game_settings = settings or self._settings
         try:
-            frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings)
+            frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings, wall=wall)
         except UnsupportedSettingsError as e:
             return self._create_error_event(GameErrorCode.INVALID_ACTION, str(e))
         self._games[game_id] = frozen_game
@@ -399,6 +401,11 @@ class MahjongGameService(GameService):
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
         """Return the current game state, or None if game doesn't exist."""
         return self._games.get(game_id)
+
+    def get_game_seed(self, game_id: str) -> float | None:
+        """Return the seed for a game, or None if game doesn't exist."""
+        game_state = self._games.get(game_id)
+        return game_state.seed if game_state is not None else None
 
     def is_round_advance_pending(self, game_id: str) -> bool:
         """Check if a round advance is waiting for human confirmation."""

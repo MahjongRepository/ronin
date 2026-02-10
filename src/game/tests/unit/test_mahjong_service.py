@@ -476,6 +476,16 @@ class TestServiceAccessors:
 
         assert state is None
 
+    async def test_get_game_seed_returns_seed_after_start(self, service):
+        """get_game_seed returns the seed used to start the game."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+
+        assert service.get_game_seed("game1") == 2.0
+
+    async def test_get_game_seed_returns_none_for_nonexistent(self, service):
+        """get_game_seed returns None for unknown game_id."""
+        assert service.get_game_seed("nonexistent") is None
+
     async def test_is_round_advance_pending_true_after_round_end(self, service):
         """is_round_advance_pending returns True after round ends (human must confirm)."""
         await service.start_game("game1", ["Human"], seed=2.0)

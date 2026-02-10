@@ -1,0 +1,53 @@
+{"type": "game_started", "game_id": "324c09e6-677e-474c-a6e3-75a61e44353a", "players": [{"seat": 0, "name": "Akagi", "is_bot": false}, {"seat": 1, "name": "Wanjirou", "is_bot": false}, {"seat": 2, "name": "Ichihime", "is_bot": false}, {"seat": 3, "name": "Ojisan", "is_bot": false}], "seed": 0.545359349479906}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 0, "dealer_seat": 0, "current_player_seat": 0, "wall_count": 70, "dora_indicators": [112], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Akagi", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [0, 28, 37, 47, 52, 53, 75, 76, 86, 101, 104, 118, 123]}, {"seat": 1, "name": "Wanjirou", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [8, 23, 82, 92, 95, 98, 100, 115, 117, 119, 120, 128, 131]}, {"seat": 2, "name": "Ichihime", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [17, 34, 44, 46, 49, 63, 68, 87, 116, 121, 124, 126, 127]}, {"seat": 3, "name": "Ojisan", "is_bot": false, "score": 25000, "is_riichi": false, "discards": [], "melds": [], "tile_count": 13, "tiles": [10, 18, 20, 30, 35, 36, 77, 78, 99, 110, 122, 129, 134]}], "phase": "playing", "game_phase": "in_progress"}}
+{"type": "draw", "seat": 0, "tile_id": 65}
+{"type": "discard", "seat": 0, "tile_id": 123, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 43}
+{"type": "discard", "seat": 1, "tile_id": 120, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 70}
+{"type": "discard", "seat": 2, "tile_id": 34, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 83}
+{"type": "discard", "seat": 3, "tile_id": 122, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 1}
+{"type": "discard", "seat": 0, "tile_id": 65, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 15}
+{"type": "discard", "seat": 1, "tile_id": 115, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 71}
+{"type": "discard", "seat": 2, "tile_id": 121, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 41}
+{"type": "discard", "seat": 3, "tile_id": 134, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 5}
+{"type": "discard", "seat": 0, "tile_id": 28, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 60}
+{"type": "discard", "seat": 1, "tile_id": 82, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 66}
+{"type": "discard", "seat": 2, "tile_id": 87, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 32}
+{"type": "discard", "seat": 3, "tile_id": 129, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 1, "from_seat": 3, "tile_ids": [128, 129, 131], "called_tile_id": 129}
+{"type": "discard", "seat": 1, "tile_id": 43, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "chi", "kan_type": null, "caller_seat": 2, "from_seat": 1, "tile_ids": [43, 44, 49], "called_tile_id": 43}
+{"type": "discard", "seat": 2, "tile_id": 17, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 2}
+{"type": "discard", "seat": 3, "tile_id": 110, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 27}
+{"type": "discard", "seat": 0, "tile_id": 27, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 45}
+{"type": "discard", "seat": 1, "tile_id": 45, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 4}
+{"type": "discard", "seat": 2, "tile_id": 4, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 107}
+{"type": "discard", "seat": 3, "tile_id": 30, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 94}
+{"type": "discard", "seat": 0, "tile_id": 75, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 1, "tile_id": 16}
+{"type": "discard", "seat": 1, "tile_id": 60, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 39}
+{"type": "discard", "seat": 2, "tile_id": 116, "is_tsumogiri": false, "is_riichi": false}
+{"type": "meld", "meld_type": "pon", "kan_type": null, "caller_seat": 1, "from_seat": 2, "tile_ids": [116, 117, 119], "called_tile_id": 116}
+{"type": "discard", "seat": 1, "tile_id": 95, "is_tsumogiri": false, "is_riichi": false}
+{"type": "draw", "seat": 2, "tile_id": 130}
+{"type": "discard", "seat": 2, "tile_id": 130, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 3, "tile_id": 31}
+{"type": "discard", "seat": 3, "tile_id": 41, "is_tsumogiri": false, "is_riichi": false}
+{"type": "round_end", "result": {"type": "ron", "winner_seat": 2, "loser_seat": 3, "winning_tile": 41, "hand_result": {"han": 3, "fu": 30, "yaku": ["Yakuhai (haku)", "Honitsu"], "cost_main": 3900, "cost_additional": 0}, "score_changes": {"0": 0, "1": 0, "2": 3900, "3": -3900}, "riichi_sticks_collected": 0, "closed_tiles": [46, 63, 68, 124, 126, 127, 70, 71, 66, 39], "melds": [{"type": "chi", "tile_ids": [43, 44, 49], "opened": true, "from_who": 1}], "pao_seat": null, "ura_dora_indicators": null}}

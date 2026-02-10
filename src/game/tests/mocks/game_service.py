@@ -32,6 +32,7 @@ class MockGameService(GameService):
 
     def __init__(self) -> None:
         self._player_seats: dict[str, dict[str, int]] = {}  # game_id -> {player_name -> seat}
+        self._seeds: dict[str, float] = {}  # game_id -> seed
 
     def get_player_seat(self, game_id: str, player_name: str) -> int | None:
         """Get the seat number for a player by name."""
@@ -68,11 +69,12 @@ class MockGameService(GameService):
         game_id: str,
         player_names: list[str],
         *,
-        seed: float | None = None,  # noqa: ARG002
+        seed: float | None = None,
         settings: GameSettings | None = None,  # noqa: ARG002
     ) -> list[ServiceEvent]:
         # store player seat assignments (seat 0 for first player)
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}
+        self._seeds[game_id] = seed if seed is not None else 0.0
 
         all_names = player_names + ["Bot"] * (4 - len(player_names))
         human_count = len(player_names)
@@ -124,8 +126,13 @@ class MockGameService(GameService):
             ),
         ]
 
+    def get_game_seed(self, game_id: str) -> float | None:
+        """Return the seed for a game, or None if game doesn't exist."""
+        return self._seeds.get(game_id)
+
     def cleanup_game(self, game_id: str) -> None:
         self._player_seats.pop(game_id, None)
+        self._seeds.pop(game_id, None)
 
     def replace_player_with_bot(
         self,

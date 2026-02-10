@@ -101,10 +101,15 @@ class SessionManager:
             rotate_log_file(self._log_dir)
         game = Game(game_id=game_id, num_bots=num_bots)
         self._games[game_id] = game
-        if self._replay_collector:
-            self._replay_collector.start_game(game_id)
         logger.info(f"game created: {game_id} num_bots={num_bots}")
         return game
+
+    def _start_replay_collection(self, game_id: str) -> None:
+        """Start replay collection with the game seed (known after game_service.start_game)."""
+        if self._replay_collector:
+            seed = self._game_service.get_game_seed(game_id)
+            if seed is not None:
+                self._replay_collector.start_game(game_id, seed)
 
     async def _send_error(self, connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
@@ -346,6 +351,8 @@ class SessionManager:
             game.started = False
             await self._broadcast_events(game, events)
             return
+
+        self._start_replay_collection(game.game_id)
 
         # assign seats to session players still connected after the await
         for player in game.players.values():

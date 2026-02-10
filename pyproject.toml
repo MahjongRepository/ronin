@@ -81,6 +81,7 @@ ignore = [
     "S101", # Use of `assert` detected
     "SLF001", # Private member accessed - common in tests to verify internal state
     "D401", # Imperative mood - test helpers often use descriptive names
+    "PLR0915", # Too many statements - integration tests need thorough assertions
 ]
 "conftest.py" = [
     "ANN001", # Missing type annotation for function argument

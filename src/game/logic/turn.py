@@ -651,7 +651,8 @@ def _check_four_kans_abort(
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(RoundEndEvent(result=result, target="all"))
         return new_round_state, new_game_state, events, True
-    return round_state, game_state, events, False
+    new_game_state = game_state.model_copy(update={"round_state": round_state})
+    return round_state, new_game_state, events, False
 
 
 def _process_open_kan_call(
