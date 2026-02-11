@@ -247,11 +247,10 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     if not original_waits:
         return False
 
-    # if the kan tile is one of the waits, cannot kan
-    # with 3 copies held, the 4th copy cannot complete a valid mentsu pattern,
-    # making this condition mathematically unreachable
-    if tile_34 in original_waits:  # pragma: no cover
-        raise AssertionError(f"kan tile {tile_34} is a wait with 3 copies held")
+    # if the kan tile is one of the waits, the kan would change the waits
+    # (e.g., 78p + 999p can wait on 9p via 789p + 9p pair reading)
+    if tile_34 in original_waits:
+        return False
 
     # simulate kan state with all 14 tiles retained; the hand calculator
     # subtracts the kan meld tiles internally when evaluating tenpai.

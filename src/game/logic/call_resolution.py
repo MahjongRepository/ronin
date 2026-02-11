@@ -23,6 +23,7 @@ from game.logic.enums import (
     RoundPhase,
 )
 from game.logic.events import (
+    DrawEvent,
     GameEvent,
     MeldEvent,
     RiichiDeclaredEvent,
@@ -152,14 +153,16 @@ def _resolve_meld_response(
     if new_round_state.phase == RoundPhase.FINISHED:
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
-    # open kan draws from dead wall; include tile_id in draw event
-    tile_id = None
     if meld_type == MeldCallType.OPEN_KAN:
+        # open kan draws from dead wall; include tile_id and available actions
         player = new_round_state.players[best.seat]
-        if player.tiles:
-            tile_id = player.tiles[-1]
+        tile_id = player.tiles[-1] if player.tiles else None
+        events.append(create_draw_event(new_round_state, new_game_state, best.seat, tile_id=tile_id))
+    else:
+        # after pon/chi, the only valid action is discard (no draw from wall)
+        draw = DrawEvent(seat=best.seat, tile_id=None, target=f"seat_{best.seat}")
+        events.append(draw)
 
-    events.append(create_draw_event(new_round_state, new_game_state, best.seat, tile_id=tile_id))
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
 

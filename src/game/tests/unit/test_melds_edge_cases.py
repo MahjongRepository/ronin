@@ -273,6 +273,50 @@ class TestRiichiKanWaitPreservation:
         # This should be rejected because kan changes the hand structure
         assert result is False
 
+    def test_kan_rejected_when_tile_is_also_a_wait(self):
+        """Test closed kan during riichi rejected when kan tile is also a wait.
+
+        Hand: 11234m 567s 789999p (14 tiles, riichi player just drew 4th 9p).
+        Remove one 9p -> 11234m 567s 78999p = 13 tiles.
+        Tenpai readings:
+        - 234m + 567s + 999p + 11m + 78p -> wait on 6p or 9p
+        - 234m + 567s + 789p + 99p + 11m -> shanpon wait on 1m or 9p
+        Since 9p is among the waits, kan on 9p must be rejected.
+        """
+        tiles = TilesConverter.string_to_136_array(man="11234", sou="567", pin="789999")
+
+        player = create_player(seat=0, tiles=tiles, is_riichi=True)
+
+        # 9p in 34-format = 17
+        nine_pin_tiles = TilesConverter.string_to_136_array(pin="9")
+        tile_34_9p = tile_to_34(nine_pin_tiles[0])
+
+        result = _kan_preserves_waits_for_riichi(player, tile_34_9p)
+
+        assert result is False
+
+    def test_kan_tile_as_wait_excluded_from_possible_kans(self):
+        """Test get_possible_closed_kans excludes kan when tile is a wait.
+
+        Same hand as test_kan_rejected_when_tile_is_also_a_wait.
+        9p should not appear in possible closed kans.
+        """
+        tiles = TilesConverter.string_to_136_array(man="11234", sou="567", pin="789999")
+
+        player = create_player(seat=0, tiles=tiles, is_riichi=True)
+
+        players = [player] + [create_player(seat=i) for i in range(1, 4)]
+        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
+        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
+        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
+
+        settings = GameSettings()
+        result = get_possible_closed_kans(player, round_state, settings)
+
+        nine_pin_tiles = TilesConverter.string_to_136_array(pin="9")
+        tile_34_9p = tile_to_34(nine_pin_tiles[0])
+        assert tile_34_9p not in result
+
     def test_riichi_closed_kan_with_wait_check(self):
         """Test riichi player closed kan only if waits preserved.
 

@@ -432,3 +432,86 @@ class TestCompleteAddedKanAfterChankanDecline:
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
+
+
+class TestResolvePonMeldResponse:
+    """Draw event after pon/chi must have no available actions.
+
+    Per mahjong rules, after calling pon/chi the only valid action is to
+    discard a tile. Kan, tsumo, and riichi can only be declared after
+    drawing a tile from the wall.
+    """
+
+    def test_pon_draw_event_has_no_available_actions(self):
+        """Draw event after pon has empty available_actions, even when closed kan is possible."""
+        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        round_state = game_state.round_state
+
+        # give seat 0 four of a kind (potential closed kan) plus other tiles
+        four_of_kind = TilesConverter.string_to_136_array(sou="8888")
+        other_tiles = TilesConverter.string_to_136_array(man="123", pin="456", sou="12")
+        # also give 2 matching tiles for pon on the discarded tile
+        pon_pair = TilesConverter.string_to_136_array(man="99")[:2]
+        player_tiles = tuple(four_of_kind + other_tiles + pon_pair)
+        round_state = update_player(round_state, 0, tiles=player_tiles)
+        round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        # seat 1 discards 9m, seat 0 calls pon
+        discard_tile = TilesConverter.string_to_136_array(man="99")[1]
+        prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=discard_tile,
+            from_seat=1,
+            pending_seats=frozenset(),
+            callers=(MeldCaller(seat=0, call_type=MeldCallType.PON),),
+            responses=(CallResponse(seat=0, action=GameAction.CALL_PON),),
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        result = resolve_call_prompt(round_state, game_state)
+
+        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
+        assert len(draw_events) == 1
+        assert draw_events[0].tile_id is None
+        assert draw_events[0].available_actions == []
+
+    def test_chi_draw_event_has_no_available_actions(self):
+        """Draw event after chi has empty available_actions."""
+        game_state = init_game(_default_seat_configs(), seed=42.0)
+        round_state = game_state.round_state
+
+        # give seat 1 tiles that form a chi sequence with 5m (e.g. has 4m, 6m)
+        chi_tiles = TilesConverter.string_to_136_array(man="46")
+        other_tiles = TilesConverter.string_to_136_array(man="123", pin="456789", sou="12")
+        player_tiles = tuple(chi_tiles + other_tiles)
+        round_state = update_player(round_state, 1, tiles=player_tiles)
+        round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        # seat 0 discards 5m, seat 1 calls chi
+        discard_tile = TilesConverter.string_to_136_array(man="5")[0]
+        prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=discard_tile,
+            from_seat=0,
+            pending_seats=frozenset(),
+            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI),),
+            responses=(
+                CallResponse(
+                    seat=1,
+                    action=GameAction.CALL_CHI,
+                    sequence_tiles=tuple(chi_tiles),
+                ),
+            ),
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        result = resolve_call_prompt(round_state, game_state)
+
+        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
+        assert len(draw_events) == 1
+        assert draw_events[0].tile_id is None
+        assert draw_events[0].available_actions == []
