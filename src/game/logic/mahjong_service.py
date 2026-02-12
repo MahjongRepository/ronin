@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from game.logic.action_handlers import (
+    TURN_ACTIONS,
     handle_chi,
     handle_discard,
     handle_kan,
@@ -42,7 +43,7 @@ from game.logic.events import (
     extract_round_result,
     parse_wire_target,
 )
-from game.logic.exceptions import InvalidActionError, UnsupportedSettingsError
+from game.logic.exceptions import InvalidActionError, InvalidGameActionError, UnsupportedSettingsError
 from game.logic.game import (
     check_game_end,
     finalize_game,
@@ -227,6 +228,14 @@ class MahjongGameService(GameService):
         if game_state.round_state.phase != RoundPhase.PLAYING:
             return self._create_error_event(
                 GameErrorCode.INVALID_ACTION, "round is not in progress", target=f"seat_{seat}"
+            )
+
+        # turn actions are never valid while a call prompt is pending
+        if game_state.round_state.pending_call_prompt is not None and action in TURN_ACTIONS:
+            raise InvalidGameActionError(
+                action=action.value,
+                seat=seat,
+                reason="cannot perform turn action while a call prompt is pending",
             )
 
         events = await self._dispatch_and_process(game_id, seat, action, data)
@@ -459,13 +468,30 @@ class MahjongGameService(GameService):
         player = game_state.round_state.players[seat]
         if game_state.round_state.current_player_seat != seat or not player.tiles:
             return []
+        if game_state.round_state.pending_call_prompt is not None:
+            return []
         tile_id = player.tiles[-1]
-        return await self.handle_action(game_id, player_name, GameAction.DISCARD, {"tile_id": tile_id})
+        try:
+            return await self.handle_action(game_id, player_name, GameAction.DISCARD, {"tile_id": tile_id})
+        except InvalidGameActionError as e:
+            if e.seat != seat:
+                raise
+            logger.warning(
+                f"game {game_id}: turn timeout for '{player_name}' seat {seat} "
+                f"hit InvalidGameActionError (race condition), ignoring"
+            )
+            return []
 
     async def _handle_meld_timeout(
         self, game_id: str, game_state: MahjongGameState, player_name: str, seat: int
     ) -> list[ServiceEvent]:
-        """Handle MELD timeout: pass on the call opportunity."""
+        """Handle MELD timeout: pass on the call opportunity.
+
+        Lets InvalidGameActionError propagate to the session manager for disconnect handling.
+        A meld timeout PASS can trigger prompt resolution, which may fail if another caller
+        previously submitted invalid data (defense-in-depth safety net). The session manager
+        must handle disconnect + bot replacement for the offending seat.
+        """
         prompt = game_state.round_state.pending_call_prompt
         if prompt is None or seat not in prompt.pending_seats:
             return []
@@ -596,12 +622,62 @@ class MahjongGameService(GameService):
             else:
                 action, data = GameAction.PASS, {}
 
-            result = self._dispatch_action(game_state, seat, action, data)
-            if result is None:  # pragma: no cover - bot actions are always valid dispatch targets
-                logger.error(f"game {game_id}: unexpected None from _dispatch_action for bot action={action}")
+            result = self._dispatch_bot_call_action(game_id, game_state, seat, action, data)
+            if result is None:
                 break
             self._update_state_from_result(game_id, result)
             events.extend(convert_events(result.events))
+
+    def _try_bot_dispatch(  # noqa: PLR0913
+        self,
+        game_state: MahjongGameState,
+        game_id: str,
+        seat: int,
+        action: GameAction,
+        data: dict[str, Any],
+        label: str,
+    ) -> ActionResult | None:
+        """Attempt a bot dispatch, returning None on own-seat failure.
+
+        Re-raises InvalidGameActionError if the error blames a different seat
+        (e.g. resolution failed on a human player's prior invalid data).
+        """
+        try:
+            return self._dispatch_action(game_state, seat, action, data)
+        except InvalidGameActionError as e:
+            if e.seat != seat:
+                raise
+            logger.exception(f"game {game_id}: bot at seat {seat} {label} action={action}")
+            return None
+
+    def _dispatch_bot_call_action(
+        self,
+        game_id: str,
+        game_state: MahjongGameState,
+        seat: int,
+        action: GameAction,
+        data: dict[str, Any],
+    ) -> ActionResult | None:
+        """Dispatch a bot call response, falling back to PASS on failure.
+
+        Returns ActionResult on success, or None if both the original action
+        and the PASS fallback fail. Re-raises if the error blames a different
+        seat (e.g. resolution failed on a human player's prior invalid data).
+        """
+        label = "call failed, falling back to PASS"
+        result = self._try_bot_dispatch(game_state, game_id, seat, action, data, label)
+        if result is not None:
+            return result
+        if action == GameAction.PASS:
+            return None
+        return self._try_bot_dispatch(
+            game_state,
+            game_id,
+            seat,
+            GameAction.PASS,
+            {},
+            "PASS fallback also failed",
+        )
 
     def _find_caller_info(self, prompt: PendingCallPrompt, seat: int) -> int | MeldCaller:
         """Find caller info for a seat from the prompt's callers list."""
@@ -863,12 +939,69 @@ class MahjongGameService(GameService):
             if not bot_controller.is_bot(current_seat):
                 break
 
-            action_data = bot_controller.get_turn_action(current_seat, round_state)
-            if action_data is None:
+            events = await self._execute_bot_turn(game_id, bot_controller, current_seat)
+            if events is None:
                 break
-
-            action, data = action_data
-            events = await self._dispatch_and_process(game_id, current_seat, action, data)
             all_events.extend(events)
 
         return all_events
+
+    async def _try_bot_dispatch_async(
+        self,
+        game_id: str,
+        seat: int,
+        action: GameAction,
+        data: dict[str, Any],
+        label: str,
+    ) -> list[ServiceEvent] | None:
+        """Attempt an async bot dispatch, returning None on own-seat failure.
+
+        Re-raises InvalidGameActionError if the error blames a different seat.
+        """
+        try:
+            return await self._dispatch_and_process(game_id, seat, action, data)
+        except InvalidGameActionError as e:
+            if e.seat != seat:
+                raise
+            logger.exception(f"game {game_id}: bot at seat {seat} {label} action={action}")
+            return None
+
+    async def _execute_bot_turn(
+        self, game_id: str, bot_controller: BotController, seat: int
+    ) -> list[ServiceEvent] | None:
+        """Execute a single bot turn action, falling back to tsumogiri on failure.
+
+        Returns events on success, or None if the bot has no action or all fallbacks fail.
+        Re-raises InvalidGameActionError when the error blames a different seat (human).
+        """
+        round_state = self._games[game_id].round_state
+        action_data = bot_controller.get_turn_action(seat, round_state)
+        if action_data is None:
+            return None
+
+        action, data = action_data
+        result = await self._try_bot_dispatch_async(
+            game_id, seat, action, data, "turn failed, falling back to tsumogiri"
+        )
+        if result is not None:
+            return result
+        return await self._bot_tsumogiri_fallback(game_id, seat)
+
+    async def _bot_tsumogiri_fallback(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
+        """Fallback to tsumogiri (discard last tile) when a bot's turn action fails.
+
+        Returns events on success, or None if the fallback also fails.
+        """
+        fallback_state = self._games.get(game_id)
+        if fallback_state is None:
+            return None
+        fallback_player = fallback_state.round_state.players[seat]
+        if not fallback_player.tiles:
+            return None
+        return await self._try_bot_dispatch_async(
+            game_id,
+            seat,
+            GameAction.DISCARD,
+            {"tile_id": fallback_player.tiles[-1]},
+            "tsumogiri fallback also failed",
+        )

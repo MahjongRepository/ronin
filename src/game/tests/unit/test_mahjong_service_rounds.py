@@ -27,7 +27,7 @@ from game.logic.events import (
     SeatTarget,
     ServiceEvent,
 )
-from game.logic.exceptions import InvalidActionError
+from game.logic.exceptions import InvalidActionError, InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import PendingCallPrompt
 from game.logic.types import (
@@ -101,6 +101,81 @@ class TestMahjongGameServiceHandleTimeout:
 
         with pytest.raises(InvalidActionError, match="Unknown timeout type"):
             await service.handle_timeout("game1", "Human", "invalid")
+
+    async def test_turn_timeout_skips_when_pending_prompt(self, service):
+        """Turn timeout returns empty when a call prompt is pending (race condition)."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+        round_state = game_state.round_state
+        human = _find_human_player(round_state, "Human")
+
+        prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=0,
+            from_seat=(human.seat + 1) % 4,
+            pending_seats=frozenset({(human.seat + 2) % 4}),
+            callers=(MeldCaller(seat=(human.seat + 2) % 4, call_type=MeldCallType.PON),),
+        )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
+
+        events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
+        assert events == []
+
+    async def test_turn_timeout_catches_invalid_game_action_error(self, service):
+        """Turn timeout catches InvalidGameActionError when it blames the timed-out player's seat."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        human = _find_human_player(service._games["game1"].round_state, "Human")
+
+        with patch.object(
+            service,
+            "handle_action",
+            side_effect=InvalidGameActionError(action="discard", seat=human.seat, reason="test"),
+        ):
+            events = await service.handle_timeout("game1", "Human", TimeoutType.TURN)
+
+        assert events == []
+
+    async def test_turn_timeout_reraises_when_error_blames_different_seat(self, service):
+        """Turn timeout re-raises InvalidGameActionError when it blames a different seat."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        human = _find_human_player(service._games["game1"].round_state, "Human")
+        other_seat = (human.seat + 1) % 4
+
+        with (
+            patch.object(
+                service,
+                "handle_action",
+                side_effect=InvalidGameActionError(action="resolve_call", seat=other_seat, reason="test"),
+            ),
+            pytest.raises(InvalidGameActionError, match="test"),
+        ):
+            await service.handle_timeout("game1", "Human", TimeoutType.TURN)
+
+    async def test_meld_timeout_catches_invalid_game_action_error(self, service):
+        """Meld timeout catches InvalidGameActionError and returns empty (race condition)."""
+        await service.start_game("game1", ["Human"], seed=2.0)
+        game_state = service._games["game1"]
+        round_state = game_state.round_state
+        human = _find_human_player(round_state, "Human")
+
+        prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=0,
+            from_seat=(human.seat + 1) % 4,
+            pending_seats=frozenset({human.seat}),
+            callers=(MeldCaller(seat=human.seat, call_type=MeldCallType.PON),),
+        )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
+
+        with (
+            patch.object(
+                service,
+                "handle_action",
+                side_effect=InvalidGameActionError(action="pass", seat=human.seat, reason="test"),
+            ),
+            pytest.raises(InvalidGameActionError, match="test"),
+        ):
+            await service.handle_timeout("game1", "Human", TimeoutType.MELD)
 
 
 class TestMahjongGameServiceProcessBotFollowup:

@@ -38,3 +38,23 @@ class InvalidActionError(GameRuleError):
 
 class UnsupportedSettingsError(GameRuleError):
     """Game settings contain unsupported values that cannot be silently ignored."""
+
+
+class InvalidGameActionError(Exception):
+    """Raised when a player sends a provably invalid game action.
+
+    Indicates the client is sending fabricated data (modified client, bug, or attack).
+    The player should be disconnected and replaced with a bot.
+
+    Attributes:
+        action: The game action that was attempted (e.g. "discard", "declare_riichi").
+        seat: The seat number of the player.
+        reason: Human-readable explanation of why the action is invalid.
+
+    """
+
+    def __init__(self, *, action: str, seat: int, reason: str) -> None:
+        self.action = action
+        self.seat = seat
+        self.reason = reason
+        super().__init__(f"invalid {action} from seat {seat}: {reason}")

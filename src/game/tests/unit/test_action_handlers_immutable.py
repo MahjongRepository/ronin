@@ -5,6 +5,7 @@ Tests verify that the immutable handler functions return
 new state objects and produce the expected events.
 """
 
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
@@ -42,6 +43,7 @@ from game.logic.events import (
     MeldEvent,
     RoundEndEvent,
 )
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -614,12 +616,10 @@ class TestHandleKyuushuImmutable:
         round_state = update_player(round_state, 0, discards=(Discard(tile_id=0),))
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = handle_kyuushu(round_state, game_state, seat=0)
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.CANNOT_CALL_KYUUSHU
+        with pytest.raises(InvalidGameActionError) as exc_info:
+            handle_kyuushu(round_state, game_state, seat=0)
+        assert exc_info.value.action == "call_kyuushu"
+        assert exc_info.value.seat == 0
 
 
 class TestHandlePassImmutable:
@@ -939,36 +939,24 @@ class TestHandleDiscardImmutableWithPrompt:
 class TestHandlerErrorPaths:
     """Test error handling paths in immutable handlers."""
 
-    def test_discard_invalid_tile_returns_error(self):
-        """Test discarding a tile not in hand returns error."""
+    def test_discard_invalid_tile_raises(self):
+        """Test discarding a tile not in hand raises InvalidGameActionError."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
-        # try to discard a tile not in hand
         invalid_tile = 999
-        result = handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=invalid_tile))
+        with pytest.raises(InvalidGameActionError) as exc_info:
+            handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=invalid_tile))
+        assert exc_info.value.action == "discard"
+        assert exc_info.value.seat == 0
 
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_DISCARD
-        # state should be returned unchanged
-        assert result.new_round_state is round_state
-        assert result.new_game_state is game_state
-
-    def test_riichi_invalid_tile_returns_error(self):
-        """Test riichi with invalid tile returns error."""
+    def test_riichi_invalid_tile_raises(self):
+        """Test riichi with invalid tile raises InvalidGameActionError."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
-        # try to riichi with a tile not in hand
         invalid_tile = 999
-        result = handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=invalid_tile))
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_RIICHI
-        # state should be returned unchanged
-        assert result.new_round_state is round_state
-        assert result.new_game_state is game_state
+        with pytest.raises(InvalidGameActionError) as exc_info:
+            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=invalid_tile))
+        assert exc_info.value.action == "declare_riichi"
+        assert exc_info.value.seat == 0

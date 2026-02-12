@@ -15,6 +15,7 @@ from game.logic.events import (
     RoundStartedEvent,
     SeatTarget,
 )
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.timer import TimerConfig
 from game.messaging.event_payload import service_event_payload, shape_call_prompt_payload
 from game.messaging.types import (
@@ -227,7 +228,17 @@ class SessionManager:
                 message=PlayerLeftMessage(player_name=player_name).model_dump(),
             )
 
-        # clean up empty games (use pop to ensure only one task performs cleanup)
+        await self._cleanup_empty_game(game_id, game)
+
+    @staticmethod
+    def _remove_player_from_game(game: Game, connection_id: str, player: Player) -> None:
+        """Remove a player from a game and clear their game association."""
+        game.players.pop(connection_id, None)
+        player.game_id = None
+        player.seat = None
+
+    async def _cleanup_empty_game(self, game_id: str, game: Game) -> None:
+        """Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state."""
         if game.is_empty and self._games.pop(game_id, None) is not None:
             logger.info(f"game {game_id} is empty, cleaning up")
             self._timer_manager.cleanup_game(game_id)
@@ -236,13 +247,6 @@ class SessionManager:
             self._game_service.cleanup_game(game_id)
             if self._replay_collector:
                 self._replay_collector.cleanup_game(game_id)
-
-    @staticmethod
-    def _remove_player_from_game(game: Game, connection_id: str, player: Player) -> None:
-        """Remove a player from a game and clear their game association."""
-        game.players.pop(connection_id, None)
-        player.game_id = None
-        player.seat = None
 
     async def _replace_with_bot(self, game: Game, player_name: str, seat: int) -> None:
         """
@@ -268,6 +272,96 @@ class SessionManager:
             await self._maybe_start_timer(game, events)
             await self._close_connections_on_game_end(game, events)
 
+    async def _handle_invalid_action(
+        self,
+        game: Game,
+        connection: ConnectionProtocol,
+        player: Player,
+        error: InvalidGameActionError,
+    ) -> None:
+        """Handle a provably invalid game action: log, disconnect, replace with bot.
+
+        Must be called under the per-game lock.
+        Connection close and empty-game cleanup happen OUTSIDE the lock (by the caller).
+        """
+        game_id = game.game_id
+        player_name = player.name
+        player_seat = player.seat
+
+        logger.warning(
+            f"invalid game action: game={game_id} user_id={connection.connection_id} player={player_name} "
+            f"seat={error.seat} action={error.action} reason={error.reason}"
+        )
+
+        self._remove_player_from_game(game, connection.connection_id, player)
+
+        await self._broadcast_to_game(
+            game=game,
+            message=PlayerLeftMessage(player_name=player_name).model_dump(),
+        )
+
+        if not game.is_empty and player_seat is not None:
+            await self._replace_with_bot(game, player_name, player_seat)
+
+    async def _process_successful_action(
+        self, game: Game, game_id: str, player: Player, events: list[ServiceEvent]
+    ) -> None:
+        """Handle timer management and broadcasting after a successful game action."""
+        # failed actions (errors) should not consume bank time or cancel timers.
+        # successful actions that produce no events (e.g. partial pass while
+        # other callers are still pending) still stop the acting player's timer
+        # but don't cancel other players' meld timers.
+        if player.seat is not None and not self._has_error_events(events):
+            self._timer_manager.stop_player_timer(game_id, player.seat)
+            # cancel meld timers for other players only when the prompt resolved
+            if self._has_game_events(events):
+                self._timer_manager.cancel_other_timers(game_id, player.seat)
+
+        await self._broadcast_events(game, events)
+        await self._maybe_start_timer(game, events)
+        await self._close_connections_on_game_end(game, events)
+
+    async def _process_invalid_action(
+        self, game: Game, game_id: str, error: InvalidGameActionError
+    ) -> ConnectionProtocol | None:
+        """Handle InvalidGameActionError under the lock.
+
+        Returns the offender connection for post-lock close, or None if the offending seat
+        has no connected player (e.g. bot seat).
+        """
+        # resolve offender by seat from exception (critical for resolution-triggered errors)
+        offender_player = self._get_player_at_seat(game, error.seat)
+        if offender_player is None:
+            # offending seat has no connected player (bot seat) — log and skip disconnect
+            logger.warning(
+                f"game {game_id}: InvalidGameActionError at seat {error.seat} "
+                f"but no player found (likely a bot seat), skipping disconnect"
+            )
+            return None
+        offender_connection = offender_player.connection
+        try:
+            await self._handle_invalid_action(game, offender_connection, offender_player, error)
+        except Exception:
+            logger.exception(
+                f"error during invalid action handling for game {game_id}, "
+                f"player already removed, continuing with disconnect"
+            )
+        return offender_connection
+
+    async def _close_offender_and_cleanup(
+        self, offender_connection: ConnectionProtocol | None, game_id: str, game: Game
+    ) -> None:
+        """Close the offender's connection and clean up the game if empty.
+
+        Called OUTSIDE the per-game lock to avoid deadlock risk from connection.close()
+        triggering WebSocket disconnect handler.
+        """
+        if offender_connection is None:
+            return
+        with contextlib.suppress(RuntimeError, OSError):
+            await offender_connection.close(code=1008, reason="invalid_game_action")
+        await self._cleanup_empty_game(game_id, game)
+
     async def handle_game_action(
         self,
         connection: ConnectionProtocol,
@@ -289,27 +383,21 @@ class SessionManager:
             await self._send_error(connection, SessionErrorCode.GAME_NOT_STARTED, "Game has not started yet")
             return
 
+        offender_connection: ConnectionProtocol | None = None
         async with lock:
-            events = await self._game_service.handle_action(
-                game_id=game_id,
-                player_name=player.name,
-                action=action,
-                data=data,
-            )
+            try:
+                events = await self._game_service.handle_action(
+                    game_id=game_id,
+                    player_name=player.name,
+                    action=action,
+                    data=data,
+                )
+            except InvalidGameActionError as e:
+                offender_connection = await self._process_invalid_action(game, game_id, e)
+            else:
+                await self._process_successful_action(game, game_id, player, events)
 
-            # failed actions (errors) should not consume bank time or cancel timers.
-            # successful actions that produce no events (e.g. partial pass while
-            # other callers are still pending) still stop the acting player's timer
-            # but don't cancel other players' meld timers.
-            if player.seat is not None and not self._has_error_events(events):
-                self._timer_manager.stop_player_timer(game_id, player.seat)
-                # cancel meld timers for other players only when the prompt resolved
-                if self._has_game_events(events):
-                    self._timer_manager.cancel_other_timers(game_id, player.seat)
-
-            await self._broadcast_events(game, events)
-            await self._maybe_start_timer(game, events)
-            await self._close_connections_on_game_end(game, events)
+        await self._close_offender_and_cleanup(offender_connection, game_id, game)
 
     async def broadcast_chat(
         self,
@@ -526,6 +614,7 @@ class SessionManager:
         if lock is None:
             return
 
+        offender_connection: ConnectionProtocol | None = None
         async with lock:
             game = self._games.get(game_id)
             if game is None:
@@ -541,7 +630,13 @@ class SessionManager:
             if timeout_type == TimeoutType.TURN:
                 self._timer_manager.consume_bank(game_id, seat)
 
-            events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
-            await self._broadcast_events(game, events)
-            await self._maybe_start_timer(game, events)
-            await self._close_connections_on_game_end(game, events)
+            try:
+                events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
+            except InvalidGameActionError as e:
+                offender_connection = await self._process_invalid_action(game, game_id, e)
+            else:
+                await self._broadcast_events(game, events)
+                await self._maybe_start_timer(game, events)
+                await self._close_connections_on_game_end(game, events)
+
+        await self._close_offender_and_cleanup(offender_connection, game_id, game)

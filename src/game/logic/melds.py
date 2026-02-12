@@ -372,6 +372,31 @@ def _check_pao(
     return None
 
 
+def _validate_kan_preconditions(
+    round_state: MahjongRoundState,
+    settings: GameSettings,
+    *,
+    reject_riichi: bool = False,
+    player: MahjongPlayer | None = None,
+    kan_label: str = "kan",
+) -> None:
+    """Validate common kan preconditions (defense-in-depth guards).
+
+    Raises InvalidMeldError if:
+    - reject_riichi is True and the player is in riichi
+    - The wall doesn't have enough tiles for a kan replacement draw
+    - The maximum kans per round has been reached
+    """
+    if reject_riichi and player is not None and player.is_riichi:
+        raise InvalidMeldError(f"cannot call {kan_label} while in riichi")
+
+    if len(round_state.wall) < settings.min_wall_for_kan:
+        raise InvalidMeldError("not enough tiles in wall for kan")
+
+    if _count_total_kans(round_state) >= settings.max_kans_per_round:
+        raise InvalidMeldError("maximum kans per round reached")
+
+
 def _remove_matching_tiles(
     hand: tuple[int, ...],
     tile_34: int,
@@ -490,7 +515,10 @@ def call_chi(  # noqa: PLR0913
     # remove sequence tiles from hand
     new_hand = list(caller.tiles)
     for t in sequence_tiles:
-        new_hand.remove(t)
+        try:
+            new_hand.remove(t)
+        except ValueError:
+            raise InvalidMeldError(f"chi tile {t} not found in hand") from None
 
     # create meld with all 3 tiles (2 from hand + called tile)
     meld_tiles = tuple(sorted([sequence_tiles[0], sequence_tiles[1], tile_id]))
@@ -555,6 +583,14 @@ def call_open_kan(
     """
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
+
+    _validate_kan_preconditions(
+        round_state,
+        settings,
+        reject_riichi=True,
+        player=caller,
+        kan_label="open kan",
+    )
 
     removed_tiles, new_hand = _remove_matching_tiles(
         caller.tiles, tile_34, TILES_FOR_OPEN_KAN, "open kan", caller_seat
@@ -625,6 +661,12 @@ def call_closed_kan(
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
+    # riichi guard: closed kan must preserve waits (stricter than the generic riichi rejection)
+    if player.is_riichi and not _kan_preserves_waits_for_riichi(player, tile_34):
+        raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
+
+    _validate_kan_preconditions(round_state, settings)
+
     removed_tiles, new_hand = _remove_matching_tiles(
         player.tiles, tile_34, TILES_FOR_CLOSED_KAN, "closed kan", seat
     )
@@ -685,6 +727,14 @@ def call_added_kan(
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
+
+    _validate_kan_preconditions(
+        round_state,
+        settings,
+        reject_riichi=True,
+        player=player,
+        kan_label="added kan",
+    )
 
     # find the pon meld to upgrade
     pon_meld: FrozenMeld | None = None

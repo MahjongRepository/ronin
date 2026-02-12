@@ -10,6 +10,7 @@ from game.logic.events import (
     ErrorEvent,
     EventType,
 )
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import PendingCallPrompt
@@ -333,13 +334,13 @@ class TestDispatchAction:
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._dispatch_action(
-            game_state,
-            0,
-            GameAction.CALL_KAN,
-            {"tile_id": 0, "kan_type": "closed"},
-        )
-        assert result is not None
+        with pytest.raises(InvalidGameActionError):
+            service._dispatch_action(
+                game_state,
+                0,
+                GameAction.CALL_KAN,
+                {"tile_id": 0, "kan_type": "closed"},
+            )
 
     async def test_dispatch_action_routes_pass(self, service):
         """_dispatch_action routes PASS to handle_pass."""
@@ -354,30 +355,30 @@ class TestDispatchAction:
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._dispatch_action(game_state, 0, GameAction.DECLARE_TSUMO)
-        assert result is not None
+        with pytest.raises(InvalidGameActionError):
+            service._dispatch_action(game_state, 0, GameAction.DECLARE_TSUMO)
 
     async def test_dispatch_action_routes_discard(self, service):
         """_dispatch_action routes DISCARD to handle_discard."""
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._dispatch_action(
-            game_state,
-            0,
-            GameAction.DISCARD,
-            {"tile_id": 0},
-        )
-        assert result is not None
+        with pytest.raises(InvalidGameActionError):
+            service._dispatch_action(
+                game_state,
+                0,
+                GameAction.DISCARD,
+                {"tile_id": 0},
+            )
 
     async def test_dispatch_action_routes_kyuushu(self, service):
         """_dispatch_action routes CALL_KYUUSHU to handle_kyuushu."""
         await service.start_game("game1", ["Human"], seed=2.0)
         game_state = service._games["game1"]
 
-        result = service._dispatch_action(game_state, 0, GameAction.CALL_KYUUSHU)
-        # kyuushu may fail (conditions not met) but the handler is invoked
-        assert result is not None
+        # kyuushu conditions not met raises InvalidGameActionError
+        with pytest.raises(InvalidGameActionError):
+            service._dispatch_action(game_state, 0, GameAction.CALL_KYUUSHU)
 
     async def test_dispatch_action_returns_none_for_unknown(self, service):
         """_dispatch_action returns None for unrecognized actions."""

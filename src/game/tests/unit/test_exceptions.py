@@ -6,6 +6,7 @@ from game.logic.exceptions import (
     GameRuleError,
     InvalidActionError,
     InvalidDiscardError,
+    InvalidGameActionError,
     InvalidMeldError,
     InvalidRiichiError,
     InvalidWinError,
@@ -50,3 +51,27 @@ class TestGameRuleErrorHierarchy:
     def test_message_preserved(self) -> None:
         err = InvalidDiscardError("cannot discard: kuikae restriction")
         assert str(err) == "cannot discard: kuikae restriction"
+
+
+class TestInvalidGameActionError:
+    """Verify InvalidGameActionError stores action context and is NOT a GameRuleError."""
+
+    def test_stores_action_seat_reason(self) -> None:
+        err = InvalidGameActionError(action="discard", seat=2, reason="tile not in hand")
+        assert err.action == "discard"
+        assert err.seat == 2
+        assert err.reason == "tile not in hand"
+
+    def test_message_format(self) -> None:
+        err = InvalidGameActionError(action="declare_riichi", seat=0, reason="not tenpai")
+        assert str(err) == "invalid declare_riichi from seat 0: not tenpai"
+
+    def test_not_a_game_rule_error(self) -> None:
+        """InvalidGameActionError is a standalone Exception, not a GameRuleError subclass."""
+        err = InvalidGameActionError(action="discard", seat=1, reason="test")
+        assert not isinstance(err, GameRuleError)
+        assert isinstance(err, Exception)
+
+    def test_requires_keyword_arguments(self) -> None:
+        with pytest.raises(TypeError):
+            InvalidGameActionError("discard", 0, "reason")  # type: ignore[misc]

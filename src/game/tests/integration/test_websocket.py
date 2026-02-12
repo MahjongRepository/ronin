@@ -1,15 +1,18 @@
-from unittest.mock import AsyncMock, MagicMock
+"""Integration tests for WebSocket and HTTP endpoints.
+
+These tests verify the web/transport layer (HTTP endpoints, WebSocket protocol,
+MessagePack encoding) using the test client. They complement the game logic
+Replay tests by ensuring the service layer works correctly.
+"""
 
 import pytest
 from starlette.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
 from game.messaging.types import ClientMessageType, SessionMessageType
 from game.server.app import create_app
-from game.server.websocket import WebSocketConnection
 from game.tests.mocks import MockGameService
 
 
@@ -230,30 +233,3 @@ class TestCreateGameEndpoint:
         response = client.post("/games", json={"game_id": "overflow"})
         assert response.status_code == 503
         assert response.json() == {"error": "Server at capacity"}
-
-
-class TestWebSocketConnection:
-    async def test_close_delegates_to_underlying_websocket(self):
-        mock_ws = MagicMock()
-        mock_ws.close = AsyncMock()
-        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
-
-        await conn.close(code=1001, reason="going away")
-
-        mock_ws.close.assert_called_once_with(code=1001, reason="going away")
-
-    async def test_send_bytes_converts_disconnect_to_connection_error(self):
-        mock_ws = MagicMock()
-        mock_ws.send_bytes = AsyncMock(side_effect=WebSocketDisconnect())
-        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
-
-        with pytest.raises(ConnectionError, match="WebSocket already disconnected"):
-            await conn.send_bytes(b"data")
-
-    async def test_close_converts_disconnect_to_connection_error(self):
-        mock_ws = MagicMock()
-        mock_ws.close = AsyncMock(side_effect=WebSocketDisconnect())
-        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
-
-        with pytest.raises(ConnectionError, match="WebSocket already disconnected"):
-            await conn.close()

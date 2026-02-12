@@ -186,7 +186,7 @@ The `logic/` module implements Riichi Mahjong rules:
 - **State** - Frozen Pydantic game state models: `MahjongPlayer`, `MahjongRoundState`, `MahjongGameState`, `PendingCallPrompt`, `CallResponse`; all state is immutable (`frozen=True`); state updates use `model_copy(update={...})` pattern; settings live only on `MahjongGameState`, not on `MahjongRoundState`; `MahjongPlayer.score` is required (no default)
 - **MeldWrapper** (`meld_wrapper.py`) - `FrozenMeld` immutable wrapper for external `mahjong.meld.Meld` class; provides true immutability by storing meld data in frozen Pydantic model; converts to/from `Meld` at boundaries for library compatibility; `frozen_melds_to_melds()` utility for batch conversion
 - **StateUtils** (`state_utils.py`) - Helper functions for immutable state updates: `update_player()`, `add_tile_to_player()`, `remove_tile_from_player()`, `add_discard()`, `add_meld()`, `reveal_dora()`, `advance_turn()`, etc.
-- **Exceptions** (`exceptions.py`) - Typed domain exception hierarchy rooted in `GameRuleError`; subclasses: `InvalidDiscardError`, `InvalidMeldError`, `InvalidRiichiError`, `InvalidWinError`, `InvalidActionError`, `UnsupportedSettingsError`. Domain modules raise these instead of raw `ValueError`. Action handlers catch `GameRuleError` and convert to `ErrorEvent`. The broad `except Exception` containment in `MessageRouter` is preserved as a fatal safety net.
+- **Exceptions** (`exceptions.py`) - Typed domain exception hierarchy rooted in `GameRuleError`; subclasses: `InvalidDiscardError`, `InvalidMeldError`, `InvalidRiichiError`, `InvalidWinError`, `InvalidActionError`, `UnsupportedSettingsError`. Domain modules raise these instead of raw `ValueError`. Action handlers catch `GameRuleError` and convert to `ErrorEvent`. Separately, `InvalidGameActionError` (not a `GameRuleError` subclass) is raised for provably invalid actions (fabricated data, modified client); caught by `SessionManager` to disconnect the offender (WebSocket close code 1008) and replace with a bot. The broad `except Exception` containment in `MessageRouter` is preserved as a fatal safety net.
 
 ### Pending Call Prompt System
 
@@ -226,12 +226,15 @@ The `num_bots` is set at game creation time via `POST /games` and stored on the 
 
 ### Disconnect-to-Bot Replacement
 
-When a human player disconnects from a started game:
-1. The player is removed from the session layer (`game.players`)
-2. If other humans remain, `replace_player_with_bot()` registers a bot at the disconnected player's seat
-3. The disconnected player's timer is cancelled
-4. `process_bot_actions_after_replacement()` handles any pending turn, call prompt, or round-advance confirmation for the replaced seat
-5. If the last human disconnects, the game is cleaned up (no all-bot games)
+When a human player disconnects from a started game (either by closing the connection or by sending a provably invalid game action):
+1. The player's connection is closed (code 1008 for invalid actions, normal close for voluntary disconnect)
+2. The player is removed from the session layer (`game.players`)
+3. If other humans remain, `replace_player_with_bot()` registers a bot at the disconnected player's seat
+4. The disconnected player's timer is cancelled
+5. `process_bot_actions_after_replacement()` handles any pending turn, call prompt, or round-advance confirmation for the replaced seat
+6. If the last human disconnects, the game is cleaned up (no all-bot games)
+
+For invalid game actions, the `InvalidGameActionError` exception carries a `seat` attribute for blame attribution: when a resolution-time error is caused by a different player's prior bad data, the offending seat (not the action requester) is disconnected.
 
 ### Per-Player Timers
 

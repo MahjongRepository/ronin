@@ -4,6 +4,7 @@ Unit tests for edge cases in action handlers.
 Tests cover previously untested code paths (removed pragma: no cover lines).
 """
 
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
@@ -33,6 +34,7 @@ from game.logic.events import (
     ErrorEvent,
     RoundEndEvent,
 )
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -99,22 +101,22 @@ class TestPickBestMeldResponse:
 
 class TestResolveMeldResponse:
     def test_meld_causes_exhaustive_draw(self):
-        """Test that open kan meld call resolves when wall is empty.
+        """Test that open kan meld call resolves when wall is nearly empty.
 
-        When the wall is empty, the open kan still processes (draws from dead wall).
-        The exhaustive draw will be detected on the next draw phase; here we verify
-        the meld resolution succeeds and the player gets a turn event.
+        When the wall has just enough tiles for the kan guard (min_wall_for_kan=2),
+        the open kan draws from dead wall. The exhaustive draw will be detected on
+        the next draw phase; here we verify the meld resolution succeeds and the
+        player gets a turn event.
         """
         game_state = init_game(_default_seat_configs(), seed=12345.0)
         round_state = game_state.round_state
 
-        # create a minimal wall (just enough for dead wall: 14 tiles)
-        # when open kan is called, it will draw from dead wall and leave wall empty
-        minimal_wall = list(range(14))
+        # wall needs at least min_wall_for_kan (2) tiles to pass the guard
+        minimal_wall = list(range(16))
         round_state = round_state.model_copy(
             update={
-                "wall": tuple(minimal_wall[:0]),  # empty wall
-                "dead_wall": tuple(minimal_wall[0:14]),  # exactly 14 tiles
+                "wall": tuple(minimal_wall[:2]),  # exactly min_wall_for_kan
+                "dead_wall": tuple(minimal_wall[2:16]),  # 14 tiles for dead wall
                 "phase": RoundPhase.PLAYING,
             }
         )
@@ -294,7 +296,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
 class TestHandleTsumoInvalidHand:
     def test_handle_tsumo_invalid_hand_error(self):
-        """Test handle_tsumo when hand doesn't actually win (ValueError raised)."""
+        """Test handle_tsumo when hand doesn't actually win raises InvalidGameActionError."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -305,14 +307,10 @@ class TestHandleTsumoInvalidHand:
         round_state = update_player(round_state, 0, tiles=non_winning_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        # call tsumo with invalid hand
-        result = handle_tsumo(round_state, game_state, seat=0)
-
-        # verify error event is returned
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_TSUMO
+        with pytest.raises(InvalidGameActionError) as exc_info:
+            handle_tsumo(round_state, game_state, seat=0)
+        assert exc_info.value.action == "declare_tsumo"
+        assert exc_info.value.seat == 0
 
 
 class TestHandlePonMultiCaller:
@@ -476,22 +474,22 @@ class TestHandleKanMultiCaller:
 
 class TestHandleKanInvalidValidationError:
     def test_handle_kan_invalid_validation_error(self):
-        """Test handle_kan with closed/added kan that raises ValueError."""
+        """Test handle_kan with closed/added kan that raises InvalidGameActionError."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
         # player 0 tries to call closed kan on a tile they don't have 4 of
         invalid_tile = TilesConverter.string_to_136_array(man="9")[0]
 
-        result = handle_kan(
-            round_state, game_state, seat=0, data=KanActionData(tile_id=invalid_tile, kan_type=KanType.CLOSED)
-        )
-
-        # verify error event with INVALID_KAN code
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_KAN
+        with pytest.raises(InvalidGameActionError) as exc_info:
+            handle_kan(
+                round_state,
+                game_state,
+                seat=0,
+                data=KanActionData(tile_id=invalid_tile, kan_type=KanType.CLOSED),
+            )
+        assert exc_info.value.action == "call_kan"
+        assert exc_info.value.seat == 0
 
 
 class TestHandleKanCausesDraw:

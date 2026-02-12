@@ -34,7 +34,12 @@ from game.logic.events import (
     RiichiDeclaredEvent,
     RoundEndEvent,
 )
-from game.logic.exceptions import InvalidActionError, InvalidMeldError, InvalidRiichiError, InvalidWinError
+from game.logic.exceptions import (
+    InvalidActionError,
+    InvalidMeldError,
+    InvalidRiichiError,
+    InvalidWinError,
+)
 from game.logic.melds import (
     call_added_kan,
     call_chi,
@@ -50,6 +55,7 @@ from game.logic.round import (
     check_exhaustive_draw,
     discard_tile,
     draw_tile,
+    is_tempai,
     process_exhaustive_draw,
     reveal_pending_dora,
 )
@@ -263,7 +269,7 @@ def _find_meld_callers(
     return meld_calls
 
 
-def process_discard_phase(  # noqa: PLR0915
+def process_discard_phase(  # noqa: PLR0915, C901
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     tile_id: int,
@@ -301,6 +307,19 @@ def process_discard_phase(  # noqa: PLR0915
             logger.error(f"seat {current_seat} cannot declare riichi: conditions not met")
             raise InvalidRiichiError("cannot declare riichi: conditions not met")
         riichi_pending = True
+
+        # validate the specific discard keeps hand in tenpai
+        removed = False
+        simulated: list[int] = []
+        for t in player.tiles:
+            if t == tile_id and not removed:
+                removed = True
+                continue
+            simulated.append(t)
+        if not removed:
+            raise InvalidRiichiError(f"tile {tile_id} not in hand")
+        if not is_tempai(tuple(simulated), player.melds):
+            raise InvalidRiichiError(f"hand is not tenpai after discarding tile {tile_id}")
 
     # step 2: execute discard
     new_round_state, discard = discard_tile(new_round_state, current_seat, tile_id, is_riichi=is_riichi)
