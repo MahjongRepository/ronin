@@ -255,7 +255,60 @@ def complete_added_kan_after_chankan_decline(
     return new_round_state, new_game_state, events
 
 
-def resolve_call_prompt(
+def _finalize_discard_post_ron_check(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    prompt: PendingCallPrompt,
+) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent], bool]:
+    """Reveal deferred dora and finalize pending riichi after ron check passes.
+
+    Called when no one called ron on a DISCARD prompt. The discard has "passed"
+    the ron window, so deferred dora from prior open/added kan is revealed
+    and pending riichi bets are deposited.
+
+    Returns (new_round_state, new_game_state, events, riichi_finalized).
+    """
+    events: list[GameEvent] = []
+    riichi_finalized = False
+
+    new_round_state, dora_events = emit_deferred_dora_events(round_state)
+    events.extend(dora_events)
+    new_game_state = update_game_with_round(game_state, new_round_state)
+
+    settings = game_state.settings
+    discarder = new_round_state.players[prompt.from_seat]
+    if discarder.discards and discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
+        new_round_state, new_game_state = declare_riichi(
+            new_round_state, new_game_state, prompt.from_seat, settings
+        )
+        events.append(RiichiDeclaredEvent(seat=prompt.from_seat, target="all"))
+        riichi_finalized = True
+
+    return new_round_state, new_game_state, events, riichi_finalized
+
+
+def _resolve_all_passed_discard(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    extra_events: list[GameEvent],
+) -> ActionResult:
+    """Handle all-passed for DISCARD prompts.
+
+    Dora/riichi finalization is already done by the caller.
+    Advance turn and draw for next player.
+    """
+    new_round_state = advance_turn(round_state)
+    new_game_state = update_game_with_round(game_state, new_round_state)
+
+    events = list(extra_events)
+    if new_round_state.phase == RoundPhase.PLAYING:
+        new_round_state, new_game_state, draw_events = process_draw_phase(new_round_state, new_game_state)
+        events.extend(draw_events)
+
+    return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+
+
+def resolve_call_prompt(  # noqa: PLR0911
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
 ) -> ActionResult:
@@ -281,11 +334,34 @@ def resolve_call_prompt(
     if ron_responses:
         return _resolve_ron_responses(round_state, game_state, prompt, ron_responses)
 
+    # No ron -- finalize dora/riichi for DISCARD prompts
+    extra_events: list[GameEvent] = []
+    if prompt.call_type == CallType.DISCARD:
+        round_state, game_state, extra_events, riichi_finalized = _finalize_discard_post_ron_check(
+            round_state, game_state, prompt
+        )
+
+        # four riichi check only when this resolution finalized riichi
+        settings = game_state.settings
+        if riichi_finalized and settings.has_suucha_riichi and check_four_riichi(round_state, settings):
+            result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_RIICHI)
+            new_round_state = clear_pending_prompt(round_state)
+            new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
+            new_game_state = update_game_with_round(game_state, new_round_state)
+            extra_events.append(RoundEndEvent(result=result, target="all"))
+            return ActionResult(extra_events, new_round_state=new_round_state, new_game_state=new_game_state)
+
     # priority 2: meld (pon/kan > chi, determined by caller priority in prompt)
     if meld_responses:
         best = _pick_best_meld_response(meld_responses, prompt)
         if best is not None:
-            return _resolve_meld_response(round_state, game_state, prompt, best)
+            meld_result = _resolve_meld_response(round_state, game_state, prompt, best)
+            # prepend dora/riichi events before meld events
+            return ActionResult(
+                extra_events + list(meld_result.events),
+                new_round_state=meld_result.new_round_state,
+                new_game_state=meld_result.new_game_state,
+            )
 
     # all passed
     new_round_state = clear_pending_prompt(round_state)
@@ -299,5 +375,9 @@ def resolve_call_prompt(
             prompt.tile_id,
         )
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+
+    # For DISCARD: dora/riichi already finalized above, just advance turn
+    if prompt.call_type == CallType.DISCARD:
+        return _resolve_all_passed_discard(new_round_state, new_game_state, extra_events)
 
     return _resolve_all_passed(new_round_state, new_game_state, prompt)

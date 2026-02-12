@@ -85,17 +85,17 @@ class TestBotControllerGetCallResponse:
         assert result is None
 
     def test_get_call_response_tsumogiri_declines_ron(self):
-        """Tsumogiri bot declines ron opportunities."""
+        """Tsumogiri bot declines ron opportunities on DISCARD prompt."""
         bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
         controller = BotController(bots)
         round_state = self._create_round_state()
 
-        result = controller.get_call_response(1, round_state, CallType.RON, 0, 1)
+        result = controller.get_call_response(1, round_state, CallType.DISCARD, 0, 1)
 
         assert result is None
 
     def test_get_call_response_tsumogiri_declines_meld(self):
-        """Tsumogiri bot declines meld opportunities."""
+        """Tsumogiri bot declines meld opportunities on DISCARD prompt."""
         bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
         controller = BotController(bots)
         round_state = self._create_round_state()
@@ -106,7 +106,7 @@ class TestBotControllerGetCallResponse:
         )
 
         result = controller.get_call_response(
-            1, round_state, CallType.MELD, _string_to_136_tile(man="1"), caller_info
+            1, round_state, CallType.DISCARD, _string_to_136_tile(man="1"), caller_info
         )
 
         assert result is None

@@ -285,11 +285,10 @@ def process_discard_phase(  # noqa: PLR0915, C901
     3. Check for four winds abortive draw
     4. Check for ron from other players
        - If 3 players can ron: triple ron abortive draw
-       - If 1-2 players can ron: set up pending prompt (dora NOT revealed yet)
-    5. Reveal deferred dora (from open/added kan) now that the discard passed
-    6. If no ron and is_riichi: finalize riichi step 2
-    7. Check for meld calls with priority: kan > pon > chi
-    8. If no calls, advance turn
+    5. Check for meld callers (ron-dominant: seats with ron don't get meld options)
+    6. If any callers: create unified DISCARD prompt (dora/riichi deferred to resolution)
+    7. No callers: reveal deferred dora, finalize riichi
+    8. Advance turn
 
     Returns (new_round_state, new_game_state, events).
     """
@@ -357,34 +356,41 @@ def process_discard_phase(  # noqa: PLR0915, C901
         events.append(RoundEndEvent(result=result, target="all"))
         return new_round_state, new_game_state, events
 
-    if ron_callers:
-        # ron opportunities exist - set up pending prompt and create call prompt event
+    # step 5: check for meld callers (always, not just when no ron callers)
+    # ron-dominant policy: seats that can ron do not get meld options on this discard
+    ron_caller_set = set(ron_callers)
+    all_meld_calls = _find_meld_callers(new_round_state, tile_id, current_seat, settings)
+    meld_calls = [c for c in all_meld_calls if c.seat not in ron_caller_set]
+
+    # step 6: create unified DISCARD prompt if any callers exist
+    if ron_callers or meld_calls:
+        callers: list[int | MeldCaller] = list(ron_callers) + list(meld_calls)
+        all_caller_seats = ron_caller_set | {c.seat for c in meld_calls}
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            call_type=CallType.DISCARD,
             tile_id=tile_id,
             from_seat=current_seat,
-            pending_seats=frozenset(ron_callers),
-            callers=tuple(ron_callers),
+            pending_seats=frozenset(all_caller_seats),
+            callers=tuple(callers),
         )
         new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(
             CallPromptEvent(
-                call_type=CallType.RON,
+                call_type=CallType.DISCARD,
                 tile_id=tile_id,
                 from_seat=current_seat,
-                callers=ron_callers,
+                callers=callers,
                 target="all",
             )
         )
         return new_round_state, new_game_state, events
 
-    # step 5: reveal deferred dora (from open/added kan) now that the discard passed
+    # step 7: no callers — reveal deferred dora, finalize riichi, advance turn
     new_round_state, dora_events = emit_deferred_dora_events(new_round_state)
     events.extend(dora_events)
     new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
 
-    # step 6: finalize riichi if no ron
     if riichi_pending:
         new_round_state, new_game_state = declare_riichi(
             new_round_state,
@@ -401,31 +407,6 @@ def process_discard_phase(  # noqa: PLR0915, C901
             new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
             events.append(RoundEndEvent(result=result, target="all"))
             return new_round_state, new_game_state, events
-
-    # step 7: check for meld calls (priority: kan > pon > chi)
-    meld_calls = _find_meld_callers(new_round_state, tile_id, current_seat, settings)
-
-    if meld_calls:
-        # set up pending prompt and create call prompt event
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=tile_id,
-            from_seat=current_seat,
-            pending_seats=frozenset(c.seat for c in meld_calls),
-            callers=tuple(meld_calls),
-        )
-        new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
-        new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
-        events.append(
-            CallPromptEvent(
-                call_type=CallType.MELD,
-                tile_id=tile_id,
-                from_seat=current_seat,
-                callers=meld_calls,
-                target="all",
-            )
-        )
-        return new_round_state, new_game_state, events
 
     # step 8: no calls, advance turn
     new_round_state = advance_turn(new_round_state)
@@ -737,12 +718,13 @@ def _process_added_kan_call(
         )
         new_round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         new_game_state = game_state.model_copy(update={"round_state": new_round_state})
+        chankan_callers: list[int | MeldCaller] = list(chankan_seats)
         events: list[GameEvent] = [
             CallPromptEvent(
                 call_type=CallType.CHANKAN,
                 tile_id=tile_id,
                 from_seat=caller_seat,
-                callers=chankan_seats,
+                callers=chankan_callers,
                 target="all",
             )
         ]

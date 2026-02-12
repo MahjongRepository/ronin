@@ -94,6 +94,7 @@ class CallType(str, Enum):
     RON = "ron"
     MELD = "meld"
     CHANKAN = "chankan"
+    DISCARD = "discard"  # unified discard claim (ron + meld callers)
 
 
 class AbortiveDrawType(str, Enum):

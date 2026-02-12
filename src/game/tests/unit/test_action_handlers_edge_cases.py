@@ -10,6 +10,7 @@ from mahjong.tile import TilesConverter
 from game.logic.action_handlers import (
     handle_chi,
     handle_kan,
+    handle_pass,
     handle_pon,
     handle_tsumo,
 )
@@ -613,3 +614,99 @@ class TestHandleKanChankanOpportunity:
         call_prompt_events = [e for e in result.events if isinstance(e, CallPromptEvent)]
         assert len(call_prompt_events) == 1
         assert call_prompt_events[0].call_type == CallType.CHANKAN
+
+
+class TestDiscardPromptValidation:
+    """Validation edge cases for unified DISCARD prompts."""
+
+    def test_ron_caller_sending_meld_action_rejected(self):
+        """Ron caller on a DISCARD prompt cannot send a meld action."""
+        game_state = _create_frozen_game_state()
+        round_state = game_state.round_state
+
+        tile_id = round_state.players[0].tiles[0]
+
+        prompt = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=tile_id,
+            from_seat=0,
+            pending_seats=frozenset({1}),
+            callers=(1,),  # seat 1 is a ron caller (int)
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        with pytest.raises(InvalidGameActionError, match="only ron is valid"):
+            handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
+
+    def test_seat_not_in_discard_callers_rejected(self):
+        """Seat with no caller entry in a DISCARD prompt is rejected."""
+        game_state = _create_frozen_game_state()
+        round_state = game_state.round_state
+
+        tile_id = round_state.players[0].tiles[0]
+
+        # seat 2 is pending but not in callers list (inconsistent state)
+        prompt = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=tile_id,
+            from_seat=0,
+            pending_seats=frozenset({1, 2}),
+            callers=(1,),  # only seat 1 is a ron caller, seat 2 has no entry
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        with pytest.raises(InvalidGameActionError, match="no meld options"):
+            handle_pon(round_state, game_state, seat=2, data=PonActionData(tile_id=tile_id))
+
+    def test_meld_caller_sending_wrong_action_rejected(self):
+        """Meld caller on a DISCARD prompt cannot send an action that doesn't match."""
+        game_state = _create_frozen_game_state()
+        round_state = game_state.round_state
+
+        tile_id = round_state.players[0].tiles[0]
+
+        prompt = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=tile_id,
+            from_seat=0,
+            pending_seats=frozenset({2}),
+            callers=(MeldCaller(seat=2, call_type=MeldCallType.CHI),),
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        with pytest.raises(InvalidGameActionError, match="does not match available call types"):
+            handle_pon(round_state, game_state, seat=2, data=PonActionData(tile_id=tile_id))
+
+
+class TestChankanRiichiFuritenOnPass:
+    """Riichi player passing on chankan gets riichi furiten."""
+
+    def test_riichi_player_passing_chankan_gets_riichi_furiten(self):
+        """Riichi player who passes a chankan opportunity gets riichi furiten set."""
+        game_state = _create_frozen_game_state()
+        round_state = game_state.round_state
+
+        tile_id = round_state.players[0].tiles[0]
+
+        # make seat 1 a riichi player
+        round_state = update_player(round_state, 1, is_riichi=True)
+
+        # seat 1 and seat 2 are pending callers; passing as seat 1 won't trigger
+        # resolution (seat 2 is still pending), avoiding the added kan completion
+        prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=tile_id,
+            from_seat=0,
+            pending_seats=frozenset({1, 2}),
+            callers=(1, 2),
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        result = handle_pass(round_state, game_state, seat=1)
+
+        assert result.new_round_state is not None
+        assert result.new_round_state.players[1].is_riichi_furiten is True

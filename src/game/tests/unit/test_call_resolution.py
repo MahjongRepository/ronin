@@ -2,8 +2,9 @@
 Focused unit tests for the call resolution subsystem.
 
 Tests cover resolution priority logic: single ron, double ron, triple ron
-(abortive draw), meld priority (pon > chi), all-passed flow, and chankan
-decline completion.
+(abortive draw), meld priority (pon > chi), all-passed flow, chankan
+decline completion, and DISCARD prompt resolution (four riichi abort after
+ron pass).
 """
 
 import pytest
@@ -29,6 +30,7 @@ from game.logic.enums import (
 from game.logic.events import (
     DrawEvent,
     MeldEvent,
+    RiichiDeclaredEvent,
     RoundEndEvent,
 )
 from game.logic.game import init_game
@@ -36,6 +38,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.state import (
     CallResponse,
+    Discard,
     MahjongGameState,
     PendingCallPrompt,
 )
@@ -44,6 +47,7 @@ from game.logic.types import (
     MeldCaller,
     SeatConfig,
 )
+from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -515,3 +519,59 @@ class TestResolvePonMeldResponse:
         assert len(draw_events) == 1
         assert draw_events[0].tile_id is None
         assert draw_events[0].available_actions == []
+
+
+class TestDiscardPromptFourRiichiAbort:
+    """Four riichi abort triggered through DISCARD prompt resolution."""
+
+    def test_four_riichi_abort_after_ron_pass_on_discard(self):
+        """Riichi finalization triggers four-riichi abort when all 4 players are in riichi."""
+        # seat 0 is the discarder (about to finalize riichi)
+        # seats 1, 2, 3 are already in riichi
+        # seat 1 could ron but passed
+        discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
+
+        players = tuple(
+            create_player(
+                seat=i,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113"))
+                if i == 0
+                else (),
+                is_riichi=(i in (1, 2, 3)),
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
+            )
+            for i in range(4)
+        )
+
+        wall = tuple(TilesConverter.string_to_136_array(man="5555"))
+        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333366"))
+        round_state = create_round_state(
+            players=players,
+            wall=wall,
+            dead_wall=dead_wall,
+            dora_indicators=(dead_wall[2],),
+            phase=RoundPhase.PLAYING,
+            current_player_seat=0,
+        )
+
+        prompt = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=discard_tile,
+            from_seat=0,
+            pending_seats=frozenset(),
+            callers=(1,),  # seat 1 was a ron caller
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        game_state = create_game_state(round_state)
+
+        result = resolve_call_prompt(round_state, game_state)
+
+        # the riichi finalization should trigger four-riichi abort
+        riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
+        assert len(riichi_events) == 1
+        assert riichi_events[0].seat == 0
+
+        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
+        assert len(round_end_events) == 1
+        assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
+        assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI

@@ -329,7 +329,7 @@ class TestResponseActionMatchesPrompt:
         game_state = game_state.model_copy(update={"round_state": round_state})
         with pytest.raises(
             InvalidGameActionError,
-            match="not present in callers metadata",
+            match="no meld options for this seat",
         ):
             handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
 
@@ -1424,7 +1424,7 @@ class TestFindMeldCallerForSeatNone:
 
         with pytest.raises(
             InvalidGameActionError,
-            match="not present in callers metadata",
+            match="no meld options for this seat",
         ):
             handle_chi(
                 round_state,

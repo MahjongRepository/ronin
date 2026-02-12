@@ -123,7 +123,9 @@ class TestRiichiFuriten:
 
         new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
 
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.RON]
+        call_prompts = [
+            e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD
+        ]
         assert len(call_prompts) >= 1
         assert new_round.players[1].is_riichi_furiten is False
 
@@ -156,7 +158,9 @@ class TestChiOpportunity:
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
 
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.MELD]
+        call_prompts = [
+            e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD
+        ]
         assert len(call_prompts) == 1
         chi_callers = [
             c for c in call_prompts[0].callers if hasattr(c, "call_type") and c.call_type == MeldCallType.CHI
@@ -189,7 +193,9 @@ class TestFindRonCallers:
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
 
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.RON]
+        call_prompts = [
+            e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD
+        ]
         assert len(call_prompts) >= 1
         assert 1 in call_prompts[0].callers
 
@@ -217,11 +223,14 @@ class TestFindRonCallers:
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
 
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.RON]
+        call_prompts = [
+            e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD
+        ]
         assert len(call_prompts) >= 1
-        callers = call_prompts[0].callers
-        assert callers[0] == 1
-        assert callers[1] == 3
+        # ron callers (ints) come first, sorted by distance from discarder
+        ron_callers = [c for c in call_prompts[0].callers if isinstance(c, int)]
+        assert ron_callers[0] == 1
+        assert ron_callers[1] == 3
 
 
 class TestSingleRonHandError:

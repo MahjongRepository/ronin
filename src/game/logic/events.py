@@ -130,7 +130,7 @@ class CallPromptEvent(GameEvent):
     call_type: CallType
     tile_id: int
     from_seat: int
-    callers: list[int] | list[MeldCaller]
+    callers: list[int | MeldCaller]
 
 
 class RoundEndEvent(GameEvent):
@@ -246,7 +246,7 @@ class ServiceEvent(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _get_unique_caller_seats(callers: list[int] | list[MeldCaller]) -> list[int]:
+def _get_unique_caller_seats(callers: list[int | MeldCaller]) -> list[int]:
     """Extract unique seat numbers from callers list."""
     seen: set[int] = set()
     seats: list[int] = []
@@ -258,13 +258,36 @@ def _get_unique_caller_seats(callers: list[int] | list[MeldCaller]) -> list[int]
     return seats
 
 
-def _filter_callers_for_seat(
-    callers: list[int] | list[MeldCaller], seat: int
-) -> list[int] | list[MeldCaller]:
+def _filter_callers_for_seat(callers: list[int | MeldCaller], seat: int) -> list[int | MeldCaller]:
     """Filter callers list to only include entries for the given seat."""
     if callers and isinstance(callers[0], int):
         return [c for c in callers if isinstance(c, int) and c == seat]
     return [c for c in callers if isinstance(c, MeldCaller) and c.seat == seat]
+
+
+def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPromptEvent:
+    """Split a DISCARD prompt into one per-seat event.
+
+    Ron-dominant: if seat has both ron and meld entries, produce a RON prompt.
+    """
+    is_ron = any(c == seat for c in event.callers if isinstance(c, int))
+    meld_callers: list[int | MeldCaller] = [
+        c for c in event.callers if isinstance(c, MeldCaller) and c.seat == seat
+    ]
+
+    if is_ron:
+        return event.model_copy(
+            update={
+                "call_type": CallType.RON,
+                "callers": [seat],
+            }
+        )
+    return event.model_copy(
+        update={
+            "call_type": CallType.MELD,
+            "callers": meld_callers,
+        }
+    )
 
 
 def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
@@ -273,16 +296,26 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
     CallPromptEvent is split into per-caller-seat events with callers filtered
     to only the recipient's entries. Each ServiceEvent carries a distinct
     CallPromptEvent instance (no shared mutable data).
+
+    DISCARD prompts are split per-seat with the appropriate call_type
+    for each seat (RON for ron callers, MELD for meld callers).
     """
     result: list[ServiceEvent] = []
     for event in raw_events:
         if isinstance(event, CallPromptEvent):
-            for seat in _get_unique_caller_seats(event.callers):
-                per_seat_callers = _filter_callers_for_seat(event.callers, seat)
-                per_seat_event = event.model_copy(update={"callers": per_seat_callers})
-                result.append(
-                    ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat))
-                )
+            if event.call_type == CallType.DISCARD:
+                for seat in _get_unique_caller_seats(event.callers):
+                    per_seat_event = _split_discard_prompt_for_seat(event, seat)
+                    result.append(
+                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat))
+                    )
+            else:
+                for seat in _get_unique_caller_seats(event.callers):
+                    per_seat_callers = _filter_callers_for_seat(event.callers, seat)
+                    per_seat_event = event.model_copy(update={"callers": per_seat_callers})
+                    result.append(
+                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat))
+                    )
         else:
             result.append(
                 ServiceEvent(

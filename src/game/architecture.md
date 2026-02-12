@@ -155,7 +155,7 @@ The game service communicates through a typed event pipeline:
 - **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
 - **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events (null `tile_id` draws excluded, `available_actions` stripped); per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
 - **EventType** - String enum defining all event type identifiers
-- `convert_events()` transforms GameEvent lists into ServiceEvent lists
+- `convert_events()` transforms GameEvent lists into ServiceEvent lists; DISCARD prompts are split per-seat via `_split_discard_prompt_for_seat()` into RON or MELD wire events (ron-dominant: if a seat has both ron and meld eligibility, only a RON prompt is sent)
 - `extract_round_result()` extracts round results from ServiceEvent lists
 
 ### Game Logic Layer
@@ -168,12 +168,12 @@ The `logic/` module implements Riichi Mahjong rules:
 - **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
-- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `handle_pass` removes the caller from `pending_seats` and applies furiten without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`
-- **CallResolution** (`call_resolution.py`) - Resolves pending call prompts after all callers respond; picks winning response by priority (ron > pon/kan > chi > all pass); handles triple ron abortive draw, double/single ron, meld resolution, all-passed flow (deferred dora, riichi finalization, four riichi abort, turn advancement), and chankan decline completion
+- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `_validate_caller_action_matches_prompt()` enforces per-caller action validity (ron callers can only CALL_RON on DISCARD prompts, meld callers validated against their available call types); `handle_pass` removes the caller from `pending_seats` and applies furiten (for DISCARD prompts, only ron callers receive furiten) without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`
+- **CallResolution** (`call_resolution.py`) - Resolves pending call prompts after all callers respond; picks winning response by priority (ron > pon/kan > chi > all pass); handles triple ron abortive draw, double/single ron, meld resolution, and chankan decline completion; for DISCARD prompts, `_finalize_discard_post_ron_check()` performs deferred dora reveal and riichi finalization after no ron, and `_resolve_all_passed_discard()` handles the all-passed case (dora/riichi already finalized, just advances turn)
 - **Matchmaker** - Assigns human players to randomized seats and fills remaining seats with bots; supports 1-4 humans based on `num_bots` setting; returns `list[SeatConfig]`
 - **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each human player gets an independent timer instance
-- **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `add_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; supports runtime bot addition for disconnect-to-bot replacement
-- **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType`, `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
+- **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `add_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime bot addition for disconnect-to-bot replacement
+- **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller` (seat and call_type only, no server-internal fields), `BotAction`, `AvailableActionItem`; `RoundResult` union type
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
 - **Melds** - Detection of valid chi, pon, and kan combinations; kuikae restriction calculation; pao liability detection
@@ -192,13 +192,17 @@ The `logic/` module implements Riichi Mahjong rules:
 
 The game uses a unified call-response system where all players (human and bot) respond to call opportunities through the same code path.
 
-When a discard or chankan creates call opportunities, `process_discard_phase()` or `_process_added_kan_call()` sets a `PendingCallPrompt` on `MahjongRoundState` with:
-- `call_type` - the type of call opportunity (ron, meld, chankan)
+When a discard creates call opportunities, `process_discard_phase()` creates a single `PendingCallPrompt` with `call_type=DISCARD` containing all eligible callers (both ron and meld) in one prompt. Ron-dominant policy ensures dual-eligible seats (can both ron and meld the same tile) only appear as ron callers. For chankan opportunities, `_process_added_kan_call()` creates a `CHANKAN` prompt.
+
+The `PendingCallPrompt` on `MahjongRoundState` contains:
+- `call_type` - the type of call opportunity (DISCARD or CHANKAN; callers list uses `int` for ron callers and `MeldCaller` for meld callers)
 - `tile_id` - the tile being called on
 - `from_seat` - the seat that discarded or played the tile
 - `pending_seats` - set of seats that have not yet responded
-- `callers` - the original eligible callers list
+- `callers` - the original eligible callers list (`list[int | MeldCaller]`)
 - `responses` - collected `CallResponse` objects
+
+When a DISCARD prompt is created, dora reveal and riichi finalization are deferred until resolution (after the ron check passes). This ensures dora is not revealed if someone calls ron.
 
 Each caller responds through the standard action handlers (`handle_pass`, `handle_pon`, `handle_chi`, `handle_ron`, `handle_kan`). These handlers record the response and remove the caller from `pending_seats`. When `pending_seats` is empty, `resolve_call_prompt()` (in `call_resolution.py`) picks the winner by priority (ron > pon/kan > chi > all pass) and executes the action.
 

@@ -91,7 +91,7 @@ class BotController:
 
         return None
 
-    def get_call_response(
+    def get_call_response(  # noqa: PLR0911
         self,
         seat: int,
         round_state: MahjongRoundState,
@@ -116,12 +116,20 @@ class BotController:
                 return GameAction.CALL_RON, {}
             return None
 
+        # unified discard prompt -- dispatch based on caller type
+        if call_type == CallType.DISCARD:
+            if isinstance(caller_info, int):
+                # ron caller
+                if should_call_ron(bot, player, tile_id, round_state):
+                    return GameAction.CALL_RON, {}
+                return None
+            if isinstance(caller_info, MeldCaller):
+                return _get_bot_meld_response(bot, player, caller_info, tile_id, round_state)
+            return None
+
         # meld opportunities
         if call_type == CallType.MELD and isinstance(caller_info, MeldCaller):
-            meld_response = _get_bot_meld_response(bot, player, caller_info, tile_id, round_state)
-            if meld_response is not None:
-                action, data = meld_response
-                return action, data
+            return _get_bot_meld_response(bot, player, caller_info, tile_id, round_state)
 
         return None
 

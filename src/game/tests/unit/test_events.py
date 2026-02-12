@@ -170,6 +170,51 @@ class TestConvertEvents:
             assert isinstance(se.data, CallPromptEvent)
             assert se.data.callers == [se.target.seat]
 
+    def test_convert_events_splits_discard_prompt_per_seat(self):
+        """DISCARD prompt with mixed ron + meld callers is split into per-seat RON/MELD events."""
+        callers: list = [
+            1,  # ron caller (seat 1)
+            MeldCaller(seat=2, call_type=MeldCallType.PON),  # meld caller (seat 2)
+        ]
+        call_prompt = CallPromptEvent(
+            call_type=CallType.DISCARD,
+            tile_id=42,
+            from_seat=0,
+            callers=callers,
+            target="all",
+        )
+
+        result = convert_events([call_prompt])
+
+        assert len(result) == 2
+        # seat 1 gets a RON event
+        seat1_event = next(se for se in result if se.target == SeatTarget(seat=1))
+        assert isinstance(seat1_event.data, CallPromptEvent)
+        assert seat1_event.data.call_type == CallType.RON
+        assert seat1_event.data.callers == [1]
+        # seat 2 gets a MELD event
+        seat2_event = next(se for se in result if se.target == SeatTarget(seat=2))
+        assert isinstance(seat2_event.data, CallPromptEvent)
+        assert seat2_event.data.call_type == CallType.MELD
+        assert seat2_event.data.callers == [MeldCaller(seat=2, call_type=MeldCallType.PON)]
+
+    def test_convert_events_discard_prompt_ron_only(self):
+        """DISCARD prompt with only ron callers splits correctly."""
+        call_prompt = CallPromptEvent(
+            call_type=CallType.DISCARD,
+            tile_id=10,
+            from_seat=3,
+            callers=[0, 1],
+            target="all",
+        )
+
+        result = convert_events([call_prompt])
+
+        assert len(result) == 2
+        for se in result:
+            assert isinstance(se.data, CallPromptEvent)
+            assert se.data.call_type == CallType.RON
+
 
 class TestExtractRoundResult:
     def test_extract_round_result_finds_result(self):
