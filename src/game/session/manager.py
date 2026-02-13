@@ -20,19 +20,23 @@ from game.logic.timer import TimerConfig
 from game.messaging.event_payload import service_event_payload, shape_call_prompt_payload
 from game.messaging.types import (
     ErrorMessage,
-    GameJoinedMessage,
     GameLeftMessage,
+    GameStartingMessage,
     PlayerJoinedMessage,
     PlayerLeftMessage,
+    PlayerReadyChangedMessage,
     PongMessage,
+    RoomJoinedMessage,
+    RoomLeftMessage,
     SessionChatMessage,
     SessionErrorCode,
 )
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player
+from game.session.room import Room, RoomPlayer
 from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerManager
-from game.session.types import GameInfo
+from game.session.types import RoomInfo
 from shared.logging import rotate_log_file
 
 if TYPE_CHECKING:
@@ -59,6 +63,9 @@ class SessionManager:
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
         self._games: dict[str, Game] = {}  # game_id -> Game
+        self._rooms: dict[str, Room] = {}  # room_id -> Room
+        self._room_players: dict[str, RoomPlayer] = {}  # connection_id -> RoomPlayer
+        self._room_locks: dict[str, asyncio.Lock] = {}  # room_id -> room transition/mutation lock
         self._session_store = SessionStore()
         self._timer_manager = TimerManager(on_timeout=self._handle_timeout)
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
@@ -84,29 +91,6 @@ class SessionManager:
     def game_count(self) -> int:
         return len(self._games)
 
-    def get_games_info(self) -> list[GameInfo]:
-        """
-        Return info about all active games for the lobby list.
-        """
-        return [
-            GameInfo(
-                game_id=game.game_id,
-                player_count=game.player_count,
-                max_players=self.MAX_PLAYERS_PER_GAME,
-                num_bots=game.num_bots,
-                started=game.started,
-            )
-            for game in self._games.values()
-        ]
-
-    def create_game(self, game_id: str, num_bots: int = 3) -> Game:
-        if self._log_dir:
-            rotate_log_file(self._log_dir)
-        game = Game(game_id=game_id, num_bots=num_bots)
-        self._games[game_id] = game
-        logger.info(f"game created: {game_id} num_bots={num_bots}")
-        return game
-
     def _start_replay_collection(self, game_id: str) -> None:
         """Start replay collection with the game seed (known after game_service.start_game)."""
         if self._replay_collector:
@@ -116,82 +100,6 @@ class SessionManager:
 
     async def _send_error(self, connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
-
-    async def join_game(
-        self,
-        connection: ConnectionProtocol,
-        game_id: str,
-        player_name: str,
-        session_token: str | None = None,
-    ) -> None:
-        # check if already in a game
-        existing_player = self._players.get(connection.connection_id)
-        if existing_player and existing_player.game_id:
-            await self._send_error(
-                connection,
-                SessionErrorCode.ALREADY_IN_GAME,
-                "You must leave your current game first",
-            )
-            return
-
-        game = self._games.get(game_id)
-        if game is None:
-            await self._send_error(connection, SessionErrorCode.GAME_NOT_FOUND, "Game does not exist")
-            return
-
-        # block all joins to started or full games
-        if game.started:
-            await self._send_error(connection, SessionErrorCode.GAME_STARTED, "Game has already started")
-            return
-
-        if game.player_count >= game.num_humans_needed:
-            await self._send_error(connection, SessionErrorCode.GAME_FULL, "Game is full")
-            return
-
-        # check for duplicate name in game
-        if player_name in [p.name for p in game.players.values()]:
-            await self._send_error(
-                connection,
-                SessionErrorCode.NAME_TAKEN,
-                "That name is already taken in this game",
-            )
-            return
-
-        # create session for persistent identity
-        session = self._session_store.create_session(player_name, game_id, token=session_token)
-
-        # create player and add to game
-        player = Player(
-            connection=connection,
-            name=player_name,
-            session_token=session.session_token,
-            game_id=game_id,
-        )
-        self._players[connection.connection_id] = player
-        game.players[connection.connection_id] = player
-        logger.info(f"player '{player_name}' joined game {game_id}")
-
-        # notify the joining player
-        await connection.send_message(
-            GameJoinedMessage(
-                game_id=game_id,
-                players=game.player_names,
-                session_token=session.session_token,
-            ).model_dump()
-        )
-
-        # notify other players in the game
-        await self._broadcast_to_game(
-            game=game,
-            message=PlayerJoinedMessage(player_name=player_name).model_dump(),
-            exclude_connection_id=connection.connection_id,
-        )
-
-        # start when enough humans have joined.
-        # game.started is set synchronously in _start_mahjong_game()
-        # before any await, preventing double-start from concurrent joins.
-        if not game.started and game.player_count == game.num_humans_needed:
-            await self._start_mahjong_game(game)
 
     async def leave_game(
         self,
@@ -457,10 +365,293 @@ class SessionManager:
         self._heartbeat.record_ping(connection.connection_id)
         await connection.send_message(PongMessage().model_dump())
 
+    # --- Room management ---
+
+    def create_room(self, room_id: str, num_bots: int = 3) -> Room:
+        """Create a room for pre-game gathering."""
+        if self._log_dir:
+            rotate_log_file(self._log_dir)
+        room = Room(room_id=room_id, num_bots=num_bots)
+        self._rooms[room_id] = room
+        self._room_locks[room_id] = asyncio.Lock()
+        logger.info(f"room created: {room_id} num_bots={num_bots}")
+        return room
+
+    def get_room(self, room_id: str) -> Room | None:
+        return self._rooms.get(room_id)
+
+    def _get_room_lock(self, room_id: str) -> asyncio.Lock:
+        lock = self._room_locks.get(room_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._room_locks[room_id] = lock
+        return lock
+
+    def is_in_room(self, connection_id: str) -> bool:
+        return connection_id in self._room_players
+
+    def is_in_active_game(self, connection_id: str) -> bool:
+        player = self._players.get(connection_id)
+        return player is not None and player.game_id is not None
+
+    @property
+    def room_count(self) -> int:
+        return len(self._rooms)
+
+    def get_rooms_info(self) -> list[RoomInfo]:
+        """Return info about all active rooms for the lobby list."""
+        return [
+            RoomInfo(
+                room_id=room.room_id,
+                human_player_count=room.player_count,
+                humans_needed=room.humans_needed,
+                total_seats=room.total_seats,
+                num_bots=room.num_bots,
+                players=room.player_names,
+            )
+            for room in self._rooms.values()
+        ]
+
+    async def join_room(
+        self, connection: ConnectionProtocol, room_id: str, player_name: str, session_token: str
+    ) -> None:
+        """Handle a player joining a room."""
+        if self.is_in_active_game(connection.connection_id):
+            await self._send_error(
+                connection,
+                SessionErrorCode.ALREADY_IN_GAME,
+                "You must leave your current game first",
+            )
+            return
+
+        existing = self._room_players.get(connection.connection_id)
+        if existing:
+            await self._send_error(
+                connection,
+                SessionErrorCode.ALREADY_IN_ROOM,
+                "You must leave your current room first",
+            )
+            return
+
+        room = self._rooms.get(room_id)
+        if room is None:
+            await self._send_error(connection, SessionErrorCode.ROOM_NOT_FOUND, "Room does not exist")
+            return
+
+        if room.transitioning:
+            await self._send_error(
+                connection,
+                SessionErrorCode.ROOM_TRANSITIONING,
+                "Room is starting a game",
+            )
+            return
+
+        if room.is_full:
+            await self._send_error(connection, SessionErrorCode.ROOM_FULL, "Room is full")
+            return
+
+        if player_name in room.player_names:
+            await self._send_error(
+                connection,
+                SessionErrorCode.NAME_TAKEN,
+                "That name is already taken in this room",
+            )
+            return
+
+        room_player = RoomPlayer(
+            connection=connection, name=player_name, room_id=room_id, session_token=session_token
+        )
+        self._room_players[connection.connection_id] = room_player
+        room.players[connection.connection_id] = room_player
+
+        # First player becomes the host
+        if room.host_connection_id is None:
+            room.host_connection_id = connection.connection_id
+            self._heartbeat.start_for_room(room.room_id, self.get_room)
+
+        await connection.send_message(
+            RoomJoinedMessage(
+                room_id=room_id,
+                session_token=session_token,
+                players=room.get_player_info(),
+                num_bots=room.num_bots,
+            ).model_dump()
+        )
+
+        await self._broadcast_to_room(
+            room=room,
+            message=PlayerJoinedMessage(player_name=player_name).model_dump(),
+            exclude_connection_id=connection.connection_id,
+        )
+
+    async def leave_room(self, connection: ConnectionProtocol, *, notify_player: bool = True) -> None:
+        """Handle a player leaving a room."""
+        room_player = self._room_players.get(connection.connection_id)
+        if room_player is None:
+            return
+
+        room_id = room_player.room_id
+        room_lock = self._get_room_lock(room_id)
+        async with room_lock:
+            room = self._rooms.get(room_id)
+            if room is None:
+                self._room_players.pop(connection.connection_id, None)
+                self._room_locks.pop(room_id, None)
+                return
+
+            player_name = room_player.name
+
+            room.players.pop(connection.connection_id, None)
+            self._room_players.pop(connection.connection_id, None)
+
+            if room.host_connection_id == connection.connection_id:
+                room.host_connection_id = next(iter(room.players), None)
+
+            should_cleanup = room.is_empty
+            if should_cleanup:
+                self._rooms.pop(room_id, None)
+                self._room_locks.pop(room_id, None)
+
+        if notify_player:
+            with contextlib.suppress(RuntimeError, OSError):
+                await connection.send_message(RoomLeftMessage().model_dump())
+
+        if not should_cleanup:
+            await self._broadcast_to_room(
+                room=room,
+                message=PlayerLeftMessage(player_name=player_name).model_dump(),
+            )
+
+        if should_cleanup:
+            await self._heartbeat.stop_for_room(room_id)
+
+    async def set_ready(self, connection: ConnectionProtocol, *, ready: bool) -> None:
+        """Toggle a player's ready state. Start game if all ready."""
+        room_player = self._room_players.get(connection.connection_id)
+        if room_player is None:
+            if self.is_in_active_game(connection.connection_id):
+                return
+            await self._send_error(
+                connection,
+                SessionErrorCode.NOT_IN_ROOM,
+                "You must join a room first",
+            )
+            return
+
+        room_id = room_player.room_id
+        room_lock = self._get_room_lock(room_id)
+        should_transition = False
+        async with room_lock:
+            room = self._rooms.get(room_id)
+            if room is None or room.transitioning:
+                return
+
+            room_player.ready = ready
+            if room.all_ready and not room.transitioning:
+                room.transitioning = True
+                should_transition = True
+
+        await self._broadcast_to_room(
+            room=room,
+            message=PlayerReadyChangedMessage(
+                player_name=room_player.name,
+                ready=ready,
+            ).model_dump(),
+        )
+
+        if should_transition:
+            await self._transition_room_to_game(room_id)
+
+    async def _transition_room_to_game(self, room_id: str) -> None:
+        """Transition a room to a running game when all players are ready."""
+        room_lock = self._get_room_lock(room_id)
+        async with room_lock:
+            room = self._rooms.get(room_id)
+            if room is None or not room.transitioning:
+                return
+
+            # Re-validate after re-acquiring the lock: a player may have left
+            # between set_ready releasing the lock and this acquisition.
+            if not room.all_ready:
+                room.transitioning = False
+                return
+
+            room_players = list(room.players.values())
+            game = Game(game_id=room.room_id, num_bots=room.num_bots, settings=room.settings)
+            self._games[room.room_id] = game
+
+            for rp in room_players:
+                session = self._session_store.create_session(rp.name, room.room_id, token=rp.session_token)
+                player = Player(
+                    connection=rp.connection,
+                    name=rp.name,
+                    session_token=session.session_token,
+                    game_id=room.room_id,
+                )
+                self._players[rp.connection_id] = player
+                game.players[rp.connection_id] = player
+                self._room_players.pop(rp.connection_id, None)
+
+            self._rooms.pop(room.room_id, None)
+            self._room_locks.pop(room.room_id, None)
+
+        await self._heartbeat.stop_for_room(room_id)
+
+        message = GameStartingMessage().model_dump()
+        for rp in room_players:
+            with contextlib.suppress(RuntimeError, OSError):
+                await rp.connection.send_message(message)
+
+        # Log rotation already happened in create_room.
+        await self._start_mahjong_game(game)
+
+    async def _broadcast_to_room(
+        self,
+        room: Room,
+        message: dict[str, Any],
+        exclude_connection_id: str | None = None,
+    ) -> None:
+        """Broadcast a message to all players in a room."""
+        await self._broadcast_to_players(room.players, message, exclude_connection_id)
+
+    async def broadcast_room_chat(self, connection: ConnectionProtocol, text: str) -> None:
+        """Broadcast a chat message to all players in the same room."""
+        room_player = self._room_players.get(connection.connection_id)
+        if room_player is None:
+            await self._send_error(
+                connection,
+                SessionErrorCode.NOT_IN_ROOM,
+                "You must join a room first",
+            )
+            return
+
+        room = self._rooms.get(room_player.room_id)
+        if room is None:
+            return
+
+        await self._broadcast_to_room(
+            room=room,
+            message=SessionChatMessage(
+                player_name=room_player.name,
+                text=text,
+            ).model_dump(),
+        )
+
+    def _is_game_alive(self, game: Game) -> bool:
+        """Check if a game is still tracked and has connected players."""
+        return self._games.get(game.game_id) is game and not game.is_empty
+
     async def _start_mahjong_game(self, game: Game) -> None:
         """
-        Start the mahjong game when num_humans_needed players have joined.
+        Start the mahjong game when all required humans are ready.
         """
+        # Guard: if all humans disconnected during the transition window
+        # (between GameStartingMessage and this call), leave_game may have
+        # already cleaned the game out of _games. Starting a game that is
+        # no longer tracked would leak locks, heartbeat tasks, and service state.
+        if not self._is_game_alive(game):
+            return
+
         game.started = True
         player_names = game.player_names
         events = await self._game_service.start_game(game.game_id, player_names, settings=game.settings)
@@ -469,6 +660,13 @@ class SessionManager:
         if any(isinstance(e.data, ErrorEvent) for e in events):
             game.started = False
             await self._broadcast_events(game, events)
+            return
+
+        # Second liveness check: if all humans disconnected during the
+        # start_game await, leave_game may have cleaned the game from _games.
+        # Clean up the service state that start_game just created and bail out.
+        if not self._is_game_alive(game):
+            self._game_service.cleanup_game(game.game_id)
             return
 
         self._start_replay_collection(game.game_id)
@@ -490,27 +688,30 @@ class SessionManager:
         async with self._game_locks[game.game_id]:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
+            await self._replace_disconnected_players(game, player_names)
 
-            # replace players who disconnected during start_game or the
-            # subsequent broadcasts (before leave_game could do bot replacement
-            # because seats/locks were not yet set up).
-            connected_names = set(game.player_names)
-            for name in player_names:
-                if name not in connected_names and not game.is_empty:
-                    seat = self._game_service.get_player_seat(game.game_id, name)
-                    if seat is not None:
-                        self._game_service.replace_player_with_bot(game.game_id, name)
-                        # remove stale timer for the disconnected player's seat
-                        player_timer = self._timer_manager.remove_timer(game.game_id, seat)
-                        if player_timer:
-                            player_timer.cancel()
-                        bot_events = await self._game_service.process_bot_actions_after_replacement(
-                            game.game_id, seat
-                        )
-                        if bot_events:
-                            await self._broadcast_events(game, bot_events)
-                            await self._maybe_start_timer(game, bot_events)
-                            await self._close_connections_on_game_end(game, bot_events)
+    async def _replace_disconnected_players(self, game: Game, original_player_names: list[str]) -> None:
+        """Replace players who disconnected during start_game or subsequent broadcasts.
+
+        Called under the per-game lock. Players who left before seats/locks
+        were set up could not be replaced by leave_game, so handle them here.
+        """
+        connected_names = set(game.player_names)
+        for name in original_player_names:
+            if name not in connected_names and not game.is_empty:
+                seat = self._game_service.get_player_seat(game.game_id, name)
+                if seat is not None:
+                    self._game_service.replace_player_with_bot(game.game_id, name)
+                    player_timer = self._timer_manager.remove_timer(game.game_id, seat)
+                    if player_timer:
+                        player_timer.cancel()
+                    bot_events = await self._game_service.process_bot_actions_after_replacement(
+                        game.game_id, seat
+                    )
+                    if bot_events:
+                        await self._broadcast_events(game, bot_events)
+                        await self._maybe_start_timer(game, bot_events)
+                        await self._close_connections_on_game_end(game, bot_events)
 
     async def _broadcast_events(
         self,
@@ -542,11 +743,21 @@ class SessionManager:
         message: dict[str, Any],
         exclude_connection_id: str | None = None,
     ) -> None:
-        # snapshot to avoid RuntimeError if a concurrent leave_game mutates
-        # game.players while we yield on send_message
-        for player in list(game.players.values()):
+        await self._broadcast_to_players(game.players, message, exclude_connection_id)
+
+    async def _broadcast_to_players(
+        self,
+        players: dict[str, Any],
+        message: dict[str, Any],
+        exclude_connection_id: str | None = None,
+    ) -> None:
+        """Broadcast a message to all players in a dict, skipping one if excluded.
+
+        Snapshots the dict values to avoid RuntimeError if a concurrent
+        leave mutates the dict while we yield on send_message.
+        """
+        for player in list(players.values()):
             if player.connection_id != exclude_connection_id:
-                # ignore connection errors, will be cleaned up on disconnect
                 with contextlib.suppress(RuntimeError, OSError):
                     await player.connection.send_message(message)
 

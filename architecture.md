@@ -8,24 +8,25 @@ The system consists of two backend services and a TypeScript client in a unified
 - **Game Service** (`src/game/`) - Real-time Riichi Mahjong gameplay server with full game logic (port 8001)
 - **Client** (`client/`) - TypeScript + SASS frontend using Bun dev server (port 3000)
 
-## Game Creation Flow
+## Room & Game Creation Flow
 
-Unified game creation: the creator specifies `num_bots` (0-3), which determines how many human players are needed (4 - num_bots). Players browse and join existing games from the lobby.
+Players create rooms (pre-game lobbies) where they gather, chat, and ready up before the game starts. The room creator specifies `num_bots` (0-3), which determines how many human players are needed (4 - num_bots).
 
-- `num_bots=3` (default): game starts immediately when the creator joins (1 human + 3 bots)
-- `num_bots=0`: game waits for 4 humans before starting (pure PvP)
-- `num_bots=1` or `num_bots=2`: game waits for the required number of humans, then fills remaining seats with bots
+- `num_bots=3` (default): game starts when 1 human readies up (1 human + 3 bots)
+- `num_bots=0`: game waits for 4 humans to ready up (pure PvP)
+- `num_bots=1` or `num_bots=2`: game waits for the required number of humans to ready up, then fills remaining seats with bots
 
 ### API flow
 
-1. Client calls `POST /games` on lobby with `{"num_bots": N}` (defaults to 3)
+1. Client calls `POST /rooms` on lobby with `{"num_bots": N}` (defaults to 3)
 2. Lobby selects a healthy game server
-3. Lobby generates game ID and calls `POST /games` on game server with `num_bots`
-4. Game server creates empty game with specified bot count
+3. Lobby generates room ID and calls `POST /rooms` on game server with `num_bots`
+4. Game server creates an empty room with specified bot count
 5. Lobby returns WebSocket URL to client
-6. Client connects to `ws://game-server/ws/{game_id}`
-7. Client sends `join_game` message with player name (and optional `session_token` for reconnection)
-8. Game starts when the required number of humans have joined
+6. Client connects to `ws://game-server/ws/{room_id}`
+7. Client sends `join_room` message with player name
+8. Players chat and toggle ready status in the room lobby
+9. When all required humans are ready, the server transitions the room to a game on the same WebSocket connection
 
 Each human player in the game has independent bank time managed by per-player timers.
 
@@ -41,16 +42,18 @@ After a round ends, the server enters a waiting state. Human players must send a
 
 1. User opens `http://localhost:3000` which loads the SPA
 2. Hash-based router renders lobby view at `#/`
-3. Lobby view fetches games via `GET /games` (CORS-enabled on lobby server)
-4. User clicks "Create Game" or "Join" on an existing game
+3. Lobby view fetches rooms via `GET /rooms` (CORS-enabled on lobby server)
+4. User clicks "Create Room" or "Join" on an existing room
 5. Client stores WebSocket URL and player name in sessionStorage
-6. Router navigates to `#/game/<id>` and renders game view
-7. Game view connects via WebSocket using MessagePack binary frames
-8. Client sends `join_game` message (with stored `session_token` if available) and displays server messages in a log panel (session tokens are redacted from the log)
+6. Router navigates to `#/room/<id>` and renders room view
+7. Room view connects via WebSocket using MessagePack binary frames
+8. Client sends `join_room` message and enters the pre-game lobby (player list, chat, ready toggle)
+9. When all required humans are ready, the server sends `game_starting`
+10. Client hands off the WebSocket to the game view (no reconnection needed) and navigates to `#/game/<id>`
 
 ## Web UI
 
-- **Client** (`client/`, port 3000) - Primary frontend. TypeScript + SASS single-page application served by Bun's dev server. Uses lit-html for templating, hash-based routing (`#/` for lobby, `#/game/:id` for game), and MessagePack for WebSocket communication. Entry point is `client/index.html`.
+- **Client** (`client/`, port 3000) - Primary frontend. TypeScript + SASS single-page application served by Bun's dev server. Uses lit-html for templating, hash-based routing (`#/` for lobby, `#/room/:id` for room, `#/game/:id` for game), and MessagePack for WebSocket communication. Entry point is `client/index.html`.
 
 ## Project Structure
 
@@ -67,8 +70,10 @@ ronin/
 │       ├── router.ts           # Hash-based SPA router
 │       ├── api.ts              # Lobby API client (fetch wrappers)
 │       ├── websocket.ts        # WebSocket manager with MessagePack
+│       ├── socket-handoff.ts   # WebSocket handoff (room→game)
 │       ├── views/
-│       │   ├── lobby.ts        # Lobby view (list/create games)
+│       │   ├── lobby.ts        # Lobby view (list/create rooms)
+│       │   ├── room.ts         # Room view (pre-game lobby)
 │       │   └── game.ts         # Game view (WebSocket log panel)
 │       └── styles/
 │           ├── main.scss       # SASS entry point (imports partials)
@@ -76,6 +81,7 @@ ronin/
 │           ├── _reset.scss     # CSS reset
 │           ├── _layout.scss    # Shared layout and button styles
 │           ├── _lobby.scss     # Lobby view styles
+│           ├── _room.scss      # Room view styles
 │           └── _game.scss      # Game view styles
 ├── src/
 │   ├── config/
@@ -107,22 +113,23 @@ make run-local-server
 Using the Web UI:
 1. Run `make run-local-server` to start all servers
 2. Open http://localhost:3000 in your browser
-3. Create or join a game from the lobby view
-4. Game view connects via WebSocket and displays server messages in a log panel
+3. Create or join a room from the lobby view
+4. Ready up in the room lobby; game starts when all required humans are ready
+5. Game view receives the WebSocket handoff and displays server messages in a log panel
 
 Using the API directly:
 ```bash
-# List available games
-curl http://localhost:8000/games
+# List available rooms
+curl http://localhost:8000/rooms
 
-# Create a game with 3 bots (default, starts immediately with 1 human)
-curl -X POST http://localhost:8000/games
+# Create a room with 3 bots (default, needs 1 human to start)
+curl -X POST http://localhost:8000/rooms
 
-# Create a game with custom bot count (waits for required humans)
-curl -X POST http://localhost:8000/games -H 'Content-Type: application/json' -d '{"num_bots": 1}'
+# Create a room with custom bot count (waits for required humans)
+curl -X POST http://localhost:8000/rooms -H 'Content-Type: application/json' -d '{"num_bots": 1}'
 
 # Response:
-# {"game_id": "abc123", "websocket_url": "ws://localhost:8001/ws/abc123", "server_name": "local-1"}
+# {"room_id": "abc123", "websocket_url": "ws://localhost:8001/ws/abc123", "server_name": "local-1"}
 ```
 
 ## Development

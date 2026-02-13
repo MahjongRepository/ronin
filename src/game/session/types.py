@@ -5,11 +5,12 @@ Pydantic models for the session layer.
 from pydantic import BaseModel
 
 
-class GameInfo(BaseModel):
-    """Game information for lobby listing."""
+class RoomInfo(BaseModel):
+    """Room information for lobby listing."""
 
-    game_id: str
-    player_count: int
-    max_players: int
+    room_id: str
+    human_player_count: int
+    humans_needed: int
+    total_seats: int
     num_bots: int
-    started: bool
+    players: list[str]

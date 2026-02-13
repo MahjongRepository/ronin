@@ -1,15 +1,16 @@
 import { ClientMessageType, ConnectionStatus, InternalMessageType } from "./protocol";
 import { decode, encode } from "@msgpack/msgpack";
 
-type MessageHandler = (message: Record<string, unknown>) => void;
+export type MessageHandler = (message: Record<string, unknown>) => void;
+export type StatusHandler = (status: ConnectionStatus) => void;
 
 export class GameSocket {
     private ws: WebSocket | null = null;
     private pingInterval: ReturnType<typeof setInterval> | null = null;
     private onMessage: MessageHandler;
-    private onStatusChange: (status: ConnectionStatus) => void;
+    private onStatusChange: StatusHandler;
 
-    constructor(onMessage: MessageHandler, onStatusChange: (status: ConnectionStatus) => void) {
+    constructor(onMessage: MessageHandler, onStatusChange: StatusHandler) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
     }
@@ -64,6 +65,20 @@ export class GameSocket {
             }
             this.onStatusChange(ConnectionStatus.ERROR);
         };
+    }
+
+    /**
+     * Replace message and status handlers on an existing open socket.
+     * Used during room-to-game handoff to rebind without reconnecting.
+     */
+    setHandlers(onMessage: MessageHandler, onStatusChange: StatusHandler): void {
+        this.onMessage = onMessage;
+        this.onStatusChange = onStatusChange;
+    }
+
+    /** Whether the underlying WebSocket is currently open. */
+    get isOpen(): boolean {
+        return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
     }
 
     send(message: Record<string, unknown>): void {

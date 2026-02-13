@@ -1,0 +1,134 @@
+@use "variables" as *;
+
+.room-header {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+    margin-bottom: $spacing-lg;
+
+    h2 {
+        flex: 1;
+        font-size: 1.2rem;
+    }
+}
+
+.room-content {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: $spacing-lg;
+}
+
+.room-players-panel {
+    background: $bg-secondary;
+    border-radius: $radius-md;
+    padding: $spacing-md;
+
+    h3 {
+        color: $text-primary;
+        margin-bottom: $spacing-md;
+        font-size: 1rem;
+    }
+}
+
+.room-player-item {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    padding: $spacing-sm;
+    border-radius: $radius-sm;
+    background: rgb(0 0 0 / 20%);
+    margin-bottom: $spacing-xs;
+}
+
+.room-player-status {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+
+    &.ready {
+        color: $success;
+    }
+
+    &.not-ready {
+        color: $text-muted;
+    }
+}
+
+.room-player-name {
+    font-family: $font-mono;
+    font-size: 14px;
+    color: $text-primary;
+}
+
+.room-ready-btn {
+    margin-top: $spacing-md;
+    width: 100%;
+}
+
+.room-chat-panel {
+    background: $bg-secondary;
+    border-radius: $radius-md;
+    padding: $spacing-md;
+    display: flex;
+    flex-direction: column;
+
+    h3 {
+        color: $text-primary;
+        margin-bottom: $spacing-md;
+        font-size: 1rem;
+    }
+}
+
+.room-chat-messages {
+    flex: 1;
+    max-height: 50vh;
+    overflow-y: auto;
+    margin-bottom: $spacing-sm;
+}
+
+.room-chat-entry {
+    font-size: 12px;
+    padding: $spacing-xs 0;
+    display: flex;
+    gap: $spacing-xs;
+
+    &.system {
+        color: $text-muted;
+        font-style: italic;
+    }
+}
+
+.room-chat-time {
+    color: $text-muted;
+    font-family: $font-mono;
+    white-space: nowrap;
+}
+
+.room-chat-sender {
+    color: $accent;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.room-chat-text {
+    color: $text-secondary;
+}
+
+.room-chat-input {
+    display: flex;
+    gap: $spacing-sm;
+
+    input {
+        flex: 1;
+        padding: $spacing-sm;
+        background: $bg-primary;
+        border: 1px solid $bg-panel;
+        border-radius: $radius-sm;
+        color: $text-primary;
+        font-size: 14px;
+
+        &::placeholder {
+            color: $text-muted;
+        }
+    }
+}

@@ -5,10 +5,11 @@ import {
     GameAction,
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
-    SessionMessageType,
 } from "../protocol";
 import { type TemplateResult, html, render } from "lit-html";
-import { GameSocket } from "../websocket";
+import { consumeHandoff, drainBufferedMessages, setActiveSocket } from "../socket-handoff";
+import type { GameSocket } from "../websocket";
+import { clearSessionData } from "../session-storage";
 import { navigate } from "../router";
 
 interface LogEntry {
@@ -23,7 +24,7 @@ let socket: GameSocket | null = null;
 let logs: LogEntry[] = [];
 let connectionStatus = ConnectionStatus.DISCONNECTED;
 let currentGameId = "";
-// incremented on each gameView call, checked in deferred connectToGame
+// incremented on each gameView call, checked in deferred setup
 // to prevent orphaned connections after rapid navigation
 let viewGeneration = 0;
 
@@ -34,108 +35,110 @@ function appendLog(entry: LogEntry): void {
     }
 }
 
-export function gameView(gameId: string): TemplateResult {
-    const wsUrl = sessionStorage.getItem("ws_url");
-    const playerName = sessionStorage.getItem("player_name");
+function activateHandoffSocket(handoffSocket: GameSocket): void {
+    socket = handoffSocket;
+    connectionStatus = handoffSocket.isOpen
+        ? ConnectionStatus.CONNECTED
+        : ConnectionStatus.DISCONNECTED;
+    setActiveSocket(handoffSocket);
 
-    if (!wsUrl || !playerName || !wsUrl.includes(`/ws/${gameId}`)) {
-        return redirectToLobby(gameId);
+    // Rebind handlers synchronously so no messages are lost between
+    // consumeHandoff() and the next event-loop tick.
+    bindGameHandlers();
+
+    // Replay any messages that arrived during the handoff window
+    // (between beginHandoff in room view and bindGameHandlers above).
+    // Process through handleGameMessage so game logic (e.g. auto-confirm
+    // on round_end) runs for buffered messages, not just logging.
+    for (const msg of drainBufferedMessages()) {
+        handleGameMessage(msg);
     }
 
-    // reset state for fresh connection
-    logs = [];
-    connectionStatus = ConnectionStatus.DISCONNECTED;
-    currentGameId = gameId;
-    const generation = ++viewGeneration;
+    appendLog({
+        raw: "Transitioned from room to game",
+        timestamp: new Date().toLocaleTimeString(),
+        type: LOG_TYPE_SYSTEM,
+    });
+}
 
-    // connect after render; bail if navigation happened before timeout fires
+function initHandoff(gameId: string, generation: number): TemplateResult | null {
+    const handoffSocket = consumeHandoff(gameId);
+    if (!handoffSocket) {
+        return null;
+    }
+
+    activateHandoffSocket(handoffSocket);
+
+    // Defer DOM update until the view template has been rendered.
     setTimeout(() => {
         if (viewGeneration !== generation) {
             return;
         }
-        connectToGame(wsUrl, gameId, playerName);
+        updateLogPanel();
     }, 0);
 
     return renderGameView(gameId);
 }
 
-function clearGameSessionStorage(gameId: string): void {
-    sessionStorage.removeItem(`session_token:${gameId}`);
-    sessionStorage.removeItem("ws_url");
-    sessionStorage.removeItem("player_name");
+export function gameView(gameId: string): TemplateResult {
+    // reset state for this view
+    logs = [];
+    connectionStatus = ConnectionStatus.DISCONNECTED;
+    currentGameId = gameId;
+    const generation = ++viewGeneration;
+
+    // try to acquire socket from room handoff
+    const handoffResult = initHandoff(gameId, generation);
+    if (handoffResult) {
+        return handoffResult;
+    }
+
+    // no handoff available - direct game URLs are not supported after room migration
+    return redirectToLobby(gameId);
 }
 
-// no connection info or stale ws_url from a different game, redirect to lobby
+// no handoff socket means direct navigation - redirect to lobby
 function redirectToLobby(gameId: string): TemplateResult {
-    clearGameSessionStorage(gameId);
+    clearSessionData(gameId);
     setTimeout(() => navigate("/"), 0);
     return html`
         <p>Redirecting to lobby...</p>
     `;
 }
 
-function connectToGame(wsUrl: string, gameId: string, playerName: string): void {
-    if (socket) {
-        socket.disconnect();
+function handleGameMessage(message: Record<string, unknown>): void {
+    appendLog({
+        raw: JSON.stringify(message, null, 2),
+        timestamp: new Date().toLocaleTimeString(),
+        type: String(message.type || LOG_TYPE_UNKNOWN),
+    });
+    updateLogPanel();
+
+    // auto-confirm round advancement after a short delay
+    if (message.type === EventType.ROUND_END && socket) {
+        const currentSocket = socket;
+        setTimeout(() => {
+            currentSocket.send({
+                action: GameAction.CONFIRM_ROUND,
+                data: {},
+                type: ClientMessageType.GAME_ACTION,
+            });
+        }, 1000);
+    }
+}
+
+function bindGameHandlers(): void {
+    if (!socket) {
+        return;
     }
 
-    socket = new GameSocket(
-        (message) => {
-            const safeMessage = { ...message };
-            if (safeMessage.type === SessionMessageType.GAME_JOINED) {
-                delete safeMessage.session_token;
-            }
-            appendLog({
-                raw: JSON.stringify(safeMessage, null, 2),
-                timestamp: new Date().toLocaleTimeString(),
-                type: String(message.type || LOG_TYPE_UNKNOWN),
-            });
-            updateLogPanel();
-
-            if (
-                message.type === SessionMessageType.GAME_JOINED &&
-                typeof message.session_token === "string"
-            ) {
-                sessionStorage.setItem(`session_token:${gameId}`, message.session_token);
-            }
-
-            // auto-confirm round advancement after a short delay
-            if (message.type === EventType.ROUND_END && socket) {
-                const currentSocket = socket;
-                setTimeout(() => {
-                    currentSocket.send({
-                        action: GameAction.CONFIRM_ROUND,
-                        data: {},
-                        type: ClientMessageType.GAME_ACTION,
-                    });
-                }, 1000);
-            }
-        },
+    socket.setHandlers(
+        (message) => handleGameMessage(message),
         (status) => {
             connectionStatus = status;
             updateStatusDisplay();
-
-            // send join_game when connected
-            if (status === ConnectionStatus.CONNECTED && socket) {
-                const sessionToken =
-                    sessionStorage.getItem(`session_token:${gameId}`) ?? crypto.randomUUID();
-                socket.send({
-                    game_id: gameId,
-                    player_name: playerName,
-                    session_token: sessionToken,
-                    type: ClientMessageType.JOIN_GAME,
-                });
-                appendLog({
-                    raw: `Sent join_game as "${playerName}"`,
-                    timestamp: new Date().toLocaleTimeString(),
-                    type: LOG_TYPE_SYSTEM,
-                });
-                updateLogPanel();
-            }
         },
     );
-
-    socket.connect(wsUrl);
 }
 
 function renderGameView(gameId: string): TemplateResult {
@@ -199,7 +202,7 @@ export function cleanupGameView(): void {
 }
 
 function handleLeaveGame(): void {
-    clearGameSessionStorage(currentGameId);
+    clearSessionData(currentGameId);
     // router calls cleanupGameView via route cleanup on navigation
     navigate("/");
 }

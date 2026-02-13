@@ -4,21 +4,26 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, TypeAdapter
 
 from game.logic.enums import GameAction
+from game.session.room import RoomPlayerInfo
 
 
 class ClientMessageType(str, Enum):
-    JOIN_GAME = "join_game"
-    LEAVE_GAME = "leave_game"
+    JOIN_ROOM = "join_room"
+    LEAVE_ROOM = "leave_room"
+    SET_READY = "set_ready"
     GAME_ACTION = "game_action"
     CHAT = "chat"
     PING = "ping"
 
 
 class SessionMessageType(str, Enum):
-    GAME_JOINED = "game_joined"
     GAME_LEFT = "game_left"
+    ROOM_JOINED = "room_joined"
+    ROOM_LEFT = "room_left"
     PLAYER_JOINED = "player_joined"
     PLAYER_LEFT = "player_left"
+    PLAYER_READY_CHANGED = "player_ready_changed"
+    GAME_STARTING = "game_starting"
     CHAT = "chat"
     ERROR = "session_error"
     PONG = "pong"
@@ -26,25 +31,32 @@ class SessionMessageType(str, Enum):
 
 class SessionErrorCode(str, Enum):
     ALREADY_IN_GAME = "already_in_game"
-    GAME_NOT_FOUND = "game_not_found"
-    GAME_STARTED = "game_started"
-    GAME_FULL = "game_full"
+    ALREADY_IN_ROOM = "already_in_room"
+    ROOM_NOT_FOUND = "room_not_found"
+    ROOM_FULL = "room_full"
+    ROOM_TRANSITIONING = "room_transitioning"
     NAME_TAKEN = "name_taken"
+    NOT_IN_ROOM = "not_in_room"
     NOT_IN_GAME = "not_in_game"
     GAME_NOT_STARTED = "game_not_started"
     INVALID_MESSAGE = "invalid_message"
     ACTION_FAILED = "action_failed"
 
 
-class JoinGameMessage(BaseModel):
-    type: Literal[ClientMessageType.JOIN_GAME] = ClientMessageType.JOIN_GAME
-    game_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+class JoinRoomMessage(BaseModel):
+    type: Literal[ClientMessageType.JOIN_ROOM] = ClientMessageType.JOIN_ROOM
+    room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     player_name: str = Field(min_length=1, max_length=50)
-    session_token: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    session_token: str = Field(min_length=1, max_length=100)
 
 
-class LeaveGameMessage(BaseModel):
-    type: Literal[ClientMessageType.LEAVE_GAME] = ClientMessageType.LEAVE_GAME
+class LeaveRoomMessage(BaseModel):
+    type: Literal[ClientMessageType.LEAVE_ROOM] = ClientMessageType.LEAVE_ROOM
+
+
+class SetReadyMessage(BaseModel):
+    type: Literal[ClientMessageType.SET_READY] = ClientMessageType.SET_READY
+    ready: bool
 
 
 class GameActionMessage(BaseModel):
@@ -63,20 +75,25 @@ class PingMessage(BaseModel):
 
 
 ClientMessage = Annotated[
-    JoinGameMessage | LeaveGameMessage | GameActionMessage | ChatMessage | PingMessage,
+    JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | GameActionMessage | ChatMessage | PingMessage,
     Field(discriminator="type"),
 ]
 
 
-class GameJoinedMessage(BaseModel):
-    type: Literal[SessionMessageType.GAME_JOINED] = SessionMessageType.GAME_JOINED
-    game_id: str
-    players: list[str]
-    session_token: str
-
-
 class GameLeftMessage(BaseModel):
     type: Literal[SessionMessageType.GAME_LEFT] = SessionMessageType.GAME_LEFT
+
+
+class RoomJoinedMessage(BaseModel):
+    type: Literal[SessionMessageType.ROOM_JOINED] = SessionMessageType.ROOM_JOINED
+    room_id: str
+    session_token: str
+    players: list[RoomPlayerInfo]
+    num_bots: int
+
+
+class RoomLeftMessage(BaseModel):
+    type: Literal[SessionMessageType.ROOM_LEFT] = SessionMessageType.ROOM_LEFT
 
 
 class PlayerJoinedMessage(BaseModel):
@@ -87,6 +104,16 @@ class PlayerJoinedMessage(BaseModel):
 class PlayerLeftMessage(BaseModel):
     type: Literal[SessionMessageType.PLAYER_LEFT] = SessionMessageType.PLAYER_LEFT
     player_name: str
+
+
+class PlayerReadyChangedMessage(BaseModel):
+    type: Literal[SessionMessageType.PLAYER_READY_CHANGED] = SessionMessageType.PLAYER_READY_CHANGED
+    player_name: str
+    ready: bool
+
+
+class GameStartingMessage(BaseModel):
+    type: Literal[SessionMessageType.GAME_STARTING] = SessionMessageType.GAME_STARTING
 
 
 class SessionChatMessage(BaseModel):

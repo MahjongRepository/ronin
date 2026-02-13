@@ -45,31 +45,42 @@ def _make_discard_event() -> ServiceEvent:
     )
 
 
+async def _create_started_game_with_collector(
+    manager: SessionManager,
+    game_id: str = "game1",
+) -> list[MockConnection]:
+    """Create a started game through the room flow for replay tests."""
+    manager.create_room(game_id, num_bots=3)
+    conn = MockConnection()
+    manager.register_connection(conn)
+    await manager.join_room(conn, game_id, "Alice", "tok-alice")
+    await manager.set_ready(conn, ready=True)
+    conn._outbox.clear()
+    return [conn]
+
+
 class TestSessionReplayStart:
     """Tests for replay collector start_game trigger when game starts."""
 
     async def test_start_game_calls_collector_start_with_seed(self):
         """Replay collector start_game is called with game_id and seed when game starts."""
         manager, collector, game_service = _make_manager_with_collector()
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1", num_bots=3)
-        await manager.join_game(conn, "game1", "Alice")
+        await _create_started_game_with_collector(manager)
 
         seed = game_service.get_game_seed("game1")
         collector.start_game.assert_called_once_with("game1", seed)
 
-    def test_create_game_does_not_call_collector_start(self):
-        """Replay collector start_game is NOT called during create_game (seed not yet known)."""
+    def test_create_room_does_not_call_collector_start(self):
+        """Replay collector start_game is NOT called during create_room (seed not yet known)."""
         manager, collector, _game_service = _make_manager_with_collector()
-        manager.create_game("game1", num_bots=3)
+        manager.create_room("game1", num_bots=3)
         collector.start_game.assert_not_called()
 
-    def test_create_game_without_collector(self):
+    def test_create_room_without_collector(self):
         """No error when replay collector is not configured."""
         game_service = MockGameService()
         manager = SessionManager(game_service)
-        manager.create_game("game1")  # should not raise
+        manager.create_room("game1")  # should not raise
 
 
 class TestSessionReplayCollect:
@@ -130,14 +141,10 @@ class TestSessionReplayCleanup:
 
     async def test_abandoned_game_calls_cleanup(self):
         manager, collector, _game_service = _make_manager_with_collector()
-
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1")
-        await manager.join_game(conn, "game1", "Alice")
+        conns = await _create_started_game_with_collector(manager)
 
         # leave the game, making it empty -- should trigger cleanup
-        await manager.leave_game(conn)
+        await manager.leave_game(conns[0])
 
         collector.cleanup_game.assert_called_once_with("game1")
 
@@ -146,8 +153,10 @@ class TestSessionReplayCleanup:
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
+        manager.create_room("game1", num_bots=3)
         conn = MockConnection()
         manager.register_connection(conn)
-        manager.create_game("game1")
-        await manager.join_game(conn, "game1", "Alice")
+        await manager.join_room(conn, "game1", "Alice", "tok-alice")
+        await manager.set_ready(conn, ready=True)
+
         await manager.leave_game(conn)  # should not raise

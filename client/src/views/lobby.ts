@@ -1,5 +1,5 @@
+import { type RoomInfo, createRoom, listRooms } from "../api";
 import { type TemplateResult, html, render } from "lit-html";
-import { createGame, listGames } from "../api";
 import { navigate } from "../router";
 
 const PLAYER_NAME_SUFFIX_LENGTH = 6;
@@ -18,51 +18,45 @@ const playerName = generatePlayerName();
 
 export function lobbyView(): TemplateResult {
     // trigger async load after render
-    setTimeout(() => loadAndRenderGames(), 0);
+    setTimeout(() => loadAndRenderRooms(), 0);
 
     return html`
         <div class="lobby">
             <h1>Ronin Mahjong</h1>
             <div class="lobby-controls">
-                <button class="btn btn-primary" @click=${handleCreateGame}>Create Game</button>
-                <button class="btn btn-secondary" @click=${() => loadAndRenderGames()}>Refresh</button>
+                <button class="btn btn-primary" @click=${handleCreateRoom}>Create Room</button>
+                <button class="btn btn-secondary" @click=${() => loadAndRenderRooms()}>Refresh</button>
             </div>
             <div class="lobby-status" id="lobby-status"></div>
-            <div class="games-list" id="games-list">Loading games...</div>
+            <div class="games-list" id="games-list">Loading rooms...</div>
         </div>
     `;
 }
 
-async function loadAndRenderGames(): Promise<void> {
+async function loadAndRenderRooms(): Promise<void> {
     const container = document.getElementById("games-list");
     if (!container) {
         return;
     }
 
     try {
-        const games = await listGames();
-        if (games.length === 0) {
+        const rooms = await listRooms();
+        if (rooms.length === 0) {
             render(
                 html`
-                    <p class="empty-message">No games available. Create one!</p>
+                    <p class="empty-message">No rooms available. Create one!</p>
                 `,
                 container,
             );
         } else {
             render(
                 html`
-                ${games.map(
-                    (game) => html`
+                ${rooms.map(
+                    (room) => html`
                     <div class="game-item">
-                        <span class="game-id">${game.game_id}</span>
-                        <span class="game-players">${game.player_count}/${game.max_players} players</span>
-                        ${
-                            game.player_count < game.max_players
-                                ? html`<button class="btn btn-small" @click=${() => joinGame(game.game_id, game.server_url)}>Join</button>`
-                                : html`
-                                      <span class="game-full">Full</span>
-                                  `
-                        }
+                        <span class="game-id">${room.room_id}</span>
+                        <span class="game-players">${room.human_player_count}/${room.humans_needed} players</span>
+                        ${renderJoinButton(room)}
                     </div>
                 `,
                 )}
@@ -73,11 +67,20 @@ async function loadAndRenderGames(): Promise<void> {
     } catch {
         render(
             html`
-                <p class="error-message">Failed to load games</p>
+                <p class="error-message">Failed to load rooms</p>
             `,
             container,
         );
     }
+}
+
+function renderJoinButton(room: RoomInfo): TemplateResult {
+    if (room.human_player_count < room.humans_needed) {
+        return html`<button class="btn btn-small" @click=${() => joinRoom(room.room_id, room.server_url)}>Join</button>`;
+    }
+    return html`
+        <span class="game-full">Full</span>
+    `;
 }
 
 function showLobbyStatus(content: TemplateResult): void {
@@ -87,39 +90,40 @@ function showLobbyStatus(content: TemplateResult): void {
     }
 }
 
-async function handleCreateGame(): Promise<void> {
+async function handleCreateRoom(): Promise<void> {
     showLobbyStatus(
         html`
-            <p>Creating game...</p>
+            <p>Creating room...</p>
         `,
     );
     try {
-        const response = await createGame();
+        const response = await createRoom();
         sessionStorage.setItem("ws_url", response.websocket_url);
         sessionStorage.setItem("player_name", playerName);
-        navigate(`/game/${response.game_id}`);
+        sessionStorage.setItem("room_id", response.room_id);
+        navigate(`/room/${response.room_id}`);
     } catch {
         showLobbyStatus(
             html`
-                <p class="error-message">Failed to create game</p>
+                <p class="error-message">Failed to create room</p>
             `,
         );
     }
 }
 
-function parseServerUrl(serverUrl: string, gameId: string): URL | undefined {
+function parseServerUrl(serverUrl: string, roomId: string): URL | undefined {
     try {
         const url = new URL(serverUrl);
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-        url.pathname = `/ws/${gameId}`;
+        url.pathname = `/ws/${roomId}`;
         return url;
     } catch {
         return undefined;
     }
 }
 
-function joinGame(gameId: string, serverUrl: string): void {
-    const url = parseServerUrl(serverUrl, gameId);
+function joinRoom(roomId: string, serverUrl: string): void {
+    const url = parseServerUrl(serverUrl, roomId);
     if (!url) {
         showLobbyStatus(
             html`
@@ -130,5 +134,6 @@ function joinGame(gameId: string, serverUrl: string): void {
     }
     sessionStorage.setItem("ws_url", url.toString());
     sessionStorage.setItem("player_name", playerName);
-    navigate(`/game/${gameId}`);
+    sessionStorage.setItem("room_id", roomId);
+    navigate(`/room/${roomId}`);
 }

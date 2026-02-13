@@ -7,37 +7,44 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 ## REST API
 
 - `GET /health` - Health check
-- `GET /status` - Server status (active games, capacity)
-- `GET /games` - List all active games
-- `POST /games` - Create a game (called by lobby). Accepts optional `num_bots` field (0-3, defaults to 3)
+- `GET /status` - Server status (`active_rooms`, `active_games`, `capacity_used`, `max_games`)
+- `GET /rooms` - List all rooms (pre-game lobbies)
+- `POST /rooms` - Create a room (called by lobby). Accepts `room_id` and optional `num_bots` field (0-3, defaults to 3)
 ## WebSocket API
 
 ### Connection
 
-Connect to `ws://localhost:8001/ws/{game_id}` (game must be created first via lobby or `POST /games`).
+Connect to `ws://localhost:8001/ws/{room_id}` (room must be created first via lobby or `POST /rooms`). The same WebSocket connection is used for both the room phase and the game phase.
 
 ### Message Format
 
 All messages use MessagePack binary format with a `type` field. The server only accepts and sends binary WebSocket frames.
 
-#### Client -> Server
+#### Client -> Server (Room Phase)
 
-**Join Game**
+**Join Room**
 ```json
-{"type": "join_game", "game_id": "game123", "player_name": "Alice", "session_token": "client-generated-uuid"}
+{"type": "join_room", "room_id": "room123", "player_name": "Alice"}
 ```
 
-**Leave Game**
+**Leave Room**
 ```json
-{"type": "leave_game"}
+{"type": "leave_room"}
 ```
+
+**Set Ready**
+```json
+{"type": "set_ready", "ready": true}
+```
+
+#### Client -> Server (Game Phase)
 
 **Game Action**
 ```json
 {"type": "game_action", "action": "discard", "data": {"tile": "1m"}}
 ```
 
-**Chat**
+**Chat** (works in both room and game phase)
 ```json
 {"type": "chat", "text": "Hello!"}
 ```
@@ -47,12 +54,35 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "ping"}
 ```
 
-#### Server -> Client
+#### Server -> Client (Room Phase)
 
-**Game Joined**
+**Room Joined** (sent to the joining player with full room state)
 ```json
-{"type": "game_joined", "game_id": "game123", "players": ["Alice", "Bob"], "session_token": "uuid-token"}
+{"type": "room_joined", "room_id": "room123", "players": [{"name": "Alice", "ready": false}], "num_bots": 3}
 ```
+
+**Room Left** (sent to the player who left)
+```json
+{"type": "room_left"}
+```
+
+**Player Joined/Left** (broadcast to other players in room)
+```json
+{"type": "player_joined", "player_name": "Charlie"}
+{"type": "player_left", "player_name": "Charlie"}
+```
+
+**Player Ready Changed** (broadcast to all players in room)
+```json
+{"type": "player_ready_changed", "player_name": "Alice", "ready": true}
+```
+
+**Game Starting** (broadcast when all required humans are ready, before game events)
+```json
+{"type": "game_starting"}
+```
+
+#### Server -> Client (Game Phase)
 
 **Game Left** (sent to the player who left)
 ```json
@@ -103,12 +133,17 @@ Note: The `furiten` event is sent only to the affected player (target `seat_N`),
 ```
 
 Error codes:
-- `game_not_found` - The requested game does not exist
-- `game_started` - Game has already started and cannot accept new players
-- `game_full` - Game has reached its human player capacity (4 - num_bots)
-- `already_in_game` - Player tried to join a game while already in one
-- `name_taken` - Player name is already used in the game
-- `not_in_game` - Player tried to perform an action without being in a game
+- `already_in_game` - Player tried to join a room/game while already in one
+- `already_in_room` - Player tried to join a room while already in one
+- `room_not_found` - The requested room does not exist
+- `room_full` - Room has reached its human player capacity (4 - num_bots)
+- `room_transitioning` - Room is currently transitioning to a game
+- `name_taken` - Player name is already used in the room/game
+- `not_in_room` - Player tried to perform a room action without being in a room
+- `not_in_game` - Player tried to perform a game action without being in a game
+- `game_not_started` - Player tried to perform a game action before the game started
+- `invalid_message` - Message could not be parsed
+- `action_failed` - Game action failed
 
 ## Internal Architecture
 
@@ -218,15 +253,15 @@ This eliminates the previous duplication where bot and human call responses had 
 
 `BotController` is a pure decision-maker: `get_turn_action()` returns action data for a bot's turn, `get_call_response()` returns the bot's response to a call prompt. Neither method modifies game state or calls handlers directly. All state mutation flows through `MahjongGameService`.
 
-### Unified Game Creation
+### Room-Based Game Creation
 
-Games use a `num_bots` parameter (0-3) instead of separate game modes. The `num_bots` value determines how many human players are needed: `num_humans_needed = 4 - num_bots`.
+Rooms use a `num_bots` parameter (0-3) instead of separate game modes. The `num_bots` value determines how many human players are needed: `num_humans_needed = 4 - num_bots`.
 
-- `num_bots=3` (default): game starts when 1 human joins, 3 seats filled with bots
-- `num_bots=0`: game waits for 4 humans, no bots
-- `num_bots=1` or `num_bots=2`: game waits for the required humans, remaining seats filled with bots
+- `num_bots=3` (default): game starts when 1 human joins and readies up (1 human + 3 bots)
+- `num_bots=0`: game starts when 4 humans all ready up (pure PvP)
+- `num_bots=1` or `num_bots=2`: game starts when the required humans all ready up, remaining seats filled with bots
 
-The `num_bots` is set at game creation time via `POST /games` and stored on the `Game` dataclass. `SessionManager.join_game()` starts the game when `player_count == num_humans_needed`.
+The `num_bots` is set at room creation time via `POST /rooms` and stored on the `Room` dataclass. Players join a room, toggle ready, and the game starts when all required humans are ready. The room transitions to a `Game` via `SessionManager._transition_room_to_game()`.
 
 ### Disconnect-to-Bot Replacement
 
@@ -242,10 +277,10 @@ For invalid game actions, the `InvalidGameActionError` exception carries a `seat
 
 ### Session Identity
 
-Players provide a `session_token` (UUID) when joining a game. The client generates the token (via `crypto.randomUUID()` in web, `uuid.uuid4()` in bot) and includes it as a required field in the `join_game` message. The server stores the token in `SessionStore` (`session/session_store.py`) and echoes it back in the `game_joined` response. The client persists the token in `sessionStorage` (scoped by game ID) and reuses it on reconnection.
+Sessions are created server-side during the room-to-game transition. When all required humans in a room are ready, the server generates a `session_token` (UUID) for each player, creates sessions in `SessionStore`, and transitions the room into a game — all on the same WebSocket connection. The token is managed server-side for reconnection support.
 
 Session lifecycle:
-- **Created**: When a player joins a game (`join_game`)
+- **Created**: When the room transitions to a game (server generates tokens for all players)
 - **Seat bound**: When the game starts, the player's seat is recorded on the session
 - **Marked disconnected**: When a player disconnects from a started game (timestamp recorded)
 - **Removed**: When a player leaves before the game starts, or on defensive cleanup
@@ -358,19 +393,19 @@ make run-all-checks       # Run all checks
 Use `MockConnection` to test message handling:
 
 ```python
-async def test_join_game():
+async def test_join_room():
     connection = MockConnection()
     router.handle_connect(connection)
 
+    session_manager.create_room("room1", num_bots=3)
     await router.handle_message(connection, {
-        "type": "join_game",
-        "game_id": "game1",
+        "type": "join_room",
+        "room_id": "room1",
         "player_name": "Alice",
     })
 
     response = connection.sent_messages[0]
-    assert response["type"] == "game_joined"
-    assert "session_token" in response
+    assert response["type"] == "room_joined"
 ```
 
 ### Integration Tests (With TestClient)
@@ -382,10 +417,9 @@ import msgpack
 
 def test_websocket():
     client = TestClient(app)
-    client.post("/games", json={"game_id": "test_game"})
-    with client.websocket_connect("/ws/test_game") as ws:
-        ws.send_bytes(msgpack.packb({"type": "join_game", "game_id": "test_game", "player_name": "Alice"}))
+    client.post("/rooms", json={"room_id": "test_room"})
+    with client.websocket_connect("/ws/test_room") as ws:
+        ws.send_bytes(msgpack.packb({"type": "join_room", "room_id": "test_room", "player_name": "Alice"}))
         response = msgpack.unpackb(ws.receive_bytes())
-        assert response["type"] == "game_joined"
-        assert "session_token" in response
+        assert response["type"] == "room_joined"
 ```

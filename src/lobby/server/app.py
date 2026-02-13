@@ -8,8 +8,8 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from lobby.games.service import GameCreationError, GamesService
-from lobby.games.types import CreateGameRequest
+from lobby.games.service import GamesService, RoomCreationError
+from lobby.games.types import CreateRoomRequest
 from lobby.registry.manager import RegistryManager
 from lobby.server.settings import LobbyServerSettings
 from shared.logging import setup_logging
@@ -43,13 +43,13 @@ async def list_servers(request: Request) -> JSONResponse:
     )
 
 
-async def list_games(request: Request) -> JSONResponse:
+async def list_rooms(request: Request) -> JSONResponse:
     games_service: GamesService = request.app.state.games_service
-    games = await games_service.list_games()
-    return JSONResponse({"games": games})
+    rooms = await games_service.list_rooms()
+    return JSONResponse({"rooms": rooms})
 
 
-async def create_game(request: Request) -> JSONResponse:
+async def create_room(request: Request) -> JSONResponse:
     games_service: GamesService = request.app.state.games_service
 
     try:
@@ -58,21 +58,21 @@ async def create_game(request: Request) -> JSONResponse:
         body = {}
 
     try:
-        req = CreateGameRequest(**body)
+        req = CreateRoomRequest(**body)
     except (TypeError, ValidationError) as e:
         return JSONResponse({"error": str(e)}, status_code=422)
 
     try:
-        result = await games_service.create_game(num_bots=req.num_bots)
+        result = await games_service.create_room(num_bots=req.num_bots)
         return JSONResponse(
             {
-                "game_id": result.game_id,
+                "room_id": result.room_id,
                 "websocket_url": result.websocket_url,
                 "server_name": result.server_name,
             },
             status_code=201,
         )
-    except GameCreationError as e:
+    except RoomCreationError as e:
         return JSONResponse({"error": str(e)}, status_code=503)
 
 
@@ -83,8 +83,8 @@ def create_app(settings: LobbyServerSettings | None = None) -> Starlette:
     routes = [
         Route("/health", health, methods=["GET"]),
         Route("/servers", list_servers, methods=["GET"]),
-        Route("/games", list_games, methods=["GET"]),
-        Route("/games", create_game, methods=["POST"]),
+        Route("/rooms", list_rooms, methods=["GET"]),
+        Route("/rooms", create_room, methods=["POST"]),
     ]
 
     app = Starlette(routes=routes)

@@ -67,8 +67,8 @@ class TestHeartbeatMonitorTaskManagement:
             return None  # will cause loop to exit
 
         monitor.start_for_game("game1", get_game)
-        assert "game1" in monitor._tasks
-        assert monitor._tasks.get("game1") is not None
+        assert "game:game1" in monitor._tasks
+        assert monitor._tasks.get("game:game1") is not None
 
         # clean up
         await monitor.stop_for_game("game1")
@@ -80,7 +80,7 @@ class TestHeartbeatMonitorTaskManagement:
             return None
 
         monitor.start_for_game("game1", get_game)
-        assert "game1" in monitor._tasks
+        assert "game:game1" in monitor._tasks
 
         await monitor.stop_for_game("game1")
         assert "game1" not in monitor._tasks
@@ -88,7 +88,7 @@ class TestHeartbeatMonitorTaskManagement:
     async def test_stop_for_game_nonexistent_is_noop(self):
         monitor = HeartbeatMonitor()
         await monitor.stop_for_game("nonexistent")
-        assert "nonexistent" not in monitor._tasks
+        assert "game:nonexistent" not in monitor._tasks
 
 
 class TestHeartbeatMonitorLoop:
@@ -113,7 +113,7 @@ class TestHeartbeatMonitorLoop:
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.side_effect = [None, asyncio.CancelledError()]
             with contextlib.suppress(asyncio.CancelledError):
-                await monitor._loop("game1", get_game)
+                await monitor._check_loop("game1", "game", get_game)
 
         assert conn.is_closed
         assert conn._close_code == 1000
@@ -135,7 +135,7 @@ class TestHeartbeatMonitorLoop:
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.side_effect = [None, asyncio.CancelledError()]
             with contextlib.suppress(asyncio.CancelledError):
-                await monitor._loop("game1", get_game)
+                await monitor._check_loop("game1", "game", get_game)
 
         assert not conn.is_closed
 
@@ -149,7 +149,7 @@ class TestHeartbeatMonitorLoop:
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.return_value = None
             # should exit cleanly
-            await monitor._loop("game1", get_game)
+            await monitor._check_loop("game1", "game", get_game)
 
         # verify sleep was called (loop attempted one iteration)
         mock_sleep.assert_called_once()
@@ -177,7 +177,7 @@ class TestHeartbeatMonitorLoop:
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.side_effect = [None, asyncio.CancelledError()]
             with contextlib.suppress(asyncio.CancelledError):
-                await monitor._loop("game1", get_game)
+                await monitor._check_loop("game1", "game", get_game)
 
         # should not raise -- error is suppressed
 
@@ -204,7 +204,7 @@ class TestHeartbeatMonitorLoop:
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.side_effect = [None, asyncio.CancelledError()]
             with contextlib.suppress(asyncio.CancelledError):
-                await monitor._loop("game1", get_game)
+                await monitor._check_loop("game1", "game", get_game)
 
         assert conn1.is_closed
         assert not conn2.is_closed

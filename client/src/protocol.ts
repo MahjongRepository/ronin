@@ -1,16 +1,19 @@
 export enum ClientMessageType {
-    JOIN_GAME = "join_game",
-    LEAVE_GAME = "leave_game",
+    JOIN_ROOM = "join_room",
+    LEAVE_ROOM = "leave_room",
+    SET_READY = "set_ready",
     GAME_ACTION = "game_action",
     CHAT = "chat",
     PING = "ping",
 }
 
 export enum SessionMessageType {
-    GAME_JOINED = "game_joined",
-    GAME_LEFT = "game_left",
+    ROOM_JOINED = "room_joined",
+    ROOM_LEFT = "room_left",
     PLAYER_JOINED = "player_joined",
     PLAYER_LEFT = "player_left",
+    PLAYER_READY_CHANGED = "player_ready_changed",
+    GAME_STARTING = "game_starting",
     CHAT = "chat",
     ERROR = "session_error",
     PONG = "pong",
@@ -53,6 +56,11 @@ export enum ConnectionStatus {
 
 export enum InternalMessageType {
     DECODE_ERROR = "decode_error",
+}
+
+export interface RoomPlayerInfo {
+    name: string;
+    ready: boolean;
 }
 
 export const LOG_TYPE_SYSTEM = "system";

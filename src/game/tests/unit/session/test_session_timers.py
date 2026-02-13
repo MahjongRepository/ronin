@@ -23,35 +23,29 @@ from game.logic.types import (
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
-from .helpers import make_dummy_game_view, make_game_with_human
+from .helpers import create_started_game, make_dummy_game_view, make_game_with_human
 
 
 class TestSessionManagerTimers:
     async def test_game_cleanup_removes_timer_and_lock(self, manager):
         """Leaving a game cleans up timer and lock."""
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1")
+        conns = await create_started_game(manager, "game1")
 
-        await manager.join_game(conn, "game1", "Alice")
         assert manager._timer_manager.has_game("game1")
         assert "game1" in manager._game_locks
 
-        await manager.leave_game(conn)
+        await manager.leave_game(conns[0])
         assert not manager._timer_manager.has_game("game1")
         assert "game1" not in manager._game_locks
 
     async def test_turn_timeout_broadcasts_events(self, manager):
         """Turn timeout triggers handle_timeout and broadcasts result events."""
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1")
-        await manager.join_game(conn, "game1", "Alice")
-        conn._outbox.clear()
+        conns = await create_started_game(manager, "game1")
+        conns[0]._outbox.clear()
 
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
-        timeout_msgs = [m for m in conn.sent_messages if m.get("type") == EventType.DRAW]
+        timeout_msgs = [m for m in conns[0].sent_messages if m.get("type") == EventType.DRAW]
         assert len(timeout_msgs) == 1
 
     async def test_timeout_on_missing_game_does_nothing(self, manager):
@@ -61,19 +55,16 @@ class TestSessionManagerTimers:
 
     async def test_timeout_on_game_without_lock_does_nothing(self, manager):
         """Timeout when lock has been cleaned up is silently ignored."""
-        conn = MockConnection()
-        manager.register_connection(conn)
-        manager.create_game("game1")
-        await manager.join_game(conn, "game1", "Alice")
+        conns = await create_started_game(manager, "game1")
 
         # remove lock to simulate cleanup race
         manager._game_locks.pop("game1", None)
-        conn._outbox.clear()
+        conns[0]._outbox.clear()
 
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         # no events broadcast
-        assert len(conn.sent_messages) == 0
+        assert len(conns[0].sent_messages) == 0
 
 
 class TestSessionManagerTimerIntegration:
@@ -326,13 +317,7 @@ class TestPerPlayerTimers:
 
     async def test_pvp_game_creates_timer_per_player(self, manager):
         """PVP game with 4 players creates a timer for each player."""
-        conns = [MockConnection() for _ in range(4)]
-        for c in conns:
-            manager.register_connection(c)
-        manager.create_game("game1", num_bots=0)
-
-        for i, c in enumerate(conns):
-            await manager.join_game(c, "game1", f"Player{i}")
+        await create_started_game(manager, "game1", num_bots=0, player_names=["P0", "P1", "P2", "P3"])
 
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
@@ -374,7 +359,6 @@ class TestPerPlayerTimers:
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # per-seat events with distinct CallPromptEvent instances (no shared data)
         call_events = [
             ServiceEvent(
                 event=EventType.CALL_PROMPT,
@@ -416,7 +400,6 @@ class TestPerPlayerTimers:
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # start meld timers for both callers — distinct per-seat events
         call_events = [
             ServiceEvent(
                 event=EventType.CALL_PROMPT,
@@ -460,7 +443,6 @@ class TestPerPlayerTimers:
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # start meld timers for both callers — distinct per-seat events
         call_events = [
             ServiceEvent(
                 event=EventType.CALL_PROMPT,
@@ -526,18 +508,7 @@ class TestPerPlayerTimers:
 
     async def test_leave_game_cancels_all_player_timers(self, manager):
         """Leaving a game cancels all player timers when game becomes empty."""
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
-        manager.create_game("game1", num_bots=0)
-
-        # join 4 players to start the game
-        conns = [conn1, conn2, MockConnection(), MockConnection()]
-        for c in conns[2:]:
-            manager.register_connection(c)
-        for i, c in enumerate(conns):
-            await manager.join_game(c, "game1", f"Player{i}")
+        conns = await create_started_game(manager, "game1", num_bots=0, player_names=["P0", "P1", "P2", "P3"])
 
         assert manager._timer_manager.has_game("game1")
 
