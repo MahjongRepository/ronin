@@ -10,6 +10,21 @@ MAX_BOTS = 3
 
 
 @dataclass
+class SessionData:
+    """Persistent session identity that survives WebSocket disconnects.
+
+    Track a player's session across connection lifecycle events.
+    A session is created on join_game and cleaned up when the game ends.
+    """
+
+    session_token: str
+    player_name: str
+    game_id: str
+    seat: int | None = None
+    disconnected_at: float | None = None  # time.monotonic() timestamp, None if connected
+
+
+@dataclass
 class Player:
     """Represent a connected player in the session layer.
 
@@ -23,6 +38,7 @@ class Player:
 
     connection: ConnectionProtocol
     name: str
+    session_token: str
     game_id: str | None = None
     seat: int | None = None
 

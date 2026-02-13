@@ -314,16 +314,18 @@ class TestSessionManagerDisconnect:
         assert len(bot_msgs) == 1
 
     async def test_leave_game_skips_bot_replacement_when_lock_missing(self, manager):
-        """leave_game skips bot replacement when the game lock has been cleaned up."""
+        """leave_game skips bot replacement when the game lock is missing but marks session disconnected."""
         conns = [MockConnection() for _ in range(2)]
         for c in conns:
             manager.register_connection(c)
         manager.create_game("game1", num_bots=2)
 
         await manager.join_game(conns[0], "game1", "Alice")
+        token = conns[0].sent_messages[0]["session_token"]
         await manager.join_game(conns[1], "game1", "Bob")
 
-        # remove the game lock to simulate cleanup race
+        # remove the game lock to simulate the startup window where
+        # game.started is True but the lock hasn't been created yet
         manager._game_locks.pop("game1", None)
 
         replace_calls = []
@@ -335,10 +337,16 @@ class TestSessionManagerDisconnect:
 
         manager._game_service.replace_player_with_bot = tracking_replace
 
-        # leave_game should treat the missing lock as pre-start (no bot replacement)
+        # leave_game should skip bot replacement (no lock) but use started-game
+        # session semantics (mark_disconnected, not remove_session)
         await manager.leave_game(conns[0])
 
         assert len(replace_calls) == 0
+
+        # session should be marked disconnected (not removed) since game.started is True
+        session = manager._session_store.get_session(token)
+        assert session is not None
+        assert session.disconnected_at is not None
 
 
 class TestLockBoundaryRaces:

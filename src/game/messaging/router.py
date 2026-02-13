@@ -52,6 +52,7 @@ class MessageRouter:
                 connection=connection,
                 game_id=message.game_id,
                 player_name=message.player_name,
+                session_token=message.session_token,
             )
         elif isinstance(message, LeaveGameMessage):
             await self._session_manager.leave_game(connection)

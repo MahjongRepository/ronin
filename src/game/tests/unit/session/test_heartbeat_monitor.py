@@ -104,7 +104,7 @@ class TestHeartbeatMonitorLoop:
         monitor._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 
         game = Game(game_id="game1")
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=0)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
         game.players[conn.connection_id] = player
 
         def get_game(game_id):
@@ -126,7 +126,7 @@ class TestHeartbeatMonitorLoop:
         monitor.record_connect(conn.connection_id)
 
         game = Game(game_id="game1")
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=0)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
         game.players[conn.connection_id] = player
 
         def get_game(game_id):
@@ -164,7 +164,7 @@ class TestHeartbeatMonitorLoop:
         monitor._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 
         game = Game(game_id="game1")
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=0)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
         game.players[conn.connection_id] = player
 
         def get_game(game_id):
@@ -193,8 +193,10 @@ class TestHeartbeatMonitorLoop:
         monitor._last_ping[conn1.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 
         game = Game(game_id="game1")
-        game.players[conn1.connection_id] = Player(connection=conn1, name="Alice", game_id="game1", seat=0)
-        game.players[conn2.connection_id] = Player(connection=conn2, name="Bob", game_id="game1", seat=1)
+        player1 = Player(connection=conn1, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
+        player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
+        game.players[conn1.connection_id] = player1
+        game.players[conn2.connection_id] = player2
 
         def get_game(game_id):
             return game if game_id == "game1" else None

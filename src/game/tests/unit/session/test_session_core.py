@@ -78,8 +78,10 @@ class TestSessionManager:
 
         game = manager.get_game("game1")
         # directly inject 2 players to fill capacity without triggering start
-        game.players["fake1"] = Player(connection=conn1, name="Fake1", game_id="game1")
-        game.players["fake2"] = Player(connection=conn2, name="Fake2", game_id="game1")
+        fake1 = Player(connection=conn1, name="Fake1", session_token="tok-fake1", game_id="game1")
+        fake2 = Player(connection=conn2, name="Fake2", session_token="tok-fake2", game_id="game1")
+        game.players["fake1"] = fake1
+        game.players["fake2"] = fake2
 
         # 3rd player gets game_full (game hasn't started, but at capacity)
         await manager.join_game(conn3, "game1", "Player2")

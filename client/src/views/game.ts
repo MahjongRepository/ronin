@@ -5,6 +5,7 @@ import {
     GameAction,
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
+    SessionMessageType,
 } from "../protocol";
 import { type TemplateResult, html, render } from "lit-html";
 import { GameSocket } from "../websocket";
@@ -21,6 +22,7 @@ const MAX_LOG_ENTRIES = 500;
 let socket: GameSocket | null = null;
 let logs: LogEntry[] = [];
 let connectionStatus = ConnectionStatus.DISCONNECTED;
+let currentGameId = "";
 // incremented on each gameView call, checked in deferred connectToGame
 // to prevent orphaned connections after rapid navigation
 let viewGeneration = 0;
@@ -37,12 +39,13 @@ export function gameView(gameId: string): TemplateResult {
     const playerName = sessionStorage.getItem("player_name");
 
     if (!wsUrl || !playerName || !wsUrl.includes(`/ws/${gameId}`)) {
-        return redirectToLobby();
+        return redirectToLobby(gameId);
     }
 
     // reset state for fresh connection
     logs = [];
     connectionStatus = ConnectionStatus.DISCONNECTED;
+    currentGameId = gameId;
     const generation = ++viewGeneration;
 
     // connect after render; bail if navigation happened before timeout fires
@@ -56,10 +59,15 @@ export function gameView(gameId: string): TemplateResult {
     return renderGameView(gameId);
 }
 
-// no connection info or stale ws_url from a different game, redirect to lobby
-function redirectToLobby(): TemplateResult {
+function clearGameSessionStorage(gameId: string): void {
+    sessionStorage.removeItem(`session_token:${gameId}`);
     sessionStorage.removeItem("ws_url");
     sessionStorage.removeItem("player_name");
+}
+
+// no connection info or stale ws_url from a different game, redirect to lobby
+function redirectToLobby(gameId: string): TemplateResult {
+    clearGameSessionStorage(gameId);
     setTimeout(() => navigate("/"), 0);
     return html`
         <p>Redirecting to lobby...</p>
@@ -73,12 +81,23 @@ function connectToGame(wsUrl: string, gameId: string, playerName: string): void 
 
     socket = new GameSocket(
         (message) => {
+            const safeMessage = { ...message };
+            if (safeMessage.type === SessionMessageType.GAME_JOINED) {
+                delete safeMessage.session_token;
+            }
             appendLog({
-                raw: JSON.stringify(message, null, 2),
+                raw: JSON.stringify(safeMessage, null, 2),
                 timestamp: new Date().toLocaleTimeString(),
                 type: String(message.type || LOG_TYPE_UNKNOWN),
             });
             updateLogPanel();
+
+            if (
+                message.type === SessionMessageType.GAME_JOINED &&
+                typeof message.session_token === "string"
+            ) {
+                sessionStorage.setItem(`session_token:${gameId}`, message.session_token);
+            }
 
             // auto-confirm round advancement after a short delay
             if (message.type === EventType.ROUND_END && socket) {
@@ -98,9 +117,12 @@ function connectToGame(wsUrl: string, gameId: string, playerName: string): void 
 
             // send join_game when connected
             if (status === ConnectionStatus.CONNECTED && socket) {
+                const sessionToken =
+                    sessionStorage.getItem(`session_token:${gameId}`) ?? crypto.randomUUID();
                 socket.send({
                     game_id: gameId,
                     player_name: playerName,
+                    session_token: sessionToken,
                     type: ClientMessageType.JOIN_GAME,
                 });
                 appendLog({
@@ -177,8 +199,7 @@ export function cleanupGameView(): void {
 }
 
 function handleLeaveGame(): void {
-    sessionStorage.removeItem("ws_url");
-    sessionStorage.removeItem("player_name");
+    clearGameSessionStorage(currentGameId);
     // router calls cleanupGameView via route cleanup on navigation
     navigate("/");
 }

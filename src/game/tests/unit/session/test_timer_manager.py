@@ -184,7 +184,7 @@ class TestTimerManagerStartTurn:
 
     def test_start_turn_timer_noop_for_missing_seat(self, timer_manager):
         timer_manager.create_timers("g1", [0])
-        # seat 1 doesn't exist -- should not raise (no event loop needed since no timer found)
+        timer_manager.start_turn_timer("g1", 1)  # seat 1 doesn't exist -- should not raise
 
     async def test_turn_timer_fires_callback(self, timer_manager, timeout_log):
         """Turn timer timeout invokes the on_timeout callback with correct args."""
@@ -212,7 +212,7 @@ class TestTimerManagerStartMeld:
 
     def test_start_meld_timer_noop_for_missing_seat(self, timer_manager):
         timer_manager.create_timers("g1", [0])
-        # seat 2 doesn't exist -- should not raise (no event loop needed since no timer found)
+        timer_manager.start_meld_timer("g1", 2)  # seat 2 doesn't exist -- should not raise
 
     async def test_meld_timer_fires_callback(self, timer_manager, timeout_log):
         """Meld timer timeout invokes the on_timeout callback with MELD type."""
@@ -235,8 +235,8 @@ class TestTimerManagerStartRoundAdvance:
         conn1 = MockConnection()
         conn2 = MockConnection()
         game = Game(game_id="g1")
-        player1 = Player(connection=conn1, name="Alice", game_id="g1", seat=0)
-        player2 = Player(connection=conn2, name="Bob", game_id="g1", seat=1)
+        player1 = Player(connection=conn1, name="Alice", session_token="tok-alice", game_id="g1", seat=0)
+        player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="g1", seat=1)
         game.players[conn1.connection_id] = player1
         game.players[conn2.connection_id] = player2
 
@@ -257,18 +257,20 @@ class TestTimerManagerStartRoundAdvance:
         """start_round_advance_timers skips players without a seat."""
         conn = MockConnection()
         game = Game(game_id="g1")
-        player = Player(connection=conn, name="Alice", game_id="g1", seat=None)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=None)
         game.players[conn.connection_id] = player
 
         timer_manager.create_timers("g1", [0])
-        # no player at seat 0, so no timer started
-        # (player has seat=None, so the loop doesn't match any seat in timers)
+        timer_manager.start_round_advance_timers(game)
+        # player has seat=None, so no timer at seat 0 should be started
+        timer = timer_manager.get_timer("g1", 0)
+        assert timer._active_task is None
 
     def test_start_round_advance_timers_noop_for_missing_game(self, timer_manager):
         """start_round_advance_timers does nothing if no timers exist for the game."""
         conn = MockConnection()
         game = Game(game_id="g1")
-        player = Player(connection=conn, name="Alice", game_id="g1", seat=0)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=0)
         game.players[conn.connection_id] = player
         # no timers created
         timer_manager.start_round_advance_timers(game)
@@ -277,7 +279,7 @@ class TestTimerManagerStartRoundAdvance:
         """Round advance timer fires callback with ROUND_ADVANCE type."""
         conn = MockConnection()
         game = Game(game_id="g1")
-        player = Player(connection=conn, name="Alice", game_id="g1", seat=0)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=0)
         game.players[conn.connection_id] = player
 
         timer_manager.create_timers("g1", [0])

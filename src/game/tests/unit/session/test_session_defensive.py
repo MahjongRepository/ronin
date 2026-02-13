@@ -27,7 +27,7 @@ class TestSessionManagerDefensiveChecks:
         assert msg["code"] == SessionErrorCode.ALREADY_IN_GAME
 
     async def test_leave_game_when_game_is_none(self, manager):
-        """Leaving when the game mapping is missing does not raise."""
+        """Leaving when the game mapping is missing clears player state and does not raise."""
         conn = MockConnection()
         manager.register_connection(conn)
         manager.create_game("game1")
@@ -38,8 +38,10 @@ class TestSessionManagerDefensiveChecks:
         player = manager._players[conn.connection_id]
         manager._games.pop(player.game_id, None)
 
-        # should return without error
+        # should return without error and clear player game association
         await manager.leave_game(conn)
+        assert player.game_id is None
+        assert player.seat is None
 
     async def test_handle_game_action_not_in_game_returns_error(self, manager):
         """Performing a game action without joining returns an error."""

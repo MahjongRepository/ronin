@@ -24,7 +24,7 @@ Unified game creation: the creator specifies `num_bots` (0-3), which determines 
 4. Game server creates empty game with specified bot count
 5. Lobby returns WebSocket URL to client
 6. Client connects to `ws://game-server/ws/{game_id}`
-7. Client sends `join_game` message with player name
+7. Client sends `join_game` message with player name (and optional `session_token` for reconnection)
 8. Game starts when the required number of humans have joined
 
 Each human player in the game has independent bank time managed by per-player timers.
@@ -46,7 +46,7 @@ After a round ends, the server enters a waiting state. Human players must send a
 5. Client stores WebSocket URL and player name in sessionStorage
 6. Router navigates to `#/game/<id>` and renders game view
 7. Game view connects via WebSocket using MessagePack binary frames
-8. Client sends `join_game` message and displays all server messages in a log panel
+8. Client sends `join_game` message (with stored `session_token` if available) and displays server messages in a log panel (session tokens are redacted from the log)
 
 ## Web UI
 
@@ -152,6 +152,7 @@ Replay files contain concealed game data (player hands, draw tiles, dora indicat
 
 ## Next Steps
 
-1. Add game state synchronization
-2. Add authentication
-3. Add persistence (game history, player stats)
+1. Add reconnection support (rebind new WebSocket to existing session, grace period before bot replacement)
+2. Add game state synchronization
+3. Add authentication
+4. Add persistence (game history, player stats)

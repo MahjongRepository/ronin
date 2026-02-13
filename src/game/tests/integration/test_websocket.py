@@ -50,6 +50,7 @@ class TestWebSocketIntegration:
                     "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "TestPlayer",
+                    "session_token": "tok-test-1",
                 },
             )
 
@@ -57,6 +58,8 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.GAME_JOINED
             assert response["game_id"] == "test_game"
             assert response["players"] == ["TestPlayer"]
+            assert "session_token" in response
+            assert isinstance(response["session_token"], str)
 
     def test_chat_message(self, client):
         self._create_game(client, "test_game", num_bots=2)
@@ -68,6 +71,7 @@ class TestWebSocketIntegration:
                     "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "Player1",
+                    "session_token": "tok-chat-1",
                 },
             )
             self._receive_message(ws1)  # game_joined
@@ -79,6 +83,7 @@ class TestWebSocketIntegration:
                         "type": ClientMessageType.JOIN_GAME,
                         "game_id": "test_game",
                         "player_name": "Player2",
+                        "session_token": "tok-chat-2",
                     },
                 )
                 self._receive_message(ws2)  # game_joined
@@ -117,6 +122,7 @@ class TestWebSocketIntegration:
                     "type": ClientMessageType.JOIN_GAME,
                     "game_id": "test_game",
                     "player_name": "Player1",
+                    "session_token": "tok-action-1",
                 },
             )
             self._receive_message(ws)  # game_joined

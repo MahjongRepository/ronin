@@ -24,7 +24,7 @@ All messages use MessagePack binary format with a `type` field. The server only 
 
 **Join Game**
 ```json
-{"type": "join_game", "game_id": "game123", "player_name": "Alice"}
+{"type": "join_game", "game_id": "game123", "player_name": "Alice", "session_token": "client-generated-uuid"}
 ```
 
 **Leave Game**
@@ -51,7 +51,7 @@ All messages use MessagePack binary format with a `type` field. The server only 
 
 **Game Joined**
 ```json
-{"type": "game_joined", "game_id": "game123", "players": ["Alice", "Bob"]}
+{"type": "game_joined", "game_id": "game123", "players": ["Alice", "Bob"], "session_token": "uuid-token"}
 ```
 
 **Game Left** (sent to the player who left)
@@ -135,7 +135,7 @@ MessagePack encode/decode (encoder.py)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (game/player management, delegates to TimerManager + HeartbeatMonitor, concurrency locks)
+SessionManager (game/player management, delegates to SessionStore + TimerManager + HeartbeatMonitor, concurrency locks)
     │
     ▼
 GameService (game logic interface) → returns list[ServiceEvent]
@@ -240,6 +240,19 @@ When a human player disconnects from a started game (either by closing the conne
 
 For invalid game actions, the `InvalidGameActionError` exception carries a `seat` attribute for blame attribution: when a resolution-time error is caused by a different player's prior bad data, the offending seat (not the action requester) is disconnected.
 
+### Session Identity
+
+Players provide a `session_token` (UUID) when joining a game. The client generates the token (via `crypto.randomUUID()` in web, `uuid.uuid4()` in bot) and includes it as a required field in the `join_game` message. The server stores the token in `SessionStore` (`session/session_store.py`) and echoes it back in the `game_joined` response. The client persists the token in `sessionStorage` (scoped by game ID) and reuses it on reconnection.
+
+Session lifecycle:
+- **Created**: When a player joins a game (`join_game`)
+- **Seat bound**: When the game starts, the player's seat is recorded on the session
+- **Marked disconnected**: When a player disconnects from a started game (timestamp recorded)
+- **Removed**: When a player leaves before the game starts, or on defensive cleanup
+- **Cleaned up**: When a game ends and is empty, all sessions for that game are removed
+
+Session data (`SessionData`) stores: session token, player name, game ID, seat number, and disconnect timestamp. Sessions are in-memory only (no persistence). Reconnection logic (rebinding a new WebSocket to an existing session) is not yet implemented.
+
 ### Per-Player Timers
 
 Each human player gets an independent `TurnTimer` instance, managed by `TimerManager` (`session/timer_manager.py`). `SessionManager` delegates all timer operations to `TimerManager` and provides a timeout callback.
@@ -289,9 +302,10 @@ ronin/
         │   ├── encoder.py      # MessagePack encoding/decoding
         │   └── router.py       # Message routing
         ├── session/
-        │   ├── models.py        # Player, Game dataclasses
+        │   ├── models.py        # Player, Game, SessionData dataclasses
         │   ├── types.py         # Pydantic models (GameInfo)
         │   ├── manager.py       # Session/game management
+        │   ├── session_store.py # In-memory session identity persistence
         │   ├── replay_collector.py # Collects broadcast events and merges per-seat round_started views for post-game persistence
         │   ├── timer_manager.py # Per-player turn timer lifecycle
         │   └── heartbeat.py     # Client liveness heartbeat monitor
@@ -354,7 +368,9 @@ async def test_join_game():
         "player_name": "Alice",
     })
 
-    assert connection.sent_messages[0]["type"] == "game_joined"
+    response = connection.sent_messages[0]
+    assert response["type"] == "game_joined"
+    assert "session_token" in response
 ```
 
 ### Integration Tests (With TestClient)
@@ -371,4 +387,5 @@ def test_websocket():
         ws.send_bytes(msgpack.packb({"type": "join_game", "game_id": "test_game", "player_name": "Alice"}))
         response = msgpack.unpackb(ws.receive_bytes())
         assert response["type"] == "game_joined"
+        assert "session_token" in response
 ```

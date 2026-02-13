@@ -30,6 +30,7 @@ from game.messaging.types import (
 )
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player
+from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerManager
 from game.session.types import GameInfo
 from shared.logging import rotate_log_file
@@ -58,6 +59,7 @@ class SessionManager:
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player
         self._games: dict[str, Game] = {}  # game_id -> Game
+        self._session_store = SessionStore()
         self._timer_manager = TimerManager(on_timeout=self._handle_timeout)
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
         self._heartbeat = HeartbeatMonitor()
@@ -120,6 +122,7 @@ class SessionManager:
         connection: ConnectionProtocol,
         game_id: str,
         player_name: str,
+        session_token: str | None = None,
     ) -> None:
         # check if already in a game
         existing_player = self._players.get(connection.connection_id)
@@ -154,8 +157,16 @@ class SessionManager:
             )
             return
 
+        # create session for persistent identity
+        session = self._session_store.create_session(player_name, game_id, token=session_token)
+
         # create player and add to game
-        player = Player(connection=connection, name=player_name, game_id=game_id)
+        player = Player(
+            connection=connection,
+            name=player_name,
+            session_token=session.session_token,
+            game_id=game_id,
+        )
         self._players[connection.connection_id] = player
         game.players[connection.connection_id] = player
         logger.info(f"player '{player_name}' joined game {game_id}")
@@ -165,6 +176,7 @@ class SessionManager:
             GameJoinedMessage(
                 game_id=game_id,
                 players=game.player_names,
+                session_token=session.session_token,
             ).model_dump()
         )
 
@@ -193,6 +205,9 @@ class SessionManager:
 
         game = self._games.get(player.game_id)
         if game is None:
+            self._session_store.remove_session(player.session_token)
+            player.game_id = None
+            player.seat = None
             return
 
         game_id = game.game_id
@@ -206,27 +221,24 @@ class SessionManager:
             # started game: guard all state mutation under the per-game lock
             # to prevent races with handle_game_action and timeout callbacks
             async with lock:
+                self._session_store.mark_disconnected(player.session_token)
                 self._remove_player_from_game(game, connection.connection_id, player)
-                if notify_player:
-                    with contextlib.suppress(RuntimeError, OSError):
-                        await connection.send_message(GameLeftMessage().model_dump())
-                await self._broadcast_to_game(
-                    game=game,
-                    message=PlayerLeftMessage(player_name=player_name).model_dump(),
-                )
+                await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
                 # replace disconnected human with bot (only if other humans remain)
                 if not game.is_empty and player_seat is not None:
                     await self._replace_with_bot(game, player_name, player_seat)
         else:
-            # pre-start game: no lock needed (no concurrent action/timeout paths)
+            # Two cases without a lock:
+            # 1. Started game but lock not yet created (disconnect during _start_mahjong_game
+            #    setup, before lock/timer infrastructure is ready). _start_mahjong_game
+            #    handles bot replacement for players who left during startup.
+            # 2. Pre-start game: no concurrent action/timeout paths.
+            if game.started:
+                self._session_store.mark_disconnected(player.session_token)
+            else:
+                self._session_store.remove_session(player.session_token)
             self._remove_player_from_game(game, connection.connection_id, player)
-            if notify_player:
-                with contextlib.suppress(RuntimeError, OSError):
-                    await connection.send_message(GameLeftMessage().model_dump())
-            await self._broadcast_to_game(
-                game=game,
-                message=PlayerLeftMessage(player_name=player_name).model_dump(),
-            )
+            await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
 
         await self._cleanup_empty_game(game_id, game)
 
@@ -237,10 +249,28 @@ class SessionManager:
         player.game_id = None
         player.seat = None
 
+    async def _notify_player_left(
+        self,
+        connection: ConnectionProtocol,
+        game: Game,
+        player_name: str,
+        *,
+        notify_player: bool,
+    ) -> None:
+        """Send leave notification to the player and broadcast departure to the game."""
+        if notify_player:
+            with contextlib.suppress(RuntimeError, OSError):
+                await connection.send_message(GameLeftMessage().model_dump())
+        await self._broadcast_to_game(
+            game=game,
+            message=PlayerLeftMessage(player_name=player_name).model_dump(),
+        )
+
     async def _cleanup_empty_game(self, game_id: str, game: Game) -> None:
         """Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state."""
         if game.is_empty and self._games.pop(game_id, None) is not None:
             logger.info(f"game {game_id} is empty, cleaning up")
+            self._session_store.cleanup_game(game_id)
             self._timer_manager.cleanup_game(game_id)
             self._game_locks.pop(game_id, None)
             await self._heartbeat.stop_for_game(game_id)
@@ -293,6 +323,7 @@ class SessionManager:
             f"seat={error.seat} action={error.action} reason={error.reason}"
         )
 
+        self._session_store.mark_disconnected(player.session_token)
         self._remove_player_from_game(game, connection.connection_id, player)
 
         await self._broadcast_to_game(
@@ -447,6 +478,7 @@ class SessionManager:
             seat = self._game_service.get_player_seat(game.game_id, player.name)
             if seat is not None:
                 player.seat = seat
+                self._session_store.bind_seat(player.session_token, seat)
 
         # create per-player timers and lock for this game
         seats = [p.seat for p in game.players.values() if p.seat is not None]

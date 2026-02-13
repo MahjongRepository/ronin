@@ -99,7 +99,7 @@ class TestSessionManagerTimerIntegration:
         """_get_player_at_seat returns None when no player has a seat assigned."""
         game = Game(game_id="game1")
         conn = MockConnection()
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=None)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=None)
         game.players[conn.connection_id] = player
 
         result = manager._get_player_at_seat(game, 0)
@@ -258,7 +258,7 @@ class TestSessionManagerTimerIntegration:
         game = Game(game_id="game1")
         conn = MockConnection()
         # player at seat 1, but draw event targets seat 0 (no player there)
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=1)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=1)
         game.players[conn.connection_id] = player
         manager._games["game1"] = game
 
@@ -293,7 +293,7 @@ class TestSessionManagerTimerIntegration:
         """_handle_timeout returns early when no player is at the timed-out seat."""
         game = Game(game_id="game1")
         conn = MockConnection()
-        player = Player(connection=conn, name="Alice", game_id="game1", seat=1)
+        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=1)
         game.players[conn.connection_id] = player
         manager._games["game1"] = game
         manager._game_locks["game1"] = asyncio.Lock()
@@ -313,8 +313,8 @@ class TestPerPlayerTimers:
         conn1 = MockConnection()
         conn2 = MockConnection()
         game = Game(game_id="game1")
-        player1 = Player(connection=conn1, name="Alice", game_id="game1", seat=0)
-        player2 = Player(connection=conn2, name="Bob", game_id="game1", seat=1)
+        player1 = Player(connection=conn1, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
+        player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
         game.players[conn1.connection_id] = player1
         game.players[conn2.connection_id] = player2
         manager._games["game1"] = game

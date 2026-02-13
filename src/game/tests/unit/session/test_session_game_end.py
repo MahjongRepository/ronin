@@ -64,7 +64,7 @@ class TestSessionManagerGameEnd:
         game, _player, conn1 = make_game_with_human(manager)
 
         conn2 = MockConnection()
-        player2 = Player(connection=conn2, name="Bob", game_id="game1", seat=1)
+        player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
         game.players[conn2.connection_id] = player2
 
         events = [self._make_game_end_event()]

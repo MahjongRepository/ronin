@@ -1,12 +1,16 @@
 import pytest
 from mahjong.tile import TilesConverter
+from pydantic import ValidationError
 
 from game.logic.enums import GameAction
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
     ClientMessageType,
+    GameJoinedMessage,
+    JoinGameMessage,
     SessionErrorCode,
     SessionMessageType,
+    parse_client_message,
 )
 from game.session.manager import SessionManager
 from game.tests.mocks import MockConnection, MockGameService
@@ -64,7 +68,12 @@ class TestMessageRouterBranches:
         session_manager.create_game("game1")
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
+            {
+                "type": ClientMessageType.JOIN_GAME,
+                "game_id": "game1",
+                "player_name": "Alice",
+                "session_token": "tok-test",
+            },
         )
         connection._outbox.clear()
 
@@ -88,7 +97,12 @@ class TestMessageRouterBranches:
         session_manager.create_game("game1")
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
+            {
+                "type": ClientMessageType.JOIN_GAME,
+                "game_id": "game1",
+                "player_name": "Alice",
+                "session_token": "tok-test",
+            },
         )
         connection._outbox.clear()
 
@@ -122,7 +136,12 @@ class TestMessageRouterBranches:
         session_manager.create_game("game1")
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.JOIN_GAME, "game_id": "game1", "player_name": "Alice"},
+            {
+                "type": ClientMessageType.JOIN_GAME,
+                "game_id": "game1",
+                "player_name": "Alice",
+                "session_token": "tok-test",
+            },
         )
         connection._outbox.clear()
 
@@ -145,3 +164,102 @@ class TestMessageRouterBranches:
         )
 
         assert connection.is_closed
+
+
+class TestJoinGameMessageSessionToken:
+    """Validate session_token field on JoinGameMessage."""
+
+    def test_join_game_rejects_missing_session_token(self):
+        with pytest.raises(ValidationError):
+            JoinGameMessage(game_id="abc", player_name="Alice")  # type: ignore[call-arg]
+
+    def test_join_game_with_valid_session_token(self):
+        token = "a1b2c3d4-e5f6"
+        msg = JoinGameMessage(game_id="abc", player_name="Alice", session_token=token)
+        assert msg.session_token == token
+
+    def test_join_game_rejects_invalid_session_token_characters(self):
+        with pytest.raises(ValidationError):
+            JoinGameMessage(game_id="abc", player_name="Alice", session_token="bad token!")
+
+    def test_join_game_rejects_too_long_session_token(self):
+        with pytest.raises(ValidationError):
+            JoinGameMessage(game_id="abc", player_name="Alice", session_token="x" * 51)
+
+    def test_parse_join_game_with_session_token(self):
+        data = {
+            "type": "join_game",
+            "game_id": "game1",
+            "player_name": "Alice",
+            "session_token": "abc-123",
+        }
+        msg = parse_client_message(data)
+        assert isinstance(msg, JoinGameMessage)
+        assert msg.session_token == "abc-123"
+
+    def test_parse_join_game_rejects_missing_session_token(self):
+        data = {
+            "type": "join_game",
+            "game_id": "game1",
+            "player_name": "Alice",
+        }
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+
+class TestGameJoinedMessageSessionToken:
+    """Validate session_token field on GameJoinedMessage."""
+
+    def test_game_joined_requires_session_token(self):
+        with pytest.raises(ValidationError):
+            GameJoinedMessage.model_validate({"game_id": "abc", "players": ["Alice"]})
+
+    def test_game_joined_includes_session_token_in_dump(self):
+        msg = GameJoinedMessage(game_id="abc", players=["Alice"], session_token="tok-123")
+        dumped = msg.model_dump()
+        assert dumped["session_token"] == "tok-123"
+        assert dumped["game_id"] == "abc"
+        assert dumped["players"] == ["Alice"]
+
+
+class TestRouterPassesSessionToken:
+    """Verify the router forwards session_token from JoinGameMessage to SessionManager."""
+
+    @pytest.fixture
+    async def setup(self):
+        game_service = MockGameService()
+        session_manager = SessionManager(game_service)
+        router = MessageRouter(session_manager)
+        connection = MockConnection()
+        await router.handle_connect(connection)
+        session_manager.create_game("game1")
+        return router, connection, session_manager
+
+    async def test_join_game_with_session_token_passes_through(self, setup):
+        router, connection, _ = setup
+
+        await router.handle_message(
+            connection,
+            {
+                "type": ClientMessageType.JOIN_GAME,
+                "game_id": "game1",
+                "player_name": "Alice",
+                "session_token": "client-token-123",
+            },
+        )
+
+        assert any(m.get("type") == SessionMessageType.GAME_JOINED for m in connection.sent_messages)
+
+    async def test_join_game_without_session_token_rejected(self, setup):
+        router, connection, _ = setup
+
+        await router.handle_message(
+            connection,
+            {
+                "type": ClientMessageType.JOIN_GAME,
+                "game_id": "game1",
+                "player_name": "Alice",
+            },
+        )
+
+        assert any(m.get("code") == SessionErrorCode.INVALID_MESSAGE for m in connection.sent_messages)

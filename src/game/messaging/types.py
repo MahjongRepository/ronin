@@ -40,6 +40,7 @@ class JoinGameMessage(BaseModel):
     type: Literal[ClientMessageType.JOIN_GAME] = ClientMessageType.JOIN_GAME
     game_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     player_name: str = Field(min_length=1, max_length=50)
+    session_token: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
 class LeaveGameMessage(BaseModel):
@@ -71,6 +72,7 @@ class GameJoinedMessage(BaseModel):
     type: Literal[SessionMessageType.GAME_JOINED] = SessionMessageType.GAME_JOINED
     game_id: str
     players: list[str]
+    session_token: str
 
 
 class GameLeftMessage(BaseModel):

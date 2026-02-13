@@ -32,7 +32,14 @@ def make_game_with_human(manager: SessionManager) -> tuple[Game, Player, MockCon
     """Create a game with a human player who has an assigned seat."""
     conn = MockConnection()
     game = Game(game_id="game1")
-    player = Player(connection=conn, name="Alice", game_id="game1", seat=0)
+    session = manager._session_store.create_session("Alice", "game1")  # noqa: SLF001
+    player = Player(
+        connection=conn,
+        name="Alice",
+        session_token=session.session_token,
+        game_id="game1",
+        seat=0,
+    )
     game.players[conn.connection_id] = player
     manager._games["game1"] = game  # noqa: SLF001
     manager._players[conn.connection_id] = player  # noqa: SLF001
