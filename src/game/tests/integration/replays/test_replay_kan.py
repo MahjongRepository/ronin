@@ -178,7 +178,7 @@ async def test_added_kan_hand_tile_count():
 async def test_added_kan_deferred_dora_reveal():
     """Added kan dora is deferred: revealed after the replacement discard passes.
 
-    Under default settings (Tenhou rules):
+    Under default settings:
     - Concealed kan: dora revealed immediately
     - Open/Added kan: dora deferred until replacement discard passes (no ron)
 

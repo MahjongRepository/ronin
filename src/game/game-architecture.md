@@ -10,6 +10,7 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 - `GET /status` - Server status (`active_rooms`, `active_games`, `capacity_used`, `max_games`)
 - `GET /rooms` - List all rooms (pre-game lobbies)
 - `POST /rooms` - Create a room (called by lobby). Accepts `room_id` and optional `num_bots` field (0-3, defaults to 3)
+
 ## WebSocket API
 
 ### Connection
@@ -149,8 +150,8 @@ Error codes:
 
 Clean architecture pattern with clear separation between layers:
 
-- **Transport Layer** (`server/`) - Starlette WebSocket + REST handling
-- **Application Layer** (`messaging/`, `session/`) - Message routing and session management
+- **Transport Layer** (`server/`) - Starlette WebSocket + REST handling, environment-based server configuration
+- **Application Layer** (`messaging/`, `session/`) - Message routing, event payload shaping, room/session management
 - **Domain Layer** (`logic/`) - Riichi Mahjong game logic
 
 ### Protocol Abstraction
@@ -171,15 +172,18 @@ MessageRouter (pure Python, testable)
     │
     ▼
 SessionManager (game/player management, delegates to SessionStore + TimerManager + HeartbeatMonitor, concurrency locks)
-    │
-    ▼
-GameService (game logic interface) → returns list[ServiceEvent]
-    Methods: start_game, handle_action, get_player_seat, handle_timeout,
-             replace_player_with_bot, process_bot_actions_after_replacement
+    │                                                       │
+    ▼                                                       ▼
+GameService (game logic interface)              EventPayload (wire serialization)
+    → returns list[ServiceEvent]                    → service_event_payload()
+    Methods: start_game, handle_action,             → shape_call_prompt_payload()
+             get_player_seat, handle_timeout,
+             replace_player_with_bot,
+             process_bot_actions_after_replacement
 ```
 
 This enables:
-- Unit tests without real sockets (using `MockConnection`)
+- Unit tests without real sockets (using `MockConnection` from `tests/mocks/`)
 - Integration tests with Starlette's `TestClient`
 - Easy swapping of transport layers if needed
 
@@ -193,27 +197,47 @@ The game service communicates through a typed event pipeline:
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists; DISCARD prompts are split per-seat via `_split_discard_prompt_for_seat()` into RON or MELD wire events (ron-dominant: if a seat has both ron and meld eligibility, only a RON prompt is sent)
 - `extract_round_result()` extracts round results from ServiceEvent lists
 
+### Event Payload Shaping
+
+`messaging/event_payload.py` centralizes the transformation of domain events into wire-format payloads, used by both `SessionManager` (for WebSocket broadcast) and `ReplayCollector` (for persistence):
+
+- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type string as `"type"`
+- `shape_call_prompt_payload()` transforms `CallPromptEvent` payloads based on call type: for ron/chankan, drops the callers list and extracts `caller_seat`; for meld, builds an `available_calls` list with per-caller options
+- `service_event_target()` returns a string target representation (`"all"` for broadcast, `"seat_N"` for seat-targeted)
+
+### Server Configuration
+
+`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_games` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`. Injected into the Starlette app via `create_app()`.
+
+### Room Model
+
+`session/room.py` defines the pre-game lobby data structures:
+
+- **Room** - Dataclass representing a lobby with `room_id`, `num_bots`, `host_connection_id`, `transitioning` flag (prevents new joins during room-to-game conversion), `players` dict, and `settings: GameSettings`. Properties: `humans_needed`, `is_full`, `all_ready`, `get_player_info()`
+- **RoomPlayer** - Dataclass for a player in the lobby with `connection`, `name`, `room_id`, `session_token`, and `ready` state
+- **RoomPlayerInfo** - Pydantic model for room state messages with `name` and `ready` fields
+
 ### Game Logic Layer
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`) and bot call response dispatch (`_dispatch_bot_call_responses`); tracks per-player furiten state and emits `FuritenEvent` on state transitions; delegates round-advance confirmation tracking to `RoundAdvanceManager`; returns `list[ServiceEvent]`
+- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both human and bot actions through the same handler pipeline; manages bot followup loop (`_process_bot_followup`, capped at `MAX_BOT_TURN_ITERATIONS=100`) and bot call response dispatch (`_dispatch_bot_call_responses`, capped at `MAX_BOT_CALL_ITERATIONS=10`); tracks per-player furiten state and emits `FuritenEvent` on state transitions; delegates round-advance confirmation tracking to `RoundAdvanceManager`; bot tsumogiri fallback when a bot's chosen action fails; auto-confirms pending round-advance after bot replacement; returns `list[ServiceEvent]`
 - **RoundAdvanceManager** - Manages round advancement confirmation state (`PendingRoundAdvance`) for all games; tracks which human seats still need to confirm readiness between rounds; bot seats are pre-confirmed at setup; provides `setup_pending()`, `confirm_seat()`, `is_pending()`, `get_unconfirmed_seats()`, `is_seat_required()`, and `cleanup_game()`
-- **MahjongGame** - Manages game state across multiple rounds (hanchan); uma/oka end-game score adjustment
+- **MahjongGame** - Manages game state across multiple rounds (hanchan); uma/oka end-game score adjustment with goshashonyu rounding (remainder ≤500 rounds toward zero, >500 rounds away); `init_game()` accepts optional `wall` parameter for deterministic testing
 - **Round** - Handles a single round with wall, draws, discards, dead wall replenishment, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion
 - **Turn** - Processes player actions and returns typed GameEvent objects
 - **Actions** - Builds available actions as `AvailableActionItem` models (discardable tiles, riichi, tsumo, kan)
-- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `_validate_caller_action_matches_prompt()` enforces per-caller action validity (ron callers can only CALL_RON on DISCARD prompts, meld callers validated against their available call types); `handle_pass` removes the caller from `pending_seats` and applies furiten (for DISCARD prompts, only ron callers receive furiten) without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`
+- **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `_validate_caller_action_matches_prompt()` enforces per-caller action validity (ron callers can only CALL_RON on DISCARD prompts, meld callers validated against their available call types); `handle_pass` removes the caller from `pending_seats` and applies furiten (for DISCARD prompts, only ron callers receive furiten) without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`; `_find_offending_seat_from_prompt()` uses resolution priority logic for blame attribution when call resolution fails
 - **CallResolution** (`call_resolution.py`) - Resolves pending call prompts after all callers respond; picks winning response by priority (ron > pon/kan > chi > all pass); handles triple ron abortive draw, double/single ron, meld resolution, and chankan decline completion; for DISCARD prompts, `_finalize_discard_post_ron_check()` performs deferred dora reveal and riichi finalization after no ron, and `_resolve_all_passed_discard()` handles the all-passed case (dora/riichi already finalized, just advances turn)
 - **Matchmaker** - Assigns human players to randomized seats and fills remaining seats with bots; supports 1-4 humans based on `num_bots` setting; returns `list[SeatConfig]`
-- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each human player gets an independent timer instance
+- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each human player gets an independent timer instance; `stop()` cancels timer and deducts bank time, while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
 - **BotController** - Pure decision-maker for bot players using `dict[int, BotPlayer]` seat-to-bot mapping; provides `is_bot()`, `add_bot()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime bot addition for disconnect-to-bot replacement
 - **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `BotType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView`), `MeldCaller` (seat and call_type only, no server-internal fields), `BotAction`, `AvailableActionItem`; `RoundResult` union type
-- **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives
+- **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives; wall generation uses seeded `random.Random(seed + round_number)` with a double-shuffle algorithm (two passes of swap-based shuffling) for determinism
 - **Melds** - Detection of valid chi, pon, and kan combinations; kuikae restriction calculation; pao liability detection
-- **Win** - Win detection, furiten checking (permanent, temporary, riichi furiten), renhou detection, chankan validation, and hand parsing
-- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); pao liability scoring (tsumo: liable pays full, ron: 50/50 split); nagashi mangan scoring; double yakuman scoring; returns typed result models
+- **Win** - Win detection, furiten checking (permanent, temporary, riichi furiten — riichi players get permanent furiten when their winning tile passes even if not eligible callers), renhou detection, chankan validation, and hand parsing
+- **Scoring** - Score calculation (fu/han, point distribution for tsumo/ron); pao liability scoring (tsumo: liable pays full, ron: 50/50 split); nagashi mangan scoring (treated as a draw, does not clear riichi sticks); double yakuman scoring; returns typed result models
 - **Riichi** - Riichi declaration validation and tenpai detection
 - **Abortive** - Detection of abortive draws (kyuushu kyuuhai, suufon renda, etc.); returns `AbortiveDrawResult`
 - **Bot** - AI player for filling empty seats; returns `BotAction` model
@@ -222,6 +246,7 @@ The `logic/` module implements Riichi Mahjong rules:
 - **MeldWrapper** (`meld_wrapper.py`) - `FrozenMeld` immutable wrapper for external `mahjong.meld.Meld` class; provides true immutability by storing meld data in frozen Pydantic model; converts to/from `Meld` at boundaries for library compatibility; `frozen_melds_to_melds()` utility for batch conversion
 - **StateUtils** (`state_utils.py`) - Helper functions for immutable state updates: `update_player()`, `add_tile_to_player()`, `remove_tile_from_player()`, `add_discard()`, `add_meld()`, `reveal_dora()`, `advance_turn()`, etc.
 - **Exceptions** (`exceptions.py`) - Typed domain exception hierarchy rooted in `GameRuleError`; subclasses: `InvalidDiscardError`, `InvalidMeldError`, `InvalidRiichiError`, `InvalidWinError`, `InvalidActionError`, `UnsupportedSettingsError`. Domain modules raise these instead of raw `ValueError`. Action handlers catch `GameRuleError` and convert to `ErrorEvent`. Separately, `InvalidGameActionError` (not a `GameRuleError` subclass) is raised for provably invalid actions (fabricated data, modified client); caught by `SessionManager` to disconnect the offender (WebSocket close code 1008) and replace with a bot. The broad `except Exception` containment in `MessageRouter` is preserved as a fatal safety net.
+- **Utils** (`utils.py`) - Debug utility functions (`_hand_config_debug`, `_melds_debug`) for detailed error logging in scoring calculations; excluded from coverage
 
 ### Pending Call Prompt System
 
@@ -310,12 +335,13 @@ Bot identity is managed exclusively by `BotController.is_bot(seat)` at the servi
 
 The replay adapter (`src/game/replay/`) enables deterministic replay of game sessions through `MahjongGameService`'s public API.
 
-- **ReplayInput** defines a versioned input format: a seed, 4 player names, and an ordered sequence of human actions
+- **ReplayInput** defines a versioned input format: a seed, 4 player names, an ordered sequence of human actions, and an optional `wall` (pre-arranged tile order for testing)
 - **ReplayTrace** captures full output: startup events, per-step state transitions (`state_before`/`state_after`), and final state
-- **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace
+- **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace; support `auto_confirm_rounds` (injects synthetic `CONFIRM_ROUND` steps) and `auto_pass_calls` (injects synthetic `PASS` steps for pending call prompts)
 - **ReplayServiceProtocol** is the replay-facing protocol boundary; default factory uses `MahjongGameService(auto_cleanup=False)`
+- **ReplayLoader** (`loader.py`) parses JSON Lines files (produced by `ReplayCollector`) back into `ReplayInput`; reconstructs original player name input order from the seed via RNG reconstruction; maps event types to game actions (discard, meld, ron, tsumo, etc.)
 - **Determinism contract**: same seed + same input events = identical trace; bot strategies must be deterministic given the same state
-- **Dependency direction**: `game.replay` imports from `game.logic`; game logic modules never import from `game.replay`
+- **Dependency direction**: `game.replay` imports from `game.logic`; game logic modules never import from `game.replay` (enforced by AST-based integration test)
 - `start_game()` accepts an optional `seed` parameter for deterministic game creation; when omitted, a random seed is generated
 
 ## Project Structure
@@ -328,17 +354,19 @@ ronin/
     └── game/
         ├── server/
         │   ├── app.py          # Starlette app factory
+        │   ├── settings.py     # GameServerSettings (env-based config via pydantic-settings)
         │   ├── types.py        # REST API types
         │   └── websocket.py    # WebSocket endpoint
         ├── messaging/
         │   ├── protocol.py     # ConnectionProtocol interface
-        │   ├── mock.py         # MockConnection for testing
         │   ├── types.py        # Message schemas (Pydantic)
         │   ├── encoder.py      # MessagePack encoding/decoding
+        │   ├── event_payload.py # Event payload shaping for wire and replay serialization
         │   └── router.py       # Message routing
         ├── session/
         │   ├── models.py        # Player, Game, SessionData dataclasses
-        │   ├── types.py         # Pydantic models (GameInfo)
+        │   ├── room.py          # Room, RoomPlayer, RoomPlayerInfo for pre-game lobby
+        │   ├── types.py         # Pydantic models (RoomInfo for lobby listing)
         │   ├── manager.py       # Session/game management
         │   ├── session_store.py # In-memory session identity persistence
         │   ├── replay_collector.py # Collects broadcast events and merges per-seat round_started views for post-game persistence
@@ -347,7 +375,8 @@ ronin/
         ├── replay/
         │   ├── __init__.py      # Public API re-exports
         │   ├── models.py        # ReplayInput, ReplayTrace, ReplayStep, error types
-        │   └── runner.py        # ReplayServiceProtocol, run_replay/run_replay_async
+        │   ├── runner.py        # ReplayServiceProtocol, run_replay/run_replay_async
+        │   └── loader.py        # Parse JSON Lines replay files into ReplayInput
         ├── logic/
         │   ├── service.py          # GameService interface
         │   ├── mahjong_service.py  # MahjongService orchestration
@@ -356,7 +385,7 @@ ronin/
         │   ├── turn.py             # Turn processing, returns typed events
         │   ├── actions.py          # Available actions builder
         │   ├── action_handlers.py  # Action validation and processing
-        │   ├── action_result.py    # Shared ActionResult type and helpers
+        │   ├── action_result.py    # Shared ActionResult NamedTuple and helpers
         │   ├── call_resolution.py  # Call resolution subsystem (ron/meld/pass)
         │   ├── events.py           # Domain event models, ServiceEvent, convert_events()
         │   ├── exceptions.py       # Typed domain exceptions (GameRuleError hierarchy)
@@ -371,22 +400,26 @@ ronin/
         │   ├── riichi.py           # Riichi declaration logic
         │   ├── abortive.py         # Abortive draw detection
         │   ├── state.py            # Game state dataclasses
+        │   ├── state_utils.py      # Pure functions for immutable state updates
+        │   ├── meld_wrapper.py     # FrozenMeld immutable wrapper for external Meld class
+        │   ├── settings.py         # GameSettings Pydantic model with configurable rules
         │   ├── bot.py              # Bot player AI
         │   ├── matchmaker.py       # Seat assignment and bot filling
         │   ├── timer.py            # Turn timer with bank time management
-        │   └── mock.py             # MockGameService for testing
+        │   └── utils.py            # Debug utility functions for scoring diagnostics
         └── tests/
+            ├── mocks/              # MockConnection, MockGameService
             ├── unit/
             └── integration/
 ```
 
-## Running
+### Test Infrastructure (`tests/mocks/`, `tests/conftest.py`)
 
-```bash
-make run-all-checks       # Run all checks
-```
-
-## Testing Strategy
+- **MockConnection** (`tests/mocks/connection.py`) - Implements `ConnectionProtocol` with `asyncio.Queue` inbox and list outbox; provides `simulate_receive()` for injecting client messages and `sent_messages` for assertions
+- **MockGameService** (`tests/mocks/game_service.py`) - Implements `GameService` interface; echoes actions as broadcast events; creates mock seat assignments on `start_game()`
+- **State builders** (`tests/conftest.py`) - Factory functions `create_player()`, `create_round_state()`, `create_game_state()` for constructing frozen Pydantic state objects with sensible defaults, avoiding boilerplate in every test
+- **Copy-on-write helpers** (`tests/unit/helpers.py`) - `_update_round_state()` and `_update_player()` for modifying frozen state in test setup via `model_copy(update={...})`
+- **Session helpers** (`tests/unit/session/helpers.py`) - `create_started_game()` orchestrates full room lifecycle (create/join/ready/start) for session tests
 
 ### Unit Tests (No Sockets)
 
@@ -423,3 +456,11 @@ def test_websocket():
         response = msgpack.unpackb(ws.receive_bytes())
         assert response["type"] == "room_joined"
 ```
+
+### Replay-Based Integration Tests
+
+Deterministic game flow testing using the replay system with fixture files (`tests/integration/replays/fixtures/`) or programmatic `ReplayInput` construction. The replay trace enables precise state-transition assertions on `state_before`/`state_after` for each step.
+
+### Architecture Boundary Tests
+
+AST-based static analysis (`tests/integration/test_architecture_boundary.py`) parses all files under `game/logic/` and verifies none import from `game.replay`, enforcing the one-way dependency direction at the test level.
