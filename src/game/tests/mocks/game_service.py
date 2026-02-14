@@ -76,8 +76,8 @@ class MockGameService(GameService):
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}
         self._seeds[game_id] = seed if seed is not None else 0.0
 
-        all_names = player_names + ["Bot"] * (4 - len(player_names))
-        human_count = len(player_names)
+        all_names = player_names + ["AI"] * (4 - len(player_names))
+        player_count = len(player_names)
 
         mock_view = GameView(
             seat=0,
@@ -93,7 +93,7 @@ class MockGameService(GameService):
                 PlayerView(
                     seat=i,
                     name=name,
-                    is_bot=i >= human_count,
+                    is_ai_player=i >= player_count,
                     score=25000,
                 )
                 for i, name in enumerate(all_names)
@@ -101,7 +101,8 @@ class MockGameService(GameService):
         )
 
         players = [
-            GamePlayerInfo(seat=i, name=name, is_bot=i >= human_count) for i, name in enumerate(all_names)
+            GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count)
+            for i, name in enumerate(all_names)
         ]
 
         return [
@@ -128,14 +129,14 @@ class MockGameService(GameService):
         self._player_seats.pop(game_id, None)
         self._seeds.pop(game_id, None)
 
-    def replace_player_with_bot(
+    def replace_with_ai_player(
         self,
         game_id: str,
         player_name: str,
     ) -> None:
         pass
 
-    async def process_bot_actions_after_replacement(
+    async def process_ai_player_actions_after_replacement(
         self,
         game_id: str,  # noqa: ARG002
         seat: int,  # noqa: ARG002

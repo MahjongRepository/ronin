@@ -16,7 +16,7 @@ from game.tests.mocks import MockConnection, MockGameService
 
 async def _setup_player_in_game(session_manager, connection):
     """Put a player into a started game via the room flow."""
-    session_manager.create_room("game1", num_bots=3)
+    session_manager.create_room("game1", num_ai_players=3)
     await session_manager.join_room(connection, "game1", "Alice", "tok-alice")
     await session_manager.set_ready(connection, ready=True)
     connection._outbox.clear()

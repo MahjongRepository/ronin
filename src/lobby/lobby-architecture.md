@@ -9,21 +9,21 @@ Portal service for room discovery and creation.
 - `GET /health` - Health check
 - `GET /servers` - List available game servers with health status
 - `GET /rooms` - List all available rooms across all healthy servers
-- `POST /rooms` - Create a new room with optional `num_bots` parameter (0-3, defaults to 3)
+- `POST /rooms` - Create a new room with optional `num_ai_players` parameter (0-3, defaults to 3)
 
 ### List Rooms Response
 
-The lobby passes through room data from game servers as-is (fields like `room_id`, `human_player_count`, `humans_needed`, `total_seats`, `num_bots`, `players` come from the game server and are not validated by the lobby). The lobby injects `server_name` and `server_url` into each room entry.
+The lobby passes through room data from game servers as-is (fields like `room_id`, `player_count`, `players_needed`, `total_seats`, `num_ai_players`, `players` come from the game server and are not validated by the lobby). The lobby injects `server_name` and `server_url` into each room entry.
 
 ```json
 {
   "rooms": [
     {
       "room_id": "abc123",
-      "human_player_count": 2,
-      "humans_needed": 3,
+      "player_count": 2,
+      "players_needed": 3,
       "total_seats": 4,
-      "num_bots": 1,
+      "num_ai_players": 1,
       "players": ["Alice", "Bob"],
       "server_name": "local-1",
       "server_url": "http://localhost:8001"
@@ -36,7 +36,7 @@ The lobby passes through room data from game servers as-is (fields like `room_id
 
 ```json
 // Request (POST /rooms):
-{"num_bots": 1}
+{"num_ai_players": 1}
 
 // Response (201):
 {
@@ -48,7 +48,7 @@ The lobby passes through room data from game servers as-is (fields like `room_id
 
 ### Error Responses
 
-- **422** - Invalid `num_bots` value (outside 0-3 range or wrong type). Returns Pydantic validation error details.
+- **422** - Invalid `num_ai_players` value (outside 0-3 range or wrong type). Returns Pydantic validation error details.
 - **503** - No healthy game servers available, or game server failed to create the room. Returns `{"error": "..."}`.
 
 ## Configuration
@@ -102,11 +102,11 @@ ronin/
 
 ## Room Creation Flow
 
-1. Client calls `POST /rooms` with optional `{"num_bots": N}` (defaults to 3)
+1. Client calls `POST /rooms` with optional `{"num_ai_players": N}` (defaults to 3)
 2. Lobby checks health of all configured game servers (sequentially, not concurrent)
 3. Lobby selects the first healthy server (no load balancing)
 4. Lobby generates a UUID4 room ID
-5. Lobby calls `POST /rooms` on the game server with `{"room_id": ..., "num_bots": ...}`
+5. Lobby calls `POST /rooms` on the game server with `{"room_id": ..., "num_ai_players": ...}`
 6. Lobby constructs WebSocket URL by replacing `http://` with `ws://` (or `https://` with `wss://`) and appending `/ws/{room_id}`
 7. Lobby returns WebSocket URL to client
 

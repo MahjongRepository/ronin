@@ -55,7 +55,7 @@ async function loadAndRenderRooms(): Promise<void> {
                     (room) => html`
                     <div class="game-item">
                         <span class="game-id">${room.room_id}</span>
-                        <span class="game-players">${room.human_player_count}/${room.humans_needed} players</span>
+                        <span class="game-players">${room.player_count}/${room.players_needed} players</span>
                         ${renderJoinButton(room)}
                     </div>
                 `,
@@ -75,7 +75,7 @@ async function loadAndRenderRooms(): Promise<void> {
 }
 
 function renderJoinButton(room: RoomInfo): TemplateResult {
-    if (room.human_player_count < room.humans_needed) {
+    if (room.player_count < room.players_needed) {
         return html`<button class="btn btn-small" @click=${() => joinRoom(room.room_id, room.server_url)}>Join</button>`;
     }
     return html`

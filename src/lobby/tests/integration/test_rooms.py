@@ -62,34 +62,50 @@ servers:
         finally:
             patcher.stop()
 
-    def test_create_room_with_num_bots(self, client):
+    def test_create_room_with_num_ai_players(self, client):
         patcher, mock_instance = self._mock_httpx_for_create()
         try:
-            response = client.post("/rooms", json={"num_bots": 2})
+            response = client.post("/rooms", json={"num_ai_players": 2})
 
             assert response.status_code == 201
             call_args = mock_instance.post.call_args
-            assert call_args[1]["json"]["num_bots"] == 2
+            assert call_args[1]["json"]["num_ai_players"] == 2
         finally:
             patcher.stop()
 
-    def test_create_room_no_body_defaults_to_3_bots(self, client):
+    def test_create_room_no_body_defaults_to_3_ai_players(self, client):
         patcher, mock_instance = self._mock_httpx_for_create()
         try:
             response = client.post("/rooms")
 
             assert response.status_code == 201
             call_args = mock_instance.post.call_args
-            assert call_args[1]["json"]["num_bots"] == 3
+            assert call_args[1]["json"]["num_ai_players"] == 3
         finally:
             patcher.stop()
 
-    def test_create_room_invalid_num_bots(self, client):
-        response = client.post("/rooms", json={"num_bots": 5})
+    def test_create_room_invalid_num_ai_players(self, client):
+        response = client.post("/rooms", json={"num_ai_players": 5})
         assert response.status_code == 422
         assert "error" in response.json()
 
-        response = client.post("/rooms", json={"num_bots": -1})
+        response = client.post("/rooms", json={"num_ai_players": -1})
+        assert response.status_code == 422
+        assert "error" in response.json()
+
+    def test_create_room_legacy_num_bots_rejected(self, client):
+        """Legacy payload with num_bots is rejected (extra=forbid)."""
+        response = client.post("/rooms", json={"num_bots": 2})
+        assert response.status_code == 422
+        assert "error" in response.json()
+
+    def test_create_room_malformed_json_rejected(self, client):
+        """Malformed JSON body returns 422 instead of falling back to defaults."""
+        response = client.post(
+            "/rooms",
+            content='{"num_ai_players": 2',
+            headers={"Content-Type": "application/json"},
+        )
         assert response.status_code == 422
         assert "error" in response.json()
 
@@ -124,10 +140,10 @@ servers:
             "rooms": [
                 {
                     "room_id": "abc123",
-                    "human_player_count": 2,
-                    "humans_needed": 3,
+                    "player_count": 2,
+                    "players_needed": 3,
                     "total_seats": 4,
-                    "num_bots": 1,
+                    "num_ai_players": 1,
                     "players": ["Alice", "Bob"],
                 },
             ]
@@ -154,10 +170,10 @@ servers:
             assert len(data["rooms"]) == 1
             room = data["rooms"][0]
             assert room["room_id"] == "abc123"
-            assert room["human_player_count"] == 2
-            assert room["humans_needed"] == 3
+            assert room["player_count"] == 2
+            assert room["players_needed"] == 3
             assert room["total_seats"] == 4
-            assert room["num_bots"] == 1
+            assert room["num_ai_players"] == 1
             assert room["players"] == ["Alice", "Bob"]
             assert room["server_name"] == "test-server"
             assert room["server_url"] == "http://localhost:8001"

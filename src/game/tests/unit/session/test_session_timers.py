@@ -23,7 +23,7 @@ from game.logic.types import (
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
-from .helpers import create_started_game, make_dummy_game_view, make_game_with_human
+from .helpers import create_started_game, make_dummy_game_view, make_game_with_player
 
 
 class TestSessionManagerTimers:
@@ -72,7 +72,7 @@ class TestSessionManagerTimerIntegration:
 
     def test_get_player_at_seat_returns_player(self, manager):
         """_get_player_at_seat returns the player at the specified seat."""
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         result = manager._get_player_at_seat(game, 0)
         assert result is not None
@@ -81,7 +81,7 @@ class TestSessionManagerTimerIntegration:
 
     def test_get_player_at_seat_returns_none_for_unoccupied_seat(self, manager):
         """_get_player_at_seat returns None when no player is at the given seat."""
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         result = manager._get_player_at_seat(game, 1)
         assert result is None
@@ -97,8 +97,8 @@ class TestSessionManagerTimerIntegration:
         assert result is None
 
     async def test_maybe_start_timer_with_draw_event(self, manager):
-        """_maybe_start_timer starts a turn timer when DrawEvent targets the human player."""
-        game, _player, _conn = make_game_with_human(manager)
+        """_maybe_start_timer starts a turn timer when DrawEvent targets the player."""
+        game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
@@ -120,8 +120,8 @@ class TestSessionManagerTimerIntegration:
         timer.cancel()
 
     async def test_maybe_start_timer_with_call_prompt_event(self, manager):
-        """_maybe_start_timer starts a meld timer when per-seat CallPromptEvent targets the human player."""
-        game, _player, _conn = make_game_with_human(manager)
+        """_maybe_start_timer starts a meld timer when per-seat CallPromptEvent targets the player."""
+        game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
@@ -147,7 +147,7 @@ class TestSessionManagerTimerIntegration:
 
     async def test_maybe_start_timer_with_round_started_event(self, manager):
         """_maybe_start_timer adds round bonus to all player timers when RoundStartedEvent is present."""
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
         initial_bank = timer.remaining_bank
@@ -169,7 +169,7 @@ class TestSessionManagerTimerIntegration:
 
     async def test_maybe_start_timer_with_round_end_event(self, manager):
         """_maybe_start_timer starts fixed round-advance timers when RoundEndEvent is present."""
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
         manager._game_locks["game1"] = asyncio.Lock()
@@ -199,7 +199,7 @@ class TestSessionManagerTimerIntegration:
 
     async def test_maybe_start_timer_with_game_ended_event(self, manager):
         """_maybe_start_timer returns early and cleans up timers when GameEndedEvent is present."""
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
 
@@ -211,7 +211,7 @@ class TestSessionManagerTimerIntegration:
                 result=GameEndResult(
                     winner_seat=0,
                     standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
+                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_ai_player=False),
                     ],
                 ),
             ),
@@ -225,7 +225,7 @@ class TestSessionManagerTimerIntegration:
 
     async def test_maybe_start_timer_returns_when_timer_is_none(self, manager):
         """_maybe_start_timer returns early when no timer exists for the game."""
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
         # do not set up a timer for the game
 
         generic_event = ServiceEvent(
@@ -271,7 +271,7 @@ class TestSessionManagerTimerIntegration:
 
     async def test_handle_timeout_returns_when_game_is_none(self, manager):
         """_handle_timeout returns early when game has been removed but lock still exists."""
-        _game, _player, _conn = make_game_with_human(manager)
+        _game, _player, _conn = make_game_with_player(manager)
         manager._game_locks["game1"] = asyncio.Lock()
 
         # remove the game to simulate the game being cleaned up
@@ -297,10 +297,10 @@ class TestSessionManagerTimerIntegration:
 class TestPerPlayerTimers:
     """Tests for per-player timer independence."""
 
-    def _make_pvp_game_with_two_humans(
+    def _make_pvp_game_with_two_players(
         self, manager
     ) -> tuple[Game, Player, Player, MockConnection, MockConnection]:
-        """Create a game with two human players at seats 0 and 1."""
+        """Create a game with two players at seats 0 and 1."""
         conn1 = MockConnection()
         conn2 = MockConnection()
         game = Game(game_id="game1")
@@ -317,7 +317,7 @@ class TestPerPlayerTimers:
 
     async def test_pvp_game_creates_timer_per_player(self, manager):
         """PVP game with 4 players creates a timer for each player."""
-        await create_started_game(manager, "game1", num_bots=0, player_names=["P0", "P1", "P2", "P3"])
+        await create_started_game(manager, "game1", num_ai_players=0, player_names=["P0", "P1", "P2", "P3"])
 
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
@@ -326,7 +326,7 @@ class TestPerPlayerTimers:
 
     async def test_round_bonus_added_to_all_player_timers(self, manager):
         """Round bonus is added to all player timers when round starts."""
-        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
@@ -352,8 +352,8 @@ class TestPerPlayerTimers:
         assert timer1.remaining_bank == initial_bank_1 + config.round_bonus_seconds
 
     async def test_multiple_meld_timers_for_multiple_callers(self, manager):
-        """When 2+ humans can call the same discard, each gets their own meld timer."""
-        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        """When 2+ players can call the same discard, each gets their own meld timer."""
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
@@ -394,7 +394,7 @@ class TestPerPlayerTimers:
 
     async def test_sibling_meld_timer_cancellation(self, manager):
         """When one caller acts, other callers' meld timers are cancelled."""
-        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
@@ -437,7 +437,7 @@ class TestPerPlayerTimers:
 
     async def test_partial_pass_stops_acting_player_timer(self, manager):
         """When a pass returns empty events (other callers pending), the passer's timer is stopped."""
-        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
@@ -483,7 +483,7 @@ class TestPerPlayerTimers:
 
     async def test_turn_timer_starts_for_specific_player(self, manager):
         """Turn timer starts only for the player whose turn it is."""
-        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_humans(manager)
+        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
@@ -508,7 +508,12 @@ class TestPerPlayerTimers:
 
     async def test_leave_game_cancels_all_player_timers(self, manager):
         """Leaving a game cancels all player timers when game becomes empty."""
-        conns = await create_started_game(manager, "game1", num_bots=0, player_names=["P0", "P1", "P2", "P3"])
+        conns = await create_started_game(
+            manager,
+            "game1",
+            num_ai_players=0,
+            player_names=["P0", "P1", "P2", "P3"],
+        )
 
         assert manager._timer_manager.has_game("game1")
 

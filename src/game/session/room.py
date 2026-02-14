@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from game.logic.settings import GameSettings
-from game.session.models import TOTAL_PLAYERS, validate_num_bots
+from game.session.models import TOTAL_PLAYERS, validate_num_ai_players
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
@@ -42,23 +42,23 @@ class Room:
     """Pre-game lobby where players gather before starting a game.
 
     Players join the room, toggle readiness, and chat. The game starts
-    only when all required humans are ready.
+    only when all required players are ready.
     """
 
     room_id: str
-    num_bots: int = 3
+    num_ai_players: int = 3
     host_connection_id: str | None = None
     transitioning: bool = False
     players: dict[str, RoomPlayer] = field(default_factory=dict)  # connection_id -> RoomPlayer
     settings: GameSettings = field(default_factory=GameSettings)
 
     def __post_init__(self) -> None:
-        """Validate num_bots is within the allowed range."""
-        validate_num_bots(self.num_bots)
+        """Validate num_ai_players is within the allowed range."""
+        validate_num_ai_players(self.num_ai_players)
 
     @property
-    def humans_needed(self) -> int:
-        return TOTAL_PLAYERS - self.num_bots
+    def players_needed(self) -> int:
+        return TOTAL_PLAYERS - self.num_ai_players
 
     @property
     def player_names(self) -> list[str]:
@@ -78,11 +78,11 @@ class Room:
 
     @property
     def is_full(self) -> bool:
-        return self.player_count >= self.humans_needed
+        return self.player_count >= self.players_needed
 
     @property
     def all_ready(self) -> bool:
-        """Check if all required humans are present and ready."""
+        """Check if all required players are present and ready."""
         return self.is_full and all(p.ready for p in self.players.values())
 
     def get_player_info(self) -> list[RoomPlayerInfo]:

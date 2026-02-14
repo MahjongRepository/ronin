@@ -40,19 +40,19 @@ def _create_frozen_players(
         ),
         MahjongPlayer(
             seat=1,
-            name="Bot1",
+            name="AI1",
             tiles=tuple(TilesConverter.string_to_136_array(man="123", pin="123", sou="123456")),
             score=25000,
         ),
         MahjongPlayer(
             seat=2,
-            name="Bot2",
+            name="AI2",
             tiles=tuple(TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1")),
             score=25000,
         ),
         MahjongPlayer(
             seat=3,
-            name="Bot3",
+            name="AI3",
             tiles=tuple(TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2")),
             score=25000,
             is_ippatsu=True,  # to verify ippatsu clearing

@@ -1,7 +1,7 @@
 """
 MahjongGameService implementation for the Mahjong game.
 
-Orchestrates game logic, bot turns, and event generation for the session manager.
+Orchestrates game logic, AI player turns, and event generation for the session manager.
 The service manages state transitions while action handlers are pure functions
 that return new state.
 """
@@ -25,9 +25,9 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult
-from game.logic.bot import BotPlayer, BotStrategy
-from game.logic.bot_controller import BotController
-from game.logic.enums import BotType, CallType, GameAction, GameErrorCode, RoundPhase, TimeoutType
+from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player_controller import AIPlayerController
+from game.logic.enums import AIPlayerType, CallType, GameAction, GameErrorCode, RoundPhase, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -77,12 +77,12 @@ from game.logic.win import is_effective_furiten
 
 logger = logging.getLogger(__name__)
 
-# Safety limits for bot processing loops
-MAX_BOT_TURN_ITERATIONS = 100
-MAX_BOT_CALL_ITERATIONS = 10
+# Safety limits for AI player processing loops
+MAX_AI_PLAYER_TURN_ITERATIONS = 100
+MAX_AI_PLAYER_CALL_ITERATIONS = 10
 
-_BOT_TYPE_TO_STRATEGY: dict[BotType, BotStrategy] = {
-    BotType.TSUMOGIRI: BotStrategy.TSUMOGIRI,
+_AI_PLAYER_TYPE_TO_STRATEGY: dict[AIPlayerType, AIPlayerStrategy] = {
+    AIPlayerType.TSUMOGIRI: AIPlayerStrategy.TSUMOGIRI,
 }
 
 
@@ -95,7 +95,7 @@ class MahjongGameService(GameService):
 
     def __init__(self, *, auto_cleanup: bool = True, settings: GameSettings | None = None) -> None:
         self._games: dict[str, MahjongGameState] = {}
-        self._bot_controllers: dict[str, BotController] = {}
+        self._ai_player_controllers: dict[str, AIPlayerController] = {}
         self._furiten_state: dict[str, dict[int, bool]] = {}
         self._round_advance = RoundAdvanceManager()
         self._auto_cleanup = auto_cleanup
@@ -113,7 +113,7 @@ class MahjongGameService(GameService):
         """
         Start a new mahjong game with the given players.
 
-        Uses matchmaker to assign seats randomly and fill with bots.
+        Uses matchmaker to assign seats randomly and fill with AI players.
         Returns initial state events for each player.
         When seed is provided, the game is deterministically reproducible.
         When seed is None, a random seed is generated.
@@ -132,20 +132,26 @@ class MahjongGameService(GameService):
 
         self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
-        bots: dict[int, BotPlayer] = {}
+        ai_players: dict[int, AIPlayer] = {}
         for seat, config in enumerate(seat_configs):
-            if config.bot_type is not None:
-                strategy = _BOT_TYPE_TO_STRATEGY.get(config.bot_type, BotStrategy.TSUMOGIRI)
-                bots[seat] = BotPlayer(strategy=strategy)
+            if config.ai_player_type is not None:
+                strategy = _AI_PLAYER_TYPE_TO_STRATEGY.get(config.ai_player_type, AIPlayerStrategy.TSUMOGIRI)
+                ai_players[seat] = AIPlayer(strategy=strategy)
 
-        bot_controller = BotController(bots)
-        self._bot_controllers[game_id] = bot_controller
+        ai_player_controller = AIPlayerController(ai_players)
+        self._ai_player_controllers[game_id] = ai_player_controller
 
         events: list[ServiceEvent] = []
         events.append(
-            self._create_game_started_event(game_id, frozen_game, bot_seats=bot_controller.bot_seats)
+            self._create_game_started_event(
+                game_id, frozen_game, ai_player_seats=ai_player_controller.ai_player_seats
+            )
         )
-        events.extend(self._create_round_started_events(frozen_game, bot_seats=bot_controller.bot_seats))
+        events.extend(
+            self._create_round_started_events(
+                frozen_game, ai_player_seats=ai_player_controller.ai_player_seats
+            )
+        )
 
         _new_round_state, new_game_state, draw_events = process_draw_phase(
             frozen_game.round_state, frozen_game
@@ -153,23 +159,23 @@ class MahjongGameService(GameService):
         self._games[game_id] = new_game_state
         events.extend(convert_events(draw_events))
 
-        # process bot turns if dealer is a bot
+        # process AI player turns if dealer is an AI player
         dealer_seat = new_game_state.round_state.dealer_seat
-        if bot_controller.is_bot(dealer_seat):
-            bot_events = await self._process_bot_followup(game_id)
-            events.extend(bot_events)
+        if ai_player_controller.is_ai_player(dealer_seat):
+            ai_player_events = await self._process_ai_player_followup(game_id)
+            events.extend(ai_player_events)
 
         return events
 
     def _create_game_started_event(
-        self, game_id: str, game_state: MahjongGameState, bot_seats: set[int] | None = None
+        self, game_id: str, game_state: MahjongGameState, ai_player_seats: set[int] | None = None
     ) -> ServiceEvent:
         """Create a single game_started event broadcast to all players."""
         players = [
             GamePlayerInfo(
                 seat=p.seat,
                 name=p.name,
-                is_bot=p.seat in (bot_seats or set()),
+                is_ai_player=p.seat in (ai_player_seats or set()),
             )
             for p in game_state.round_state.players
         ]
@@ -180,14 +186,14 @@ class MahjongGameService(GameService):
         )
 
     def _create_round_started_events(
-        self, game_state: MahjongGameState, bot_seats: set[int] | None = None
+        self, game_state: MahjongGameState, ai_player_seats: set[int] | None = None
     ) -> list[ServiceEvent]:
         """Create round_started events for all players."""
         return [
             ServiceEvent(
                 event=EventType.ROUND_STARTED,
                 data=RoundStartedEvent(
-                    view=get_player_view(game_state, seat, bot_seats=bot_seats),
+                    view=get_player_view(game_state, seat, ai_player_seats=ai_player_seats),
                     target=f"seat_{seat}",
                 ),
                 target=SeatTarget(seat=seat),
@@ -205,7 +211,7 @@ class MahjongGameService(GameService):
         """
         Handle a game action from a player.
 
-        Processes the action and triggers bot turns as needed.
+        Processes the action and triggers AI player turns as needed.
         """
         game_state = self._games.get(game_id)
         if game_state is None:
@@ -240,15 +246,15 @@ class MahjongGameService(GameService):
 
         events = await self._dispatch_and_process(game_id, seat, action, data)
 
-        # trigger bot followup if round is playing and no pending callers
+        # trigger AI player followup if round is playing and no pending callers
         # Re-fetch state safely: game may have been cleaned up during game-end handling
         game_state = self._games.get(game_id)
         if game_state is None:
             return events
         round_state = game_state.round_state
         if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
-            bot_events = await self._process_bot_followup(game_id)
-            events.extend(bot_events)
+            ai_player_events = await self._process_ai_player_followup(game_id)
+            events.extend(ai_player_events)
 
         return events
 
@@ -259,7 +265,7 @@ class MahjongGameService(GameService):
         Dispatch action to handler and process result.
 
         Updates stored state from ActionResult.new_game_state. Does NOT trigger
-        bot followup to avoid recursion - bot followup is handled by the top-level caller.
+        AI player followup to avoid recursion - AI player followup is handled by the top-level caller.
         """
         game_state = self._games[game_id]
 
@@ -295,7 +301,7 @@ class MahjongGameService(GameService):
         """Dispatch a game action to the appropriate handler.
 
         Single entry point for all synchronous action dispatch -- used by both
-        human action processing and bot call response handling.
+        player action processing and AI player call response handling.
 
         CONFIRM_ROUND is handled separately by the async confirmation path.
 
@@ -336,7 +342,7 @@ class MahjongGameService(GameService):
 
     async def _process_action_result_internal(self, game_id: str, result: ActionResult) -> list[ServiceEvent]:
         """
-        Process action result without triggering bot followup.
+        Process action result without triggering AI player followup.
 
         Handles round end checking, post-discard processing, and chankan prompts.
         """
@@ -380,14 +386,14 @@ class MahjongGameService(GameService):
         if round_state.pending_call_prompt is None:
             return events
 
-        # dispatch bot call responses through standard handlers
-        self._dispatch_bot_call_responses(game_id, events)
+        # dispatch AI player call responses through standard handlers
+        self._dispatch_ai_player_call_responses(game_id, events)
 
-        # Re-fetch state after bot responses
+        # Re-fetch state after AI player responses
         game_state = self._games[game_id]
         round_state = game_state.round_state
 
-        # if human callers still pending, wait
+        # if player callers still pending, wait
         if round_state.pending_call_prompt is not None:
             return events
 
@@ -417,11 +423,11 @@ class MahjongGameService(GameService):
         return game_state.seed if game_state is not None else None
 
     def is_round_advance_pending(self, game_id: str) -> bool:
-        """Check if a round advance is waiting for human confirmation."""
+        """Check if a round advance is waiting for player confirmation."""
         return self._round_advance.is_pending(game_id)
 
-    def get_pending_round_advance_human_names(self, game_id: str) -> list[str]:
-        """Return human player names that still need to confirm round advance."""
+    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
+        """Return player names that still need to confirm round advance."""
         state = self._games.get(game_id)
         if state is None:
             return []
@@ -490,7 +496,7 @@ class MahjongGameService(GameService):
         Lets InvalidGameActionError propagate to the session manager for disconnect handling.
         A meld timeout PASS can trigger prompt resolution, which may fail if another caller
         previously submitted invalid data (defense-in-depth safety net). The session manager
-        must handle disconnect + bot replacement for the offending seat.
+        must handle disconnect + AI player replacement for the offending seat.
         """
         prompt = game_state.round_state.pending_call_prompt
         if prompt is None or seat not in prompt.pending_seats:
@@ -500,11 +506,11 @@ class MahjongGameService(GameService):
     def _find_player_seat_frozen(
         self, game_id: str, game_state: MahjongGameState, player_name: str
     ) -> int | None:
-        """Find the seat number for a human player by name."""
-        bot_controller = self._bot_controllers.get(game_id)
+        """Find the seat number for a player by name."""
+        ai_player_controller = self._ai_player_controllers.get(game_id)
         for player in game_state.round_state.players:
             if player.name == player_name:
-                if bot_controller and bot_controller.is_bot(player.seat):
+                if ai_player_controller and ai_player_controller.is_ai_player(player.seat):
                     continue
                 return player.seat
         return None
@@ -543,8 +549,8 @@ class MahjongGameService(GameService):
         """
         Process events after a discard.
 
-        Uses the pending call prompt system: dispatches bot responses through handlers,
-        waits for human callers, or advances turn if no callers.
+        Uses the pending call prompt system: dispatches AI player responses through handlers,
+        waits for player callers, or advances turn if no callers.
         """
         # check if round ended immediately (abortive draws)
         round_end_events = await self._check_and_handle_round_end(game_id, events)
@@ -556,14 +562,14 @@ class MahjongGameService(GameService):
         round_state = game_state.round_state
 
         if round_state.pending_call_prompt is not None:
-            # dispatch bot call responses through handlers
-            self._dispatch_bot_call_responses(game_id, events)
+            # dispatch AI player call responses through handlers
+            self._dispatch_ai_player_call_responses(game_id, events)
 
-            # Re-fetch state after bot responses
+            # Re-fetch state after AI player responses
             game_state = self._games[game_id]
             round_state = game_state.round_state
 
-            # if human callers still pending, wait
+            # if player callers still pending, wait
             if round_state.pending_call_prompt is not None:
                 return events
 
@@ -584,32 +590,34 @@ class MahjongGameService(GameService):
 
         return events
 
-    def _dispatch_bot_call_responses(self, game_id: str, events: list[ServiceEvent]) -> None:
+    def _dispatch_ai_player_call_responses(self, game_id: str, events: list[ServiceEvent]) -> None:
         """
-        Dispatch bot responses to pending call prompt.
+        Dispatch AI player responses to pending call prompt.
 
-        Each bot's response goes through the same handler functions as human
+        Each AI player's response goes through the same handler functions as player
         responses. Resolution happens when all callers respond.
         Updates stored state from each handler result.
         """
-        bot_controller = self._bot_controllers[game_id]
+        ai_player_controller = self._ai_player_controllers[game_id]
 
-        # Process bot responses one at a time, re-fetching state each time
-        for _ in range(MAX_BOT_CALL_ITERATIONS):
+        # Process AI player responses one at a time, re-fetching state each time
+        for _ in range(MAX_AI_PLAYER_CALL_ITERATIONS):
             game_state = self._games[game_id]
             round_state = game_state.round_state
             prompt = round_state.pending_call_prompt
             if prompt is None:
                 break  # resolved
 
-            # Find next bot that needs to respond
-            bot_seats = [s for s in sorted(prompt.pending_seats) if bot_controller.is_bot(s)]
-            if not bot_seats:
-                break  # No more bots to respond
+            # Find next AI player that needs to respond
+            ai_player_seats = [
+                s for s in sorted(prompt.pending_seats) if ai_player_controller.is_ai_player(s)
+            ]
+            if not ai_player_seats:
+                break  # No more AI players to respond
 
-            seat = bot_seats[0]
+            seat = ai_player_seats[0]
             caller_info = self._find_caller_info(prompt, seat)
-            response = bot_controller.get_call_response(
+            response = ai_player_controller.get_call_response(
                 seat,
                 round_state,
                 prompt.call_type,
@@ -622,13 +630,13 @@ class MahjongGameService(GameService):
             else:
                 action, data = GameAction.PASS, {}
 
-            result = self._dispatch_bot_call_action(game_id, game_state, seat, action, data)
+            result = self._dispatch_ai_player_call_action(game_id, game_state, seat, action, data)
             if result is None:
                 break
             self._update_state_from_result(game_id, result)
             events.extend(convert_events(result.events))
 
-    def _try_bot_dispatch(  # noqa: PLR0913
+    def _try_ai_player_dispatch(  # noqa: PLR0913
         self,
         game_state: MahjongGameState,
         game_id: str,
@@ -637,20 +645,20 @@ class MahjongGameService(GameService):
         data: dict[str, Any],
         label: str,
     ) -> ActionResult | None:
-        """Attempt a bot dispatch, returning None on own-seat failure.
+        """Attempt an AI player dispatch, returning None on own-seat failure.
 
         Re-raises InvalidGameActionError if the error blames a different seat
-        (e.g. resolution failed on a human player's prior invalid data).
+        (e.g. resolution failed on a player's prior invalid data).
         """
         try:
             return self._dispatch_action(game_state, seat, action, data)
         except InvalidGameActionError as e:
             if e.seat != seat:
                 raise
-            logger.exception(f"game {game_id}: bot at seat {seat} {label} action={action}")
+            logger.exception(f"game {game_id}: AI player at seat {seat} {label} action={action}")
             return None
 
-    def _dispatch_bot_call_action(
+    def _dispatch_ai_player_call_action(
         self,
         game_id: str,
         game_state: MahjongGameState,
@@ -658,19 +666,19 @@ class MahjongGameService(GameService):
         action: GameAction,
         data: dict[str, Any],
     ) -> ActionResult | None:
-        """Dispatch a bot call response, falling back to PASS on failure.
+        """Dispatch an AI player call response, falling back to PASS on failure.
 
         Returns ActionResult on success, or None if both the original action
         and the PASS fallback fail. Re-raises if the error blames a different
-        seat (e.g. resolution failed on a human player's prior invalid data).
+        seat (e.g. resolution failed on a player's prior invalid data).
         """
         label = "call failed, falling back to PASS"
-        result = self._try_bot_dispatch(game_state, game_id, seat, action, data, label)
+        result = self._try_ai_player_dispatch(game_state, game_id, seat, action, data, label)
         if result is not None:
             return result
         if action == GameAction.PASS:
             return None
-        return self._try_bot_dispatch(
+        return self._try_ai_player_dispatch(
             game_state,
             game_id,
             seat,
@@ -704,9 +712,9 @@ class MahjongGameService(GameService):
         frozen_game = process_round_end(frozen_game, round_result)
 
         if check_game_end(frozen_game):
-            bot_controller = self._bot_controllers.get(game_id)
-            bot_seats = bot_controller.bot_seats if bot_controller else None
-            frozen_game, game_result = finalize_game(frozen_game, bot_seats=bot_seats)
+            ai_player_controller = self._ai_player_controllers.get(game_id)
+            ai_player_seats = ai_player_controller.ai_player_seats if ai_player_controller else None
+            frozen_game, game_result = finalize_game(frozen_game, ai_player_seats=ai_player_seats)
             logger.info(f"game {game_id}: game ended")
             # Always store finalized state before cleanup decision
             self._games[game_id] = frozen_game
@@ -725,10 +733,10 @@ class MahjongGameService(GameService):
         self._games[game_id] = frozen_game
 
         # enter waiting state for round confirmation
-        bot_controller = self._bot_controllers.get(game_id)
-        bot_seats = bot_controller.bot_seats if bot_controller else set()
-        if self._round_advance.setup_pending(game_id, bot_seats):
-            # all bots (no humans) -- advance immediately
+        ai_player_controller = self._ai_player_controllers.get(game_id)
+        ai_player_seats = ai_player_controller.ai_player_seats if ai_player_controller else set()
+        if self._round_advance.setup_pending(game_id, ai_player_seats):
+            # all AI players (no players) -- advance immediately
             return await self._start_next_round(game_id)
 
         # return empty -- the RoundEndEvent is already in the caller's events list
@@ -748,7 +756,7 @@ class MahjongGameService(GameService):
             return []  # still waiting for other players
 
         # all confirmed -- start next round
-        # _start_next_round already handles bot dealer followup
+        # _start_next_round already handles AI player dealer followup
         return await self._start_next_round(game_id)
 
     def _append_furiten_changes(self, game_id: str, events: list[ServiceEvent]) -> list[ServiceEvent]:
@@ -797,33 +805,33 @@ class MahjongGameService(GameService):
     def cleanup_game(self, game_id: str) -> None:
         """Remove all game state for a game that was abandoned or cleaned up externally."""
         self._games.pop(game_id, None)
-        self._bot_controllers.pop(game_id, None)
+        self._ai_player_controllers.pop(game_id, None)
         self._furiten_state.pop(game_id, None)
         self._round_advance.cleanup_game(game_id)
 
-    def replace_player_with_bot(self, game_id: str, player_name: str) -> None:
+    def replace_with_ai_player(self, game_id: str, player_name: str) -> None:
         """
-        Replace a human player with a bot at their seat.
+        Replace a disconnected player with an AI player at their seat.
         """
         game_state = self._games.get(game_id)
         if game_state is None:
             return
 
-        # find seat BEFORE registering bot (_find_player_seat skips bot seats)
+        # find seat BEFORE registering AI player (_find_player_seat skips AI player seats)
         seat = self._find_player_seat_frozen(game_id, game_state, player_name)
         if seat is None:
             return
 
-        bot_controller = self._bot_controllers.get(game_id)
-        if bot_controller is None:
+        ai_player_controller = self._ai_player_controllers.get(game_id)
+        if ai_player_controller is None:
             return
 
-        bot = BotPlayer(strategy=BotStrategy.TSUMOGIRI)
-        bot_controller.add_bot(seat, bot)
-        logger.info(f"game {game_id}: replaced '{player_name}' (seat {seat}) with bot")
+        ai_player = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
+        ai_player_controller.add_ai_player(seat, ai_player)
+        logger.info(f"game {game_id}: replaced '{player_name}' (seat {seat}) with AI player")
 
     async def _auto_confirm_pending_advance(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
-        """Auto-confirm a seat's pending round advance after bot replacement.
+        """Auto-confirm a seat's pending round advance after AI player replacement.
 
         Returns events if the pending advance was handled, None if not applicable.
         """
@@ -831,13 +839,13 @@ class MahjongGameService(GameService):
             return None
         return await self._handle_confirm_round(game_id, seat)
 
-    async def process_bot_actions_after_replacement(
+    async def process_ai_player_actions_after_replacement(
         self,
         game_id: str,
         seat: int,
     ) -> list[ServiceEvent]:
         """
-        Process pending bot actions after a human was replaced with a bot at the given seat.
+        Process pending AI player actions after a player was replaced with an AI player at the given seat.
         """
         game_state = self._games.get(game_id)
         if game_state is None:
@@ -854,17 +862,17 @@ class MahjongGameService(GameService):
 
         events: list[ServiceEvent] = []
 
-        # if the replaced player had a pending call prompt, resolve their response as bot
+        # if the replaced player had a pending call prompt, resolve their response as AI player
         prompt = round_state.pending_call_prompt
         if prompt is not None and seat in prompt.pending_seats:
-            self._dispatch_bot_call_responses(game_id, events)
+            self._dispatch_ai_player_call_responses(game_id, events)
 
-            # Re-fetch state after bot responses
+            # Re-fetch state after AI player responses
             game_state = self._games[game_id]
             round_state = game_state.round_state
 
             if round_state.pending_call_prompt is not None:
-                # other human callers still pending
+                # other player callers still pending
                 return events
 
             # prompt fully resolved - check round end
@@ -876,10 +884,10 @@ class MahjongGameService(GameService):
         game_state = self._games[game_id]
         round_state = game_state.round_state
 
-        # process bot turns if current player is a bot
+        # process AI player turns if current player is an AI player
         if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
-            bot_events = await self._process_bot_followup(game_id)
-            events.extend(bot_events)
+            ai_player_events = await self._process_ai_player_followup(game_id)
+            events.extend(ai_player_events)
 
         return events
 
@@ -893,10 +901,10 @@ class MahjongGameService(GameService):
 
         self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
-        bot_controller = self._bot_controllers[game_id]
-        bot_seats = bot_controller.bot_seats
+        ai_player_controller = self._ai_player_controllers[game_id]
+        ai_player_seats = ai_player_controller.ai_player_seats
 
-        events = self._create_round_started_events(frozen_game, bot_seats=bot_seats)
+        events = self._create_round_started_events(frozen_game, ai_player_seats=ai_player_seats)
 
         _new_round_state, new_game_state, draw_events = process_draw_phase(
             frozen_game.round_state, frozen_game
@@ -905,25 +913,25 @@ class MahjongGameService(GameService):
         events.extend(convert_events(draw_events))
 
         dealer_seat = new_game_state.round_state.dealer_seat
-        if bot_controller.is_bot(dealer_seat):
-            bot_events = await self._process_bot_followup(game_id)
-            events.extend(bot_events)
+        if ai_player_controller.is_ai_player(dealer_seat):
+            ai_player_events = await self._process_ai_player_followup(game_id)
+            events.extend(ai_player_events)
 
         return events
 
-    async def _process_bot_followup(self, game_id: str) -> list[ServiceEvent]:
+    async def _process_ai_player_followup(self, game_id: str) -> list[ServiceEvent]:
         """
-        Process bot turn actions iteratively.
+        Process AI player turn actions iteratively.
 
-        Loop until a human player's turn is reached, a pending call prompt
-        awaits human input, or the round ends.
+        Loop until a player's turn is reached, a pending call prompt
+        awaits player input, or the round ends.
         """
         all_events: list[ServiceEvent] = []
-        bot_controller = self._bot_controllers.get(game_id)
-        if bot_controller is None:
+        ai_player_controller = self._ai_player_controllers.get(game_id)
+        if ai_player_controller is None:
             return all_events
 
-        for _ in range(MAX_BOT_TURN_ITERATIONS):
+        for _ in range(MAX_AI_PLAYER_TURN_ITERATIONS):
             # Re-fetch state each iteration as it may have been updated
             game_state = self._games.get(game_id)
             if game_state is None:
@@ -933,20 +941,20 @@ class MahjongGameService(GameService):
             if round_state.phase != RoundPhase.PLAYING:
                 break
             if round_state.pending_call_prompt is not None:
-                break  # waiting for human caller
+                break  # waiting for player caller
 
             current_seat = round_state.current_player_seat
-            if not bot_controller.is_bot(current_seat):
+            if not ai_player_controller.is_ai_player(current_seat):
                 break
 
-            events = await self._execute_bot_turn(game_id, bot_controller, current_seat)
+            events = await self._execute_ai_player_turn(game_id, ai_player_controller, current_seat)
             if events is None:
                 break
             all_events.extend(events)
 
         return all_events
 
-    async def _try_bot_dispatch_async(
+    async def _try_ai_player_dispatch_async(
         self,
         game_id: str,
         seat: int,
@@ -954,7 +962,7 @@ class MahjongGameService(GameService):
         data: dict[str, Any],
         label: str,
     ) -> list[ServiceEvent] | None:
-        """Attempt an async bot dispatch, returning None on own-seat failure.
+        """Attempt an async AI player dispatch, returning None on own-seat failure.
 
         Re-raises InvalidGameActionError if the error blames a different seat.
         """
@@ -963,32 +971,32 @@ class MahjongGameService(GameService):
         except InvalidGameActionError as e:
             if e.seat != seat:
                 raise
-            logger.exception(f"game {game_id}: bot at seat {seat} {label} action={action}")
+            logger.exception(f"game {game_id}: AI player at seat {seat} {label} action={action}")
             return None
 
-    async def _execute_bot_turn(
-        self, game_id: str, bot_controller: BotController, seat: int
+    async def _execute_ai_player_turn(
+        self, game_id: str, ai_player_controller: AIPlayerController, seat: int
     ) -> list[ServiceEvent] | None:
-        """Execute a single bot turn action, falling back to tsumogiri on failure.
+        """Execute a single AI player turn action, falling back to tsumogiri on failure.
 
-        Returns events on success, or None if the bot has no action or all fallbacks fail.
-        Re-raises InvalidGameActionError when the error blames a different seat (human).
+        Returns events on success, or None if the AI player has no action or all fallbacks fail.
+        Re-raises InvalidGameActionError when the error blames a different seat (player).
         """
         round_state = self._games[game_id].round_state
-        action_data = bot_controller.get_turn_action(seat, round_state)
+        action_data = ai_player_controller.get_turn_action(seat, round_state)
         if action_data is None:
             return None
 
         action, data = action_data
-        result = await self._try_bot_dispatch_async(
+        result = await self._try_ai_player_dispatch_async(
             game_id, seat, action, data, "turn failed, falling back to tsumogiri"
         )
         if result is not None:
             return result
-        return await self._bot_tsumogiri_fallback(game_id, seat)
+        return await self._ai_player_tsumogiri_fallback(game_id, seat)
 
-    async def _bot_tsumogiri_fallback(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
-        """Fallback to tsumogiri (discard last tile) when a bot's turn action fails.
+    async def _ai_player_tsumogiri_fallback(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
+        """Fallback to tsumogiri (discard last tile) when an AI player's turn action fails.
 
         Returns events on success, or None if the fallback also fails.
         """
@@ -998,7 +1006,7 @@ class MahjongGameService(GameService):
         fallback_player = fallback_state.round_state.players[seat]
         if not fallback_player.tiles:
             return None
-        return await self._try_bot_dispatch_async(
+        return await self._try_ai_player_dispatch_async(
             game_id,
             seat,
             GameAction.DISCARD,

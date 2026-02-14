@@ -52,10 +52,14 @@ async def list_rooms(request: Request) -> JSONResponse:
 async def create_room(request: Request) -> JSONResponse:
     games_service: GamesService = request.app.state.games_service
 
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
+    raw_body = await request.body()
+    if not raw_body or raw_body.strip() == b"":
         body = {}
+    else:
+        try:
+            body = json.loads(raw_body)
+        except (ValueError, json.JSONDecodeError):
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=422)
 
     try:
         req = CreateRoomRequest(**body)
@@ -63,7 +67,7 @@ async def create_room(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=422)
 
     try:
-        result = await games_service.create_room(num_bots=req.num_bots)
+        result = await games_service.create_room(num_ai_players=req.num_ai_players)
         return JSONResponse(
             {
                 "room_id": result.room_id,

@@ -80,8 +80,8 @@ class _StubService:
     def is_round_advance_pending(self, game_id: str) -> bool:
         return self._inner.is_round_advance_pending(game_id)
 
-    def get_pending_round_advance_human_names(self, game_id: str) -> list[str]:
-        return self._inner.get_pending_round_advance_human_names(game_id)
+    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
+        return self._inner.get_pending_round_advance_player_names(game_id)
 
 
 async def _async_probe_current_player_discard() -> tuple[str, int]:
@@ -393,7 +393,7 @@ async def test_run_replay_async_round_advance_injection():
         def __init__(self) -> None:
             super().__init__()
             self._advance_pending = False
-            self._advance_humans: list[str] = []
+            self._advance_players: list[str] = []
 
         async def start_game(
             self,
@@ -404,30 +404,30 @@ async def test_run_replay_async_round_advance_injection():
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
-            self._advance_humans = list(player_names)
+            self._advance_players = list(player_names)
             return await super().start_game(game_id, player_names, seed=seed)
 
         async def handle_action(
             self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
         ) -> list[ServiceEvent]:
             if action == GameAction.CONFIRM_ROUND:
-                if player_name in self._advance_humans:
-                    self._advance_humans.remove(player_name)
-                if not self._advance_humans:
+                if player_name in self._advance_players:
+                    self._advance_players.remove(player_name)
+                if not self._advance_players:
                     self._advance_pending = False
                 return []
             events = await super().handle_action(game_id, player_name, action, data)
             self._advance_pending = True
             state = self._inner.get_game_state(game_id)
             assert state is not None
-            self._advance_humans = [p.name for p in state.round_state.players]
+            self._advance_players = [p.name for p in state.round_state.players]
             return events
 
         def is_round_advance_pending(self, game_id: str) -> bool:  # noqa: ARG002
             return self._advance_pending
 
-        def get_pending_round_advance_human_names(self, game_id: str) -> list[str]:  # noqa: ARG002
-            return list(self._advance_humans) if self._advance_pending else []
+        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:  # noqa: ARG002
+            return list(self._advance_players) if self._advance_pending else []
 
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(
@@ -475,7 +475,7 @@ async def test_run_replay_async_round_confirm_error_in_strict_mode():
         def is_round_advance_pending(self, game_id: str) -> bool:  # noqa: ARG002
             return self._advance_pending
 
-        def get_pending_round_advance_human_names(self, game_id: str) -> list[str]:  # noqa: ARG002
+        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:  # noqa: ARG002
             return ["Alice"] if self._advance_pending else []
 
     name, tile = await _async_probe_current_player_discard()
@@ -495,7 +495,7 @@ async def test_step_limit_enforced_after_round_confirmations():
 
     This specifically tests the post-injection check in _execute_replay (line 169),
     not the per-confirmation check inside _inject_round_confirmations.
-    With 2 pending humans and max_steps=3: 1 discard + 2 confirms = 3 steps,
+    With 2 pending players and max_steps=3: 1 discard + 2 confirms = 3 steps,
     which hits the limit after confirmations complete but before the second discard.
     """
 
@@ -519,7 +519,7 @@ async def test_step_limit_enforced_after_round_confirmations():
         def is_round_advance_pending(self, game_id: str) -> bool:  # noqa: ARG002
             return self._advance_pending
 
-        def get_pending_round_advance_human_names(self, game_id: str) -> list[str]:  # noqa: ARG002
+        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:  # noqa: ARG002
             return list(PLAYER_NAMES[:2]) if self._advance_pending else []
 
     name, tile = await _async_probe_current_player_discard()

@@ -40,7 +40,7 @@ class TestDeclareRiichiDaburi:
             score=25000,
             discards=player_discards or (),
         )
-        players = (player, *tuple(MahjongPlayer(seat=i, name=f"Bot{i}", score=25000) for i in range(1, 4)))
+        players = (player, *tuple(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
             wall=tuple(range(10)),
             players=players,

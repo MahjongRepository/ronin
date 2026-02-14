@@ -4,10 +4,10 @@ const LOBBY_URL: string =
 
 export interface RoomInfo {
     room_id: string;
-    human_player_count: number;
-    humans_needed: number;
+    player_count: number;
+    players_needed: number;
     total_seats: number;
-    num_bots: number;
+    num_ai_players: number;
     players: string[];
     server_name: string;
     server_url: string;
@@ -32,8 +32,9 @@ export async function listRooms(): Promise<RoomInfo[]> {
     return data.rooms;
 }
 
-export async function createRoom(numBots?: number): Promise<CreateRoomResponse> {
-    const body = numBots !== undefined ? JSON.stringify({ num_bots: numBots }) : undefined;
+export async function createRoom(numAiPlayers?: number): Promise<CreateRoomResponse> {
+    const body =
+        numAiPlayers !== undefined ? JSON.stringify({ num_ai_players: numAiPlayers }) : undefined;
     const headers: Record<string, string> = {};
     if (body) {
         headers["Content-Type"] = "application/json";

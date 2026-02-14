@@ -124,10 +124,12 @@ class MahjongGameState(BaseModel):
     settings: GameSettings = Field(default_factory=GameSettings)
 
 
-def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int] | None = None) -> GameView:
+def get_player_view(
+    game_state: MahjongGameState, seat: int, ai_player_seats: set[int] | None = None
+) -> GameView:
     """Return the round-start view for a specific player."""
     round_state = game_state.round_state
-    effective_bot_seats = bot_seats or set()
+    effective_ai_player_seats = ai_player_seats or set()
 
     players_view: list[PlayerView] = []
     my_tiles: list[int] = []
@@ -140,7 +142,7 @@ def get_player_view(game_state: MahjongGameState, seat: int, bot_seats: set[int]
             PlayerView(
                 seat=p.seat,
                 name=p.name,
-                is_bot=p.seat in effective_bot_seats,
+                is_ai_player=p.seat in effective_ai_player_seats,
                 score=p.score,
             )
         )

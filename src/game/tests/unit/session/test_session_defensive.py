@@ -77,7 +77,7 @@ class TestSessionManagerDefensiveChecks:
 
     async def test_start_game_failure_rolls_back_started_flag(self, manager):
         """When start_game returns an ErrorEvent, game.started is rolled back."""
-        manager.create_room("game1", num_bots=2)
+        manager.create_room("game1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -118,7 +118,7 @@ class TestSessionManagerDefensiveChecks:
 
     async def test_leave_pre_start_game_removes_session(self, manager):
         """Leaving a game that hasn't started (e.g. start failure) removes the session."""
-        manager.create_room("game1", num_bots=2)
+        manager.create_room("game1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)

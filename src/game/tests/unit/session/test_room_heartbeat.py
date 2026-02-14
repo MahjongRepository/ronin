@@ -134,7 +134,7 @@ class TestRoomHeartbeatLoop:
 
         monitor._last_ping[conn1.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 
-        room = Room(room_id="room1", num_bots=2)
+        room = Room(room_id="room1", num_ai_players=2)
         rp1 = RoomPlayer(connection=conn1, name="Alice", room_id="room1", session_token="tok-a")
         rp2 = RoomPlayer(connection=conn2, name="Bob", room_id="room1", session_token="tok-b")
         room.players[conn1.connection_id] = rp1

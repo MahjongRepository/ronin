@@ -89,7 +89,7 @@ class RoomJoinedMessage(BaseModel):
     room_id: str
     session_token: str
     players: list[RoomPlayerInfo]
-    num_bots: int
+    num_ai_players: int
 
 
 class RoomLeftMessage(BaseModel):

@@ -41,8 +41,8 @@ def _string_to_136_tile(
     return TilesConverter.string_to_136_array(sou=sou, pin=pin, man=man, honors=honors)[0]
 
 
-def _find_human_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
-    """Find the human player by name."""
+def _find_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
+    """Find a player by name."""
     for player in round_state.players:
         if player.name == name:
             return player

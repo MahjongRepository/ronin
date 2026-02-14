@@ -415,7 +415,7 @@ def check_game_end(game_state: MahjongGameState) -> bool:
 
 def finalize_game(
     game_state: MahjongGameState,
-    bot_seats: set[int] | None = None,
+    ai_player_seats: set[int] | None = None,
 ) -> tuple[MahjongGameState, GameEndResult]:
     """
     Finalize the game and determine winner.
@@ -463,7 +463,7 @@ def finalize_game(
             name=player.name,
             score=player.score,
             final_score=final_score_map[player.seat],
-            is_bot=player.seat in (bot_seats or set()),
+            is_ai_player=player.seat in (ai_player_seats or set()),
         )
         for player in sorted_players
     ]

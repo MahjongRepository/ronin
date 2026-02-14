@@ -41,13 +41,13 @@ class TestCanCallKyuushuKyuuhai:
             ),
             MahjongPlayer(
                 seat=1,
-                name="Bot1",
+                name="AI1",
                 tiles=(),
                 discards=other_player_discards or (),
                 score=25000,
             ),
-            MahjongPlayer(seat=2, name="Bot2", tiles=(), score=25000),
-            MahjongPlayer(seat=3, name="Bot3", tiles=(), score=25000),
+            MahjongPlayer(seat=2, name="AI2", tiles=(), score=25000),
+            MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
         )
         return MahjongRoundState(
             players=players,
@@ -229,9 +229,9 @@ class TestCallKyuushuKyuuhai:
         """Create a round state for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
+            MahjongPlayer(seat=1, name="AI1", score=25000),
+            MahjongPlayer(seat=2, name="AI2", score=25000),
+            MahjongPlayer(seat=3, name="AI3", score=25000),
         ]
         return MahjongRoundState(
             players=players,
@@ -277,9 +277,9 @@ class TestCheckFourRiichi:
         """Create a round state with 4 players."""
         players = [
             MahjongPlayer(seat=0, name="Player1", is_riichi=(0 in riichi_seats), score=25000),
-            MahjongPlayer(seat=1, name="Bot1", is_riichi=(1 in riichi_seats), score=25000),
-            MahjongPlayer(seat=2, name="Bot2", is_riichi=(2 in riichi_seats), score=25000),
-            MahjongPlayer(seat=3, name="Bot3", is_riichi=(3 in riichi_seats), score=25000),
+            MahjongPlayer(seat=1, name="AI1", is_riichi=(1 in riichi_seats), score=25000),
+            MahjongPlayer(seat=2, name="AI2", is_riichi=(2 in riichi_seats), score=25000),
+            MahjongPlayer(seat=3, name="AI3", is_riichi=(3 in riichi_seats), score=25000),
         ]
         return MahjongRoundState(players=players)
 
@@ -365,9 +365,9 @@ class TestCheckFourKans:
         """Create a round state with 4 players."""
         players = (
             MahjongPlayer(seat=0, name="Player1", melds=player0_melds, score=25000),
-            MahjongPlayer(seat=1, name="Bot1", melds=player1_melds, score=25000),
-            MahjongPlayer(seat=2, name="Bot2", melds=player2_melds, score=25000),
-            MahjongPlayer(seat=3, name="Bot3", melds=player3_melds, score=25000),
+            MahjongPlayer(seat=1, name="AI1", melds=player1_melds, score=25000),
+            MahjongPlayer(seat=2, name="AI2", melds=player2_melds, score=25000),
+            MahjongPlayer(seat=3, name="AI3", melds=player3_melds, score=25000),
         )
         return MahjongRoundState(players=players)
 
@@ -463,9 +463,9 @@ class TestCheckFourWinds:
         """Create a round state with 4 players."""
         players = [
             MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
+            MahjongPlayer(seat=1, name="AI1", score=25000),
+            MahjongPlayer(seat=2, name="AI2", score=25000),
+            MahjongPlayer(seat=3, name="AI3", score=25000),
         ]
         return MahjongRoundState(
             players=players,
@@ -605,9 +605,9 @@ class TestProcessAbortiveDraw:
         """Create a game state for testing."""
         players = [
             MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="Bot1", score=25000),
-            MahjongPlayer(seat=2, name="Bot2", score=25000),
-            MahjongPlayer(seat=3, name="Bot3", score=25000),
+            MahjongPlayer(seat=1, name="AI1", score=25000),
+            MahjongPlayer(seat=2, name="AI2", score=25000),
+            MahjongPlayer(seat=3, name="AI3", score=25000),
         ]
         round_state = MahjongRoundState(players=players)
         return MahjongGameState(round_state=round_state, honba_sticks=honba_sticks)

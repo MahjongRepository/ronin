@@ -40,7 +40,7 @@ class GamesService:
 
         return all_rooms
 
-    async def create_room(self, num_bots: int = 3) -> CreateRoomResponse:
+    async def create_room(self, num_ai_players: int = 3) -> CreateRoomResponse:
         await self._registry.check_health()
         healthy_servers = self._registry.get_healthy_servers()
 
@@ -50,7 +50,7 @@ class GamesService:
         server = healthy_servers[0]
         room_id = str(uuid.uuid4())
 
-        await self._create_room_on_server(server, room_id, num_bots)
+        await self._create_room_on_server(server, room_id, num_ai_players)
 
         ws_url = server.url.replace("http://", "ws://").replace("https://", "wss://")
         websocket_url = f"{ws_url}/ws/{room_id}"
@@ -61,12 +61,12 @@ class GamesService:
             server_name=server.name,
         )
 
-    async def _create_room_on_server(self, server: GameServer, room_id: str, num_bots: int = 3) -> None:
+    async def _create_room_on_server(self, server: GameServer, room_id: str, num_ai_players: int = 3) -> None:
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 response = await client.post(
                     f"{server.url}/rooms",
-                    json={"room_id": room_id, "num_bots": num_bots},
+                    json={"room_id": room_id, "num_ai_players": num_ai_players},
                 )
                 if response.status_code != HTTPStatus.CREATED:
                     raise RoomCreationError(f"Failed to create room: {response.text}")

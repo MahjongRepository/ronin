@@ -1,15 +1,15 @@
 """
-Bot controller as a pure decision-maker.
+AI player controller as a pure decision-maker.
 
-Provides bot identification and decision methods.
+Provides AI player identification and decision methods.
 Orchestration is handled by MahjongGameService.
 """
 
 from typing import Any
 
-from game.logic.bot import (
-    BotPlayer,
-    get_bot_action,
+from game.logic.ai_player import (
+    AIPlayer,
+    get_ai_player_action,
     should_call_chi,
     should_call_kan,
     should_call_pon,
@@ -23,44 +23,44 @@ from game.logic.state import (
 from game.logic.types import MeldCaller
 
 
-class BotController:
+class AIPlayerController:
     """
-    Decision-maker for bot players.
+    Decision-maker for AI players.
 
-    Provides methods to check bot identity and get bot decisions
+    Provides methods to check AI player identity and get AI player decisions
     for turn actions and call responses. Does not orchestrate game flow.
     """
 
-    def __init__(self, bots: dict[int, BotPlayer]) -> None:
+    def __init__(self, ai_players: dict[int, AIPlayer]) -> None:
         """
-        Initialize bot controller with seat-to-bot mapping.
+        Initialize AI player controller with seat-to-AI-player mapping.
         """
-        self._bots = bots
+        self._ai_players = ai_players
 
-    def _get_bot(self, seat: int) -> BotPlayer | None:
+    def _get_ai_player(self, seat: int) -> AIPlayer | None:
         """
-        Get the bot instance for a given seat.
+        Get the AI player instance for a given seat.
         """
-        return self._bots.get(seat)
+        return self._ai_players.get(seat)
 
-    def is_bot(self, seat: int) -> bool:
+    def is_ai_player(self, seat: int) -> bool:
         """
-        Check if a seat is occupied by a bot.
+        Check if a seat is occupied by an AI player.
         """
-        return seat in self._bots
+        return seat in self._ai_players
 
-    def add_bot(self, seat: int, bot: BotPlayer) -> None:
+    def add_ai_player(self, seat: int, ai_player: AIPlayer) -> None:
         """
-        Register a bot at a seat (replacing a disconnected human).
+        Register an AI player at a seat (replacing a disconnected player).
         """
-        self._bots[seat] = bot
+        self._ai_players[seat] = ai_player
 
     @property
-    def bot_seats(self) -> set[int]:
+    def ai_player_seats(self) -> set[int]:
         """
-        Return the set of seats occupied by bots.
+        Return the set of seats occupied by AI players.
         """
-        return set(self._bots.keys())
+        return set(self._ai_players.keys())
 
     def get_turn_action(
         self,
@@ -68,18 +68,18 @@ class BotController:
         round_state: MahjongRoundState,
     ) -> tuple[GameAction, dict[str, Any]] | None:
         """
-        Get the bot's turn action as (action, data).
+        Get the AI player's turn action as (action, data).
 
-        Returns None if seat is not a bot.
+        Returns None if seat is not an AI player.
         """
-        bot = self._get_bot(seat)
-        if bot is None:
+        ai_player = self._get_ai_player(seat)
+        if ai_player is None:
             return None
 
         player = round_state.players[seat]
-        action = get_bot_action(bot, player, round_state)
+        action = get_ai_player_action(ai_player, player, round_state)
 
-        # map bot action to GameAction + data dict for dispatch
+        # map AI player action to GameAction + data dict for dispatch
         if action.action == PlayerAction.TSUMO:
             return GameAction.DECLARE_TSUMO, {}
 
@@ -100,19 +100,19 @@ class BotController:
         caller_info: int | MeldCaller,
     ) -> tuple[GameAction, dict[str, Any]] | None:
         """
-        Get the bot's call response as (action, data).
+        Get the AI player's call response as (action, data).
 
-        Returns None if the bot declines (passes).
+        Returns None if the AI player declines (passes).
         """
-        bot = self._get_bot(seat)
-        if bot is None:
+        ai_player = self._get_ai_player(seat)
+        if ai_player is None:
             return None
 
         player = round_state.players[seat]
 
         # ron/chankan opportunities
         if call_type in (CallType.RON, CallType.CHANKAN):
-            if should_call_ron(bot, player, tile_id, round_state):
+            if should_call_ron(ai_player, player, tile_id, round_state):
                 return GameAction.CALL_RON, {}
             return None
 
@@ -120,46 +120,46 @@ class BotController:
         if call_type == CallType.DISCARD:
             if isinstance(caller_info, int):
                 # ron caller
-                if should_call_ron(bot, player, tile_id, round_state):
+                if should_call_ron(ai_player, player, tile_id, round_state):
                     return GameAction.CALL_RON, {}
                 return None
             if isinstance(caller_info, MeldCaller):
-                return _get_bot_meld_response(bot, player, caller_info, tile_id, round_state)
+                return _get_ai_player_meld_response(ai_player, player, caller_info, tile_id, round_state)
             return None
 
         # meld opportunities
         if call_type == CallType.MELD and isinstance(caller_info, MeldCaller):
-            return _get_bot_meld_response(bot, player, caller_info, tile_id, round_state)
+            return _get_ai_player_meld_response(ai_player, player, caller_info, tile_id, round_state)
 
         return None
 
 
-def _get_bot_meld_response(
-    bot: BotPlayer,
+def _get_ai_player_meld_response(
+    ai_player: AIPlayer,
     player: MahjongPlayer,
     caller_info: MeldCaller,
     tile_id: int,
     round_state: MahjongRoundState,
 ) -> tuple[GameAction, dict[str, Any]] | None:
     """
-    Check bot's meld response.
+    Check AI player's meld response.
 
-    Returns (action, data) or None if bot declines.
+    Returns (action, data) or None if AI player declines.
     """
     meld_call_type = caller_info.call_type
 
-    if meld_call_type == MeldCallType.PON and should_call_pon(bot, player, tile_id, round_state):
+    if meld_call_type == MeldCallType.PON and should_call_pon(ai_player, player, tile_id, round_state):
         return GameAction.CALL_PON, {"tile_id": tile_id}
 
     if meld_call_type == MeldCallType.CHI and should_call_chi(
-        bot, player, tile_id, caller_info.options, round_state
+        ai_player, player, tile_id, caller_info.options, round_state
     ):
         if caller_info.options:
             return GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": caller_info.options[0]}
         return None
 
     if meld_call_type == MeldCallType.OPEN_KAN and should_call_kan(
-        bot, player, KanType.OPEN, tile_id, round_state
+        ai_player, player, KanType.OPEN, tile_id, round_state
     ):
         return GameAction.CALL_KAN, {"tile_id": tile_id, "kan_type": KanType.OPEN}
 

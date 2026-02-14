@@ -88,22 +88,22 @@ class GameService(ABC):
         ...
 
     @abstractmethod
-    def replace_player_with_bot(self, game_id: str, player_name: str) -> None:
+    def replace_with_ai_player(self, game_id: str, player_name: str) -> None:
         """
-        Replace a human player with a bot at their seat.
+        Replace a disconnected player with an AI player at their seat.
 
-        Called when a human disconnects mid-game.
+        Called when a player disconnects mid-game.
         """
         ...
 
     @abstractmethod
-    async def process_bot_actions_after_replacement(
+    async def process_ai_player_actions_after_replacement(
         self,
         game_id: str,
         seat: int,
     ) -> list[ServiceEvent]:
         """
-        Process pending bot actions after a human was replaced with a bot.
+        Process pending AI player actions after a player was replaced with an AI player.
 
         Handles the case where the replaced player had a pending turn or call.
         """

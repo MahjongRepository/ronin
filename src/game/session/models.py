@@ -6,14 +6,14 @@ from game.logic.settings import GameSettings
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
 
-MAX_BOTS = 3
+MAX_AI_PLAYERS = 3
 TOTAL_PLAYERS = 4
 
 
-def validate_num_bots(num_bots: int) -> None:
-    """Validate num_bots is within the allowed range (0 to MAX_BOTS)."""
-    if not (0 <= num_bots <= MAX_BOTS):
-        raise ValueError(f"num_bots must be 0-{MAX_BOTS}, got {num_bots}")
+def validate_num_ai_players(num_ai_players: int) -> None:
+    """Validate num_ai_players is within the allowed range (0 to MAX_AI_PLAYERS)."""
+    if not (0 <= num_ai_players <= MAX_AI_PLAYERS):
+        raise ValueError(f"num_ai_players must be 0-{MAX_AI_PLAYERS}, got {num_ai_players}")
 
 
 @dataclass
@@ -56,14 +56,14 @@ class Player:
 @dataclass
 class Game:
     game_id: str
-    num_bots: int = 3
+    num_ai_players: int = 3
     started: bool = False
     players: dict[str, Player] = field(default_factory=dict)
     settings: GameSettings = field(default_factory=GameSettings)
 
     def __post_init__(self) -> None:
-        """Validate num_bots is within the allowed range."""
-        validate_num_bots(self.num_bots)
+        """Validate num_ai_players is within the allowed range."""
+        validate_num_ai_players(self.num_ai_players)
 
     @property
     def player_names(self) -> list[str]:

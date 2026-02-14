@@ -129,8 +129,8 @@ class WindName(str, Enum):
     UNKNOWN = "Unknown"
 
 
-class BotType(str, Enum):
-    """Types of bot players available for matchmaking."""
+class AIPlayerType(str, Enum):
+    """Types of AI players available for matchmaking."""
 
     TSUMOGIRI = "tsumogiri"
 

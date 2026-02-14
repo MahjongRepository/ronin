@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 class PendingRoundAdvance:
     """Track round advancement readiness.
 
-    Semantics: bot seats are pre-confirmed at creation time (they don't need
-    human input). Human seats start unconfirmed and must explicitly confirm.
-    ``all_confirmed`` returns True when every human seat has confirmed -- or
-    immediately if there are no human seats (all-bot game).
+    Semantics: AI player seats are pre-confirmed at creation time (they don't need
+    player input). Player seats start unconfirmed and must explicitly confirm.
+    ``all_confirmed`` returns True when every player seat has confirmed -- or
+    immediately if there are no player seats (all-AI-player game).
     """
 
     confirmed_seats: set[int] = dataclass_field(default_factory=set)
@@ -42,22 +42,22 @@ class RoundAdvanceManager:
             return set()
         return pending.required_seats - pending.confirmed_seats
 
-    def setup_pending(self, game_id: str, bot_seats: set[int]) -> bool:
+    def setup_pending(self, game_id: str, ai_player_seats: set[int]) -> bool:
         """Set up round advance confirmation tracking.
 
-        Bot seats are pre-confirmed (they auto-advance). Human seats must
+        AI player seats are pre-confirmed (they auto-advance). Player seats must
         explicitly confirm via ``confirm_seat()``.
 
-        Returns True if all seats are already confirmed (all bots),
+        Returns True if all seats are already confirmed (all AI players),
         meaning the caller should advance immediately.
         """
-        human_seats = {seat for seat in range(4) if seat not in bot_seats}
+        player_seats = {seat for seat in range(4) if seat not in ai_player_seats}
         pending = PendingRoundAdvance(
-            confirmed_seats=set(bot_seats),
-            required_seats=human_seats,
+            confirmed_seats=set(ai_player_seats),
+            required_seats=player_seats,
         )
         if pending.all_confirmed:
-            # All bots -- no humans to wait for. Don't store stale pending state.
+            # All AI players -- no players to wait for. Don't store stale pending state.
             self._pending.pop(game_id, None)
             return True
         self._pending[game_id] = pending

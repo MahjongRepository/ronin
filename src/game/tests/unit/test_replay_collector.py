@@ -102,7 +102,7 @@ def _make_game_started_event(game_id: str = "game1") -> ServiceEvent:
         event=EventType.GAME_STARTED,
         data=GameStartedEvent(
             game_id=game_id,
-            players=[GamePlayerInfo(seat=i, name=f"P{i}", is_bot=False) for i in range(4)],
+            players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         ),
         target=BroadcastTarget(),
     )
@@ -115,7 +115,7 @@ def _make_game_ended_event() -> ServiceEvent:
             target="all",
             result=GameEndResult(
                 winner_seat=0,
-                standings=[PlayerStanding(seat=0, name="P0", score=25000, final_score=0, is_bot=False)],
+                standings=[PlayerStanding(seat=0, name="P0", score=25000, final_score=0, is_ai_player=False)],
             ),
         ),
         target=BroadcastTarget(),
@@ -183,7 +183,7 @@ def _make_game_view_for_seat(seat: int) -> GameView:
         PlayerView(
             seat=s,
             name=f"P{s}",
-            is_bot=False,
+            is_ai_player=False,
             score=25000,
         )
         for s in range(4)

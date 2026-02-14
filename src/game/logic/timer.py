@@ -41,7 +41,7 @@ class TimerConfig(BaseModel):
 
 class TurnTimer:
     """
-    Manage action timers for a human player in a game.
+    Manage action timers for a player in a game.
 
     Uses a bank system for turn time (initial + round bonus) and a fixed timer for meld decisions.
     """

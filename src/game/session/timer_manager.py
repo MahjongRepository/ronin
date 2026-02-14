@@ -29,7 +29,7 @@ class TimerManager:
         self._on_timeout = on_timeout
 
     def create_timers(self, game_id: str, seats: list[int], config: TimerConfig | None = None) -> None:
-        """Create TurnTimer instances for the given human seats."""
+        """Create TurnTimer instances for the given player seats."""
         self._timers[game_id] = {seat: TurnTimer(config=config) for seat in seats}
 
     def has_game(self, game_id: str) -> bool:
@@ -102,7 +102,7 @@ class TimerManager:
             timer.start_meld_timer(lambda gid=game_id, s=seat: self._on_timeout(gid, TimeoutType.MELD, s))
 
     def start_round_advance_timers(self, game: Game) -> None:
-        """Start fixed-duration timers for human players to confirm round advancement."""
+        """Start fixed-duration timers for players to confirm round advancement."""
         game_id = game.game_id
         timers = self._timers.get(game_id)
         if timers is None:

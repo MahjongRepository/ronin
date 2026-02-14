@@ -26,7 +26,7 @@ from game.logic.call_resolution import (
 )
 from game.logic.enums import (
     AbortiveDrawType,
-    BotType,
+    AIPlayerType,
     CallType,
     GameAction,
     GameErrorCode,
@@ -70,9 +70,9 @@ from game.logic.types import (
 def _default_seat_configs() -> list[SeatConfig]:
     return [
         SeatConfig(name="Player"),
-        SeatConfig(name="Tsumogiri 1", bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 2", bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 3", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 1", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 2", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 3", ai_player_type=AIPlayerType.TSUMOGIRI),
     ]
 
 

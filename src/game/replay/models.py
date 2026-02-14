@@ -17,7 +17,7 @@ REQUIRED_PLAYER_COUNT = 4
 
 
 class ReplayInputEvent(BaseModel):
-    """A single human input event in a replay sequence."""
+    """A single player input event in a replay sequence."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -30,7 +30,7 @@ class ReplayInput(BaseModel):
     """
     Versioned input for deterministic replay execution.
 
-    Enforces exactly 4 unique player names (4-human replay contract).
+    Enforces exactly 4 unique player names (4-player replay contract).
     All events must target declared players.
     """
 

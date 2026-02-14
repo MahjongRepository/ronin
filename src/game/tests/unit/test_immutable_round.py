@@ -26,7 +26,7 @@ class TestDrawTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         """Create a round state with wall and players for testing."""
         players = tuple(
-            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"Bot{i}", score=25000) for i in range(4)
+            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4)
         )
         return MahjongRoundState(
             wall=tuple(TilesConverter.string_to_136_array(man="1111222233")),
@@ -61,7 +61,7 @@ class TestDrawFromDeadWallImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         """Create a round state with dead wall and players for testing."""
         players = tuple(
-            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"Bot{i}", score=25000) for i in range(4)
+            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4)
         )
         # 14 tiles for dead wall: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
         dead_wall = (
@@ -169,19 +169,19 @@ class TestDiscardTileImmutable:
             ),
             MahjongPlayer(
                 seat=1,
-                name="Bot1",
+                name="AI1",
                 tiles=(man_3[3], man_6[1], man_8[3], pin_2[1]),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=2,
-                name="Bot2",
+                name="AI2",
                 tiles=(man_4[0], man_6[2], man_9[0], pin_2[2]),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=3,
-                name="Bot3",
+                name="AI3",
                 tiles=(man_4[1], man_6[3], man_9[1], pin_2[3]),
                 score=25000,
             ),

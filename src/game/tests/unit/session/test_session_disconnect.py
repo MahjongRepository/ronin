@@ -13,22 +13,22 @@ from .helpers import create_started_game
 class TestSessionManagerDisconnect:
     """Tests for disconnect handling."""
 
-    async def test_disconnect_replaces_human_with_bot(self, manager):
-        """Disconnecting a human from a started multi-human game calls replace_player_with_bot."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+    async def test_disconnect_replaces_player_with_ai_player(self, manager):
+        """Disconnecting a player from a started multi-player game calls replace_with_ai_player."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         game = manager.get_game("game1")
         assert game.started is True
 
-        # track replace_player_with_bot calls
+        # track replace_with_ai_player calls
         replace_calls = []
-        original_replace = manager._game_service.replace_player_with_bot
+        original_replace = manager._game_service.replace_with_ai_player
 
         def tracking_replace(game_id, player_name):
             replace_calls.append((game_id, player_name))
             return original_replace(game_id, player_name)
 
-        manager._game_service.replace_player_with_bot = tracking_replace
+        manager._game_service.replace_with_ai_player = tracking_replace
 
         await manager.leave_game(conns[0])
 
@@ -37,34 +37,34 @@ class TestSessionManagerDisconnect:
         # game should still exist (Bob is still in)
         assert manager.get_game("game1") is not None
 
-    async def test_last_human_disconnect_does_not_replace_with_bot(self, manager):
-        """When the last human leaves, bot replacement is skipped and the game is cleaned up."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+    async def test_last_player_disconnect_does_not_replace_with_ai_player(self, manager):
+        """When the last player leaves, AI player replacement is skipped and the game is cleaned up."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         game = manager.get_game("game1")
         assert game.started is True
 
         replace_calls = []
-        original_replace = manager._game_service.replace_player_with_bot
+        original_replace = manager._game_service.replace_with_ai_player
 
         def tracking_replace(game_id, player_name):
             replace_calls.append((game_id, player_name))
             return original_replace(game_id, player_name)
 
-        manager._game_service.replace_player_with_bot = tracking_replace
+        manager._game_service.replace_with_ai_player = tracking_replace
 
-        # first player leaves (triggers bot replacement)
+        # first player leaves (triggers AI player replacement)
         await manager.leave_game(conns[0])
         assert len(replace_calls) == 1
 
-        # second player leaves (last human -- no bot replacement, game cleaned up)
+        # second player leaves (last player -- no AI player replacement, game cleaned up)
         await manager.leave_game(conns[1])
         assert len(replace_calls) == 1  # no additional call
         assert manager.get_game("game1") is None
 
     async def test_disconnect_cancels_player_timer(self, manager):
-        """Disconnecting a human cancels their timer in the timers dict."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        """Disconnecting a player cancels their timer in the timers dict."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # verify timers exist for both seats
         assert manager._timer_manager.get_timer("game1", 0) is not None
@@ -79,7 +79,7 @@ class TestSessionManagerDisconnect:
 
     async def test_leave_game_clears_player_seat_and_game_id(self, manager):
         """After leave_game, both player.game_id and player.seat are cleared to None."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player = manager._players[conns[0].connection_id]
         assert player.game_id == "game1"
@@ -90,34 +90,36 @@ class TestSessionManagerDisconnect:
         assert player.game_id is None
         assert player.seat is None
 
-    async def test_bot_replacement_broadcasts_events(self, manager):
-        """When bot replacement produces events, they are broadcast to remaining players."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+    async def test_ai_player_replacement_broadcasts_events(self, manager):
+        """When AI player replacement produces events, they are broadcast to remaining players."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
-        # make process_bot_actions_after_replacement return an event
-        bot_event = ServiceEvent(
+        # make process_ai_player_actions_after_replacement return an event
+        ai_player_event = ServiceEvent(
             event=EventType.DRAW,
             data=MockResultEvent(
                 type=EventType.DRAW,
                 target="all",
-                player="Bot",
+                player="AI",
                 action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
             target=BroadcastTarget(),
         )
-        manager._game_service.process_bot_actions_after_replacement = AsyncMock(return_value=[bot_event])
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=[ai_player_event]
+        )
 
         await manager.leave_game(conns[0])
 
-        # Bob should receive the bot action event
-        bot_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
-        assert len(bot_msgs) == 1
+        # Bob should receive the AI player action event
+        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
+        assert len(ai_player_msgs) == 1
 
     async def test_stale_timeout_after_replacement_is_noop(self, manager):
         """A timeout callback for a replaced player's seat is safely ignored."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # Alice disconnects
         await manager.leave_game(conns[0])
@@ -129,9 +131,9 @@ class TestSessionManagerDisconnect:
 
         assert len(conns[1].sent_messages) == 0
 
-    async def test_disconnect_during_start_game_replaces_with_bot(self, manager):
-        """Player disconnecting during start_game (before seat assignment) triggers bot replacement."""
-        manager.create_room("game1", num_bots=2)
+    async def test_disconnect_during_start_game_replaces_with_ai_player(self, manager):
+        """Player disconnecting during start_game (before seat assignment) triggers AI player replacement."""
+        manager.create_room("game1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -159,24 +161,24 @@ class TestSessionManagerDisconnect:
         manager._game_service.start_game = disconnecting_start
 
         replace_calls = []
-        original_replace = manager._game_service.replace_player_with_bot
+        original_replace = manager._game_service.replace_with_ai_player
 
         def tracking_replace(game_id, player_name):
             replace_calls.append((game_id, player_name))
             return original_replace(game_id, player_name)
 
-        manager._game_service.replace_player_with_bot = tracking_replace
+        manager._game_service.replace_with_ai_player = tracking_replace
 
         # ready up both -- triggers transition and start
         await manager.set_ready(conn1, ready=True)
         await manager.set_ready(conn2, ready=True)
 
-        # post-start recovery should detect Alice disconnected and replace with bot
+        # post-start recovery should detect Alice disconnected and replace with AI player
         assert ("game1", "Alice") in replace_calls
 
     async def test_disconnect_during_start_cancels_timer_and_broadcasts(self, manager):
-        """Post-start recovery cancels the disconnected player's timer and broadcasts bot events."""
-        manager.create_room("game1", num_bots=2)
+        """Post-start recovery cancels the disconnected player's timer and broadcasts AI player events."""
+        manager.create_room("game1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -210,32 +212,37 @@ class TestSessionManagerDisconnect:
 
         manager._broadcast_events = removing_broadcast
 
-        # mock process_bot_actions_after_replacement to return an event
-        bot_event = ServiceEvent(
+        # mock process_ai_player_actions_after_replacement to return an event
+        ai_player_event = ServiceEvent(
             event=EventType.DRAW,
             data=MockResultEvent(
                 type=EventType.DRAW,
                 target="all",
-                player="Bot",
+                player="AI",
                 action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
             target=BroadcastTarget(),
         )
-        manager._game_service.process_bot_actions_after_replacement = AsyncMock(return_value=[bot_event])
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=[ai_player_event]
+        )
 
         # ready up both -- triggers transition and start; Alice is removed during first broadcast
         await manager.set_ready(conn1, ready=True)
         await manager.set_ready(conn2, ready=True)
 
-        # Bob should receive the bot action event
-        bot_msgs = [m for m in conn2.sent_messages if m.get("type") == EventType.DRAW]
-        assert len(bot_msgs) == 1
+        # Bob should receive the AI player action event
+        ai_player_msgs = [m for m in conn2.sent_messages if m.get("type") == EventType.DRAW]
+        assert len(ai_player_msgs) == 1
 
-    async def test_leave_game_skips_bot_replacement_when_lock_missing(self, manager):
-        """leave_game skips bot replacement when the game lock is missing but marks session disconnected."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+    async def test_leave_game_skips_ai_player_replacement_when_lock_missing(self, manager):
+        """leave_game skips AI player replacement when the game lock is missing.
+
+        Marks session disconnected instead.
+        """
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player = manager._players.get(conns[0].connection_id)
         token = player.session_token
@@ -245,15 +252,15 @@ class TestSessionManagerDisconnect:
         manager._game_locks.pop("game1", None)
 
         replace_calls = []
-        original_replace = manager._game_service.replace_player_with_bot
+        original_replace = manager._game_service.replace_with_ai_player
 
         def tracking_replace(game_id, player_name):
             replace_calls.append((game_id, player_name))
             return original_replace(game_id, player_name)
 
-        manager._game_service.replace_player_with_bot = tracking_replace
+        manager._game_service.replace_with_ai_player = tracking_replace
 
-        # leave_game should skip bot replacement (no lock) but use started-game
+        # leave_game should skip AI player replacement (no lock) but use started-game
         # session semantics (mark_disconnected, not remove_session)
         await manager.leave_game(conns[0])
 
@@ -270,13 +277,13 @@ class TestLockBoundaryRaces:
 
     async def test_leave_game_serialized_with_handle_action(self, manager):
         """leave_game and handle_game_action are serialized by the per-game lock."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         execution_order = []
 
         original_handle = manager._game_service.handle_action
-        original_replace = manager._game_service.replace_player_with_bot
-        original_process = manager._game_service.process_bot_actions_after_replacement
+        original_replace = manager._game_service.replace_with_ai_player
+        original_process = manager._game_service.process_ai_player_actions_after_replacement
 
         async def slow_handle_action(game_id, player_name, action, data):
             execution_order.append("action_start")
@@ -289,12 +296,12 @@ class TestLockBoundaryRaces:
             return original_replace(game_id, player_name)
 
         async def tracking_process(game_id, seat):
-            execution_order.append("process_bot")
+            execution_order.append("process_ai_player")
             return await original_process(game_id, seat)
 
         manager._game_service.handle_action = slow_handle_action
-        manager._game_service.replace_player_with_bot = tracking_replace
-        manager._game_service.process_bot_actions_after_replacement = tracking_process
+        manager._game_service.replace_with_ai_player = tracking_replace
+        manager._game_service.process_ai_player_actions_after_replacement = tracking_process
 
         # run action and leave concurrently -- they should be serialized by the lock
         await asyncio.gather(
@@ -311,13 +318,13 @@ class TestLockBoundaryRaces:
 
     async def test_leave_game_serialized_with_timeout(self, manager):
         """leave_game and timeout callback are serialized by the per-game lock."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         execution_order = []
 
         original_timeout = manager._game_service.handle_timeout
-        original_replace = manager._game_service.replace_player_with_bot
-        original_process = manager._game_service.process_bot_actions_after_replacement
+        original_replace = manager._game_service.replace_with_ai_player
+        original_process = manager._game_service.process_ai_player_actions_after_replacement
 
         async def slow_timeout(game_id, player_name, timeout_type):
             execution_order.append("timeout_start")
@@ -330,12 +337,12 @@ class TestLockBoundaryRaces:
             return original_replace(game_id, player_name)
 
         async def tracking_process(game_id, seat):
-            execution_order.append("process_bot")
+            execution_order.append("process_ai_player")
             return await original_process(game_id, seat)
 
         manager._game_service.handle_timeout = slow_timeout
-        manager._game_service.replace_player_with_bot = tracking_replace
-        manager._game_service.process_bot_actions_after_replacement = tracking_process
+        manager._game_service.replace_with_ai_player = tracking_replace
+        manager._game_service.process_ai_player_actions_after_replacement = tracking_process
 
         # run timeout and leave concurrently
         await asyncio.gather(
@@ -352,7 +359,7 @@ class TestLockBoundaryRaces:
 
     async def test_double_leave_only_cleans_up_once(self, manager):
         """Two concurrent leave_game calls for the last player clean up exactly once."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # Alice leaves first (not last)
         await manager.leave_game(conns[0])
@@ -377,9 +384,9 @@ class TestLockBoundaryRaces:
         assert cleanup_count <= 1
         assert manager.get_game("game1") is None
 
-    async def test_leave_game_holds_lock_during_bot_replacement(self, manager):
-        """Bot replacement in leave_game runs under the same lock as action handling."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+    async def test_leave_game_holds_lock_during_ai_player_replacement(self, manager):
+        """AI player replacement in leave_game runs under the same lock as action handling."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         lock = manager._get_game_lock("game1")
         assert lock is not None
@@ -392,7 +399,7 @@ class TestLockBoundaryRaces:
             lock_was_held = lock.locked()
             return []
 
-        manager._game_service.process_bot_actions_after_replacement = check_lock_process
+        manager._game_service.process_ai_player_actions_after_replacement = check_lock_process
 
         await manager.leave_game(conns[0])
 

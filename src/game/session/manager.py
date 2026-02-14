@@ -132,14 +132,14 @@ class SessionManager:
                 self._session_store.mark_disconnected(player.session_token)
                 self._remove_player_from_game(game, connection.connection_id, player)
                 await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
-                # replace disconnected human with bot (only if other humans remain)
+                # replace disconnected player with AI player (only if other players remain)
                 if not game.is_empty and player_seat is not None:
-                    await self._replace_with_bot(game, player_name, player_seat)
+                    await self._replace_with_ai_player(game, player_name, player_seat)
         else:
             # Two cases without a lock:
             # 1. Started game but lock not yet created (disconnect during _start_mahjong_game
             #    setup, before lock/timer infrastructure is ready). _start_mahjong_game
-            #    handles bot replacement for players who left during startup.
+            #    handles AI player replacement for players who left during startup.
             # 2. Pre-start game: no concurrent action/timeout paths.
             if game.started:
                 self._session_store.mark_disconnected(player.session_token)
@@ -186,25 +186,25 @@ class SessionManager:
             if self._replay_collector:
                 self._replay_collector.cleanup_game(game_id)
 
-    async def _replace_with_bot(self, game: Game, player_name: str, seat: int) -> None:
+    async def _replace_with_ai_player(self, game: Game, player_name: str, seat: int) -> None:
         """
-        Replace a disconnected human with a bot and process any pending bot actions.
+        Replace a disconnected player with an AI player and process any pending AI player actions.
 
         Must be called under the per-game lock (leave_game acquires it).
         Must be called BEFORE the is_empty cleanup check, and only when other
-        humans remain in the game.
+        players remain in the game.
         """
-        self._game_service.replace_player_with_bot(game.game_id, player_name)
+        self._game_service.replace_with_ai_player(game.game_id, player_name)
 
         # cancel the disconnected player's timer to prevent stale callbacks
         player_timer = self._timer_manager.remove_timer(game.game_id, seat)
         if player_timer:
             player_timer.cancel()
 
-        # process bot actions if the replaced player had a pending turn or call.
+        # process AI player actions if the replaced player had a pending turn or call.
         # the caller (leave_game) already holds the game lock, so no separate
         # lock acquisition is needed here.
-        events = await self._game_service.process_bot_actions_after_replacement(game.game_id, seat)
+        events = await self._game_service.process_ai_player_actions_after_replacement(game.game_id, seat)
         if events:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
@@ -217,7 +217,7 @@ class SessionManager:
         player: Player,
         error: InvalidGameActionError,
     ) -> None:
-        """Handle a provably invalid game action: log, disconnect, replace with bot.
+        """Handle a provably invalid game action: log, disconnect, replace with AI player.
 
         Must be called under the per-game lock.
         Connection close and empty-game cleanup happen OUTSIDE the lock (by the caller).
@@ -240,7 +240,7 @@ class SessionManager:
         )
 
         if not game.is_empty and player_seat is not None:
-            await self._replace_with_bot(game, player_name, player_seat)
+            await self._replace_with_ai_player(game, player_name, player_seat)
 
     async def _process_successful_action(
         self, game: Game, game_id: str, player: Player, events: list[ServiceEvent]
@@ -266,15 +266,15 @@ class SessionManager:
         """Handle InvalidGameActionError under the lock.
 
         Returns the offender connection for post-lock close, or None if the offending seat
-        has no connected player (e.g. bot seat).
+        has no connected player (e.g. AI player seat).
         """
         # resolve offender by seat from exception (critical for resolution-triggered errors)
         offender_player = self._get_player_at_seat(game, error.seat)
         if offender_player is None:
-            # offending seat has no connected player (bot seat) — log and skip disconnect
+            # offending seat has no connected player (AI player seat) — log and skip disconnect
             logger.warning(
                 f"game {game_id}: InvalidGameActionError at seat {error.seat} "
-                f"but no player found (likely a bot seat), skipping disconnect"
+                f"but no player found (likely an AI player seat), skipping disconnect"
             )
             return None
         offender_connection = offender_player.connection
@@ -367,14 +367,14 @@ class SessionManager:
 
     # --- Room management ---
 
-    def create_room(self, room_id: str, num_bots: int = 3) -> Room:
+    def create_room(self, room_id: str, num_ai_players: int = 3) -> Room:
         """Create a room for pre-game gathering."""
         if self._log_dir:
             rotate_log_file(self._log_dir)
-        room = Room(room_id=room_id, num_bots=num_bots)
+        room = Room(room_id=room_id, num_ai_players=num_ai_players)
         self._rooms[room_id] = room
         self._room_locks[room_id] = asyncio.Lock()
-        logger.info(f"room created: {room_id} num_bots={num_bots}")
+        logger.info(f"room created: {room_id} num_ai_players={num_ai_players}")
         return room
 
     def get_room(self, room_id: str) -> Room | None:
@@ -403,10 +403,10 @@ class SessionManager:
         return [
             RoomInfo(
                 room_id=room.room_id,
-                human_player_count=room.player_count,
-                humans_needed=room.humans_needed,
+                player_count=room.player_count,
+                players_needed=room.players_needed,
                 total_seats=room.total_seats,
-                num_bots=room.num_bots,
+                num_ai_players=room.num_ai_players,
                 players=room.player_names,
             )
             for room in self._rooms.values()
@@ -474,7 +474,7 @@ class SessionManager:
                 room_id=room_id,
                 session_token=session_token,
                 players=room.get_player_info(),
-                num_bots=room.num_bots,
+                num_ai_players=room.num_ai_players,
             ).model_dump()
         )
 
@@ -577,7 +577,7 @@ class SessionManager:
                 return
 
             room_players = list(room.players.values())
-            game = Game(game_id=room.room_id, num_bots=room.num_bots, settings=room.settings)
+            game = Game(game_id=room.room_id, num_ai_players=room.num_ai_players, settings=room.settings)
             self._games[room.room_id] = game
 
             for rp in room_players:
@@ -643,9 +643,9 @@ class SessionManager:
 
     async def _start_mahjong_game(self, game: Game) -> None:
         """
-        Start the mahjong game when all required humans are ready.
+        Start the mahjong game when all required players are ready.
         """
-        # Guard: if all humans disconnected during the transition window
+        # Guard: if all players disconnected during the transition window
         # (between GameStartingMessage and this call), leave_game may have
         # already cleaned the game out of _games. Starting a game that is
         # no longer tracked would leak locks, heartbeat tasks, and service state.
@@ -662,7 +662,7 @@ class SessionManager:
             await self._broadcast_events(game, events)
             return
 
-        # Second liveness check: if all humans disconnected during the
+        # Second liveness check: if all players disconnected during the
         # start_game await, leave_game may have cleaned the game from _games.
         # Clean up the service state that start_game just created and bail out.
         if not self._is_game_alive(game):
@@ -701,17 +701,17 @@ class SessionManager:
             if name not in connected_names and not game.is_empty:
                 seat = self._game_service.get_player_seat(game.game_id, name)
                 if seat is not None:
-                    self._game_service.replace_player_with_bot(game.game_id, name)
+                    self._game_service.replace_with_ai_player(game.game_id, name)
                     player_timer = self._timer_manager.remove_timer(game.game_id, seat)
                     if player_timer:
                         player_timer.cancel()
-                    bot_events = await self._game_service.process_bot_actions_after_replacement(
+                    ai_player_events = await self._game_service.process_ai_player_actions_after_replacement(
                         game.game_id, seat
                     )
-                    if bot_events:
-                        await self._broadcast_events(game, bot_events)
-                        await self._maybe_start_timer(game, bot_events)
-                        await self._close_connections_on_game_end(game, bot_events)
+                    if ai_player_events:
+                        await self._broadcast_events(game, ai_player_events)
+                        await self._maybe_start_timer(game, ai_player_events)
+                        await self._close_connections_on_game_end(game, ai_player_events)
 
     async def _broadcast_events(
         self,
@@ -777,7 +777,7 @@ class SessionManager:
         if any(isinstance(event.data, RoundStartedEvent) for event in events):
             self._timer_manager.add_round_bonus(game_id)
 
-        # round end -- start round advance timers for human players
+        # round end -- start round advance timers for players
         if any(isinstance(event.data, RoundEndEvent) for event in events):
             self._timer_manager.start_round_advance_timers(game)
             return

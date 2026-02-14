@@ -23,12 +23,12 @@ class TestCreateRoom:
     def test_create_room(self, manager):
         room = manager.create_room("room1")
         assert room.room_id == "room1"
-        assert room.num_bots == 3
+        assert room.num_ai_players == 3
         assert manager.get_room("room1") is room
 
     def test_create_room_with_bots(self, manager):
-        room = manager.create_room("room1", num_bots=1)
-        assert room.num_bots == 1
+        room = manager.create_room("room1", num_ai_players=1)
+        assert room.num_ai_players == 1
 
     def test_room_count(self, manager):
         assert manager.room_count == 0
@@ -48,7 +48,7 @@ class TestGetRoomsInfo:
         assert manager.get_rooms_info() == []
 
     async def test_rooms_info_with_players(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_room(conn, "room1", "Alice", "tok-alice")
@@ -57,10 +57,10 @@ class TestGetRoomsInfo:
         assert len(infos) == 1
         info = infos[0]
         assert info.room_id == "room1"
-        assert info.human_player_count == 1
-        assert info.humans_needed == 2
+        assert info.player_count == 1
+        assert info.players_needed == 2
         assert info.total_seats == 4
-        assert info.num_bots == 2
+        assert info.num_ai_players == 2
         assert info.players == ["Alice"]
 
 
@@ -79,13 +79,13 @@ class TestJoinRoom:
         assert msg["type"] == SessionMessageType.ROOM_JOINED
         assert msg["room_id"] == "room1"
         assert msg["session_token"] == "tok-alice"
-        assert msg["num_bots"] == 3
+        assert msg["num_ai_players"] == 3
         assert len(msg["players"]) == 1
         assert msg["players"][0]["name"] == "Alice"
         assert msg["players"][0]["ready"] is False
 
     async def test_join_room_notifies_others(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -112,7 +112,7 @@ class TestJoinRoom:
         assert msg["code"] == SessionErrorCode.ROOM_NOT_FOUND
 
     async def test_join_room_full(self, manager):
-        manager.create_room("room1", num_bots=3)  # needs 1 human
+        manager.create_room("room1", num_ai_players=3)  # needs 1 player
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -126,7 +126,7 @@ class TestJoinRoom:
         assert msg["code"] == SessionErrorCode.ROOM_FULL
 
     async def test_join_room_already_in_room(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
 
@@ -140,7 +140,7 @@ class TestJoinRoom:
 
     async def test_join_room_already_in_game(self, manager):
         # Put player in a started game via the room flow
-        manager.create_room("game1", num_bots=3)
+        manager.create_room("game1", num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_room(conn, "game1", "Alice", "tok-alice")
@@ -155,7 +155,7 @@ class TestJoinRoom:
         assert msg["code"] == SessionErrorCode.ALREADY_IN_GAME
 
     async def test_join_room_name_taken(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -186,7 +186,7 @@ class TestLeaveRoom:
     """Tests for leaving a room."""
 
     async def test_leave_room_notifies_player(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
 
@@ -197,7 +197,7 @@ class TestLeaveRoom:
         assert any(m.get("type") == SessionMessageType.ROOM_LEFT for m in conn.sent_messages)
 
     async def test_leave_room_notifies_others(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -227,7 +227,7 @@ class TestLeaveRoom:
         assert manager.room_count == 0
 
     async def test_leave_room_host_reassignment(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -266,7 +266,7 @@ class TestSetReady:
     """Tests for ready state toggle."""
 
     async def test_set_ready(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -300,7 +300,7 @@ class TestSetReady:
 
     async def test_set_ready_in_active_game_silent(self, manager):
         """set_ready silently ignores if player is in an active game."""
-        manager.create_room("game1", num_bots=3)
+        manager.create_room("game1", num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_room(conn, "game1", "Alice", "tok-alice")
@@ -312,7 +312,7 @@ class TestSetReady:
         assert len(conn.sent_messages) == 0
 
     async def test_unready(self, manager):
-        manager.create_room("room1", num_bots=2)  # needs 2 humans; only 1 joins
+        manager.create_room("room1", num_ai_players=2)  # needs 2 players; only 1 joins
         conn = MockConnection()
         manager.register_connection(conn)
 
@@ -353,7 +353,7 @@ class TestRoomToGameTransition:
         assert manager.get_game("room1") is not None
 
     async def test_transition_two_players(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -438,7 +438,7 @@ class TestRoomChat:
     """Tests for room chat."""
 
     async def test_broadcast_room_chat(self, manager):
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -501,7 +501,7 @@ class TestRoomEdgeCases:
 
     async def test_set_ready_room_gone(self, manager):
         """set_ready is a no-op when room is gone."""
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_room(conn, "room1", "Alice", "tok-alice")
@@ -515,7 +515,7 @@ class TestRoomEdgeCases:
 
     async def test_set_ready_room_transitioning(self, manager):
         """set_ready is a no-op when room is transitioning."""
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_room(conn, "room1", "Alice", "tok-alice")
@@ -547,7 +547,7 @@ class TestRoomEdgeCases:
 
     async def test_transition_aborted_when_player_leaves_during_transition(self, manager):
         """Transition aborts if a player leaves between set_ready and _transition_room_to_game."""
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -577,12 +577,12 @@ class TestRoomEdgeCases:
     async def test_start_mahjong_game_aborts_if_game_removed(self, manager):
         """_start_mahjong_game is a no-op when the game was already cleaned up.
 
-        Reproduces the ghost game race: all humans disconnect between
+        Reproduces the ghost game race: all players disconnect between
         GameStartingMessage and _start_mahjong_game, causing leave_game to
         clean the game from _games. Without the liveness guard, _start_mahjong_game
         would recreate locks and heartbeat for a game no longer tracked.
         """
-        game = Game(game_id="ghost1", num_bots=3)
+        game = Game(game_id="ghost1", num_ai_players=3)
         # Do NOT register the game in _games -- simulates it being cleaned up
         # by leave_game / _cleanup_empty_game before _start_mahjong_game runs.
 
@@ -594,7 +594,7 @@ class TestRoomEdgeCases:
         assert not game.started
 
     async def test_start_mahjong_game_aborts_if_game_removed_during_await(self, manager):
-        """_start_mahjong_game cleans up if all humans disconnect during start_game await.
+        """_start_mahjong_game cleans up if all players disconnect during start_game await.
 
         Covers the async race window: game exists when start_game begins,
         but leave_game removes it from _games while start_game is in progress.
@@ -613,7 +613,7 @@ class TestRoomEdgeCases:
         ) -> list[ServiceEvent]:
             """Yield control so leave_game can run and clean up the game."""
             result = await original_start_game(game_id, player_names, seed=seed, settings=settings)
-            # Simulate the last human disconnecting during start_game.
+            # Simulate the last player disconnecting during start_game.
             # Remove the game from _games as _cleanup_empty_game would.
             manager._games.pop(game_id, None)
             return result
@@ -622,7 +622,7 @@ class TestRoomEdgeCases:
         manager.register_connection(conn)
 
         # Set up game as if room transition just completed
-        game = Game(game_id="race1", num_bots=3)
+        game = Game(game_id="race1", num_ai_players=3)
         player = Player(connection=conn, name="Alice", session_token="tok", game_id="race1")
         game.players[conn.connection_id] = player
         manager._players[conn.connection_id] = player

@@ -44,7 +44,7 @@ class InvalidGameActionError(Exception):
     """Raised when a player sends a provably invalid game action.
 
     Indicates the client is sending fabricated data (modified client, bug, or attack).
-    The player should be disconnected and replaced with a bot.
+    The player should be disconnected and replaced with an AI player.
 
     Attributes:
         action: The game action that was attempted (e.g. "discard", "declare_riichi").

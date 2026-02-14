@@ -13,10 +13,10 @@ GAME_STARTED_LINE = json.dumps(
         "type": "game_started",
         "game_id": "test-game",
         "players": [
-            {"seat": 0, "name": "Alice", "is_bot": False},
-            {"seat": 1, "name": "Bob", "is_bot": False},
-            {"seat": 2, "name": "Charlie", "is_bot": False},
-            {"seat": 3, "name": "Diana", "is_bot": False},
+            {"seat": 0, "name": "Alice", "is_ai_player": False},
+            {"seat": 1, "name": "Bob", "is_ai_player": False},
+            {"seat": 2, "name": "Charlie", "is_ai_player": False},
+            {"seat": 3, "name": "Diana", "is_ai_player": False},
         ],
         "seed": 42.0,
     }

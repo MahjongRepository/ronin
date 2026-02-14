@@ -12,7 +12,7 @@ from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
 from game.tests.mocks import MockConnection, MockGameService
 
-from .helpers import make_game_with_human
+from .helpers import make_game_with_player
 
 
 def _make_manager_with_collector() -> tuple[SessionManager, MagicMock, MockGameService]:
@@ -30,7 +30,15 @@ def _make_game_end_event() -> ServiceEvent:
             target="all",
             result=GameEndResult(
                 winner_seat=0,
-                standings=[PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False)],
+                standings=[
+                    PlayerStanding(
+                        seat=0,
+                        name="Alice",
+                        score=25000,
+                        final_score=0,
+                        is_ai_player=False,
+                    ),
+                ],
             ),
         ),
         target=BroadcastTarget(),
@@ -50,7 +58,7 @@ async def _create_started_game_with_collector(
     game_id: str = "game1",
 ) -> list[MockConnection]:
     """Create a started game through the room flow for replay tests."""
-    manager.create_room(game_id, num_bots=3)
+    manager.create_room(game_id, num_ai_players=3)
     conn = MockConnection()
     manager.register_connection(conn)
     await manager.join_room(conn, game_id, "Alice", "tok-alice")
@@ -73,7 +81,7 @@ class TestSessionReplayStart:
     def test_create_room_does_not_call_collector_start(self):
         """Replay collector start_game is NOT called during create_room (seed not yet known)."""
         manager, collector, _game_service = _make_manager_with_collector()
-        manager.create_room("game1", num_bots=3)
+        manager.create_room("game1", num_ai_players=3)
         collector.start_game.assert_not_called()
 
     def test_create_room_without_collector(self):
@@ -88,7 +96,7 @@ class TestSessionReplayCollect:
 
     async def test_broadcast_events_calls_collect(self):
         manager, collector, _game_service = _make_manager_with_collector()
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_discard_event()]
         await manager._broadcast_events(game, events)
@@ -99,7 +107,7 @@ class TestSessionReplayCollect:
         """No error when broadcasting without a replay collector."""
         game_service = MockGameService()
         manager = SessionManager(game_service)
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_discard_event()]
         await manager._broadcast_events(game, events)  # should not raise
@@ -110,7 +118,7 @@ class TestSessionReplaySave:
 
     async def test_game_end_calls_save_and_cleanup(self):
         manager, collector, _game_service = _make_manager_with_collector()
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_game_end_event()]
         await manager._close_connections_on_game_end(game, events)
@@ -119,7 +127,7 @@ class TestSessionReplaySave:
 
     async def test_no_save_without_game_end_event(self):
         manager, collector, _game_service = _make_manager_with_collector()
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_discard_event()]
         await manager._close_connections_on_game_end(game, events)
@@ -130,7 +138,7 @@ class TestSessionReplaySave:
         """No error when game ends without a replay collector."""
         game_service = MockGameService()
         manager = SessionManager(game_service)
-        game, _player, _conn = make_game_with_human(manager)
+        game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_game_end_event()]
         await manager._close_connections_on_game_end(game, events)  # should not raise
@@ -153,7 +161,7 @@ class TestSessionReplayCleanup:
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
-        manager.create_room("game1", num_bots=3)
+        manager.create_room("game1", num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_room(conn, "game1", "Alice", "tok-alice")

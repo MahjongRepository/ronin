@@ -21,7 +21,7 @@ class TestGameCreationAndJoin:
 
     async def test_create_game_and_join_returns_initial_state(self, service):
         """Create game and verify game_started broadcast event is received."""
-        events = await service.start_game("game1", ["Human"], seed=2.0)
+        events = await service.start_game("game1", ["Player"], seed=2.0)
 
         game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
@@ -45,21 +45,21 @@ class TestGameServiceIntegration:
         return MahjongGameService()
 
     async def test_full_discard_cycle(self, service):
-        """Test human discard triggers bot turns and returns to human."""
-        events = await service.start_game("game1", ["Human"], seed=2.0)
+        """Test player discard triggers AI player turns and returns to player."""
+        events = await service.start_game("game1", ["Player"], seed=2.0)
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
-        # find the human player (seat is random now)
-        human = next(p for p in round_state.players if p.name == "Human")
+        # find the player (seat is random now)
+        player = next(p for p in round_state.players if p.name == "Player")
 
-        # human needs to have tiles to discard
-        assert len(human.tiles) >= 13
-        tile_to_discard = human.tiles[-1]
+        # player needs to have tiles to discard
+        assert len(player.tiles) >= 13
+        tile_to_discard = player.tiles[-1]
 
         events = await service.handle_action(
             "game1",
-            "Human",
+            "Player",
             GameAction.DISCARD,
             {"tile_id": tile_to_discard},
         )
@@ -69,12 +69,12 @@ class TestGameServiceIntegration:
         assert len(discard_events) >= 1
 
     async def test_sequential_discards_through_service(self, service):
-        """Test that multiple human discards can be processed sequentially."""
-        await service.start_game("game1", ["Human"], seed=2.0)
+        """Test that multiple player discards can be processed sequentially."""
+        await service.start_game("game1", ["Player"], seed=2.0)
 
         actions_processed = 0
 
-        # play several discards (bots will respond automatically)
+        # play several discards (AI players will respond automatically)
         for _ in range(10):
             game_state = service._games["game1"]
             round_state = game_state.round_state
@@ -84,7 +84,7 @@ class TestGameServiceIntegration:
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
 
-            if player.name == "Human" and player.tiles:
+            if player.name == "Player" and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 await service.handle_action(
                     "game1",
@@ -111,7 +111,7 @@ class TestUnifiedDiscardClaimIntegration:
         Verifies the wire contract: DISCARD prompts are split per-seat with the
         appropriate call_type for each recipient.
         """
-        await service.start_game("game1", ["Human"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed=2.0)
 
         found_prompt = False
         for _ in range(20):
@@ -122,13 +122,13 @@ class TestUnifiedDiscardClaimIntegration:
 
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
-            if player.name != "Human" or not player.tiles:
+            if player.name != "Player" or not player.tiles:
                 break
 
             tile_to_discard = player.tiles[-1]
             events = await service.handle_action(
                 "game1",
-                "Human",
+                "Player",
                 GameAction.DISCARD,
                 {"tile_id": tile_to_discard},
             )
@@ -147,7 +147,7 @@ class TestUnifiedDiscardClaimIntegration:
 
     async def test_discard_prompt_creates_unified_prompt_in_state(self, service):
         """When a discard creates a call prompt, the server state has call_type=DISCARD."""
-        await service.start_game("game1", ["Human"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed=2.0)
 
         found_discard_prompt = False
         for _ in range(20):
@@ -158,7 +158,7 @@ class TestUnifiedDiscardClaimIntegration:
 
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
-            if player.name != "Human" or not player.tiles:
+            if player.name != "Player" or not player.tiles:
                 break
 
             tile_to_discard = player.tiles[-1]

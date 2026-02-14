@@ -26,10 +26,10 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult
-from game.logic.bot import BotPlayer, BotStrategy
-from game.logic.bot_controller import BotController
+from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import (
-    BotType,
+    AIPlayerType,
     CallType,
     GameAction,
     GameErrorCode,
@@ -71,9 +71,9 @@ from game.tests.conftest import create_game_state, create_player, create_round_s
 def _default_seat_configs():
     return [
         SeatConfig(name="Player"),
-        SeatConfig(name="Bot1", bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Bot2", bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Bot3", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="AI1", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="AI2", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="AI3", ai_player_type=AIPlayerType.TSUMOGIRI),
     ]
 
 
@@ -749,7 +749,7 @@ class TestPendingCallPromptStateGate:
 
         service = MahjongGameService()
         service._games["test"] = game_state
-        service._bot_controllers["test"] = BotController({})
+        service._ai_player_controllers["test"] = AIPlayerController({})
 
         with pytest.raises(InvalidGameActionError, match=r"turn action.*call prompt is pending"):
             await service.handle_action("test", "Player", GameAction.DISCARD, {"tile_id": 0})
@@ -1094,25 +1094,25 @@ class TestResolutionSafetyNetExecution:
             assert exc_info.value.action == "resolve_call"
 
 
-class TestBotSafetyNets:
-    """Test bot processing safety nets catch InvalidGameActionError."""
+class TestAIPlayerSafetyNets:
+    """Test AI player processing safety nets catch InvalidGameActionError."""
 
-    async def test_bot_call_response_catches_invalid_action(self):
-        """Bot call response that triggers InvalidGameActionError is caught, not propagated."""
+    async def test_ai_player_call_response_catches_invalid_action(self):
+        """AI player call response that triggers InvalidGameActionError is caught, not propagated."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
         game_state = service._games["test"]
-        bot_controller = service._bot_controllers["test"]
-        bot_seats = sorted(bot_controller.bot_seats)
+        ai_player_controller = service._ai_player_controllers["test"]
+        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
 
-        # Set up a pending prompt for a bot
+        # Set up a pending prompt for an AI player
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=0,
-            pending_seats=frozenset({bot_seats[0]}),
-            callers=(MeldCaller(seat=bot_seats[0], call_type=MeldCallType.PON),),
+            pending_seats=frozenset({ai_player_seats[0]}),
+            callers=(MeldCaller(seat=ai_player_seats[0], call_type=MeldCallType.PON),),
         )
         round_state = game_state.round_state.model_copy(
             update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
@@ -1123,102 +1123,114 @@ class TestBotSafetyNets:
         with patch.object(
             service,
             "_dispatch_action",
-            side_effect=InvalidGameActionError(action="call_pon", seat=bot_seats[0], reason="test"),
+            side_effect=InvalidGameActionError(action="call_pon", seat=ai_player_seats[0], reason="test"),
         ):
             events = []
-            service._dispatch_bot_call_responses("test", events)
+            service._dispatch_ai_player_call_responses("test", events)
 
         # The safety net should have caught the error - no propagation
-        # The prompt should still be there since the bot response was not processed
+        # The prompt should still be there since the AI player response was not processed
         assert service._games["test"].round_state.pending_call_prompt is not None
 
-    async def test_bot_call_action_falls_back_to_pass(self):
-        """Bot call action falls back to PASS when the initial non-PASS action fails."""
+    async def test_ai_player_call_action_falls_back_to_pass(self):
+        """AI player call action falls back to PASS when the initial non-PASS action fails."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
         game_state = service._games["test"]
-        bot_controller = service._bot_controllers["test"]
-        bot_seat = sorted(bot_controller.bot_seats)[0]
+        ai_player_controller = service._ai_player_controllers["test"]
+        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
 
         with patch.object(
             service,
             "_dispatch_action",
-            side_effect=InvalidGameActionError(action="call_pon", seat=bot_seat, reason="test"),
+            side_effect=InvalidGameActionError(action="call_pon", seat=ai_player_seat, reason="test"),
         ):
-            result = service._dispatch_bot_call_action("test", game_state, bot_seat, GameAction.CALL_PON, {})
+            result = service._dispatch_ai_player_call_action(
+                "test",
+                game_state,
+                ai_player_seat,
+                GameAction.CALL_PON,
+                {},
+            )
         assert result is None
 
-    async def test_bot_call_action_pass_fallback_reraises_when_offender_is_human(self):
-        """Bot PASS fallback re-raises when the error blames a different seat."""
+    async def test_ai_player_call_action_pass_fallback_reraises_when_offender_is_player(self):
+        """AI player PASS fallback re-raises when the error blames a different seat."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
         game_state = service._games["test"]
-        bot_controller = service._bot_controllers["test"]
-        bot_seat = sorted(bot_controller.bot_seats)[0]
-        human_seat = 0
+        ai_player_controller = service._ai_player_controllers["test"]
+        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        player_seat = 0
 
         with (
             patch.object(
                 service,
                 "_dispatch_action",
                 side_effect=[
-                    # First call (non-PASS action) fails with bot's own seat
-                    InvalidGameActionError(action="call_pon", seat=bot_seat, reason="bot error"),
-                    # Second call (PASS fallback) fails with human seat (resolution blame)
-                    InvalidGameActionError(action="resolve_call", seat=human_seat, reason="human error"),
+                    # First call (non-PASS action) fails with AI player's own seat
+                    InvalidGameActionError(action="call_pon", seat=ai_player_seat, reason="ai_player error"),
+                    # Second call (PASS fallback) fails with player seat (resolution blame)
+                    InvalidGameActionError(action="resolve_call", seat=player_seat, reason="player error"),
                 ],
             ),
-            pytest.raises(InvalidGameActionError, match="human error"),
+            pytest.raises(InvalidGameActionError, match="player error"),
         ):
-            service._dispatch_bot_call_action("test", game_state, bot_seat, GameAction.CALL_PON, {})
+            service._dispatch_ai_player_call_action(
+                "test",
+                game_state,
+                ai_player_seat,
+                GameAction.CALL_PON,
+                {},
+            )
 
-    async def test_bot_call_response_reraises_when_offender_is_human(self):
-        """Bot call response re-raises InvalidGameActionError when the offending seat is a human."""
+    async def test_ai_player_call_response_reraises_when_offender_is_player(self):
+        """AI player call response re-raises InvalidGameActionError when the offending seat is a player."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
         game_state = service._games["test"]
-        bot_controller = service._bot_controllers["test"]
-        bot_seats = sorted(bot_controller.bot_seats)
-        human_seat = 0  # seat 0 is the human
+        ai_player_controller = service._ai_player_controllers["test"]
+        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
+        player_seat = 0  # seat 0 is the player
 
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
             from_seat=3,
-            pending_seats=frozenset({bot_seats[0]}),
-            callers=(MeldCaller(seat=bot_seats[0], call_type=MeldCallType.PON),),
+            pending_seats=frozenset({ai_player_seats[0]}),
+            callers=(MeldCaller(seat=ai_player_seats[0], call_type=MeldCallType.PON),),
         )
         round_state = game_state.round_state.model_copy(
             update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
         )
         service._games["test"] = game_state.model_copy(update={"round_state": round_state})
 
-        # Error blames human seat (e.g. resolution failed on human's bad data)
+        # Error blames player seat (e.g. resolution failed on player's bad data)
         with patch.object(
             service,
             "_dispatch_action",
-            side_effect=InvalidGameActionError(action="resolve_call", seat=human_seat, reason="test"),
+            side_effect=InvalidGameActionError(action="resolve_call", seat=player_seat, reason="test"),
         ):
             events = []
             with pytest.raises(InvalidGameActionError, match="resolve_call"):
-                service._dispatch_bot_call_responses("test", events)
+                service._dispatch_ai_player_call_responses("test", events)
 
-    async def test_bot_followup_catches_invalid_action(self):
-        """Bot followup that triggers InvalidGameActionError is caught, not propagated."""
+    async def test_ai_player_followup_catches_invalid_action(self):
+        """AI player followup that triggers InvalidGameActionError is caught, not propagated."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
-        # Make the current seat a bot so the followup loop enters
+        # Make the current seat an AI player so the followup loop enters
         game_state = service._games["test"]
-        bot_controller = service._bot_controllers["test"]
+        ai_player_controller = service._ai_player_controllers["test"]
         current_seat = game_state.round_state.current_player_seat
 
-        # If the current player is not a bot, make them one
-        if not bot_controller.is_bot(current_seat):
-            bot_controller.add_bot(current_seat, BotPlayer(strategy=BotStrategy.TSUMOGIRI))
+        # If the current player is not an AI player, make them one
+        if not ai_player_controller.is_ai_player(current_seat):
+            ai_player_controller.add_ai_player(current_seat, AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI))
 
         # Make _dispatch_and_process raise InvalidGameActionError
         with patch.object(
@@ -1226,48 +1238,48 @@ class TestBotSafetyNets:
             "_dispatch_and_process",
             side_effect=InvalidGameActionError(action="discard", seat=current_seat, reason="test"),
         ):
-            events = await service._process_bot_followup("test")
+            events = await service._process_ai_player_followup("test")
 
         # The safety net caught the error - returned whatever was accumulated
         assert isinstance(events, list)
 
-    async def test_bot_followup_reraises_when_offender_is_human(self):
-        """Bot followup re-raises InvalidGameActionError when the offending seat is a human."""
+    async def test_ai_player_followup_reraises_when_offender_is_player(self):
+        """AI player followup re-raises InvalidGameActionError when the offending seat is a player."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
         game_state = service._games["test"]
-        bot_controller = service._bot_controllers["test"]
-        # Use an existing bot seat (not the human seat 0) as current player
-        bot_seat = sorted(bot_controller.bot_seats)[0]
-        human_seat = 0
-        assert bot_seat != human_seat
+        ai_player_controller = service._ai_player_controllers["test"]
+        # Use an existing AI player seat (not the player seat 0) as current player
+        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        player_seat = 0
+        assert ai_player_seat != player_seat
 
-        # Make the bot the current player
-        round_state = game_state.round_state.model_copy(update={"current_player_seat": bot_seat})
+        # Make the AI player the current player
+        round_state = game_state.round_state.model_copy(update={"current_player_seat": ai_player_seat})
         service._games["test"] = game_state.model_copy(update={"round_state": round_state})
 
-        # Error blames the human seat (e.g. resolution failed on human's bad data)
+        # Error blames the player seat (e.g. resolution failed on player's bad data)
         with (
             patch.object(
                 service,
                 "_dispatch_and_process",
-                side_effect=InvalidGameActionError(action="resolve_call", seat=human_seat, reason="test"),
+                side_effect=InvalidGameActionError(action="resolve_call", seat=player_seat, reason="test"),
             ),
             pytest.raises(InvalidGameActionError, match="resolve_call"),
         ):
-            await service._process_bot_followup("test")
+            await service._process_ai_player_followup("test")
 
-    async def test_bot_tsumogiri_fallback_game_cleaned_up(self):
-        """_bot_tsumogiri_fallback returns None if game state is cleaned up."""
+    async def test_ai_player_tsumogiri_fallback_game_cleaned_up(self):
+        """_ai_player_tsumogiri_fallback returns None if game state is cleaned up."""
         service = MahjongGameService()
-        result = await service._bot_tsumogiri_fallback("nonexistent", 0)
+        result = await service._ai_player_tsumogiri_fallback("nonexistent", 0)
         assert result is None
 
-    async def test_bot_tsumogiri_fallback_no_tiles(self):
-        """_bot_tsumogiri_fallback returns None if player has no tiles."""
+    async def test_ai_player_tsumogiri_fallback_no_tiles(self):
+        """_ai_player_tsumogiri_fallback returns None if player has no tiles."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
         game_state = service._games["test"]
         current_seat = game_state.round_state.current_player_seat
@@ -1278,27 +1290,27 @@ class TestBotSafetyNets:
         round_state = game_state.round_state.model_copy(update={"players": tuple(players)})
         service._games["test"] = game_state.model_copy(update={"round_state": round_state})
 
-        result = await service._bot_tsumogiri_fallback("test", current_seat)
+        result = await service._ai_player_tsumogiri_fallback("test", current_seat)
         assert result is None
 
-    async def test_bot_tsumogiri_fallback_reraises_when_offender_is_human(self):
-        """_bot_tsumogiri_fallback re-raises when the error blames a different seat."""
+    async def test_ai_player_tsumogiri_fallback_reraises_when_offender_is_player(self):
+        """_ai_player_tsumogiri_fallback re-raises when the error blames a different seat."""
         service = MahjongGameService()
-        await service.start_game("test", ["Human"], seed=42.0)
+        await service.start_game("test", ["Player"], seed=42.0)
 
-        bot_controller = service._bot_controllers["test"]
-        bot_seat = sorted(bot_controller.bot_seats)[0]
-        human_seat = 0
+        ai_player_controller = service._ai_player_controllers["test"]
+        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        player_seat = 0
 
         with (
             patch.object(
                 service,
                 "_dispatch_and_process",
-                side_effect=InvalidGameActionError(action="resolve_call", seat=human_seat, reason="test"),
+                side_effect=InvalidGameActionError(action="resolve_call", seat=player_seat, reason="test"),
             ),
             pytest.raises(InvalidGameActionError, match="resolve_call"),
         ):
-            await service._bot_tsumogiri_fallback("test", bot_seat)
+            await service._ai_player_tsumogiri_fallback("test", ai_player_seat)
 
 
 class TestOpenKanDefenseInDepthGuards:

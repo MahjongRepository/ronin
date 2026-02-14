@@ -1,8 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateRoomRequest(BaseModel):
-    num_bots: int = Field(default=3, ge=0, le=3)
+    model_config = ConfigDict(extra="forbid")
+
+    num_ai_players: int = Field(default=3, ge=0, le=3)
 
 
 class CreateRoomResponse(BaseModel):

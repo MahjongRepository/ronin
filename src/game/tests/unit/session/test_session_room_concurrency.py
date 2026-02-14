@@ -18,7 +18,7 @@ class TestConcurrentSetReady:
 
     async def test_concurrent_set_ready_single_transition(self, manager):
         """Two players readying up concurrently trigger exactly one game start."""
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)
@@ -48,7 +48,7 @@ class TestConcurrentSetReady:
 
     async def test_concurrent_set_ready_four_players(self, manager):
         """Four players readying up concurrently trigger exactly one game start."""
-        manager.create_room("room1", num_bots=0)
+        manager.create_room("room1", num_ai_players=0)
         conns = [MockConnection() for _ in range(4)]
         for i, conn in enumerate(conns):
             manager.register_connection(conn)
@@ -69,7 +69,7 @@ class TestConcurrentSetReady:
 
     async def test_concurrent_leave_and_ready(self, manager):
         """Leave and ready happening concurrently do not leave stale state."""
-        manager.create_room("room1", num_bots=2)
+        manager.create_room("room1", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         manager.register_connection(conn1)

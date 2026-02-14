@@ -5,7 +5,7 @@ Unit tests for available actions builder.
 from mahjong.tile import TilesConverter
 
 from game.logic.actions import get_available_actions
-from game.logic.enums import BotType, PlayerAction
+from game.logic.enums import AIPlayerType, PlayerAction
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -16,9 +16,9 @@ from game.tests.unit.helpers import _string_to_34_tile
 def _default_seat_configs() -> list[SeatConfig]:
     return [
         SeatConfig(name="Player"),
-        SeatConfig(name="Tsumogiri 1", bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 2", bot_type=BotType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 3", bot_type=BotType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 1", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 2", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="Tsumogiri 3", ai_player_type=AIPlayerType.TSUMOGIRI),
     ]
 
 

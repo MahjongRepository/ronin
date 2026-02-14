@@ -19,7 +19,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_room("game1", num_bots=2)
+        manager.create_room("game1", num_ai_players=2)
 
         await manager.join_room(conn1, "game1", "Alice", "tok-alice")
         await manager.join_room(conn2, "game1", "Bob", "tok-bob")
@@ -32,7 +32,7 @@ class TestSessionManager:
         assert player_joined_msgs[0]["player_name"] == "Bob"
 
     async def test_leave_game_notifies_others(self, manager):
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.leave_game(conns[1])
 
@@ -45,7 +45,7 @@ class TestSessionManager:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        manager.create_room("game1", num_bots=2)
+        manager.create_room("game1", num_ai_players=2)
 
         await manager.join_room(conn1, "game1", "Alice", "tok-alice")
         await manager.join_room(conn2, "game1", "Alice", "tok-alice2")
@@ -75,7 +75,7 @@ class TestSessionManager:
 
     async def test_targeted_events_only_sent_to_target_player(self, manager):
         """Events with seat_N target go only to the player at that seat."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
@@ -96,7 +96,7 @@ class TestSessionManager:
 
     async def test_broadcast_events_sends_all_target_to_everyone(self, manager):
         """Events with 'all' target are broadcast to all players."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # perform action that generates broadcast event
         await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
@@ -111,7 +111,7 @@ class TestSessionManager:
 
     async def test_call_prompt_only_sent_to_callers(self, manager):
         """Per-seat CallPromptEvent is only sent to the targeted seat, not to all players."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # per-seat call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
@@ -135,7 +135,7 @@ class TestSessionManager:
 
     async def test_call_prompt_sent_once_when_player_has_multiple_meld_options(self, manager):
         """Per-seat CallPromptEvent is sent once per player even when they have both pon and chi options."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # seat 0 can both pon and chi the same tile -- two MeldCaller entries for the same seat.
         game = manager.get_game("game1")

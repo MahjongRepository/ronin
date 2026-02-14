@@ -15,10 +15,7 @@ progress*.txt
 .coverage
 logs
 
-bot
-
 src/debug.py
-data/replays
 
 # ---
 
@@ -27,7 +24,6 @@ AGENTS.md
 AGENTS.override.md
 Dockerfile.agent
 Makefile.agent
-bin/agent-run.sh
 bin/agent_run.py
 .claude
 thoughts

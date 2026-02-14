@@ -6,7 +6,7 @@ from game.logic.types import GameEndResult, PlayerStanding
 from game.session.models import Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
-from .helpers import create_started_game, make_game_with_human
+from .helpers import create_started_game, make_game_with_player
 
 
 class TestSessionManagerGameEnd:
@@ -21,7 +21,7 @@ class TestSessionManagerGameEnd:
                 result=GameEndResult(
                     winner_seat=0,
                     standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_bot=False),
+                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_ai_player=False),
                     ],
                 ),
             ),
@@ -30,7 +30,7 @@ class TestSessionManagerGameEnd:
 
     async def test_close_connections_on_game_end(self, manager):
         """All player connections are closed when game_end event is present."""
-        game, _player, conn = make_game_with_human(manager)
+        game, _player, conn = make_game_with_player(manager)
 
         events = [self._make_game_end_event()]
         await manager._close_connections_on_game_end(game, events)
@@ -41,7 +41,7 @@ class TestSessionManagerGameEnd:
 
     async def test_close_connections_skipped_without_game_end(self, manager):
         """Connections are not closed when no game_end event is present."""
-        game, _player, conn = make_game_with_human(manager)
+        game, _player, conn = make_game_with_player(manager)
 
         generic_event = ServiceEvent(
             event=EventType.DRAW,
@@ -61,7 +61,7 @@ class TestSessionManagerGameEnd:
 
     async def test_close_connections_on_game_end_multiple_players(self, manager):
         """All player connections are closed when game ends with multiple players."""
-        game, _player, conn1 = make_game_with_human(manager)
+        game, _player, conn1 = make_game_with_player(manager)
 
         conn2 = MockConnection()
         player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
@@ -78,7 +78,7 @@ class TestSessionManagerCloseGameOnError:
     """Tests for close_game_on_error method."""
 
     async def test_close_game_on_error_closes_all_connections(self, manager):
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.close_game_on_error(conns[0])
 
@@ -112,7 +112,12 @@ class TestSessionManagerCloseGameOnError:
 
     async def test_heartbeat_stops_on_game_cleanup(self, manager):
         """Heartbeat task is cancelled when game becomes empty."""
-        conns = await create_started_game(manager, "game1", num_bots=0, player_names=["P0", "P1", "P2", "P3"])
+        conns = await create_started_game(
+            manager,
+            "game1",
+            num_ai_players=0,
+            player_names=["P0", "P1", "P2", "P3"],
+        )
 
         assert "game:game1" in manager._heartbeat._tasks
         heartbeat_task = manager._heartbeat._tasks.get("game:game1")

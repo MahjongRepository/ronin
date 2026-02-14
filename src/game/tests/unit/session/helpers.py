@@ -10,21 +10,21 @@ from game.tests.mocks import MockConnection
 async def create_started_game(
     manager: SessionManager,
     game_id: str = "game1",
-    num_bots: int = 3,
+    num_ai_players: int = 3,
     player_names: list[str] | None = None,
 ) -> list[MockConnection]:
     """Create a started game through the room flow.
 
     Creates a room, joins players, readies them up, and returns the connections.
-    The game starts automatically when all required humans are ready.
+    The game starts automatically when all required players are ready.
     """
-    num_humans = 4 - num_bots
+    num_players = 4 - num_ai_players
     if player_names is None:
-        player_names = [f"Player{i}" for i in range(num_humans)]
-    if len(player_names) != num_humans:
-        raise ValueError(f"Expected {num_humans} player names, got {len(player_names)}")
+        player_names = [f"Player{i}" for i in range(num_players)]
+    if len(player_names) != num_players:
+        raise ValueError(f"Expected {num_players} player names, got {len(player_names)}")
 
-    manager.create_room(game_id, num_bots=num_bots)
+    manager.create_room(game_id, num_ai_players=num_ai_players)
     connections: list[MockConnection] = []
 
     for name in player_names:
@@ -60,15 +60,15 @@ def make_dummy_game_view() -> GameView:
             PlayerView(
                 seat=0,
                 name="Alice",
-                is_bot=False,
+                is_ai_player=False,
                 score=25000,
             ),
         ],
     )
 
 
-def make_game_with_human(manager: SessionManager) -> tuple[Game, Player, MockConnection]:
-    """Create a game with a human player who has an assigned seat."""
+def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockConnection]:
+    """Create a game with a player who has an assigned seat."""
     conn = MockConnection()
     game = Game(game_id="game1")
     session = manager._session_store.create_session("Alice", "game1")  # noqa: SLF001

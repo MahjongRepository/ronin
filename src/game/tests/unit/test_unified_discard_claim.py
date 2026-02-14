@@ -9,8 +9,8 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import handle_pass, handle_pon, handle_ron
-from game.logic.bot import BotPlayer, BotStrategy
-from game.logic.bot_controller import BotController
+from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player_controller import AIPlayerController
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     AbortiveDrawType,
@@ -551,19 +551,19 @@ class TestFourRiichiAbortAfterRonPass:
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
 
 
-class TestBotDualEligibleRonDominant:
-    """Scenario 10: Bot dual-eligible seat follows ron-dominant policy."""
+class TestAIPlayerDualEligibleRonDominant:
+    """Scenario 10: AI player dual-eligible seat follows ron-dominant policy."""
 
-    def test_bot_ron_caller_gets_ron_decision_path(self):
-        """Bot seat as ron caller on DISCARD prompt gets ron-only decision path."""
-        bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
-        controller = BotController(bots)
+    def test_ai_player_ron_caller_gets_ron_decision_path(self):
+        """AI player seat as ron caller on DISCARD prompt gets ron-only decision path."""
+        ai_players = {1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)}
+        controller = AIPlayerController(ai_players)
 
         players = (
-            create_player(seat=0, name="Human"),
-            create_player(seat=1, name="Bot1"),
-            create_player(seat=2, name="Bot2"),
-            create_player(seat=3, name="Bot3"),
+            create_player(seat=0, name="Player"),
+            create_player(seat=1, name="AI1"),
+            create_player(seat=2, name="AI2"),
+            create_player(seat=3, name="AI3"),
         )
         round_state = create_round_state(
             players=players,
@@ -575,19 +575,19 @@ class TestBotDualEligibleRonDominant:
         tile_id = 42
         # caller_info is int (ron caller)
         result = controller.get_call_response(1, round_state, CallType.DISCARD, tile_id, 1)
-        # tsumogiri bot declines ron
+        # tsumogiri AI player declines ron
         assert result is None
 
-    def test_bot_meld_caller_gets_meld_decision_path(self):
-        """Bot seat as meld caller on DISCARD prompt gets meld decision path."""
-        bots = {1: BotPlayer(strategy=BotStrategy.TSUMOGIRI)}
-        controller = BotController(bots)
+    def test_ai_player_meld_caller_gets_meld_decision_path(self):
+        """AI player seat as meld caller on DISCARD prompt gets meld decision path."""
+        ai_players = {1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)}
+        controller = AIPlayerController(ai_players)
 
         players = (
-            create_player(seat=0, name="Human"),
-            create_player(seat=1, name="Bot1"),
-            create_player(seat=2, name="Bot2"),
-            create_player(seat=3, name="Bot3"),
+            create_player(seat=0, name="Player"),
+            create_player(seat=1, name="AI1"),
+            create_player(seat=2, name="AI2"),
+            create_player(seat=3, name="AI3"),
         )
         round_state = create_round_state(
             players=players,
@@ -599,7 +599,7 @@ class TestBotDualEligibleRonDominant:
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         caller_info = MeldCaller(seat=1, call_type=MeldCallType.PON)
         result = controller.get_call_response(1, round_state, CallType.DISCARD, tile_id, caller_info)
-        # tsumogiri bot declines melds
+        # tsumogiri AI player declines melds
         assert result is None
 
 

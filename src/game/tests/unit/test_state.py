@@ -33,7 +33,7 @@ class TestGetPlayerView:
             ),
             MahjongPlayer(
                 seat=1,
-                name="Bot1",
+                name="AI1",
                 tiles=(
                     *TilesConverter.string_to_136_array(man="112233")[1::2],
                     *TilesConverter.string_to_136_array(pin="112233")[1::2],
@@ -45,7 +45,7 @@ class TestGetPlayerView:
             ),
             MahjongPlayer(
                 seat=2,
-                name="Bot2",
+                name="AI2",
                 tiles=(
                     *TilesConverter.string_to_136_array(man="111222333")[2::3],
                     *TilesConverter.string_to_136_array(pin="111222333")[2::3],
@@ -57,7 +57,7 @@ class TestGetPlayerView:
             ),
             MahjongPlayer(
                 seat=3,
-                name="Bot3",
+                name="AI3",
                 tiles=(
                     *TilesConverter.string_to_136_array(man="111122223333")[3::4],
                     *TilesConverter.string_to_136_array(pin="111122223333")[3::4],

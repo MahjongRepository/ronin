@@ -56,7 +56,7 @@ class TestRoomMessageRouting:
 
     async def test_set_ready_routes_to_session_manager(self, setup):
         router, connection, session_manager = setup
-        session_manager.create_room("room1", num_bots=2)
+        session_manager.create_room("room1", num_ai_players=2)
 
         await router.handle_message(
             connection,
@@ -78,7 +78,7 @@ class TestRoomMessageRouting:
 
     async def test_chat_routes_to_room_when_in_room(self, setup):
         router, connection, session_manager = setup
-        session_manager.create_room("room1", num_bots=2)
+        session_manager.create_room("room1", num_ai_players=2)
 
         await router.handle_message(
             connection,

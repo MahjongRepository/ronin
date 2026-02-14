@@ -1,7 +1,7 @@
 """
 Pydantic models for game logic data structures.
 
-Contains typed models for round results, bot actions, available actions,
+Contains typed models for round results, AI player actions, available actions,
 meld callers, and player views that cross component boundaries.
 """
 
@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from game.logic.enums import (
     AbortiveDrawType,
-    BotType,
+    AIPlayerType,
     KanType,
     MeldCallType,
     MeldViewType,
@@ -25,7 +25,7 @@ class SeatConfig(BaseModel):
     """Configuration for a single seat in a game."""
 
     name: str
-    bot_type: BotType | None = None
+    ai_player_type: AIPlayerType | None = None
 
 
 class GamePlayerInfo(BaseModel):
@@ -33,7 +33,7 @@ class GamePlayerInfo(BaseModel):
 
     seat: int
     name: str
-    is_bot: bool
+    is_ai_player: bool
 
 
 class DiscardActionData(BaseModel):
@@ -176,7 +176,7 @@ class PlayerStanding(BaseModel):
     name: str
     score: int  # raw game score (e.g. 42300)
     final_score: int  # uma/oka-adjusted score (e.g. 52)
-    is_bot: bool
+    is_ai_player: bool
 
 
 class GameEndResult(BaseModel):
@@ -201,8 +201,8 @@ class MeldCaller(BaseModel):
     options: tuple[tuple[int, int], ...] | None = None
 
 
-class BotAction(BaseModel):
-    """Bot's chosen action during their turn."""
+class AIPlayerAction(BaseModel):
+    """AI player's chosen action during their turn."""
 
     action: PlayerAction
     tile_id: int | None = None
@@ -237,7 +237,7 @@ class PlayerView(BaseModel):
 
     seat: int
     name: str
-    is_bot: bool
+    is_ai_player: bool
     score: int
 
 

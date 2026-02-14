@@ -1,6 +1,6 @@
 import pytest
 
-from game.session.models import MAX_BOTS
+from game.session.models import MAX_AI_PLAYERS
 from game.session.room import Room, RoomPlayer, RoomPlayerInfo
 from game.tests.mocks import MockConnection
 
@@ -11,43 +11,43 @@ class TestRoomCreation:
     def test_create_room_defaults(self):
         room = Room(room_id="room1")
         assert room.room_id == "room1"
-        assert room.num_bots == 3
+        assert room.num_ai_players == 3
         assert room.host_connection_id is None
         assert room.transitioning is False
         assert room.players == {}
 
     def test_create_room_with_bots(self):
-        room = Room(room_id="room1", num_bots=1)
-        assert room.num_bots == 1
-        assert room.humans_needed == 3
+        room = Room(room_id="room1", num_ai_players=1)
+        assert room.num_ai_players == 1
+        assert room.players_needed == 3
 
     def test_create_room_zero_bots(self):
-        room = Room(room_id="room1", num_bots=0)
-        assert room.num_bots == 0
-        assert room.humans_needed == 4
+        room = Room(room_id="room1", num_ai_players=0)
+        assert room.num_ai_players == 0
+        assert room.players_needed == 4
 
     def test_create_room_max_bots(self):
-        room = Room(room_id="room1", num_bots=MAX_BOTS)
-        assert room.num_bots == MAX_BOTS
-        assert room.humans_needed == 1
+        room = Room(room_id="room1", num_ai_players=MAX_AI_PLAYERS)
+        assert room.num_ai_players == MAX_AI_PLAYERS
+        assert room.players_needed == 1
 
     def test_create_room_invalid_bots_negative(self):
-        with pytest.raises(ValueError, match="num_bots must be 0-3"):
-            Room(room_id="room1", num_bots=-1)
+        with pytest.raises(ValueError, match="num_ai_players must be 0-3"):
+            Room(room_id="room1", num_ai_players=-1)
 
     def test_create_room_invalid_bots_too_many(self):
-        with pytest.raises(ValueError, match="num_bots must be 0-3"):
-            Room(room_id="room1", num_bots=4)
+        with pytest.raises(ValueError, match="num_ai_players must be 0-3"):
+            Room(room_id="room1", num_ai_players=4)
 
 
 class TestRoomProperties:
     """Tests for Room computed properties."""
 
-    def test_humans_needed(self):
-        assert Room(room_id="r", num_bots=3).humans_needed == 1
-        assert Room(room_id="r", num_bots=2).humans_needed == 2
-        assert Room(room_id="r", num_bots=1).humans_needed == 3
-        assert Room(room_id="r", num_bots=0).humans_needed == 4
+    def test_players_needed(self):
+        assert Room(room_id="r", num_ai_players=3).players_needed == 1
+        assert Room(room_id="r", num_ai_players=2).players_needed == 2
+        assert Room(room_id="r", num_ai_players=1).players_needed == 3
+        assert Room(room_id="r", num_ai_players=0).players_needed == 4
 
     def test_total_seats(self):
         room = Room(room_id="r")
@@ -87,11 +87,11 @@ class TestRoomFullness:
     """Tests for room is_full check."""
 
     def test_not_full_when_empty(self):
-        room = Room(room_id="r", num_bots=2)
+        room = Room(room_id="r", num_ai_players=2)
         assert not room.is_full
 
     def test_full_when_at_capacity(self):
-        room = Room(room_id="r", num_bots=2)  # needs 2 humans
+        room = Room(room_id="r", num_ai_players=2)  # needs 2 players
         for i in range(2):
             conn = MockConnection()
             rp = RoomPlayer(connection=conn, name=f"Player{i}", room_id="r", session_token=f"tok-{i}")
@@ -99,7 +99,7 @@ class TestRoomFullness:
         assert room.is_full
 
     def test_not_full_when_under_capacity(self):
-        room = Room(room_id="r", num_bots=2)  # needs 2 humans
+        room = Room(room_id="r", num_ai_players=2)  # needs 2 players
         conn = MockConnection()
         rp = RoomPlayer(connection=conn, name="Alice", room_id="r", session_token="tok")
         room.players[conn.connection_id] = rp
@@ -110,25 +110,25 @@ class TestRoomReady:
     """Tests for room all_ready check."""
 
     def test_all_ready_empty_room_not_ready(self):
-        room = Room(room_id="r", num_bots=3)  # needs 1 human
+        room = Room(room_id="r", num_ai_players=3)  # needs 1 player
         assert not room.all_ready
 
     def test_all_ready_single_player_not_ready(self):
-        room = Room(room_id="r", num_bots=3)
+        room = Room(room_id="r", num_ai_players=3)
         conn = MockConnection()
         rp = RoomPlayer(connection=conn, name="Alice", room_id="r", session_token="tok", ready=False)
         room.players[conn.connection_id] = rp
         assert not room.all_ready
 
     def test_all_ready_single_player_ready(self):
-        room = Room(room_id="r", num_bots=3)
+        room = Room(room_id="r", num_ai_players=3)
         conn = MockConnection()
         rp = RoomPlayer(connection=conn, name="Alice", room_id="r", session_token="tok", ready=True)
         room.players[conn.connection_id] = rp
         assert room.all_ready
 
     def test_all_ready_mixed_readiness(self):
-        room = Room(room_id="r", num_bots=2)  # needs 2 humans
+        room = Room(room_id="r", num_ai_players=2)  # needs 2 players
         conn1 = MockConnection()
         conn2 = MockConnection()
         rp1 = RoomPlayer(connection=conn1, name="Alice", room_id="r", session_token="tok-a", ready=True)
@@ -138,7 +138,7 @@ class TestRoomReady:
         assert not room.all_ready
 
     def test_all_ready_all_players_ready(self):
-        room = Room(room_id="r", num_bots=2)
+        room = Room(room_id="r", num_ai_players=2)
         conn1 = MockConnection()
         conn2 = MockConnection()
         rp1 = RoomPlayer(connection=conn1, name="Alice", room_id="r", session_token="tok-a", ready=True)
@@ -149,7 +149,7 @@ class TestRoomReady:
 
     def test_all_ready_not_enough_players(self):
         """Even if all present are ready, not enough to fill room."""
-        room = Room(room_id="r", num_bots=2)  # needs 2 humans
+        room = Room(room_id="r", num_ai_players=2)  # needs 2 players
         conn = MockConnection()
         rp = RoomPlayer(connection=conn, name="Alice", room_id="r", session_token="tok", ready=True)
         room.players[conn.connection_id] = rp

@@ -114,7 +114,7 @@ unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/bot.py", "src/game/logic/bot_controller.py", "src/debug.py", "src/shared/logging.py"]
+omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/ai_player.py", "src/game/logic/ai_player_controller.py", "src/debug.py", "src/shared/logging.py"]
 
 [tool.coverage.report]
 show_missing = true

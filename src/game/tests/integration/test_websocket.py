@@ -23,9 +23,9 @@ class TestWebSocketIntegration:
         app = create_app(game_service=MockGameService())
         return TestClient(app)
 
-    def _create_room(self, client, room_id: str, num_bots: int = 3) -> None:
+    def _create_room(self, client, room_id: str, num_ai_players: int = 3) -> None:
         session_manager = client.app.state.session_manager
-        session_manager.create_room(room_id, num_bots=num_bots)
+        session_manager.create_room(room_id, num_ai_players=num_ai_players)
 
     def _send_message(self, ws, data: dict) -> None:
         """
@@ -86,7 +86,7 @@ class TestWebSocketIntegration:
 
     def test_room_chat_message(self, client):
         """Chat messages in a room are broadcast to all room members."""
-        self._create_room(client, "test_game", num_bots=2)
+        self._create_room(client, "test_game", num_ai_players=2)
 
         with client.websocket_connect("/ws/test_game") as ws1:
             self._send_message(
@@ -179,7 +179,7 @@ class TestWebSocketIntegration:
 
     def test_join_room_injects_room_id_from_path(self, client):
         """WebSocket path param injects room_id into join_room messages."""
-        self._create_room(client, "test-room", num_bots=2)
+        self._create_room(client, "test-room", num_ai_players=2)
 
         with client.websocket_connect("/ws/test-room") as ws:
             # send join_room without room_id -- the endpoint should inject it
@@ -246,7 +246,7 @@ class TestCreateRoomEndpoint:
     def test_create_room_success(self, client):
         response = client.post("/rooms", json={"room_id": "test-room"})
         assert response.status_code == 201
-        assert response.json() == {"room_id": "test-room", "num_bots": 3, "status": "created"}
+        assert response.json() == {"room_id": "test-room", "num_ai_players": 3, "status": "created"}
 
     def test_create_room_invalid_body(self, client):
         response = client.post("/rooms", content=b"not json")
@@ -269,31 +269,36 @@ class TestCreateRoomEndpoint:
         assert response.status_code == 409
         assert response.json() == {"error": "Game with this ID already exists"}
 
-    def test_create_room_with_custom_num_bots(self, client):
-        response = client.post("/rooms", json={"room_id": "mixed-room", "num_bots": 2})
+    def test_create_room_with_custom_num_ai_players(self, client):
+        response = client.post("/rooms", json={"room_id": "mixed-room", "num_ai_players": 2})
         assert response.status_code == 201
-        assert response.json() == {"room_id": "mixed-room", "num_bots": 2, "status": "created"}
+        assert response.json() == {"room_id": "mixed-room", "num_ai_players": 2, "status": "created"}
 
-    def test_create_room_with_zero_bots(self, client):
-        response = client.post("/rooms", json={"room_id": "pvp-room", "num_bots": 0})
+    def test_create_room_with_zero_ai_players(self, client):
+        response = client.post("/rooms", json={"room_id": "pvp-room", "num_ai_players": 0})
         assert response.status_code == 201
-        assert response.json() == {"room_id": "pvp-room", "num_bots": 0, "status": "created"}
+        assert response.json() == {"room_id": "pvp-room", "num_ai_players": 0, "status": "created"}
 
-    def test_create_room_invalid_num_bots(self, client):
-        response = client.post("/rooms", json={"room_id": "bad-room", "num_bots": 5})
+    def test_create_room_invalid_num_ai_players(self, client):
+        response = client.post("/rooms", json={"room_id": "bad-room", "num_ai_players": 5})
+        assert response.status_code == 400
+
+    def test_create_room_legacy_num_bots_rejected(self, client):
+        """Legacy payload using num_bots is rejected via extra=forbid."""
+        response = client.post("/rooms", json={"room_id": "legacy-room", "num_bots": 2})
         assert response.status_code == 400
 
     def test_list_rooms_shows_room_info(self, client):
-        client.post("/rooms", json={"room_id": "bot-room", "num_bots": 3})
-        client.post("/rooms", json={"room_id": "mixed-room", "num_bots": 1})
+        client.post("/rooms", json={"room_id": "ai-room", "num_ai_players": 3})
+        client.post("/rooms", json={"room_id": "mixed-room", "num_ai_players": 1})
 
         response = client.get("/rooms")
         assert response.status_code == 200
         rooms = {r["room_id"]: r for r in response.json()["rooms"]}
-        assert rooms["bot-room"]["num_bots"] == 3
-        assert rooms["bot-room"]["humans_needed"] == 1
-        assert rooms["mixed-room"]["num_bots"] == 1
-        assert rooms["mixed-room"]["humans_needed"] == 3
+        assert rooms["ai-room"]["num_ai_players"] == 3
+        assert rooms["ai-room"]["players_needed"] == 1
+        assert rooms["mixed-room"]["num_ai_players"] == 1
+        assert rooms["mixed-room"]["players_needed"] == 3
 
     def test_create_room_at_capacity(self, client):
         for i in range(100):

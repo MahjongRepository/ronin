@@ -2,7 +2,7 @@
 Replay runner: feeds recorded actions through ReplayServiceProtocol and captures trace.
 
 Uses MahjongGameService as a black-box engine through its public API.
-Bot determinism contract: bot strategies must be deterministic given the same state.
+AI player determinism contract: AI player strategies must be deterministic given the same state.
 Currently only TSUMOGIRI exists (always discards last drawn tile).
 """
 
@@ -53,7 +53,7 @@ class ReplayServiceProtocol(Protocol):
     def cleanup_game(self, game_id: str) -> None: ...
     def get_game_state(self, game_id: str) -> MahjongGameState | None: ...
     def is_round_advance_pending(self, game_id: str) -> bool: ...
-    def get_pending_round_advance_human_names(self, game_id: str) -> list[str]: ...
+    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]: ...
 
 
 _CALL_RESPONSE_ACTIONS = frozenset(
@@ -302,7 +302,7 @@ async def _process_input_event(
     step_count: int,
     opts: ReplayOptions,
 ) -> int:
-    """Process one human input event and append to steps."""
+    """Process one player input event and append to steps."""
     state_before = _require_state(
         service,
         opts.game_id,
@@ -357,8 +357,8 @@ async def _inject_round_confirmations(
     step_count: int,
     opts: ReplayOptions,
 ) -> int:
-    """Inject synthetic CONFIRM_ROUND steps for all pending human players."""
-    for human_name in service.get_pending_round_advance_human_names(game_id):
+    """Inject synthetic CONFIRM_ROUND steps for all pending players."""
+    for player_name in service.get_pending_round_advance_player_names(game_id):
         _check_step_limit(step_count, opts.max_steps)
 
         synthetic_before = _require_state(
@@ -367,13 +367,13 @@ async def _inject_round_confirmations(
             "game state disappeared before synthetic confirm_round",
         )
 
-        confirm_events = await service.handle_action(game_id, human_name, GameAction.CONFIRM_ROUND, {})
+        confirm_events = await service.handle_action(game_id, player_name, GameAction.CONFIRM_ROUND, {})
 
         if opts.strict:
             errors = [e for e in confirm_events if e.event == EventType.ERROR]
             if errors:
                 synthetic_event = ReplayInputEvent(
-                    player_name=human_name,
+                    player_name=player_name,
                     action=GameAction.CONFIRM_ROUND,
                 )
                 raise ReplayError(step_count, synthetic_event, errors)
@@ -387,7 +387,7 @@ async def _inject_round_confirmations(
         steps.append(
             ReplayStep(
                 input_event=ReplayInputEvent(
-                    player_name=human_name,
+                    player_name=player_name,
                     action=GameAction.CONFIRM_ROUND,
                 ),
                 synthetic=True,

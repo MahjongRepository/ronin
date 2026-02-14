@@ -231,7 +231,7 @@ class TestTimerManagerStartMeld:
 
 class TestTimerManagerStartRoundAdvance:
     async def test_start_round_advance_timers(self, timer_manager):
-        """start_round_advance_timers starts fixed-duration timers for each connected human."""
+        """start_round_advance_timers starts fixed-duration timers for each connected player."""
         conn1 = MockConnection()
         conn2 = MockConnection()
         game = Game(game_id="g1")

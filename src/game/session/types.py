@@ -9,8 +9,8 @@ class RoomInfo(BaseModel):
     """Room information for lobby listing."""
 
     room_id: str
-    human_player_count: int
-    humans_needed: int
+    player_count: int
+    players_needed: int
     total_seats: int
-    num_bots: int
+    num_ai_players: int
     players: list[str]

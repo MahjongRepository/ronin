@@ -70,9 +70,9 @@ async def create_room(request: Request) -> JSONResponse:
     if session_manager.get_game(room_request.room_id) is not None:
         return JSONResponse({"error": "Game with this ID already exists"}, status_code=409)
 
-    session_manager.create_room(room_request.room_id, num_bots=room_request.num_bots)
+    session_manager.create_room(room_request.room_id, num_ai_players=room_request.num_ai_players)
     return JSONResponse(
-        {"room_id": room_request.room_id, "num_bots": room_request.num_bots, "status": "created"},
+        {"room_id": room_request.room_id, "num_ai_players": room_request.num_ai_players, "status": "created"},
         status_code=201,
     )
 

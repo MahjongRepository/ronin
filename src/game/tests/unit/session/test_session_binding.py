@@ -14,7 +14,7 @@ from .helpers import create_started_game
 class TestSessionCreationOnTransition:
     async def test_transition_creates_session_for_each_player(self, manager):
         """Room-to-game transition creates sessions for all players."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # both players should have sessions in the store
         for conn in conns:
@@ -25,7 +25,7 @@ class TestSessionCreationOnTransition:
 
     async def test_session_tokens_are_unique(self, manager):
         """Two players in the same game get different session tokens."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
@@ -35,7 +35,7 @@ class TestSessionCreationOnTransition:
 class TestSeatBindingOnStart:
     async def test_game_start_binds_seat_to_session(self, manager):
         """After game starts, session data has the assigned seat number."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
@@ -51,7 +51,7 @@ class TestSeatBindingOnStart:
 class TestSessionDisconnect:
     async def test_leave_started_game_marks_session_disconnected(self, manager):
         """Leaving a started game marks the session as disconnected (not removed)."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         token1 = player1.session_token
@@ -97,7 +97,7 @@ class TestSessionDisconnect:
 class TestSessionCleanup:
     async def test_game_cleanup_removes_all_sessions(self, manager):
         """When the last player leaves and game is cleaned up, all sessions are removed."""
-        conns = await create_started_game(manager, "game1", num_bots=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
