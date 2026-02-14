@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
@@ -7,7 +7,7 @@ from game.logic.enums import GameAction
 from game.session.room import RoomPlayerInfo
 
 
-class ClientMessageType(str, Enum):
+class ClientMessageType(StrEnum):
     JOIN_ROOM = "join_room"
     LEAVE_ROOM = "leave_room"
     SET_READY = "set_ready"
@@ -16,7 +16,7 @@ class ClientMessageType(str, Enum):
     PING = "ping"
 
 
-class SessionMessageType(str, Enum):
+class SessionMessageType(StrEnum):
     GAME_LEFT = "game_left"
     ROOM_JOINED = "room_joined"
     ROOM_LEFT = "room_left"
@@ -29,7 +29,7 @@ class SessionMessageType(str, Enum):
     PONG = "pong"
 
 
-class SessionErrorCode(str, Enum):
+class SessionErrorCode(StrEnum):
     ALREADY_IN_GAME = "already_in_game"
     ALREADY_IN_ROOM = "already_in_room"
     ROOM_NOT_FOUND = "room_not_found"

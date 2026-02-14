@@ -1262,8 +1262,7 @@ class TestCollectDoraIndicators:
         round_state = create_round_state(
             dora_indicators=(10, 20),
         )
-        player = create_player(seat=0)
-        result = _collect_dora_indicators(player, round_state, settings)
+        result = _collect_dora_indicators(round_state, settings)
         assert result == []
 
 
@@ -1354,3 +1353,209 @@ class TestCollectUraDoraIndicators:
         player = create_player(seat=0, is_riichi=True)
         result = collect_ura_dora_indicators(player, round_state, settings)
         assert result is None
+
+
+class TestUraDoraScoringIntegration:
+    """Verify ura dora indicators are passed separately and affect hand value scoring."""
+
+    # disable aka dora for precise han counting
+    settings_no_aka = GameSettings(has_akadora=False)
+    settings_no_aka_no_ura = GameSettings(has_akadora=False, has_uradora=False)
+
+    def _build_game_state(self, *, dead_wall, dora_indicators, tiles, is_riichi):
+        """Build a game state with controlled dead wall for ura dora testing."""
+        dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
+        players = tuple(
+            create_player(
+                seat=i,
+                tiles=tuple(tiles) if i == 0 else None,
+                is_riichi=is_riichi if i == 0 else False,
+            )
+            for i in range(4)
+        )
+        round_state = create_round_state(
+            players=players,
+            dealer_seat=0,
+            current_player_seat=0,
+            dora_indicators=dora_indicators,
+            dead_wall=dead_wall,
+            wall=tuple(range(70)),
+            all_discards=dummy_discard_tiles,
+        )
+        return create_game_state(round_state=round_state)
+
+    def test_riichi_tsumo_with_matching_ura_dora(self):
+        """Riichi tsumo where ura dora indicator matches tiles in hand adds extra han."""
+        # hand: 123m 456m 789m 12s 55s (riichi tsumo)
+        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
+        win_tile = tiles[-1]
+
+        # dora indicator: 1m -> dora is 2m (1 copy in hand = 1 han)
+        dora_indicator = TilesConverter.string_to_136_array(man="1")
+
+        # dead wall: index 2 = dora indicator, index 7 = ura dora indicator
+        # ura dora indicator: 4s -> ura dora is 5s (2 copies in hand = 2 han)
+        ura_dora_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        dead_wall = [0] * 14
+        dead_wall[2] = dora_indicator[0]
+        dead_wall[7] = ura_dora_tile
+
+        game_state = self._build_game_state(
+            dead_wall=tuple(dead_wall),
+            dora_indicators=tuple(dora_indicator),
+            tiles=tiles,
+            is_riichi=True,
+        )
+        player = game_state.round_state.players[0]
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=True
+        )
+
+        assert result.error is None
+        assert "Ura Dora 2" in result.yaku
+        # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) + Ura Dora 2 (2) = 7 han
+        assert result.han == 7
+
+    def test_riichi_tsumo_without_matching_ura_dora(self):
+        """Riichi tsumo where ura dora indicator doesn't match any hand tile gives no ura dora han."""
+        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
+        win_tile = tiles[-1]
+
+        dora_indicator = TilesConverter.string_to_136_array(man="1")
+
+        # ura dora indicator: 6s -> ura dora is 7s (not in hand)
+        ura_dora_tile = TilesConverter.string_to_136_array(sou="6")[0]
+        dead_wall = [0] * 14
+        dead_wall[2] = dora_indicator[0]
+        dead_wall[7] = ura_dora_tile
+
+        game_state = self._build_game_state(
+            dead_wall=tuple(dead_wall),
+            dora_indicators=tuple(dora_indicator),
+            tiles=tiles,
+            is_riichi=True,
+        )
+        player = game_state.round_state.players[0]
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=True
+        )
+
+        assert result.error is None
+        assert not any("Ura Dora" in y for y in result.yaku)
+        # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) = 5 han
+        assert result.han == 5
+
+    def test_non_riichi_win_gets_no_ura_dora(self):
+        """Non-riichi win does not receive ura dora even if indicator matches."""
+        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
+        win_tile = tiles[-1]
+
+        dora_indicator = TilesConverter.string_to_136_array(man="1")
+
+        # ura dora indicator: 4s -> ura dora is 5s (would match, but no riichi)
+        ura_dora_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        dead_wall = [0] * 14
+        dead_wall[2] = dora_indicator[0]
+        dead_wall[7] = ura_dora_tile
+
+        game_state = self._build_game_state(
+            dead_wall=tuple(dead_wall),
+            dora_indicators=tuple(dora_indicator),
+            tiles=tiles,
+            is_riichi=False,
+        )
+        player = game_state.round_state.players[0]
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=True
+        )
+
+        assert result.error is None
+        assert not any("Ura Dora" in y for y in result.yaku)
+
+    def test_riichi_ron_with_matching_ura_dora(self):
+        """Riichi ron where ura dora indicator matches tiles in hand adds extra han."""
+        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
+        win_tile = tiles[-1]
+
+        dora_indicator = TilesConverter.string_to_136_array(man="1")
+
+        ura_dora_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        dead_wall = [0] * 14
+        dead_wall[2] = dora_indicator[0]
+        dead_wall[7] = ura_dora_tile
+
+        game_state = self._build_game_state(
+            dead_wall=tuple(dead_wall),
+            dora_indicators=tuple(dora_indicator),
+            tiles=tiles,
+            is_riichi=True,
+        )
+        player = game_state.round_state.players[0]
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=False
+        )
+
+        assert result.error is None
+        assert "Ura Dora 2" in result.yaku
+        # Riichi (1) + Ittsu (1) + Dora 1 (1) + Ura Dora 2 (2) = 6 han (no menzen tsumo for ron)
+        assert result.han == 6
+
+    def test_ura_dora_disabled_in_settings(self):
+        """Ura dora disabled in settings means no ura dora even for riichi with matching indicator."""
+        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
+        win_tile = tiles[-1]
+
+        dora_indicator = TilesConverter.string_to_136_array(man="1")
+
+        ura_dora_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        dead_wall = [0] * 14
+        dead_wall[2] = dora_indicator[0]
+        dead_wall[7] = ura_dora_tile
+
+        game_state = self._build_game_state(
+            dead_wall=tuple(dead_wall),
+            dora_indicators=tuple(dora_indicator),
+            tiles=tiles,
+            is_riichi=True,
+        )
+        player = game_state.round_state.players[0]
+        result = calculate_hand_value(
+            player, game_state.round_state, win_tile, self.settings_no_aka_no_ura, is_tsumo=True
+        )
+
+        assert result.error is None
+        assert not any("Ura Dora" in y for y in result.yaku)
+        # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) = 5 han
+        assert result.han == 5
+
+    def test_kan_ura_dora_multiple_indicators(self):
+        """With kan ura dora enabled and multiple dora indicators, multiple ura dora are checked."""
+        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
+        win_tile = tiles[-1]
+
+        # 2 dora indicators (simulating 1 kan)
+        dora_indicator_1 = TilesConverter.string_to_136_array(man="1")[0]
+        dora_indicator_2 = TilesConverter.string_to_136_array(man="5")[0]
+
+        # ura dora 1: indicator 4s -> ura dora 5s (2 copies in hand = 2 han)
+        # ura dora 2: indicator 1s -> ura dora 2s (1 copy in hand = 1 han)
+        ura_tile_1 = TilesConverter.string_to_136_array(sou="4")[0]
+        ura_tile_2 = TilesConverter.string_to_136_array(sou="1")[0]
+        dead_wall = [0] * 14
+        dead_wall[2] = dora_indicator_1
+        dead_wall[3] = dora_indicator_2
+        dead_wall[7] = ura_tile_1
+        dead_wall[8] = ura_tile_2
+
+        game_state = self._build_game_state(
+            dead_wall=tuple(dead_wall),
+            dora_indicators=(dora_indicator_1, dora_indicator_2),
+            tiles=tiles,
+            is_riichi=True,
+        )
+        player = game_state.round_state.players[0]
+        settings = GameSettings(has_akadora=False, has_kan_uradora=True)
+        result = calculate_hand_value(player, game_state.round_state, win_tile, settings, is_tsumo=True)
+
+        assert result.error is None
+        assert "Ura Dora 3" in result.yaku

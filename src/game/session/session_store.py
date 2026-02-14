@@ -26,10 +26,6 @@ class SessionStore:
         self._sessions[token] = session
         return session
 
-    def get_session(self, token: str) -> SessionData | None:
-        """Look up a session by token. Return None if not found."""
-        return self._sessions.get(token)
-
     def bind_seat(self, token: str, seat: int) -> None:
         """Assign a seat number to a session (called at game start)."""
         session = self._sessions.get(token)

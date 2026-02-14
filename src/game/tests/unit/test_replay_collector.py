@@ -437,7 +437,7 @@ class TestReplayCollectorFiltering:
         unknown_event = ServiceEvent.model_construct(
             event=EventType.DISCARD,
             data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=False, target="all"),
-            target="unknown_target",  # type: ignore[arg-type]
+            target="unknown_target",
         )
 
         collector.start_game("game1", seed=0.42)

@@ -58,7 +58,7 @@ async def create_room(request: Request) -> JSONResponse:
     else:
         try:
             body = json.loads(raw_body)
-        except (ValueError, json.JSONDecodeError):
+        except ValueError, json.JSONDecodeError:
             return JSONResponse({"error": "Invalid JSON body"}, status_code=422)
 
     try:

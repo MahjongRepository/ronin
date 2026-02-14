@@ -38,16 +38,6 @@ class TestSessionStore:
         assert session.seat is None
         assert session.disconnected_at is None
 
-    def test_get_session_returns_none_for_unknown_token(self):
-        store = SessionStore()
-        assert store.get_session("nonexistent") is None
-
-    def test_get_session_returns_created_session(self):
-        store = SessionStore()
-        created = store.create_session("Alice", "g1")
-        fetched = store.get_session(created.session_token)
-        assert fetched is created
-
     def test_bind_seat_updates_session(self):
         store = SessionStore()
         session = store.create_session("Alice", "g1")
@@ -57,7 +47,7 @@ class TestSessionStore:
     def test_bind_seat_ignores_unknown_token(self):
         store = SessionStore()
         store.bind_seat("nonexistent", 0)  # should not raise
-        assert store.get_session("nonexistent") is None
+        assert store._sessions.get("nonexistent") is None
 
     def test_mark_disconnected_sets_timestamp(self):
         store = SessionStore()
@@ -70,13 +60,13 @@ class TestSessionStore:
     def test_mark_disconnected_ignores_unknown_token(self):
         store = SessionStore()
         store.mark_disconnected("nonexistent")  # should not raise
-        assert store.get_session("nonexistent") is None
+        assert store._sessions.get("nonexistent") is None
 
     def test_remove_session_deletes_entry(self):
         store = SessionStore()
         session = store.create_session("Alice", "g1")
         store.remove_session(session.session_token)
-        assert store.get_session(session.session_token) is None
+        assert store._sessions.get(session.session_token) is None
 
     def test_remove_session_ignores_unknown_token(self):
         store = SessionStore()
@@ -87,13 +77,13 @@ class TestSessionStore:
         s1 = store.create_session("Alice", "g1")
         s2 = store.create_session("Bob", "g1")
         store.cleanup_game("g1")
-        assert store.get_session(s1.session_token) is None
-        assert store.get_session(s2.session_token) is None
+        assert store._sessions.get(s1.session_token) is None
+        assert store._sessions.get(s2.session_token) is None
 
     def test_cleanup_game_preserves_sessions_for_other_games(self):
         store = SessionStore()
         s1 = store.create_session("Alice", "g1")
         s2 = store.create_session("Bob", "g2")
         store.cleanup_game("g1")
-        assert store.get_session(s1.session_token) is None
-        assert store.get_session(s2.session_token) is not None
+        assert store._sessions.get(s1.session_token) is None
+        assert store._sessions.get(s2.session_token) is not None

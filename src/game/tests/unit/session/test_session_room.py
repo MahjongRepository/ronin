@@ -405,7 +405,7 @@ class TestRoomToGameTransition:
         player = manager._players[conn.connection_id]
         assert player.session_token == "my-token-123"
 
-        session = manager._session_store.get_session("my-token-123")
+        session = manager._session_store._sessions.get("my-token-123")
         assert session is not None
         assert session.player_name == "Alice"
 

@@ -1,5 +1,3 @@
-import pytest
-
 from game.logic.events import (
     BroadcastTarget,
     DiscardEvent,
@@ -10,7 +8,6 @@ from game.logic.events import (
 )
 from game.messaging.event_payload import (
     service_event_payload,
-    service_event_target,
     shape_call_prompt_payload,
 )
 
@@ -61,46 +58,6 @@ class TestServiceEventPayload:
         dumped_keys = set(event.data.model_dump(exclude={"type", "target"}).keys())
         payload_keys = set(payload.keys()) - {"type"}
         assert payload_keys == dumped_keys
-
-
-class TestServiceEventTarget:
-    """Tests for target string serialization."""
-
-    def test_broadcast_target(self):
-        event = ServiceEvent(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=False),
-            target=BroadcastTarget(),
-        )
-        assert service_event_target(event) == "all"
-
-    def test_seat_target(self):
-        event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(seat=2, tile_id=5, target="seat_2"),
-            target=SeatTarget(seat=2),
-        )
-        assert service_event_target(event) == "seat_2"
-
-    def test_seat_target_various_seats(self):
-        for seat in range(4):
-            event = ServiceEvent(
-                event=EventType.DRAW,
-                data=DrawEvent(seat=seat, tile_id=1, target=f"seat_{seat}"),
-                target=SeatTarget(seat=seat),
-            )
-            assert service_event_target(event) == f"seat_{seat}"
-
-    def test_unknown_target_raises(self):
-        event = ServiceEvent(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=False),
-            target=BroadcastTarget(),
-        )
-        # Replace target with an unexpected type to trigger the error branch
-        event.__dict__["target"] = "unknown"
-        with pytest.raises(ValueError, match="Unknown target type"):
-            service_event_target(event)
 
 
 class TestShapeCallPromptPayload:

@@ -267,7 +267,7 @@ class TestSessionManagerDisconnect:
         assert len(replace_calls) == 0
 
         # session should be marked disconnected (not removed) since game.started is True
-        session = manager._session_store.get_session(token)
+        session = manager._session_store._sessions.get(token)
         assert session is not None
         assert session.disconnected_at is not None
 

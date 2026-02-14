@@ -20,7 +20,7 @@ class TestSessionCreationOnTransition:
         for conn in conns:
             player = manager._players.get(conn.connection_id)
             assert player is not None
-            session = manager._session_store.get_session(player.session_token)
+            session = manager._session_store._sessions.get(player.session_token)
             assert session is not None
 
     async def test_session_tokens_are_unique(self, manager):
@@ -40,8 +40,8 @@ class TestSeatBindingOnStart:
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
 
-        session1 = manager._session_store.get_session(player1.session_token)
-        session2 = manager._session_store.get_session(player2.session_token)
+        session1 = manager._session_store._sessions.get(player1.session_token)
+        session2 = manager._session_store._sessions.get(player2.session_token)
         assert session1 is not None
         assert session2 is not None
         assert session1.seat == 0
@@ -58,7 +58,7 @@ class TestSessionDisconnect:
 
         await manager.leave_game(conns[0])
 
-        session = manager._session_store.get_session(token1)
+        session = manager._session_store._sessions.get(token1)
         assert session is not None
         assert session.disconnected_at is not None
 
@@ -74,7 +74,7 @@ class TestSessionDisconnect:
 
         await manager.leave_game(conns[0])
 
-        session = manager._session_store.get_session(token)
+        session = manager._session_store._sessions.get(token)
         assert session is None
 
     async def test_leave_game_missing_game_clears_player_state(self, manager):
@@ -108,8 +108,8 @@ class TestSessionCleanup:
         await manager.leave_game(conns[0])
         await manager.leave_game(conns[1])
 
-        assert manager._session_store.get_session(token1) is None
-        assert manager._session_store.get_session(token2) is None
+        assert manager._session_store._sessions.get(token1) is None
+        assert manager._session_store._sessions.get(token2) is None
         assert manager.get_game("game1") is None
 
 
@@ -138,6 +138,6 @@ class TestInvalidActionSessionTracking:
         error = InvalidGameActionError(seat=0, action="discard", reason="test error")
         await manager._handle_invalid_action(game_obj, conn, player, error)
 
-        session_after = manager._session_store.get_session(session.session_token)
+        session_after = manager._session_store._sessions.get(session.session_token)
         assert session_after is not None
         assert session_after.disconnected_at is not None

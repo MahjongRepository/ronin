@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
 from pydantic import BaseModel, ConfigDict
@@ -10,14 +10,14 @@ from pydantic import BaseModel, ConfigDict
 from game.logic.exceptions import UnsupportedSettingsError
 
 
-class GameType(str, Enum):
+class GameType(StrEnum):
     """Game length type."""
 
     HANCHAN = "hanchan"  # East + South
     TONPUSEN = "tonpusen"  # East only
 
 
-class RenhouValue(str, Enum):
+class RenhouValue(StrEnum):
     """Renhou scoring level."""
 
     NONE = "none"
@@ -26,14 +26,14 @@ class RenhouValue(str, Enum):
     YAKUMAN = "yakuman"  # yakuman (supported via library's renhou_as_yakuman flag)
 
 
-class EnchousenType(str, Enum):
+class EnchousenType(StrEnum):
     """Extension round behavior after South wind."""
 
     NONE = "none"
     SUDDEN_DEATH = "sudden_death"  # West wind until someone exceeds target
 
 
-class LeftoverRiichiBets(str, Enum):
+class LeftoverRiichiBets(StrEnum):
     """What happens to uncollected riichi bets at game end."""
 
     WINNER = "winner"  # Top player collects them

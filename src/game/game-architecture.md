@@ -203,7 +203,6 @@ The game service communicates through a typed event pipeline:
 
 - `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type string as `"type"`
 - `shape_call_prompt_payload()` transforms `CallPromptEvent` payloads based on call type: for ron/chankan, drops the callers list and extracts `caller_seat`; for meld, builds an `available_calls` list with per-caller options
-- `service_event_target()` returns a string target representation (`"all"` for broadcast, `"seat_N"` for seat-targeted)
 
 ### Server Configuration
 

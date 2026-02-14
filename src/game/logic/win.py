@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 from mahjong.agari import Agari
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
-from mahjong.shanten import Shanten
 
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
 from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
+from game.logic.shanten import calculate_shanten
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array, tile_to_34
@@ -86,8 +86,7 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     # convert open melds to 34-format for the agari check
     open_sets_34 = _melds_to_34_sets(player.melds)
 
-    agari = Agari()
-    return agari.is_agari(tiles_34, open_sets_34)
+    return Agari.is_agari(tiles_34, open_sets_34)
 
 
 def can_declare_tsumo(
@@ -123,8 +122,7 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     """
     # shanten operates on closed hand tiles only
     closed_tiles_34 = hand_to_34_array(player.tiles)
-    shanten = Shanten()
-    current_shanten = shanten.calculate_shanten(closed_tiles_34)
+    current_shanten = calculate_shanten(closed_tiles_34)
 
     if current_shanten != 0:
         return set()
@@ -142,9 +140,8 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
 
         # add tile and check if hand becomes agari
         tiles_34[tile_34] += 1
-        agari = Agari()
         open_sets = _melds_to_34_sets(player.melds)
-        if agari.is_agari(tiles_34, open_sets):
+        if Agari.is_agari(tiles_34, open_sets):
             waiting.add(tile_34)
         tiles_34[tile_34] -= 1
 
@@ -215,12 +212,11 @@ def _has_yaku_for_open_hand(
         options=build_optional_rules(settings),
     )
 
-    calculator = HandCalculator()
-    result = calculator.estimate_hand_value(
+    result = HandCalculator.estimate_hand_value(
         tiles=all_player_tiles(player),
         win_tile=win_tile,
         melds=frozen_melds_to_melds(player.melds),
-        dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
+        dora_indicators=round_state.dora_indicators or None,
         config=config,
     )
 
@@ -243,7 +239,7 @@ def _melds_to_34_sets(melds: tuple[FrozenMeld, ...]) -> list[list[int]] | None:
             meld_34 = [tile_to_34(t) for t in meld.tiles]
             open_sets.append(meld_34)
 
-    return open_sets if open_sets else None
+    return open_sets or None
 
 
 def is_haitei(round_state: MahjongRoundState) -> bool:
@@ -385,8 +381,7 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
                 tiles_34[tile_to_34(t)] += 1
 
     open_sets_34 = _melds_to_34_sets(player.melds)
-    agari = Agari()
-    return agari.is_agari(tiles_34, open_sets_34)
+    return Agari.is_agari(tiles_34, open_sets_34)
 
 
 def can_call_ron(
@@ -472,12 +467,11 @@ def _has_yaku_for_ron_with_tiles(  # noqa: PLR0913
         if meld.tiles:
             all_tiles.extend(t for t in meld.tiles if t not in tile_ids)
 
-    calculator = HandCalculator()
-    result = calculator.estimate_hand_value(
+    result = HandCalculator.estimate_hand_value(
         tiles=all_tiles,
         win_tile=win_tile,
         melds=frozen_melds_to_melds(player.melds),
-        dora_indicators=round_state.dora_indicators if round_state.dora_indicators else None,
+        dora_indicators=round_state.dora_indicators or None,
         config=config,
     )
 

@@ -67,7 +67,7 @@ class TestReplayInput:
         with pytest.raises(ValidationError):
             ReplayInput(
                 seed=1.0,
-                player_names=("Alice", "Bob", "Charlie"),  # type: ignore[arg-type]
+                player_names=("Alice", "Bob", "Charlie"),
                 events=(),
             )
 
@@ -75,7 +75,7 @@ class TestReplayInput:
         with pytest.raises(ValidationError):
             ReplayInput(
                 seed=1.0,
-                player_names=("A", "B", "C", "D", "E"),  # type: ignore[arg-type]
+                player_names=("A", "B", "C", "D", "E"),
                 events=(),
             )
 

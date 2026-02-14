@@ -7,10 +7,10 @@ from __future__ import annotations
 import logging
 
 from mahjong.agari import Agari
-from mahjong.shanten import Shanten
 
 from game.logic.exceptions import InvalidActionError, InvalidDiscardError
 from game.logic.scoring import apply_nagashi_mangan_score
+from game.logic.shanten import calculate_shanten
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -64,12 +64,11 @@ def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
     """
     tiles_34 = hand_to_34_array(tiles)
     waiting = set()
-    agari = Agari()
     for tile_34 in range(34):
         if tiles_34[tile_34] >= MAX_TILE_COPIES:
             continue
         tiles_34[tile_34] += 1
-        if agari.is_agari(tiles_34, None):
+        if Agari.is_agari(tiles_34, None):
             waiting.add(tile_34)
         tiles_34[tile_34] -= 1
 
@@ -246,7 +245,6 @@ def is_tempai(
 
     """
     tiles_list = list(tiles)
-    shanten = Shanten()
 
     if len(tiles_list) == HAND_SIZE_AFTER_DRAW:
         # after drawing, check if any discard leaves us in tenpai (excluding pure karaten)
@@ -254,12 +252,12 @@ def is_tempai(
             remaining = tiles_list[:i] + tiles_list[i + 1 :]
             tiles_34 = hand_to_34_array(remaining)
             # check if in tenpai and not pure karaten
-            if shanten.calculate_shanten(tiles_34) == 0 and not _is_pure_karaten(remaining, melds):
+            if calculate_shanten(tiles_34) == 0 and not _is_pure_karaten(remaining, melds):
                 return True
         return False
 
     tiles_34 = hand_to_34_array(tiles_list)
-    if shanten.calculate_shanten(tiles_34) != 0:
+    if calculate_shanten(tiles_34) != 0:
         return False
 
     return not _is_pure_karaten(tiles_list, melds)

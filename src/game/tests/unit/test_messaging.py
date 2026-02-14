@@ -119,7 +119,7 @@ class TestMessageRouterBranches:
         ) -> None:
             raise RuntimeError("unexpected crash")
 
-        session_manager.handle_game_action = raise_runtime_error  # type: ignore[assignment]
+        session_manager.handle_game_action = raise_runtime_error
 
         await router.handle_message(
             connection,

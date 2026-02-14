@@ -35,7 +35,7 @@ class GamesService:
                             room["server_name"] = server.name
                             room["server_url"] = server.url
                             all_rooms.append(room)
-                except (httpx.RequestError, ValueError):
+                except httpx.RequestError, ValueError:
                     pass
 
         return all_rooms

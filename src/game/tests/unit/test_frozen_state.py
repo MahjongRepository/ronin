@@ -137,7 +137,7 @@ class TestFrozenMeldConversion:
             from_who=0,
         )
         meld = frozen.to_meld()
-        assert meld.tiles == [0, 1, 2]
+        assert meld.tiles == (0, 1, 2)
         assert meld.type == Meld.PON
         assert meld.opened is True
         assert meld.called_tile == 0

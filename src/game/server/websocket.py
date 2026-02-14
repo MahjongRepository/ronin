@@ -54,7 +54,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
             if room_id and data.get("type") == ClientMessageType.JOIN_ROOM:
                 data["room_id"] = room_id
             await router.handle_message(connection, data)
-    except (WebSocketDisconnect, RuntimeError):
+    except WebSocketDisconnect, RuntimeError:
         pass
     finally:
         logger.info(f"websocket disconnected: {connection.connection_id}")

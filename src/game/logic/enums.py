@@ -2,10 +2,10 @@
 String enum definitions for Mahjong game concepts.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class PlayerAction(str, Enum):
+class PlayerAction(StrEnum):
     """Actions available to a player during their turn."""
 
     DISCARD = "discard"
@@ -16,7 +16,7 @@ class PlayerAction(str, Enum):
     KYUUSHU = "kyuushu"
 
 
-class GameAction(str, Enum):
+class GameAction(StrEnum):
     """Actions dispatched from client to game service."""
 
     DISCARD = "discard"
@@ -31,7 +31,7 @@ class GameAction(str, Enum):
     CONFIRM_ROUND = "confirm_round"
 
 
-class GameErrorCode(str, Enum):
+class GameErrorCode(StrEnum):
     """Error codes sent to clients for invalid game actions."""
 
     NOT_YOUR_TURN = "not_your_turn"
@@ -51,7 +51,7 @@ class GameErrorCode(str, Enum):
     MISSING_ROUND_RESULT = "missing_round_result"
 
 
-class MeldCallType(str, Enum):
+class MeldCallType(StrEnum):
     """Types of meld calls that can be made on a discarded tile."""
 
     PON = "pon"
@@ -69,7 +69,7 @@ MELD_CALL_PRIORITY: dict[MeldCallType, int] = {
 }
 
 
-class KanType(str, Enum):
+class KanType(StrEnum):
     """Subtypes of kan declarations."""
 
     OPEN = "open"
@@ -88,7 +88,7 @@ _KAN_TO_MELD_CALL: dict[KanType, MeldCallType] = {
 }
 
 
-class CallType(str, Enum):
+class CallType(StrEnum):
     """Types of call prompts sent to players."""
 
     RON = "ron"
@@ -97,7 +97,7 @@ class CallType(str, Enum):
     DISCARD = "discard"  # unified discard claim (ron + meld callers)
 
 
-class AbortiveDrawType(str, Enum):
+class AbortiveDrawType(StrEnum):
     """Types of abortive draws in Mahjong."""
 
     NINE_TERMINALS = "nine_terminals"
@@ -107,7 +107,7 @@ class AbortiveDrawType(str, Enum):
     FOUR_WINDS = "four_winds"
 
 
-class RoundResultType(str, Enum):
+class RoundResultType(StrEnum):
     """Types of round end results."""
 
     TSUMO = "tsumo"
@@ -119,7 +119,7 @@ class RoundResultType(str, Enum):
     GAME_END = "game_end"
 
 
-class WindName(str, Enum):
+class WindName(StrEnum):
     """Wind direction names."""
 
     EAST = "East"
@@ -129,13 +129,13 @@ class WindName(str, Enum):
     UNKNOWN = "Unknown"
 
 
-class AIPlayerType(str, Enum):
+class AIPlayerType(StrEnum):
     """Types of AI players available for matchmaking."""
 
     TSUMOGIRI = "tsumogiri"
 
 
-class TimeoutType(str, Enum):
+class TimeoutType(StrEnum):
     """Types of player timeouts."""
 
     TURN = "turn"
@@ -143,7 +143,7 @@ class TimeoutType(str, Enum):
     ROUND_ADVANCE = "round_advance"
 
 
-class MeldViewType(str, Enum):
+class MeldViewType(StrEnum):
     """Meld type names for client-facing view."""
 
     CHI = "chi"
@@ -154,7 +154,7 @@ class MeldViewType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class RoundPhase(str, Enum):
+class RoundPhase(StrEnum):
     """Phase of a mahjong round."""
 
     WAITING = "waiting"
@@ -162,7 +162,7 @@ class RoundPhase(str, Enum):
     FINISHED = "finished"
 
 
-class GamePhase(str, Enum):
+class GamePhase(StrEnum):
     """Phase of a mahjong game."""
 
     IN_PROGRESS = "in_progress"

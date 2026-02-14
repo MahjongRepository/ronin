@@ -156,4 +156,4 @@ class TestSessionManagerDefensiveChecks:
 
         assert player.game_id is None
         assert player.seat is None
-        assert manager._session_store.get_session(token) is None
+        assert manager._session_store._sessions.get(token) is None

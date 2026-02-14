@@ -115,9 +115,9 @@ class TestGameSettings:
     def test_frozen_model_cannot_be_mutated(self):
         settings = GameSettings()
         with pytest.raises(ValidationError):
-            settings.starting_score = 30000  # type: ignore[misc]
+            settings.starting_score = 30000
         with pytest.raises(ValidationError):
-            settings.has_akadora = False  # type: ignore[misc]
+            settings.has_akadora = False
 
     def test_custom_settings(self):
         settings = GameSettings(

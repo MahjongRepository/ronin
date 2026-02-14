@@ -45,7 +45,7 @@ class FrozenMeld(BaseModel):
         """Convert to mahjong.meld.Meld for library compatibility."""
         return Meld(
             meld_type=self.meld_type,
-            tiles=list(self.tiles),
+            tiles=self.tiles,
             opened=self.opened,
             called_tile=self.called_tile,
             who=self.who,

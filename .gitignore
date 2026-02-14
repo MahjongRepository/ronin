@@ -1,7 +1,6 @@
 .idea
 
 .venv
-uv.lock
 
 *.pyc
 *.pyo

@@ -2,7 +2,6 @@
 
 import os
 import stat
-import time
 from unittest.mock import patch
 
 import pytest
@@ -196,93 +195,3 @@ class TestLocalReplayStoragePermissions:
 
         written = (replay_dir / "game_secure.txt").read_text(encoding="utf-8")
         assert written == content
-
-
-class TestLocalReplayStorageRetention:
-    """Tests for replay file retention and cleanup."""
-
-    def test_cleanup_removes_old_files(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-        storage.save_replay("old_game", "old content")
-
-        # Backdate the file modification time by 2 days
-        old_file = tmp_path / "old_game.txt"
-        old_time = time.time() - 2 * 86400
-        os.utime(str(old_file), (old_time, old_time))
-
-        removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 1
-        assert not old_file.exists()
-
-    def test_cleanup_keeps_recent_files(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-        storage.save_replay("recent_game", "recent content")
-
-        removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 0
-        assert (tmp_path / "recent_game.txt").exists()
-
-    def test_cleanup_mixed_old_and_new(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-        storage.save_replay("old_game", "old")
-        storage.save_replay("new_game", "new")
-
-        old_file = tmp_path / "old_game.txt"
-        old_time = time.time() - 2 * 86400
-        os.utime(str(old_file), (old_time, old_time))
-
-        removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 1
-        assert not old_file.exists()
-        assert (tmp_path / "new_game.txt").exists()
-
-    def test_cleanup_rejects_non_positive_max_age(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-        with pytest.raises(ValueError, match="max_age_seconds must be positive"):
-            storage.cleanup_old_replays(max_age_seconds=0)
-        with pytest.raises(ValueError, match="max_age_seconds must be positive"):
-            storage.cleanup_old_replays(max_age_seconds=-1)
-
-    def test_cleanup_on_empty_directory(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-
-        removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 0
-
-    def test_cleanup_on_nonexistent_directory(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path / "does_not_exist"))
-
-        removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 0
-
-    def test_cleanup_ignores_non_txt_files(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-        # Create a non-.txt file and backdate it
-        other_file = tmp_path / "notes.json"
-        other_file.write_text("not a replay")
-        old_time = time.time() - 2 * 86400
-        os.utime(str(other_file), (old_time, old_time))
-
-        removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 0
-        assert other_file.exists()
-
-    def test_cleanup_logs_and_skips_on_unlink_error(self, tmp_path):
-        """If unlink raises OSError on a file, it's skipped."""
-        storage = LocalReplayStorage(str(tmp_path))
-        storage.save_replay("game_1", "content")
-
-        old_time = time.time() - 2 * 86400
-        os.utime(str(tmp_path / "game_1.txt"), (old_time, old_time))
-
-        with patch("pathlib.Path.unlink", side_effect=OSError("permission denied")):
-            removed = storage.cleanup_old_replays(max_age_seconds=86400)
-
-        assert removed == 0
-        assert (tmp_path / "game_1.txt").exists()

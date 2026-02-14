@@ -72,7 +72,7 @@ def load_replay_from_string(content: str) -> ReplayInput:
 
     return ReplayInput(
         seed=seed,
-        player_names=player_names,  # type: ignore[arg-type]
+        player_names=player_names,
         events=tuple(actions),
     )
 

@@ -131,21 +131,13 @@ def collect_ura_dora_indicators(
 
 
 def _collect_dora_indicators(
-    player: MahjongPlayer,
     round_state: MahjongRoundState,
     settings: GameSettings,
 ) -> list[int]:
-    """Collect dora and ura dora indicators for scoring."""
+    """Collect omote (face-up) dora indicators for scoring."""
     if settings.has_omote_dora:
-        dora_indicators = list(round_state.dora_indicators) if round_state.dora_indicators else []
-    else:
-        dora_indicators = []
-
-    ura = collect_ura_dora_indicators(player, round_state, settings)
-    if ura:
-        dora_indicators.extend(ura)
-
-    return dora_indicators
+        return list(round_state.dora_indicators) if round_state.dora_indicators else []
+    return []
 
 
 def _evaluate_hand(  # noqa: PLR0913
@@ -155,16 +147,17 @@ def _evaluate_hand(  # noqa: PLR0913
     win_tile: int,
     config: HandConfig,
     dora_indicators: list[int],
+    ura_dora_indicators: list[int] | None = None,
 ) -> HandResult:
     """Run hand calculator and return result with error logging."""
-    calculator = HandCalculator()
     melds = frozen_melds_to_melds(player.melds)
-    result = calculator.estimate_hand_value(
+    result = HandCalculator.estimate_hand_value(
         tiles=tiles,
         win_tile=win_tile,
         melds=melds,
         dora_indicators=dora_indicators,
         config=config,
+        ura_dora_indicators=ura_dora_indicators,
     )
 
     if result.error:
@@ -209,9 +202,10 @@ def calculate_hand_value(  # noqa: PLR0913
     Returns a HandResult with han, fu, cost breakdown, and yaku list.
     """
     config = _build_hand_config(player, round_state, settings, is_tsumo=is_tsumo, is_chankan=is_chankan)
-    dora_indicators = _collect_dora_indicators(player, round_state, settings)
+    dora_indicators = _collect_dora_indicators(round_state, settings)
+    ura_dora = collect_ura_dora_indicators(player, round_state, settings)
     tiles = all_player_tiles(player)
-    return _evaluate_hand(player, round_state, tiles, win_tile, config, dora_indicators)
+    return _evaluate_hand(player, round_state, tiles, win_tile, config, dora_indicators, ura_dora)
 
 
 def calculate_hand_value_with_tiles(  # noqa: PLR0913
@@ -241,8 +235,9 @@ def calculate_hand_value_with_tiles(  # noqa: PLR0913
 
     """
     config = _build_hand_config(player, round_state, settings, is_tsumo=is_tsumo, is_chankan=is_chankan)
-    dora_indicators = _collect_dora_indicators(player, round_state, settings)
-    return _evaluate_hand(player, round_state, tiles, win_tile, config, dora_indicators)
+    dora_indicators = _collect_dora_indicators(round_state, settings)
+    ura_dora = collect_ura_dora_indicators(player, round_state, settings)
+    return _evaluate_hand(player, round_state, tiles, win_tile, config, dora_indicators, ura_dora)
 
 
 def _apply_score_changes(

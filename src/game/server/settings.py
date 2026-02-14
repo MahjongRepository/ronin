@@ -33,4 +33,4 @@ class GameServerSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (init_settings, CorsEnvSettingsSource(settings_cls), dotenv_settings, file_secret_settings)
+        return init_settings, CorsEnvSettingsSource(settings_cls), dotenv_settings, file_secret_settings

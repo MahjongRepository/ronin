@@ -11,7 +11,7 @@ All layers import exclusively from this module for event types.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -60,7 +60,7 @@ def parse_wire_target(value: str) -> EventTarget:
 # ---------------------------------------------------------------------------
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Types of game events."""
 
     DRAW = "draw"

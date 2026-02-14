@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from game.logic.events import BroadcastTarget, SeatTarget, ServiceEvent
+from game.logic.events import ServiceEvent
 
 
 def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
@@ -50,15 +50,3 @@ def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:
         return payload
 
     return payload
-
-
-def service_event_target(event: ServiceEvent) -> str:
-    """Return a string representation of the event's routing target.
-
-    "all" for BroadcastTarget, "seat_{n}" for SeatTarget.
-    """
-    if isinstance(event.target, BroadcastTarget):
-        return "all"
-    if isinstance(event.target, SeatTarget):
-        return f"seat_{event.target.seat}"
-    raise ValueError(f"Unknown target type: {type(event.target)}")

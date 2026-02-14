@@ -285,10 +285,9 @@ def _get_honba_and_rotation(  # noqa: PLR0911
             return honba + 1, False
         return 0, True
 
-    if result_type == RoundResultType.EXHAUSTIVE_DRAW:
+    if result_type == RoundResultType.EXHAUSTIVE_DRAW and isinstance(result, ExhaustiveDrawResult):
         if settings.renchan_on_dealer_tenpai_draw:
-            is_draw = isinstance(result, ExhaustiveDrawResult)
-            should_rotate = is_draw and dealer_seat not in result.tempai_seats
+            should_rotate = dealer_seat not in result.tempai_seats
         else:
             should_rotate = True
         return honba + 1, should_rotate

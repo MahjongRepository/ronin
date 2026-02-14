@@ -175,7 +175,7 @@ class ReplayCollector:
         try:
             content = "\n".join(buffer)
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
-        except (OSError, ValueError):
+        except OSError, ValueError:
             logger.exception("Failed to save replay for game %s", game_id)
 
     def cleanup_game(self, game_id: str) -> None:

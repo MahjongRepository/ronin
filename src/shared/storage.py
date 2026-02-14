@@ -10,7 +10,6 @@ import contextlib
 import logging
 import os
 import tempfile
-import time
 from pathlib import Path
 from typing import Protocol
 
@@ -73,30 +72,3 @@ class LocalReplayStorage:
                 Path(tmp_path).unlink()
             raise
         logger.info("Saved replay for game %s to %s", game_id, target)
-
-    def cleanup_old_replays(self, max_age_seconds: int) -> int:
-        """Delete replay files older than max_age_seconds.
-
-        Returns the number of files removed. Errors on individual files are
-        logged and skipped so that one bad file does not block the rest.
-        """
-        if max_age_seconds <= 0:
-            raise ValueError(f"max_age_seconds must be positive, got {max_age_seconds}")
-
-        if not self._replay_dir.is_dir():
-            return 0
-
-        cutoff = time.time() - max_age_seconds
-        removed = 0
-        for entry in self._replay_dir.iterdir():
-            try:
-                if not entry.is_file() or entry.is_symlink() or entry.suffix != ".txt":
-                    continue
-                if entry.stat().st_mtime < cutoff:
-                    entry.unlink()
-                    removed += 1
-            except OSError:
-                logger.exception("Failed to remove old replay file %s", entry)
-        if removed:
-            logger.info("Cleaned up %d replay files older than %d seconds", removed, max_age_seconds)
-        return removed
