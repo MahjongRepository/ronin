@@ -32,6 +32,7 @@ from game.logic.types import (
     MeldCaller,
     RoundResultType,
     TsumoResult,
+    YakuInfo,
 )
 from game.tests.unit.helpers import _string_to_136_tile
 
@@ -221,7 +222,7 @@ class TestExtractRoundResult:
         """extract_round_result extracts result from round_end event."""
         tsumo_result = TsumoResult(
             winner_seat=0,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=["tanyao"]),
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
             score_changes={0: 1000},
             riichi_sticks_collected=0,
             closed_tiles=[0, 1, 2, 3],

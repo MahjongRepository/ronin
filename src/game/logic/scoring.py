@@ -26,6 +26,7 @@ from game.logic.types import (
     RonResult,
     TenpaiHand,
     TsumoResult,
+    YakuInfo,
 )
 from game.logic.utils import _hand_config_debug, _melds_debug
 from game.logic.win import (
@@ -57,7 +58,7 @@ class HandResult:
     fu: int = 0
     cost_main: int = 0  # cost paid by dealer (tsumo) or loser (ron)
     cost_additional: int = 0  # cost paid by non-dealers (tsumo only)
-    yaku: list[str] = field(default_factory=list)  # list of yaku names
+    yaku: list[YakuInfo] = field(default_factory=list)
     error: str | None = None  # error message if calculation failed
 
 
@@ -176,7 +177,11 @@ def _evaluate_hand(  # noqa: PLR0913
         )
         return HandResult(error=result.error)
 
-    yaku_list = [str(y) for y in result.yaku] if result.yaku else []
+    yaku_list: list[YakuInfo] = []
+    if result.yaku:
+        for y in result.yaku:
+            han = y.han_open if result.is_open_hand and y.han_open else y.han_closed
+            yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=han))
     return HandResult(
         han=result.han or 0,
         fu=result.fu or 0,

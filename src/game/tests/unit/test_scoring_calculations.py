@@ -7,7 +7,19 @@ These are pure utility functions that need direct unit testing.
 
 from game.logic.game import _get_winner_seats, _goshashonyu_round, calculate_final_scores
 from game.logic.settings import GameSettings
-from game.logic.types import DoubleRonResult, DoubleRonWinner, HandResultInfo, RonResult, TsumoResult
+from game.logic.types import (
+    DoubleRonResult,
+    DoubleRonWinner,
+    HandResultInfo,
+    RonResult,
+    TsumoResult,
+    YakuInfo,
+)
+
+
+def _yaku(*yaku_ids: int) -> list[YakuInfo]:
+    """Create stub YakuInfo list for tests where yaku content is not asserted."""
+    return [YakuInfo(yaku_id=yid, han=0) for yid in yaku_ids]
 
 
 class TestGetWinnerSeats:
@@ -16,7 +28,7 @@ class TestGetWinnerSeats:
     def test_tsumo_result(self):
         result = TsumoResult(
             winner_seat=0,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
+            hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0)),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
             closed_tiles=[],
@@ -30,7 +42,7 @@ class TestGetWinnerSeats:
             winner_seat=2,
             loser_seat=3,
             winning_tile=42,
-            hand_result=HandResultInfo(han=2, fu=30, yaku=["Tanyao"]),
+            hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0)),
             score_changes={0: 0, 1: 0, 2: 3000, 3: -3000},
             riichi_sticks_collected=0,
             closed_tiles=[],
@@ -45,14 +57,14 @@ class TestGetWinnerSeats:
             winners=[
                 DoubleRonWinner(
                     winner_seat=0,
-                    hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
+                    hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0)),
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],
                 ),
                 DoubleRonWinner(
                     winner_seat=3,
-                    hand_result=HandResultInfo(han=2, fu=30, yaku=["Tanyao"]),
+                    hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0)),
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],

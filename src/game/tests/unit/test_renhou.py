@@ -117,7 +117,7 @@ class TestRenhouScoring:
         result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
-        assert "Renhou" in result.yaku
+        assert any(y.yaku_id == 11 for y in result.yaku)  # Renhou
         assert result.han >= 5
 
     def test_renhou_combines_with_other_yaku(self):
@@ -132,7 +132,7 @@ class TestRenhouScoring:
         result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
-        assert "Renhou" in result.yaku
+        assert any(y.yaku_id == 11 for y in result.yaku)  # Renhou
         # renhou 5 han + at least tanyao 1 han
         assert result.han >= 6
 
@@ -148,4 +148,4 @@ class TestRenhouScoring:
         result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
-        assert "Renhou" not in result.yaku
+        assert not any(y.yaku_id == 11 for y in result.yaku)  # no Renhou

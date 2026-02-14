@@ -68,12 +68,19 @@ class KanActionData(BaseModel):
     kan_type: KanType = KanType.OPEN
 
 
+class YakuInfo(BaseModel):
+    """Per-yaku breakdown with han value and library yaku ID."""
+
+    yaku_id: int
+    han: int
+
+
 class HandResultInfo(BaseModel):
     """Hand value information for win results."""
 
     han: int
     fu: int
-    yaku: list[str]
+    yaku: list[YakuInfo]
     cost_main: int = 0
     cost_additional: int = 0
 

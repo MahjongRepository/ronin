@@ -27,6 +27,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.types import YakuInfo
 from game.logic.win import can_call_ron
 
 
@@ -134,8 +135,20 @@ class TestApplyDoubleRonWithPao:
         round_state = MahjongRoundState(dealer_seat=0, players=tuple(players_list))
         game_state = MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
-        hand_result_0 = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
+        hand_result_0 = HandResult(
+            han=13,
+            fu=30,
+            cost_main=32000,
+            cost_additional=0,
+            yaku=[YakuInfo(yaku_id=0, han=13)],
+        )
+        hand_result_2 = HandResult(
+            han=2,
+            fu=30,
+            cost_main=2000,
+            cost_additional=0,
+            yaku=[YakuInfo(yaku_id=0, han=1)],
+        )
 
         winners = [(0, hand_result_0), (2, hand_result_2)]
         new_round, _new_game, result = apply_double_ron_score(
@@ -327,4 +340,4 @@ class TestCalculateHandValueErrors:
         # should succeed (valid hand) and riichi yaku included
         assert result.error is None
         assert result.han >= 1
-        assert any("riichi" in y.lower() for y in result.yaku)
+        assert any(y.yaku_id == 1 for y in result.yaku)  # Riichi

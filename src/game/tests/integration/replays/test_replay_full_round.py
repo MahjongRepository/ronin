@@ -82,8 +82,8 @@ async def test_ron_with_melds_full_round():
     assert round_result.hand_result.han == 3
     assert round_result.hand_result.fu == 30
     assert round_result.hand_result.cost_main == 3900
-    assert "Yakuhai (haku)" in round_result.hand_result.yaku
-    assert "Honitsu" in round_result.hand_result.yaku
+    assert any(y.yaku_id == 15 for y in round_result.hand_result.yaku)  # Yakuhai (haku)
+    assert any(y.yaku_id == 36 for y in round_result.hand_result.yaku)  # Honitsu
 
     # Score changes: Ichihime +3900, Ojisan -3900, others unchanged
     assert round_result.score_changes == {0: 0, 1: 0, 2: 3900, 3: -3900}

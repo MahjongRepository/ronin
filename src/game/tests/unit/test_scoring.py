@@ -24,7 +24,13 @@ from game.logic.state import (
 )
 from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
+from game.logic.types import YakuInfo
 from game.tests.conftest import create_game_state, create_player, create_round_state
+
+
+def _yaku(*yaku_ids: int) -> list[YakuInfo]:
+    """Create stub YakuInfo list for scoring tests where yaku content is not asserted."""
+    return [YakuInfo(yaku_id=yid, han=0) for yid in yaku_ids]
 
 
 def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> MahjongGameState:
@@ -103,7 +109,7 @@ class TestCalculateHandValue:
 
         assert result.error is None
         assert result.han >= 2  # riichi + menzen tsumo
-        assert "Riichi" in result.yaku
+        assert any(y.yaku_id == 1 for y in result.yaku)  # Riichi
 
     def test_ippatsu_hand(self):
         # riichi with ippatsu
@@ -120,7 +126,7 @@ class TestCalculateHandValue:
 
         assert result.error is None
         assert result.han >= 3  # riichi + ippatsu + menzen tsumo
-        assert "Ippatsu" in result.yaku
+        assert any(y.yaku_id == 3 for y in result.yaku)  # Ippatsu
 
     def test_ron_hand(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
@@ -134,7 +140,7 @@ class TestCalculateHandValue:
 
         assert result.error is None
         assert result.han >= 1  # riichi
-        assert "Menzen Tsumo" not in result.yaku  # not a tsumo
+        assert not any(y.yaku_id == 0 for y in result.yaku)  # no Menzen Tsumo
 
     def test_haitei_tsumo(self):
         # last tile draw (haitei)
@@ -149,7 +155,7 @@ class TestCalculateHandValue:
         result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
-        assert "Haitei Raoyue" in result.yaku
+        assert any(y.yaku_id == 6 for y in result.yaku)  # Haitei Raoyue
 
     def test_houtei_ron(self):
         # last discard ron (houtei)
@@ -164,7 +170,7 @@ class TestCalculateHandValue:
         result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
 
         assert result.error is None
-        assert "Houtei Raoyui" in result.yaku
+        assert any(y.yaku_id == 7 for y in result.yaku)  # Houtei Raoyui
 
     def test_no_yaku_error(self):
         # open hand with no yaku
@@ -265,7 +271,7 @@ class TestApplyTsumoScore:
     def test_dealer_tsumo_basic(self):
         # dealer wins with 30fu 2han = 2000 all (dealer tsumo)
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -282,7 +288,7 @@ class TestApplyTsumoScore:
         # tsumo with 2 honba sticks = +200 total (100 per loser)
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"honba_sticks": 2})
-        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
+        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_tsumo_score(
             game_state, winner_seat=1, hand_result=hand_result
@@ -300,7 +306,7 @@ class TestApplyTsumoScore:
         # tsumo with 2 riichi sticks on table
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"riichi_sticks": 2})
-        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
+        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
         new_round_state, new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=1, hand_result=hand_result
@@ -315,7 +321,7 @@ class TestApplyTsumoScore:
     def test_tsumo_non_riichi_ura_dora_is_none(self):
         """Non-riichi tsumo winner has ura_dora_indicators=None."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Menzen Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -339,7 +345,7 @@ class TestApplyTsumoScore:
             dora_indicators=dora_indicators,
         )
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -350,7 +356,7 @@ class TestApplyTsumoScore:
     def test_tsumo_result_carries_closed_tiles(self):
         """TsumoResult includes winner's closed tiles."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -363,7 +369,7 @@ class TestApplyTsumoScore:
         players = tuple(create_player(seat=i, score=25000, tiles=[50, 60, 70, 80]) for i in range(4))
         round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -374,7 +380,7 @@ class TestApplyTsumoScore:
     def test_tsumo_result_carries_empty_melds(self):
         """TsumoResult melds is empty when winner has no melds."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -399,7 +405,7 @@ class TestApplyTsumoScore:
         )
         round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Yakuhai"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -426,7 +432,7 @@ class TestApplyRonScore:
         # ron with 3 honba sticks = +900 total
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"honba_sticks": 3})
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -441,7 +447,7 @@ class TestApplyRonScore:
         # ron with 3 riichi sticks
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"riichi_sticks": 3})
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -458,7 +464,7 @@ class TestApplyRonScore:
     def test_ron_non_riichi_ura_dora_is_none(self):
         """Non-riichi ron winner has ura_dora_indicators=None."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -482,7 +488,7 @@ class TestApplyRonScore:
             dora_indicators=dora_indicators,
         )
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -493,7 +499,7 @@ class TestApplyRonScore:
     def test_ron_result_carries_closed_tiles_and_winning_tile(self):
         """RonResult includes winner's closed tiles and the winning tile."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=42
@@ -505,7 +511,7 @@ class TestApplyRonScore:
     def test_ron_result_carries_empty_melds(self):
         """RonResult melds is empty when winner has no melds."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -530,7 +536,7 @@ class TestApplyRonScore:
         )
         round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Yakuhai"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -556,8 +562,8 @@ class TestApplyDoubleRonScore:
     def test_double_ron_basic(self):
         # two winners ron off one discard
         game_state = self._create_game_state()
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=["Riichi", "Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, _new_game_state, result = apply_double_ron_score(
@@ -579,8 +585,8 @@ class TestApplyDoubleRonScore:
         # both winners get honba bonus
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"honba_sticks": 2})
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, _new_game_state, _result = apply_double_ron_score(
@@ -599,8 +605,8 @@ class TestApplyDoubleRonScore:
         # if winners are 0 and 2, seat 2 is checked first
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"riichi_sticks": 2})
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, new_game_state, result = apply_double_ron_score(
@@ -628,8 +634,8 @@ class TestApplyDoubleRonScore:
         # if winners are 0 and 2, seat 0 is checked first
         game_state = self._create_game_state()
         game_state = game_state.model_copy(update={"riichi_sticks": 1})
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, _new_game_state, _result = apply_double_ron_score(
@@ -645,8 +651,8 @@ class TestApplyDoubleRonScore:
     def test_double_ron_non_riichi_ura_dora_is_none(self):
         """Non-riichi double ron winners have ura_dora_indicators=None."""
         game_state = self._create_game_state()
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Pinfu"])
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, _new_game_state, result = apply_double_ron_score(
@@ -673,8 +679,8 @@ class TestApplyDoubleRonScore:
             dora_indicators=dora_indicators,
         )
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, _new_game_state, result = apply_double_ron_score(
@@ -696,8 +702,8 @@ class TestApplyDoubleRonScore:
         )
         round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, _new_game_state, result = apply_double_ron_score(
@@ -727,8 +733,8 @@ class TestApplyDoubleRonScore:
         )
         round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=["Yakuhai"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, _new_game_state, result = apply_double_ron_score(
@@ -845,7 +851,7 @@ class TestPaoTsumoScoring:
         # yakuman tsumo: dealer pays 16000, non-dealer pays 8000 each
         round_state = update_player(game_state.round_state, 1, pao_seat=2)
         game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=1, hand_result=hand_result
@@ -866,7 +872,7 @@ class TestPaoTsumoScoring:
         # dealer yakuman tsumo: each non-dealer pays 16000
         round_state = update_player(game_state.round_state, 0, pao_seat=3)
         game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=0, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -884,7 +890,7 @@ class TestPaoTsumoScoring:
         game_state = self._create_game_state()
         round_state = update_player(game_state.round_state, 1, pao_seat=2)
         game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 2})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=1, hand_result=hand_result
@@ -900,7 +906,7 @@ class TestPaoTsumoScoring:
         game_state = self._create_game_state()
         round_state = update_player(game_state.round_state, 1, pao_seat=2)
         game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_tsumo_score(
             game_state, winner_seat=1, hand_result=hand_result
@@ -914,7 +920,7 @@ class TestPaoTsumoScoring:
     def test_no_pao_tsumo_normal_scoring(self):
         """Without pao, tsumo scoring is normal."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=["Riichi"])
+        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
             game_state, winner_seat=1, hand_result=hand_result
@@ -947,7 +953,7 @@ class TestPaoRonScoring:
         # seat 0 wins by ron off seat 1, pao on seat 2
         round_state = update_player(game_state.round_state, 0, pao_seat=2)
         game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -966,7 +972,7 @@ class TestPaoRonScoring:
         # seat 0 wins by ron off seat 1, pao also on seat 1
         round_state = update_player(game_state.round_state, 0, pao_seat=1)
         game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -984,7 +990,7 @@ class TestPaoRonScoring:
         game_state = self._create_game_state()
         round_state = update_player(game_state.round_state, 0, pao_seat=2)
         game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -1000,7 +1006,7 @@ class TestPaoRonScoring:
         game_state = self._create_game_state()
         round_state = update_player(game_state.round_state, 0, pao_seat=2)
         game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 1})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=["Daisangen"])
+        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -1015,7 +1021,7 @@ class TestPaoRonScoring:
     def test_no_pao_ron_normal_scoring(self):
         """Without pao, ron scoring is normal."""
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Pinfu"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -1044,7 +1050,7 @@ class TestChankanYakuScoring:
         )
 
         assert result.error is None
-        assert "Chankan" in result.yaku
+        assert any(y.yaku_id == 4 for y in result.yaku)  # Chankan
         # riichi + chankan = 2 han
         assert result.han >= 2
 
@@ -1076,7 +1082,7 @@ class TestChankanYakuScoring:
 
         # chankan provides the yaku, hand should succeed
         assert result.error is None
-        assert "Chankan" in result.yaku
+        assert any(y.yaku_id == 4 for y in result.yaku)  # Chankan
         assert result.han >= 1
 
     def test_chankan_only_yaku_for_open_hand_fails_without_flag(self):
@@ -1217,7 +1223,7 @@ class TestScoreApplicationRiichiClearing:
 
     def test_tsumo_clears_riichi_sticks(self):
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi", "Tsumo"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, new_game_state, _result = apply_tsumo_score(
             game_state, winner_seat=0, hand_result=hand_result
@@ -1226,7 +1232,7 @@ class TestScoreApplicationRiichiClearing:
 
     def test_ron_clears_riichi_sticks(self):
         game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, new_game_state, _result = apply_ron_score(
             game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
@@ -1235,8 +1241,8 @@ class TestScoreApplicationRiichiClearing:
 
     def test_double_ron_clears_riichi_sticks(self):
         game_state = self._create_game_state()
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Riichi"])
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=["Tanyao"])
+        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, new_game_state, _result = apply_double_ron_score(
@@ -1412,7 +1418,7 @@ class TestUraDoraScoringIntegration:
         )
 
         assert result.error is None
-        assert "Ura Dora 2" in result.yaku
+        assert any(y.yaku_id == 122 and y.han == 2 for y in result.yaku)  # Ura Dora 2
         # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) + Ura Dora 2 (2) = 7 han
         assert result.han == 7
 
@@ -1441,7 +1447,7 @@ class TestUraDoraScoringIntegration:
         )
 
         assert result.error is None
-        assert not any("Ura Dora" in y for y in result.yaku)
+        assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
         # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) = 5 han
         assert result.han == 5
 
@@ -1470,7 +1476,7 @@ class TestUraDoraScoringIntegration:
         )
 
         assert result.error is None
-        assert not any("Ura Dora" in y for y in result.yaku)
+        assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
 
     def test_riichi_ron_with_matching_ura_dora(self):
         """Riichi ron where ura dora indicator matches tiles in hand adds extra han."""
@@ -1496,7 +1502,7 @@ class TestUraDoraScoringIntegration:
         )
 
         assert result.error is None
-        assert "Ura Dora 2" in result.yaku
+        assert any(y.yaku_id == 122 and y.han == 2 for y in result.yaku)  # Ura Dora 2
         # Riichi (1) + Ittsu (1) + Dora 1 (1) + Ura Dora 2 (2) = 6 han (no menzen tsumo for ron)
         assert result.han == 6
 
@@ -1524,7 +1530,7 @@ class TestUraDoraScoringIntegration:
         )
 
         assert result.error is None
-        assert not any("Ura Dora" in y for y in result.yaku)
+        assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
         # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) = 5 han
         assert result.han == 5
 
@@ -1558,4 +1564,4 @@ class TestUraDoraScoringIntegration:
         result = calculate_hand_value(player, game_state.round_state, win_tile, settings, is_tsumo=True)
 
         assert result.error is None
-        assert "Ura Dora 3" in result.yaku
+        assert any(y.yaku_id == 122 and y.han == 3 for y in result.yaku)  # Ura Dora 3

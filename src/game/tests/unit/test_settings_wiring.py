@@ -39,6 +39,7 @@ from game.logic.types import (
     SeatConfig,
     TenpaiHand,
     TsumoResult,
+    YakuInfo,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
@@ -183,7 +184,7 @@ class TestRenchanOnDealerWin:
     def _tsumo(self, winner_seat: int) -> TsumoResult:
         return TsumoResult(
             winner_seat=winner_seat,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
             closed_tiles=[0, 1, 2, 3],
@@ -196,7 +197,7 @@ class TestRenchanOnDealerWin:
             winner_seat=winner_seat,
             loser_seat=loser_seat,
             winning_tile=0,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=["Riichi"]),
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
             closed_tiles=[0, 1, 2],
