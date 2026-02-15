@@ -28,6 +28,7 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import service_event_payload
+from game.replay.models import REPLAY_VERSION
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
@@ -66,12 +67,14 @@ class ReplayCollector:
     def __init__(self, storage: ReplayStorage) -> None:
         self._storage = storage
         self._buffers: dict[str, list[str]] = {}
-        self._seeds: dict[str, float] = {}
+        self._seeds: dict[str, str] = {}
+        self._rng_versions: dict[str, str] = {}
 
-    def start_game(self, game_id: str, seed: float) -> None:
+    def start_game(self, game_id: str, seed: str, rng_version: str) -> None:
         """Begin collecting events for a game."""
         self._buffers[game_id] = []
         self._seeds[game_id] = seed
+        self._rng_versions[game_id] = rng_version
 
     def collect_events(self, game_id: str, events: list[ServiceEvent]) -> None:
         """Append qualifying events to the game buffer.
@@ -134,6 +137,9 @@ class ReplayCollector:
             seed = self._seeds.get(game_id)
             if seed is not None:
                 payload["seed"] = seed
+            rng_version = self._rng_versions.get(game_id)
+            if rng_version is not None:
+                payload["rng_version"] = rng_version
 
     @staticmethod
     def _merge_round_started_payloads(events: list[ServiceEvent]) -> str:
@@ -169,11 +175,13 @@ class ReplayCollector:
         """
         buffer = self._buffers.pop(game_id, None)
         self._seeds.pop(game_id, None)
+        self._rng_versions.pop(game_id, None)
         if buffer is None:
             return
 
         try:
-            content = "\n".join(buffer)
+            version_tag = json.dumps({"version": REPLAY_VERSION})
+            content = "\n".join([version_tag, *buffer])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
         except OSError, ValueError:
             logger.exception("Failed to save replay for game %s", game_id)
@@ -182,3 +190,4 @@ class ReplayCollector:
         """Discard the event buffer without persisting (abandoned game)."""
         self._buffers.pop(game_id, None)
         self._seeds.pop(game_id, None)
+        self._rng_versions.pop(game_id, None)

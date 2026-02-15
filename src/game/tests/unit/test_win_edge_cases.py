@@ -12,6 +12,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import MahjongPlayer, MahjongRoundState
+from game.logic.wall import Wall
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
     get_waiting_tiles,
@@ -106,7 +107,7 @@ class TestChankanBlockedByRiichiFuriten:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         # Player 2 tries to add kan of 3p (which player 0 is waiting on)
@@ -143,7 +144,7 @@ class TestChankanBlockedByTemporaryFuriten:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         # Player 2 tries to add kan of 3p (which player 1 is waiting on)

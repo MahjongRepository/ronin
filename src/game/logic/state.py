@@ -10,9 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import CallType, GameAction, GamePhase, MeldViewType, RoundPhase, WindName
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.rng import RNG_VERSION
 from game.logic.settings import GameSettings
 from game.logic.tiles import WINDS_34
 from game.logic.types import GameView, MeldCaller, MeldView, PlayerView
+from game.logic.wall import Wall
 
 NUM_WINDS = 4
 
@@ -89,9 +91,7 @@ class MahjongRoundState(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    wall: tuple[int, ...] = ()
-    dead_wall: tuple[int, ...] = ()
-    dora_indicators: tuple[int, ...] = ()
+    wall: Wall = Field(default_factory=Wall)
     players: tuple[MahjongPlayer, ...] = ()
     dealer_seat: int = 0
     current_player_seat: int = 0
@@ -99,7 +99,6 @@ class MahjongRoundState(BaseModel):
     turn_count: int = 0
     all_discards: tuple[int, ...] = ()
     players_with_open_hands: tuple[int, ...] = ()
-    pending_dora_count: int = 0
     phase: RoundPhase = RoundPhase.WAITING
     pending_call_prompt: PendingCallPrompt | None = None
 
@@ -120,8 +119,10 @@ class MahjongGameState(BaseModel):
     honba_sticks: int = 0
     riichi_sticks: int = 0
     game_phase: GamePhase = GamePhase.IN_PROGRESS
-    seed: float = 0.0
+    seed: str = ""
+    rng_version: str = RNG_VERSION
     settings: GameSettings = Field(default_factory=GameSettings)
+    dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
 
 
 def get_player_view(
@@ -153,11 +154,12 @@ def get_player_view(
         round_number=game_state.round_number,
         dealer_seat=round_state.dealer_seat,
         current_player_seat=round_state.current_player_seat,
-        dora_indicators=list(round_state.dora_indicators),
+        dora_indicators=list(round_state.wall.dora_indicators),
         honba_sticks=game_state.honba_sticks,
         riichi_sticks=game_state.riichi_sticks,
         my_tiles=my_tiles,
         players=players_view,
+        dice=round_state.wall.dice,
     )
 
 

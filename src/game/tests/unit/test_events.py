@@ -223,6 +223,7 @@ class TestExtractRoundResult:
         tsumo_result = TsumoResult(
             winner_seat=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 1000},
             riichi_sticks_collected=0,
             closed_tiles=[0, 1, 2, 3],

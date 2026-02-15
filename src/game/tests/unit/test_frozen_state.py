@@ -25,19 +25,20 @@ from game.logic.state import (
 )
 from game.logic.state_utils import (
     add_discard_to_player,
-    add_dora_indicator,
     add_prompt_response,
     add_tile_to_player,
     advance_turn,
     clear_all_players_ippatsu,
     clear_pending_prompt,
-    pop_from_wall,
     remove_tile_from_player,
     update_all_discards,
     update_game_with_round,
     update_player,
 )
 from game.logic.types import MeldCaller
+from game.logic.wall import Wall
+from game.logic.wall import add_dora_indicator as wall_add_dora
+from game.logic.wall import draw_tile as wall_draw_tile
 from game.logic.win import can_declare_tsumo
 
 
@@ -207,29 +208,18 @@ class TestStateUtilsTileOperations:
 
 
 class TestStateUtilsWallOperations:
-    def test_pop_from_wall_front(self):
-        wall = tuple(range(10))
-        state = MahjongRoundState(wall=wall)
-        new_state, tile = pop_from_wall(state, from_front=True)
-
+    def test_wall_draw_from_front(self):
+        wall = Wall(live_tiles=tuple(range(10)))
+        new_wall, tile = wall_draw_tile(wall)
         assert tile == 0
-        assert len(state.wall) == 10
-        assert len(new_state.wall) == 9
-        assert new_state.wall == tuple(range(1, 10))
+        assert len(wall.live_tiles) == 10
+        assert len(new_wall.live_tiles) == 9
+        assert new_wall.live_tiles == tuple(range(1, 10))
 
-    def test_pop_from_wall_back(self):
-        wall = tuple(range(10))
-        state = MahjongRoundState(wall=wall)
-        new_state, tile = pop_from_wall(state, from_front=False)
-
-        assert tile == 9
-        assert len(new_state.wall) == 9
-        assert new_state.wall == tuple(range(9))
-
-    def test_pop_from_empty_wall_raises(self):
-        state = MahjongRoundState(wall=())
-        with pytest.raises(IndexError):
-            pop_from_wall(state, from_front=True)
+    def test_wall_draw_from_empty(self):
+        wall = Wall(live_tiles=())
+        _new_wall, tile = wall_draw_tile(wall)
+        assert tile is None
 
 
 class TestStateUtilsDiscardOperations:
@@ -314,11 +304,10 @@ class TestStateUtilsGameStateUpdates:
 
 class TestStateUtilsDoraIndicators:
     def test_add_dora_indicator(self):
-        state = MahjongRoundState(dora_indicators=(0,))
-        new_state = add_dora_indicator(state, 4)
-
-        assert state.dora_indicators == (0,)
-        assert new_state.dora_indicators == (0, 4)
+        wall = Wall(dora_indicators=(0,), dead_wall_tiles=tuple(range(14)))
+        new_wall, _indicator = wall_add_dora(wall)
+        assert wall.dora_indicators == (0,)
+        assert new_wall.dora_indicators == (0, 3)
 
 
 class TestStateUtilsPlayerFlags:
@@ -372,8 +361,7 @@ class TestFrozenMeldScoringIntegration:
             players=players,
             dealer_seat=0,
             current_player_seat=0,
-            wall=tuple(range(50)),
-            dora_indicators=(0,),
+            wall=Wall(live_tiles=tuple(range(50)), dora_indicators=(0,)),
             all_discards=(0, 1, 2, 3),
         )
 
@@ -414,8 +402,7 @@ class TestFrozenMeldScoringIntegration:
             players=players,
             dealer_seat=0,
             current_player_seat=0,
-            wall=tuple(range(50)),
-            dora_indicators=(0,),
+            wall=Wall(live_tiles=tuple(range(50)), dora_indicators=(0,)),
             all_discards=(0, 1, 2, 3),
         )
 

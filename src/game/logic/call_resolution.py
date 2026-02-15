@@ -225,7 +225,7 @@ def complete_added_kan_after_chankan_decline(
     Returns (new_round_state, new_game_state, events).
     """
     settings = game_state.settings
-    old_dora_count = len(round_state.dora_indicators)
+    old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, settings)
     new_game_state = update_game_with_round(game_state, new_round_state)
     tile_ids = list(meld.tiles) if meld.tiles else []

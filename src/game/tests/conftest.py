@@ -11,6 +11,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.wall import Wall
 from game.messaging.router import MessageRouter
 from game.server.app import create_app
 from game.session.manager import SessionManager
@@ -76,15 +77,28 @@ def create_round_state(  # noqa: PLR0913
     pending_dora_count: int = 0,
     phase: RoundPhase = RoundPhase.WAITING,
     pending_call_prompt: Any = None,  # noqa: ANN401
+    wall_obj: Wall | None = None,
 ) -> MahjongRoundState:
-    """Create a MahjongRoundState with sensible defaults for testing."""
+    """Create a MahjongRoundState with sensible defaults for testing.
+
+    Accepts legacy wall/dead_wall/dora_indicators/pending_dora_count kwargs
+    and builds a Wall object from them. If wall_obj is provided, it takes
+    precedence over the individual fields.
+    """
     if players is None:
         players = tuple(create_player(seat=i) for i in range(4))
+    if wall_obj is not None:
+        game_wall = wall_obj
+    else:
+        game_wall = Wall(
+            live_tiles=tuple(wall) if wall is not None else (),
+            dead_wall_tiles=tuple(dead_wall) if dead_wall is not None else (),
+            dora_indicators=tuple(dora_indicators) if dora_indicators is not None else (),
+            pending_dora_count=pending_dora_count,
+        )
     return MahjongRoundState(
         players=tuple(players),
-        wall=tuple(wall) if wall is not None else (),
-        dead_wall=tuple(dead_wall) if dead_wall is not None else (),
-        dora_indicators=tuple(dora_indicators) if dora_indicators is not None else (),
+        wall=game_wall,
         dealer_seat=dealer_seat,
         current_player_seat=current_player_seat,
         round_wind=round_wind,
@@ -93,7 +107,6 @@ def create_round_state(  # noqa: PLR0913
         players_with_open_hands=(
             tuple(players_with_open_hands) if players_with_open_hands is not None else ()
         ),
-        pending_dora_count=pending_dora_count,
         phase=phase,
         pending_call_prompt=pending_call_prompt,
     )
@@ -106,7 +119,7 @@ def create_game_state(  # noqa: PLR0913
     unique_dealers: int = 1,
     honba_sticks: int = 0,
     riichi_sticks: int = 0,
-    seed: float = 0.0,
+    seed: str = "",
     settings: GameSettings | None = None,
 ) -> MahjongGameState:
     """Create a MahjongGameState with sensible defaults for testing."""

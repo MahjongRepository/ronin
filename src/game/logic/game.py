@@ -3,7 +3,7 @@ Game initialization and progression for Mahjong.
 """
 
 from game.logic.enums import GamePhase, RoundPhase, RoundResultType
-from game.logic.round import DEAD_WALL_SIZE, FIRST_DORA_INDEX
+from game.logic.rng import RNG_VERSION, determine_first_dealer
 from game.logic.settings import (
     EnchousenType,
     GameSettings,
@@ -18,7 +18,6 @@ from game.logic.state import (
     MahjongRoundState,
 )
 from game.logic.state_utils import update_player
-from game.logic.tiles import generate_wall, sort_tiles
 from game.logic.types import (
     DoubleRonResult,
     ExhaustiveDrawResult,
@@ -30,6 +29,7 @@ from game.logic.types import (
     SeatConfig,
     TsumoResult,
 )
+from game.logic.wall import create_wall, create_wall_from_tiles, deal_initial_hands
 
 
 def _goshashonyu_round(score: int, threshold: int) -> int:
@@ -101,7 +101,7 @@ def calculate_final_scores(
 
 def init_game(
     seat_configs: list[SeatConfig],
-    seed: float = 0.0,
+    seed: str = "",
     settings: GameSettings | None = None,
     wall: list[int] | None = None,
 ) -> MahjongGameState:
@@ -109,13 +109,22 @@ def init_game(
     Initialize a new mahjong game with seat configurations.
 
     All players start with starting_score points (from settings).
-    Dealer starts at seat 0, round wind starts at East.
-    When wall is provided, use it instead of generating from seed.
+    First dealer is determined by two-dice-roll method (二度振り) when using
+    seed-based RNG. When wall is provided (test mode), dealer defaults to seat 0.
     Returns a frozen MahjongGameState.
     """
     game_settings = settings or GameSettings()
 
     validate_settings(game_settings)
+
+    # Determine first dealer using two-dice-roll method (二度振り)
+    # When wall is provided (test mode), skip RNG-based dealer selection
+    if wall is not None or not seed:
+        dealer_seat = 0
+        dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
+    else:
+        dealer_seat, first_dice, second_dice = determine_first_dealer(seed)
+        dealer_dice = (first_dice, second_dice)
 
     # Create players
     players = tuple(
@@ -123,53 +132,23 @@ def init_game(
         for i, config in enumerate(seat_configs)
     )
 
-    # Generate wall using seed, or use provided wall
-    full_wall = wall if wall is not None else generate_wall(seed, 0)
+    # Create wall using Wall module
+    game_wall = create_wall_from_tiles(wall) if wall is not None else create_wall(seed, 0, dealer_seat)
 
-    # Cut dead wall (14 tiles from end)
-    dead_wall = tuple(full_wall[-DEAD_WALL_SIZE:])
-    live_wall = tuple(full_wall[:-DEAD_WALL_SIZE])
+    # Deal initial hands
+    game_wall, hands = deal_initial_hands(game_wall, dealer_seat)
 
-    # Set first dora indicator (dead_wall[2])
-    dora_indicators = (dead_wall[FIRST_DORA_INDEX],)
-
-    # Deal tiles: each player draws 4 tiles x 3, then 1 more (total 13 each)
-    wall_list = list(live_wall)
-    dealer_seat = 0
-    player_tiles: list[list[int]] = [[], [], [], []]
-
-    # deal 4 tiles x 3 rounds
-    for _ in range(3):
-        for i in range(4):
-            seat = (dealer_seat + i) % 4
-            for _ in range(4):
-                tile = wall_list.pop(0)
-                player_tiles[seat].append(tile)
-
-    # deal 1 more tile to each player
-    for i in range(4):
-        seat = (dealer_seat + i) % 4
-        tile = wall_list.pop(0)
-        player_tiles[seat].append(tile)
-
-    # Sort each player's tiles and create updated players
-    players = tuple(p.model_copy(update={"tiles": tuple(sort_tiles(player_tiles[p.seat]))}) for p in players)
+    # Update players with dealt tiles
+    players = tuple(p.model_copy(update={"tiles": tuple(hands[p.seat])}) for p in players)
 
     # Create round state
     round_state = MahjongRoundState(
-        wall=tuple(wall_list),
-        dead_wall=dead_wall,
-        dora_indicators=dora_indicators,
+        wall=game_wall,
         players=players,
         dealer_seat=dealer_seat,
         current_player_seat=dealer_seat,
         round_wind=0,  # East
-        turn_count=0,
-        all_discards=(),
-        players_with_open_hands=(),
-        pending_dora_count=0,
         phase=RoundPhase.PLAYING,
-        pending_call_prompt=None,
     )
 
     # Create game state
@@ -181,7 +160,9 @@ def init_game(
         riichi_sticks=0,
         game_phase=GamePhase.IN_PROGRESS,
         seed=seed,
+        rng_version=RNG_VERSION,
         settings=game_settings,
+        dealer_dice=dealer_dice,
     )
 
 
@@ -194,51 +175,20 @@ def init_round(
     Returns new game state with the round initialized.
     """
     round_state = game_state.round_state
-
-    # generate wall using seed + round_number
-    wall = generate_wall(game_state.seed, game_state.round_number)
-
-    # cut dead wall (14 tiles from end)
-    dead_wall = tuple(wall[-DEAD_WALL_SIZE:])
-    wall_list = list(wall[:-DEAD_WALL_SIZE])
-
-    # Set first dora indicator (dead_wall[2])
-    dora_indicators = (dead_wall[FIRST_DORA_INDEX],)
-
-    # Reset player states and deal tiles
     dealer_seat = round_state.dealer_seat
-    player_tiles: list[list[int]] = [[], [], [], []]
 
-    # deal 4 tiles x 3 rounds
-    for _ in range(3):
-        for i in range(4):
-            seat = (dealer_seat + i) % 4
-            for _ in range(4):
-                tile = wall_list.pop(0)
-                player_tiles[seat].append(tile)
+    # Create wall using Wall module
+    game_wall = create_wall(game_state.seed, game_state.round_number, dealer_seat)
 
-    # deal 1 more tile to each player
-    for i in range(4):
-        seat = (dealer_seat + i) % 4
-        tile = wall_list.pop(0)
-        player_tiles[seat].append(tile)
+    # Deal initial hands
+    game_wall, hands = deal_initial_hands(game_wall, dealer_seat)
 
     # Create fresh player states with dealt tiles
     players = tuple(
         MahjongPlayer(
             seat=p.seat,
             name=p.name,
-            tiles=tuple(sort_tiles(player_tiles[p.seat])),
-            discards=(),
-            melds=(),
-            is_riichi=False,
-            is_ippatsu=False,
-            is_daburi=False,
-            is_rinshan=False,
-            kuikae_tiles=(),
-            pao_seat=None,
-            is_temporary_furiten=False,
-            is_riichi_furiten=False,
+            tiles=tuple(hands[p.seat]),
             score=p.score,  # preserve score from previous round
         )
         for p in round_state.players
@@ -246,19 +196,12 @@ def init_round(
 
     # Create new round state
     new_round_state = MahjongRoundState(
-        wall=tuple(wall_list),
-        dead_wall=dead_wall,
-        dora_indicators=dora_indicators,
+        wall=game_wall,
         players=players,
-        dealer_seat=round_state.dealer_seat,
-        current_player_seat=round_state.dealer_seat,
+        dealer_seat=dealer_seat,
+        current_player_seat=dealer_seat,
         round_wind=round_state.round_wind,
-        turn_count=0,
-        all_discards=(),
-        players_with_open_hands=(),
-        pending_dora_count=0,
         phase=RoundPhase.PLAYING,
-        pending_call_prompt=None,
     )
 
     return game_state.model_copy(update={"round_state": new_round_state})

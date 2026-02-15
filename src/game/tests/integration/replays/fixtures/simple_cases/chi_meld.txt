@@ -1,22 +1,6 @@
-{"type": "game_started", "game_id": "d86c92b9-fc9f-4f49-a6bc-421934ca199a", "players": [{"seat": 0, "name": "Ojisan", "is_ai_player": false}, {"seat": 1, "name": "Ichihime", "is_ai_player": false}, {"seat": 2, "name": "Akagi", "is_ai_player": false}, {"seat": 3, "name": "Wanjirou", "is_ai_player": false}], "seed": 0.7466046300533131}
-{"type":"round_started","view":{"seat":0,"round_wind":"East","round_number":0,"dealer_seat":0,"current_player_seat":0,"dora_indicators":[54],"honba_sticks":0,"riichi_sticks":0,"players":[{"seat":0,"name":"Ojisan","is_ai_player":false,"score":25000,"tiles":[3,29,40,46,47,53,66,71,81,94,103,118,126]},{"seat":1,"name":"Ichihime","is_ai_player":false,"score":25000,"tiles":[5,25,27,44,48,56,61,70,74,75,77,96,114]},{"seat":2,"name":"Akagi","is_ai_player":false,"score":25000,"tiles":[14,33,41,82,84,86,89,97,110,116,122,124,127]},{"seat":3,"name":"Wanjirou","is_ai_player":false,"score":25000,"tiles":[6,13,24,43,45,51,59,60,64,112,130,131,135]}]}}
-{"type": "draw", "seat": 0, "tile_id": 108}
-{"type": "discard", "seat": 0, "tile_id": 118, "is_tsumogiri": false}
-{"type": "draw", "seat": 1, "tile_id": 129}
-{"type": "discard", "seat": 1, "tile_id": 129, "is_tsumogiri": true}
-{"type": "meld", "meld_type": "pon", "caller_seat": 3, "from_seat": 1, "tile_ids": [129, 130, 131], "called_tile_id": 129}
-{"type": "discard", "seat": 3, "tile_id": 24, "is_tsumogiri": false}
-{"type": "draw", "seat": 0, "tile_id": 7}
-{"type": "discard", "seat": 0, "tile_id": 126, "is_tsumogiri": false}
-{"type": "meld", "meld_type": "pon", "caller_seat": 2, "from_seat": 0, "tile_ids": [124, 126, 127], "called_tile_id": 126}
-{"type": "discard", "seat": 2, "tile_id": 33, "is_tsumogiri": false}
-{"type": "draw", "seat": 3, "tile_id": 4}
-{"type": "discard", "seat": 3, "tile_id": 6, "is_tsumogiri": false}
-{"type": "draw", "seat": 0, "tile_id": 76}
-{"type": "discard", "seat": 0, "tile_id": 29, "is_tsumogiri": false}
-{"type": "draw", "seat": 1, "tile_id": 120}
-{"type": "discard", "seat": 1, "tile_id": 120, "is_tsumogiri": true}
-{"type": "draw", "seat": 2, "tile_id": 134}
-{"type": "discard", "seat": 2, "tile_id": 41, "is_tsumogiri": false}
-{"type": "meld", "meld_type": "chi", "caller_seat": 3, "from_seat": 2, "tile_ids": [41, 45, 51], "called_tile_id": 41}
-{"type": "discard", "seat": 3, "tile_id": 4, "is_tsumogiri": true}
+{"version": "0.1-dev"}
+{"type": "game_started", "game_id": "fixture-sd", "players": [{"seat": 0, "name": "Wanjirou", "is_ai_player": false}, {"seat": 1, "name": "Ojisan", "is_ai_player": false}, {"seat": 2, "name": "Ichihime", "is_ai_player": false}, {"seat": 3, "name": "Akagi", "is_ai_player": false}], "dealer_seat": 3, "dealer_dice": [[5, 1], [3, 4]], "seed": "35483c1997018fa1ab09e1ef3a58fe95e1b8bfdc916c38e5e0df9ff01127b2e5e87e0aa50f56693017858658c97fb818ba567e15530e2a8139a622e40f2f894a5edc642e3c443f74c9f90c08b285c8b6154f45d2fb7605cf46d768a1d9663e94", "rng_version": "pcg64dxsm-v1"}
+{"type": "round_started", "view": {"seat": 0, "round_wind": "East", "round_number": 0, "dealer_seat": 3, "current_player_seat": 3, "dora_indicators": [75], "honba_sticks": 0, "riichi_sticks": 0, "players": [{"seat": 0, "name": "Wanjirou", "is_ai_player": false, "score": 25000, "tiles": [48, 52, 58, 65, 83, 97, 99, 104, 107, 114, 116, 117, 133]}, {"seat": 1, "name": "Ojisan", "is_ai_player": false, "score": 25000, "tiles": [1, 15, 33, 36, 38, 49, 51, 54, 86, 88, 91, 121, 124]}, {"seat": 2, "name": "Ichihime", "is_ai_player": false, "score": 25000, "tiles": [14, 20, 21, 35, 37, 56, 68, 72, 87, 113, 120, 126, 130]}, {"seat": 3, "name": "Akagi", "is_ai_player": false, "score": 25000, "tiles": [22, 61, 64, 70, 74, 78, 79, 95, 98, 102, 109, 123, 131]}], "dice": [6, 5]}}
+{"type": "draw", "seat": 3, "tile_id": 27}
+{"type": "discard", "seat": 3, "tile_id": 27, "is_tsumogiri": true, "is_riichi": false}
+{"type": "draw", "seat": 0, "tile_id": 30}

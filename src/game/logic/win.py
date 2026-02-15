@@ -19,6 +19,7 @@ from game.logic.shanten import calculate_shanten
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array, tile_to_34
+from game.logic.wall import is_wall_exhausted
 
 if TYPE_CHECKING:
     from game.logic.state import (
@@ -216,7 +217,7 @@ def _has_yaku_for_open_hand(
         tiles=all_player_tiles(player),
         win_tile=win_tile,
         melds=frozen_melds_to_melds(player.melds),
-        dora_indicators=round_state.dora_indicators or None,
+        dora_indicators=round_state.wall.dora_indicators or None,
         config=config,
     )
 
@@ -248,7 +249,7 @@ def is_haitei(round_state: MahjongRoundState) -> bool:
 
     Haitei raoyue is a yaku for winning by tsumo on the last tile of the wall.
     """
-    return len(round_state.wall) == 0
+    return is_wall_exhausted(round_state.wall)
 
 
 def is_houtei(round_state: MahjongRoundState) -> bool:
@@ -257,7 +258,7 @@ def is_houtei(round_state: MahjongRoundState) -> bool:
 
     Houtei raoyui is a yaku for winning by ron on the last discard of the game.
     """
-    return len(round_state.wall) == 0
+    return is_wall_exhausted(round_state.wall)
 
 
 def is_tenhou(
@@ -471,7 +472,7 @@ def _has_yaku_for_ron_with_tiles(  # noqa: PLR0913
         tiles=all_tiles,
         win_tile=win_tile,
         melds=frozen_melds_to_melds(player.melds),
-        dora_indicators=round_state.dora_indicators or None,
+        dora_indicators=round_state.wall.dora_indicators or None,
         config=config,
     )
 

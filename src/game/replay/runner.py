@@ -13,8 +13,9 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
-from game.logic.enums import GameAction, GamePhase
-from game.logic.events import ErrorEvent, EventType, ServiceEvent
+from game.logic.enums import GameAction, GameErrorCode, GamePhase
+from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState
@@ -43,7 +44,7 @@ class ReplayServiceProtocol(Protocol):
         game_id: str,
         player_names: list[str],
         *,
-        seed: float | None = None,
+        seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
     ) -> list[ServiceEvent]: ...
@@ -230,6 +231,7 @@ async def _execute_replay(
     final_state = _require_state(service, opts.game_id, "replay finished but final state is missing")
     return ReplayTrace(
         seed=replay.seed,
+        rng_version=replay.rng_version,
         seat_by_player=seat_by_player,
         startup_events=tuple(startup_events),
         initial_state=initial_state,
@@ -309,12 +311,22 @@ async def _process_input_event(
         "game state disappeared before replay action",
     )
 
-    events = await service.handle_action(
-        opts.game_id,
-        input_event.player_name,
-        input_event.action,
-        dict(input_event.data),
-    )
+    try:
+        events = await service.handle_action(
+            opts.game_id,
+            input_event.player_name,
+            input_event.action,
+            dict(input_event.data),
+        )
+    except InvalidGameActionError as exc:
+        error_event = ServiceEvent(
+            event=EventType.ERROR,
+            data=ErrorEvent(target="all", code=GameErrorCode.INVALID_ACTION, message=str(exc)),
+            target=BroadcastTarget(),
+        )
+        if opts.strict:
+            raise ReplayError(step_count, input_event, [error_event]) from exc
+        events = [error_event]
 
     if opts.strict:
         errors = [e for e in events if e.event == EventType.ERROR]

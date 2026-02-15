@@ -11,7 +11,9 @@ from game.logic.events import (
     EventType,
     ServiceEvent,
 )
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.rng import RNG_VERSION
 from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
@@ -31,11 +33,11 @@ from game.replay.runner import (
 )
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
-SEED = 42.0
+SEED = "a" * 192
 
 
 def _build_replay(
-    seed: float = SEED,
+    seed: str = SEED,
     player_names: tuple[str, str, str, str] = PLAYER_NAMES,
     actions: tuple[tuple[str, GameAction, dict[str, Any]], ...] = (),
 ) -> ReplayInput:
@@ -60,7 +62,7 @@ class _StubService:
         game_id: str,
         player_names: list[str],
         *,
-        seed: float | None = None,
+        seed: str | None = None,
         settings: GameSettings | None = None,  # noqa: ARG002
         wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
@@ -134,6 +136,56 @@ async def test_run_replay_async_strict_mode_error_detection():
     assert exc_info.value.event.player_name == "Bob"
 
 
+async def test_run_replay_async_nonstrict_invalid_action_continues():
+    """Non-strict mode converts InvalidGameActionError to error event step."""
+    replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
+
+    trace = await run_replay_async(replay, strict=False)
+    assert len(trace.steps) == 1
+    error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
+    assert len(error_events) == 1
+
+
+async def test_run_replay_async_invalid_game_action_error_strict():
+    """Strict mode raises ReplayError when handle_action raises InvalidGameActionError."""
+
+    class RaisingService(_StubService):
+        async def handle_action(
+            self,
+            game_id: str,  # noqa: ARG002
+            player_name: str,  # noqa: ARG002
+            action: GameAction,  # noqa: ARG002
+            data: dict[str, Any],  # noqa: ARG002
+        ) -> list[ServiceEvent]:
+            raise InvalidGameActionError(action="discard", seat=0, reason="test error")
+
+    replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
+    with pytest.raises(ReplayError) as exc_info:
+        await run_replay_async(replay, strict=True, service_factory=RaisingService)
+    assert exc_info.value.step_index == 0
+
+
+async def test_run_replay_async_invalid_game_action_error_nonstrict():
+    """Non-strict mode converts raised InvalidGameActionError to error event step."""
+
+    class RaisingService(_StubService):
+        async def handle_action(
+            self,
+            game_id: str,  # noqa: ARG002
+            player_name: str,  # noqa: ARG002
+            action: GameAction,  # noqa: ARG002
+            data: dict[str, Any],  # noqa: ARG002
+        ) -> list[ServiceEvent]:
+            raise InvalidGameActionError(action="discard", seat=0, reason="test error")
+
+    replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
+    trace = await run_replay_async(replay, strict=False, service_factory=RaisingService)
+    assert len(trace.steps) == 1
+    error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
+    assert len(error_events) == 1
+    assert error_events[0].data.code == GameErrorCode.INVALID_ACTION
+
+
 async def test_run_replay_async_service_factory():
     """Runner works with a custom protocol-compatible factory."""
     factory_called = False
@@ -167,7 +219,7 @@ async def test_run_replay_async_unique_game_ids():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -263,7 +315,7 @@ async def test_run_replay_async_input_after_game_end_strict():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -289,7 +341,7 @@ async def test_run_replay_async_input_after_game_end_non_strict():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -316,7 +368,7 @@ async def test_run_replay_async_startup_error_strict():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -346,7 +398,7 @@ async def test_run_replay_async_startup_error_non_strict():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -400,7 +452,7 @@ async def test_run_replay_async_round_advance_injection():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -439,10 +491,10 @@ async def test_run_replay_async_round_advance_injection():
 
     trace = await run_replay_async(replay, strict=False, service_factory=RoundAdvanceService)
 
-    synthetic_steps = [s for s in trace.steps if s.synthetic]
-    assert len(synthetic_steps) > 0
-    for step in synthetic_steps:
-        assert step.input_event.action == GameAction.CONFIRM_ROUND
+    synthetic_confirm_steps = [
+        s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND
+    ]
+    assert len(synthetic_confirm_steps) > 0
 
 
 async def test_run_replay_async_round_confirm_error_in_strict_mode():
@@ -680,7 +732,7 @@ async def test_auto_pass_excludes_call_response_seat():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -767,7 +819,7 @@ async def test_auto_pass_strict_mode_error():
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,  # noqa: ARG002
             wall: list[int] | None = None,  # noqa: ARG002
         ) -> list[ServiceEvent]:
@@ -897,3 +949,13 @@ async def test_trailing_auto_pass_after_all_input_events():
     for step in synthetic_steps:
         assert step.input_event.action == GameAction.PASS
     assert len(svc_instance._pass_calls) == 3
+
+
+async def test_run_replay_async_rng_version_passthrough():
+    """ReplayTrace.rng_version is set from ReplayInput.rng_version, not the default."""
+    custom_version = "test-rng-v99"
+    replay = _build_replay()
+    replay = replay.model_copy(update={"rng_version": custom_version})
+    trace = await run_replay_async(replay)
+    assert trace.rng_version == custom_version
+    assert trace.rng_version != RNG_VERSION

@@ -10,6 +10,7 @@ from game.logic.round import is_tempai
 from game.logic.settings import GameSettings
 from game.logic.state import MahjongPlayer
 from game.logic.state_utils import update_player
+from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
     from game.logic.state import (
@@ -46,7 +47,7 @@ def can_declare_riichi(
         return False
 
     # must have enough tiles remaining in wall
-    if len(round_state.wall) < settings.min_wall_for_riichi:
+    if tiles_remaining(round_state.wall) < settings.min_wall_for_riichi:
         return False
 
     # must be in tempai

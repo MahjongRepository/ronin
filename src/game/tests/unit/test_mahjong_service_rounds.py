@@ -35,6 +35,7 @@ from game.logic.types import (
     MeldCaller,
     TenpaiHand,
 )
+from game.logic.wall import Wall
 from game.tests.unit.helpers import (
     _find_player,
     _update_player,
@@ -50,14 +51,14 @@ class TestMahjongGameServiceHandleTimeout:
         return MahjongGameService()
 
     async def test_meld_timeout_no_pending_prompt_returns_empty(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_timeout("game1", "Player", TimeoutType.MELD)
 
         assert events == []
 
     async def test_meld_timeout_with_pending_prompt_sends_pass(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
         player = _find_player(round_state, "Player")
@@ -90,21 +91,21 @@ class TestMahjongGameServiceHandleTimeout:
         assert events == []
 
     async def test_timeout_unknown_player_returns_empty(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_timeout("game1", "Unknown", TimeoutType.TURN)
 
         assert events == []
 
     async def test_timeout_unknown_type_raises(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         with pytest.raises(InvalidActionError, match="Unknown timeout type"):
             await service.handle_timeout("game1", "Player", "invalid")
 
     async def test_turn_timeout_skips_when_pending_prompt(self, service):
         """Turn timeout returns empty when a call prompt is pending (race condition)."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
         player = _find_player(round_state, "Player")
@@ -123,7 +124,7 @@ class TestMahjongGameServiceHandleTimeout:
 
     async def test_turn_timeout_catches_invalid_game_action_error(self, service):
         """Turn timeout catches InvalidGameActionError when it blames the timed-out player's seat."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Player")
 
         with patch.object(
@@ -137,7 +138,7 @@ class TestMahjongGameServiceHandleTimeout:
 
     async def test_turn_timeout_reraises_when_error_blames_different_seat(self, service):
         """Turn timeout re-raises InvalidGameActionError when it blames a different seat."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Player")
         other_seat = (player.seat + 1) % 4
 
@@ -153,7 +154,7 @@ class TestMahjongGameServiceHandleTimeout:
 
     async def test_meld_timeout_catches_invalid_game_action_error(self, service):
         """Meld timeout catches InvalidGameActionError and returns empty (race condition)."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
         player = _find_player(round_state, "Player")
@@ -191,7 +192,7 @@ class TestMahjongGameServiceProcessAIPlayerFollowup:
         assert result == []
 
     async def test_process_ai_player_followup_no_ai_player_controller(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         del service._ai_player_controllers["game1"]
 
         result = await service._process_ai_player_followup("game1")
@@ -207,20 +208,21 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         return MahjongGameService()
 
     async def test_check_round_end_returns_none_when_not_finished(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = await service._check_and_handle_round_end("game1", [])
 
         assert result is None
 
     async def test_check_round_end_handles_finished_round(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
         round_result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
             tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         events = [
@@ -238,7 +240,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         assert any(e.event == EventType.ROUND_END for e in result)
 
     async def test_check_round_end_handles_no_result_in_events(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
@@ -257,13 +259,14 @@ class TestMahjongGameServiceProcessPostDiscard:
         return MahjongGameService()
 
     async def test_post_discard_returns_events_when_round_ends_immediately(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
         round_result = ExhaustiveDrawResult(
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = [
@@ -279,7 +282,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         assert len(result) >= 1
 
     async def test_post_discard_with_pending_prompt_player_caller(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -316,7 +319,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         assert len(result) >= 1
 
     async def test_post_discard_with_pending_prompt_ai_player_only(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
@@ -371,7 +374,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         assert len(result) >= 1
 
     async def test_post_discard_draws_for_next_player(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
@@ -395,17 +398,18 @@ class TestMahjongGameServiceTimeoutIntegration:
         return MahjongGameService()
 
     async def test_timeout_turn_when_its_players_turn(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
         player_tiles = list(player.tiles)
-        wall = list(game_state.round_state.wall)
-        if len(player_tiles) == 13 and wall:
-            player_tiles.append(wall.pop(0))
+        live_tiles = list(game_state.round_state.wall.live_tiles)
+        if len(player_tiles) == 13 and live_tiles:
+            player_tiles.append(live_tiles.pop(0))
 
         _update_player(service, "game1", player.seat, tiles=tuple(player_tiles))
-        _update_round_state(service, "game1", current_player_seat=player.seat, wall=tuple(wall))
+        new_wall = game_state.round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)})
+        _update_round_state(service, "game1", current_player_seat=player.seat, wall=new_wall)
 
         events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
 
@@ -413,7 +417,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         assert any(e.event == EventType.DISCARD for e in events)
 
     async def test_timeout_turn_not_players_turn_returns_empty(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -425,7 +429,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         assert events == []
 
     async def test_timeout_turn_empty_tiles_returns_empty(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -445,9 +449,9 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         return MahjongGameService()
 
     async def test_post_discard_post_draw_round_end(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        _update_round_state(service, "game1", wall=())
+        _update_round_state(service, "game1", wall=Wall())
 
         events: list[ServiceEvent] = []
 
@@ -457,7 +461,7 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         assert len(round_end) >= 1
 
     async def test_post_discard_round_end_after_ai_player_call_resolution(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
@@ -475,7 +479,7 @@ class TestMahjongGameServicePostDiscardRoundEnd:
                 ),
             ),
         )
-        _update_round_state(service, "game1", pending_call_prompt=prompt, wall=())
+        _update_round_state(service, "game1", pending_call_prompt=prompt, wall=Wall())
 
         events: list[ServiceEvent] = []
 
@@ -492,7 +496,7 @@ class TestMahjongGameServiceDispatchAIPlayerCallResponses:
         return MahjongGameService()
 
     async def test_dispatch_ai_player_call_responses_no_pending_prompt(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events: list[ServiceEvent] = []
         service._dispatch_ai_player_call_responses("game1", events)
@@ -508,7 +512,7 @@ class TestMahjongGameServiceFindCallerInfo:
         return MahjongGameService()
 
     async def test_find_caller_info_raises_for_missing_seat(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
@@ -535,7 +539,7 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         return MahjongGameService()
 
     async def test_process_ai_player_followup_stops_on_finished_phase(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
@@ -544,7 +548,7 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         assert result == []
 
     async def test_process_ai_player_followup_stops_on_pending_prompt(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
@@ -568,7 +572,7 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         assert result == []
 
     async def test_process_ai_player_followup_stops_when_get_turn_action_returns_none(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
@@ -588,7 +592,7 @@ class TestMahjongGameServiceDispatchAIPlayerCallResponsesBranches:
         return MahjongGameService()
 
     async def test_dispatch_ai_player_call_responses_ai_player_returns_action(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
@@ -633,7 +637,7 @@ class TestGetPlayerSeat:
         return MahjongGameService()
 
     async def test_get_player_seat_returns_seat(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         seat = service.get_player_seat("game1", "Player")
 
@@ -659,7 +663,7 @@ class TestGameEndCleanupSafety:
         return MahjongGameService()
 
     async def test_handle_action_returns_events_after_game_end_cleanup(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -670,7 +674,7 @@ class TestGameEndCleanupSafety:
             service,
             "game1",
             current_player_seat=player.seat,
-            wall=(),
+            wall=Wall(),
         )
 
         game_state = service._games["game1"]
@@ -699,7 +703,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
         return MahjongGameService()
 
     async def test_chankan_prompt_resolved_round_end(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
 
@@ -729,6 +733,7 @@ class TestMahjongGameServiceChankanPromptRoundEnd:
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 

@@ -25,6 +25,7 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
 from game.logic.types import YakuInfo
+from game.logic.wall import Wall
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
@@ -147,7 +148,7 @@ class TestCalculateHandValue:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
         round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles))
-        round_state = round_state.model_copy(update={"wall": ()})  # empty wall = last tile
+        round_state = round_state.model_copy(update={"wall": Wall()})  # empty wall = last tile
         player = round_state.players[0]
 
         win_tile = tiles[-1]
@@ -162,7 +163,7 @@ class TestCalculateHandValue:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
         round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
-        round_state = round_state.model_copy(update={"wall": ()})  # empty wall = last discard possible
+        round_state = round_state.model_copy(update={"wall": Wall()})  # empty wall = last discard possible
         player = round_state.players[0]
 
         win_tile = tiles[-1]

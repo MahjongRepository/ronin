@@ -21,7 +21,7 @@ class TestGameCreationAndJoin:
 
     async def test_create_game_and_join_returns_initial_state(self, service):
         """Create game and verify game_started broadcast event is received."""
-        events = await service.start_game("game1", ["Player"], seed=2.0)
+        events = await service.start_game("game1", ["Player"], seed="a" * 192)
 
         game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
@@ -30,6 +30,7 @@ class TestGameCreationAndJoin:
         assert isinstance(event.data, GameStartedEvent)
         assert event.target == BroadcastTarget()
         assert event.data.game_id == "game1"
+        assert event.data.dealer_seat in range(4)
         assert len(event.data.players) == 4
 
         for player in event.data.players:
@@ -46,7 +47,7 @@ class TestGameServiceIntegration:
 
     async def test_full_discard_cycle(self, service):
         """Test player discard triggers AI player turns and returns to player."""
-        events = await service.start_game("game1", ["Player"], seed=2.0)
+        events = await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
 
@@ -70,7 +71,7 @@ class TestGameServiceIntegration:
 
     async def test_sequential_discards_through_service(self, service):
         """Test that multiple player discards can be processed sequentially."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         actions_processed = 0
 
@@ -111,7 +112,7 @@ class TestUnifiedDiscardClaimIntegration:
         Verifies the wire contract: DISCARD prompts are split per-seat with the
         appropriate call_type for each recipient.
         """
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         found_prompt = False
         for _ in range(20):
@@ -147,7 +148,7 @@ class TestUnifiedDiscardClaimIntegration:
 
     async def test_discard_prompt_creates_unified_prompt_in_state(self, service):
         """When a discard creates a call prompt, the server state has call_type=DISCARD."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         found_discard_prompt = False
         for _ in range(20):

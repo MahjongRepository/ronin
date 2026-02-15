@@ -21,6 +21,7 @@ from game.logic.state import (
     MahjongRoundState,
 )
 from game.logic.tiles import tile_to_34
+from game.logic.wall import Wall
 
 
 def _create_frozen_players(
@@ -78,9 +79,12 @@ def _create_frozen_round_state(  # noqa: PLR0913
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
 
     return MahjongRoundState(
-        wall=wall,
-        dead_wall=dead_wall,
-        dora_indicators=(dead_wall[2],) if dead_wall else (),
+        wall=Wall(
+            live_tiles=wall,
+            dead_wall_tiles=dead_wall,
+            dora_indicators=(dead_wall[2],) if dead_wall else (),
+            pending_dora_count=pending_dora_count,
+        ),
         players=players,
         dealer_seat=0,
         current_player_seat=current_player_seat,
@@ -88,7 +92,6 @@ def _create_frozen_round_state(  # noqa: PLR0913
         turn_count=0,
         all_discards=(),
         players_with_open_hands=players_with_open_hands,
-        pending_dora_count=pending_dora_count,
     )
 
 
@@ -374,7 +377,7 @@ class TestCallOpenKanImmutable:
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = _create_frozen_round_state(players=players, current_player_seat=3, dead_wall=dead_wall)
 
-        original_dead_wall_len = len(round_state.dead_wall)
+        original_dead_wall_len = len(round_state.wall.dead_wall_tiles)
 
         settings = GameSettings()
         new_state, _meld = call_open_kan(
@@ -386,7 +389,7 @@ class TestCallOpenKanImmutable:
         )
 
         # Dead wall should maintain same size (replenished from live wall)
-        assert len(new_state.dead_wall) == original_dead_wall_len
+        assert len(new_state.wall.dead_wall_tiles) == original_dead_wall_len
 
     def test_call_open_kan_sets_rinshan_flag(self):
         """Test that is_rinshan flag is set."""
@@ -432,7 +435,7 @@ class TestCallOpenKanImmutable:
             settings=settings,
         )
 
-        assert new_state.pending_dora_count == 1
+        assert new_state.wall.pending_dora_count == 1
 
     def test_call_open_kan_raises_on_insufficient_tiles(self):
         """Test that ValueError is raised when not enough matching tiles."""
@@ -505,14 +508,14 @@ class TestCallClosedKanImmutable:
             dead_wall=dead_wall,
         )
 
-        original_dora_count = len(round_state.dora_indicators)
+        original_dora_count = len(round_state.wall.dora_indicators)
 
         settings = GameSettings()
         new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
         # Dora revealed immediately (not pending)
-        assert new_state.pending_dora_count == 0
-        assert len(new_state.dora_indicators) == original_dora_count + 1
+        assert new_state.wall.pending_dora_count == 0
+        assert len(new_state.wall.dora_indicators) == original_dora_count + 1
 
     def test_call_closed_kan_sets_rinshan_flag(self):
         """Test that is_rinshan flag is set."""
@@ -635,7 +638,7 @@ class TestCallAddedKanImmutable:
         settings = GameSettings()
         new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=settings)
 
-        assert new_state.pending_dora_count == 1
+        assert new_state.wall.pending_dora_count == 1
 
     def test_call_added_kan_raises_on_no_pon(self):
         """Test that ValueError is raised when no pon exists to upgrade."""

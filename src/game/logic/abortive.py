@@ -68,8 +68,10 @@ def call_kyuushu_kyuuhai(
     Returns (unchanged_round_state, result).
     The round_state is not modified by this function - phase change is done by caller.
     """
+    scores = {p.seat: p.score for p in round_state.players}
     result = AbortiveDrawResult(
         reason=AbortiveDrawType.NINE_TERMINALS,
+        scores=scores,
         seat=round_state.current_player_seat,
     )
     return round_state, result
@@ -153,7 +155,9 @@ def process_abortive_draw(
 
     No score changes occur. Honba increment is handled by process_round_end.
     """
+    scores = {p.seat: p.score for p in game_state.round_state.players}
     return AbortiveDrawResult(
         reason=draw_type,
+        scores=scores,
         score_changes={p.seat: 0 for p in game_state.round_state.players},
     )

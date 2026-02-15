@@ -12,6 +12,7 @@ from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import CallType, GameAction, MeldCallType, RoundPhase
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.types import MeldCaller
+from game.logic.wall import Wall
 from game.tests.unit.helpers import _string_to_136_tile
 
 
@@ -27,9 +28,11 @@ class TestAIPlayerControllerGetTurnAction:
         )
         return MahjongRoundState(
             players=players,
-            wall=tuple(range(50)),
-            dead_wall=tuple(range(14)),
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(
+                live_tiles=tuple(range(50)),
+                dead_wall_tiles=tuple(range(14)),
+                dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            ),
             current_player_seat=current_seat,
             phase=RoundPhase.PLAYING,
         )
@@ -69,7 +72,7 @@ class TestAIPlayerControllerGetCallResponse:
         )
         return MahjongRoundState(
             players=players,
-            wall=tuple(range(50)),
+            wall=Wall(live_tiles=tuple(range(50))),
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
         )

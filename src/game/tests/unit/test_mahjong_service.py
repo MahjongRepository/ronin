@@ -10,7 +10,6 @@ from game.logic.events import (
     ErrorEvent,
     EventType,
 )
-from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.logic.state import PendingCallPrompt
@@ -18,6 +17,7 @@ from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
 )
+from game.logic.wall import Wall
 from game.tests.unit.helpers import (
     _find_player,
     _update_player,
@@ -33,7 +33,7 @@ class TestMahjongGameServiceFindPlayerSeat:
         return MahjongGameService()
 
     async def test_find_player_seat_returns_none_for_unknown(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         seat = service._find_player_seat_frozen("game1", game_state, "Unknown")
@@ -42,7 +42,7 @@ class TestMahjongGameServiceFindPlayerSeat:
 
     async def test_find_player_seat_skips_ai_player_seats(self, service):
         """Searching for an AI player name returns None because AI player seats are skipped."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         ai_player_controller = service._ai_player_controllers["game1"]
 
@@ -193,10 +193,10 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         player_seat = player.seat
 
         player_tiles = list(player.tiles)
-        wall = list(round_state.wall)
+        live_tiles = list(round_state.wall.live_tiles)
         while len(player_tiles) < 14:
-            if wall:
-                player_tiles.append(wall.pop())
+            if live_tiles:
+                player_tiles.append(live_tiles.pop())
 
         new_players = []
         for p in round_state.players:
@@ -207,11 +207,12 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             else:
                 new_players.append(p)
 
+        new_wall = round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)})
         _update_round_state(
             service,
             "game1",
             current_player_seat=player_seat,
-            wall=tuple(wall),
+            wall=new_wall,
             players=tuple(new_players),
             pending_call_prompt=None,
         )
@@ -294,7 +295,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             callers=(alice.seat,),
         )
 
-        _update_round_state(service, "game1", wall=(), pending_call_prompt=prompt)
+        _update_round_state(service, "game1", wall=Wall(), pending_call_prompt=prompt)
 
         service.replace_with_ai_player("game1", "Alice")
 
@@ -313,7 +314,7 @@ class TestDispatchAction:
 
     async def test_dispatch_action_routes_chi(self, service):
         """_dispatch_action routes CALL_CHI to handle_chi."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         result = service._dispatch_action(
@@ -326,7 +327,7 @@ class TestDispatchAction:
 
     async def test_dispatch_action_routes_ron(self, service):
         """_dispatch_action routes CALL_RON to handle_ron."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         result = service._dispatch_action(game_state, 0, GameAction.CALL_RON, {})
@@ -334,20 +335,20 @@ class TestDispatchAction:
 
     async def test_dispatch_action_routes_kan(self, service):
         """_dispatch_action routes CALL_KAN to handle_kan."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
-        with pytest.raises(InvalidGameActionError):
-            service._dispatch_action(
-                game_state,
-                0,
-                GameAction.CALL_KAN,
-                {"tile_id": 0, "kan_type": "closed"},
-            )
+        result = service._dispatch_action(
+            game_state,
+            0,
+            GameAction.CALL_KAN,
+            {"tile_id": 0, "kan_type": "closed"},
+        )
+        assert result is not None
 
     async def test_dispatch_action_routes_pass(self, service):
         """_dispatch_action routes PASS to handle_pass."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         result = service._dispatch_action(game_state, 0, GameAction.PASS)
@@ -355,37 +356,36 @@ class TestDispatchAction:
 
     async def test_dispatch_action_routes_tsumo(self, service):
         """_dispatch_action routes DECLARE_TSUMO to handle_tsumo."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
-        with pytest.raises(InvalidGameActionError):
-            service._dispatch_action(game_state, 0, GameAction.DECLARE_TSUMO)
+        result = service._dispatch_action(game_state, 0, GameAction.DECLARE_TSUMO)
+        assert result is not None
 
     async def test_dispatch_action_routes_discard(self, service):
         """_dispatch_action routes DISCARD to handle_discard."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
-        with pytest.raises(InvalidGameActionError):
-            service._dispatch_action(
-                game_state,
-                0,
-                GameAction.DISCARD,
-                {"tile_id": 0},
-            )
+        result = service._dispatch_action(
+            game_state,
+            0,
+            GameAction.DISCARD,
+            {"tile_id": game_state.round_state.players[0].tiles[0]},
+        )
+        assert result is not None
 
     async def test_dispatch_action_routes_kyuushu(self, service):
         """_dispatch_action routes CALL_KYUUSHU to handle_kyuushu."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
-        # kyuushu conditions not met raises InvalidGameActionError
-        with pytest.raises(InvalidGameActionError):
-            service._dispatch_action(game_state, 0, GameAction.CALL_KYUUSHU)
+        result = service._dispatch_action(game_state, 0, GameAction.CALL_KYUUSHU)
+        assert result is not None
 
     async def test_dispatch_action_returns_none_for_unknown(self, service):
         """_dispatch_action returns None for unrecognized actions."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         result = service._dispatch_action(game_state, 0, GameAction.CONFIRM_ROUND)
@@ -399,8 +399,8 @@ class TestSeedDeterminism:
         service1 = MahjongGameService()
         service2 = MahjongGameService()
 
-        await service1.start_game("game1", ["Player"], seed=42.0)
-        await service2.start_game("game2", ["Player"], seed=42.0)
+        await service1.start_game("game1", ["Player"], seed="b" * 192)
+        await service2.start_game("game2", ["Player"], seed="b" * 192)
 
         state1 = service1._games["game1"]
         state2 = service2._games["game2"]
@@ -413,8 +413,8 @@ class TestSeedDeterminism:
         service1 = MahjongGameService()
         service2 = MahjongGameService()
 
-        await service1.start_game("game1", ["Player"], seed=42.0)
-        await service2.start_game("game2", ["Player"], seed=42.0)
+        await service1.start_game("game1", ["Player"], seed="b" * 192)
+        await service2.start_game("game2", ["Player"], seed="b" * 192)
 
         state1 = service1._games["game1"]
         state2 = service2._games["game2"]
@@ -431,7 +431,7 @@ class TestAutoCleanup:
     async def test_auto_cleanup_false_preserves_state_after_game_end(self):
         """auto_cleanup=False preserves game state in self._games after game end."""
         service = MahjongGameService(auto_cleanup=False)
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         for seat in range(4):
             _update_player(service, "game1", seat, score=-10000)
@@ -440,6 +440,7 @@ class TestAutoCleanup:
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
+            scores={0: -10000, 1: -10000, 2: -10000, 3: -10000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = await service._handle_round_end("game1", round_result=result)
@@ -452,7 +453,7 @@ class TestAutoCleanup:
     async def test_auto_cleanup_true_removes_state_after_game_end(self):
         """auto_cleanup=True (default) removes game state after game end."""
         service = MahjongGameService(auto_cleanup=True)
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         for seat in range(4):
             _update_player(service, "game1", seat, score=-10000)
@@ -461,6 +462,7 @@ class TestAutoCleanup:
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
+            scores={0: -10000, 1: -10000, 2: -10000, 3: -10000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = await service._handle_round_end("game1", round_result=result)
@@ -485,9 +487,9 @@ class TestServiceAccessors:
 
     async def test_get_game_seed_returns_seed_after_start(self, service):
         """get_game_seed returns the seed used to start the game."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        assert service.get_game_seed("game1") == 2.0
+        assert service.get_game_seed("game1") == "a" * 192
 
     async def test_get_game_seed_returns_none_for_nonexistent(self, service):
         """get_game_seed returns None for unknown game_id."""
@@ -495,12 +497,13 @@ class TestServiceAccessors:
 
     async def test_is_round_advance_pending_true_after_round_end(self, service):
         """is_round_advance_pending returns True after round ends (player must confirm)."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
             tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         await service._handle_round_end("game1", result)
@@ -518,7 +521,7 @@ class TestServiceAccessors:
 
     async def test_get_pending_round_advance_player_names_empty_when_not_pending(self, service):
         """Returns empty list when game exists but no advance pending."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         names = service.get_pending_round_advance_player_names("game1")
         assert names == []
@@ -532,6 +535,7 @@ class TestServiceAccessors:
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
             tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         await service._handle_round_end("game1", result)
@@ -554,6 +558,41 @@ class TestMahjongGameServiceUnsupportedSettings:
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
         assert "num_players=3" in events[0].data.message
+
+
+class TestMahjongGameServiceInvalidSeed:
+    """Tests for invalid seed values returning ErrorEvent instead of crashing."""
+
+    async def test_invalid_seed_returns_error_event(self):
+        """start_game with an invalid seed returns ErrorEvent, not exception."""
+        service = MahjongGameService()
+        events = await service.start_game("game1", ["Alice"], seed="bad-seed")
+
+        assert len(events) == 1
+        assert events[0].event == EventType.ERROR
+        assert isinstance(events[0].data, ErrorEvent)
+        assert events[0].data.code == GameErrorCode.INVALID_ACTION
+
+    async def test_short_hex_seed_returns_error_event(self):
+        """start_game with a short hex seed returns ErrorEvent, not exception."""
+        service = MahjongGameService()
+        events = await service.start_game("game1", ["Alice"], seed="abc")
+
+        assert len(events) == 1
+        assert events[0].event == EventType.ERROR
+        assert isinstance(events[0].data, ErrorEvent)
+        assert events[0].data.code == GameErrorCode.INVALID_ACTION
+
+    async def test_non_string_seed_returns_error_event(self):
+        """start_game with a non-string seed returns ErrorEvent, not exception."""
+        service = MahjongGameService()
+        events = await service.start_game("game1", ["Alice"], seed=12345)  # type: ignore[arg-type]
+
+        assert len(events) == 1
+        assert events[0].event == EventType.ERROR
+        assert isinstance(events[0].data, ErrorEvent)
+        assert events[0].data.code == GameErrorCode.INVALID_ACTION
+        assert "int" in events[0].data.message
 
 
 class TestDomainModuleBoundary:

@@ -11,9 +11,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from game.logic.enums import GameAction
 from game.logic.events import ErrorEvent, ServiceEvent
+from game.logic.rng import RNG_VERSION
 from game.logic.state import MahjongGameState
 
 REQUIRED_PLAYER_COUNT = 4
+REPLAY_VERSION = "0.1-dev"
 
 
 class ReplayInputEvent(BaseModel):
@@ -37,7 +39,8 @@ class ReplayInput(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     schema_version: int = 1
-    seed: float
+    seed: str
+    rng_version: str = RNG_VERSION
     player_names: tuple[str, str, str, str]
     events: tuple[ReplayInputEvent, ...]
     wall: tuple[int, ...] | None = None
@@ -74,7 +77,8 @@ class ReplayTrace(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    seed: float
+    seed: str
+    rng_version: str = RNG_VERSION
     seat_by_player: dict[str, int]
     startup_events: tuple[ServiceEvent, ...]
     initial_state: MahjongGameState

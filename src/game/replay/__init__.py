@@ -11,6 +11,7 @@ from game.replay.loader import (
     load_replay_from_string,
 )
 from game.replay.models import (
+    REPLAY_VERSION,
     ReplayError,
     ReplayInput,
     ReplayInputAfterGameEndError,
@@ -28,6 +29,7 @@ from game.replay.runner import (
 )
 
 __all__ = [
+    "REPLAY_VERSION",
     "ReplayError",
     "ReplayInput",
     "ReplayInputAfterGameEndError",

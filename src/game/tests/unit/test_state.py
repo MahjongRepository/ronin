@@ -11,6 +11,7 @@ from game.logic.state import (
     get_player_view,
     meld_to_view,
 )
+from game.logic.wall import Wall
 
 
 class TestGetPlayerView:
@@ -70,9 +71,11 @@ class TestGetPlayerView:
         )
 
         round_state = MahjongRoundState(
-            wall=tuple(range(84, 122)),  # remaining wall tiles
-            dead_wall=tuple(range(122, 136)),
-            dora_indicators=(haku,),  # haku as dora indicator
+            wall=Wall(
+                live_tiles=tuple(range(84, 122)),
+                dead_wall_tiles=tuple(range(122, 136)),
+                dora_indicators=(haku,),
+            ),
             players=players,
             dealer_seat=0,
             current_player_seat=0,
@@ -131,6 +134,22 @@ class TestGetPlayerView:
 
 
 class TestMeldToView:
+    def test_chi(self):
+        """Chi maps to CHI view type."""
+        tiles = tuple(TilesConverter.string_to_136_array(man="123"))
+        meld = FrozenMeld(meld_type=FrozenMeld.CHI, tiles=tiles, opened=True, from_who=3)
+        view = meld_to_view(meld)
+        assert view.type == MeldViewType.CHI
+        assert view.opened is True
+
+    def test_pon(self):
+        """Pon maps to PON view type."""
+        tiles = tuple(TilesConverter.string_to_136_array(man="111"))
+        meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tiles, opened=True, from_who=1)
+        view = meld_to_view(meld)
+        assert view.type == MeldViewType.PON
+        assert view.opened is True
+
     def test_open_kan(self):
         """Open kan maps to OPEN_KAN view type."""
         tiles = tuple(TilesConverter.string_to_136_array(man="1111"))

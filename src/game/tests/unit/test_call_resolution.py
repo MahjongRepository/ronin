@@ -59,9 +59,9 @@ def _default_seat_configs() -> list[SeatConfig]:
     ]
 
 
-def _create_frozen_game_state(seed: float = 12345.0) -> MahjongGameState:
-    """Create a frozen game state for testing."""
-    game_state = init_game(_default_seat_configs(), seed=seed)
+def _create_frozen_game_state() -> MahjongGameState:
+    """Create a frozen game state for testing with dealer at seat 0."""
+    game_state = init_game(_default_seat_configs(), wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -158,7 +158,7 @@ class TestPickBestMeldResponse:
 class TestResolveSingleRon:
     def test_single_ron_resolves(self):
         """Single ron response resolves to RON round end."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 1 a waiting hand
@@ -190,7 +190,7 @@ class TestResolveSingleRon:
 class TestResolveDoubleRon:
     def test_double_ron_resolves(self):
         """Two ron responses resolve to DOUBLE_RON round end."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 1 and 2 waiting hands
@@ -296,7 +296,7 @@ class TestResolveAllPassed:
 class TestResolveChankanDecline:
     def test_chankan_all_passed_completes_kan(self):
         """All pass on chankan completes the added kan."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
 
         tile_ids = TilesConverter.string_to_136_array(man="1111")
@@ -338,7 +338,7 @@ class TestResolveChankanDecline:
 class TestCompleteAddedKanAfterChankanDecline:
     def test_completes_kan_with_draw_event(self):
         """Completing added kan after chankan decline emits meld and draw events."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_ids = TilesConverter.string_to_136_array(man="1111")
@@ -375,7 +375,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
     def test_four_kans_abort_after_chankan_decline(self):
         """Completing 4th kan from different players triggers four kans abortive draw."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # create 2 existing kans for player 0
@@ -448,7 +448,7 @@ class TestResolvePonMeldResponse:
 
     def test_pon_draw_event_has_no_available_actions(self):
         """Draw event after pon has empty available_actions, even when closed kan is possible."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
         # give seat 0 four of a kind (potential closed kan) plus other tiles
@@ -483,7 +483,7 @@ class TestResolvePonMeldResponse:
 
     def test_chi_draw_event_has_no_available_actions(self):
         """Draw event after chi has empty available_actions."""
-        game_state = init_game(_default_seat_configs(), seed=42.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
         # give seat 1 tiles that form a chi sequence with 5m (e.g. has 4m, 6m)

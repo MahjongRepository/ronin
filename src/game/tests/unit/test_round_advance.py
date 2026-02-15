@@ -28,6 +28,7 @@ def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
         tempai_seats=[0],
         noten_seats=[1, 2, 3],
         tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+        scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
     )
 
@@ -75,7 +76,7 @@ class TestRoundAdvanceWaiting:
 
     async def test_round_end_enters_waiting_state(self, service):
         """After round end, a PendingRoundAdvance is created for player seats."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         result = _make_exhaustive_draw_result()
 
         events = await service._handle_round_end("game1", result)
@@ -92,7 +93,7 @@ class TestRoundAdvanceWaiting:
 
     async def test_all_ai_players_game_advances_immediately(self, service):
         """When all seats are AI players, round advances immediately without waiting."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         service.replace_with_ai_player("game1", "Player")
 
@@ -113,7 +114,7 @@ class TestConfirmRound:
 
     async def test_confirm_round_advances_when_all_confirmed(self, service):
         """When all players confirm, round advances."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
@@ -144,7 +145,7 @@ class TestConfirmRound:
 
     async def test_confirm_round_rejected_when_not_pending(self, service):
         """confirm_round returns error when no round is pending."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", GameAction.CONFIRM_ROUND, {})
 
@@ -155,7 +156,7 @@ class TestConfirmRound:
 
     async def test_game_actions_rejected_during_finished_phase(self, service):
         """Non-confirm actions are rejected when round phase is FINISHED."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
         tile_id = player.tiles[0]
@@ -183,7 +184,7 @@ class TestRoundAdvanceTimeout:
 
     async def test_timeout_auto_confirms(self, service):
         """ROUND_ADVANCE timeout auto-confirms the player."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
@@ -221,7 +222,7 @@ class TestRoundAdvanceAIPlayerReplacement:
 
     async def test_last_player_disconnect_advances_round(self, service):
         """When the last player disconnects, all confirm and round advances."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -246,7 +247,7 @@ class TestRoundAdvanceCleanup:
 
     async def test_cleanup_removes_pending_advance(self, service):
         """cleanup_game removes pending advance state."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
         assert service.is_round_advance_pending("game1")
@@ -257,7 +258,7 @@ class TestRoundAdvanceCleanup:
 
     async def test_game_end_does_not_create_pending_advance(self, service):
         """When game ends (not just round), no pending advance is created."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_player(service, "game1", 0, score=-1000)
 
@@ -265,6 +266,7 @@ class TestRoundAdvanceCleanup:
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
+            scores={0: -1000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
 
@@ -348,7 +350,7 @@ class TestRoundAdvanceHandleRoundEndNone:
         return MahjongGameService()
 
     async def test_handle_round_end_with_none_result(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service._handle_round_end("game1", round_result=None)
 

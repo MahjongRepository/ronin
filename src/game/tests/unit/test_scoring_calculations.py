@@ -5,7 +5,7 @@ Tests _goshashonyu_round (Japanese rounding), _get_winner_seats, and calculate_f
 These are pure utility functions that need direct unit testing.
 """
 
-from game.logic.game import _get_winner_seats, _goshashonyu_round, calculate_final_scores
+from game.logic.game import _get_winner_seats, _goshashonyu_round, calculate_final_scores, finalize_game
 from game.logic.settings import GameSettings
 from game.logic.types import (
     DoubleRonResult,
@@ -15,6 +15,7 @@ from game.logic.types import (
     TsumoResult,
     YakuInfo,
 )
+from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:
@@ -29,6 +30,7 @@ class TestGetWinnerSeats:
         result = TsumoResult(
             winner_seat=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0)),
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
             closed_tiles=[],
@@ -43,6 +45,7 @@ class TestGetWinnerSeats:
             loser_seat=3,
             winning_tile=42,
             hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0)),
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 3000, 3: -3000},
             riichi_sticks_collected=0,
             closed_tiles=[],
@@ -70,6 +73,7 @@ class TestGetWinnerSeats:
                     melds=[],
                 ),
             ],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         assert _get_winner_seats(result) == [0, 3]
@@ -184,3 +188,22 @@ class TestCalculateFinalScores:
         assert result[1][0] == 0  # 2nd place
         assert result[2][0] == 3  # 3rd place
         assert result[3][0] == 1  # 4th place
+
+
+class TestFinalizeGameRiichiSticks:
+    """Test finalize_game awards leftover riichi sticks to the winner."""
+
+    def test_leftover_riichi_awarded_to_winner(self):
+        """Leftover riichi sticks are awarded to the highest-scoring player."""
+        players = tuple(
+            create_player(seat=i, score=score) for i, score in enumerate([30000, 25000, 22000, 23000])
+        )
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(round_state, riichi_sticks=2)  # 2 * 1000 = 2000 bonus
+
+        new_state, result = finalize_game(game_state)
+
+        # seat 0 had highest raw score (30000) and gets the 2000 riichi bonus
+        assert new_state.round_state.players[0].score == 32000
+        assert new_state.riichi_sticks == 0
+        assert result.standings[0].score == 32000

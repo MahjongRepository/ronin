@@ -8,6 +8,7 @@ from game.logic.enums import GameAction, TimeoutType
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from game.logic.settings import GameSettings
+    from game.logic.state import MahjongGameState
 
 
 class GameService(ABC):
@@ -40,8 +41,9 @@ class GameService(ABC):
         game_id: str,
         player_names: list[str],
         *,
-        seed: float | None = None,
+        seed: str | None = None,
         settings: GameSettings | None = None,
+        wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
         """
         Start a game with the given players.
@@ -50,6 +52,7 @@ class GameService(ABC):
         When seed is provided, the game is deterministically reproducible.
         When seed is None, a random seed is generated.
         When settings is provided, the game uses the given settings.
+        When wall is provided, use it instead of generating from seed.
         """
         ...
 
@@ -61,8 +64,13 @@ class GameService(ABC):
         ...
 
     @abstractmethod
-    def get_game_seed(self, game_id: str) -> float | None:
+    def get_game_seed(self, game_id: str) -> str | None:
         """Return the seed for a game, or None if game doesn't exist."""
+        ...
+
+    @abstractmethod
+    def get_game_state(self, game_id: str) -> MahjongGameState | None:
+        """Return the current game state, or None if game doesn't exist."""
         ...
 
     @abstractmethod

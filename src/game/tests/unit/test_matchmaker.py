@@ -29,7 +29,7 @@ class TestFillSeats:
     def test_fill_seats_different_seeds_different_assignments(self):
         """Different seeds produce different seat assignments."""
         seats = set()
-        for seed in [0.0, 1.0, 2.0, 42.0]:
+        for seed in ["a" * 192, "b" * 192, "c" * 192, "d" * 192]:
             configs = fill_seats(["Alice"], seed=seed)
             seat = next(i for i, c in enumerate(configs) if c.ai_player_type is None)
             seats.add(seat)
@@ -38,8 +38,8 @@ class TestFillSeats:
 
     def test_fill_seats_same_seed_same_assignments(self):
         """Same seed produces identical seat assignments."""
-        configs1 = fill_seats(["Alice"], seed=12345.0)
-        configs2 = fill_seats(["Alice"], seed=12345.0)
+        configs1 = fill_seats(["Alice"], seed="a" * 192)
+        configs2 = fill_seats(["Alice"], seed="a" * 192)
 
         for c1, c2 in zip(configs1, configs2, strict=True):
             assert c1.name == c2.name
@@ -64,7 +64,7 @@ class TestFillSeatsFourPlayers:
         names = ["Alice", "Bob", "Charlie", "Dave"]
 
         orderings: set[tuple[str, ...]] = set()
-        for seed in [0.0, 1.0, 2.0, 42.0, 100.0]:
+        for seed in ["a" * 192, "b" * 192, "c" * 192, "d" * 192, "e" * 192]:
             configs = fill_seats(names, seed=seed)
             orderings.add(tuple(c.name for c in configs))
 
@@ -74,8 +74,8 @@ class TestFillSeatsFourPlayers:
         """4 players with same seed: deterministic seat assignment."""
         names = ["Alice", "Bob", "Charlie", "Dave"]
 
-        configs1 = fill_seats(names, seed=12345.0)
-        configs2 = fill_seats(names, seed=12345.0)
+        configs1 = fill_seats(names, seed="a" * 192)
+        configs2 = fill_seats(names, seed="a" * 192)
 
         for c1, c2 in zip(configs1, configs2, strict=True):
             assert c1.name == c2.name

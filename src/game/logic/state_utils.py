@@ -107,30 +107,6 @@ def add_discard_to_player(
     return update_player(round_state, seat, discards=new_discards)
 
 
-def pop_from_wall(
-    round_state: MahjongRoundState,
-    *,
-    from_front: bool = True,
-) -> tuple[MahjongRoundState, int]:
-    """
-    Return (new_state, drawn_tile) with tile removed from wall.
-
-    Args:
-        round_state: Current round state
-        from_front: If True, pop from front of wall; if False, pop from back
-
-    Returns:
-        Tuple of (new_round_state, drawn_tile)
-
-    Raises:
-        IndexError: If wall is empty
-
-    """
-    wall = list(round_state.wall)
-    tile = wall.pop(0) if from_front else wall.pop()
-    return round_state.model_copy(update={"wall": tuple(wall)}), tile
-
-
 def advance_turn(
     round_state: MahjongRoundState,
 ) -> MahjongRoundState:
@@ -210,25 +186,6 @@ def update_game_with_round(
 
     """
     return game_state.model_copy(update={"round_state": round_state})
-
-
-def add_dora_indicator(
-    round_state: MahjongRoundState,
-    tile_id: int,
-) -> MahjongRoundState:
-    """
-    Return new round state with dora indicator added.
-
-    Args:
-        round_state: Current round state
-        tile_id: Dora indicator tile ID to add
-
-    Returns:
-        New MahjongRoundState with dora indicator added
-
-    """
-    new_indicators = (*round_state.dora_indicators, tile_id)
-    return round_state.model_copy(update={"dora_indicators": new_indicators})
 
 
 def update_all_discards(

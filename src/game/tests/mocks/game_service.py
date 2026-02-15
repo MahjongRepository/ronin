@@ -10,6 +10,7 @@ from game.logic.events import (
     SeatTarget,
     ServiceEvent,
 )
+from game.logic.rng import RNG_VERSION
 from game.logic.service import GameService
 from game.logic.settings import GameSettings
 from game.logic.types import GamePlayerInfo, GameView, PlayerView
@@ -24,6 +25,13 @@ class MockResultEvent(GameEvent):
     success: bool
 
 
+class _MockGameState:
+    """Minimal game state stub for replay collection."""
+
+    def __init__(self, rng_version: str = RNG_VERSION) -> None:
+        self.rng_version = rng_version
+
+
 class MockGameService(GameService):
     """Mock game service for testing.
 
@@ -32,7 +40,7 @@ class MockGameService(GameService):
 
     def __init__(self) -> None:
         self._player_seats: dict[str, dict[str, int]] = {}  # game_id -> {player_name -> seat}
-        self._seeds: dict[str, float] = {}  # game_id -> seed
+        self._seeds: dict[str, str] = {}  # game_id -> seed
 
     def get_player_seat(self, game_id: str, player_name: str) -> int | None:
         """Get the seat number for a player by name."""
@@ -69,12 +77,13 @@ class MockGameService(GameService):
         game_id: str,
         player_names: list[str],
         *,
-        seed: float | None = None,
+        seed: str | None = None,
         settings: GameSettings | None = None,  # noqa: ARG002
+        wall: list[int] | None = None,  # noqa: ARG002
     ) -> list[ServiceEvent]:
         # store player seat assignments (seat 0 for first player)
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}
-        self._seeds[game_id] = seed if seed is not None else 0.0
+        self._seeds[game_id] = seed if seed is not None else ""
 
         all_names = player_names + ["AI"] * (4 - len(player_names))
         player_count = len(player_names)
@@ -108,7 +117,9 @@ class MockGameService(GameService):
         return [
             ServiceEvent(
                 event=EventType.GAME_STARTED,
-                data=GameStartedEvent(game_id=game_id, players=players),
+                data=GameStartedEvent(
+                    game_id=game_id, players=players, dealer_seat=0, dealer_dice=((1, 1), (1, 1))
+                ),
                 target=BroadcastTarget(),
             ),
             ServiceEvent(
@@ -121,9 +132,15 @@ class MockGameService(GameService):
             ),
         ]
 
-    def get_game_seed(self, game_id: str) -> float | None:
+    def get_game_seed(self, game_id: str) -> str | None:
         """Return the seed for a game, or None if game doesn't exist."""
         return self._seeds.get(game_id)
+
+    def get_game_state(self, game_id: str) -> _MockGameState | None:  # type: ignore[override]
+        """Return a mock game state, or None if game doesn't exist."""
+        if game_id not in self._seeds:
+            return None
+        return _MockGameState()
 
     def cleanup_game(self, game_id: str) -> None:
         self._player_seats.pop(game_id, None)

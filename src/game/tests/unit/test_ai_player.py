@@ -18,6 +18,7 @@ from game.logic.ai_player import (
 from game.logic.enums import KanType, PlayerAction
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import MahjongPlayer, MahjongRoundState
+from game.logic.wall import Wall
 from game.tests.unit.helpers import _string_to_34_tile
 
 
@@ -49,7 +50,7 @@ class TestShouldCallPon:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return player, round_state
@@ -80,7 +81,7 @@ class TestShouldCallChi:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return player, round_state
@@ -118,7 +119,7 @@ class TestShouldCallKan:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return player, round_state
@@ -188,7 +189,7 @@ class TestShouldCallRon:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return player, round_state
@@ -219,7 +220,7 @@ class TestSelectDiscard:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return player, round_state
@@ -249,8 +250,7 @@ class TestSelectDiscard:
         ai_player = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         player = MahjongPlayer(seat=0, name="AI", tiles=(), score=25000)
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
-        round_state = MahjongRoundState(wall=tuple(range(10)), players=players)
-
+        round_state = MahjongRoundState(wall=Wall(live_tiles=tuple(range(10))), players=players)
         with pytest.raises(ValueError, match="cannot select discard from empty hand"):
             select_discard(ai_player, player, round_state)
 
@@ -269,7 +269,7 @@ class TestGetAIPlayerAction:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return player, round_state

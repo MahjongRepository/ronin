@@ -76,7 +76,7 @@ class TestSessionReplayStart:
         await _create_started_game_with_collector(manager)
 
         seed = game_service.get_game_seed("game1")
-        collector.start_game.assert_called_once_with("game1", seed)
+        collector.start_game.assert_called_once_with("game1", seed, "pcg64dxsm-v1")
 
     def test_create_room_does_not_call_collector_start(self):
         """Replay collector start_game is NOT called during create_room (seed not yet known)."""

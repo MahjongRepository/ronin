@@ -183,6 +183,7 @@ class TestSessionManagerTimerIntegration:
                     tempai_seats=[0],
                     noten_seats=[1, 2, 3],
                     tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+                    scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
                     score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
                 ),
             ),

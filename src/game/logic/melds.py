@@ -17,6 +17,7 @@ from game.logic.settings import GameSettings
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.state_utils import clear_all_players_ippatsu, update_player
 from game.logic.tiles import DRAGONS_34, WINDS_34, is_honor, tile_to_34
+from game.logic.wall import increment_pending_dora, tiles_remaining
 from game.logic.win import get_waiting_tiles
 
 TILES_PER_SUIT = 9
@@ -208,7 +209,7 @@ def can_call_open_kan(
     if player.is_riichi:
         return False
 
-    if len(round_state.wall) < settings.min_wall_for_kan:
+    if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return False
 
     if _count_total_kans(round_state) >= settings.max_kans_per_round:
@@ -284,7 +285,7 @@ def get_possible_closed_kans(
 
     Returns a list of tile_34 indices representing tiles the player has 4 of.
     """
-    if len(round_state.wall) < settings.min_wall_for_kan:
+    if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return []
 
     if _count_total_kans(round_state) >= settings.max_kans_per_round:
@@ -320,7 +321,7 @@ def get_possible_added_kans(
     if player.is_riichi:
         return []
 
-    if len(round_state.wall) < settings.min_wall_for_kan:
+    if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return []
 
     if _count_total_kans(round_state) >= settings.max_kans_per_round:
@@ -390,7 +391,7 @@ def _validate_kan_preconditions(
     if reject_riichi and player is not None and player.is_riichi:
         raise InvalidMeldError(f"cannot call {kan_label} while in riichi")
 
-    if len(round_state.wall) < settings.min_wall_for_kan:
+    if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         raise InvalidMeldError("not enough tiles in wall for kan")
 
     if _count_total_kans(round_state) >= settings.max_kans_per_round:
@@ -636,7 +637,7 @@ def call_open_kan(
     # dora handling for open kan, controlled by settings
     if settings.has_kandora:
         if settings.kandora_deferred_for_open_kan:
-            new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+            new_state = new_state.model_copy(update={"wall": increment_pending_dora(new_state.wall)})
         else:
             new_state, _dora_indicator = add_dora_indicator(new_state)
 
@@ -704,7 +705,7 @@ def call_closed_kan(
         if settings.kandora_immediate_for_closed_kan:
             new_state, _dora_indicator = add_dora_indicator(new_state)
         else:
-            new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+            new_state = new_state.model_copy(update={"wall": increment_pending_dora(new_state.wall)})
 
     # draw from dead wall (sets is_rinshan flag)
     new_state, _drawn_tile = draw_from_dead_wall(new_state)
@@ -795,7 +796,7 @@ def call_added_kan(
     # dora handling for added kan, controlled by settings (same rules as open kan)
     if settings.has_kandora:
         if settings.kandora_deferred_for_open_kan:
-            new_state = new_state.model_copy(update={"pending_dora_count": new_state.pending_dora_count + 1})
+            new_state = new_state.model_copy(update={"wall": increment_pending_dora(new_state.wall)})
         else:
             new_state, _dora_indicator = add_dora_indicator(new_state)
 

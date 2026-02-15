@@ -16,6 +16,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.wall import Wall
 from game.logic.win import (
     can_call_ron,
     can_declare_tsumo,
@@ -73,8 +74,10 @@ class TestCanDeclareTsumo:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
-            wall=tuple(range(10)),
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(
+                live_tiles=tuple(range(10)),
+                dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            ),
         )
 
     def test_non_winning_hand_cannot_declare(self):
@@ -244,8 +247,10 @@ class TestCanCallRon:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
-            wall=tuple(range(10)),
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(
+                live_tiles=tuple(range(10)),
+                dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            ),
         )
 
     def test_cannot_ron_furiten(self):

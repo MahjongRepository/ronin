@@ -2,13 +2,10 @@
 Unit tests for tile representation utilities.
 
 Covers pure function boundary tests for tile_to_34 conversion, is_terminal/is_honor
-classification, and generate_wall determinism/isolation — not achievable via replays.
+classification — not achievable via replays.
 """
 
-import random
-
 from game.logic.tiles import (
-    generate_wall,
     is_honor,
     is_terminal,
     tile_to_34,
@@ -85,39 +82,3 @@ class TestIsHonor:
         assert is_honor(0) is False  # 1m
         assert is_honor(17) is False  # 9p
         assert is_honor(26) is False  # 9s
-
-
-class TestGenerateWall:
-    def test_wall_has_136_tiles(self):
-        wall = generate_wall(0.5, 0)
-        assert len(wall) == 136
-
-    def test_wall_contains_all_tiles(self):
-        wall = generate_wall(0.5, 0)
-        assert sorted(wall) == list(range(136))
-
-    def test_same_seed_and_round_produces_same_wall(self):
-        wall1 = generate_wall(0.5, 0)
-        wall2 = generate_wall(0.5, 0)
-        assert wall1 == wall2
-
-    def test_different_rounds_produce_different_walls(self):
-        wall1 = generate_wall(0.5, 0)
-        wall2 = generate_wall(0.5, 1)
-        assert wall1 != wall2
-
-    def test_different_seeds_produce_different_walls(self):
-        wall1 = generate_wall(0.5, 0)
-        wall2 = generate_wall(0.6, 0)
-        assert wall1 != wall2
-
-    def test_does_not_pollute_global_rng_state(self):
-        """generate_wall() uses a local RNG and does not affect global random state."""
-        random.seed(999)
-        before = random.random()  # noqa: S311
-
-        random.seed(999)
-        generate_wall(42.0, 0)
-        after = random.random()  # noqa: S311
-
-        assert before == after

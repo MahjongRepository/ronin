@@ -51,17 +51,17 @@ class TestEmitDeferredDoraEventsImmutable:
     def test_emit_deferred_dora_events_with_pending_dora(self):
         """Pending dora should be revealed and emitted as events."""
         round_state = _default_round_state(pending_dora_count=1)
-        initial_dora_count = len(round_state.dora_indicators)
+        initial_dora_count = len(round_state.wall.dora_indicators)
 
         new_state, events = emit_deferred_dora_events(round_state)
 
-        assert len(new_state.dora_indicators) == initial_dora_count + 1
-        assert new_state.pending_dora_count == 0
+        assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
+        assert new_state.wall.pending_dora_count == 0
         assert len(events) == 1
         assert isinstance(events[0], DoraRevealedEvent)
         # original state unchanged
-        assert len(round_state.dora_indicators) == initial_dora_count
-        assert round_state.pending_dora_count == 1
+        assert len(round_state.wall.dora_indicators) == initial_dora_count
+        assert round_state.wall.pending_dora_count == 1
 
     def test_emit_deferred_dora_events_no_pending_dora(self):
         """No events should be emitted when pending_dora_count is 0."""
@@ -69,18 +69,18 @@ class TestEmitDeferredDoraEventsImmutable:
 
         new_state, events = emit_deferred_dora_events(round_state)
 
-        assert new_state.dora_indicators == round_state.dora_indicators
+        assert new_state.wall.dora_indicators == round_state.wall.dora_indicators
         assert len(events) == 0
 
     def test_emit_deferred_dora_events_multiple_pending(self):
         """Multiple pending dora should all be revealed."""
         round_state = _default_round_state(pending_dora_count=2)
-        initial_dora_count = len(round_state.dora_indicators)
+        initial_dora_count = len(round_state.wall.dora_indicators)
 
         new_state, events = emit_deferred_dora_events(round_state)
 
-        assert len(new_state.dora_indicators) == initial_dora_count + 2
-        assert new_state.pending_dora_count == 0
+        assert len(new_state.wall.dora_indicators) == initial_dora_count + 2
+        assert new_state.wall.pending_dora_count == 0
         assert len(events) == 2
         assert all(isinstance(e, DoraRevealedEvent) for e in events)
 

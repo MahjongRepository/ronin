@@ -13,7 +13,7 @@ from game.replay.models import ReplayInput, ReplayInputEvent
 
 # Seed determines seat assignment via fill_seats(names, seed):
 # Alice -> seat 2, Bob -> seat 1, Charlie -> seat 0, Diana -> seat 3
-SEED = 0.5
+SEED = "0" * 191 + "d"  # 192-char hex seed that produces same seating as old float 0.5
 PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
 
 # tile_34=27 is East wind (1z), tile IDs 108-111
@@ -204,7 +204,7 @@ async def test_added_kan_deferred_dora_reveal():
     assert len(kan_dora_events) == 0, "added kan should not reveal dora immediately"
 
     # Kan step: pending_dora_count should be incremented
-    assert kan_step.state_after.round_state.pending_dora_count == 1
+    assert kan_step.state_after.round_state.wall.pending_dora_count == 1
 
     # Discard step after kan: DoraRevealedEvent should be emitted
     discard_dora_events = [e for e in discard_after_kan.emitted_events if e.event == EventType.DORA_REVEALED]
@@ -217,9 +217,9 @@ async def test_added_kan_deferred_dora_reveal():
 
     # After discard: dora_indicators should contain both the original and the kan dora
     round_state = discard_after_kan.state_after.round_state
-    assert len(round_state.dora_indicators) == 2
-    assert round_state.dora_indicators[0] == FIRST_DORA_INDICATOR
-    assert round_state.dora_indicators[1] == SECOND_DORA_INDICATOR
+    assert len(round_state.wall.dora_indicators) == 2
+    assert round_state.wall.dora_indicators[0] == FIRST_DORA_INDICATOR
+    assert round_state.wall.dora_indicators[1] == SECOND_DORA_INDICATOR
 
     # pending_dora_count should be back to 0
-    assert round_state.pending_dora_count == 0
+    assert round_state.wall.pending_dora_count == 0

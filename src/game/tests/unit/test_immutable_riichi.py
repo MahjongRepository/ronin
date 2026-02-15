@@ -17,6 +17,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.wall import Wall
 
 
 class TestDeclareRiichiDaburi:
@@ -42,7 +43,7 @@ class TestDeclareRiichiDaburi:
         )
         players = (player, *tuple(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=tuple(range(10)),
+            wall=Wall(live_tiles=tuple(range(10))),
             players=players,
             players_with_open_hands=players_with_open_hands or (),
         )

@@ -95,10 +95,10 @@ def _maybe_emit_dora_event(
     events: list[GameEvent],
 ) -> None:
     """Append a DoraRevealedEvent if a new dora indicator was revealed."""
-    if len(new_round_state.dora_indicators) > old_dora_count:
+    if len(new_round_state.wall.dora_indicators) > old_dora_count:
         events.append(
             DoraRevealedEvent(
-                tile_id=new_round_state.dora_indicators[-1],
+                tile_id=new_round_state.wall.dora_indicators[-1],
             )
         )
 
@@ -549,7 +549,8 @@ def process_tsumo_call(
 
     # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
     # scores before the deferred dora indicator would have been revealed
-    new_round_state = round_state.model_copy(update={"pending_dora_count": 0})
+    new_wall = round_state.wall.model_copy(update={"pending_dora_count": 0})
+    new_round_state = round_state.model_copy(update={"wall": new_wall})
 
     # the win tile is the last tile in hand (just drawn)
     win_tile = winner.tiles[-1]
@@ -650,7 +651,7 @@ def _process_open_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle an open kan meld call."""
-    old_dora_count = len(round_state.dora_indicators)
+    old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_open_kan(
         round_state,
         caller_seat,
@@ -682,7 +683,7 @@ def _process_closed_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a closed kan meld call."""
-    old_dora_count = len(round_state.dora_indicators)
+    old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles) if meld.tiles else []
     events: list[GameEvent] = [
@@ -730,7 +731,7 @@ def _process_added_kan_call(
         ]
         return new_round_state, new_game_state, events
 
-    old_dora_count = len(round_state.dora_indicators)
+    old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles) if meld.tiles else []
     events = [

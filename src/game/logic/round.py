@@ -8,7 +8,8 @@ import logging
 
 from mahjong.agari import Agari
 
-from game.logic.exceptions import InvalidActionError, InvalidDiscardError
+from game.logic import wall as wall_ops
+from game.logic.exceptions import InvalidDiscardError
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.shanten import calculate_shanten
 from game.logic.state import (
@@ -20,25 +21,15 @@ from game.logic.state import (
 from game.logic.state_utils import (
     add_discard_to_player,
     add_tile_to_player,
-    pop_from_wall,
     remove_tile_from_player,
     update_all_discards,
     update_player,
-)
-from game.logic.state_utils import (
-    add_dora_indicator as _add_dora_indicator,
 )
 from game.logic.tiles import hand_to_34_array, is_terminal_or_honor, tile_to_34
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, TenpaiHand
 from game.logic.win import MAX_TILE_COPIES
 
 logger = logging.getLogger(__name__)
-
-# dead wall constants
-DEAD_WALL_SIZE = 14
-# dora indicator positions in dead wall: indices 2, 3, 4, 5, 6 (initial + up to 4 for kans)
-FIRST_DORA_INDEX = 2
-MAX_DORA_INDICATORS = 5
 
 # hand size constants
 HAND_SIZE_AFTER_DRAW = 14
@@ -50,7 +41,7 @@ def check_exhaustive_draw(round_state: MahjongRoundState) -> bool:
 
     Returns True if wall is empty, indicating an exhaustive draw condition.
     """
-    return len(round_state.wall) == 0
+    return wall_ops.is_wall_exhausted(round_state.wall)
 
 
 def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
@@ -84,10 +75,11 @@ def draw_tile(
     Returns (new_round_state, drawn_tile).
     Returns (unchanged_state, None) if wall is empty.
     """
-    if not round_state.wall:
+    new_wall, tile = wall_ops.draw_tile(round_state.wall)
+    if tile is None:
         return round_state, None
 
-    new_state, tile = pop_from_wall(round_state, from_front=True)
+    new_state = round_state.model_copy(update={"wall": new_wall})
     new_state = add_tile_to_player(new_state, new_state.current_player_seat, tile)
     return new_state, tile
 
@@ -153,19 +145,9 @@ def add_dora_indicator(
     Called after a kan is declared. Returns (new_state, new_indicator_tile_id).
     Dora indicators are at dead wall indices 2, 3, 4, 5, 6.
     """
-    current_count = len(round_state.dora_indicators)
-    if current_count >= MAX_DORA_INDICATORS:
-        logger.error(
-            f"cannot add more than {MAX_DORA_INDICATORS} dora indicators, current count: {current_count}"
-        )
-        raise InvalidActionError("cannot add more than 5 dora indicators")
-
-    # next dora index: 3, 4, 5, 6 for 2nd, 3rd, 4th, 5th dora
-    next_index = FIRST_DORA_INDEX + current_count
-    new_indicator = round_state.dead_wall[next_index]
-    new_state = _add_dora_indicator(round_state, new_indicator)
-
-    return new_state, new_indicator
+    new_wall, indicator = wall_ops.add_dora_indicator(round_state.wall)
+    new_state = round_state.model_copy(update={"wall": new_wall})
+    return new_state, indicator
 
 
 def reveal_pending_dora(
@@ -180,18 +162,9 @@ def reveal_pending_dora(
 
     Returns (new_state, list_of_newly_revealed_dora_indicator_tile_ids).
     """
-    revealed: list[int] = []
-    current_state = round_state
-    pending = current_state.pending_dora_count
-
-    while pending > 0:
-        current_state, new_indicator = add_dora_indicator(current_state)
-        revealed.append(new_indicator)
-        pending -= 1
-
-    # set pending_dora_count to 0
-    current_state = current_state.model_copy(update={"pending_dora_count": 0})
-    return current_state, revealed
+    new_wall, revealed = wall_ops.reveal_pending_dora(round_state.wall)
+    new_state = round_state.model_copy(update={"wall": new_wall})
+    return new_state, revealed
 
 
 def draw_from_dead_wall(
@@ -205,21 +178,12 @@ def draw_from_dead_wall(
     Sets the player's is_rinshan flag to True.
     Returns (new_state, drawn_tile).
     """
-    # draw from dead wall (from the end, which is the replacement draw area)
-    dead_wall = list(round_state.dead_wall)
-    tile = dead_wall.pop()
+    new_wall, tile = wall_ops.draw_from_dead_wall(round_state.wall)
 
     current_seat = round_state.current_player_seat
-    new_state = round_state.model_copy(update={"dead_wall": tuple(dead_wall)})
+    new_state = round_state.model_copy(update={"wall": new_wall})
     new_state = add_tile_to_player(new_state, current_seat, tile)
     new_state = update_player(new_state, current_seat, is_rinshan=True)
-
-    # replenish dead wall from live wall (append to maintain dora indicator positions at front)
-    if new_state.wall:
-        wall = list(new_state.wall)
-        replenish_tile = wall.pop()
-        new_dead_wall = (*new_state.dead_wall, replenish_tile)
-        new_state = new_state.model_copy(update={"wall": tuple(wall), "dead_wall": new_dead_wall})
 
     return new_state, tile
 
@@ -334,6 +298,7 @@ def process_exhaustive_draw(
         if qualifying:
             return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats, tenpai_hands)
 
+    scores = {p.seat: p.score for p in round_state.players}
     score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
 
     # calculate noten payments
@@ -367,6 +332,7 @@ def process_exhaustive_draw(
             tempai_seats=tempai_seats,
             noten_seats=noten_seats,
             tenpai_hands=tenpai_hands,
+            scores=scores,
             score_changes=score_changes,
         ),
     )

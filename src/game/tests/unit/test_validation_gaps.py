@@ -77,8 +77,9 @@ def _default_seat_configs():
     ]
 
 
-def _create_frozen_game_state(seed=12345.0):
-    game_state = init_game(_default_seat_configs(), seed=seed)
+def _create_frozen_game_state():
+    """Create a frozen game state for testing with dealer at seat 0."""
+    game_state = init_game(_default_seat_configs(), wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -984,7 +985,16 @@ class TestKanRaisesInvalidGameActionError:
         """Closed kan without 4 matching tiles raises InvalidGameActionError."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-        data = KanActionData(tile_id=0, kan_type=KanType.CLOSED)
+        # Explicitly set tiles that don't contain 4 of any tile (all distinct in 34-tile space)
+        no_kan_tiles = tuple(
+            TilesConverter.string_to_136_array(
+                man="123456789",
+                pin="12345",
+            )
+        )
+        round_state = update_player(round_state, 0, tiles=no_kan_tiles)
+        game_state = game_state.model_copy(update={"round_state": round_state})
+        data = KanActionData(tile_id=no_kan_tiles[0], kan_type=KanType.CLOSED)
         with pytest.raises(InvalidGameActionError, match="call_kan"):
             handle_kan(round_state, game_state, seat=0, data=data)
 
@@ -1100,7 +1110,7 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_call_response_catches_invalid_action(self):
         """AI player call response that triggers InvalidGameActionError is caught, not propagated."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
@@ -1135,7 +1145,7 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_call_action_falls_back_to_pass(self):
         """AI player call action falls back to PASS when the initial non-PASS action fails."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
@@ -1158,12 +1168,12 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_call_action_pass_fallback_reraises_when_offender_is_player(self):
         """AI player PASS fallback re-raises when the error blames a different seat."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
         ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
-        player_seat = 0
+        player_seat = service.get_player_seat("test", "Player")
 
         with (
             patch.object(
@@ -1189,12 +1199,12 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_call_response_reraises_when_offender_is_player(self):
         """AI player call response re-raises InvalidGameActionError when the offending seat is a player."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-        player_seat = 0  # seat 0 is the player
+        player_seat = service.get_player_seat("test", "Player")
 
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
@@ -1221,7 +1231,7 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_followup_catches_invalid_action(self):
         """AI player followup that triggers InvalidGameActionError is caught, not propagated."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         # Make the current seat an AI player so the followup loop enters
         game_state = service._games["test"]
@@ -1246,13 +1256,13 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_followup_reraises_when_offender_is_player(self):
         """AI player followup re-raises InvalidGameActionError when the offending seat is a player."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
         # Use an existing AI player seat (not the player seat 0) as current player
         ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
-        player_seat = 0
+        player_seat = service.get_player_seat("test", "Player")
         assert ai_player_seat != player_seat
 
         # Make the AI player the current player
@@ -1279,7 +1289,7 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_tsumogiri_fallback_no_tiles(self):
         """_ai_player_tsumogiri_fallback returns None if player has no tiles."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         game_state = service._games["test"]
         current_seat = game_state.round_state.current_player_seat
@@ -1296,11 +1306,11 @@ class TestAIPlayerSafetyNets:
     async def test_ai_player_tsumogiri_fallback_reraises_when_offender_is_player(self):
         """_ai_player_tsumogiri_fallback re-raises when the error blames a different seat."""
         service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed=42.0)
+        await service.start_game("test", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["test"]
         ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
-        player_seat = 0
+        player_seat = service.get_player_seat("test", "Player")
 
         with (
             patch.object(

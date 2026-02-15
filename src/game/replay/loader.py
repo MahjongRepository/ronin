@@ -12,12 +12,15 @@ events rather than silently dropping them.
 from __future__ import annotations
 
 import json
-import random
 from pathlib import Path
 from typing import Any
 
 from game.logic.enums import GameAction
-from game.replay.models import REQUIRED_PLAYER_COUNT, ReplayInput, ReplayInputEvent
+from game.logic.rng import RNG_VERSION, create_seat_rng, validate_seed_hex
+from game.replay.models import REPLAY_VERSION, REQUIRED_PLAYER_COUNT, ReplayInput, ReplayInputEvent
+
+# Minimum number of events: version tag + game_started.
+_MIN_EVENT_COUNT = 2
 
 # Event types that do not represent player actions (skipped silently).
 _NON_ACTION_EVENTS = frozenset(
@@ -36,6 +39,51 @@ class ReplayLoadError(Exception):
     """Raised when a replay file cannot be loaded or parsed."""
 
 
+def _validate_version_tag(tag: dict[str, Any]) -> str:
+    """Validate the version tag (first line of the replay file).
+
+    Return the version string.
+    """
+    version = tag.get("version")
+    if version is None:
+        raise ReplayLoadError("First line must be a version tag with 'version' field")
+    if version != REPLAY_VERSION:
+        raise ReplayLoadError(f"Replay version mismatch: expected {REPLAY_VERSION}, got {version}")
+    return version
+
+
+def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[str, Any]]]:
+    """Validate and extract fields from the game_started event.
+
+    Returns (seed, rng_version, players).
+    """
+    if first.get("type") != "game_started":
+        raise ReplayLoadError(f"First event must be game_started, got: {first.get('type')}")
+
+    seed = first.get("seed")
+    if seed is None:
+        raise ReplayLoadError("game_started event missing 'seed' field")
+
+    rng_version = first.get("rng_version")
+    if rng_version is None:
+        raise ReplayLoadError(
+            "game_started event missing 'rng_version' field (old replay format not supported)"
+        )
+    if rng_version != RNG_VERSION:
+        raise ReplayLoadError(f"Replay RNG version mismatch: expected {RNG_VERSION}, got {rng_version}")
+
+    try:
+        validate_seed_hex(seed)
+    except (ValueError, TypeError) as exc:
+        raise ReplayLoadError(f"game_started event has invalid seed: {exc}") from exc
+
+    players = first.get("players")
+    if not players or not isinstance(players, list):
+        raise ReplayLoadError("game_started event missing 'players' field")
+
+    return seed, rng_version, players
+
+
 def load_replay_from_string(content: str) -> ReplayInput:
     """Parse ReplayCollector event-log format (JSON Lines) into ReplayInput."""
     lines = [line for line in content.splitlines() if line.strip()]
@@ -49,29 +97,24 @@ def load_replay_from_string(content: str) -> ReplayInput:
         except json.JSONDecodeError as exc:
             raise ReplayLoadError(f"Malformed JSON on line {i + 1}: {exc}") from exc
 
-    first = events[0]
-    if first.get("type") != "game_started":
-        raise ReplayLoadError(f"First event must be game_started, got: {first.get('type')}")
+    if len(events) < _MIN_EVENT_COUNT:
+        raise ReplayLoadError("Replay must contain at least a version tag and game_started event")
 
-    seed = first.get("seed")
-    if seed is None:
-        raise ReplayLoadError("game_started event missing 'seed' field")
-
-    players = first.get("players")
-    if not players or not isinstance(players, list):
-        raise ReplayLoadError("game_started event missing 'players' field")
+    _validate_version_tag(events[0])
+    seed, rng_version, players = _validate_game_started(events[1])
 
     seat_to_name: dict[int, str] = {p["seat"]: p["name"] for p in players}
     player_names = _reconstruct_input_order(seed, seat_to_name)
 
     actions: list[ReplayInputEvent] = []
-    for event in events[1:]:
+    for event in events[2:]:
         extracted = _extract_action(event, seat_to_name)
         if extracted is not None:
             actions.extend(extracted)
 
     return ReplayInput(
         seed=seed,
+        rng_version=rng_version,
         player_names=player_names,
         events=tuple(actions),
     )
@@ -88,22 +131,23 @@ def load_replay_from_file(path: str | Path) -> ReplayInput:
 
 
 def _reconstruct_input_order(
-    seed: float,
+    seed: str | None,
     seat_to_name: dict[int, str],
 ) -> tuple[str, str, str, str]:
     """Reconstruct the original player name input order from the seed.
 
-    The game service uses fill_seats(names, seed) which internally calls
-    rng.sample(range(4), 4) to determine which seat each input name gets.
-    Given the seed and the seat-to-name mapping, invert the permutation to
-    recover the original input order so replaying produces identical seating.
+    During replay, fill_seats receives all 4 names (human + AI) and calls
+    rng.sample(range(4), 4) to assign seats. This function inverts that
+    permutation: given the seed and the seat-to-name mapping, it produces
+    the name ordering that, when fed back through fill_seats with the same
+    seed, recreates the original seating.
     """
     expected_seats = set(range(REQUIRED_PLAYER_COUNT))
     if set(seat_to_name.keys()) != expected_seats:
         raise ReplayLoadError(
             f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}"
         )
-    rng = random.Random(seed)  # noqa: S311
+    rng = create_seat_rng(seed)
     seat_order = rng.sample(range(REQUIRED_PLAYER_COUNT), REQUIRED_PLAYER_COUNT)
     return tuple(seat_to_name[s] for s in seat_order)  # type: ignore[return-value]
 

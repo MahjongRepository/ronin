@@ -608,7 +608,7 @@ class TestRoomEdgeCases:
             game_id: str,
             player_names: list[str],
             *,
-            seed: float | None = None,
+            seed: str | None = None,
             settings: GameSettings | None = None,
         ) -> list[ServiceEvent]:
             """Yield control so leave_game can run and clean up the game."""

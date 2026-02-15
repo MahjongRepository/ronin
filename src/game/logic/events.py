@@ -170,6 +170,8 @@ class GameStartedEvent(GameEvent):
     target: str = "all"
     game_id: str
     players: list[GamePlayerInfo]
+    dealer_seat: int
+    dealer_dice: tuple[tuple[int, int], tuple[int, int]]
 
 
 class RoundStartedEvent(GameEvent):

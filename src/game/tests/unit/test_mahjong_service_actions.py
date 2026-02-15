@@ -50,7 +50,7 @@ class TestMahjongGameServiceErrors:
         assert "not found" in error_event.data.message
 
     async def test_handle_action_player_not_in_game(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Unknown", GameAction.DISCARD, {"tile_id": 0})
 
@@ -60,7 +60,7 @@ class TestMahjongGameServiceErrors:
         assert "not in game" in error_event.data.message
 
     async def test_handle_action_unknown_action(self, service):
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", "unknown_action", {})
 
@@ -79,7 +79,7 @@ class TestMahjongGameServiceValidationError:
 
     async def test_dispatch_action_validation_error_on_invalid_data(self, service):
         """Trigger ValidationError by sending data with wrong types to a data-requiring action."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", GameAction.DISCARD, {"tile_id": "not_an_int"})
 
@@ -95,7 +95,7 @@ class TestMahjongGameServiceValidationError:
     )
     async def test_dispatch_data_actions_validation_error(self, service, action):
         """Exercise _dispatch_action dispatch branches with missing required fields."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", action, {})
 
@@ -105,7 +105,7 @@ class TestMahjongGameServiceValidationError:
 
     async def test_dispatch_action_unknown_data_action(self, service):
         """Trigger unknown action branch for data-requiring actions."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", "unknown_action", {"some": "data"})
 
@@ -124,7 +124,7 @@ class TestMahjongGameServiceProcessActionResult:
 
     async def test_process_action_result_round_end(self, service):
         """Verify _process_action_result_internal returns round end events when round is finished."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
@@ -132,6 +132,7 @@ class TestMahjongGameServiceProcessActionResult:
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         result = ActionResult(
@@ -145,7 +146,7 @@ class TestMahjongGameServiceProcessActionResult:
 
     async def test_process_action_result_chankan_prompt(self, service):
         """Verify _process_action_result_internal handles chankan prompts."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -192,7 +193,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
     async def test_chankan_prompt_returns_events_for_player_caller(self, service):
         """Verify chankan returns events when player is a pending caller."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -224,7 +225,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
     async def test_chankan_prompt_processes_ai_player_response(self, service):
         """Verify chankan processes AI player responses when no player caller."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         ai_player_controller = service._ai_player_controllers["game1"]
@@ -263,7 +264,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
     async def test_chankan_prompt_no_pending_prompt(self, service):
         """Verify chankan returns events immediately when no pending prompt."""
-        await service.start_game("game1", ["Player"], seed=2.0)
+        await service.start_game("game1", ["Player"], seed="a" * 192)
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,

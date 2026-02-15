@@ -52,6 +52,7 @@ from game.logic.types import (
     PonActionData,
     SeatConfig,
 )
+from game.logic.wall import Wall
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -63,9 +64,9 @@ def _default_seat_configs() -> list[SeatConfig]:
     ]
 
 
-def _create_frozen_game_state(seed: float = 12345.0) -> MahjongGameState:
-    """Create a frozen game state for testing."""
-    game_state = init_game(_default_seat_configs(), seed=seed)
+def _create_frozen_game_state() -> MahjongGameState:
+    """Create a frozen game state for testing with dealer at seat 0."""
+    game_state = init_game(_default_seat_configs(), wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -109,15 +110,19 @@ class TestResolveMeldResponse:
         the next draw phase; here we verify the meld resolution succeeds and the
         player gets a turn event.
         """
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
         # wall needs at least min_wall_for_kan (2) tiles to pass the guard
         minimal_wall = list(range(16))
         round_state = round_state.model_copy(
             update={
-                "wall": tuple(minimal_wall[:2]),  # exactly min_wall_for_kan
-                "dead_wall": tuple(minimal_wall[2:16]),  # 14 tiles for dead wall
+                "wall": Wall(
+                    live_tiles=tuple(minimal_wall[:2]),
+                    dead_wall_tiles=tuple(minimal_wall[2:16]),
+                    dora_indicators=round_state.wall.dora_indicators,
+                    pending_dora_count=round_state.wall.pending_dora_count,
+                ),
                 "phase": RoundPhase.PLAYING,
             }
         )
@@ -155,7 +160,7 @@ class TestResolveMeldResponse:
         and that open kan is the 4th kan across 2+ players, the round ends immediately
         with an abortive draw. This covers action_handlers.py line 207.
         """
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
         # 3 existing kans across different players
@@ -220,7 +225,7 @@ class TestCompleteAddedKanAfterChankanDecline:
         Four kans abortive draw requires 4 total kans across 2+ different players.
         Player 0 has 2 kans + 1 pon. Player 1 has 1 kan. Player 0 upgrades pon to 4th kan.
         """
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # create 2 existing kans for player 0
@@ -300,24 +305,25 @@ class TestHandleTsumoInvalidHand:
         """Test handle_tsumo when hand doesn't actually win raises InvalidGameActionError."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
+        seat = round_state.current_player_seat
 
-        # give player 0 a non-winning hand (13 random tiles)
+        # give the current player a non-winning hand
         non_winning_tiles = tuple(
             TilesConverter.string_to_136_array(man="13579", pin="1357", sou="135", honors="12")
         )
-        round_state = update_player(round_state, 0, tiles=non_winning_tiles)
+        round_state = update_player(round_state, seat, tiles=non_winning_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         with pytest.raises(InvalidGameActionError) as exc_info:
-            handle_tsumo(round_state, game_state, seat=0)
+            handle_tsumo(round_state, game_state, seat=seat)
         assert exc_info.value.action == "declare_tsumo"
-        assert exc_info.value.seat == 0
+        assert exc_info.value.seat == seat
 
 
 class TestHandlePonMultiCaller:
     def test_handle_pon_multi_caller_waiting(self):
         """Test pon with multiple callers: one responds, waiting for others."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = 0
@@ -390,7 +396,7 @@ class TestHandleChiTileMismatch:
 class TestHandleChiMultiCaller:
     def test_handle_chi_multi_caller_waiting(self):
         """Test chi with multiple callers: one responds, waiting for others."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
@@ -435,7 +441,7 @@ class TestHandleChiMultiCaller:
 class TestHandleKanMultiCaller:
     def test_handle_kan_multi_caller_waiting(self):
         """Test open kan with multiple callers: one responds, waiting for others."""
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="5")[0]
@@ -479,8 +485,13 @@ class TestHandleKanInvalidValidationError:
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
+        # give player 0 tiles where they don't have 4 of any tile
+        non_kan_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1234"))
+        round_state = update_player(round_state, 0, tiles=non_kan_tiles)
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
         # player 0 tries to call closed kan on a tile they don't have 4 of
-        invalid_tile = TilesConverter.string_to_136_array(man="9")[0]
+        invalid_tile = non_kan_tiles[0]
 
         with pytest.raises(InvalidGameActionError) as exc_info:
             handle_kan(
@@ -500,7 +511,7 @@ class TestHandleKanCausesDraw:
         Four kans abortive draw requires 4 total kans across 2+ different players.
         Player 0 has 2 kans. Player 1 has 1 kan. Player 0 declares 4th closed kan.
         """
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # create 2 existing kans for player 0
@@ -577,7 +588,7 @@ class TestHandleKanChankanOpportunity:
         the function returns immediately after detecting the prompt in events.
         This covers action_handlers.py line 727.
         """
-        game_state = init_game(_default_seat_configs(), seed=12345.0)
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # player 0 has a pon of 1m that can be upgraded to added kan

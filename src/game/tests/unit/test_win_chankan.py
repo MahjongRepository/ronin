@@ -10,6 +10,7 @@ from mahjong.tile import TilesConverter
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
+from game.logic.wall import Wall
 from game.logic.win import (
     _has_yaku_for_open_hand,
     is_chankan_possible,
@@ -31,7 +32,7 @@ class TestIsChankanPossible:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         # player 2 tries to add kan of 3p
@@ -54,7 +55,7 @@ class TestIsChankanPossible:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         # player 2 tries to add kan of 9s (no one waiting on it)
@@ -85,7 +86,7 @@ class TestIsChankanPossible:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         # player 2 tries to add kan of 3p
@@ -108,7 +109,7 @@ class TestIsChankanPossible:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
@@ -130,7 +131,7 @@ class TestIsChankanPossible:
             current_player_seat=2,
             round_wind=0,
             players=players,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
 
         kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
@@ -169,7 +170,10 @@ class TestChankanWithOpenHand:
             dealer_seat=0,
             current_player_seat=2,
             round_wind=0,
-            wall=tuple(range(20)),
+            wall=Wall(
+                live_tiles=tuple(range(20)),
+                dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            ),
             players=(
                 MahjongPlayer(seat=0, name="P0", score=25000),
                 player1,
@@ -177,7 +181,6 @@ class TestChankanWithOpenHand:
                 MahjongPlayer(seat=3, name="P3", score=25000),
             ),
             players_with_open_hands=(1,),
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
         )
 
         # player 2 does added kan with 4s - player 1 is waiting on 4s
@@ -214,7 +217,10 @@ class TestChankanWithOpenHand:
             dealer_seat=0,
             current_player_seat=2,
             round_wind=0,
-            wall=tuple(range(20)),
+            wall=Wall(
+                live_tiles=tuple(range(20)),
+                dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            ),
             players=(
                 MahjongPlayer(seat=0, name="P0", score=25000),
                 player1,
@@ -222,7 +228,6 @@ class TestChankanWithOpenHand:
                 MahjongPlayer(seat=3, name="P3", score=25000),
             ),
             players_with_open_hands=(1,),
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
         )
 
         # player 2 does added kan with 5m - player 1 is waiting on 5m
@@ -250,7 +255,7 @@ class TestHasYakuForOpenHandEmptyTiles:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
         result = _has_yaku_for_open_hand(player, round_state, GameSettings())
         assert result is False

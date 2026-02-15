@@ -7,7 +7,6 @@ that return new state.
 """
 
 import logging
-import random
 from typing import Any
 
 from pydantic import ValidationError
@@ -52,6 +51,7 @@ from game.logic.game import (
     process_round_end,
 )
 from game.logic.matchmaker import fill_seats
+from game.logic.rng import generate_seed
 from game.logic.round_advance import RoundAdvanceManager
 from game.logic.service import GameService
 from game.logic.settings import GameSettings
@@ -106,7 +106,7 @@ class MahjongGameService(GameService):
         game_id: str,
         player_names: list[str],
         *,
-        seed: float | None = None,
+        seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
@@ -119,14 +119,19 @@ class MahjongGameService(GameService):
         When seed is None, a random seed is generated.
         When wall is provided, use it instead of generating from seed.
         """
-        game_seed = seed if seed is not None else random.random()  # noqa: S311
+        game_seed = seed if seed is not None else generate_seed()
+        if not isinstance(game_seed, str):
+            return self._create_error_event(
+                GameErrorCode.INVALID_ACTION,
+                f"Seed must be a string, got {type(game_seed).__name__}",
+            )
         logger.info(f"starting game {game_id} with players: {player_names}")
-        seat_configs = fill_seats(player_names, seed=game_seed)
 
         game_settings = settings or self._settings
         try:
+            seat_configs = fill_seats(player_names, seed=game_seed)
             frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings, wall=wall)
-        except UnsupportedSettingsError as e:
+        except (UnsupportedSettingsError, ValueError) as e:
             return self._create_error_event(GameErrorCode.INVALID_ACTION, str(e))
         self._games[game_id] = frozen_game
 
@@ -181,7 +186,12 @@ class MahjongGameService(GameService):
         ]
         return ServiceEvent(
             event=EventType.GAME_STARTED,
-            data=GameStartedEvent(game_id=game_id, players=players),
+            data=GameStartedEvent(
+                game_id=game_id,
+                players=players,
+                dealer_seat=game_state.round_state.dealer_seat,
+                dealer_dice=game_state.dealer_dice,
+            ),
             target=BroadcastTarget(),
         )
 
@@ -417,7 +427,7 @@ class MahjongGameService(GameService):
         """Return the current game state, or None if game doesn't exist."""
         return self._games.get(game_id)
 
-    def get_game_seed(self, game_id: str) -> float | None:
+    def get_game_seed(self, game_id: str) -> str | None:
         """Return the seed for a game, or None if game doesn't exist."""
         game_state = self._games.get(game_id)
         return game_state.seed if game_state is not None else None

@@ -4,15 +4,14 @@ Matchmaker for seat assignment and AI player filling.
 Assigns players to random seats and fills remaining slots with AI players.
 """
 
-import random
-
 from game.logic.enums import AIPlayerType
+from game.logic.rng import create_seat_rng
 from game.logic.types import SeatConfig
 
 NUM_PLAYERS = 4
 
 
-def fill_seats(player_names: list[str], seed: float | None = None) -> list[SeatConfig]:
+def fill_seats(player_names: list[str], seed: str | None = None) -> list[SeatConfig]:
     """
     Create seat configurations for a game.
 
@@ -20,7 +19,7 @@ def fill_seats(player_names: list[str], seed: float | None = None) -> list[SeatC
     The sample ordering determines which seats get players AND the order of name assignment,
     so seat randomization works correctly even with all-player games.
     """
-    rng = random.Random(seed)  # noqa: S311
+    rng = create_seat_rng(seed)
 
     # sample determines which seats get players AND the order of name assignment
     player_seat_order = rng.sample(range(NUM_PLAYERS), len(player_names))

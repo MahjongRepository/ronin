@@ -81,8 +81,6 @@ class HandResultInfo(BaseModel):
     han: int
     fu: int
     yaku: list[YakuInfo]
-    cost_main: int = 0
-    cost_additional: int = 0
 
 
 class TsumoResult(BaseModel):
@@ -91,6 +89,7 @@ class TsumoResult(BaseModel):
     type: RoundResultType = RoundResultType.TSUMO
     winner_seat: int
     hand_result: HandResultInfo
+    scores: dict[int, int]
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
@@ -108,6 +107,7 @@ class RonResult(BaseModel):
     loser_seat: int
     winning_tile: int
     hand_result: HandResultInfo
+    scores: dict[int, int]
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
@@ -135,6 +135,7 @@ class DoubleRonResult(BaseModel):
     loser_seat: int
     winning_tile: int
     winners: list[DoubleRonWinner]
+    scores: dict[int, int]
     score_changes: dict[int, int]
 
 
@@ -153,6 +154,7 @@ class ExhaustiveDrawResult(BaseModel):
     tempai_seats: list[int]
     noten_seats: list[int]
     tenpai_hands: list[TenpaiHand]
+    scores: dict[int, int]
     score_changes: dict[int, int]
 
 
@@ -161,6 +163,7 @@ class AbortiveDrawResult(BaseModel):
 
     type: RoundResultType = RoundResultType.ABORTIVE_DRAW
     reason: AbortiveDrawType
+    scores: dict[int, int]
     score_changes: dict[int, int] = Field(default_factory=dict)
     seat: int | None = None
 
@@ -173,6 +176,7 @@ class NagashiManganResult(BaseModel):
     tempai_seats: list[int]
     noten_seats: list[int]
     tenpai_hands: list[TenpaiHand]
+    scores: dict[int, int]
     score_changes: dict[int, int]
 
 
@@ -261,6 +265,7 @@ class GameView(BaseModel):
     riichi_sticks: int
     my_tiles: list[int]
     players: list[PlayerView]
+    dice: tuple[int, int] = (1, 1)
 
 
 # discriminated union for all round results

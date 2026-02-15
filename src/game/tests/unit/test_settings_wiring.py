@@ -108,14 +108,20 @@ class TestRenchanOnAbortiveDraw:
 
     def test_default_abortive_draw_renchan(self):
         gs = self._game_state(renchan_on_abortive_draw=True)
-        result = AbortiveDrawResult(reason=AbortiveDrawType.FOUR_WINDS)
+        result = AbortiveDrawResult(
+            reason=AbortiveDrawType.FOUR_WINDS,
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+        )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 3
         assert should_rotate is False
 
     def test_no_renchan_on_abortive_draw(self):
         gs = self._game_state(renchan_on_abortive_draw=False)
-        result = AbortiveDrawResult(reason=AbortiveDrawType.FOUR_WINDS)
+        result = AbortiveDrawResult(
+            reason=AbortiveDrawType.FOUR_WINDS,
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+        )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 0
         assert should_rotate is True
@@ -132,6 +138,7 @@ class TestRenchanOnDealerTenpaiDraw:
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
             tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
@@ -144,6 +151,7 @@ class TestRenchanOnDealerTenpaiDraw:
             tempai_seats=[1],
             noten_seats=[0, 2, 3],
             tenpai_hands=[TenpaiHand(seat=1, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
@@ -156,11 +164,26 @@ class TestRenchanOnDealerTenpaiDraw:
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
             tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 2
         assert should_rotate is True
+
+    def test_renchan_nagashi_mangan_dealer_tenpai_no_rotation(self):
+        gs = self._game_state(renchan_on_dealer_tenpai_draw=True)
+        result = NagashiManganResult(
+            qualifying_seats=[1],
+            tempai_seats=[0],
+            noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
+        )
+        honba, should_rotate = _get_honba_and_rotation(gs, result)
+        assert honba == 1
+        assert should_rotate is False
 
     def test_no_renchan_nagashi_mangan_dealer_tenpai_rotates(self):
         settings = GameSettings(renchan_on_dealer_tenpai_draw=False)
@@ -170,6 +193,7 @@ class TestRenchanOnDealerTenpaiDraw:
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
             tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         _honba, should_rotate = _get_honba_and_rotation(gs, result)
@@ -185,6 +209,7 @@ class TestRenchanOnDealerWin:
         return TsumoResult(
             winner_seat=winner_seat,
             hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
             closed_tiles=[0, 1, 2, 3],
@@ -198,6 +223,7 @@ class TestRenchanOnDealerWin:
             loser_seat=loser_seat,
             winning_tile=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,
             closed_tiles=[0, 1, 2],
@@ -487,67 +513,67 @@ class TestHasKandora:
     def test_closed_kan_with_kandora_reveals_dora(self):
         rs, settings = _make_kan_test_round_state(has_kandora=True)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 2
+        assert len(new_rs.wall.dora_indicators) == 2
 
     def test_closed_kan_without_kandora_no_dora(self):
         rs, settings = _make_kan_test_round_state(has_kandora=False)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 1
-        assert new_rs.pending_dora_count == 0
+        assert len(new_rs.wall.dora_indicators) == 1
+        assert new_rs.wall.pending_dora_count == 0
 
     def test_open_kan_without_kandora_no_pending_dora(self):
         rs, settings = _make_open_kan_test_round_state(has_kandora=False)
         new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 1
-        assert new_rs.pending_dora_count == 0
+        assert len(new_rs.wall.dora_indicators) == 1
+        assert new_rs.wall.pending_dora_count == 0
 
 
 class TestKandoraImmediateForClosedKan:
     def test_immediate_true_reveals_dora_immediately(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 2
-        assert new_rs.pending_dora_count == 0
+        assert len(new_rs.wall.dora_indicators) == 2
+        assert new_rs.wall.pending_dora_count == 0
 
     def test_immediate_false_defers_dora(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 1
-        assert new_rs.pending_dora_count == 1
+        assert len(new_rs.wall.dora_indicators) == 1
+        assert new_rs.wall.pending_dora_count == 1
 
 
 class TestKandoraDeferredForOpenKan:
     def test_deferred_true_defers_dora(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
         new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 1
-        assert new_rs.pending_dora_count == 1
+        assert len(new_rs.wall.dora_indicators) == 1
+        assert new_rs.wall.pending_dora_count == 1
 
     def test_deferred_false_reveals_immediately(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
         new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
-        assert len(new_rs.dora_indicators) == 2
-        assert new_rs.pending_dora_count == 0
+        assert len(new_rs.wall.dora_indicators) == 2
+        assert new_rs.wall.pending_dora_count == 0
 
 
 class TestKandoraTimingAddedKan:
     def test_added_kan_deferred_true(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         new_rs, _meld = call_added_kan(rs, 0, 3, settings)
-        assert len(new_rs.dora_indicators) == 1
-        assert new_rs.pending_dora_count == 1
+        assert len(new_rs.wall.dora_indicators) == 1
+        assert new_rs.wall.pending_dora_count == 1
 
     def test_added_kan_deferred_false_reveals_immediately(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         new_rs, _meld = call_added_kan(rs, 0, 3, settings)
-        assert len(new_rs.dora_indicators) == 2
-        assert new_rs.pending_dora_count == 0
+        assert len(new_rs.wall.dora_indicators) == 2
+        assert new_rs.wall.pending_dora_count == 0
 
     def test_added_kan_no_kandora(self):
         rs, settings = _make_pon_round_state(has_kandora=False)
         new_rs, _meld = call_added_kan(rs, 0, 3, settings)
-        assert len(new_rs.dora_indicators) == 1
-        assert new_rs.pending_dora_count == 0
+        assert len(new_rs.wall.dora_indicators) == 1
+        assert new_rs.wall.pending_dora_count == 0
 
 
 # ============================================================================

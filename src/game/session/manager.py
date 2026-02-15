@@ -96,7 +96,9 @@ class SessionManager:
         if self._replay_collector:
             seed = self._game_service.get_game_seed(game_id)
             if seed is not None:
-                self._replay_collector.start_game(game_id, seed)
+                game_state = self._game_service.get_game_state(game_id)
+                rng_version = game_state.rng_version if game_state is not None else ""
+                self._replay_collector.start_game(game_id, seed, rng_version)
 
     async def _send_error(self, connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())

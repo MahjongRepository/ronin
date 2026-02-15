@@ -6,7 +6,14 @@ from pathlib import Path
 import pytest
 
 from game.logic.enums import GameAction
+from game.logic.rng import RNG_VERSION
 from game.replay.loader import ReplayLoadError, load_replay_from_file, load_replay_from_string
+from game.replay.models import REPLAY_VERSION
+
+# Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3
+_TEST_SEED = "0" * 191 + "6"
+
+VERSION_TAG_LINE = json.dumps({"version": REPLAY_VERSION})
 
 GAME_STARTED_LINE = json.dumps(
     {
@@ -18,7 +25,8 @@ GAME_STARTED_LINE = json.dumps(
             {"seat": 2, "name": "Charlie", "is_ai_player": False},
             {"seat": 3, "name": "Diana", "is_ai_player": False},
         ],
-        "seed": 42.0,
+        "seed": _TEST_SEED,
+        "rng_version": RNG_VERSION,
     }
 )
 
@@ -27,8 +35,8 @@ DRAW_LINE = json.dumps({"type": "draw", "seat": 0, "tile_id": 108})
 
 
 def _build_event_log(*extra_lines: str) -> str:
-    """Build an event-log string with game_started header and extra lines."""
-    return "\n".join([GAME_STARTED_LINE, *extra_lines])
+    """Build an event-log string with version tag, game_started header, and extra lines."""
+    return "\n".join([VERSION_TAG_LINE, GAME_STARTED_LINE, *extra_lines])
 
 
 def test_parse_single_discard():
@@ -45,7 +53,7 @@ def test_parse_single_discard():
     content = _build_event_log(ROUND_STARTED_LINE, DRAW_LINE, discard)
     replay = load_replay_from_string(content)
 
-    assert replay.seed == 42.0
+    assert replay.seed == _TEST_SEED
     # player_names is in reconstructed input order (for fill_seats), not seat order
     assert set(replay.player_names) == {"Alice", "Bob", "Charlie", "Diana"}
     assert len(replay.events) == 1
@@ -271,18 +279,80 @@ def test_non_action_events_skipped():
     assert len(replay.events) == 0
 
 
+def test_error_missing_version_tag():
+    """ReplayLoadError when first line is not a version tag."""
+    content = GAME_STARTED_LINE
+    with pytest.raises(ReplayLoadError, match="must contain at least a version tag"):
+        load_replay_from_string(content)
+
+
+def test_error_version_mismatch():
+    """ReplayLoadError when version tag has wrong version."""
+    bad_version = json.dumps({"version": "99.0"})
+    content = f"{bad_version}\n{GAME_STARTED_LINE}"
+    with pytest.raises(ReplayLoadError, match="Replay version mismatch"):
+        load_replay_from_string(content)
+
+
+def test_error_missing_version_field():
+    """ReplayLoadError when first line has no 'version' field."""
+    no_version = json.dumps({"something": "else"})
+    content = f"{no_version}\n{GAME_STARTED_LINE}"
+    with pytest.raises(ReplayLoadError, match="must be a version tag"):
+        load_replay_from_string(content)
+
+
 def test_error_missing_game_started():
-    """ReplayLoadError when first event is not game_started."""
-    content = json.dumps({"type": "round_started", "view": {}})
+    """ReplayLoadError when second event is not game_started."""
+    content = "\n".join([VERSION_TAG_LINE, json.dumps({"type": "round_started", "view": {}})])
     with pytest.raises(ReplayLoadError, match="First event must be game_started"):
         load_replay_from_string(content)
 
 
 def test_error_malformed_json():
     """ReplayLoadError for malformed JSON."""
-    content = GAME_STARTED_LINE + "\n{invalid json}"
-    with pytest.raises(ReplayLoadError, match="Malformed JSON on line 2"):
+    content = VERSION_TAG_LINE + "\n" + GAME_STARTED_LINE + "\n{invalid json}"
+    with pytest.raises(ReplayLoadError, match="Malformed JSON on line 3"):
         load_replay_from_string(content)
+
+
+def test_error_missing_rng_version():
+    """ReplayLoadError when game_started missing rng_version."""
+    no_version = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": _TEST_SEED,
+            "players": [
+                {"seat": 0, "name": "A", "is_ai_player": False},
+                {"seat": 1, "name": "B", "is_ai_player": False},
+                {"seat": 2, "name": "C", "is_ai_player": False},
+                {"seat": 3, "name": "D", "is_ai_player": False},
+            ],
+        }
+    )
+    with pytest.raises(ReplayLoadError, match="missing 'rng_version' field"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_version}")
+
+
+def test_error_rng_version_mismatch():
+    """ReplayLoadError when game_started has wrong rng_version."""
+    bad_version = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": _TEST_SEED,
+            "rng_version": "old-version-v0",
+            "players": [
+                {"seat": 0, "name": "A", "is_ai_player": False},
+                {"seat": 1, "name": "B", "is_ai_player": False},
+                {"seat": 2, "name": "C", "is_ai_player": False},
+                {"seat": 3, "name": "D", "is_ai_player": False},
+            ],
+        }
+    )
+    with pytest.raises(ReplayLoadError, match="RNG version mismatch"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_version}")
 
 
 def test_error_missing_seed():
@@ -300,7 +370,67 @@ def test_error_missing_seed():
         }
     )
     with pytest.raises(ReplayLoadError, match="missing 'seed' field"):
-        load_replay_from_string(no_seed)
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_seed}")
+
+
+def test_error_non_hex_seed():
+    """ReplayLoadError when seed contains non-hex characters."""
+    bad_seed = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": "not-hex-seed" + "0" * 180,
+            "rng_version": RNG_VERSION,
+            "players": [
+                {"seat": 0, "name": "A", "is_ai_player": False},
+                {"seat": 1, "name": "B", "is_ai_player": False},
+                {"seat": 2, "name": "C", "is_ai_player": False},
+                {"seat": 3, "name": "D", "is_ai_player": False},
+            ],
+        }
+    )
+    with pytest.raises(ReplayLoadError, match="invalid seed"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
+
+
+def test_error_short_hex_seed():
+    """ReplayLoadError when seed is valid hex but wrong length."""
+    bad_seed = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": "abc",
+            "rng_version": RNG_VERSION,
+            "players": [
+                {"seat": 0, "name": "A", "is_ai_player": False},
+                {"seat": 1, "name": "B", "is_ai_player": False},
+                {"seat": 2, "name": "C", "is_ai_player": False},
+                {"seat": 3, "name": "D", "is_ai_player": False},
+            ],
+        }
+    )
+    with pytest.raises(ReplayLoadError, match="invalid seed"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
+
+
+def test_error_non_string_seed():
+    """ReplayLoadError when seed is not a string (e.g., integer from malformed JSON)."""
+    bad_seed = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": 12345,
+            "rng_version": RNG_VERSION,
+            "players": [
+                {"seat": 0, "name": "A", "is_ai_player": False},
+                {"seat": 1, "name": "B", "is_ai_player": False},
+                {"seat": 2, "name": "C", "is_ai_player": False},
+                {"seat": 3, "name": "D", "is_ai_player": False},
+            ],
+        }
+    )
+    with pytest.raises(ReplayLoadError, match="invalid seed"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
 
 
 def test_error_unknown_event_type():
@@ -332,7 +462,7 @@ def test_load_replay_from_file(tmp_path: Path):
     file_path.write_text(content)
 
     replay = load_replay_from_file(file_path)
-    assert replay.seed == 42.0
+    assert replay.seed == _TEST_SEED
     assert len(replay.events) == 1
 
 
@@ -348,11 +478,12 @@ def test_error_missing_players():
         {
             "type": "game_started",
             "game_id": "test",
-            "seed": 42.0,
+            "seed": _TEST_SEED,
+            "rng_version": RNG_VERSION,
         }
     )
     with pytest.raises(ReplayLoadError, match="missing 'players' field"):
-        load_replay_from_string(no_players)
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_players}")
 
 
 def test_error_unknown_meld_type():
@@ -447,7 +578,8 @@ def test_error_invalid_seat_indices():
         {
             "type": "game_started",
             "game_id": "test",
-            "seed": 42.0,
+            "seed": _TEST_SEED,
+            "rng_version": RNG_VERSION,
             "players": [
                 {"seat": 0, "name": "A"},
                 {"seat": 1, "name": "B"},
@@ -457,7 +589,7 @@ def test_error_invalid_seat_indices():
         }
     )
     with pytest.raises(ReplayLoadError, match="must have exactly seats"):
-        load_replay_from_string(bad_started)
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
 def test_error_round_end_tsumo_missing_winner_seat():

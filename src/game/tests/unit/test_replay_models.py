@@ -48,7 +48,7 @@ class TestReplayInputEvent:
 class TestReplayInput:
     def test_valid_4_players(self):
         replay = ReplayInput(
-            seed=42.0,
+            seed="a" * 192,
             player_names=PLAYER_NAMES,
             events=(),
         )
@@ -58,7 +58,7 @@ class TestReplayInput:
     def test_rejects_duplicate_names(self):
         with pytest.raises(ValidationError, match="4 unique names"):
             ReplayInput(
-                seed=1.0,
+                seed="a" * 192,
                 player_names=("Alice", "Alice", "Bob", "Charlie"),
                 events=(),
             )
@@ -66,7 +66,7 @@ class TestReplayInput:
     def test_rejects_fewer_than_4_names(self):
         with pytest.raises(ValidationError):
             ReplayInput(
-                seed=1.0,
+                seed="a" * 192,
                 player_names=("Alice", "Bob", "Charlie"),
                 events=(),
             )
@@ -74,7 +74,7 @@ class TestReplayInput:
     def test_rejects_more_than_4_names(self):
         with pytest.raises(ValidationError):
             ReplayInput(
-                seed=1.0,
+                seed="a" * 192,
                 player_names=("A", "B", "C", "D", "E"),
                 events=(),
             )
@@ -82,7 +82,7 @@ class TestReplayInput:
     def test_rejects_unknown_player_in_events(self):
         with pytest.raises(ValidationError, match="unknown player_name"):
             ReplayInput(
-                seed=1.0,
+                seed="a" * 192,
                 player_names=PLAYER_NAMES,
                 events=(
                     ReplayInputEvent(
@@ -94,7 +94,7 @@ class TestReplayInput:
 
     def test_accepts_valid_events(self):
         replay = ReplayInput(
-            seed=1.0,
+            seed="a" * 192,
             player_names=PLAYER_NAMES,
             events=(
                 ReplayInputEvent(
@@ -112,9 +112,9 @@ class TestReplayInput:
         assert len(replay.events) == 2
 
     def test_frozen(self):
-        replay = ReplayInput(seed=1.0, player_names=PLAYER_NAMES, events=())
+        replay = ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=())
         with pytest.raises(ValidationError):
-            replay.seed = 2.0
+            replay.seed = "b" * 192
 
 
 class TestReplayStep:
@@ -157,14 +157,14 @@ class TestReplayTrace:
     def test_construction(self):
         state = create_game_state()
         trace = ReplayTrace(
-            seed=42.0,
+            seed="a" * 192,
             seat_by_player={"Alice": 0, "Bob": 1, "Charlie": 2, "Diana": 3},
             startup_events=(),
             initial_state=state,
             steps=(),
             final_state=state,
         )
-        assert trace.seed == 42.0
+        assert trace.seed == "a" * 192
         assert trace.seat_by_player["Alice"] == 0
         assert trace.initial_state is state
         assert trace.final_state is state
