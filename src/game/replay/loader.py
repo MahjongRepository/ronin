@@ -284,17 +284,16 @@ def _extract_kan_tile_id(event: dict[str, Any]) -> int:
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
     """Parse a round_end event into player action(s), if any."""
-    result = event.get("result", {})
-    result_type = result.get("type")
+    result_type = event.get("result_type")
 
     if result_type == "tsumo":
-        return _parse_tsumo_round_end(result, seat_to_name)
+        return _parse_tsumo_round_end(event, seat_to_name)
     if result_type == "ron":
-        return _parse_ron_round_end(result, seat_to_name)
+        return _parse_ron_round_end(event, seat_to_name)
     if result_type == "double_ron":
-        return _parse_double_ron_round_end(result, seat_to_name)
+        return _parse_double_ron_round_end(event, seat_to_name)
     if result_type == "abortive_draw":
-        return _parse_abortive_draw_round_end(result, seat_to_name)
+        return _parse_abortive_draw_round_end(event, seat_to_name)
     # exhaustive_draw, nagashi_mangan — no player action
     if result_type in ("exhaustive_draw", "nagashi_mangan"):
         return None

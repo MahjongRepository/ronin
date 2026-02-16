@@ -120,7 +120,6 @@ function handleGameMessage(message: Record<string, unknown>): void {
         setTimeout(() => {
             currentSocket.send({
                 action: GameAction.CONFIRM_ROUND,
-                data: {},
                 type: ClientMessageType.GAME_ACTION,
             });
         }, 1000);

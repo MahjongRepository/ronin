@@ -2,10 +2,16 @@ import pytest
 from mahjong.tile import TilesConverter
 from pydantic import ValidationError
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, KanType
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
+    ChiMessage,
     ClientMessageType,
+    DiscardMessage,
+    KanMessage,
+    NoDataActionMessage,
+    PonMessage,
+    RiichiMessage,
     SessionErrorCode,
     SessionMessageType,
     parse_client_message,
@@ -97,7 +103,7 @@ class TestMessageRouterBranches:
             {
                 "type": ClientMessageType.GAME_ACTION,
                 "action": GameAction.DISCARD,
-                "data": {"tile_id": TilesConverter.string_to_136_array(man="1")[0]},
+                "tile_id": TilesConverter.string_to_136_array(man="1")[0],
             },
         )
 
@@ -126,7 +132,7 @@ class TestMessageRouterBranches:
             {
                 "type": ClientMessageType.GAME_ACTION,
                 "action": GameAction.DISCARD,
-                "data": {"tile_id": 0},
+                "tile_id": 0,
             },
         )
 
@@ -155,5 +161,65 @@ class TestParseClientMessage:
 
     def test_parse_invalid_type_rejected(self):
         data = {"type": "join_game", "game_id": "game1", "player_name": "Alice", "session_token": "tok"}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_parse_discard_message(self):
+        data = {"type": "game_action", "action": "discard", "tile_id": 42}
+        msg = parse_client_message(data)
+        assert isinstance(msg, DiscardMessage)
+        assert msg.tile_id == 42
+
+    def test_parse_riichi_message(self):
+        data = {"type": "game_action", "action": "declare_riichi", "tile_id": 10}
+        msg = parse_client_message(data)
+        assert isinstance(msg, RiichiMessage)
+        assert msg.tile_id == 10
+
+    def test_parse_pon_message(self):
+        data = {"type": "game_action", "action": "call_pon", "tile_id": 5}
+        msg = parse_client_message(data)
+        assert isinstance(msg, PonMessage)
+        assert msg.tile_id == 5
+
+    def test_parse_chi_message(self):
+        data = {"type": "game_action", "action": "call_chi", "tile_id": 40, "sequence_tiles": [41, 42]}
+        msg = parse_client_message(data)
+        assert isinstance(msg, ChiMessage)
+        assert msg.tile_id == 40
+        assert msg.sequence_tiles == (41, 42)
+
+    def test_parse_kan_message_default_type(self):
+        data = {"type": "game_action", "action": "call_kan", "tile_id": 8}
+        msg = parse_client_message(data)
+        assert isinstance(msg, KanMessage)
+        assert msg.tile_id == 8
+        assert msg.kan_type == KanType.OPEN
+
+    def test_parse_kan_message_with_type(self):
+        data = {"type": "game_action", "action": "call_kan", "tile_id": 8, "kan_type": "closed"}
+        msg = parse_client_message(data)
+        assert isinstance(msg, KanMessage)
+        assert msg.kan_type == KanType.CLOSED
+
+    def test_parse_no_data_action(self):
+        data = {"type": "game_action", "action": "pass"}
+        msg = parse_client_message(data)
+        assert isinstance(msg, NoDataActionMessage)
+        assert msg.action == GameAction.PASS
+
+    def test_parse_confirm_round(self):
+        data = {"type": "game_action", "action": "confirm_round"}
+        msg = parse_client_message(data)
+        assert isinstance(msg, NoDataActionMessage)
+        assert msg.action == GameAction.CONFIRM_ROUND
+
+    def test_parse_game_action_missing_required_field(self):
+        data = {"type": "game_action", "action": "discard"}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_parse_game_action_invalid_action(self):
+        data = {"type": "game_action", "action": "invalid_action"}
         with pytest.raises(ValidationError):
             parse_client_message(data)

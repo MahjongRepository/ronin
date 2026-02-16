@@ -22,7 +22,6 @@ class TestRoundTrip:
             "seat": 1,
             "tile_id": 50,
             "is_tsumogiri": True,
-            "is_riichi": False,
             "target": "all",
         }
 

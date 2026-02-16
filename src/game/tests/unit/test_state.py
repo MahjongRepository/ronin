@@ -140,7 +140,6 @@ class TestMeldToView:
         meld = FrozenMeld(meld_type=FrozenMeld.CHI, tiles=tiles, opened=True, from_who=3)
         view = meld_to_view(meld)
         assert view.type == MeldViewType.CHI
-        assert view.opened is True
 
     def test_pon(self):
         """Pon maps to PON view type."""
@@ -148,7 +147,6 @@ class TestMeldToView:
         meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tiles, opened=True, from_who=1)
         view = meld_to_view(meld)
         assert view.type == MeldViewType.PON
-        assert view.opened is True
 
     def test_open_kan(self):
         """Open kan maps to OPEN_KAN view type."""
@@ -156,7 +154,6 @@ class TestMeldToView:
         meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tiles, opened=True, from_who=1)
         view = meld_to_view(meld)
         assert view.type == MeldViewType.OPEN_KAN
-        assert view.opened is True
 
     def test_closed_kan(self):
         """Closed kan maps to CLOSED_KAN view type."""
@@ -164,7 +161,6 @@ class TestMeldToView:
         meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tiles, opened=False)
         view = meld_to_view(meld)
         assert view.type == MeldViewType.CLOSED_KAN
-        assert view.opened is False
 
     def test_chankan(self):
         """Chankan maps to ADDED_KAN view type."""

@@ -368,9 +368,9 @@ class TestHandlePonImmutable:
         assert meld_events[0].meld_type == MeldViewType.PON
         assert meld_events[0].caller_seat == 1
 
+        # no DrawEvent after pon — MeldEvent is the only signal
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].seat == 1
+        assert len(draw_events) == 0
 
     def test_handle_pon_no_prompt(self):
         game_state = _create_frozen_game_state()
@@ -440,9 +440,9 @@ class TestHandleChiImmutable:
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CHI
 
+        # no DrawEvent after chi — MeldEvent is the only signal
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].seat == 1
+        assert len(draw_events) == 0
 
     def test_handle_chi_no_prompt(self):
         game_state = _create_frozen_game_state()

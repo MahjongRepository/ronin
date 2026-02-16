@@ -161,7 +161,7 @@ class TestWebSocketIntegration:
                 {
                     "type": ClientMessageType.GAME_ACTION,
                     "action": GameAction.DISCARD,
-                    "data": {"foo": "bar"},
+                    "tile_id": 0,
                 },
             )
 

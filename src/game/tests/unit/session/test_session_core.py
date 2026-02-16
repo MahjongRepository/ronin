@@ -83,6 +83,7 @@ class TestSessionManager:
             event=EventType.DRAW,
             data=DrawEvent(
                 seat=0,
+                tile_id=42,
                 available_actions=[],
                 target="seat_0",
             ),

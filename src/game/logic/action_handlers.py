@@ -673,7 +673,7 @@ def handle_kan(
     # after kan, emit draw event for dead wall tile with available actions
     if new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[seat]
-        drawn_tile = player.tiles[-1] if player.tiles else None
+        drawn_tile = player.tiles[-1]
         events.append(create_draw_event(new_round_state, new_game_state, seat, tile_id=drawn_tile))
 
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)

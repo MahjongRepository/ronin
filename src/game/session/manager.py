@@ -3,7 +3,7 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import GameAction, TimeoutType
+from game.logic.enums import GameAction, MeldViewType, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -11,6 +11,7 @@ from game.logic.events import (
     ErrorEvent,
     FuritenEvent,
     GameEndedEvent,
+    MeldEvent,
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
@@ -789,11 +790,18 @@ class SessionManager:
 
         self._start_meld_timers_from_events(game, events)
 
+    _PON_CHI_MELD_TYPES = frozenset({MeldViewType.PON, MeldViewType.CHI})
+
     def _start_turn_timer_from_events(self, game: Game, events: list[ServiceEvent]) -> bool:
-        """Start a turn timer if events contain a DrawEvent for a connected player."""
+        """Start a turn timer if events contain a DrawEvent or a pon/chi MeldEvent."""
         for event in events:
             if isinstance(event.data, DrawEvent):
                 seat = event.data.seat
+                if self._get_player_at_seat(game, seat) is not None:
+                    self._timer_manager.start_turn_timer(game.game_id, seat)
+                    return True
+            elif isinstance(event.data, MeldEvent) and event.data.meld_type in self._PON_CHI_MELD_TYPES:
+                seat = event.data.caller_seat
                 if self._get_player_at_seat(game, seat) is not None:
                     self._timer_manager.start_turn_timer(game.game_id, seat)
                     return True

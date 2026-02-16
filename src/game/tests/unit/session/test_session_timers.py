@@ -1,13 +1,14 @@
 import asyncio
 from unittest.mock import AsyncMock
 
-from game.logic.enums import CallType, GameAction, TimeoutType
+from game.logic.enums import CallType, GameAction, MeldViewType, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
     DrawEvent,
     EventType,
     GameEndedEvent,
+    MeldEvent,
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
@@ -16,7 +17,6 @@ from game.logic.events import (
 from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import (
     ExhaustiveDrawResult,
-    GameEndResult,
     PlayerStanding,
     TenpaiHand,
 )
@@ -108,6 +108,7 @@ class TestSessionManagerTimerIntegration:
             data=DrawEvent(
                 target="seat_0",
                 seat=0,
+                tile_id=42,
                 available_actions=[],
             ),
             target=SeatTarget(seat=0),
@@ -116,6 +117,55 @@ class TestSessionManagerTimerIntegration:
         await manager._maybe_start_timer(game, [draw_event])
 
         # timer should have an active task (turn timer started)
+        assert timer._active_task is not None
+        timer.cancel()
+
+    async def test_maybe_start_timer_with_pon_meld_event(self, manager):
+        """_maybe_start_timer starts a turn timer when pon MeldEvent targets the caller."""
+        game, _player, _conn = make_game_with_player(manager)
+        timer = TurnTimer()
+        manager._timer_manager._timers["game1"] = {0: timer}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        meld_event = ServiceEvent(
+            event=EventType.MELD,
+            data=MeldEvent(
+                meld_type=MeldViewType.PON,
+                caller_seat=0,
+                from_seat=1,
+                tile_ids=[0, 1, 2],
+                called_tile_id=2,
+            ),
+            target=BroadcastTarget(),
+        )
+
+        await manager._maybe_start_timer(game, [meld_event])
+
+        # timer should have an active task (turn timer started from pon meld)
+        assert timer._active_task is not None
+        timer.cancel()
+
+    async def test_maybe_start_timer_with_chi_meld_event(self, manager):
+        """_maybe_start_timer starts a turn timer when chi MeldEvent targets the caller."""
+        game, _player, _conn = make_game_with_player(manager)
+        timer = TurnTimer()
+        manager._timer_manager._timers["game1"] = {0: timer}
+        manager._game_locks["game1"] = asyncio.Lock()
+
+        meld_event = ServiceEvent(
+            event=EventType.MELD,
+            data=MeldEvent(
+                meld_type=MeldViewType.CHI,
+                caller_seat=0,
+                from_seat=3,
+                tile_ids=[40, 41, 42],
+                called_tile_id=40,
+            ),
+            target=BroadcastTarget(),
+        )
+
+        await manager._maybe_start_timer(game, [meld_event])
+
         assert timer._active_task is not None
         timer.cancel()
 
@@ -157,7 +207,7 @@ class TestSessionManagerTimerIntegration:
             data=RoundStartedEvent(
                 type=EventType.ROUND_STARTED,
                 target="seat_0",
-                view=make_dummy_game_view(),
+                **make_dummy_game_view().model_dump(),
             ),
             target=SeatTarget(seat=0),
         )
@@ -209,12 +259,10 @@ class TestSessionManagerTimerIntegration:
             data=GameEndedEvent(
                 type=EventType.GAME_END,
                 target="all",
-                result=GameEndResult(
-                    winner_seat=0,
-                    standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_ai_player=False),
-                    ],
-                ),
+                winner_seat=0,
+                standings=[
+                    PlayerStanding(seat=0, score=25000, final_score=0),
+                ],
             ),
             target=BroadcastTarget(),
         )
@@ -262,6 +310,7 @@ class TestSessionManagerTimerIntegration:
             data=DrawEvent(
                 target="seat_0",
                 seat=0,
+                tile_id=42,
                 available_actions=[],
             ),
             target=SeatTarget(seat=0),
@@ -341,7 +390,7 @@ class TestPerPlayerTimers:
             data=RoundStartedEvent(
                 type=EventType.ROUND_STARTED,
                 target="seat_0",
-                view=make_dummy_game_view(),
+                **make_dummy_game_view().model_dump(),
             ),
             target=SeatTarget(seat=0),
         )
@@ -495,6 +544,7 @@ class TestPerPlayerTimers:
             data=DrawEvent(
                 target="seat_0",
                 seat=0,
+                tile_id=42,
                 available_actions=[],
             ),
             target=SeatTarget(seat=0),

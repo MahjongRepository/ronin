@@ -20,7 +20,7 @@ from game.logic.enums import (
     RoundPhase,
     RoundResultType,
 )
-from game.logic.events import CallPromptEvent, DrawEvent, RiichiDeclaredEvent, RoundEndEvent
+from game.logic.events import CallPromptEvent, DrawEvent, MeldEvent, RiichiDeclaredEvent, RoundEndEvent
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.state import (
     CallResponse,
@@ -148,10 +148,12 @@ class TestRonPassMeldClaims:
 
         result = resolve_call_prompt(new_round, new_game)
 
-        # pon should execute - draw event for caller with no available actions
+        # pon should execute - no DrawEvent, only MeldEvent
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].seat == 2
+        assert len(draw_events) == 0
+        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
+        assert len(meld_events) == 1
+        assert meld_events[0].caller_seat == 2
         # round should NOT be finished
         assert result.new_round_state.phase == RoundPhase.PLAYING
 
@@ -306,10 +308,12 @@ class TestAllRonPassMeldPriority:
 
         result = resolve_call_prompt(new_round, new_game)
 
-        # pon should execute
+        # pon should execute - no DrawEvent, only MeldEvent
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].seat == 2
+        assert len(draw_events) == 0
+        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
+        assert len(meld_events) == 1
+        assert meld_events[0].caller_seat == 2
 
 
 class TestDualEligibleSeatRonDominant:
@@ -494,10 +498,10 @@ class TestRiichiFinalizationAfterRonPass:
         assert len(riichi_events) == 1
         assert riichi_events[0].seat == 0
 
-        # meld (pon) should execute
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].seat == 2
+        # meld (pon) should execute - no DrawEvent, only MeldEvent
+        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
+        assert len(meld_events) == 1
+        assert meld_events[0].caller_seat == 2
 
 
 class TestFourRiichiAbortAfterRonPass:

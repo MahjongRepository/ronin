@@ -439,15 +439,14 @@ class TestCompleteAddedKanAfterChankanDecline:
 
 
 class TestResolvePonMeldResponse:
-    """Draw event after pon/chi must have no available actions.
+    """No DrawEvent after pon/chi — the MeldEvent is the only signal.
 
     Per mahjong rules, after calling pon/chi the only valid action is to
-    discard a tile. Kan, tsumo, and riichi can only be declared after
-    drawing a tile from the wall.
+    discard a tile. The client infers turn ownership from MeldEvent.caller_seat.
     """
 
-    def test_pon_draw_event_has_no_available_actions(self):
-        """Draw event after pon has empty available_actions, even when closed kan is possible."""
+    def test_pon_emits_no_draw_event(self):
+        """No DrawEvent after pon — only MeldEvent is emitted."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -477,12 +476,13 @@ class TestResolvePonMeldResponse:
         result = resolve_call_prompt(round_state, game_state)
 
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].tile_id is None
-        assert draw_events[0].available_actions == []
+        assert len(draw_events) == 0
+        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
+        assert len(meld_events) == 1
+        assert meld_events[0].caller_seat == 0
 
-    def test_chi_draw_event_has_no_available_actions(self):
-        """Draw event after chi has empty available_actions."""
+    def test_chi_emits_no_draw_event(self):
+        """No DrawEvent after chi — only MeldEvent is emitted."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -516,9 +516,10 @@ class TestResolvePonMeldResponse:
         result = resolve_call_prompt(round_state, game_state)
 
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].tile_id is None
-        assert draw_events[0].available_actions == []
+        assert len(draw_events) == 0
+        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
+        assert len(meld_events) == 1
+        assert meld_events[0].caller_seat == 1
 
 
 class TestDiscardPromptFourRiichiAbort:

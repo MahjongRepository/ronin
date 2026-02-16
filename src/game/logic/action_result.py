@@ -32,7 +32,7 @@ def create_draw_event(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     seat: int,
-    tile_id: int | None = None,
+    tile_id: int,
 ) -> DrawEvent:
     """Create a draw event for a player with available actions."""
     available_actions = get_available_actions(round_state, game_state, seat)

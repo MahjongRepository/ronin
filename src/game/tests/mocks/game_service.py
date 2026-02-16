@@ -13,7 +13,7 @@ from game.logic.events import (
 from game.logic.rng import RNG_VERSION
 from game.logic.service import GameService
 from game.logic.settings import GameSettings
-from game.logic.types import GamePlayerInfo, GameView, PlayerView
+from game.logic.types import GamePlayerInfo, PlayerView
 
 
 class MockResultEvent(GameEvent):
@@ -88,27 +88,6 @@ class MockGameService(GameService):
         all_names = player_names + ["AI"] * (4 - len(player_names))
         player_count = len(player_names)
 
-        mock_view = GameView(
-            seat=0,
-            round_wind=WindName.EAST,
-            round_number=0,
-            dealer_seat=0,
-            current_player_seat=0,
-            dora_indicators=[],
-            honba_sticks=0,
-            riichi_sticks=0,
-            my_tiles=[],
-            players=[
-                PlayerView(
-                    seat=i,
-                    name=name,
-                    is_ai_player=i >= player_count,
-                    score=25000,
-                )
-                for i, name in enumerate(all_names)
-            ],
-        )
-
         players = [
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count)
             for i, name in enumerate(all_names)
@@ -125,7 +104,16 @@ class MockGameService(GameService):
             ServiceEvent(
                 event=EventType.ROUND_STARTED,
                 data=RoundStartedEvent(
-                    view=mock_view,
+                    seat=0,
+                    round_wind=WindName.EAST,
+                    round_number=0,
+                    dealer_seat=0,
+                    current_player_seat=0,
+                    dora_indicators=[],
+                    honba_sticks=0,
+                    riichi_sticks=0,
+                    my_tiles=[],
+                    players=[PlayerView(seat=i, score=25000) for i in range(4)],
                     target="seat_0",
                 ),
                 target=SeatTarget(seat=0),

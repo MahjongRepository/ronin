@@ -1,10 +1,21 @@
+from game.logic.enums import MeldViewType
 from game.logic.events import (
     BroadcastTarget,
     DiscardEvent,
     DrawEvent,
     EventType,
+    MeldEvent,
+    RoundEndEvent,
     SeatTarget,
     ServiceEvent,
+)
+from game.logic.types import (
+    AvailableActionItem,
+    DoubleRonResult,
+    DoubleRonWinner,
+    HandResultInfo,
+    RonResult,
+    TsumoResult,
 )
 from game.messaging.event_payload import (
     service_event_payload,
@@ -18,7 +29,7 @@ class TestServiceEventPayload:
     def test_broadcast_event_payload(self):
         event = ServiceEvent(
             event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=True),
+            data=DiscardEvent(seat=0, tile_id=10, is_riichi=True),
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
@@ -26,7 +37,7 @@ class TestServiceEventPayload:
         assert payload["type"] == EventType.DISCARD
         assert payload["seat"] == 0
         assert payload["tile_id"] == 10
-        assert payload["is_tsumogiri"] is False
+        assert "is_tsumogiri" not in payload
         assert payload["is_riichi"] is True
         # internal fields excluded
         assert "target" not in payload or payload.get("target") is None
@@ -42,12 +53,29 @@ class TestServiceEventPayload:
         assert payload["type"] == EventType.DRAW
         assert payload["seat"] == 1
         assert payload["tile_id"] == 42
+        assert "available_actions" not in payload
+
+    def test_draw_with_available_actions_included(self):
+        """Non-empty available_actions are included in draw wire payloads."""
+        event = ServiceEvent(
+            event=EventType.DRAW,
+            data=DrawEvent(
+                seat=0,
+                tile_id=10,
+                target="seat_0",
+                available_actions=[AvailableActionItem(action="discard", tiles=[10])],
+            ),
+            target=SeatTarget(seat=0),
+        )
+        payload = service_event_payload(event)
+
+        assert len(payload["available_actions"]) == 1
 
     def test_payload_excludes_type_and_target_fields(self):
         """The 'type' and 'target' from the domain model are excluded from the dump."""
         event = ServiceEvent(
             event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=False),
+            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=True, is_riichi=True),
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
@@ -55,9 +83,33 @@ class TestServiceEventPayload:
         # "type" key exists because we explicitly set it from event.event
         assert "type" in payload
         # but the domain model's "target" string field is excluded
-        dumped_keys = set(event.data.model_dump(exclude={"type", "target"}).keys())
-        payload_keys = set(payload.keys()) - {"type"}
-        assert payload_keys == dumped_keys
+        assert "target" not in payload
+        assert set(payload.keys()) == {"type", "seat", "tile_id", "is_tsumogiri", "is_riichi"}
+
+    def test_discard_false_flags_omitted(self):
+        """False boolean flags are omitted from discard wire payloads."""
+        event = ServiceEvent(
+            event=EventType.DISCARD,
+            data=DiscardEvent(seat=0, tile_id=10),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        assert "is_tsumogiri" not in payload
+        assert "is_riichi" not in payload
+        assert set(payload.keys()) == {"type", "seat", "tile_id"}
+
+    def test_discard_true_flags_included(self):
+        """True boolean flags are included in discard wire payloads."""
+        event = ServiceEvent(
+            event=EventType.DISCARD,
+            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=True, is_riichi=True),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        assert payload["is_tsumogiri"] is True
+        assert payload["is_riichi"] is True
 
 
 class TestShapeCallPromptPayload:
@@ -160,3 +212,151 @@ class TestShapeCallPromptPayload:
             {"call_type": "pon"},
             {"call_type": "chi", "options": [[57, 63]]},
         ]
+
+
+class TestMeldEventPayload:
+    """Tests for MeldEvent wire payload shaping."""
+
+    def test_added_kan_includes_original_pon_data(self):
+        """Added kan MeldEvent serialization includes called_tile_id and from_seat."""
+        event = ServiceEvent(
+            event=EventType.MELD,
+            data=MeldEvent(
+                meld_type=MeldViewType.ADDED_KAN,
+                caller_seat=0,
+                tile_ids=[4, 5, 6, 7],
+                called_tile_id=5,
+                from_seat=2,
+            ),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        assert payload["type"] == EventType.MELD
+        assert payload["meld_type"] == "added_kan"
+        assert payload["caller_seat"] == 0
+        assert payload["tile_ids"] == [4, 5, 6, 7]
+        assert payload["called_tile_id"] == 5
+        assert payload["from_seat"] == 2
+
+
+_HAND_RESULT = HandResultInfo(han=1, fu=30, yaku=[])
+_SCORES = {0: 25000, 1: 25000, 2: 25000, 3: 25000}
+
+
+class TestRoundEndWinFieldStripping:
+    """Tests that pao_seat and ura_dora_indicators are omitted when None."""
+
+    def test_tsumo_none_fields_omitted(self):
+        """Tsumo result omits pao_seat and ura_dora_indicators when None."""
+        event = ServiceEvent(
+            event=EventType.ROUND_END,
+            data=RoundEndEvent(
+                target="all",
+                result=TsumoResult(
+                    winner_seat=0,
+                    hand_result=_HAND_RESULT,
+                    scores=_SCORES,
+                    score_changes=_SCORES,
+                    riichi_sticks_collected=0,
+                    closed_tiles=[],
+                    melds=[],
+                    win_tile=1,
+                ),
+            ),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        assert "result" not in payload
+        assert payload["result_type"] == "tsumo"
+        assert "pao_seat" not in payload
+        assert "ura_dora_indicators" not in payload
+
+    def test_tsumo_present_fields_kept(self):
+        """Tsumo result keeps pao_seat and ura_dora_indicators when set."""
+        event = ServiceEvent(
+            event=EventType.ROUND_END,
+            data=RoundEndEvent(
+                target="all",
+                result=TsumoResult(
+                    winner_seat=0,
+                    hand_result=_HAND_RESULT,
+                    scores=_SCORES,
+                    score_changes=_SCORES,
+                    riichi_sticks_collected=0,
+                    closed_tiles=[],
+                    melds=[],
+                    win_tile=1,
+                    pao_seat=2,
+                    ura_dora_indicators=[10],
+                ),
+            ),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        assert payload["pao_seat"] == 2
+        assert payload["ura_dora_indicators"] == [10]
+
+    def test_ron_none_fields_omitted(self):
+        """Ron result omits pao_seat and ura_dora_indicators when None."""
+        event = ServiceEvent(
+            event=EventType.ROUND_END,
+            data=RoundEndEvent(
+                target="all",
+                result=RonResult(
+                    winner_seat=0,
+                    loser_seat=1,
+                    winning_tile=10,
+                    hand_result=_HAND_RESULT,
+                    scores=_SCORES,
+                    score_changes=_SCORES,
+                    riichi_sticks_collected=0,
+                    closed_tiles=[],
+                    melds=[],
+                ),
+            ),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        assert "pao_seat" not in payload
+        assert "ura_dora_indicators" not in payload
+
+    def test_double_ron_none_fields_omitted(self):
+        """Double ron winners omit pao_seat and ura_dora_indicators when None."""
+        event = ServiceEvent(
+            event=EventType.ROUND_END,
+            data=RoundEndEvent(
+                target="all",
+                result=DoubleRonResult(
+                    loser_seat=1,
+                    winning_tile=10,
+                    winners=[
+                        DoubleRonWinner(
+                            winner_seat=0,
+                            hand_result=_HAND_RESULT,
+                            riichi_sticks_collected=0,
+                            closed_tiles=[],
+                            melds=[],
+                        ),
+                        DoubleRonWinner(
+                            winner_seat=2,
+                            hand_result=_HAND_RESULT,
+                            riichi_sticks_collected=0,
+                            closed_tiles=[],
+                            melds=[],
+                        ),
+                    ],
+                    scores=_SCORES,
+                    score_changes=_SCORES,
+                ),
+            ),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        for winner in payload["winners"]:
+            assert "pao_seat" not in winner
+            assert "ura_dora_indicators" not in winner

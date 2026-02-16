@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, KanType
 from game.session.room import RoomPlayerInfo
 
 
@@ -59,10 +59,53 @@ class SetReadyMessage(BaseModel):
     ready: bool
 
 
-class GameActionMessage(BaseModel):
+class DiscardMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: GameAction
-    data: dict[str, Any] = Field(default_factory=dict)
+    action: Literal[GameAction.DISCARD] = GameAction.DISCARD
+    tile_id: int
+
+
+class RiichiMessage(BaseModel):
+    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
+    action: Literal[GameAction.DECLARE_RIICHI] = GameAction.DECLARE_RIICHI
+    tile_id: int
+
+
+class PonMessage(BaseModel):
+    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
+    action: Literal[GameAction.CALL_PON] = GameAction.CALL_PON
+    tile_id: int
+
+
+class ChiMessage(BaseModel):
+    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
+    action: Literal[GameAction.CALL_CHI] = GameAction.CALL_CHI
+    tile_id: int
+    sequence_tiles: tuple[int, int]
+
+
+class KanMessage(BaseModel):
+    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
+    action: Literal[GameAction.CALL_KAN] = GameAction.CALL_KAN
+    tile_id: int
+    kan_type: KanType = KanType.OPEN
+
+
+class NoDataActionMessage(BaseModel):
+    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
+    action: Literal[
+        GameAction.DECLARE_TSUMO,
+        GameAction.CALL_RON,
+        GameAction.CALL_KYUUSHU,
+        GameAction.PASS,
+        GameAction.CONFIRM_ROUND,
+    ]
+
+
+GameActionMessage = Annotated[
+    DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
+    Field(discriminator="action"),
+]
 
 
 class ChatMessage(BaseModel):
@@ -74,10 +117,19 @@ class PingMessage(BaseModel):
     type: Literal[ClientMessageType.PING] = ClientMessageType.PING
 
 
-ClientMessage = Annotated[
-    JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | GameActionMessage | ChatMessage | PingMessage,
-    Field(discriminator="type"),
-]
+ClientMessage = (
+    JoinRoomMessage
+    | LeaveRoomMessage
+    | SetReadyMessage
+    | DiscardMessage
+    | RiichiMessage
+    | PonMessage
+    | ChiMessage
+    | KanMessage
+    | NoDataActionMessage
+    | ChatMessage
+    | PingMessage
+)
 
 
 class GameLeftMessage(BaseModel):
@@ -132,8 +184,21 @@ class PongMessage(BaseModel):
     type: Literal[SessionMessageType.PONG] = SessionMessageType.PONG
 
 
-_client_message_adapter = TypeAdapter(ClientMessage)
+_NonGameMessage = Annotated[
+    JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | ChatMessage | PingMessage,
+    Field(discriminator="type"),
+]
+
+_non_game_adapter = TypeAdapter(_NonGameMessage)
+_game_action_adapter = TypeAdapter(GameActionMessage)
 
 
 def parse_client_message(data: dict[str, Any]) -> ClientMessage:
-    return _client_message_adapter.validate_python(data)
+    """Parse a raw dict into a typed ClientMessage.
+
+    Game action messages use a two-level discriminator (type then action),
+    so they are routed to a separate adapter.
+    """
+    if data.get("type") == ClientMessageType.GAME_ACTION:
+        return _game_action_adapter.validate_python(data)
+    return _non_game_adapter.validate_python(data)

@@ -126,7 +126,6 @@ class TestReplayStep:
             seat=0,
             tile_id=0,
             is_tsumogiri=True,
-            is_riichi=False,
             target="all",
         )
         service_event = ServiceEvent(event=EventType.DISCARD, data=discard_data, target=BroadcastTarget())

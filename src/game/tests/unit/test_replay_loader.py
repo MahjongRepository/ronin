@@ -46,8 +46,6 @@ def test_parse_single_discard():
             "type": "discard",
             "seat": 0,
             "tile_id": 118,
-            "is_tsumogiri": False,
-            "is_riichi": False,
         }
     )
     content = _build_event_log(ROUND_STARTED_LINE, DRAW_LINE, discard)
@@ -69,7 +67,6 @@ def test_discard_with_riichi_maps_to_declare_riichi():
             "type": "discard",
             "seat": 1,
             "tile_id": 50,
-            "is_tsumogiri": False,
             "is_riichi": True,
         }
     )
@@ -153,6 +150,7 @@ def test_meld_added_kan():
             "caller_seat": 0,
             "tile_ids": [4, 5, 6, 7],
             "called_tile_id": 7,
+            "from_seat": 2,
         }
     )
     content = _build_event_log(meld)
@@ -169,7 +167,9 @@ def test_round_end_tsumo():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "tsumo", "winner_seat": 2, "score_changes": {}},
+            "result_type": "tsumo",
+            "winner_seat": 2,
+            "score_changes": {},
         }
     )
     content = _build_event_log(round_end)
@@ -185,7 +185,9 @@ def test_round_end_ron():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "ron", "winner_seat": 1, "loser_seat": 0},
+            "result_type": "ron",
+            "winner_seat": 1,
+            "loser_seat": 0,
         }
     )
     content = _build_event_log(round_end)
@@ -201,14 +203,12 @@ def test_round_end_double_ron():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {
-                "type": "double_ron",
-                "loser_seat": 0,
-                "winners": [
-                    {"winner_seat": 3},
-                    {"winner_seat": 1},
-                ],
-            },
+            "result_type": "double_ron",
+            "loser_seat": 0,
+            "winners": [
+                {"winner_seat": 3},
+                {"winner_seat": 1},
+            ],
         }
     )
     content = _build_event_log(round_end)
@@ -226,7 +226,9 @@ def test_round_end_abortive_nine_terminals():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "abortive_draw", "reason": "nine_terminals", "seat": 0},
+            "result_type": "abortive_draw",
+            "reason": "nine_terminals",
+            "seat": 0,
         }
     )
     content = _build_event_log(round_end)
@@ -242,7 +244,8 @@ def test_round_end_abortive_other_skipped():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "abortive_draw", "reason": "four_riichi"},
+            "result_type": "abortive_draw",
+            "reason": "four_riichi",
         }
     )
     content = _build_event_log(round_end)
@@ -256,7 +259,9 @@ def test_round_end_exhaustive_draw_skipped():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "exhaustive_draw", "tempai_seats": [], "noten_seats": []},
+            "result_type": "exhaustive_draw",
+            "tempai_seats": [],
+            "noten_seats": [],
         }
     )
     content = _build_event_log(round_end)
@@ -453,8 +458,6 @@ def test_load_replay_from_file(tmp_path: Path):
             "type": "discard",
             "seat": 0,
             "tile_id": 118,
-            "is_tsumogiri": False,
-            "is_riichi": False,
         }
     )
     content = _build_event_log(discard)
@@ -507,7 +510,7 @@ def test_error_unknown_round_end_result_type():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "unknown_result"},
+            "result_type": "unknown_result",
         }
     )
     content = _build_event_log(round_end)
@@ -597,7 +600,7 @@ def test_error_round_end_tsumo_missing_winner_seat():
     round_end = json.dumps(
         {
             "type": "round_end",
-            "result": {"type": "tsumo"},
+            "result_type": "tsumo",
         }
     )
     content = _build_event_log(round_end)

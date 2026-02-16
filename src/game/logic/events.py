@@ -16,13 +16,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType
+from game.logic.enums import CallType, GameErrorCode, MeldViewType, WindName
 from game.logic.types import (
     AvailableActionItem,
-    GameEndResult,
     GamePlayerInfo,
-    GameView,
     MeldCaller,
+    PlayerStanding,
+    PlayerView,
     RoundResult,
 )
 
@@ -92,11 +92,11 @@ class GameEvent(BaseModel):
 
 
 class DrawEvent(GameEvent):
-    """Event sent to a player when they draw a tile (or get their turn after a meld)."""
+    """Event sent to a player when they draw a tile."""
 
     type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
-    tile_id: int | None = None
+    tile_id: int
     available_actions: list[AvailableActionItem] = Field(default_factory=list)
 
 
@@ -107,8 +107,8 @@ class DiscardEvent(GameEvent):
     target: str = "all"
     seat: int
     tile_id: int
-    is_tsumogiri: bool
-    is_riichi: bool
+    is_tsumogiri: bool = False
+    is_riichi: bool = False
 
 
 class MeldEvent(GameEvent):
@@ -178,14 +178,25 @@ class RoundStartedEvent(GameEvent):
     """Event sent to each player when a new round starts."""
 
     type: Literal[EventType.ROUND_STARTED] = EventType.ROUND_STARTED
-    view: GameView
+    seat: int
+    round_wind: WindName
+    round_number: int
+    dealer_seat: int
+    current_player_seat: int
+    dora_indicators: list[int]
+    honba_sticks: int
+    riichi_sticks: int
+    my_tiles: list[int]
+    players: list[PlayerView]
+    dice: tuple[int, int] = (1, 1)
 
 
 class GameEndedEvent(GameEvent):
     """Event sent when the entire game ends."""
 
     type: Literal[EventType.GAME_END] = EventType.GAME_END
-    result: GameEndResult
+    winner_seat: int
+    standings: list[PlayerStanding]
 
 
 class FuritenEvent(GameEvent):

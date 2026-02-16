@@ -7,7 +7,7 @@ from game.logic.events import (
     GameEndedEvent,
     ServiceEvent,
 )
-from game.logic.types import GameEndResult, PlayerStanding
+from game.logic.types import PlayerStanding
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
 from game.tests.mocks import MockConnection, MockGameService
@@ -28,18 +28,14 @@ def _make_game_end_event() -> ServiceEvent:
         event=EventType.GAME_END,
         data=GameEndedEvent(
             target="all",
-            result=GameEndResult(
-                winner_seat=0,
-                standings=[
-                    PlayerStanding(
-                        seat=0,
-                        name="Alice",
-                        score=25000,
-                        final_score=0,
-                        is_ai_player=False,
-                    ),
-                ],
-            ),
+            winner_seat=0,
+            standings=[
+                PlayerStanding(
+                    seat=0,
+                    score=25000,
+                    final_score=0,
+                ),
+            ],
         ),
         target=BroadcastTarget(),
     )
@@ -48,7 +44,7 @@ def _make_game_end_event() -> ServiceEvent:
 def _make_discard_event() -> ServiceEvent:
     return ServiceEvent(
         event=EventType.DISCARD,
-        data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=False, is_riichi=False),
+        data=DiscardEvent(seat=0, tile_id=10),
         target=BroadcastTarget(),
     )
 

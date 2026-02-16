@@ -739,6 +739,8 @@ def _process_added_kan_call(
             meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
+            called_tile_id=meld.called_tile,
+            from_seat=meld.from_who,
         )
     ]
     _maybe_emit_dora_event(old_dora_count, new_round_state, events)

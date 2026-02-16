@@ -184,10 +184,8 @@ class PlayerStanding(BaseModel):
     """Player standing in final game results."""
 
     seat: int
-    name: str
     score: int  # raw game score (e.g. 42300)
     final_score: int  # uma/oka-adjusted score (e.g. 52)
-    is_ai_player: bool
 
 
 class GameEndResult(BaseModel):
@@ -239,7 +237,6 @@ class MeldView(BaseModel):
 
     type: MeldViewType
     tile_ids: list[int]
-    opened: bool
     from_who: int | None
 
 
@@ -247,8 +244,6 @@ class PlayerView(BaseModel):
     """Player-visible information about another player."""
 
     seat: int
-    name: str
-    is_ai_player: bool
     score: int
 
 

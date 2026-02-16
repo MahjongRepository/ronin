@@ -6,11 +6,16 @@ from pydantic import ValidationError
 from game.logic.exceptions import GameRuleError
 from game.messaging.types import (
     ChatMessage,
+    ChiMessage,
+    DiscardMessage,
     ErrorMessage,
-    GameActionMessage,
     JoinRoomMessage,
+    KanMessage,
     LeaveRoomMessage,
+    NoDataActionMessage,
     PingMessage,
+    PonMessage,
+    RiichiMessage,
     SessionErrorCode,
     SetReadyMessage,
     parse_client_message,
@@ -21,6 +26,16 @@ if TYPE_CHECKING:
     from game.session.manager import SessionManager
 
 logger = logging.getLogger(__name__)
+
+
+_GAME_ACTION_TYPES = (
+    DiscardMessage,
+    RiichiMessage,
+    PonMessage,
+    ChiMessage,
+    KanMessage,
+    NoDataActionMessage,
+)
 
 
 class MessageRouter:
@@ -59,20 +74,25 @@ class MessageRouter:
             await self._session_manager.leave_room(connection)
         elif isinstance(message, SetReadyMessage):
             await self._session_manager.set_ready(connection, ready=message.ready)
-        elif isinstance(message, GameActionMessage):
+        elif isinstance(message, _GAME_ACTION_TYPES):
             await self._handle_game_action(connection, message)
         elif isinstance(message, PingMessage):
             await self._session_manager.handle_ping(connection)
         elif isinstance(message, ChatMessage):
             await self._handle_chat(connection, message)
 
-    async def _handle_game_action(self, connection: ConnectionProtocol, message: GameActionMessage) -> None:
+    async def _handle_game_action(
+        self,
+        connection: ConnectionProtocol,
+        message: DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
+    ) -> None:
         """Route a game action message, handling expected and fatal errors."""
         try:
+            data = message.model_dump(exclude={"type", "action"})
             await self._session_manager.handle_game_action(
                 connection=connection,
                 action=message.action,
-                data=message.data,
+                data=data,
             )
         except (GameRuleError, ValueError, KeyError, TypeError) as e:
             logger.exception(f"action failed for {connection.connection_id}")

@@ -72,19 +72,19 @@ async def test_full_game_flow():
         if e.event == EventType.GAME_END and isinstance(e.data, GameEndedEvent)
     ]
     assert len(game_end_events) == 1
-    game_result = game_end_events[0].data.result
+    game_end_data = game_end_events[0].data
 
     # --- Final standings ---
-    assert len(game_result.standings) == 4
-    raw_scores = {s.name: s.score for s in game_result.standings}
-    assert sum(raw_scores.values()) == STARTING_SCORE * 4  # scores conserved
+    assert len(game_end_data.standings) == 4
+    raw_scores = [s.score for s in game_end_data.standings]
+    assert sum(raw_scores) == STARTING_SCORE * 4  # scores conserved
 
     # Uma-adjusted scores sum to zero
-    final_scores = {s.name: s.final_score for s in game_result.standings}
-    assert sum(final_scores.values()) == 0
+    final_scores = [s.final_score for s in game_end_data.standings]
+    assert sum(final_scores) == 0
 
     # Standings are ordered by score (1st to 4th)
-    standing_scores = [s.final_score for s in game_result.standings]
+    standing_scores = [s.final_score for s in game_end_data.standings]
     assert standing_scores == sorted(standing_scores, reverse=True)
 
     # --- State transition consistency ---

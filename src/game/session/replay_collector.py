@@ -3,10 +3,10 @@
 Collects broadcast gameplay events and selected seat-targeted concealed events
 during a game and writes them as JSON lines to storage at game end. Broadcast
 events capture public game state transitions (discards, melds, round end, etc.).
-Seat-targeted DrawEvent carries concealed draw data (available_actions stripped,
-null tile_id draws after melds excluded). Per-seat RoundStartedEvent views are
-merged into a single record with all players' tiles for full game reconstruction.
-Internal prompt and error event types are excluded.
+Seat-targeted DrawEvent carries concealed draw data (available_actions stripped).
+Per-seat RoundStartedEvent views are merged into a single record with all
+players' tiles for full game reconstruction. Internal prompt and error event
+types are excluded.
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
-    DiscardEvent,
     DrawEvent,
     ErrorEvent,
     FuritenEvent,
@@ -50,12 +49,11 @@ class ReplayCollector:
     """Collects and persists gameplay events per game for post-game replay.
 
     Accepts BroadcastTarget gameplay events (discards, melds, round end, etc.)
-    and selected SeatTarget events (DrawEvent for tile draws). DrawEvent entries
-    with null tile_id (post-meld turns) are excluded since the caller is known
-    from the preceding MeldEvent. The available_actions field is stripped from
-    draw payloads. Per-seat RoundStartedEvent views are merged into a single
-    record with all players' tiles revealed. Other SeatTarget events (turns,
-    prompts, errors, furiten) are excluded as internal signals.
+    and selected SeatTarget events (DrawEvent for tile draws). The
+    available_actions field is stripped from draw payloads. Per-seat
+    RoundStartedEvent views are merged into a single record with all players'
+    tiles revealed. Other SeatTarget events (prompts, errors, furiten) are
+    excluded as internal signals.
 
     Lifecycle per game:
     1. start_game(game_id, seed) - begin tracking with the game seed
@@ -81,8 +79,8 @@ class ReplayCollector:
 
         Per-seat RoundStartedEvent views are merged into a single record with
         all players' tiles. DrawEvent is included for draw reconstruction
-        (available_actions stripped, null tile_id excluded). Excluded internal
-        types (turns, prompts, errors, furiten) are skipped.
+        (available_actions stripped). Excluded internal types (prompts, errors,
+        furiten) are skipped.
         """
         buffer = self._buffers.get(game_id)
         if buffer is None:
@@ -106,8 +104,6 @@ class ReplayCollector:
             payload = service_event_payload(event)
             if isinstance(event.data, DrawEvent):
                 payload.pop("available_actions", None)
-            if isinstance(event.data, DiscardEvent) and not event.data.is_riichi:
-                payload.pop("is_riichi", None)
             self._inject_seed_if_game_started(game_id, event, payload)
             buffer.append(json.dumps(payload, default=str))
 
@@ -119,15 +115,10 @@ class ReplayCollector:
     def _should_include(event: ServiceEvent) -> bool:
         """Check whether a non-round-started event qualifies for replay persistence."""
         if isinstance(event.target, SeatTarget):
-            if not isinstance(event.data, _SEAT_TARGET_INCLUDED):
-                return False
-        elif isinstance(event.target, BroadcastTarget):
-            if isinstance(event.data, _EXCLUDED_EVENT_TYPES):
-                return False
-        else:
-            return False
-
-        return not (isinstance(event.data, DrawEvent) and event.data.tile_id is None)
+            return isinstance(event.data, _SEAT_TARGET_INCLUDED)
+        if isinstance(event.target, BroadcastTarget):
+            return not isinstance(event.data, _EXCLUDED_EVENT_TYPES)
+        return False
 
     def _inject_seed_if_game_started(
         self, game_id: str, event: ServiceEvent, payload: dict[str, Any]
@@ -143,26 +134,28 @@ class ReplayCollector:
 
     @staticmethod
     def _merge_round_started_payloads(events: list[ServiceEvent]) -> str:
-        """Merge per-seat RoundStartedEvent views into a single JSON record.
+        """Merge per-seat RoundStartedEvent payloads into a single JSON record.
 
-        Take the first seat's view as the base. Extract my_tiles from each seat's
-        view and store per-player tiles in the merged record for full game reconstruction.
-        The my_tiles field is stripped from the merged output since each player's
-        tiles are stored directly on the player dict.
+        Take the first seat's payload as the base. Extract my_tiles from each seat's
+        event and store per-player tiles in the merged record for full game reconstruction.
+        The my_tiles and seat fields are stripped from the merged output since each
+        player's tiles are stored directly on the player dict and the per-seat
+        perspective is meaningless after merging.
         """
         tiles_by_seat: dict[int, list[int]] = {}
         base_payload = service_event_payload(events[0])
 
         for event in events:
             data: RoundStartedEvent = event.data  # type: ignore[assignment]
-            tiles_by_seat[data.view.seat] = data.view.my_tiles
+            tiles_by_seat[data.seat] = data.my_tiles
 
-        for player_dict in base_payload["view"]["players"]:
+        for player_dict in base_payload["players"]:
             seat = player_dict["seat"]
             if seat in tiles_by_seat:
                 player_dict["tiles"] = tiles_by_seat[seat]
 
-        del base_payload["view"]["my_tiles"]
+        del base_payload["my_tiles"]
+        del base_payload["seat"]
 
         return json.dumps(base_payload, default=str)
 
@@ -183,7 +176,7 @@ class ReplayCollector:
             version_tag = json.dumps({"version": REPLAY_VERSION})
             content = "\n".join([version_tag, *buffer])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
-        except OSError, ValueError:
+        except OSError, ValueError:  # Python 3.14 syntax (PEP 758)
             logger.exception("Failed to save replay for game %s", game_id)
 
     def cleanup_game(self, game_id: str) -> None:

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 from game.logic.enums import GameAction
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
-from game.logic.types import GameEndResult, PlayerStanding
+from game.logic.types import PlayerStanding
 from game.session.models import Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
@@ -18,12 +18,10 @@ class TestSessionManagerGameEnd:
             data=GameEndedEvent(
                 type=EventType.GAME_END,
                 target="all",
-                result=GameEndResult(
-                    winner_seat=0,
-                    standings=[
-                        PlayerStanding(seat=0, name="Alice", score=25000, final_score=0, is_ai_player=False),
-                    ],
-                ),
+                winner_seat=0,
+                standings=[
+                    PlayerStanding(seat=0, score=25000, final_score=0),
+                ],
             ),
             target=BroadcastTarget(),
         )

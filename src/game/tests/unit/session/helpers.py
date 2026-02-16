@@ -59,8 +59,6 @@ def make_dummy_game_view() -> GameView:
         players=[
             PlayerView(
                 seat=0,
-                name="Alice",
-                is_ai_player=False,
                 score=25000,
             ),
         ],

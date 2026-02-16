@@ -152,11 +152,7 @@ class MahjongGameService(GameService):
                 game_id, frozen_game, ai_player_seats=ai_player_controller.ai_player_seats
             )
         )
-        events.extend(
-            self._create_round_started_events(
-                frozen_game, ai_player_seats=ai_player_controller.ai_player_seats
-            )
-        )
+        events.extend(self._create_round_started_events(frozen_game))
 
         _new_round_state, new_game_state, draw_events = process_draw_phase(
             frozen_game.round_state, frozen_game
@@ -195,15 +191,13 @@ class MahjongGameService(GameService):
             target=BroadcastTarget(),
         )
 
-    def _create_round_started_events(
-        self, game_state: MahjongGameState, ai_player_seats: set[int] | None = None
-    ) -> list[ServiceEvent]:
+    def _create_round_started_events(self, game_state: MahjongGameState) -> list[ServiceEvent]:
         """Create round_started events for all players."""
         return [
             ServiceEvent(
                 event=EventType.ROUND_STARTED,
                 data=RoundStartedEvent(
-                    view=get_player_view(game_state, seat, ai_player_seats=ai_player_seats),
+                    **get_player_view(game_state, seat).model_dump(),
                     target=f"seat_{seat}",
                 ),
                 target=SeatTarget(seat=seat),
@@ -722,9 +716,7 @@ class MahjongGameService(GameService):
         frozen_game = process_round_end(frozen_game, round_result)
 
         if check_game_end(frozen_game):
-            ai_player_controller = self._ai_player_controllers.get(game_id)
-            ai_player_seats = ai_player_controller.ai_player_seats if ai_player_controller else None
-            frozen_game, game_result = finalize_game(frozen_game, ai_player_seats=ai_player_seats)
+            frozen_game, game_result = finalize_game(frozen_game)
             logger.info(f"game {game_id}: game ended")
             # Always store finalized state before cleanup decision
             self._games[game_id] = frozen_game
@@ -734,7 +726,11 @@ class MahjongGameService(GameService):
             return [
                 ServiceEvent(
                     event=EventType.GAME_END,
-                    data=GameEndedEvent(result=game_result, target="all"),
+                    data=GameEndedEvent(
+                        winner_seat=game_result.winner_seat,
+                        standings=game_result.standings,
+                        target="all",
+                    ),
                     target=BroadcastTarget(),
                 )
             ]
@@ -912,9 +908,8 @@ class MahjongGameService(GameService):
         self._furiten_state[game_id] = dict.fromkeys(range(4), False)
 
         ai_player_controller = self._ai_player_controllers[game_id]
-        ai_player_seats = ai_player_controller.ai_player_seats
 
-        events = self._create_round_started_events(frozen_game, ai_player_seats=ai_player_seats)
+        events = self._create_round_started_events(frozen_game)
 
         _new_round_state, new_game_state, draw_events = process_draw_phase(
             frozen_game.round_state, frozen_game

@@ -125,12 +125,9 @@ class MahjongGameState(BaseModel):
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
 
 
-def get_player_view(
-    game_state: MahjongGameState, seat: int, ai_player_seats: set[int] | None = None
-) -> GameView:
+def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
     """Return the round-start view for a specific player."""
     round_state = game_state.round_state
-    effective_ai_player_seats = ai_player_seats or set()
 
     players_view: list[PlayerView] = []
     my_tiles: list[int] = []
@@ -142,8 +139,6 @@ def get_player_view(
         players_view.append(
             PlayerView(
                 seat=p.seat,
-                name=p.name,
-                is_ai_player=p.seat in effective_ai_player_seats,
                 score=p.score,
             )
         )
@@ -179,7 +174,6 @@ def meld_to_view(meld: FrozenMeld) -> MeldView:
     return MeldView(
         type=view_type,
         tile_ids=list(meld.tiles) if meld.tiles else [],
-        opened=meld.opened,
         from_who=meld.from_who,
     )
 

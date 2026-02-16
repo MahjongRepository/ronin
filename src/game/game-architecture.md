@@ -99,16 +99,16 @@ All messages use MessagePack binary format with a `type` field. The server only 
 **Game Events** (sent as flat top-level messages, no wrapper envelope)
 ```json
 {"type": "game_started", "players": [{"seat": 0, "name": "Alice", "is_ai_player": false}, ...]}
-{"type": "round_started", "view": {"seat": 0, "round_wind": "East", ...}}
+{"type": "round_started", "seat": 0, "round_wind": "East", ...}
 {"type": "draw", "seat": 0, "tile_id": 42, "available_actions": [...]}
-{"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true, "is_riichi": false}
+{"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true}
 {"type": "meld", "meld_type": "pon", "caller_seat": 1, "tile_ids": [8, 9, 10], "from_seat": 0, "called_tile_id": 10}
 {"type": "dora_revealed", "tile_id": 42}
 {"type": "call_prompt", "call_type": "ron", "tile_id": 55, "from_seat": 2, "caller_seat": 0}
 {"type": "call_prompt", "call_type": "meld", "tile_id": 55, "from_seat": 2, "caller_seat": 0, "available_calls": [{"call_type": "pon"}, {"call_type": "chi", "options": [[40, 44]]}]}
 {"type": "round_end", "result": {...}}
 {"type": "furiten", "is_furiten": true}
-{"type": "game_end", "result": {...}}
+{"type": "game_end", "winner_seat": 0, "standings": [...]}
 ```
 
 Note: The `furiten` event is sent only to the affected player (target `seat_N`), not broadcast.
@@ -191,8 +191,8 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with full GameView).
-- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events (null `tile_id` draws excluded, `available_actions` stripped); per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
+- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id: int and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with game view fields inlined at top level). After pon/chi, no DrawEvent is emitted — the client infers turn ownership from `MeldEvent.caller_seat`.
+- **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events (`available_actions` stripped); per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
 - **EventType** - String enum defining all event type identifiers
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists; DISCARD prompts are split per-seat via `_split_discard_prompt_for_seat()` into RON or MELD wire events (ron-dominant: if a seat has both ron and meld eligibility, only a RON prompt is sent)
 - `extract_round_result()` extracts round results from ServiceEvent lists
@@ -201,7 +201,7 @@ The game service communicates through a typed event pipeline:
 
 `messaging/event_payload.py` centralizes the transformation of domain events into wire-format payloads, used by both `SessionManager` (for WebSocket broadcast) and `ReplayCollector` (for persistence):
 
-- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type string as `"type"`
+- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type string as `"type"`. Falsy default fields are omitted for wire compactness: `DiscardEvent.is_tsumogiri` and `DiscardEvent.is_riichi` when `False`, `DrawEvent.available_actions` when empty, `RoundEndEvent` win result `pao_seat` and `ura_dora_indicators` when `None`. Clients must treat absent fields as their default values
 - `shape_call_prompt_payload()` transforms `CallPromptEvent` payloads based on call type: for ron/chankan, drops the callers list and extracts `caller_seat`; for meld, builds an `available_calls` list with per-caller options
 
 ### Server Configuration
@@ -232,7 +232,7 @@ The `logic/` module implements Riichi Mahjong rules:
 - **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each player gets an independent timer instance; `stop()` cancels timer and deducts bank time, while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
 - **AIPlayerController** - Pure decision-maker for AI players using `dict[int, AIPlayer]` seat-to-AI-player mapping; provides `is_ai_player()`, `add_ai_player()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime AI player addition for disconnect replacement
 - **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `AIPlayerType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
-- **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView` with `dice` field), `MeldCaller` (seat and call_type only, no server-internal fields), `AIPlayerAction`, `AvailableActionItem`; `RoundResult` union type
+- **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView` with seat and score only, `dice` field), `PlayerStanding` (seat, score, final_score), `MeldCaller` (seat and call_type only, no server-internal fields), `AIPlayerAction`, `AvailableActionItem`; `RoundResult` union type
 - **RNG** (`rng.py`) - Random number generation for wall shuffling; pure Python PCG64DXSM (Permuted Congruential Generator with DXSM output function); 768-bit cryptographic seed generation via `secrets.token_bytes`; hash-based per-round derivation with SHA512 domain separation; Fisher-Yates shuffle with rejection sampling; dice rolling; `RNG_VERSION` constant for replay compatibility; `generate_seed()`, `generate_shuffled_wall_and_dice()`, `create_seat_rng()`, `validate_seed_hex()`
 - **Wall** (`wall.py`) - Frozen Pydantic `Wall` model encapsulating wall state (live wall, dead wall, dora indicators, pending dora count, dice values); `WallBreakInfo` model for computed break positions; dice-based wall breaking following standard Riichi Mahjong rules (68-stack ring model); `create_wall()`, `create_wall_from_tiles()`, `deal_initial_hands()`, `draw_tile()`, `draw_from_dead_wall()`, `add_dora_indicator()`, `reveal_pending_dora()`, `increment_pending_dora()`, `is_wall_exhausted()`, `tiles_remaining()`, `collect_ura_dora_indicators()`
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives; tile constants, 136-to-34 format conversion, terminal/honor checks, tile sorting, and hand-to-34-array conversion
@@ -320,7 +320,7 @@ Each player gets an independent `TurnTimer` instance, managed by `TimerManager` 
 
 Timer behavior:
 - On round start, round bonus is added to all player timers
-- On turn start, the current seat's timer starts counting bank time
+- On turn start (draw or pon/chi meld), the current seat's timer starts counting bank time
 - On call prompt, meld timers start for all connected callers (PvP can have multiple simultaneous callers)
 - On round end, fixed-duration round-advance timers start for all players; when a player confirms (or the timer expires), they are marked as ready; once all players confirm, the next round begins
 - When a player acts, their timer stops (bank time deducted) and other callers' meld timers are cancelled (no bank time deducted)
@@ -330,7 +330,7 @@ Timer behavior:
 
 The game logic layer (`MahjongPlayer`, `MahjongRoundState`) has no knowledge of player types. `MahjongPlayer` has no `is_ai_player` field.
 
-AI player identity is managed exclusively by `AIPlayerController.is_ai_player(seat)` at the service layer. Client-facing DTOs (`PlayerView`, `PlayerStanding`, `PlayerInfo`) retain `is_ai_player` for display purposes, populated from `AIPlayerController.ai_player_seats` when constructing views via `get_player_view(ai_player_seats=...)` and `finalize_game(ai_player_seats=...)`.
+AI player identity is managed exclusively by `AIPlayerController.is_ai_player(seat)` at the service layer. Player names and AI status are sent once in the `game_started` event via `GamePlayerInfo`. Subsequent events (`round_started`, `game_end`) identify players by seat number only — `PlayerView` carries `(seat, score)` and `PlayerStanding` carries `(seat, score, final_score)`.
 
 ### Replay System
 

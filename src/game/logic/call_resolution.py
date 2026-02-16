@@ -23,7 +23,6 @@ from game.logic.enums import (
     RoundPhase,
 )
 from game.logic.events import (
-    DrawEvent,
     GameEvent,
     MeldEvent,
     RiichiDeclaredEvent,
@@ -156,12 +155,7 @@ def _resolve_meld_response(
     if meld_type == MeldCallType.OPEN_KAN:
         # open kan draws from dead wall; include tile_id and available actions
         player = new_round_state.players[best.seat]
-        tile_id = player.tiles[-1] if player.tiles else None
-        events.append(create_draw_event(new_round_state, new_game_state, best.seat, tile_id=tile_id))
-    else:
-        # after pon/chi, the only valid action is discard (no draw from wall)
-        draw = DrawEvent(seat=best.seat, tile_id=None, target=f"seat_{best.seat}")
-        events.append(draw)
+        events.append(create_draw_event(new_round_state, new_game_state, best.seat, tile_id=player.tiles[-1]))
 
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
@@ -235,6 +229,8 @@ def complete_added_kan_after_chankan_decline(
             meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,
             tile_ids=tile_ids,
+            called_tile_id=meld.called_tile,
+            from_seat=meld.from_who,
         )
     ]
 
@@ -249,7 +245,7 @@ def complete_added_kan_after_chankan_decline(
     # emit draw event for the dead wall tile with available actions
     elif new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[caller_seat]
-        drawn_tile = player.tiles[-1] if player.tiles else None
+        drawn_tile = player.tiles[-1]
         events.append(create_draw_event(new_round_state, new_game_state, caller_seat, tile_id=drawn_tile))
 
     return new_round_state, new_game_state, events
