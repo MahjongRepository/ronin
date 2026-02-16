@@ -14,7 +14,7 @@ class TestRegistryManagerLoadConfig:
             '  - name: "alpha"\n'
             '    url: "http://alpha:8001"\n'
             '  - name: "beta"\n'
-            '    url: "http://beta:8002"\n'
+            '    url: "http://beta:8002"\n',
         )
         manager = RegistryManager(config_path=config)
         servers = manager.get_servers()
@@ -47,11 +47,7 @@ class TestRegistryManagerGetHealthyServers:
     def test_filters_unhealthy_servers(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text(
-            "servers:\n"
-            '  - name: "up"\n'
-            '    url: "http://up:8001"\n'
-            '  - name: "down"\n'
-            '    url: "http://down:8002"\n'
+            'servers:\n  - name: "up"\n    url: "http://up:8001"\n  - name: "down"\n    url: "http://down:8002"\n',
         )
         manager = RegistryManager(config_path=config)
         manager.get_servers()  # all unhealthy by default

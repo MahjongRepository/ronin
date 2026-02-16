@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from game.logic.enums import GameAction
 from game.logic.events import ErrorEvent, ServiceEvent
-from game.logic.rng import RNG_VERSION
+from game.logic.rng import RNG_VERSION, TOTAL_WALL_SIZE
 from game.logic.state import MahjongGameState
 
 REQUIRED_PLAYER_COUNT = 4
@@ -46,17 +46,24 @@ class ReplayInput(BaseModel):
     wall: tuple[int, ...] | None = None
 
     @model_validator(mode="after")
-    def _validate_player_names(self) -> ReplayInput:
+    def _validate_replay_input(self) -> ReplayInput:
         if len(set(self.player_names)) != REQUIRED_PLAYER_COUNT:
             raise ValueError("ReplayInput.player_names must contain 4 unique names")
         player_name_set = set(self.player_names)
-        invalid_names = {
-            event.player_name for event in self.events if event.player_name not in player_name_set
-        }
+        invalid_names = {event.player_name for event in self.events if event.player_name not in player_name_set}
         if invalid_names:
             raise ValueError(
-                f"ReplayInput.events contain unknown player_name values: {sorted(invalid_names)}"
+                f"ReplayInput.events contain unknown player_name values: {sorted(invalid_names)}",
             )
+        if self.wall is not None:
+            if len(self.wall) != TOTAL_WALL_SIZE:
+                raise ValueError(
+                    f"ReplayInput.wall must contain exactly {TOTAL_WALL_SIZE} tiles, got {len(self.wall)}",
+                )
+            if sorted(self.wall) != list(range(TOTAL_WALL_SIZE)):
+                raise ValueError(
+                    f"ReplayInput.wall must be a permutation of tile IDs 0..{TOTAL_WALL_SIZE - 1}",
+                )
         return self
 
 
@@ -95,7 +102,8 @@ class ReplayError(Exception):
         self.errors = errors
         messages = [e.data.message for e in errors if isinstance(e.data, ErrorEvent)]
         super().__init__(
-            f"Replay error at step {step_index} ({event.action} by {event.player_name}): {messages}"
+            f"Replay error at step {step_index} ({event.action} by {event.player_name}): "
+            f"{len(errors)} error(s): {messages}",
         )
 
 

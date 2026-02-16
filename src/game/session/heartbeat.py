@@ -4,16 +4,25 @@ import asyncio
 import contextlib
 import logging
 import time
-from typing import Any
+from collections.abc import Callable
+from typing import Any, Protocol
 
 HEARTBEAT_CHECK_INTERVAL = 5  # seconds between heartbeat checks
 HEARTBEAT_TIMEOUT = 30  # seconds before disconnecting an idle client
 
 logger = logging.getLogger(__name__)
 
+
+class _HasPlayers(Protocol):
+    """Entity with a players dict (Game or Room)."""
+
+    @property
+    def players(self) -> dict[str, Any]: ...
+
+
 # Callback that resolves an entity (game or room) by ID.
 # Returns an object with a `.players` dict or None if the entity is gone.
-type EntityResolver = Any
+EntityResolver = Callable[[str], _HasPlayers | None]
 
 
 class HeartbeatMonitor:
@@ -37,8 +46,9 @@ class HeartbeatMonitor:
         self._last_ping.pop(connection_id, None)
 
     def record_ping(self, connection_id: str) -> None:
-        """Update ping timestamp for a connection."""
-        self._last_ping[connection_id] = time.monotonic()
+        """Update ping timestamp for a tracked connection."""
+        if connection_id in self._last_ping:
+            self._last_ping[connection_id] = time.monotonic()
 
     def start_for_game(self, game_id: str, get_game: EntityResolver) -> None:
         """Start the heartbeat monitor for a game."""
@@ -57,6 +67,9 @@ class HeartbeatMonitor:
         await self._stop(f"room:{room_id}")
 
     def _start(self, key: str, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
+        existing = self._tasks.get(key)
+        if existing is not None and not existing.done():
+            existing.cancel()
         self._tasks[key] = asyncio.create_task(self._check_loop(entity_id, entity_type, get_entity))
 
     async def _stop(self, key: str) -> None:

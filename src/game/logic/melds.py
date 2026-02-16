@@ -5,6 +5,7 @@ Meld operations for Mahjong game (pon, chi, kan).
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from game.logic.enums import MeldCallType
 from game.logic.exceptions import InvalidMeldError
@@ -13,12 +14,14 @@ from game.logic.round import (
     add_dora_indicator,
     draw_from_dead_wall,
 )
-from game.logic.settings import GameSettings
-from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.state_utils import clear_all_players_ippatsu, update_player
 from game.logic.tiles import DRAGONS_34, WINDS_34, is_honor, tile_to_34
 from game.logic.wall import increment_pending_dora, tiles_remaining
 from game.logic.win import get_waiting_tiles
+
+if TYPE_CHECKING:
+    from game.logic.settings import GameSettings
+    from game.logic.state import MahjongPlayer, MahjongRoundState
 
 TILES_PER_SUIT = 9
 
@@ -53,7 +56,9 @@ def _count_total_kans(round_state: MahjongRoundState) -> int:
 
 
 def get_kuikae_tiles(
-    call_type: MeldCallType, called_tile_34: int, sequence_tiles_34: list[int] | None = None
+    call_type: MeldCallType,
+    called_tile_34: int,
+    sequence_tiles_34: list[int] | None = None,
 ) -> list[int]:
     """
     Compute tiles forbidden to discard after a meld call (kuikae restriction).
@@ -236,13 +241,7 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
             tiles_13.pop(i)
             break
 
-    tenpai_player = MahjongPlayer(
-        seat=player.seat,
-        name=player.name,
-        tiles=tuple(tiles_13),
-        melds=tuple(player.melds),
-        score=player.score,
-    )
+    tenpai_player = player.model_copy(update={"tiles": tuple(tiles_13)})
     original_waits = get_waiting_tiles(tenpai_player)
 
     if not original_waits:
@@ -253,21 +252,22 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     if tile_34 in original_waits:
         return False
 
-    # simulate kan state with all 14 tiles retained; the hand calculator
-    # subtracts the kan meld tiles internally when evaluating tenpai.
+    # simulate kan: remove all 4 tiles from hand and add as a kan meld.
+    # calculate_shanten operates on closed hand tiles only, so tiles must
+    # be moved from hand to the meld (not duplicated in both).
     kan_tiles = tuple(t for t in player.tiles if tile_to_34(t) == tile_34)
+    remaining_tiles = tuple(t for t in player.tiles if tile_to_34(t) != tile_34)
     kan_meld = FrozenMeld(
         meld_type=FrozenMeld.KAN,
         tiles=kan_tiles,
         opened=False,
         who=player.seat,
     )
-    temp_player = MahjongPlayer(
-        seat=player.seat,
-        name=player.name,
-        tiles=tuple(player.tiles),
-        melds=(*player.melds, kan_meld),
-        score=player.score,
+    temp_player = player.model_copy(
+        update={
+            "tiles": remaining_tiles,
+            "melds": (*player.melds, kan_meld),
+        },
     )
 
     new_waits = get_waiting_tiles(temp_player)
@@ -329,9 +329,8 @@ def get_possible_added_kans(
 
     possible = []
     for meld in player.melds:
-        if meld.type == FrozenMeld.PON and meld.tiles:
+        if meld.type == FrozenMeld.PON:
             meld_tile_34 = tile_to_34(meld.tiles[0])
-            # check if player has the 4th tile
             if any(tile_to_34(t) == meld_tile_34 for t in player.tiles):
                 possible.append(meld_tile_34)
 
@@ -358,18 +357,13 @@ def _check_pao(
         (_WIND_TILES, settings.daisuushii_pao_set_threshold, settings.has_daisuushii_pao),
     ]
     for tile_set, threshold, enabled in pao_rules:
-        if called_tile_34 in tile_set:
-            if not enabled:
-                continue
-            count = sum(
-                1
-                for m in player.melds
-                if m.tiles and tile_to_34(m.tiles[0]) in tile_set and m.type in _PAO_MELD_TYPES
-            )
-            # +1 for the meld being created
-            if count + 1 >= threshold:
-                return discarder_seat
-            break
+        if called_tile_34 not in tile_set:
+            continue
+        if not enabled:
+            continue
+        count = sum(1 for m in player.melds if tile_to_34(m.tiles[0]) in tile_set and m.type in _PAO_MELD_TYPES)
+        if count + 1 >= threshold:
+            return discarder_seat
     return None
 
 
@@ -421,14 +415,54 @@ def _remove_matching_tiles(
 
     if len(removed_tiles) != count:
         logger.warning(
-            f"cannot call {meld_name} for seat {seat}: "
-            f"need {count} matching tiles, found {len(removed_tiles)}"
+            "cannot call %s for seat %d: need %d matching tiles, found %d",
+            meld_name,
+            seat,
+            count,
+            len(removed_tiles),
         )
         raise InvalidMeldError(
-            f"cannot call {meld_name}: need {count} matching tiles, found {len(removed_tiles)}"
+            f"cannot call {meld_name}: need {count} matching tiles, found {len(removed_tiles)}",
         )
 
     return removed_tiles, new_hand
+
+
+def _finalize_meld_state(
+    state: MahjongRoundState,
+    caller_seat: int,
+    *,
+    mark_open: bool,
+) -> MahjongRoundState:
+    """Apply shared post-meld state updates: track open hand, clear ippatsu, set current player."""
+    if mark_open and caller_seat not in state.players_with_open_hands:
+        new_open_hands = (*state.players_with_open_hands, caller_seat)
+        state = state.model_copy(update={"players_with_open_hands": new_open_hands})
+
+    state = clear_all_players_ippatsu(state)
+    return state.model_copy(update={"current_player_seat": caller_seat})
+
+
+def _handle_kan_dora_and_draw(
+    state: MahjongRoundState,
+    settings: GameSettings,
+    *,
+    is_closed_kan: bool,
+) -> MahjongRoundState:
+    """Handle dora reveal/deferral and dead wall draw for kan declarations."""
+    if settings.has_kandora:
+        if is_closed_kan:
+            if settings.kandora_immediate_for_closed_kan:
+                state, _dora_indicator = add_dora_indicator(state)
+            else:
+                state = state.model_copy(update={"wall": increment_pending_dora(state.wall)})
+        elif settings.kandora_deferred_for_open_kan:
+            state = state.model_copy(update={"wall": increment_pending_dora(state.wall)})
+        else:
+            state, _dora_indicator = add_dora_indicator(state)
+
+    state, _drawn_tile = draw_from_dead_wall(state)
+    return state
 
 
 def call_pon(
@@ -481,19 +515,29 @@ def call_pon(
         player_updates["pao_seat"] = pao_seat
 
     new_state = update_player(round_state, caller_seat, **player_updates)
-
-    # track open hand
-    if caller_seat not in round_state.players_with_open_hands:
-        new_open_hands = (*round_state.players_with_open_hands, caller_seat)
-        new_state = new_state.model_copy(update={"players_with_open_hands": new_open_hands})
-
-    # clear ippatsu for all players
-    new_state = clear_all_players_ippatsu(new_state)
-
-    # set current player to caller (they must discard next)
-    new_state = new_state.model_copy(update={"current_player_seat": caller_seat})
+    new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
+    # Pon requires a subsequent discard without drawing; mark state for tsumogiri detection
+    new_state = new_state.model_copy(update={"is_after_meld_call": True})
 
     return new_state, meld
+
+
+def _validate_chi_sequence(tile_id: int, sequence_tiles: tuple[int, int]) -> None:
+    """Validate that the called tile and sequence tiles form a consecutive run in one suit.
+
+    Raises InvalidMeldError if:
+    - Any tile is an honor tile (chi requires numbered tiles)
+    - Tiles span multiple suits
+    - Tiles do not form three consecutive values
+    """
+    all_34 = sorted(tile_to_34(t) for t in (tile_id, *sequence_tiles))
+    if any(is_honor(t) for t in all_34):
+        raise InvalidMeldError("chi is not allowed with honor tiles")
+    suits = {t // TILES_PER_SUIT for t in all_34}
+    if len(suits) != 1:
+        raise InvalidMeldError("chi tiles must be from the same suit")
+    if all_34[1] - all_34[0] != 1 or all_34[2] - all_34[1] != 1:
+        raise InvalidMeldError("chi tiles must form a consecutive sequence")
 
 
 def call_chi(  # noqa: PLR0913
@@ -512,6 +556,9 @@ def call_chi(  # noqa: PLR0913
     Returns (new_round_state, created_meld).
     """
     caller = round_state.players[caller_seat]
+
+    # validate sequence forms a consecutive run in the same suit
+    _validate_chi_sequence(tile_id, sequence_tiles)
 
     # remove sequence tiles from hand
     new_hand = list(caller.tiles)
@@ -553,17 +600,9 @@ def call_chi(  # noqa: PLR0913
         melds=new_melds,
         kuikae_tiles=tuple(kuikae),
     )
-
-    # track open hand
-    if caller_seat not in round_state.players_with_open_hands:
-        new_open_hands = (*round_state.players_with_open_hands, caller_seat)
-        new_state = new_state.model_copy(update={"players_with_open_hands": new_open_hands})
-
-    # clear ippatsu for all players
-    new_state = clear_all_players_ippatsu(new_state)
-
-    # set current player to caller (they must discard next)
-    new_state = new_state.model_copy(update={"current_player_seat": caller_seat})
+    new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
+    # Chi requires a subsequent discard without drawing; mark state for tsumogiri detection
+    new_state = new_state.model_copy(update={"is_after_meld_call": True})
 
     return new_state, meld
 
@@ -594,7 +633,11 @@ def call_open_kan(
     )
 
     removed_tiles, new_hand = _remove_matching_tiles(
-        caller.tiles, tile_34, TILES_FOR_OPEN_KAN, "open kan", caller_seat
+        caller.tiles,
+        tile_34,
+        TILES_FOR_OPEN_KAN,
+        "open kan",
+        caller_seat,
     )
 
     # create meld with all 4 tiles (3 from hand + called tile)
@@ -622,27 +665,8 @@ def call_open_kan(
         player_updates["pao_seat"] = pao_seat
 
     new_state = update_player(round_state, caller_seat, **player_updates)
-
-    # track open hand
-    if caller_seat not in round_state.players_with_open_hands:
-        new_open_hands = (*round_state.players_with_open_hands, caller_seat)
-        new_state = new_state.model_copy(update={"players_with_open_hands": new_open_hands})
-
-    # clear ippatsu for all players
-    new_state = clear_all_players_ippatsu(new_state)
-
-    # set current player to caller (they will draw from dead wall and then discard)
-    new_state = new_state.model_copy(update={"current_player_seat": caller_seat})
-
-    # dora handling for open kan, controlled by settings
-    if settings.has_kandora:
-        if settings.kandora_deferred_for_open_kan:
-            new_state = new_state.model_copy(update={"wall": increment_pending_dora(new_state.wall)})
-        else:
-            new_state, _dora_indicator = add_dora_indicator(new_state)
-
-    # draw from dead wall (sets is_rinshan flag)
-    new_state, _drawn_tile = draw_from_dead_wall(new_state)
+    new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
+    new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
 
     return new_state, meld
 
@@ -669,7 +693,11 @@ def call_closed_kan(
     _validate_kan_preconditions(round_state, settings)
 
     removed_tiles, new_hand = _remove_matching_tiles(
-        player.tiles, tile_34, TILES_FOR_CLOSED_KAN, "closed kan", seat
+        player.tiles,
+        tile_34,
+        TILES_FOR_CLOSED_KAN,
+        "closed kan",
+        seat,
     )
 
     # create meld with all 4 tiles (closed kan - opened=False)
@@ -690,25 +718,9 @@ def call_closed_kan(
         tiles=tuple(new_hand),
         melds=new_melds,
     )
-
-    # closed kan does NOT make the hand open
-    # do NOT add to players_with_open_hands
-
-    # clear ippatsu for all players
-    new_state = clear_all_players_ippatsu(new_state)
-
-    # current player remains the same (they will draw and discard)
-    new_state = new_state.model_copy(update={"current_player_seat": seat})
-
-    # dora handling for closed kan, controlled by settings
-    if settings.has_kandora:
-        if settings.kandora_immediate_for_closed_kan:
-            new_state, _dora_indicator = add_dora_indicator(new_state)
-        else:
-            new_state = new_state.model_copy(update={"wall": increment_pending_dora(new_state.wall)})
-
-    # draw from dead wall (sets is_rinshan flag)
-    new_state, _drawn_tile = draw_from_dead_wall(new_state)
+    # closed kan does NOT make the hand open (mark_open=False)
+    new_state = _finalize_meld_state(new_state, seat, mark_open=False)
+    new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=True)
 
     return new_state, meld
 
@@ -741,7 +753,7 @@ def call_added_kan(
     pon_meld: FrozenMeld | None = None
     pon_index = -1
     for i, meld in enumerate(player.melds):
-        if meld.type == FrozenMeld.PON and meld.tiles:
+        if meld.type == FrozenMeld.PON:
             meld_tile_34 = tile_to_34(meld.tiles[0])
             if meld_tile_34 == tile_34:
                 pon_meld = meld
@@ -749,12 +761,12 @@ def call_added_kan(
                 break
 
     if pon_meld is None:
-        logger.warning(f"cannot call added kan for seat {seat}: no pon of tile type {tile_34}")
+        logger.warning("cannot call added kan for seat %d: no pon of tile type %d", seat, tile_34)
         raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
 
     # verify tile is in hand
     if tile_id not in player.tiles:
-        logger.warning(f"cannot call added kan for seat {seat}: tile {tile_id} not in hand")
+        logger.warning("cannot call added kan for seat %d: tile %d not in hand", seat, tile_id)
         raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")
 
     # remove the 4th tile from hand
@@ -762,9 +774,6 @@ def call_added_kan(
     new_hand.remove(tile_id)
 
     # upgrade the meld from pon to kan (shouminkan)
-    if not pon_meld.tiles:  # pragma: no cover - defensive check
-        logger.error(f"pon meld tiles are None for seat {seat} during kan upgrade")
-        raise InvalidMeldError("pon meld tiles cannot be None for kan upgrade")
     new_tiles = tuple(sorted([*pon_meld.tiles, tile_id]))
     upgraded_meld = FrozenMeld(
         meld_type=FrozenMeld.SHOUMINKAN,
@@ -786,21 +795,8 @@ def call_added_kan(
         tiles=tuple(new_hand),
         melds=tuple(new_melds),
     )
-
-    # clear ippatsu for all players
-    new_state = clear_all_players_ippatsu(new_state)
-
-    # current player remains the same
-    new_state = new_state.model_copy(update={"current_player_seat": seat})
-
-    # dora handling for added kan, controlled by settings (same rules as open kan)
-    if settings.has_kandora:
-        if settings.kandora_deferred_for_open_kan:
-            new_state = new_state.model_copy(update={"wall": increment_pending_dora(new_state.wall)})
-        else:
-            new_state, _dora_indicator = add_dora_indicator(new_state)
-
-    # draw from dead wall (sets is_rinshan flag)
-    new_state, _drawn_tile = draw_from_dead_wall(new_state)
+    # added kan keeps the hand open (already open from the pon), no need to re-mark
+    new_state = _finalize_meld_state(new_state, seat, mark_open=False)
+    new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
 
     return new_state, upgraded_meld

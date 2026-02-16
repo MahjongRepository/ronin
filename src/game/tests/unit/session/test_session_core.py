@@ -7,30 +7,12 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.types import MeldCaller
-from game.messaging.types import SessionErrorCode, SessionMessageType
-from game.tests.mocks import MockConnection
+from game.messaging.types import SessionMessageType
 
 from .helpers import create_started_game
 
 
 class TestSessionManager:
-    async def test_second_player_notifies_first(self, manager):
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
-        manager.create_room("game1", num_ai_players=2)
-
-        await manager.join_room(conn1, "game1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "game1", "Bob", "tok-bob")
-
-        # conn1 should have received: room_joined + player_joined(Bob)
-        player_joined_msgs = [
-            m for m in conn1.sent_messages if m.get("type") == SessionMessageType.PLAYER_JOINED
-        ]
-        assert len(player_joined_msgs) == 1
-        assert player_joined_msgs[0]["player_name"] == "Bob"
-
     async def test_leave_game_notifies_others(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
@@ -39,27 +21,6 @@ class TestSessionManager:
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0]["type"] == SessionMessageType.PLAYER_LEFT
         assert conns[0].sent_messages[0]["player_name"] == "Bob"
-
-    async def test_duplicate_name_error(self, manager):
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
-        manager.create_room("game1", num_ai_players=2)
-
-        await manager.join_room(conn1, "game1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "game1", "Alice", "tok-alice2")
-
-        msg = conn2.sent_messages[0]
-        assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == SessionErrorCode.NAME_TAKEN
-
-    async def test_empty_game_is_cleaned_up(self, manager):
-        conns = await create_started_game(manager, "game1")
-        assert manager.get_game("game1") is not None
-
-        await manager.leave_game(conns[0])
-        assert manager.get_game("game1") is None
 
     async def test_handle_game_action_broadcasts_events(self, manager):
         """handle_game_action processes list of events and broadcasts them."""

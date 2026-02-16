@@ -47,6 +47,10 @@ DRAGONS_34 = [HAKU_34, HATSU_34, CHUN_34]
 TERMINALS_34 = [0, 8, 9, 17, 18, 26]
 
 
+TILE_ID_MIN = 0
+TILE_ID_MAX = 135
+
+
 def tile_to_34(tile_id: int) -> int:
     """
     Convert 136-format tile ID to 34-format.
@@ -54,6 +58,8 @@ def tile_to_34(tile_id: int) -> int:
     In 136-format, each tile type has 4 copies (tile_id // 4 gives the type).
     In 34-format, each tile type is represented by a single index (0-33).
     """
+    if not (TILE_ID_MIN <= tile_id <= TILE_ID_MAX):
+        raise ValueError(f"tile_id must be in [{TILE_ID_MIN}, {TILE_ID_MAX}], got {tile_id}")
     return tile_id // 4
 
 
@@ -79,9 +85,7 @@ def is_terminal_or_honor(tile_34: int) -> bool:
 
 
 def sort_tiles(tiles: list[int]) -> list[int]:
-    """
-    Sort tiles by their 34-format value, preserving order within same type.
-    """
+    """Sort tiles by their 136-format tile ID."""
     return sorted(tiles)
 
 
@@ -94,6 +98,5 @@ def hand_to_34_array(tiles: list[int] | tuple[int, ...]) -> list[int]:
     """
     tiles_34 = [0] * 34
     for tile_id in tiles:
-        tile_index = tile_to_34(tile_id)
-        tiles_34[tile_index] += 1
+        tiles_34[tile_to_34(tile_id)] += 1
     return tiles_34

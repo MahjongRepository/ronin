@@ -61,7 +61,8 @@ class MeldCallType(StrEnum):
     ADDED_KAN = "added_kan"
 
 
-# priority order for meld calls: kan > pon > chi
+# Priority order for discard-claim melds only (lower = higher priority).
+# CLOSED_KAN and ADDED_KAN are not discard claims and are excluded.
 MELD_CALL_PRIORITY: dict[MeldCallType, int] = {
     MeldCallType.OPEN_KAN: 0,
     MeldCallType.PON: 1,
@@ -151,7 +152,6 @@ class MeldViewType(StrEnum):
     OPEN_KAN = "open_kan"
     CLOSED_KAN = "closed_kan"
     ADDED_KAN = "added_kan"
-    UNKNOWN = "unknown"
 
 
 class RoundPhase(StrEnum):

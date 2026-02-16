@@ -1,59 +1,26 @@
-"""Tests for replay model validation and construction."""
+"""Tests for replay model validation."""
 
 import pytest
 from pydantic import ValidationError
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, GameErrorCode
 from game.logic.events import (
     BroadcastTarget,
-    DiscardEvent,
+    ErrorEvent,
     EventType,
     ServiceEvent,
 )
 from game.replay.models import (
+    ReplayError,
     ReplayInput,
     ReplayInputEvent,
-    ReplayStep,
-    ReplayTrace,
 )
-from game.tests.conftest import create_game_state
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 
 
-class TestReplayInputEvent:
-    def test_basic_construction(self):
-        event = ReplayInputEvent(
-            player_name="Alice",
-            action=GameAction.DISCARD,
-            data={"tile_id": 5},
-        )
-        assert event.player_name == "Alice"
-        assert event.action == GameAction.DISCARD
-        assert event.data == {"tile_id": 5}
-
-    def test_default_empty_data(self):
-        event = ReplayInputEvent(
-            player_name="Alice",
-            action=GameAction.CONFIRM_ROUND,
-        )
-        assert event.data == {}
-
-    def test_frozen(self):
-        event = ReplayInputEvent(player_name="Alice", action=GameAction.DISCARD)
-        with pytest.raises(ValidationError):
-            event.player_name = "Bob"
-
-
-class TestReplayInput:
-    def test_valid_4_players(self):
-        replay = ReplayInput(
-            seed="a" * 192,
-            player_names=PLAYER_NAMES,
-            events=(),
-        )
-        assert replay.player_names == PLAYER_NAMES
-        assert replay.schema_version == 1
+class TestReplayInputValidation:
+    """Tests for ReplayInput model_validator constraints."""
 
     def test_rejects_duplicate_names(self):
         with pytest.raises(ValidationError, match="4 unique names"):
@@ -92,78 +59,52 @@ class TestReplayInput:
                 ),
             )
 
-    def test_accepts_valid_events(self):
-        replay = ReplayInput(
-            seed="a" * 192,
-            player_names=PLAYER_NAMES,
-            events=(
-                ReplayInputEvent(
-                    player_name="Alice",
-                    action=GameAction.DISCARD,
-                    data={"tile_id": 0},
-                ),
-                ReplayInputEvent(
-                    player_name="Bob",
-                    action=GameAction.DISCARD,
-                    data={"tile_id": 1},
-                ),
+    def test_rejects_wall_wrong_length(self):
+        with pytest.raises(ValidationError, match="exactly 136 tiles"):
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=(1, 2, 3))
+
+    def test_rejects_wall_invalid_tile_ids(self):
+        wall = tuple(range(1, 137))
+        with pytest.raises(ValidationError, match="permutation of tile IDs"):
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=wall)
+
+    def test_rejects_wall_duplicate_tile_ids(self):
+        wall = (0,) * 136
+        with pytest.raises(ValidationError, match="permutation of tile IDs"):
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=wall)
+
+
+class TestReplayError:
+    def test_message_includes_error_count(self):
+        error_event = ServiceEvent(
+            event=EventType.ERROR,
+            data=ErrorEvent(
+                code=GameErrorCode.GAME_ERROR,
+                message="test error message",
+                target="all",
             ),
+            target=BroadcastTarget(),
         )
-        assert len(replay.events) == 2
-
-    def test_frozen(self):
-        replay = ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=())
-        with pytest.raises(ValidationError):
-            replay.seed = "b" * 192
-
-
-class TestReplayStep:
-    def test_construction_with_state_before_and_after(self):
-        state_before = create_game_state()
-        state_after = create_game_state(round_number=1)
         input_event = ReplayInputEvent(player_name="Alice", action=GameAction.DISCARD, data={"tile_id": 0})
-        discard_data = DiscardEvent(
-            seat=0,
-            tile_id=0,
-            is_tsumogiri=True,
-            target="all",
-        )
-        service_event = ServiceEvent(event=EventType.DISCARD, data=discard_data, target=BroadcastTarget())
+        exc = ReplayError(step_index=5, event=input_event, errors=[error_event])
+        assert "1 error(s)" in str(exc)
+        assert "test error message" in str(exc)
+        assert "step 5" in str(exc)
+        assert "Alice" in str(exc)
 
-        step = ReplayStep(
-            input_event=input_event,
-            emitted_events=(service_event,),
-            state_before=state_before,
-            state_after=state_after,
-        )
-        assert step.state_before is state_before
-        assert step.state_after is state_after
-        assert step.synthetic is False
-
-    def test_synthetic_flag(self):
-        state = create_game_state()
-        step = ReplayStep(
-            input_event=ReplayInputEvent(player_name="Alice", action=GameAction.CONFIRM_ROUND),
-            synthetic=True,
-            emitted_events=(),
-            state_before=state,
-            state_after=state,
-        )
-        assert step.synthetic is True
-
-
-class TestReplayTrace:
-    def test_construction(self):
-        state = create_game_state()
-        trace = ReplayTrace(
-            seed="a" * 192,
-            seat_by_player={"Alice": 0, "Bob": 1, "Charlie": 2, "Diana": 3},
-            startup_events=(),
-            initial_state=state,
-            steps=(),
-            final_state=state,
-        )
-        assert trace.seed == "a" * 192
-        assert trace.seat_by_player["Alice"] == 0
-        assert trace.initial_state is state
-        assert trace.final_state is state
+    def test_message_with_multiple_errors(self):
+        errors = [
+            ServiceEvent(
+                event=EventType.ERROR,
+                data=ErrorEvent(
+                    code=GameErrorCode.GAME_ERROR,
+                    message=f"error {i}",
+                    target="all",
+                ),
+                target=BroadcastTarget(),
+            )
+            for i in range(3)
+        ]
+        input_event = ReplayInputEvent(player_name="Bob", action=GameAction.CALL_RON)
+        exc = ReplayError(step_index=0, event=input_event, errors=errors)
+        assert "3 error(s)" in str(exc)

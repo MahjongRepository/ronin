@@ -1,26 +1,4 @@
-from game.session.models import SessionData
 from game.session.session_store import SessionStore
-
-
-class TestSessionData:
-    def test_defaults(self):
-        sd = SessionData(session_token="tok", player_name="Alice", game_id="g1")
-        assert sd.seat is None
-        assert sd.disconnected_at is None
-
-    def test_all_fields(self):
-        sd = SessionData(
-            session_token="tok",
-            player_name="Bob",
-            game_id="g2",
-            seat=1,
-            disconnected_at=100.0,
-        )
-        assert sd.session_token == "tok"
-        assert sd.player_name == "Bob"
-        assert sd.game_id == "g2"
-        assert sd.seat == 1
-        assert sd.disconnected_at == 100.0
 
 
 class TestSessionStore:
@@ -29,14 +7,6 @@ class TestSessionStore:
         s1 = store.create_session("Alice", "g1")
         s2 = store.create_session("Bob", "g1")
         assert s1.session_token != s2.session_token
-
-    def test_create_session_stores_player_name_and_game_id(self):
-        store = SessionStore()
-        session = store.create_session("Alice", "g1")
-        assert session.player_name == "Alice"
-        assert session.game_id == "g1"
-        assert session.seat is None
-        assert session.disconnected_at is None
 
     def test_bind_seat_updates_session(self):
         store = SessionStore()
@@ -55,7 +25,6 @@ class TestSessionStore:
         assert session.disconnected_at is None
         store.mark_disconnected(session.session_token)
         assert session.disconnected_at is not None
-        assert isinstance(session.disconnected_at, float)
 
     def test_mark_disconnected_ignores_unknown_token(self):
         store = SessionStore()

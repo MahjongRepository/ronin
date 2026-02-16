@@ -6,6 +6,7 @@ machine its own module and test surface.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 from game.logic.abortive import (
     AbortiveDrawType,
@@ -30,12 +31,6 @@ from game.logic.events import (
 )
 from game.logic.melds import call_added_kan
 from game.logic.riichi import declare_riichi
-from game.logic.state import (
-    CallResponse,
-    MahjongGameState,
-    MahjongRoundState,
-    PendingCallPrompt,
-)
 from game.logic.state_utils import (
     advance_turn,
     clear_pending_prompt,
@@ -48,22 +43,35 @@ from game.logic.turn import (
     process_meld_call,
     process_ron_call,
 )
-from game.logic.types import MeldCaller
+from game.logic.types import MeldCaller, MeldCallInput, RonCallInput
+
+if TYPE_CHECKING:
+    from game.logic.state import (
+        CallResponse,
+        MahjongGameState,
+        MahjongRoundState,
+        PendingCallPrompt,
+    )
 
 logger = logging.getLogger(__name__)
 
 
+_ACTION_TO_MELD_CALL_TYPE = {
+    GameAction.CALL_PON: MeldCallType.PON,
+    GameAction.CALL_CHI: MeldCallType.CHI,
+    GameAction.CALL_KAN: MeldCallType.OPEN_KAN,
+}
+
+
 def _action_to_meld_call_type(action: GameAction) -> MeldCallType:
     """Convert a GameAction to MeldCallType."""
-    mapping = {
-        GameAction.CALL_PON: MeldCallType.PON,
-        GameAction.CALL_CHI: MeldCallType.CHI,
-        GameAction.CALL_KAN: MeldCallType.OPEN_KAN,
-    }
-    return mapping[action]
+    result = _ACTION_TO_MELD_CALL_TYPE.get(action)
+    if result is None:
+        raise ValueError(f"no meld call type for action: {action}")
+    return result
 
 
-def _pick_best_meld_response(
+def pick_best_meld_response(
     meld_responses: list[CallResponse],
     prompt: PendingCallPrompt,
 ) -> CallResponse | None:
@@ -81,15 +89,37 @@ def _pick_best_meld_response(
         if isinstance(caller, MeldCaller):
             caller_priority[(caller.seat, caller.call_type)] = MELD_CALL_PRIORITY.get(caller.call_type, 99)
 
+    # in DISCARD prompts, ron callers (int entries) may pass on ron and fall
+    # back to a meld action. Their MeldCaller was stripped by the ron-dominant
+    # policy, so accept meld responses from any seat listed in prompt.callers.
+    ron_caller_seats = {c for c in prompt.callers if isinstance(c, int)}
+
+    # filter to responses from recognized callers only
+    valid_responses: list[CallResponse] = []
+    for response in meld_responses:
+        call_type = _action_to_meld_call_type(response.action)
+        if (response.seat, call_type) in caller_priority:
+            valid_responses.append(response)
+        elif response.seat in ron_caller_seats:
+            # ron caller falling back to meld: derive priority from action
+            caller_priority[(response.seat, call_type)] = MELD_CALL_PRIORITY.get(call_type, 99)
+            valid_responses.append(response)
+        else:
+            logger.warning(
+                "ignoring meld response from seat %d with action %s: not in original callers",
+                response.seat,
+                response.action,
+            )
+
     def sort_key(response: CallResponse) -> tuple[int, int]:
         call_type = _action_to_meld_call_type(response.action)
-        priority = caller_priority.get((response.seat, call_type), 99)
+        priority = caller_priority[(response.seat, call_type)]
         distance = (response.seat - prompt.from_seat) % 4
         return (priority, distance)
 
     best: CallResponse | None = None
     best_key: tuple[int, int] = (999, 999)
-    for response in meld_responses:
+    for response in valid_responses:
         key = sort_key(response)
         if key < best_key:
             best = response
@@ -122,8 +152,16 @@ def _resolve_ron_responses(
     max_winners = settings.double_ron_count if settings.has_double_ron else 1
     ron_seats = [r.seat for r in ron_responses[:max_winners]]
     is_chankan = prompt.call_type == CallType.CHANKAN
+    ron_input = RonCallInput(
+        ron_callers=ron_seats,
+        tile_id=prompt.tile_id,
+        discarder_seat=prompt.from_seat,
+        is_chankan=is_chankan,
+    )
     new_round_state, new_game_state, events = process_ron_call(
-        round_state, game_state, ron_seats, prompt.tile_id, prompt.from_seat, is_chankan=is_chankan
+        round_state,
+        game_state,
+        ron_input,
     )
     new_round_state = clear_pending_prompt(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
@@ -138,13 +176,16 @@ def _resolve_meld_response(
 ) -> ActionResult:
     """Resolve the winning meld response from the pending call prompt."""
     meld_type = _action_to_meld_call_type(best.action)
+    meld_input = MeldCallInput(
+        caller_seat=best.seat,
+        call_type=meld_type,
+        tile_id=prompt.tile_id,
+        sequence_tiles=best.sequence_tiles,
+    )
     new_round_state, new_game_state, events = process_meld_call(
         round_state,
         game_state,
-        best.seat,
-        meld_type,
-        prompt.tile_id,
-        sequence_tiles=best.sequence_tiles,
+        meld_input,
     )
     new_round_state = clear_pending_prompt(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
@@ -163,37 +204,18 @@ def _resolve_meld_response(
 def _resolve_all_passed(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
-    prompt: PendingCallPrompt,
 ) -> ActionResult:
     """
-    Handle resolution when all callers passed.
+    Handle resolution when all callers passed on a RON or MELD prompt.
 
-    Reveal deferred dora (if ron prompt was declined), finalize pending riichi,
-    check four riichi abortive draw, advance turn, and draw for next player.
+    Reveal deferred dora, advance turn, and draw for next player.
+    Riichi finalization is handled separately by DISCARD prompt resolution.
     """
     events: list[GameEvent] = []
-    new_round_state = round_state
-    new_game_state = game_state
 
-    # reveal deferred dora now that the discard passed the ron check
-    new_round_state, dora_events = emit_deferred_dora_events(new_round_state)
+    new_round_state, dora_events = emit_deferred_dora_events(round_state)
     events.extend(dora_events)
-    new_game_state = update_game_with_round(new_game_state, new_round_state)
-
-    settings = game_state.settings
-    discarder = new_round_state.players[prompt.from_seat]
-    if discarder.discards and discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
-        new_round_state, new_game_state = declare_riichi(
-            new_round_state, new_game_state, prompt.from_seat, settings
-        )
-        events.append(RiichiDeclaredEvent(seat=prompt.from_seat, target="all"))
-
-        if settings.has_suucha_riichi and check_four_riichi(new_round_state, settings):
-            result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_RIICHI)
-            new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
-            new_game_state = update_game_with_round(new_game_state, new_round_state)
-            events.append(RoundEndEvent(result=result, target="all"))
-            return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+    new_game_state = update_game_with_round(game_state, new_round_state)
 
     new_round_state = advance_turn(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
@@ -222,7 +244,7 @@ def complete_added_kan_after_chankan_decline(
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, settings)
     new_game_state = update_game_with_round(game_state, new_round_state)
-    tile_ids = list(meld.tiles) if meld.tiles else []
+    tile_ids = list(meld.tiles)
 
     events: list[GameEvent] = [
         MeldEvent(
@@ -231,7 +253,7 @@ def complete_added_kan_after_chankan_decline(
             tile_ids=tile_ids,
             called_tile_id=meld.called_tile,
             from_seat=meld.from_who,
-        )
+        ),
     ]
 
     _maybe_emit_dora_event(old_dora_count, new_round_state, events)
@@ -275,7 +297,10 @@ def _finalize_discard_post_ron_check(
     discarder = new_round_state.players[prompt.from_seat]
     if discarder.discards and discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
         new_round_state, new_game_state = declare_riichi(
-            new_round_state, new_game_state, prompt.from_seat, settings
+            new_round_state,
+            new_game_state,
+            prompt.from_seat,
+            settings,
         )
         events.append(RiichiDeclaredEvent(seat=prompt.from_seat, target="all"))
         riichi_finalized = True
@@ -319,49 +344,65 @@ def resolve_call_prompt(  # noqa: PLR0911
     if prompt is None:
         return ActionResult([], new_round_state=round_state, new_game_state=game_state)
 
+    if prompt.pending_seats:
+        logger.error(
+            "resolve_call_prompt called with %d pending seats: %s",
+            len(prompt.pending_seats),
+            prompt.pending_seats,
+        )
+        raise ValueError(f"cannot resolve call prompt: {len(prompt.pending_seats)} seats have not responded")
+
     ron_responses = [r for r in prompt.responses if r.action == GameAction.CALL_RON]
     meld_responses = [
-        r
-        for r in prompt.responses
-        if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
+        r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
     ]
 
     # priority 1: ron
     if ron_responses:
         return _resolve_ron_responses(round_state, game_state, prompt, ron_responses)
 
-    # No ron -- finalize dora/riichi for DISCARD prompts
+    # No ron -- finalize dora/riichi for DISCARD and MELD prompts.
+    # Both prompt types originate from a discard, so the discarder may have a
+    # pending riichi that needs to be finalized once no ron claim is made.
     extra_events: list[GameEvent] = []
-    if prompt.call_type == CallType.DISCARD:
-        round_state, game_state, extra_events, riichi_finalized = _finalize_discard_post_ron_check(
-            round_state, game_state, prompt
+    resolved_round = round_state
+    resolved_game = game_state
+    if prompt.call_type in (CallType.DISCARD, CallType.MELD):
+        resolved_round, resolved_game, extra_events, riichi_finalized = _finalize_discard_post_ron_check(
+            round_state,
+            game_state,
+            prompt,
         )
 
         # four riichi check only when this resolution finalized riichi
-        settings = game_state.settings
-        if riichi_finalized and settings.has_suucha_riichi and check_four_riichi(round_state, settings):
-            result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_RIICHI)
-            new_round_state = clear_pending_prompt(round_state)
+        settings = resolved_game.settings
+        if riichi_finalized and settings.has_suucha_riichi and check_four_riichi(resolved_round, settings):
+            result = process_abortive_draw(resolved_game, AbortiveDrawType.FOUR_RIICHI)
+            new_round_state = clear_pending_prompt(resolved_round)
             new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
-            new_game_state = update_game_with_round(game_state, new_round_state)
+            new_game_state = update_game_with_round(resolved_game, new_round_state)
             extra_events.append(RoundEndEvent(result=result, target="all"))
             return ActionResult(extra_events, new_round_state=new_round_state, new_game_state=new_game_state)
 
     # priority 2: meld (pon/kan > chi, determined by caller priority in prompt)
     if meld_responses:
-        best = _pick_best_meld_response(meld_responses, prompt)
+        best = pick_best_meld_response(meld_responses, prompt)
         if best is not None:
-            meld_result = _resolve_meld_response(round_state, game_state, prompt, best)
+            meld_result = _resolve_meld_response(resolved_round, resolved_game, prompt, best)
             # prepend dora/riichi events before meld events
             return ActionResult(
                 extra_events + list(meld_result.events),
                 new_round_state=meld_result.new_round_state,
                 new_game_state=meld_result.new_game_state,
             )
+        logger.error(
+            "all %d meld responses were from unrecognized callers; treating as all-pass",
+            len(meld_responses),
+        )
 
     # all passed
-    new_round_state = clear_pending_prompt(round_state)
-    new_game_state = update_game_with_round(game_state, new_round_state)
+    new_round_state = clear_pending_prompt(resolved_round)
+    new_game_state = update_game_with_round(resolved_game, new_round_state)
 
     if prompt.call_type == CallType.CHANKAN:
         new_round_state, new_game_state, events = complete_added_kan_after_chankan_decline(
@@ -372,8 +413,8 @@ def resolve_call_prompt(  # noqa: PLR0911
         )
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
-    # For DISCARD: dora/riichi already finalized above, just advance turn
-    if prompt.call_type == CallType.DISCARD:
+    # For DISCARD/MELD: dora/riichi already finalized above, just advance turn
+    if prompt.call_type in (CallType.DISCARD, CallType.MELD):
         return _resolve_all_passed_discard(new_round_state, new_game_state, extra_events)
 
-    return _resolve_all_passed(new_round_state, new_game_state, prompt)
+    return _resolve_all_passed(new_round_state, new_game_state)

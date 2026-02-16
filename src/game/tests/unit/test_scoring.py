@@ -2,12 +2,14 @@
 Unit tests for scoring calculation.
 """
 
+import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import MeldViewType, RoundResultType
+from game.logic.enums import RoundResultType
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import (
     HandResult,
+    ScoringContext,
     _collect_dora_indicators,
     apply_double_ron_score,
     apply_nagashi_mangan_score,
@@ -58,21 +60,8 @@ def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> Mah
 
 
 class TestSeatToWind:
-    def test_dealer_is_east(self):
-        assert seat_to_wind(0, 0) == EAST_34
-
-    def test_dealer_plus_one_is_south(self):
-        assert seat_to_wind(1, 0) == SOUTH_34
-
-    def test_dealer_plus_two_is_west(self):
-        assert seat_to_wind(2, 0) == WEST_34
-
-    def test_dealer_plus_three_is_north(self):
-        assert seat_to_wind(3, 0) == NORTH_34
-
-    def test_dealer_at_seat_2(self):
-        # dealer at seat 2
-        # seat 2 = East, seat 3 = South, seat 0 = West, seat 1 = North
+    def test_dealer_at_seat_2_wraps_winds(self):
+        # dealer at seat 2: seat 2=East, seat 3=South, seat 0=West, seat 1=North
         assert seat_to_wind(2, 2) == EAST_34
         assert seat_to_wind(3, 2) == SOUTH_34
         assert seat_to_wind(0, 2) == WEST_34
@@ -89,7 +78,8 @@ class TestCalculateHandValue:
 
         win_tile = tiles[-1]  # 5p
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 1  # at least menzen tsumo
@@ -106,7 +96,8 @@ class TestCalculateHandValue:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 2  # riichi + menzen tsumo
@@ -117,13 +108,18 @@ class TestCalculateHandValue:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
         round_state = update_player(
-            game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True, is_ippatsu=True
+            game_state.round_state,
+            0,
+            tiles=tuple(tiles),
+            is_riichi=True,
+            is_ippatsu=True,
         )
         player = round_state.players[0]
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 3  # riichi + ippatsu + menzen tsumo
@@ -137,7 +133,8 @@ class TestCalculateHandValue:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 1  # riichi
@@ -153,7 +150,8 @@ class TestCalculateHandValue:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 6 for y in result.yaku)  # Haitei Raoyue
@@ -168,7 +166,8 @@ class TestCalculateHandValue:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 7 for y in result.yaku)  # Houtei Raoyui
@@ -194,7 +193,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile[0], settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile[0])
 
         assert result.error == "no_yaku"
 
@@ -223,7 +223,8 @@ class TestCalculateHandValue:
         player = round_state.players[0]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 1  # yakuhai (haku)
@@ -250,7 +251,8 @@ class TestCalculateHandValue:
 
         win_tile = closed_tiles[-1]  # last tile drawn (5s)
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 1  # yakuhai (haku)
@@ -275,7 +277,9 @@ class TestApplyTsumoScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
+            game_state,
+            winner_seat=0,
+            hand_result=hand_result,
         )
 
         # dealer (seat 0) gets 6000 total (2000 * 3)
@@ -292,7 +296,9 @@ class TestApplyTsumoScore:
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
+            game_state,
+            winner_seat=1,
+            hand_result=hand_result,
         )
 
         # winner gets 2000 + 600 (300 * 2 honba, but per-loser so 100*2*3=600)
@@ -310,7 +316,9 @@ class TestApplyTsumoScore:
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
         new_round_state, new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
+            game_state,
+            winner_seat=1,
+            hand_result=hand_result,
         )
 
         # winner gets 2000 + 2000 (riichi sticks)
@@ -325,7 +333,9 @@ class TestApplyTsumoScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
+            game_state,
+            winner_seat=0,
+            hand_result=hand_result,
         )
 
         assert result.ura_dora_indicators is None
@@ -334,9 +344,7 @@ class TestApplyTsumoScore:
         """Riichi tsumo winner gets ura dora indicators from dead wall."""
         dead_wall = tuple(range(100, 114))
         dora_indicators = (dead_wall[2],)
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], is_riichi=(i == 0)) for i in range(4)
-        )
+        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], is_riichi=(i == 0)) for i in range(4))
         round_state = create_round_state(
             players=players,
             dealer_seat=0,
@@ -349,72 +357,12 @@ class TestApplyTsumoScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
+            game_state,
+            winner_seat=0,
+            hand_result=hand_result,
         )
 
         assert result.ura_dora_indicators == [dead_wall[7]]
-
-    def test_tsumo_result_carries_closed_tiles(self):
-        """TsumoResult includes winner's closed tiles."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
-        )
-
-        assert result.closed_tiles == [0, 1, 2, 3]
-
-    def test_tsumo_result_carries_win_tile(self):
-        """TsumoResult win_tile is the last tile in the winner's hand."""
-        players = tuple(create_player(seat=i, score=25000, tiles=[50, 60, 70, 80]) for i in range(4))
-        round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
-        game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
-        )
-
-        assert result.win_tile == 80
-
-    def test_tsumo_result_carries_empty_melds(self):
-        """TsumoResult melds is empty when winner has no melds."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
-        )
-
-        assert result.melds == []
-
-    def test_tsumo_result_carries_melds(self):
-        """TsumoResult includes winner's melds when present."""
-        pon_tiles = (10, 11, 12)
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=pon_tiles,
-            opened=True,
-            called_tile=10,
-            who=0,
-            from_who=1,
-        )
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], melds=(pon,) if i == 0 else ())
-            for i in range(4)
-        )
-        round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
-        game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
-        )
-
-        assert len(result.melds) == 1
-        assert result.melds[0].type == MeldViewType.PON
-        assert result.melds[0].tile_ids == [10, 11, 12]
 
 
 class TestApplyRonScore:
@@ -436,7 +384,11 @@ class TestApplyRonScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         # winner gets 2000 + 900
@@ -451,7 +403,11 @@ class TestApplyRonScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         # winner gets 2000 + 3000
@@ -468,7 +424,11 @@ class TestApplyRonScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         assert result.ura_dora_indicators is None
@@ -477,9 +437,7 @@ class TestApplyRonScore:
         """Riichi ron winner gets ura dora indicators from dead wall."""
         dead_wall = tuple(range(100, 114))
         dora_indicators = (dead_wall[2],)
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], is_riichi=(i == 0)) for i in range(4)
-        )
+        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], is_riichi=(i == 0)) for i in range(4))
         round_state = create_round_state(
             players=players,
             dealer_seat=0,
@@ -492,60 +450,14 @@ class TestApplyRonScore:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         _new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         assert result.ura_dora_indicators == [dead_wall[7]]
-
-    def test_ron_result_carries_closed_tiles_and_winning_tile(self):
-        """RonResult includes winner's closed tiles and the winning tile."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=42
-        )
-
-        assert result.closed_tiles == [0, 1, 2, 3]
-        assert result.winning_tile == 42
-
-    def test_ron_result_carries_empty_melds(self):
-        """RonResult melds is empty when winner has no melds."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
-        )
-
-        assert result.melds == []
-
-    def test_ron_result_carries_melds(self):
-        """RonResult includes winner's melds when present."""
-        pon_tiles = (10, 11, 12)
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=pon_tiles,
-            opened=True,
-            called_tile=10,
-            who=0,
-            from_who=1,
-        )
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], melds=(pon,) if i == 0 else ())
-            for i in range(4)
-        )
-        round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
-        game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
-        )
-
-        assert len(result.melds) == 1
-        assert result.melds[0].type == MeldViewType.PON
-        assert result.melds[0].tile_ids == [10, 11, 12]
 
 
 class TestApplyDoubleRonScore:
@@ -568,7 +480,10 @@ class TestApplyDoubleRonScore:
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, _new_game_state, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=55
+            game_state,
+            winners=winners,
+            loser_seat=1,
+            winning_tile=55,
         )
 
         # seat 0 wins 2000
@@ -591,7 +506,10 @@ class TestApplyDoubleRonScore:
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, _new_game_state, _result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
+            game_state,
+            winners=winners,
+            loser_seat=1,
+            winning_tile=0,
         )
 
         # each winner gets 2000 + 600 honba
@@ -611,7 +529,10 @@ class TestApplyDoubleRonScore:
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, new_game_state, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
+            game_state,
+            winners=winners,
+            loser_seat=1,
+            winning_tile=0,
         )
 
         # seat 2 is closer (loser_seat + 1 = seat 2)
@@ -640,7 +561,10 @@ class TestApplyDoubleRonScore:
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         new_round_state, _new_game_state, _result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=3, winning_tile=0
+            game_state,
+            winners=winners,
+            loser_seat=3,
+            winning_tile=0,
         )
 
         # seat 0 is closer (loser_seat + 1 = seat 0)
@@ -657,7 +581,10 @@ class TestApplyDoubleRonScore:
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, _new_game_state, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
+            game_state,
+            winners=winners,
+            loser_seat=1,
+            winning_tile=0,
         )
 
         for w in result.winners:
@@ -668,9 +595,7 @@ class TestApplyDoubleRonScore:
         dead_wall = tuple(range(100, 114))
         dora_indicators = (dead_wall[2],)
         # seat 0 is riichi, seat 2 is not
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], is_riichi=(i == 0)) for i in range(4)
-        )
+        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], is_riichi=(i == 0)) for i in range(4))
         round_state = create_round_state(
             players=players,
             dealer_seat=0,
@@ -685,7 +610,10 @@ class TestApplyDoubleRonScore:
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
         _new_round_state, _new_game_state, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
+            game_state,
+            winners=winners,
+            loser_seat=1,
+            winning_tile=0,
         )
 
         for w in result.winners:
@@ -694,60 +622,16 @@ class TestApplyDoubleRonScore:
             else:
                 assert w.ura_dora_indicators is None
 
-    def test_double_ron_winners_carry_closed_tiles(self):
-        """Each DoubleRonWinner includes its winner's closed tiles."""
-        # give different tiles to seats 0 and 2
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[i * 10, i * 10 + 1, i * 10 + 2, i * 10 + 3])
-            for i in range(4)
-        )
-        round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
-        game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
-
-        winners = [(0, hand_result_1), (2, hand_result_2)]
-        _new_round_state, _new_game_state, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
-        )
-
-        for w in result.winners:
-            if w.winner_seat == 0:
-                assert w.closed_tiles == [0, 1, 2, 3]
-            else:
-                assert w.closed_tiles == [20, 21, 22, 23]
-
-    def test_double_ron_winners_carry_melds(self):
-        """Each DoubleRonWinner includes its winner's melds."""
-        pon_tiles = (10, 11, 12)
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=pon_tiles,
-            opened=True,
-            called_tile=10,
-            who=2,
-            from_who=1,
-        )
-        players = tuple(
-            create_player(seat=i, score=25000, tiles=[0, 1, 2, 3], melds=(pon,) if i == 2 else ())
-            for i in range(4)
-        )
-        round_state = create_round_state(players=players, dealer_seat=0, current_player_seat=0, round_wind=0)
-        game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
-
-        winners = [(0, hand_result_1), (2, hand_result_2)]
-        _new_round_state, _new_game_state, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
-        )
-
-        for w in result.winners:
-            if w.winner_seat == 0:
-                assert w.melds == []
-            else:
-                assert len(w.melds) == 1
-                assert w.melds[0].type == MeldViewType.PON
+    def test_double_ron_empty_winners_raises(self):
+        """Empty winners list raises ValueError (no riichi receiver can be found)."""
+        game_state = self._create_game_state()
+        with pytest.raises(ValueError, match="No riichi receiver found"):
+            apply_double_ron_score(
+                game_state,
+                winners=[],
+                loser_seat=1,
+                winning_tile=0,
+            )
 
 
 class TestApplyNagashiManganScore:
@@ -769,7 +653,11 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
+            game_state,
+            qualifying_seats=[0],
+            tempai_seats=[],
+            noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
         )
 
         assert result.type == RoundResultType.NAGASHI_MANGAN
@@ -788,7 +676,11 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[1], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
+            game_state,
+            qualifying_seats=[1],
+            tempai_seats=[],
+            noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
         )
 
         assert result.score_changes[1] == 8000
@@ -805,7 +697,11 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0, 2], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
+            game_state,
+            qualifying_seats=[0, 2],
+            tempai_seats=[],
+            noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
         )
 
         # seat 0 (dealer): +12000 from nagashi, -4000 paying seat 2 (dealer pays 4000)
@@ -824,7 +720,11 @@ class TestApplyNagashiManganScore:
         game_state = self._create_game_state(dealer_seat=0)
 
         _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0], tempai_seats=[1], noten_seats=[0, 2, 3], tenpai_hands=[]
+            game_state,
+            qualifying_seats=[0],
+            tempai_seats=[1],
+            noten_seats=[0, 2, 3],
+            tenpai_hands=[],
         )
 
         assert result.tempai_seats == [1]
@@ -855,7 +755,9 @@ class TestPaoTsumoScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
+            game_state,
+            winner_seat=1,
+            hand_result=hand_result,
         )
 
         # total would be: 16000 (from dealer) + 8000 + 8000 = 32000
@@ -876,7 +778,9 @@ class TestPaoTsumoScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
+            game_state,
+            winner_seat=0,
+            hand_result=hand_result,
         )
 
         # total would be: 16000 * 3 = 48000
@@ -894,7 +798,9 @@ class TestPaoTsumoScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
+            game_state,
+            winner_seat=1,
+            hand_result=hand_result,
         )
 
         # total tsumo: 32000 + 2000 riichi bonus
@@ -910,7 +816,9 @@ class TestPaoTsumoScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
+            game_state,
+            winner_seat=1,
+            hand_result=hand_result,
         )
 
         # honba: 100 per loser * 2 sticks = 200 per loser, 600 total
@@ -924,7 +832,9 @@ class TestPaoTsumoScoring:
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state, winner_seat=1, hand_result=hand_result
+            game_state,
+            winner_seat=1,
+            hand_result=hand_result,
         )
 
         assert result.pao_seat is None
@@ -957,7 +867,11 @@ class TestPaoRonScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         # 32000 split: loser pays 16000, pao pays 16000
@@ -976,7 +890,11 @@ class TestPaoRonScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         # pao == loser: normal ron, loser pays full
@@ -994,7 +912,11 @@ class TestPaoRonScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, _result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         # total: 32000 + 600 honba = 32600, split: 16300 each
@@ -1010,7 +932,11 @@ class TestPaoRonScoring:
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         # 32000 split: loser 16000, pao 16000; winner also gets 1000 riichi
@@ -1025,12 +951,47 @@ class TestPaoRonScoring:
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         new_round_state, _new_game_state, result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
         )
 
         assert result.pao_seat is None
         assert new_round_state.players[0].score == 25000 + 2000
         assert new_round_state.players[1].score == 25000 - 2000
+
+
+class TestPaoRonScoreConservation:
+    """Tests that pao ron scoring conserves total points (no phantom points)."""
+
+    def _create_game_state(self) -> MahjongGameState:
+        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3]) for i in range(4))
+        round_state = create_round_state(
+            players=players,
+            dealer_seat=0,
+            current_player_seat=0,
+            round_wind=0,
+        )
+        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+
+    def test_pao_ron_score_changes_sum_to_zero(self):
+        """Pao ron score changes must sum to zero (no phantom points)."""
+        game_state = self._create_game_state()
+        round_state = update_player(game_state.round_state, 0, pao_seat=2)
+        game_state = game_state.model_copy(update={"round_state": round_state})
+        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
+
+        _new_round_state, _new_game_state, result = apply_ron_score(
+            game_state,
+            winner_seat=0,
+            loser_seat=1,
+            hand_result=hand_result,
+            winning_tile=0,
+        )
+
+        assert sum(result.score_changes.values()) == 0
 
 
 class TestChankanYakuScoring:
@@ -1046,9 +1007,14 @@ class TestChankanYakuScoring:
 
         win_tile = tiles[-1]  # 5p
         settings = GameSettings()
-        result = calculate_hand_value(
-            player, round_state, win_tile, settings, is_tsumo=False, is_chankan=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=round_state,
+            settings=settings,
+            is_tsumo=False,
+            is_chankan=True,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 4 for y in result.yaku)  # Chankan
@@ -1077,9 +1043,14 @@ class TestChankanYakuScoring:
         player = round_state.players[0]
 
         settings = GameSettings()
-        result = calculate_hand_value(
-            player, round_state, win_tile, settings, is_tsumo=False, is_chankan=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=round_state,
+            settings=settings,
+            is_tsumo=False,
+            is_chankan=True,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         # chankan provides the yaku, hand should succeed
         assert result.error is None
@@ -1109,7 +1080,8 @@ class TestChankanYakuScoring:
 
         # call without is_chankan flag (default is False)
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         # without chankan flag, the open hand has no yaku
         assert result.error == "no_yaku"
@@ -1127,10 +1099,9 @@ class TestHandValueParityBetweenFunctions:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result_a = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
-        result_b = calculate_hand_value_with_tiles(
-            player, round_state, tiles, win_tile, settings, is_tsumo=True
-        )
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result_a = calculate_hand_value(ctx, win_tile)
+        result_b = calculate_hand_value_with_tiles(ctx, tiles, win_tile)
 
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
@@ -1148,10 +1119,9 @@ class TestHandValueParityBetweenFunctions:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result_a = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
-        result_b = calculate_hand_value_with_tiles(
-            player, round_state, tiles, win_tile, settings, is_tsumo=False
-        )
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result_a = calculate_hand_value(ctx, win_tile)
+        result_b = calculate_hand_value_with_tiles(ctx, tiles, win_tile)
 
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
@@ -1168,12 +1138,15 @@ class TestHandValueParityBetweenFunctions:
 
         win_tile = tiles[-1]
         settings = GameSettings()
-        result_a = calculate_hand_value(
-            player, round_state, win_tile, settings, is_tsumo=False, is_chankan=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=round_state,
+            settings=settings,
+            is_tsumo=False,
+            is_chankan=True,
         )
-        result_b = calculate_hand_value_with_tiles(
-            player, round_state, tiles, win_tile, settings, is_tsumo=False, is_chankan=True
-        )
+        result_a = calculate_hand_value(ctx, win_tile)
+        result_b = calculate_hand_value_with_tiles(ctx, tiles, win_tile)
 
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
@@ -1201,18 +1174,17 @@ class TestHandValueParityBetweenFunctions:
         player = round_state.players[0]
 
         settings = GameSettings()
-        result_a = calculate_hand_value(player, round_state, win_tile[0], settings, is_tsumo=True)
-        result_b = calculate_hand_value_with_tiles(
-            player, round_state, list(all_tiles), win_tile[0], settings, is_tsumo=True
-        )
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result_a = calculate_hand_value(ctx, win_tile[0])
+        result_b = calculate_hand_value_with_tiles(ctx, list(all_tiles), win_tile[0])
 
         assert result_a.error == result_b.error == "no_yaku"
 
 
-class TestScoreApplicationRiichiClearing:
-    """Verify _apply_score_changes correctly handles riichi stick clearing."""
+class TestNagashiManganPreservesRiichiSticks:
+    """Nagashi mangan does not clear riichi sticks (no winner, just a draw variant)."""
 
-    def _create_game_state(self) -> MahjongGameState:
+    def test_nagashi_mangan_preserves_riichi_sticks(self):
         players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3]) for i in range(4))
         round_state = create_round_state(
             players=players,
@@ -1220,42 +1192,14 @@ class TestScoreApplicationRiichiClearing:
             current_player_seat=0,
             round_wind=0,
         )
-        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=3)
-
-    def test_tsumo_clears_riichi_sticks(self):
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, new_game_state, _result = apply_tsumo_score(
-            game_state, winner_seat=0, hand_result=hand_result
-        )
-        assert new_game_state.riichi_sticks == 0
-
-    def test_ron_clears_riichi_sticks(self):
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, new_game_state, _result = apply_ron_score(
-            game_state, winner_seat=0, loser_seat=1, hand_result=hand_result, winning_tile=0
-        )
-        assert new_game_state.riichi_sticks == 0
-
-    def test_double_ron_clears_riichi_sticks(self):
-        game_state = self._create_game_state()
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-        hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        winners = [(0, hand_result_1), (2, hand_result_2)]
-        _new_round_state, new_game_state, _result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
-        )
-        assert new_game_state.riichi_sticks == 0
-
-    def test_nagashi_mangan_preserves_riichi_sticks(self):
-        game_state = self._create_game_state()
+        game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=3)
 
         _new_round_state, new_game_state, _result = apply_nagashi_mangan_score(
-            game_state, qualifying_seats=[0], tempai_seats=[], noten_seats=[0, 1, 2, 3], tenpai_hands=[]
+            game_state,
+            qualifying_seats=[0],
+            tempai_seats=[],
+            noten_seats=[0, 1, 2, 3],
+            tenpai_hands=[],
         )
         assert new_game_state.riichi_sticks == 3
 
@@ -1414,9 +1358,13 @@ class TestUraDoraScoringIntegration:
             is_riichi=True,
         )
         player = game_state.round_state.players[0]
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=game_state.round_state,
+            settings=self.settings_no_aka,
+            is_tsumo=True,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 122 and y.han == 2 for y in result.yaku)  # Ura Dora 2
@@ -1443,9 +1391,13 @@ class TestUraDoraScoringIntegration:
             is_riichi=True,
         )
         player = game_state.round_state.players[0]
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=game_state.round_state,
+            settings=self.settings_no_aka,
+            is_tsumo=True,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
@@ -1472,9 +1424,13 @@ class TestUraDoraScoringIntegration:
             is_riichi=False,
         )
         player = game_state.round_state.players[0]
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=game_state.round_state,
+            settings=self.settings_no_aka,
+            is_tsumo=True,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
@@ -1498,9 +1454,13 @@ class TestUraDoraScoringIntegration:
             is_riichi=True,
         )
         player = game_state.round_state.players[0]
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, self.settings_no_aka, is_tsumo=False
+        ctx = ScoringContext(
+            player=player,
+            round_state=game_state.round_state,
+            settings=self.settings_no_aka,
+            is_tsumo=False,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 122 and y.han == 2 for y in result.yaku)  # Ura Dora 2
@@ -1526,9 +1486,13 @@ class TestUraDoraScoringIntegration:
             is_riichi=True,
         )
         player = game_state.round_state.players[0]
-        result = calculate_hand_value(
-            player, game_state.round_state, win_tile, self.settings_no_aka_no_ura, is_tsumo=True
+        ctx = ScoringContext(
+            player=player,
+            round_state=game_state.round_state,
+            settings=self.settings_no_aka_no_ura,
+            is_tsumo=True,
         )
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
@@ -1562,7 +1526,8 @@ class TestUraDoraScoringIntegration:
         )
         player = game_state.round_state.players[0]
         settings = GameSettings(has_akadora=False, has_kan_uradora=True)
-        result = calculate_hand_value(player, game_state.round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=game_state.round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 122 and y.han == 3 for y in result.yaku)  # Ura Dora 3

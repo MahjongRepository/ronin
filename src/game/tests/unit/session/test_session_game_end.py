@@ -1,12 +1,30 @@
 from unittest.mock import AsyncMock, patch
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.types import PlayerStanding
 from game.session.models import Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
 from .helpers import create_started_game, make_game_with_player
+
+
+def _make_game_end_events() -> list[ServiceEvent]:
+    return [
+        ServiceEvent(
+            event=EventType.GAME_END,
+            data=GameEndedEvent(
+                type=EventType.GAME_END,
+                target="all",
+                winner_seat=0,
+                standings=[
+                    PlayerStanding(seat=0, score=25000, final_score=0),
+                ],
+            ),
+            target=BroadcastTarget(),
+        ),
+    ]
 
 
 class TestSessionManagerGameEnd:
@@ -140,3 +158,136 @@ class TestSessionManagerCloseGameOnError:
             await manager._heartbeat._check_loop("game1", "game", manager.get_game)
 
         assert not conns[0].is_closed
+
+
+class TestGameEndFromAction:
+    """Tests that handle_game_action closes connections when game ends."""
+
+    async def test_successful_action_game_end_closes_connections(self, manager):
+        """handle_game_action closes connections when a successful action ends the game."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+
+        manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+
+        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
+
+        assert conns[0].is_closed
+        assert conns[0]._close_code == 1000
+        assert conns[0]._close_reason == "game_ended"
+        assert conns[1].is_closed
+
+    async def test_invalid_action_ai_replacement_game_end_closes_connections(self, manager):
+        """When AI replacement after invalid action ends the game, connections close."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=_make_game_end_events(),
+        )
+        error = InvalidGameActionError(action="discard", seat=0, reason="bad tile")
+        manager._game_service.handle_action = AsyncMock(side_effect=error)
+
+        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
+
+        # Offender closed with 1008 (invalid action)
+        assert conns[0].is_closed
+        assert conns[0]._close_code == 1008
+        # Bob closed with 1000 (game ended via AI replacement)
+        assert conns[1].is_closed
+        assert conns[1]._close_code == 1000
+        assert conns[1]._close_reason == "game_ended"
+
+
+class TestGameEndFromTimeout:
+    """Tests that _handle_timeout closes connections when game ends."""
+
+    async def test_timeout_game_end_closes_connections(self, manager):
+        """_handle_timeout closes connections when the game ends normally."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+
+        manager._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
+
+        await manager._handle_timeout("game1", TimeoutType.TURN, 0)
+
+        assert conns[0].is_closed
+        assert conns[0]._close_code == 1000
+        assert conns[0]._close_reason == "game_ended"
+        assert conns[1].is_closed
+
+    async def test_timeout_invalid_action_ai_game_end_closes_connections(self, manager):
+        """When timeout leads to invalid action + AI replacement ending the game."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=_make_game_end_events(),
+        )
+        error = InvalidGameActionError(action="pass", seat=0, reason="resolution failed")
+        manager._game_service.handle_timeout = AsyncMock(side_effect=error)
+
+        await manager._handle_timeout("game1", TimeoutType.MELD, 0)
+
+        # Offender closed with 1008
+        assert conns[0].is_closed
+        assert conns[0]._close_code == 1008
+        # Bob closed with 1000 (game ended)
+        assert conns[1].is_closed
+        assert conns[1]._close_code == 1000
+
+
+class TestGameEndFromLeaveGame:
+    """Tests that leave_game closes connections when AI replacement ends the game."""
+
+    async def test_leave_game_ai_replacement_game_end_closes_connections(self, manager):
+        """When AI replacement after disconnect ends the game, connections close."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=_make_game_end_events(),
+        )
+
+        await manager.leave_game(conns[0])
+
+        # Bob's connection should be closed with game_ended
+        assert conns[1].is_closed
+        assert conns[1]._close_code == 1000
+        assert conns[1]._close_reason == "game_ended"
+
+
+class TestGameEndFromStartGame:
+    """Tests _start_mahjong_game when AI replacement during start produces game-end events."""
+
+    async def test_disconnect_during_start_causes_game_end(self, manager):
+        """When AI replacement during start_game ends the game, connections close."""
+        manager.create_room("room1", num_ai_players=2)
+        conn1 = MockConnection()
+        conn2 = MockConnection()
+        manager.register_connection(conn1)
+        manager.register_connection(conn2)
+        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=_make_game_end_events(),
+        )
+
+        # Simulate Alice disconnecting during start_game
+        original_start = manager._game_service.start_game
+
+        async def start_then_disconnect(*args, **kwargs):
+            result = await original_start(*args, **kwargs)
+            game = manager._games.get("room1")
+            if game is not None:
+                for cid, p in list(game.players.items()):
+                    if p.name == "Alice":
+                        game.players.pop(cid, None)
+                        break
+            return result
+
+        manager._game_service.start_game = start_then_disconnect
+
+        await manager.set_ready(conn1, ready=True)
+        await manager.set_ready(conn2, ready=True)
+
+        # Bob should be closed with game_ended (from AI replacement ending the game)
+        assert conn2.is_closed
+        assert conn2._close_code == 1000
+        assert conn2._close_reason == "game_ended"

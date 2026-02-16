@@ -52,14 +52,6 @@ class TurnTimer:
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
 
-    @property
-    def remaining_bank(self) -> float:
-        """Return remaining bank time, accounting for any active turn timer."""
-        if self._turn_start_time is not None:
-            elapsed = time.monotonic() - self._turn_start_time
-            return max(0, self._bank_seconds - elapsed)
-        return self._bank_seconds
-
     def add_round_bonus(self) -> None:
         """Add round bonus time to the bank."""
         self._bank_seconds += self._config.round_bonus_seconds
@@ -68,7 +60,7 @@ class TurnTimer:
         """Start the turn timer using bank time."""
         self.cancel()
         self._turn_start_time = time.monotonic()
-        self._active_task = asyncio.create_task(self._run_timer(self.remaining_bank, on_timeout))
+        self._active_task = asyncio.create_task(self._run_timer(self._bank_seconds, on_timeout))
 
     def start_meld_timer(self, on_timeout: Callable[[], Awaitable[None]]) -> None:
         """Start a fixed meld decision timer (does not consume bank time)."""
@@ -112,5 +104,5 @@ class TurnTimer:
             await on_timeout()
         except asyncio.CancelledError:
             pass
-        except Exception:
+        except (RuntimeError, OSError, ConnectionError, ValueError):  # fmt: skip
             logger.exception("timer callback failed")

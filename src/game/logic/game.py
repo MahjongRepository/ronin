@@ -163,6 +163,7 @@ def init_game(
         rng_version=RNG_VERSION,
         settings=game_settings,
         dealer_dice=dealer_dice,
+        starting_dealer_seat=dealer_seat,
     )
 
 
@@ -229,13 +230,12 @@ def _get_honba_and_rotation(  # noqa: PLR0911
         return 0, True
 
     if result_type == RoundResultType.EXHAUSTIVE_DRAW and isinstance(result, ExhaustiveDrawResult):
-        if settings.renchan_on_dealer_tenpai_draw:
-            should_rotate = dealer_seat not in result.tempai_seats
-        else:
-            should_rotate = True
+        should_rotate = dealer_seat not in result.tempai_seats if settings.renchan_on_dealer_tenpai_draw else True
         return honba + 1, should_rotate
 
     if result_type == RoundResultType.NAGASHI_MANGAN and isinstance(result, NagashiManganResult):
+        # Nagashi mangan is a special draw: honba is not incremented.
+        # Rotation depends on dealer tenpai status (same as exhaustive draw).
         if settings.renchan_on_dealer_tenpai_draw:
             return honba, dealer_seat not in result.tempai_seats
         return honba, True
@@ -299,7 +299,7 @@ def process_round_end(
         update={
             "dealer_seat": new_dealer_seat,
             "round_wind": new_round_wind,
-        }
+        },
     )
 
     # Create new game state
@@ -309,7 +309,7 @@ def process_round_end(
             "round_number": game_state.round_number + 1,
             "unique_dealers": new_unique_dealers,
             "honba_sticks": new_honba,
-        }
+        },
     )
 
 
@@ -328,9 +328,7 @@ def check_game_end(game_state: MahjongGameState) -> bool:
     settings = game_state.settings
 
     # check tobi (player score below threshold)
-    if settings.tobi_enabled and any(
-        player.score < settings.tobi_threshold for player in round_state.players
-    ):
+    if settings.tobi_enabled and any(player.score < settings.tobi_threshold for player in round_state.players):
         return True
 
     east_max, south_max, west_max = get_wind_thresholds(settings)
@@ -361,21 +359,22 @@ def finalize_game(
     """
     Finalize the game and determine winner.
 
-    Winner is the player with highest score. Ties broken by seat order (lower seat wins).
+    Winner is the player with highest score. Ties broken by proximity to the
+    starting dealer (起家): the closer a seat is to the starting dealer in
+    counter-clockwise order, the higher it ranks.
     Winner receives remaining riichi_sticks * riichi_stick_value points.
     Final scores are adjusted with uma/oka.
 
     Returns (new_game_state, GameEndResult).
     """
     round_state = game_state.round_state
+    starting_dealer = game_state.starting_dealer_seat
 
-    # find winner: highest score, ties broken by lower seat
-    winner_seat = 0
-    highest_score = round_state.players[0].score
-    for player in round_state.players:
-        if player.score > highest_score:
-            highest_score = player.score
-            winner_seat = player.seat
+    def _tie_break_key(p: MahjongPlayer) -> tuple[int, int]:
+        return (-p.score, (p.seat - starting_dealer) % 4)
+
+    # find winner: highest score, ties broken by proximity to starting dealer
+    winner_seat = min(round_state.players, key=_tie_break_key).seat
 
     # handle remaining riichi sticks based on settings
     settings = game_state.settings
@@ -389,8 +388,8 @@ def finalize_game(
         # sticks are cleared regardless (WINNER: collected; LOST: disappear)
         new_riichi_sticks = 0
 
-    # sort players by placement (descending score, ascending seat for ties)
-    sorted_players = sorted(new_round_state.players, key=lambda p: (-p.score, p.seat))
+    # sort players by placement (descending score, ties broken by starting dealer proximity)
+    sorted_players = sorted(new_round_state.players, key=_tie_break_key)
 
     # calculate uma/oka-adjusted final scores
     raw_scores = [(p.seat, p.score) for p in sorted_players]
@@ -413,7 +412,7 @@ def finalize_game(
             "round_state": new_round_state,
             "riichi_sticks": new_riichi_sticks,
             "game_phase": GamePhase.FINISHED,
-        }
+        },
     )
 
     return new_game_state, GameEndResult(

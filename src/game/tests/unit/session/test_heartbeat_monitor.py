@@ -56,6 +56,12 @@ class TestHeartbeatMonitorRecordPing:
         assert updated is not None
         assert updated >= initial
 
+    def test_record_ping_ignores_untracked_connection(self):
+        """record_ping does not create entries for connections that were never registered."""
+        monitor = HeartbeatMonitor()
+        monitor.record_ping("unknown_conn")
+        assert "unknown_conn" not in monitor._last_ping
+
 
 class TestHeartbeatMonitorTaskManagement:
     """Tests for game task management."""
@@ -69,6 +75,29 @@ class TestHeartbeatMonitorTaskManagement:
         monitor.start_for_game("game1", get_game)
         assert "game:game1" in monitor._tasks
         assert monitor._tasks.get("game:game1") is not None
+
+        # clean up
+        await monitor.stop_for_game("game1")
+
+    async def test_start_for_game_cancels_existing_task(self):
+        """Starting a heartbeat for the same game cancels the previous task."""
+        monitor = HeartbeatMonitor()
+
+        def get_game(_game_id):
+            return None
+
+        monitor.start_for_game("game1", get_game)
+        first_task = monitor._tasks.get("game:game1")
+        assert first_task is not None
+
+        # start again with the same game_id
+        monitor.start_for_game("game1", get_game)
+        second_task = monitor._tasks.get("game:game1")
+        assert second_task is not first_task
+
+        # yield control so the cancellation propagates
+        await asyncio.sleep(0)
+        assert first_task.cancelled() or first_task.done()
 
         # clean up
         await monitor.stop_for_game("game1")

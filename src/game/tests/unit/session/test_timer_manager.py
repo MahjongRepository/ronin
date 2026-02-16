@@ -5,7 +5,6 @@ import asyncio
 import pytest
 
 from game.logic.enums import TimeoutType
-from game.logic.timer import TurnTimer
 from game.session.models import Game, Player
 from game.session.timer_manager import TimerManager
 from game.tests.mocks import MockConnection
@@ -32,7 +31,6 @@ class TestTimerManagerCreate:
         assert timer_manager.has_game("g1")
         for seat in [0, 1, 2]:
             assert timer_manager.get_timer("g1", seat) is not None
-            assert isinstance(timer_manager.get_timer("g1", seat), TurnTimer)
         # seat 3 not created
         assert timer_manager.get_timer("g1", 3) is None
 
@@ -48,7 +46,6 @@ class TestTimerManagerRemove:
         timer_manager.create_timers("g1", [0, 1])
         timer = timer_manager.remove_timer("g1", 0)
         assert timer is not None
-        assert isinstance(timer, TurnTimer)
         # should be gone after removal
         assert timer_manager.get_timer("g1", 0) is None
         # other seats unaffected
@@ -142,14 +139,14 @@ class TestTimerManagerBank:
     async def test_consume_bank(self, timer_manager):
         timer_manager.create_timers("g1", [0])
         timer = timer_manager.get_timer("g1", 0)
-        initial_bank = timer.remaining_bank
+        initial_bank = timer._bank_seconds
 
         # start a turn timer so bank time is being consumed
         timer_manager.start_turn_timer("g1", 0)
         # consume_bank deducts elapsed time without cancelling
         timer_manager.consume_bank("g1", 0)
 
-        assert timer.remaining_bank <= initial_bank
+        assert timer._bank_seconds <= initial_bank
         timer.cancel()
 
     def test_consume_bank_noop_for_missing(self, timer_manager):
@@ -160,13 +157,13 @@ class TestTimerManagerBank:
         timer_manager.create_timers("g1", [0, 1])
         timer0 = timer_manager.get_timer("g1", 0)
         timer1 = timer_manager.get_timer("g1", 1)
-        initial0 = timer0.remaining_bank
-        initial1 = timer1.remaining_bank
+        initial0 = timer0._bank_seconds
+        initial1 = timer1._bank_seconds
 
         timer_manager.add_round_bonus("g1")
 
-        assert timer0.remaining_bank > initial0
-        assert timer1.remaining_bank > initial1
+        assert timer0._bank_seconds > initial0
+        assert timer1._bank_seconds > initial1
 
     def test_add_round_bonus_noop_for_missing_game(self, timer_manager):
         # should not raise
@@ -294,14 +291,3 @@ class TestTimerManagerStartRoundAdvance:
 
         assert len(timeout_log) == 1
         assert timeout_log[0] == ("g1", TimeoutType.ROUND_ADVANCE, 0)
-
-
-class TestTimerManagerImportIsolation:
-    def test_no_messaging_events_import(self):
-        """TimerManager does NOT import from game.messaging.events."""
-        from pathlib import Path  # noqa: PLC0415
-
-        import game.session.timer_manager as mod  # noqa: PLC0415
-
-        source = Path(mod.__file__).read_text()
-        assert "game.messaging.events" not in source

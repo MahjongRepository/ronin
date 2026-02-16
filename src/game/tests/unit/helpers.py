@@ -2,13 +2,12 @@ from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
 
-from game.logic.state import (
-    MahjongPlayer,
-    MahjongRoundState,
-)
-
 if TYPE_CHECKING:
     from game.logic.mahjong_service import MahjongGameService
+    from game.logic.state import (
+        MahjongPlayer,
+        MahjongRoundState,
+    )
 
 
 def _string_to_34_tiles(
@@ -60,10 +59,10 @@ def _update_round_state(
     Creates a new frozen round state with the given updates and assigns it to the game.
     Returns the new round state.
     """
-    game_state = service._games[game_id]  # noqa: SLF001
+    game_state = service._games[game_id]
     new_round = game_state.round_state.model_copy(update=updates)
     new_game = game_state.model_copy(update={"round_state": new_round})
-    service._games[game_id] = new_game  # noqa: SLF001
+    service._games[game_id] = new_game
     return new_round
 
 
@@ -79,7 +78,7 @@ def _update_player(
     Creates a new frozen player with the given updates and assigns it to the game.
     Returns the new player.
     """
-    game_state = service._games[game_id]  # noqa: SLF001
+    game_state = service._games[game_id]
     round_state = game_state.round_state
     players = list(round_state.players)
     old_player = players[seat]
@@ -87,5 +86,5 @@ def _update_player(
     players[seat] = new_player
     new_round = round_state.model_copy(update={"players": tuple(players)})
     new_game = game_state.model_copy(update={"round_state": new_round})
-    service._games[game_id] = new_game  # noqa: SLF001
+    service._games[game_id] = new_game
     return new_player

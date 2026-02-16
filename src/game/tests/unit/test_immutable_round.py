@@ -1,5 +1,5 @@
 """
-Unit tests for immutable round tile operations (draw, discard, advance turn, dora).
+Unit tests for immutable round tile operations (draw, discard, dead wall draw).
 """
 
 import pytest
@@ -7,26 +7,22 @@ from mahjong.tile import TilesConverter
 
 from game.logic.exceptions import InvalidActionError, InvalidDiscardError
 from game.logic.round import (
-    add_dora_indicator,
     discard_tile,
     draw_from_dead_wall,
     draw_tile,
-    reveal_pending_dora,
 )
 from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import DEAD_WALL_SIZE, FIRST_DORA_INDEX, Wall
+from game.logic.wall import DEAD_WALL_SIZE, Wall
 from game.tests.unit.helpers import _string_to_34_tiles
 
 
 class TestDrawTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         """Create a round state with wall and players for testing."""
-        players = tuple(
-            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4)
-        )
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
         return MahjongRoundState(
             wall=Wall(live_tiles=tuple(TilesConverter.string_to_136_array(man="1111222233"))),
             players=players,
@@ -59,9 +55,7 @@ class TestDrawTileImmutable:
 class TestDrawFromDeadWallImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         """Create a round state with dead wall and players for testing."""
-        players = tuple(
-            MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4)
-        )
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
         # 14 tiles for dead wall: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
         dead_wall = (
             *TilesConverter.string_to_136_array(honors="4444")[2:],
@@ -132,17 +126,14 @@ class TestDrawFromDeadWallImmutable:
         # original state unchanged
         assert len(round_state.wall.live_tiles) == initial_wall_len
 
-    def test_draw_from_dead_wall_without_live_wall(self):
+    def test_draw_from_dead_wall_without_live_wall_raises(self):
         round_state = self._create_round_state()
         round_state = round_state.model_copy(
-            update={"wall": round_state.wall.model_copy(update={"live_tiles": ()})}
+            update={"wall": round_state.wall.model_copy(update={"live_tiles": ()})},
         )  # no live wall tiles
-        initial_dead_wall_len = len(round_state.wall.dead_wall_tiles)
 
-        new_state, _drawn = draw_from_dead_wall(round_state)
-
-        # dead wall shrinks by 1 since no replenishment possible
-        assert len(new_state.wall.dead_wall_tiles) == initial_dead_wall_len - 1
+        with pytest.raises(InvalidActionError, match="live wall is empty"):
+            draw_from_dead_wall(round_state)
 
 
 class TestDiscardTileImmutable:
@@ -292,98 +283,3 @@ class TestDiscardTileImmutable:
         assert new_state.players[0].kuikae_tiles == ()
         # original state unchanged
         assert round_state.players[0].kuikae_tiles == kuikae
-
-
-class TestAddDoraIndicatorImmutable:
-    def _create_round_state_with_dora(self, dora_count: int = 1) -> MahjongRoundState:
-        """Create a round state with dora indicators for testing."""
-        dead_wall = (
-            *TilesConverter.string_to_136_array(honors="4444")[2:],
-            *TilesConverter.string_to_136_array(honors="555566667777"),
-        )
-        # initial dora indicators (first one is at index 2)
-        dora_indicators = tuple(dead_wall[FIRST_DORA_INDEX : FIRST_DORA_INDEX + dora_count])
-        return MahjongRoundState(
-            wall=Wall(dead_wall_tiles=dead_wall, dora_indicators=dora_indicators),
-        )
-
-    def test_add_dora_indicator_adds_indicator(self):
-        round_state = self._create_round_state_with_dora(dora_count=1)
-        initial_dora_count = len(round_state.wall.dora_indicators)
-
-        new_state, new_indicator = add_dora_indicator(round_state)
-
-        assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
-        assert new_indicator == new_state.wall.dora_indicators[-1]
-        # original state unchanged
-        assert len(round_state.wall.dora_indicators) == initial_dora_count
-
-    def test_add_dora_indicator_correct_index(self):
-        round_state = self._create_round_state_with_dora(dora_count=2)
-        # next dora should be at index 4 (FIRST_DORA_INDEX + 2)
-        expected_indicator = round_state.wall.dead_wall_tiles[4]
-
-        _new_state, new_indicator = add_dora_indicator(round_state)
-
-        assert new_indicator == expected_indicator
-
-    def test_add_dora_indicator_raises_at_max(self):
-        round_state = self._create_round_state_with_dora(dora_count=5)
-
-        with pytest.raises(InvalidActionError, match="Cannot add more than 5 dora indicators"):
-            add_dora_indicator(round_state)
-
-
-class TestRevealPendingDoraImmutable:
-    def _create_round_state_with_pending_dora(self, pending_count: int = 1) -> MahjongRoundState:
-        """Create a round state with pending dora indicators."""
-        dead_wall = (
-            *TilesConverter.string_to_136_array(honors="4444")[2:],
-            *TilesConverter.string_to_136_array(honors="555566667777"),
-        )
-        return MahjongRoundState(
-            wall=Wall(
-                dead_wall_tiles=dead_wall,
-                dora_indicators=(dead_wall[FIRST_DORA_INDEX],),
-                pending_dora_count=pending_count,
-            ),
-        )
-
-    def test_reveal_pending_dora_adds_indicator(self):
-        round_state = self._create_round_state_with_pending_dora(pending_count=1)
-        initial_dora_count = len(round_state.wall.dora_indicators)
-
-        new_state, revealed = reveal_pending_dora(round_state)
-
-        assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
-        assert new_state.wall.pending_dora_count == 0
-        assert len(revealed) == 1
-        assert revealed[0] == new_state.wall.dora_indicators[-1]
-        # original state unchanged
-        assert len(round_state.wall.dora_indicators) == initial_dora_count
-        assert round_state.wall.pending_dora_count == 1
-
-    def test_reveal_pending_dora_multiple(self):
-        round_state = self._create_round_state_with_pending_dora(pending_count=2)
-        initial_dora_count = len(round_state.wall.dora_indicators)
-
-        new_state, revealed = reveal_pending_dora(round_state)
-
-        assert len(new_state.wall.dora_indicators) == initial_dora_count + 2
-        assert new_state.wall.pending_dora_count == 0
-        assert len(revealed) == 2
-        # verify ordering: revealed in the same order as added to dora_indicators
-        assert revealed[0] == new_state.wall.dora_indicators[-2]
-        assert revealed[1] == new_state.wall.dora_indicators[-1]
-        # original state unchanged
-        assert len(round_state.wall.dora_indicators) == initial_dora_count
-
-    def test_reveal_pending_dora_noop_when_zero(self):
-        round_state = self._create_round_state_with_pending_dora(pending_count=0)
-        initial_dora_count = len(round_state.wall.dora_indicators)
-
-        new_state, revealed = reveal_pending_dora(round_state)
-
-        assert len(new_state.wall.dora_indicators) == initial_dora_count
-        assert new_state.wall.pending_dora_count == 0
-        assert revealed == []

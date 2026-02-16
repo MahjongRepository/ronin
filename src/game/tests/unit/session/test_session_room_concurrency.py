@@ -41,9 +41,7 @@ class TestConcurrentSetReady:
 
         # Only one game_starting message per player
         for conn in [conn1, conn2]:
-            starting_msgs = [
-                m for m in conn.sent_messages if m.get("type") == SessionMessageType.GAME_STARTING
-            ]
+            starting_msgs = [m for m in conn.sent_messages if m.get("type") == SessionMessageType.GAME_STARTING]
             assert len(starting_msgs) == 1
 
     async def test_concurrent_set_ready_four_players(self, manager):
@@ -62,9 +60,7 @@ class TestConcurrentSetReady:
         assert manager.get_game("room1") is not None
 
         for conn in conns:
-            starting_msgs = [
-                m for m in conn.sent_messages if m.get("type") == SessionMessageType.GAME_STARTING
-            ]
+            starting_msgs = [m for m in conn.sent_messages if m.get("type") == SessionMessageType.GAME_STARTING]
             assert len(starting_msgs) == 1
 
     async def test_concurrent_leave_and_ready(self, manager):

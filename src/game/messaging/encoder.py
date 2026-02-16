@@ -19,7 +19,7 @@ def _stringify_keys(obj: object) -> object:
     """
     if isinstance(obj, dict):
         return {str(k) if isinstance(k, int) else k: _stringify_keys(v) for k, v in obj.items()}
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [_stringify_keys(item) for item in obj]
     return obj
 
@@ -35,7 +35,8 @@ class DecodeError(Exception):
     """Error raised when MessagePack decoding fails."""
 
 
-# size limits to prevent resource exhaustion from malicious payloads
+# Size limits to prevent resource exhaustion from malicious payloads.
+MAX_BUFFER_LEN = 256 * 1024  # 256KB total payload
 MAX_STR_LEN = 64 * 1024  # 64KB per string
 MAX_BIN_LEN = 64 * 1024  # 64KB per binary
 MAX_ARRAY_LEN = 1024  # max array elements
@@ -47,9 +48,10 @@ def decode(data: bytes) -> dict[str, Any]:
     """
     Decode MessagePack bytes to a dict.
 
-    Raises DecodeError if data is invalid or not a dict.
-    Size limits are enforced to prevent resource exhaustion.
+    Raises DecodeError if data is invalid, not a dict, or exceeds size limits.
     """
+    if len(data) > MAX_BUFFER_LEN:
+        raise DecodeError(f"payload too large: {len(data)} bytes (max {MAX_BUFFER_LEN})")
     try:
         result = msgpack.unpackb(
             data,

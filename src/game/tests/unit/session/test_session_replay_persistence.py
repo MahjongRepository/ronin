@@ -164,3 +164,11 @@ class TestSessionReplayCleanup:
         await manager.set_ready(conn, ready=True)
 
         await manager.leave_game(conn)  # should not raise
+
+
+class TestMergeRoundStartedPayloads:
+    """Tests for _merge_round_started_payloads edge cases."""
+
+    def test_empty_list_returns_empty_json(self):
+        result = ReplayCollector._merge_round_started_payloads([])
+        assert result == "{}"

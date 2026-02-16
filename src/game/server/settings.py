@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 from shared.validators import CorsEnvSettingsSource, parse_cors_origins
@@ -14,10 +14,10 @@ if TYPE_CHECKING:
 class GameServerSettings(BaseSettings):
     model_config = {"env_prefix": "GAME_"}
 
-    max_games: int = 100
-    log_dir: str = "logs/game"
+    max_capacity: int = Field(default=100, ge=1)
+    log_dir: str = Field(default="logs/game", min_length=1)
     cors_origins: list[str] = ["http://localhost:3000"]
-    replay_dir: str = "data/replays"
+    replay_dir: str = Field(default="data/replays", min_length=1)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

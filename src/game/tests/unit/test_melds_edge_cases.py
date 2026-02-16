@@ -1,12 +1,15 @@
 """Unit tests for meld edge cases: kuikae suji, 4-kan limit, riichi kan waits, and pao liability."""
 
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import MeldCallType
+from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     _check_pao,
     _kan_preserves_waits_for_riichi,
+    _validate_chi_sequence,
     call_chi,
     call_open_kan,
     call_pon,
@@ -295,6 +298,25 @@ class TestRiichiKanWaitPreservation:
 
         assert result is False
 
+    def test_riichi_closed_kan_allowed_when_waits_preserved(self):
+        """Test get_possible_closed_kans includes kan that preserves waits.
+
+        Hand: 1111m 234p 567p 89s 55s (14 tiles, riichi).
+        Kan on 1m preserves waits (still waiting on 7s), so 1m appears in result.
+        """
+        tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
+        player = create_player(seat=0, tiles=tiles, is_riichi=True)
+
+        players = [player] + [create_player(seat=i) for i in range(1, 4)]
+        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
+        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
+        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
+
+        result = get_possible_closed_kans(player, round_state, GameSettings())
+
+        tile_34_1m = tile_to_34(tiles[0])
+        assert tile_34_1m in result
+
     def test_kan_tile_as_wait_excluded_from_possible_kans(self):
         """Test get_possible_closed_kans excludes kan when tile is a wait.
 
@@ -316,30 +338,6 @@ class TestRiichiKanWaitPreservation:
         nine_pin_tiles = TilesConverter.string_to_136_array(pin="9")
         tile_34_9p = tile_to_34(nine_pin_tiles[0])
         assert tile_34_9p not in result
-
-    def test_riichi_closed_kan_with_wait_check(self):
-        """Test riichi player closed kan only if waits preserved.
-
-        Create riichi player with 4 copies of a tile that preserves waits.
-        Hand: 1111m 234p 567p 89s 55s (14 tiles, riichi player just drew).
-        Kan on 1m preserves waits (still waiting on 7s).
-        Verify tile_34 for 1m appears in possible closed kans.
-        """
-        tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
-
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
-        players = [player] + [create_player(seat=i) for i in range(1, 4)]
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
-        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
-
-        settings = GameSettings()
-        result = get_possible_closed_kans(player, round_state, settings)
-
-        # 1m should be in the result if it preserves waits
-        tile_34_1m = tile_to_34(tiles[0])
-        assert tile_34_1m in result
 
 
 class TestPaoLiability:
@@ -555,39 +553,27 @@ class TestPaoLiability:
 
         assert new_state.players[0].pao_seat == discarder_seat
 
-    def test_pao_disabled_returns_none(self):
-        """Test that _check_pao returns None when pao is disabled for the tile type.
 
-        Player has 2 dragon melds and calls 3rd dragon, but has_daisangen_pao=False.
-        Should hit the 'if not enabled: continue' path and return None.
+class TestKanPreservesWaitsSimulation:
+    """Test that _kan_preserves_waits_for_riichi correctly simulates the post-kan hand."""
+
+    def test_kan_simulation_tiles_moved_to_meld(self):
+        """Test that kan tiles are moved from hand to meld, not duplicated.
+
+        The simulation should have closed tiles = hand minus kan tiles,
+        and the kan meld containing those tiles. This ensures calculate_shanten
+        operates on the correct closed tile count.
         """
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
+        # Hand: 1111z 234p 567p 55s 89s (14 tiles, tenpai on 7s)
+        tiles = TilesConverter.string_to_136_array(pin="234567", sou="5589", honors="1111")
 
-        melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.PON,
-                tiles=tuple(haku_tiles),
-                opened=True,
-                who=0,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.PON,
-                tiles=tuple(hatsu_tiles),
-                opened=True,
-                who=0,
-            ),
-        )
+        player = create_player(seat=0, tiles=tiles, is_riichi=True)
 
-        player = create_player(seat=0, melds=melds)
+        tile_34_east = tile_to_34(TilesConverter.string_to_136_array(honors="1")[0])
+        result = _kan_preserves_waits_for_riichi(player, tile_34_east)
 
-        chun_tile = TilesConverter.string_to_136_array(honors="7")[0]
-        chun_34 = tile_to_34(chun_tile)
-
-        settings = GameSettings(has_daisangen_pao=False)
-        result = _check_pao(player, 2, chun_34, settings)
-
-        assert result is None
+        # East wind kan preserves the 7s wait
+        assert result is True
 
 
 class TestChiKuikaeWithoutSuji:
@@ -628,3 +614,71 @@ class TestChiKuikaeWithoutSuji:
         called_34 = tile_to_34(man_tiles[0])
         # Only the called tile type should be forbidden (no suji)
         assert new_state.players[1].kuikae_tiles == (called_34,)
+
+
+class TestValidateChiSequence:
+    """Tests for _validate_chi_sequence defense-in-depth validation."""
+
+    def test_rejects_honor_tiles(self):
+        honors = TilesConverter.string_to_136_array(honors="123")
+        with pytest.raises(InvalidMeldError, match="honor tiles"):
+            _validate_chi_sequence(honors[0], (honors[1], honors[2]))
+
+    def test_rejects_mixed_suits(self):
+        man_1 = TilesConverter.string_to_136_array(man="1")[0]
+        pin_2 = TilesConverter.string_to_136_array(pin="2")[0]
+        sou_3 = TilesConverter.string_to_136_array(sou="3")[0]
+        with pytest.raises(InvalidMeldError, match="same suit"):
+            _validate_chi_sequence(man_1, (pin_2, sou_3))
+
+    def test_rejects_non_consecutive(self):
+        man_tiles = TilesConverter.string_to_136_array(man="124")
+        with pytest.raises(InvalidMeldError, match="consecutive sequence"):
+            _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
+
+    def test_accepts_valid_chi(self):
+        man_tiles = TilesConverter.string_to_136_array(man="123")
+        # Should not raise
+        _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
+
+
+class TestCheckPaoDisabled:
+    """Tests for _check_pao when pao settings are disabled."""
+
+    def test_pao_disabled_for_dragons_returns_none(self):
+        """When daisangen pao is disabled, calling a 3rd dragon returns None."""
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+        hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
+
+        melds = (
+            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),
+            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(hatsu_tiles), opened=True, who=0),
+        )
+        player = create_player(seat=0, melds=melds)
+
+        chun_tile = TilesConverter.string_to_136_array(honors="7")[0]
+        chun_34 = tile_to_34(chun_tile)
+
+        settings = GameSettings(has_daisangen_pao=False)
+        result = _check_pao(player, 2, chun_34, settings)
+        assert result is None
+
+    def test_pao_disabled_for_winds_returns_none(self):
+        """When daisuushii pao is disabled, calling a 4th wind returns None."""
+        east_tiles = TilesConverter.string_to_136_array(honors="111")
+        south_tiles = TilesConverter.string_to_136_array(honors="222")
+        west_tiles = TilesConverter.string_to_136_array(honors="333")
+
+        melds = (
+            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(east_tiles), opened=True, who=0),
+            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(south_tiles), opened=True, who=0),
+            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(west_tiles), opened=True, who=0),
+        )
+        player = create_player(seat=0, melds=melds)
+
+        north_tile = TilesConverter.string_to_136_array(honors="4")[0]
+        north_34 = tile_to_34(north_tile)
+
+        settings = GameSettings(has_daisuushii_pao=False)
+        result = _check_pao(player, 3, north_34, settings)
+        assert result is None

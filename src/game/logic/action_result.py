@@ -6,11 +6,13 @@ avoid import cycles between action_handlers and extracted subsystem
 modules (e.g., call_resolution).
 """
 
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from game.logic.actions import get_available_actions
 from game.logic.events import DrawEvent, GameEvent
-from game.logic.state import MahjongGameState, MahjongRoundState
+
+if TYPE_CHECKING:
+    from game.logic.state import MahjongGameState, MahjongRoundState
 
 
 class ActionResult(NamedTuple):

@@ -10,7 +10,7 @@ already covered by TestIsRenhou).
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.scoring import calculate_hand_value
+from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
@@ -114,7 +114,8 @@ class TestRenhouScoring:
         win_tile = tiles[-1]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 11 for y in result.yaku)  # Renhou
@@ -129,7 +130,8 @@ class TestRenhouScoring:
         win_tile = tiles[-1]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert any(y.yaku_id == 11 for y in result.yaku)  # Renhou
@@ -145,7 +147,8 @@ class TestRenhouScoring:
         win_tile = tiles[-1]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert not any(y.yaku_id == 11 for y in result.yaku)  # no Renhou

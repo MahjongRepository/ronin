@@ -2,7 +2,7 @@
 Unit tests for chankan detection edge cases.
 
 Tests is_chankan_possible with waiting/not-waiting/furiten/self/multiple players,
-open hand yaku validation, and _has_yaku_for_open_hand empty tiles boundary.
+and open hand yaku validation.
 """
 
 from mahjong.tile import TilesConverter
@@ -240,7 +240,7 @@ class TestChankanWithOpenHand:
 
 class TestHasYakuForOpenHandEmptyTiles:
     def test_empty_tiles_returns_false(self):
-        """Open hand with no tiles returns False."""
+        """Open hand with no tiles returns False (boundary guard)."""
         pon_tiles = TilesConverter.string_to_136_array(man="111")
         pon = FrozenMeld(
             meld_type=FrozenMeld.PON,

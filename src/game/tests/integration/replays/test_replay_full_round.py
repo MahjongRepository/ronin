@@ -31,7 +31,7 @@ async def test_full_game_flow():
     assert replay.rng_version == RNG_VERSION
     assert set(replay.player_names) == PLAYERS
 
-    trace = await run_replay_async(replay, auto_pass_calls=True)
+    trace = await run_replay_async(replay)
 
     # --- Trace structure ---
     assert trace.seed == replay.seed
@@ -55,9 +55,7 @@ async def test_full_game_flow():
         assert len(player.discards) == 0
 
     # --- Multiple rounds played ---
-    round_end_steps = [
-        s for s in trace.steps if any(e.event == EventType.ROUND_END for e in s.emitted_events)
-    ]
+    round_end_steps = [s for s in trace.steps if any(e.event == EventType.ROUND_END for e in s.emitted_events)]
     assert len(round_end_steps) >= 1  # at least one round completed
 
     # --- Game ended ---

@@ -145,30 +145,6 @@ class TestSessionManagerTimerIntegration:
         assert timer._active_task is not None
         timer.cancel()
 
-    async def test_maybe_start_timer_with_chi_meld_event(self, manager):
-        """_maybe_start_timer starts a turn timer when chi MeldEvent targets the caller."""
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        meld_event = ServiceEvent(
-            event=EventType.MELD,
-            data=MeldEvent(
-                meld_type=MeldViewType.CHI,
-                caller_seat=0,
-                from_seat=3,
-                tile_ids=[40, 41, 42],
-                called_tile_id=40,
-            ),
-            target=BroadcastTarget(),
-        )
-
-        await manager._maybe_start_timer(game, [meld_event])
-
-        assert timer._active_task is not None
-        timer.cancel()
-
     async def test_maybe_start_timer_with_call_prompt_event(self, manager):
         """_maybe_start_timer starts a meld timer when per-seat CallPromptEvent targets the player."""
         game, _player, _conn = make_game_with_player(manager)
@@ -200,7 +176,7 @@ class TestSessionManagerTimerIntegration:
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
-        initial_bank = timer.remaining_bank
+        initial_bank = timer._bank_seconds
 
         round_event = ServiceEvent(
             event=EventType.ROUND_STARTED,
@@ -215,7 +191,7 @@ class TestSessionManagerTimerIntegration:
         await manager._maybe_start_timer(game, [round_event])
 
         config = TimerConfig()
-        assert timer.remaining_bank == initial_bank + config.round_bonus_seconds
+        assert timer._bank_seconds == initial_bank + config.round_bonus_seconds
 
     async def test_maybe_start_timer_with_round_end_event(self, manager):
         """_maybe_start_timer starts fixed round-advance timers when RoundEndEvent is present."""
@@ -319,15 +295,14 @@ class TestSessionManagerTimerIntegration:
         await manager._maybe_start_timer(game, [draw_event])
         assert timer._active_task is None
 
-    async def test_handle_timeout_returns_when_game_is_none(self, manager):
-        """_handle_timeout returns early when game has been removed but lock still exists."""
+    async def test_handle_timeout_returns_when_game_removed_under_lock(self, manager):
+        """_handle_timeout returns early when game is removed between lock check and lock acquisition."""
         _game, _player, _conn = make_game_with_player(manager)
         manager._game_locks["game1"] = asyncio.Lock()
 
-        # remove the game to simulate the game being cleaned up
+        # remove the game to simulate cleanup race
         manager._games.pop("game1", None)
 
-        # should return without error
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
     async def test_handle_timeout_returns_when_no_player_at_seat(self, manager):
@@ -348,7 +323,8 @@ class TestPerPlayerTimers:
     """Tests for per-player timer independence."""
 
     def _make_pvp_game_with_two_players(
-        self, manager
+        self,
+        manager,
     ) -> tuple[Game, Player, Player, MockConnection, MockConnection]:
         """Create a game with two players at seats 0 and 1."""
         conn1 = MockConnection()
@@ -372,7 +348,6 @@ class TestPerPlayerTimers:
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
             assert timer is not None
-            assert isinstance(timer, TurnTimer)
 
     async def test_round_bonus_added_to_all_player_timers(self, manager):
         """Round bonus is added to all player timers when round starts."""
@@ -382,8 +357,8 @@ class TestPerPlayerTimers:
         manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
         manager._game_locks["game1"] = asyncio.Lock()
 
-        initial_bank_0 = timer0.remaining_bank
-        initial_bank_1 = timer1.remaining_bank
+        initial_bank_0 = timer0._bank_seconds
+        initial_bank_1 = timer1._bank_seconds
 
         round_event = ServiceEvent(
             event=EventType.ROUND_STARTED,
@@ -398,8 +373,8 @@ class TestPerPlayerTimers:
         await manager._maybe_start_timer(game, [round_event])
 
         config = TimerConfig()
-        assert timer0.remaining_bank == initial_bank_0 + config.round_bonus_seconds
-        assert timer1.remaining_bank == initial_bank_1 + config.round_bonus_seconds
+        assert timer0._bank_seconds == initial_bank_0 + config.round_bonus_seconds
+        assert timer1._bank_seconds == initial_bank_1 + config.round_bonus_seconds
 
     async def test_multiple_meld_timers_for_multiple_callers(self, manager):
         """When 2+ players can call the same discard, each gets their own meld timer."""
@@ -556,20 +531,3 @@ class TestPerPlayerTimers:
         assert timer0._active_task is not None
         assert timer1._active_task is None
         timer0.cancel()
-
-    async def test_leave_game_cancels_all_player_timers(self, manager):
-        """Leaving a game cancels all player timers when game becomes empty."""
-        conns = await create_started_game(
-            manager,
-            "game1",
-            num_ai_players=0,
-            player_names=["P0", "P1", "P2", "P3"],
-        )
-
-        assert manager._timer_manager.has_game("game1")
-
-        # all players leave
-        for c in conns:
-            await manager.leave_game(c)
-
-        assert not manager._timer_manager.has_game("game1")

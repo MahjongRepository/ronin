@@ -1,14 +1,4 @@
-"""
-Tests for game event utility functions and validation.
-
-Constructor tests for individual event types (DrawEvent, DiscardEvent, MeldEvent,
-CallPromptEvent, RoundEndEvent, RiichiDeclaredEvent, DoraRevealedEvent,
-ErrorEvent) and model_dump serialization tests were removed: they tested only
-Pydantic field assignment and built-in model_dump, which Pydantic guarantees.
-
-Kept: _normalize_event_value edge case, ServiceEvent validation logic,
-convert_events utility, extract_round_result utility (happy path + None path).
-"""
+"""Tests for game event utility functions and validation."""
 
 import pytest
 from mahjong.tile import TilesConverter
@@ -22,7 +12,7 @@ from game.logic.events import (
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
-    _normalize_event_value,
+    _split_discard_prompt_for_seat,
     convert_events,
     extract_round_result,
     parse_wire_target,
@@ -35,10 +25,6 @@ from game.logic.types import (
     YakuInfo,
 )
 from game.tests.unit.helpers import _string_to_136_tile
-
-
-def test_normalize_event_value_accepts_string() -> None:
-    assert _normalize_event_value("draw") == "draw"
 
 
 class TestServiceEvent:
@@ -65,6 +51,10 @@ class TestParseWireTarget:
     def test_invalid_target_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid target value"):
             parse_wire_target("bogus")
+
+    def test_negative_seat_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid seat number"):
+            parse_wire_target("seat_-1")
 
 
 class TestConvertEvents:
@@ -149,28 +139,6 @@ class TestConvertEvents:
         assert result[0].data.callers == [1]
         assert result[0].event == EventType.CALL_PROMPT
 
-    def test_convert_events_creates_distinct_call_prompt_instances(self):
-        """Each per-seat ServiceEvent carries a distinct CallPromptEvent (no shared mutable data)."""
-        call_prompt = CallPromptEvent(
-            call_type=CallType.RON,
-            tile_id=42,
-            from_seat=1,
-            callers=[0, 2, 3],
-            target="all",
-        )
-
-        result = convert_events([call_prompt])
-
-        assert len(result) == 3
-        # all data instances are distinct objects
-        data_ids = {id(se.data) for se in result}
-        assert len(data_ids) == 3
-        # each carries only its own seat in callers
-        for se in result:
-            assert isinstance(se.target, SeatTarget)
-            assert isinstance(se.data, CallPromptEvent)
-            assert se.data.callers == [se.target.seat]
-
     def test_convert_events_splits_discard_prompt_per_seat(self):
         """DISCARD prompt with mixed ron + meld callers is split into per-seat RON/MELD events."""
         callers: list = [
@@ -215,6 +183,20 @@ class TestConvertEvents:
         for se in result:
             assert isinstance(se.data, CallPromptEvent)
             assert se.data.call_type == CallType.RON
+
+
+class TestSplitDiscardPromptEmptyCallersGuard:
+    def test_raises_for_seat_with_no_entries(self) -> None:
+        """_split_discard_prompt_for_seat raises ValueError if seat has no ron or meld entries."""
+        call_prompt = CallPromptEvent(
+            call_type=CallType.DISCARD,
+            tile_id=42,
+            from_seat=0,
+            callers=[1],  # only seat 1 as ron caller
+            target="all",
+        )
+        with pytest.raises(ValueError, match="no ron or meld entries"):
+            _split_discard_prompt_for_seat(call_prompt, 2)  # seat 2 has no entries
 
 
 class TestExtractRoundResult:

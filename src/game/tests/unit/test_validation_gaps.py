@@ -389,13 +389,15 @@ class TestOpenKanEarlyValidation:
         )
         return round_state, create_game_state(round_state)
 
-    def test_open_kan_no_pending_prompt_raises(self):
-        """Open kan with no pending prompt raises InvalidGameActionError (fabricated data)."""
+    def test_open_kan_no_pending_prompt_returns_error(self):
+        """Open kan with no pending prompt returns error event (consistent with pon/chi)."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
         data = KanActionData(tile_id=0, kan_type=KanType.OPEN)
-        with pytest.raises(InvalidGameActionError, match="open kan requires a pending call prompt"):
-            handle_kan(round_state, game_state, seat=0, data=data)
+        result = handle_kan(round_state, game_state, seat=0, data=data)
+        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
+        assert len(error_events) == 1
+        assert error_events[0].code == GameErrorCode.INVALID_KAN
 
     def test_open_kan_not_enough_tiles_raises(self):
         """Open kan with insufficient matching tiles raises."""
@@ -422,7 +424,7 @@ class TestOpenKanEarlyValidation:
         prompt = round_state.pending_call_prompt.model_copy(update={"call_type": CallType.RON})
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
-        with pytest.raises(InvalidGameActionError, match="only ron is valid on a ron prompt"):
+        with pytest.raises(InvalidGameActionError, match="only ron is valid"):
             handle_kan(round_state, game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN))
 
 
@@ -775,9 +777,10 @@ class TestCallChiDefenseInDepth:
         )
         settings = GameSettings()
 
-        # Try chi with tiles not in hand (999, 998)
+        # Tile IDs 5 (2m) and 9 (3m) form a valid chi sequence with tile_id=0 (1m)
+        # but they are not in player 1's hand
         with pytest.raises(InvalidMeldError, match="not found in hand"):
-            call_chi(round_state, 1, 0, 0, (999, 998), settings)
+            call_chi(round_state, 1, 0, 0, (5, 9), settings)
 
 
 class TestSoftErrorsRemainUnchanged:
@@ -990,7 +993,7 @@ class TestKanRaisesInvalidGameActionError:
             TilesConverter.string_to_136_array(
                 man="123456789",
                 pin="12345",
-            )
+            ),
         )
         round_state = update_player(round_state, 0, tiles=no_kan_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -1147,7 +1150,6 @@ class TestAIPlayerSafetyNets:
         service = MahjongGameService()
         await service.start_game("test", ["Player"], seed="a" * 192)
 
-        game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
         ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
 
@@ -1158,7 +1160,6 @@ class TestAIPlayerSafetyNets:
         ):
             result = service._dispatch_ai_player_call_action(
                 "test",
-                game_state,
                 ai_player_seat,
                 GameAction.CALL_PON,
                 {},
@@ -1170,7 +1171,6 @@ class TestAIPlayerSafetyNets:
         service = MahjongGameService()
         await service.start_game("test", ["Player"], seed="a" * 192)
 
-        game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
         ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
         player_seat = service.get_player_seat("test", "Player")
@@ -1190,7 +1190,6 @@ class TestAIPlayerSafetyNets:
         ):
             service._dispatch_ai_player_call_action(
                 "test",
-                game_state,
                 ai_player_seat,
                 GameAction.CALL_PON,
                 {},

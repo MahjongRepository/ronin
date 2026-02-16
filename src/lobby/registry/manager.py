@@ -31,7 +31,7 @@ class RegistryManager:
                 GameServer(
                     name=server_data["name"],
                     url=server_data["url"],
-                )
+                ),
             )
 
     def get_servers(self) -> list[GameServer]:

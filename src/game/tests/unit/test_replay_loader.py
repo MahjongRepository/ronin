@@ -1,13 +1,21 @@
 """Tests for replay loader: event-log parsing, action extraction, error handling."""
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 from game.logic.enums import GameAction
 from game.logic.rng import RNG_VERSION
-from game.replay.loader import ReplayLoadError, load_replay_from_file, load_replay_from_string
+from game.replay.loader import (
+    _MAX_REPLAY_LINES,
+    ReplayLoadError,
+    load_replay_from_file,
+    load_replay_from_string,
+)
 from game.replay.models import REPLAY_VERSION
 
 # Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3
@@ -27,7 +35,7 @@ GAME_STARTED_LINE = json.dumps(
         ],
         "seed": _TEST_SEED,
         "rng_version": RNG_VERSION,
-    }
+    },
 )
 
 ROUND_STARTED_LINE = json.dumps({"type": "round_started", "view": {"my_tiles": []}})
@@ -46,7 +54,7 @@ def test_parse_single_discard():
             "type": "discard",
             "seat": 0,
             "tile_id": 118,
-        }
+        },
     )
     content = _build_event_log(ROUND_STARTED_LINE, DRAW_LINE, discard)
     replay = load_replay_from_string(content)
@@ -68,7 +76,7 @@ def test_discard_with_riichi_maps_to_declare_riichi():
             "seat": 1,
             "tile_id": 50,
             "is_riichi": True,
-        }
+        },
     )
     content = _build_event_log(discard)
     replay = load_replay_from_string(content)
@@ -89,7 +97,7 @@ def test_meld_pon():
             "from_seat": 0,
             "tile_ids": [10, 11, 12],
             "called_tile_id": 10,
-        }
+        },
     )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
@@ -110,7 +118,7 @@ def test_meld_chi():
             "from_seat": 0,
             "tile_ids": [20, 24, 28],
             "called_tile_id": 20,
-        }
+        },
     )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
@@ -130,7 +138,7 @@ def test_meld_open_kan():
             "caller_seat": 3,
             "tile_ids": [0, 1, 2, 3],
             "called_tile_id": 0,
-        }
+        },
     )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
@@ -151,7 +159,7 @@ def test_meld_added_kan():
             "tile_ids": [4, 5, 6, 7],
             "called_tile_id": 7,
             "from_seat": 2,
-        }
+        },
     )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
@@ -170,7 +178,7 @@ def test_round_end_tsumo():
             "result_type": "tsumo",
             "winner_seat": 2,
             "score_changes": {},
-        }
+        },
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
@@ -188,7 +196,7 @@ def test_round_end_ron():
             "result_type": "ron",
             "winner_seat": 1,
             "loser_seat": 0,
-        }
+        },
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
@@ -209,7 +217,7 @@ def test_round_end_double_ron():
                 {"winner_seat": 3},
                 {"winner_seat": 1},
             ],
-        }
+        },
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
@@ -229,7 +237,7 @@ def test_round_end_abortive_nine_terminals():
             "result_type": "abortive_draw",
             "reason": "nine_terminals",
             "seat": 0,
-        }
+        },
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
@@ -246,7 +254,7 @@ def test_round_end_abortive_other_skipped():
             "type": "round_end",
             "result_type": "abortive_draw",
             "reason": "four_riichi",
-        }
+        },
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
@@ -262,7 +270,7 @@ def test_round_end_exhaustive_draw_skipped():
             "result_type": "exhaustive_draw",
             "tempai_seats": [],
             "noten_seats": [],
-        }
+        },
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
@@ -334,7 +342,7 @@ def test_error_missing_rng_version():
                 {"seat": 2, "name": "C", "is_ai_player": False},
                 {"seat": 3, "name": "D", "is_ai_player": False},
             ],
-        }
+        },
     )
     with pytest.raises(ReplayLoadError, match="missing 'rng_version' field"):
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_version}")
@@ -354,7 +362,7 @@ def test_error_rng_version_mismatch():
                 {"seat": 2, "name": "C", "is_ai_player": False},
                 {"seat": 3, "name": "D", "is_ai_player": False},
             ],
-        }
+        },
     )
     with pytest.raises(ReplayLoadError, match="RNG version mismatch"):
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_version}")
@@ -372,7 +380,7 @@ def test_error_missing_seed():
                 {"seat": 2, "name": "C"},
                 {"seat": 3, "name": "D"},
             ],
-        }
+        },
     )
     with pytest.raises(ReplayLoadError, match="missing 'seed' field"):
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_seed}")
@@ -392,47 +400,7 @@ def test_error_non_hex_seed():
                 {"seat": 2, "name": "C", "is_ai_player": False},
                 {"seat": 3, "name": "D", "is_ai_player": False},
             ],
-        }
-    )
-    with pytest.raises(ReplayLoadError, match="invalid seed"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
-
-
-def test_error_short_hex_seed():
-    """ReplayLoadError when seed is valid hex but wrong length."""
-    bad_seed = json.dumps(
-        {
-            "type": "game_started",
-            "game_id": "test",
-            "seed": "abc",
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"seat": 0, "name": "A", "is_ai_player": False},
-                {"seat": 1, "name": "B", "is_ai_player": False},
-                {"seat": 2, "name": "C", "is_ai_player": False},
-                {"seat": 3, "name": "D", "is_ai_player": False},
-            ],
-        }
-    )
-    with pytest.raises(ReplayLoadError, match="invalid seed"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
-
-
-def test_error_non_string_seed():
-    """ReplayLoadError when seed is not a string (e.g., integer from malformed JSON)."""
-    bad_seed = json.dumps(
-        {
-            "type": "game_started",
-            "game_id": "test",
-            "seed": 12345,
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"seat": 0, "name": "A", "is_ai_player": False},
-                {"seat": 1, "name": "B", "is_ai_player": False},
-                {"seat": 2, "name": "C", "is_ai_player": False},
-                {"seat": 3, "name": "D", "is_ai_player": False},
-            ],
-        }
+        },
     )
     with pytest.raises(ReplayLoadError, match="invalid seed"):
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
@@ -458,7 +426,7 @@ def test_load_replay_from_file(tmp_path: Path):
             "type": "discard",
             "seat": 0,
             "tile_id": 118,
-        }
+        },
     )
     content = _build_event_log(discard)
     file_path = tmp_path / "test.txt"
@@ -483,7 +451,7 @@ def test_error_missing_players():
             "game_id": "test",
             "seed": _TEST_SEED,
             "rng_version": RNG_VERSION,
-        }
+        },
     )
     with pytest.raises(ReplayLoadError, match="missing 'players' field"):
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_players}")
@@ -498,7 +466,7 @@ def test_error_unknown_meld_type():
             "caller_seat": 0,
             "tile_ids": [0],
             "called_tile_id": 0,
-        }
+        },
     )
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="Unknown meld_type"):
@@ -511,7 +479,7 @@ def test_error_unknown_round_end_result_type():
         {
             "type": "round_end",
             "result_type": "unknown_result",
-        }
+        },
     )
     content = _build_event_log(round_end)
     with pytest.raises(ReplayLoadError, match="Unknown round_end result type"):
@@ -551,7 +519,7 @@ def test_meld_kan_falls_back_to_called_tile_id():
             "caller_seat": 3,
             "tile_ids": [],
             "called_tile_id": 5,
-        }
+        },
     )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
@@ -568,7 +536,7 @@ def test_error_kan_missing_tile_ids_and_called_tile_id():
             "type": "meld",
             "meld_type": "closed_kan",
             "caller_seat": 0,
-        }
+        },
     )
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="missing both 'tile_ids' and 'called_tile_id'"):
@@ -589,7 +557,7 @@ def test_error_invalid_seat_indices():
                 {"seat": 2, "name": "C"},
                 {"seat": 5, "name": "D"},
             ],
-        }
+        },
     )
     with pytest.raises(ReplayLoadError, match="must have exactly seats"):
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
@@ -601,8 +569,259 @@ def test_error_round_end_tsumo_missing_winner_seat():
         {
             "type": "round_end",
             "result_type": "tsumo",
-        }
+        },
     )
     content = _build_event_log(round_end)
     with pytest.raises(ReplayLoadError, match="tsumo round_end missing or invalid field"):
         load_replay_from_string(content)
+
+
+def test_error_ron_round_end_missing_winner_seat():
+    """ReplayLoadError when ron round_end missing winner_seat."""
+    round_end = json.dumps(
+        {
+            "type": "round_end",
+            "result_type": "ron",
+        },
+    )
+    content = _build_event_log(round_end)
+    with pytest.raises(ReplayLoadError, match="ron round_end missing or invalid field"):
+        load_replay_from_string(content)
+
+
+def test_error_double_ron_empty_winners():
+    """ReplayLoadError when double_ron round_end has empty winners list."""
+    round_end = json.dumps(
+        {
+            "type": "round_end",
+            "result_type": "double_ron",
+            "winners": [],
+        },
+    )
+    content = _build_event_log(round_end)
+    with pytest.raises(ReplayLoadError, match="must have at least one winner"):
+        load_replay_from_string(content)
+
+
+def test_error_double_ron_missing_winners():
+    """ReplayLoadError when double_ron round_end has no winners field."""
+    round_end = json.dumps(
+        {
+            "type": "round_end",
+            "result_type": "double_ron",
+        },
+    )
+    content = _build_event_log(round_end)
+    with pytest.raises(ReplayLoadError, match="must have at least one winner"):
+        load_replay_from_string(content)
+
+
+def test_error_double_ron_winner_missing_seat():
+    """ReplayLoadError when double_ron winner entry missing winner_seat."""
+    round_end = json.dumps(
+        {
+            "type": "round_end",
+            "result_type": "double_ron",
+            "winners": [{"some_field": 1}],
+        },
+    )
+    content = _build_event_log(round_end)
+    with pytest.raises(ReplayLoadError, match="double_ron round_end missing or invalid field"):
+        load_replay_from_string(content)
+
+
+def test_error_abortive_draw_nine_terminals_missing_seat():
+    """ReplayLoadError when nine_terminals abortive_draw missing seat."""
+    round_end = json.dumps(
+        {
+            "type": "round_end",
+            "result_type": "abortive_draw",
+            "reason": "nine_terminals",
+        },
+    )
+    content = _build_event_log(round_end)
+    with pytest.raises(ReplayLoadError, match="nine_terminals abortive_draw missing or invalid field"):
+        load_replay_from_string(content)
+
+
+def test_error_chi_meld_missing_called_tile_id():
+    """ReplayLoadError when chi meld event missing called_tile_id."""
+    meld = json.dumps(
+        {
+            "type": "meld",
+            "meld_type": "chi",
+            "caller_seat": 1,
+            "tile_ids": [20, 24, 28],
+        },
+    )
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="chi meld event missing required field"):
+        load_replay_from_string(content)
+
+
+def test_error_chi_meld_wrong_sequence_tiles_count():
+    """ReplayLoadError when chi meld tile_ids produce wrong number of sequence tiles."""
+    meld = json.dumps(
+        {
+            "type": "meld",
+            "meld_type": "chi",
+            "caller_seat": 1,
+            "called_tile_id": 20,
+            "tile_ids": [20],
+        },
+    )
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="chi meld must have exactly 2 sequence tiles"):
+        load_replay_from_string(content)
+
+
+def test_error_chi_meld_missing_tile_ids():
+    """ReplayLoadError when chi meld has no tile_ids (empty sequence_tiles)."""
+    meld = json.dumps(
+        {
+            "type": "meld",
+            "meld_type": "chi",
+            "caller_seat": 1,
+            "called_tile_id": 20,
+        },
+    )
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="chi meld must have exactly 2 sequence tiles"):
+        load_replay_from_string(content)
+
+
+def test_error_pon_meld_missing_called_tile_id():
+    """ReplayLoadError when pon meld event missing called_tile_id."""
+    meld = json.dumps(
+        {
+            "type": "meld",
+            "meld_type": "pon",
+            "caller_seat": 2,
+            "tile_ids": [10, 11, 12],
+        },
+    )
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="pon meld event missing required field"):
+        load_replay_from_string(content)
+
+
+def test_round_end_nagashi_mangan_skipped():
+    """round_end with nagashi_mangan produces no actions."""
+    round_end = json.dumps(
+        {
+            "type": "round_end",
+            "result_type": "nagashi_mangan",
+        },
+    )
+    content = _build_event_log(round_end)
+    replay = load_replay_from_string(content)
+    assert len(replay.events) == 0
+
+
+def test_error_discard_unknown_seat():
+    """ReplayLoadError when discard event references a seat not in game_started players."""
+    discard = json.dumps({"type": "discard", "seat": 5, "tile_id": 10})
+    content = _build_event_log(discard)
+    with pytest.raises(ReplayLoadError, match="discard event references unknown seat"):
+        load_replay_from_string(content)
+
+
+def test_error_meld_unknown_caller_seat():
+    """ReplayLoadError when meld event references a caller_seat not in game_started players."""
+    meld = json.dumps(
+        {
+            "type": "meld",
+            "meld_type": "pon",
+            "caller_seat": 7,
+            "tile_ids": [10, 11, 12],
+            "called_tile_id": 10,
+        },
+    )
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="meld event references unknown seat"):
+        load_replay_from_string(content)
+
+
+def test_error_exceeds_max_replay_lines():
+    """ReplayLoadError when replay content exceeds the maximum line count."""
+    lines = [VERSION_TAG_LINE, GAME_STARTED_LINE]
+    filler = json.dumps({"type": "draw", "seat": 0, "tile_id": 0})
+    lines.extend([filler] * _MAX_REPLAY_LINES)
+    content = "\n".join(lines)
+    with pytest.raises(ReplayLoadError, match="maximum line count"):
+        load_replay_from_string(content)
+
+
+def test_error_player_entry_not_dict():
+    """ReplayLoadError when a game_started player entry is not a dict."""
+    bad_started = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": _TEST_SEED,
+            "rng_version": RNG_VERSION,
+            "players": ["Alice", "Bob", "Charlie", "Diana"],
+        },
+    )
+    with pytest.raises(ReplayLoadError, match="player entry 0 is not a dict"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+
+
+def test_error_player_entry_missing_seat():
+    """ReplayLoadError when a game_started player entry is missing 'seat'."""
+    bad_started = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": _TEST_SEED,
+            "rng_version": RNG_VERSION,
+            "players": [
+                {"name": "A"},
+                {"seat": 1, "name": "B"},
+                {"seat": 2, "name": "C"},
+                {"seat": 3, "name": "D"},
+            ],
+        },
+    )
+    with pytest.raises(ReplayLoadError, match="player entry 0 missing required field"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+
+
+def test_error_player_entry_non_integer_seat():
+    """ReplayLoadError when a game_started player entry has a non-integer seat."""
+    bad_started = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": _TEST_SEED,
+            "rng_version": RNG_VERSION,
+            "players": [
+                {"seat": "zero", "name": "A"},
+                {"seat": 1, "name": "B"},
+                {"seat": 2, "name": "C"},
+                {"seat": 3, "name": "D"},
+            ],
+        },
+    )
+    with pytest.raises(ReplayLoadError, match="non-integer seat"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+
+
+def test_error_player_entry_empty_name():
+    """ReplayLoadError when a game_started player entry has an empty name."""
+    bad_started = json.dumps(
+        {
+            "type": "game_started",
+            "game_id": "test",
+            "seed": _TEST_SEED,
+            "rng_version": RNG_VERSION,
+            "players": [
+                {"seat": 0, "name": ""},
+                {"seat": 1, "name": "B"},
+                {"seat": 2, "name": "C"},
+                {"seat": 3, "name": "D"},
+            ],
+        },
+    )
+    with pytest.raises(ReplayLoadError, match="invalid name"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")

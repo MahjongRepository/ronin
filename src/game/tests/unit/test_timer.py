@@ -41,8 +41,8 @@ class TestTurnTimerTurnTimer:
         timer.stop()
 
         # bank should be reduced by approximately 0.1 seconds
-        assert timer.remaining_bank < 10.0
-        assert timer.remaining_bank > 9.0
+        assert timer._bank_seconds < 10.0
+        assert timer._bank_seconds > 9.0
 
     async def test_stop_cancels_pending_timer(self):
         timer = TurnTimer()
@@ -87,7 +87,7 @@ class TestTurnTimerMeldTimer:
         timer.cancel()
 
         # bank time should not change for meld timers
-        assert timer.remaining_bank == 10.0
+        assert timer._bank_seconds == 10.0
 
 
 class TestTurnTimerBankEdgeCases:
@@ -101,21 +101,7 @@ class TestTurnTimerBankEdgeCases:
         timer.start_turn_timer(on_timeout)
         await asyncio.sleep(0.15)
         timer.stop()
-        assert timer.remaining_bank == 0.0
-
-    async def test_remaining_bank_during_active_timer(self):
-        config = TimerConfig(initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
-
-        async def on_timeout():
-            pass
-
-        timer.start_turn_timer(on_timeout)
-        await asyncio.sleep(0.1)
-        # remaining bank should reflect elapsed time
-        assert timer.remaining_bank < 10.0
-        assert timer.remaining_bank > 9.0
-        timer.cancel()
+        assert timer._bank_seconds == 0.0
 
     async def test_starting_new_timer_cancels_previous(self):
         timer = TurnTimer()

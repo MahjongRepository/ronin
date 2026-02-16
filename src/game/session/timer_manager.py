@@ -108,13 +108,15 @@ class TimerManager:
         if timers is None:
             return
         timeout = game.settings.round_advance_timeout_seconds
-        for player in game.players.values():
+        for player in list(game.players.values()):
             if player.seat is not None:
                 timer = timers.get(player.seat)
                 if timer is not None:
                     timer.start_fixed_timer(
                         timeout,
                         lambda gid=game_id, s=player.seat: self._on_timeout(
-                            gid, TimeoutType.ROUND_ADVANCE, s
+                            gid,
+                            TimeoutType.ROUND_ADVANCE,
+                            s,
                         ),
                     )

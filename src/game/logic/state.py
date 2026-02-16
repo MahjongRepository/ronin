@@ -1,7 +1,7 @@
 """
 Game state models for Mahjong.
 
-Uses frozen Pydantic models for immutable state management with undo/redo capability.
+Uses frozen Pydantic models for immutable state management.
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ from game.logic.types import GameView, MeldCaller, MeldView, PlayerView
 from game.logic.wall import Wall
 
 NUM_WINDS = 4
+
+_WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
 
 
 class Discard(BaseModel):
@@ -101,6 +103,7 @@ class MahjongRoundState(BaseModel):
     players_with_open_hands: tuple[int, ...] = ()
     phase: RoundPhase = RoundPhase.WAITING
     pending_call_prompt: PendingCallPrompt | None = None
+    is_after_meld_call: bool = False
 
 
 class MahjongGameState(BaseModel):
@@ -123,6 +126,7 @@ class MahjongGameState(BaseModel):
     rng_version: str = RNG_VERSION
     settings: GameSettings = Field(default_factory=GameSettings)
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
+    starting_dealer_seat: int = 0
 
 
 def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
@@ -131,17 +135,22 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
 
     players_view: list[PlayerView] = []
     my_tiles: list[int] = []
+    found = False
 
     for p in round_state.players:
         if p.seat == seat:
             my_tiles = list(p.tiles)
+            found = True
 
         players_view.append(
             PlayerView(
                 seat=p.seat,
                 score=p.score,
-            )
+            ),
         )
+
+    if not found:
+        raise ValueError(f"No player found at seat {seat}")
 
     return GameView(
         seat=seat,
@@ -166,22 +175,20 @@ def meld_to_view(meld: FrozenMeld) -> MeldView:
         view_type = MeldViewType.PON
     elif meld.type == FrozenMeld.KAN:
         view_type = MeldViewType.OPEN_KAN if meld.opened else MeldViewType.CLOSED_KAN
-    elif meld.type in (FrozenMeld.CHANKAN, FrozenMeld.SHOUMINKAN):
-        view_type = MeldViewType.ADDED_KAN
     else:
-        view_type = MeldViewType.UNKNOWN
+        # chankan and shouminkan
+        view_type = MeldViewType.ADDED_KAN
 
     return MeldView(
         type=view_type,
-        tile_ids=list(meld.tiles) if meld.tiles else [],
+        tile_ids=list(meld.tiles),
         from_who=meld.from_who,
     )
 
 
 def wind_name(wind: int) -> WindName:
     """Convert wind index to name."""
-    winds = [WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH]
-    return winds[wind] if 0 <= wind < NUM_WINDS else WindName.UNKNOWN
+    return _WIND_NAMES[wind] if 0 <= wind < NUM_WINDS else WindName.UNKNOWN
 
 
 def seat_to_wind(seat: int, dealer_seat: int) -> int:

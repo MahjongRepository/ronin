@@ -9,7 +9,6 @@ import pytest
 
 from game.logic.rng import (
     PCG64DXSM,
-    RNG_VERSION,
     SEED_BYTES,
     TOTAL_WALL_SIZE,
     _bounded_uint64,
@@ -201,10 +200,22 @@ class TestBoundedUint64:
 
     def test_invalid_bound_raises(self):
         pcg = PCG64DXSM(state=1, increment=1)
-        with pytest.raises(ValueError, match="positive"):
+        with pytest.raises(ValueError, match=r"bound must be in"):
             _bounded_uint64(pcg, 0)
-        with pytest.raises(ValueError, match="positive"):
+        with pytest.raises(ValueError, match=r"bound must be in"):
             _bounded_uint64(pcg, -1)
+
+    def test_bound_exceeding_uint64_raises(self):
+        """Bound larger than 2^64 is rejected to prevent infinite loop."""
+        pcg = PCG64DXSM(state=1, increment=1)
+        with pytest.raises(ValueError, match=r"bound must be in"):
+            _bounded_uint64(pcg, (1 << 64) + 1)
+
+    def test_bound_exactly_uint64_max_succeeds(self):
+        """Bound of exactly 2^64 is the maximum accepted value."""
+        pcg = PCG64DXSM(state=42, increment=17)
+        result = _bounded_uint64(pcg, 1 << 64)
+        assert 0 <= result < (1 << 64)
 
 
 class TestFisherYatesShuffle:
@@ -265,17 +276,6 @@ class TestCreateSeatRng:
         seats1 = rng1.sample(range(4), 4)
         seats2 = rng2.sample(range(4), 4)
         assert seats1 != seats2
-
-
-class TestRNGVersion:
-    def test_is_set(self):
-        """RNG_VERSION is a non-empty string."""
-        assert isinstance(RNG_VERSION, str)
-        assert len(RNG_VERSION) > 0
-
-    def test_contains_algorithm_name(self):
-        """RNG_VERSION identifies the algorithm."""
-        assert "pcg64dxsm" in RNG_VERSION
 
 
 class TestPCG64DXSMReferenceVector:

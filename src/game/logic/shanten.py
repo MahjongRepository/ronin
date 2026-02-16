@@ -1,6 +1,10 @@
 """Shanten calculation using xiangting (Rust)."""
 
+import logging
+
 from xiangting import PlayerCount, calculate_replacement_number
+
+logger = logging.getLogger(__name__)
 
 AGARI_STATE: int = -1
 
@@ -16,5 +20,7 @@ def calculate_shanten(tiles_34: list[int]) -> int:
     """
     total = sum(tiles_34)
     if total == 0 or total % 3 not in (1, 2):
+        if total > 0:
+            logger.warning("Unexpected tile count %d (not 3n+1 or 3n+2) in shanten calculation", total)
         return _NOT_TENPAI
     return calculate_replacement_number(tiles_34, PlayerCount.FOUR) - 1

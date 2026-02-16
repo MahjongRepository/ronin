@@ -160,9 +160,7 @@ class TestRotateLogFile:
 
         root = logging.getLogger()
         stream_handlers = [
-            h
-            for h in root.handlers
-            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+            h for h in root.handlers if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
         ]
         assert len(stream_handlers) == 1
 

@@ -21,9 +21,11 @@ from game.logic.win import (
     can_call_ron,
     can_declare_tsumo,
     check_tsumo,
+    check_tsumo_with_tiles,
     get_waiting_tiles,
     is_chiihou,
     is_furiten,
+    is_renhou,
     is_tenhou,
 )
 
@@ -66,6 +68,39 @@ class TestCheckTsumoMeldDedup:
 
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         assert check_tsumo(player) is True
+
+
+class TestCheckTsumoWithTiles:
+    """Test check_tsumo_with_tiles uses all_tiles_from_hand_and_melds for consistent tile assembly."""
+
+    def test_winning_hand_with_ron_tile_and_meld(self):
+        """Winning hand with ron tile added and meld tiles separate from closed hand."""
+        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
+        pon_tiles = TilesConverter.string_to_136_array(honors="555")
+
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(pon_tiles),
+            opened=True,
+            called_tile=pon_tiles[0],
+            who=0,
+            from_who=1,
+        )
+
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        ron_tile = TilesConverter.string_to_136_array(sou="4")[0]
+        tiles_with_ron = [*closed_tiles, ron_tile]
+
+        assert check_tsumo_with_tiles(player, tiles_with_ron) is True
+
+    def test_non_winning_hand_returns_false(self):
+        """Non-winning hand returns False."""
+        closed_tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), score=25000)
+        wrong_tile = TilesConverter.string_to_136_array(sou="9")[0]
+        tiles_with_wrong = [*closed_tiles, wrong_tile]
+
+        assert check_tsumo_with_tiles(player, tiles_with_wrong) is False
 
 
 class TestCanDeclareTsumo:
@@ -487,3 +522,93 @@ class TestIsChiihou:
             players_with_open_hands=(2,),
         )
         assert is_chiihou(players[1], round_state) is False
+
+
+class TestIsTenhouClosedKan:
+    """Test that closed kans invalidate tenhou."""
+
+    def test_not_tenhou_after_closed_kan(self):
+        """Dealer cannot claim tenhou if any player has a closed kan."""
+        closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
+            opened=False,
+        )
+        players = tuple(
+            MahjongPlayer(
+                seat=i,
+                name=f"Player{i}",
+                melds=(closed_kan,) if i == 0 else (),
+                score=25000,
+            )
+            for i in range(4)
+        )
+        round_state = MahjongRoundState(
+            dealer_seat=0,
+            current_player_seat=0,
+            round_wind=0,
+            players=players,
+            all_discards=(),
+            players_with_open_hands=(),
+        )
+        assert is_tenhou(players[0], round_state) is False
+
+
+class TestIsChiihouClosedKan:
+    """Test that closed kans invalidate chiihou."""
+
+    def test_not_chiihou_after_dealer_closed_kan(self):
+        """Non-dealer cannot claim chiihou if dealer declared a closed kan."""
+        closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
+            opened=False,
+        )
+        players = tuple(
+            MahjongPlayer(
+                seat=i,
+                name=f"Player{i}",
+                melds=(closed_kan,) if i == 0 else (),
+                score=25000,
+            )
+            for i in range(4)
+        )
+        round_state = MahjongRoundState(
+            dealer_seat=0,
+            current_player_seat=1,
+            round_wind=0,
+            players=players,
+            all_discards=(),
+            players_with_open_hands=(),
+        )
+        assert is_chiihou(players[1], round_state) is False
+
+
+class TestIsRenhouClosedKan:
+    """Test that closed kans invalidate renhou."""
+
+    def test_not_renhou_after_closed_kan(self):
+        """Non-dealer cannot claim renhou if any player declared a closed kan."""
+        closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
+            opened=False,
+        )
+        players = tuple(
+            MahjongPlayer(
+                seat=i,
+                name=f"Player{i}",
+                melds=(closed_kan,) if i == 2 else (),
+                score=25000,
+            )
+            for i in range(4)
+        )
+        round_state = MahjongRoundState(
+            dealer_seat=0,
+            current_player_seat=2,
+            round_wind=0,
+            players=players,
+            all_discards=(),
+            players_with_open_hands=(),
+        )
+        assert is_renhou(players[1], round_state) is False

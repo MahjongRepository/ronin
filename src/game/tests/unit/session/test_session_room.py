@@ -1,14 +1,17 @@
 import tempfile
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 
-from game.logic.events import ServiceEvent
-from game.logic.settings import GameSettings
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockGameService
+
+if TYPE_CHECKING:
+    from game.logic.events import ServiceEvent
+    from game.logic.settings import GameSettings
 
 
 @pytest.fixture
@@ -95,9 +98,7 @@ class TestJoinRoom:
         await manager.join_room(conn2, "room1", "Bob", "tok-bob")
 
         # conn1 should have received: room_joined + player_joined(Bob)
-        player_joined_msgs = [
-            m for m in conn1.sent_messages if m.get("type") == SessionMessageType.PLAYER_JOINED
-        ]
+        player_joined_msgs = [m for m in conn1.sent_messages if m.get("type") == SessionMessageType.PLAYER_JOINED]
         assert len(player_joined_msgs) == 1
         assert player_joined_msgs[0]["player_name"] == "Bob"
 
@@ -281,9 +282,7 @@ class TestSetReady:
 
         # Both should receive ready changed
         for conn in [conn1, conn2]:
-            ready_msgs = [
-                m for m in conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_READY_CHANGED
-            ]
+            ready_msgs = [m for m in conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_READY_CHANGED]
             assert len(ready_msgs) == 1
             assert ready_msgs[0]["player_name"] == "Alice"
             assert ready_msgs[0]["ready"] is True
@@ -322,9 +321,7 @@ class TestSetReady:
 
         await manager.set_ready(conn, ready=False)
 
-        ready_msgs = [
-            m for m in conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_READY_CHANGED
-        ]
+        ready_msgs = [m for m in conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_READY_CHANGED]
         assert len(ready_msgs) == 1
         assert ready_msgs[0]["ready"] is False
 
@@ -376,9 +373,7 @@ class TestRoomToGameTransition:
 
         # both should have received game_starting
         for conn in [conn1, conn2]:
-            starting_msgs = [
-                m for m in conn.sent_messages if m.get("type") == SessionMessageType.GAME_STARTING
-            ]
+            starting_msgs = [m for m in conn.sent_messages if m.get("type") == SessionMessageType.GAME_STARTING]
             assert len(starting_msgs) == 1
 
     async def test_transition_removes_room_players(self, manager):

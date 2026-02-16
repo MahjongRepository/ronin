@@ -57,9 +57,9 @@ class MessageRouter:
         try:
             message = parse_client_message(raw_message)
         except (ValidationError, KeyError, TypeError, ValueError) as e:
-            logger.warning(f"invalid message from {connection.connection_id}: {e}")
+            logger.warning("invalid message from %s: %s", connection.connection_id, e)
             await connection.send_message(
-                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump()
+                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
             )
             return
 
@@ -95,12 +95,12 @@ class MessageRouter:
                 data=data,
             )
         except (GameRuleError, ValueError, KeyError, TypeError) as e:
-            logger.exception(f"action failed for {connection.connection_id}")
+            logger.warning("action failed for %s: %s", connection.connection_id, e)
             await connection.send_message(
-                ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump()
+                ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump(),
             )
         except Exception:
-            logger.exception(f"fatal error during game action for {connection.connection_id}")
+            logger.exception("fatal error during game action for %s", connection.connection_id)
             await self._session_manager.close_game_on_error(connection)
 
     async def _handle_chat(self, connection: ConnectionProtocol, message: ChatMessage) -> None:

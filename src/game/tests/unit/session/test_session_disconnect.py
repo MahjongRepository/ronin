@@ -108,7 +108,7 @@ class TestSessionManagerDisconnect:
             target=BroadcastTarget(),
         )
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
-            return_value=[ai_player_event]
+            return_value=[ai_player_event],
         )
 
         await manager.leave_game(conns[0])
@@ -145,7 +145,7 @@ class TestSessionManagerDisconnect:
         # patch start_game to simulate a disconnect happening during the await.
         original_start = manager._game_service.start_game
 
-        async def disconnecting_start(game_id, player_names, **kwargs: Any):  # noqa: ANN401
+        async def disconnecting_start(game_id, player_names, **kwargs: Any):
             result = await original_start(game_id, player_names, **kwargs)
             # simulate Alice disconnecting during start_game
             game = manager.get_game(game_id)
@@ -189,7 +189,7 @@ class TestSessionManagerDisconnect:
 
         original_start = manager._game_service.start_game
 
-        async def late_disconnecting_start(game_id, player_names, **kwargs: Any):  # noqa: ANN401
+        async def late_disconnecting_start(game_id, player_names, **kwargs: Any):
             return await original_start(game_id, player_names, **kwargs)
 
         manager._game_service.start_game = late_disconnecting_start
@@ -226,7 +226,7 @@ class TestSessionManagerDisconnect:
             target=BroadcastTarget(),
         )
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
-            return_value=[ai_player_event]
+            return_value=[ai_player_event],
         )
 
         # ready up both -- triggers transition and start; Alice is removed during first broadcast
@@ -393,7 +393,7 @@ class TestLockBoundaryRaces:
 
         lock_was_held = False
 
-        async def check_lock_process(game_id, seat):  # noqa: ARG001
+        async def check_lock_process(game_id, seat):
             nonlocal lock_was_held
             # the lock should be held (locked) when this is called
             lock_was_held = lock.locked()

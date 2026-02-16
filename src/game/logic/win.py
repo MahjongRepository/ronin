@@ -42,8 +42,7 @@ def all_player_tiles(player: MahjongPlayer) -> list[int]:
     hand_ids = set(player.tiles)
     all_tiles = list(player.tiles)
     for meld in player.melds:
-        if meld.tiles:
-            all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
+        all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
     return all_tiles
 
 
@@ -60,8 +59,7 @@ def all_tiles_from_hand_and_melds(
     hand_ids = set(hand_tiles)
     all_tiles = list(hand_tiles)
     for meld in melds:
-        if meld.tiles:
-            all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
+        all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
     return all_tiles
 
 
@@ -217,7 +215,7 @@ def _has_yaku_for_open_hand(
         tiles=all_player_tiles(player),
         win_tile=win_tile,
         melds=frozen_melds_to_melds(player.melds),
-        dora_indicators=round_state.wall.dora_indicators or None,
+        dora_indicators=round_state.wall.dora_indicators,
         config=config,
     )
 
@@ -236,9 +234,8 @@ def _melds_to_34_sets(melds: tuple[FrozenMeld, ...]) -> list[list[int]] | None:
 
     open_sets = []
     for meld in melds:
-        if meld.tiles:
-            meld_34 = [tile_to_34(t) for t in meld.tiles]
-            open_sets.append(meld_34)
+        meld_34 = [tile_to_34(t) for t in meld.tiles]
+        open_sets.append(meld_34)
 
     return open_sets or None
 
@@ -254,11 +251,20 @@ def is_haitei(round_state: MahjongRoundState) -> bool:
 
 def is_houtei(round_state: MahjongRoundState) -> bool:
     """
-    Check if current situation is houtei (last discard).
+    Check wall exhaustion prerequisite for houtei (last discard).
 
     Houtei raoyui is a yaku for winning by ron on the last discard of the game.
+    This only checks the wall condition; the caller must ensure the context is
+    a ron (not tsumo) to correctly award the yaku.
     """
     return is_wall_exhausted(round_state.wall)
+
+
+def _no_calls_from_any_player(round_state: MahjongRoundState) -> bool:
+    """Check that no calls (including closed kans) have been made by any player."""
+    if round_state.players_with_open_hands:
+        return False
+    return not any(p.melds for p in round_state.players)
 
 
 def is_tenhou(
@@ -271,13 +277,13 @@ def is_tenhou(
     Tenhou requirements:
     - Player is the dealer
     - No discards have been made by anyone
-    - No open melds exist
+    - No calls from any player (including closed kans)
     - Win on first draw (tsumo on dealt hand)
     """
     return (
         player.seat == round_state.dealer_seat
         and len(round_state.all_discards) == 0
-        and not round_state.players_with_open_hands
+        and _no_calls_from_any_player(round_state)
     )
 
 
@@ -291,13 +297,13 @@ def is_chiihou(
     Chiihou requirements:
     - Player is not the dealer
     - No discards have been made by anyone
-    - No open melds exist
+    - No calls from any player (including closed kans)
     - Win on first draw (tsumo on first turn)
     """
     return (
         player.seat != round_state.dealer_seat
         and len(round_state.all_discards) == 0
-        and not round_state.players_with_open_hands
+        and _no_calls_from_any_player(round_state)
     )
 
 
@@ -315,11 +321,7 @@ def is_renhou(
     """
     if player.seat == round_state.dealer_seat:
         return False
-    # no open melds from any player
-    if round_state.players_with_open_hands:
-        return False
-    # no melds at all (including closed kans)
-    if any(p.melds for p in round_state.players):
+    if not _no_calls_from_any_player(round_state):
         return False
     # player has not yet discarded (before their first turn)
     return len(player.discards) == 0
@@ -374,12 +376,8 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
     Uses a local tile list instead of mutating player.tiles.
     Used for ron/tsumo checks.
     """
-    tiles_34 = hand_to_34_array(tiles)
-    # add meld tiles to get full tile count
-    for meld in player.melds:
-        if meld.tiles:
-            for t in meld.tiles:
-                tiles_34[tile_to_34(t)] += 1
+    all_tiles = all_tiles_from_hand_and_melds(tiles, player.melds)
+    tiles_34 = hand_to_34_array(all_tiles)
 
     open_sets_34 = _melds_to_34_sets(player.melds)
     return Agari.is_agari(tiles_34, open_sets_34)
@@ -430,18 +428,16 @@ def can_call_ron(
         round_state,
         discarded_tile,
         tiles_with_win,
-        settings=settings,
+        settings,
     )
 
 
-def _has_yaku_for_ron_with_tiles(  # noqa: PLR0913
+def _has_yaku_for_ron_with_tiles(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
     win_tile: int,
     tiles: list[int],
-    *,
     settings: GameSettings,
-    is_chankan: bool = False,
 ) -> bool:
     """
     Check if a ron call has at least one yaku, using a local tile list.
@@ -454,25 +450,17 @@ def _has_yaku_for_ron_with_tiles(  # noqa: PLR0913
         is_ippatsu=player.is_ippatsu and settings.has_ippatsu,
         is_daburu_riichi=player.is_daburi,
         is_renhou=settings.renhou_value != RenhouValue.NONE and is_renhou(player, round_state),
-        is_chankan=is_chankan,
         is_houtei=is_houtei(round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=WINDS_34[round_state.round_wind],
         options=build_optional_rules(settings),
     )
 
-    # build all tiles: local tiles + meld tiles (excluding duplicates already in tiles)
-    tile_ids = set(tiles)
-    all_tiles = list(tiles)
-    for meld in player.melds:
-        if meld.tiles:
-            all_tiles.extend(t for t in meld.tiles if t not in tile_ids)
-
     result = HandCalculator.estimate_hand_value(
-        tiles=all_tiles,
+        tiles=all_tiles_from_hand_and_melds(tiles, player.melds),
         win_tile=win_tile,
         melds=frozen_melds_to_melds(player.melds),
-        dora_indicators=round_state.wall.dora_indicators or None,
+        dora_indicators=round_state.wall.dora_indicators,
         config=config,
     )
 

@@ -18,11 +18,7 @@ def test_game_logic_does_not_import_replay():
                     for alias in node.names
                     if alias.name.startswith("game.replay")
                 )
-            if (
-                isinstance(node, ast.ImportFrom)
-                and node.module is not None
-                and node.module.startswith("game.replay")
-            ):
+            if isinstance(node, ast.ImportFrom) and node.module is not None and node.module.startswith("game.replay"):
                 violations.append(f"{py_file.name}:{node.lineno} from {node.module}")
 
     assert violations == [], f"game.logic imports from game.replay: {violations}"

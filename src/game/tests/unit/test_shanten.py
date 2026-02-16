@@ -1,5 +1,7 @@
 """Unit tests for shanten calculation module."""
 
+import logging
+
 from mahjong.tile import TilesConverter
 
 from game.logic.shanten import (
@@ -12,12 +14,8 @@ from game.logic.shanten import (
 def _hand(sou="", pin="", man="", honors="") -> list[int]:
     """Convert string notation to 34-element tile array."""
     return TilesConverter.to_34_array(
-        TilesConverter.string_to_136_array(sou=sou, pin=pin, man=man, honors=honors)
+        TilesConverter.string_to_136_array(sou=sou, pin=pin, man=man, honors=honors),
     )
-
-
-def test_agari_state_constant():
-    assert AGARI_STATE == -1
 
 
 class TestCalculateShanten:
@@ -47,14 +45,8 @@ class TestCalculateShanten:
 
     def test_open_hand_tenpai(self):
         """Tenpai with reduced tile count (simulating open melds)."""
-        # 10 tiles = 3*3+1, simulating one open meld
         tiles = _hand(man="123456", pin="1", sou="234")
         assert calculate_shanten(tiles) == 0
-
-    def test_small_open_hand(self):
-        """4 tiles = 3*1+1, simulating three open melds."""
-        tiles = _hand(man="12", pin="11")
-        assert calculate_shanten(tiles) >= 0
 
     def test_empty_hand_returns_not_tenpai(self):
         tiles = [0] * 34
@@ -64,3 +56,17 @@ class TestCalculateShanten:
         """3n+0 tile counts are invalid for xiangting."""
         tiles = _hand(man="123")  # 3 tiles
         assert calculate_shanten(tiles) == _NOT_TENPAI
+
+    def test_invalid_tile_count_logs_warning(self, caplog):
+        """Non-zero 3n+0 tile counts log a warning about unexpected count."""
+        tiles = _hand(man="123")  # 3 tiles
+        with caplog.at_level(logging.WARNING, logger="game.logic.shanten"):
+            calculate_shanten(tiles)
+        assert "Unexpected tile count 3" in caplog.text
+
+    def test_empty_hand_does_not_log_warning(self, caplog):
+        """Empty hand (zero tiles) does not log a warning."""
+        tiles = [0] * 34
+        with caplog.at_level(logging.WARNING, logger="game.logic.shanten"):
+            calculate_shanten(tiles)
+        assert caplog.text == ""

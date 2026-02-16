@@ -96,7 +96,7 @@ class TestSessionManagerDefensiveChecks:
                     target="all",
                 ),
                 target=BroadcastTarget(),
-            )
+            ),
         ]
         manager._game_service.start_game = AsyncMock(return_value=error_events)
 
@@ -137,7 +137,7 @@ class TestSessionManagerDefensiveChecks:
                     target="all",
                 ),
                 target=BroadcastTarget(),
-            )
+            ),
         ]
         manager._game_service.start_game = AsyncMock(return_value=error_events)
 
@@ -157,3 +157,58 @@ class TestSessionManagerDefensiveChecks:
         assert player.game_id is None
         assert player.seat is None
         assert manager._session_store._sessions.get(token) is None
+
+
+class TestRoomDefensiveChecks:
+    """Tests for defensive checks in room operations."""
+
+    async def test_join_room_not_found_when_room_removed_under_lock(self, manager):
+        """join_room returns ROOM_NOT_FOUND if room was removed between lock creation and acquisition."""
+        manager.create_room("room1")
+
+        conn = MockConnection()
+        manager.register_connection(conn)
+
+        # Remove the room but leave the lock
+        manager._rooms.pop("room1", None)
+
+        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+
+        error_msgs = [m for m in conn.sent_messages if m.get("code") == SessionErrorCode.ROOM_NOT_FOUND]
+        assert len(error_msgs) == 1
+
+    async def test_leave_room_room_gone_under_lock(self, manager):
+        """leave_room cleans up room_player when room is None under the lock."""
+        manager.create_room("room1")
+        conn = MockConnection()
+        manager.register_connection(conn)
+        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+
+        # Remove room but not the lock to simulate the room being cleaned
+        # up by another coroutine between lock check and lock acquisition.
+        manager._rooms.pop("room1", None)
+
+        assert conn.connection_id in manager._room_players
+
+        await manager.leave_room(conn)
+
+        # room_player reference should be cleaned up
+        assert conn.connection_id not in manager._room_players
+
+    async def test_set_ready_returns_when_lock_missing(self, manager):
+        """set_ready returns silently when room lock is missing."""
+        manager.create_room("room1")
+        conn = MockConnection()
+        manager.register_connection(conn)
+        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+
+        # Simulate the lock being cleaned up already
+        manager._room_locks.pop("room1", None)
+
+        # Should not raise
+        await manager.set_ready(conn, ready=True)
+
+    async def test_transition_returns_when_lock_missing(self, manager):
+        """_transition_room_to_game returns when lock is missing."""
+        # Should not raise
+        await manager._transition_room_to_game("nonexistent_room")

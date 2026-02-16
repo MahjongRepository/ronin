@@ -24,7 +24,7 @@ async def test_single_discard_replay_from_file():
     assert replay.events[0].action == GameAction.DISCARD
 
     # Play the replay
-    trace = await run_replay_async(replay, auto_pass_calls=True)
+    trace = await run_replay_async(replay)
 
     # Verify trace structure
     assert trace.seed == replay.seed
@@ -38,9 +38,7 @@ async def test_single_discard_replay_from_file():
 
     # Startup should include per-seat ROUND_STARTED events (4 seats)
     round_started_seat_events = [
-        e
-        for e in trace.startup_events
-        if e.event == EventType.ROUND_STARTED and isinstance(e.target, SeatTarget)
+        e for e in trace.startup_events if e.event == EventType.ROUND_STARTED and isinstance(e.target, SeatTarget)
     ]
     assert len(round_started_seat_events) == 4
 

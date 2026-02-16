@@ -66,15 +66,22 @@ class RoundAdvanceManager:
     def confirm_seat(self, game_id: str, seat: int) -> bool | None:
         """Record a seat's confirmation.
 
+        Only seats in the required set are accepted. AI player seats and
+        out-of-range seats are silently ignored (returns False) to prevent
+        invalid data from accumulating in confirmed_seats.
+
         Returns:
             True if all seats now confirmed (caller should advance the round)
-            False if still waiting for others
+            False if still waiting for others or seat is not required
             None if no pending advance exists (error condition)
 
         """
         pending = self._pending.get(game_id)
         if pending is None:
             return None
+        if seat not in pending.required_seats:
+            logger.warning("seat %d is not in required_seats for game %s, ignoring", seat, game_id)
+            return False
         pending.confirmed_seats.add(seat)
         if pending.all_confirmed:
             self._pending.pop(game_id, None)

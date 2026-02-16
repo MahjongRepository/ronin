@@ -1,5 +1,6 @@
 """Unit tests for get_player_view and meld_to_view."""
 
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import MeldViewType, WindName
@@ -28,7 +29,7 @@ class TestGetPlayerView:
                         pin="123",
                         sou="123",
                         honors="1115",
-                    )
+                    ),
                 ),
                 score=25000,
             ),
@@ -134,51 +135,19 @@ class TestGetPlayerView:
 
 
 class TestMeldToView:
-    def test_chi(self):
-        """Chi maps to CHI view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="123"))
-        meld = FrozenMeld(meld_type=FrozenMeld.CHI, tiles=tiles, opened=True, from_who=3)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.CHI
-
-    def test_pon(self):
-        """Pon maps to PON view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="111"))
-        meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tiles, opened=True, from_who=1)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.PON
-
-    def test_open_kan(self):
-        """Open kan maps to OPEN_KAN view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="1111"))
-        meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tiles, opened=True, from_who=1)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.OPEN_KAN
-
-    def test_closed_kan(self):
-        """Closed kan maps to CLOSED_KAN view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="1111"))
-        meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tiles, opened=False)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.CLOSED_KAN
-
-    def test_chankan(self):
-        """Chankan maps to ADDED_KAN view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="1111"))
-        meld = FrozenMeld(meld_type=FrozenMeld.CHANKAN, tiles=tiles, opened=True, from_who=1)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.ADDED_KAN
-
-    def test_shouminkan(self):
-        """Shouminkan maps to ADDED_KAN view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="1111"))
-        meld = FrozenMeld(meld_type=FrozenMeld.SHOUMINKAN, tiles=tiles, opened=True, from_who=1)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.ADDED_KAN
-
-    def test_unknown_type(self):
-        """Unrecognized meld type maps to UNKNOWN view type."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="1111"))
-        meld = FrozenMeld(meld_type="invalid_type", tiles=tiles, opened=False)
-        view = meld_to_view(meld)
-        assert view.type == MeldViewType.UNKNOWN
+    @pytest.mark.parametrize(
+        ("meld_type", "opened", "expected"),
+        [
+            (FrozenMeld.CHI, True, MeldViewType.CHI),
+            (FrozenMeld.PON, True, MeldViewType.PON),
+            (FrozenMeld.KAN, True, MeldViewType.OPEN_KAN),
+            (FrozenMeld.KAN, False, MeldViewType.CLOSED_KAN),
+            (FrozenMeld.CHANKAN, True, MeldViewType.ADDED_KAN),
+            (FrozenMeld.SHOUMINKAN, True, MeldViewType.ADDED_KAN),
+        ],
+    )
+    def test_meld_type_mapping(self, meld_type, opened, expected):
+        tile_count = 4 if meld_type in (FrozenMeld.KAN, FrozenMeld.CHANKAN, FrozenMeld.SHOUMINKAN) else 3
+        tiles = tuple(range(tile_count))
+        meld = FrozenMeld(meld_type=meld_type, tiles=tiles, opened=opened)
+        assert meld_to_view(meld).type == expected

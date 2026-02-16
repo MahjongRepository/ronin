@@ -3,9 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import GameAction, TimeoutType
-
 if TYPE_CHECKING:
+    from game.logic.enums import GameAction, TimeoutType
     from game.logic.events import ServiceEvent
     from game.logic.settings import GameSettings
     from game.logic.state import MahjongGameState
@@ -85,6 +84,7 @@ class GameService(ABC):
 
         For TURN timeout: tsumogiri (discard last drawn tile).
         For MELD timeout: pass on the call opportunity.
+        For ROUND_ADVANCE timeout: auto-confirm round advancement.
         """
         ...
 
@@ -115,4 +115,14 @@ class GameService(ABC):
 
         Handles the case where the replaced player had a pending turn or call.
         """
+        ...
+
+    @abstractmethod
+    def is_round_advance_pending(self, game_id: str) -> bool:
+        """Check if a round advance is waiting for player confirmation."""
+        ...
+
+    @abstractmethod
+    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
+        """Return player names that still need to confirm round advance."""
         ...

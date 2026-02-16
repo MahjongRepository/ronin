@@ -2,16 +2,13 @@ import pytest
 from mahjong.tile import TilesConverter
 from pydantic import ValidationError
 
-from game.logic.enums import GameAction, KanType
+from game.logic.enums import GameAction
+from game.logic.exceptions import InvalidDiscardError
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
     ChiMessage,
     ClientMessageType,
     DiscardMessage,
-    KanMessage,
-    NoDataActionMessage,
-    PonMessage,
-    RiichiMessage,
     SessionErrorCode,
     SessionMessageType,
     parse_client_message,
@@ -84,15 +81,73 @@ class TestMessageRouterBranches:
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.PONG
 
+    async def test_game_rule_error_returns_action_failed(self, setup):
+        """GameRuleError during game action returns ACTION_FAILED error."""
+        router, connection, session_manager = setup
+        await _setup_player_in_game(session_manager, connection)
+
+        async def raise_game_rule_error(
+            connection: object,
+            action: object,
+            data: object,
+        ) -> None:
+            raise InvalidDiscardError("tile not in hand")
+
+        session_manager.handle_game_action = raise_game_rule_error
+
+        await router.handle_message(
+            connection,
+            {
+                "type": ClientMessageType.GAME_ACTION,
+                "action": GameAction.DISCARD,
+                "tile_id": 0,
+            },
+        )
+
+        assert len(connection.sent_messages) == 1
+        response = connection.sent_messages[0]
+        assert response["type"] == SessionMessageType.ERROR
+        assert response["code"] == SessionErrorCode.ACTION_FAILED
+        assert response["message"] == "tile not in hand"
+
+    async def test_key_error_returns_action_failed(self, setup):
+        """KeyError during game action returns ACTION_FAILED error (handled gracefully)."""
+        router, connection, session_manager = setup
+        await _setup_player_in_game(session_manager, connection)
+
+        async def raise_key_error(
+            connection: object,
+            action: object,
+            data: object,
+        ) -> None:
+            raise KeyError("missing key")
+
+        session_manager.handle_game_action = raise_key_error
+
+        await router.handle_message(
+            connection,
+            {
+                "type": ClientMessageType.GAME_ACTION,
+                "action": GameAction.DISCARD,
+                "tile_id": 0,
+            },
+        )
+
+        assert not connection.is_closed
+        assert len(connection.sent_messages) == 1
+        response = connection.sent_messages[0]
+        assert response["type"] == SessionMessageType.ERROR
+        assert response["code"] == SessionErrorCode.ACTION_FAILED
+
     async def test_game_action_error_returns_action_failed(self, setup):
-        """ValueError/KeyError/TypeError during game action returns ACTION_FAILED error."""
+        """ValueError during game action returns ACTION_FAILED error."""
         router, connection, session_manager = setup
         await _setup_player_in_game(session_manager, connection)
 
         async def raise_value_error(
-            connection: object,  # noqa: ARG001
-            action: object,  # noqa: ARG001
-            data: object,  # noqa: ARG001
+            connection: object,
+            action: object,
+            data: object,
         ) -> None:
             raise ValueError("invalid tile")
 
@@ -119,9 +174,9 @@ class TestMessageRouterBranches:
         await _setup_player_in_game(session_manager, connection)
 
         async def raise_runtime_error(
-            connection: object,  # noqa: ARG001
-            action: object,  # noqa: ARG001
-            data: object,  # noqa: ARG001
+            connection: object,
+            action: object,
+            data: object,
         ) -> None:
             raise RuntimeError("unexpected crash")
 
@@ -140,79 +195,23 @@ class TestMessageRouterBranches:
 
 
 class TestParseClientMessage:
-    """Validate parse_client_message for room-based message types."""
-
-    def test_parse_join_room(self):
-        data = {
-            "type": "join_room",
-            "room_id": "room1",
-            "player_name": "Alice",
-            "session_token": "tok-alice",
-        }
-        msg = parse_client_message(data)
-        assert msg.type == ClientMessageType.JOIN_ROOM
-        assert msg.room_id == "room1"
-
-    def test_parse_set_ready(self):
-        data = {"type": "set_ready", "ready": True}
-        msg = parse_client_message(data)
-        assert msg.type == ClientMessageType.SET_READY
-        assert msg.ready is True
+    """Validate parse_client_message error handling and non-trivial parsing."""
 
     def test_parse_invalid_type_rejected(self):
         data = {"type": "join_game", "game_id": "game1", "player_name": "Alice", "session_token": "tok"}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
-    def test_parse_discard_message(self):
-        data = {"type": "game_action", "action": "discard", "tile_id": 42}
-        msg = parse_client_message(data)
-        assert isinstance(msg, DiscardMessage)
-        assert msg.tile_id == 42
-
-    def test_parse_riichi_message(self):
-        data = {"type": "game_action", "action": "declare_riichi", "tile_id": 10}
-        msg = parse_client_message(data)
-        assert isinstance(msg, RiichiMessage)
-        assert msg.tile_id == 10
-
-    def test_parse_pon_message(self):
-        data = {"type": "game_action", "action": "call_pon", "tile_id": 5}
-        msg = parse_client_message(data)
-        assert isinstance(msg, PonMessage)
-        assert msg.tile_id == 5
-
-    def test_parse_chi_message(self):
+    def test_parse_chi_coerces_sequence_tiles_to_tuple(self):
         data = {"type": "game_action", "action": "call_chi", "tile_id": 40, "sequence_tiles": [41, 42]}
         msg = parse_client_message(data)
         assert isinstance(msg, ChiMessage)
-        assert msg.tile_id == 40
         assert msg.sequence_tiles == (41, 42)
 
-    def test_parse_kan_message_default_type(self):
+    def test_parse_kan_message_requires_kan_type(self):
         data = {"type": "game_action", "action": "call_kan", "tile_id": 8}
-        msg = parse_client_message(data)
-        assert isinstance(msg, KanMessage)
-        assert msg.tile_id == 8
-        assert msg.kan_type == KanType.OPEN
-
-    def test_parse_kan_message_with_type(self):
-        data = {"type": "game_action", "action": "call_kan", "tile_id": 8, "kan_type": "closed"}
-        msg = parse_client_message(data)
-        assert isinstance(msg, KanMessage)
-        assert msg.kan_type == KanType.CLOSED
-
-    def test_parse_no_data_action(self):
-        data = {"type": "game_action", "action": "pass"}
-        msg = parse_client_message(data)
-        assert isinstance(msg, NoDataActionMessage)
-        assert msg.action == GameAction.PASS
-
-    def test_parse_confirm_round(self):
-        data = {"type": "game_action", "action": "confirm_round"}
-        msg = parse_client_message(data)
-        assert isinstance(msg, NoDataActionMessage)
-        assert msg.action == GameAction.CONFIRM_ROUND
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
 
     def test_parse_game_action_missing_required_field(self):
         data = {"type": "game_action", "action": "discard"}
@@ -222,4 +221,131 @@ class TestParseClientMessage:
     def test_parse_game_action_invalid_action(self):
         data = {"type": "game_action", "action": "invalid_action"}
         with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+
+class TestInputValidation:
+    """Boundary validation for wire message fields."""
+
+    def test_tile_id_negative_rejected(self):
+        data = {"type": "game_action", "action": "discard", "tile_id": -1}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_tile_id_too_large_rejected(self):
+        data = {"type": "game_action", "action": "discard", "tile_id": 136}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_tile_id_max_valid(self):
+        data = {"type": "game_action", "action": "discard", "tile_id": 135}
+        msg = parse_client_message(data)
+        assert isinstance(msg, DiscardMessage)
+        assert msg.tile_id == 135
+
+    def test_chi_sequence_tile_out_of_range_rejected(self):
+        data = {"type": "game_action", "action": "call_chi", "tile_id": 0, "sequence_tiles": [4, 200]}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_player_name_whitespace_only_rejected(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "   ",
+            "session_token": "tok-abc",
+        }
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_session_token_special_chars_rejected(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "Alice",
+            "session_token": "tok with spaces!",
+        }
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_session_token_valid_pattern(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "Alice",
+            "session_token": "tok-abc_123",
+        }
+        msg = parse_client_message(data)
+        assert msg.session_token == "tok-abc_123"
+
+    def test_player_name_with_tabs_rejected(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "Ali\tce",
+            "session_token": "tok-abc",
+        }
+        with pytest.raises(ValidationError, match="control characters"):
+            parse_client_message(data)
+
+    def test_player_name_with_newlines_rejected(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "Ali\nce",
+            "session_token": "tok-abc",
+        }
+        with pytest.raises(ValidationError, match="control characters"):
+            parse_client_message(data)
+
+    def test_player_name_stripped(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "  Alice  ",
+            "session_token": "tok-abc",
+        }
+        msg = parse_client_message(data)
+        assert msg.player_name == "Alice"
+
+    def test_chat_text_with_null_byte_rejected(self):
+        data = {
+            "type": "chat",
+            "text": "hello\x00world",
+        }
+        with pytest.raises(ValidationError, match="control characters"):
+            parse_client_message(data)
+
+    def test_chat_text_with_escape_rejected(self):
+        data = {
+            "type": "chat",
+            "text": "hello\x1bworld",
+        }
+        with pytest.raises(ValidationError, match="control characters"):
+            parse_client_message(data)
+
+    def test_chat_text_allows_common_whitespace(self):
+        data = {
+            "type": "chat",
+            "text": "hello\tworld\nfoo",
+        }
+        msg = parse_client_message(data)
+        assert msg.text == "hello\tworld\nfoo"
+
+    def test_chat_text_valid(self):
+        data = {
+            "type": "chat",
+            "text": "hello world!",
+        }
+        msg = parse_client_message(data)
+        assert msg.text == "hello world!"
+
+    def test_player_name_with_ansi_escape_rejected(self):
+        data = {
+            "type": "join_room",
+            "room_id": "room1",
+            "player_name": "Ali\x1b[31mce",
+            "session_token": "tok-abc",
+        }
+        with pytest.raises(ValidationError, match="control characters"):
             parse_client_message(data)

@@ -10,7 +10,12 @@ Dead wall layout (14 tiles as 7 stacks of 2):
 
   Dora indicators: top row indices 2, 3, 4, 5, 6
   Ura dora: bottom row indices 7, 8, 9, 10, 11
-  Replacement draws: from index 13 (end) via pop()
+  Replacement draws: indices 13, 12, 11, 10 (drawn right-to-left)
+
+Note: Rinshan replacement draws (indices 10-13) overlap with ura dora positions
+(indices 10-11). The ura dora tiles are captured eagerly into the
+ura_dora_indicators tuple at wall creation to prevent corruption when
+replenishment overwrites those positions.
 """
 
 from pydantic import BaseModel, ConfigDict
@@ -23,6 +28,8 @@ DEAD_WALL_SIZE = 14
 FIRST_DORA_INDEX = 2
 MAX_DORA_INDICATORS = 5
 URA_DORA_START_INDEX = 7
+RINSHAN_START_INDEX = 13  # Rinshan draws start from here and go left (13, 12, 11, 10)
+MAX_RINSHAN_DRAWS = 4
 NUM_PLAYERS = 4
 TILES_PER_DEAL_BLOCK = 4
 DEAL_BLOCKS = 3
@@ -54,8 +61,21 @@ class Wall(BaseModel):
     live_tiles: tuple[int, ...] = ()
     dead_wall_tiles: tuple[int, ...] = ()
     dora_indicators: tuple[int, ...] = ()
+    ura_dora_indicators: tuple[int, ...] = ()
     pending_dora_count: int = 0
+    rinshan_draws_count: int = 0
     dice: tuple[int, int] = (1, 1)  # Two dice values (each 1-6), default (1,1) for tests
+
+
+def _extract_ura_dora(dead_wall_tiles: tuple[int, ...]) -> tuple[int, ...]:
+    """Extract ura dora tiles from the dead wall at creation time.
+
+    Captures tiles at bottom-row positions 7-11, corresponding to the
+    dora indicator positions 2-6. Stored eagerly because rinshan
+    replacement draws can overwrite positions 10-11.
+    """
+    ura_end = URA_DORA_START_INDEX + MAX_DORA_INDICATORS
+    return tuple(dead_wall_tiles[i] for i in range(URA_DORA_START_INDEX, min(ura_end, len(dead_wall_tiles))))
 
 
 def compute_wall_break_info(dice: tuple[int, int], dealer_seat: int) -> WallBreakInfo:
@@ -78,7 +98,9 @@ def compute_wall_break_info(dice: tuple[int, int], dealer_seat: int) -> WallBrea
 
 
 def _split_wall_by_dice(
-    tiles: list[int], dice: tuple[int, int], dealer_seat: int
+    tiles: list[int],
+    dice: tuple[int, int],
+    dealer_seat: int,
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """
     Split 136 shuffled tiles into live wall and dead wall based on dice break position.
@@ -93,11 +115,13 @@ def _split_wall_by_dice(
       top row:    [0]  [1]  [2]  [3]  [4]  [5]  [6]    <- tops of 7 stacks
       bottom row: [7]  [8]  [9]  [10] [11] [12] [13]   <- bottoms of 7 stacks
       Dora indicators: indices 2, 3, 4, 5, 6
-      Rinshan draws: from index 13 via pop()
+      Rinshan draws: indices 13, 12, 11, 10 (right-to-left)
 
     Live wall: tiles in dealing order (top, bottom per stack, starting from
     the stack left of the break going counter-clockwise).
     """
+    if len(tiles) != TOTAL_WALL_SIZE:
+        raise ValueError(f"Expected {TOTAL_WALL_SIZE} tiles, got {len(tiles)}")
     break_info = compute_wall_break_info(dice, dealer_seat)
     break_stack = break_info.break_stack
 
@@ -105,7 +129,7 @@ def _split_wall_by_dice(
     dead_stacks = [(break_stack + i) % TOTAL_STACKS for i in range(DEAD_WALL_STACKS)]
     dead_wall_tiles = tuple(
         [tiles[s * 2] for s in dead_stacks]  # top row
-        + [tiles[s * 2 + 1] for s in dead_stacks]  # bottom row
+        + [tiles[s * 2 + 1] for s in dead_stacks],  # bottom row
     )
 
     # Live wall: 61 stacks from (break-1) going left (decreasing, wrapping)
@@ -129,6 +153,7 @@ def create_wall(seed: str, round_number: int, dealer_seat: int) -> Wall:
         live_tiles=live_tiles,
         dead_wall_tiles=dead_wall_tiles,
         dora_indicators=dora_indicators,
+        ura_dora_indicators=_extract_ura_dora(dead_wall_tiles),
         dice=dice,
     )
 
@@ -157,6 +182,7 @@ def create_wall_from_tiles(tiles: list[int], dice: tuple[int, int] = (1, 1)) -> 
         live_tiles=live_tiles,
         dead_wall_tiles=dead_wall_tiles,
         dora_indicators=dora_indicators,
+        ura_dora_indicators=_extract_ura_dora(dead_wall_tiles),
         dice=dice,
     )
 
@@ -209,28 +235,32 @@ def draw_tile(wall: Wall) -> tuple[Wall, int | None]:
 
 def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
     """
-    Draw replacement tile from end of dead wall.
+    Draw replacement tile from the dead wall after kan declaration.
 
-    Pops the last tile from the dead wall. If the live wall is not empty,
-    replenishes the dead wall by moving the last tile from the live wall
-    to the end of the dead wall to maintain its size.
+    Draws are taken from right to left: indices 13, 12, 11, 10 for
+    successive kan declarations. After drawing, replenishes the dead
+    wall by moving the last tile from the live wall to the drawn
+    position to maintain the dead wall size.
     """
-    if not wall.dead_wall_tiles:
-        raise InvalidActionError("Dead wall is empty")
+    if wall.rinshan_draws_count >= MAX_RINSHAN_DRAWS:
+        raise InvalidActionError("No more rinshan draw positions available")
+    draw_index = RINSHAN_START_INDEX - wall.rinshan_draws_count
 
+    tile = wall.dead_wall_tiles[draw_index]
+    if not wall.live_tiles:
+        raise InvalidActionError("Cannot draw from dead wall: live wall is empty for replenishment")
     dead = list(wall.dead_wall_tiles)
-    tile = dead.pop()
     live = list(wall.live_tiles)
 
-    # Replenish dead wall from end of live wall if possible
-    if live:
-        dead.append(live.pop())
+    # Replenish drawn position from end of live wall
+    dead[draw_index] = live.pop()
 
     new_wall = wall.model_copy(
         update={
             "dead_wall_tiles": tuple(dead),
             "live_tiles": tuple(live),
-        }
+            "rinshan_draws_count": wall.rinshan_draws_count + 1,
+        },
     )
     return new_wall, tile
 
@@ -266,6 +296,12 @@ def reveal_pending_dora(wall: Wall) -> tuple[Wall, list[int]]:
 
 def increment_pending_dora(wall: Wall) -> Wall:
     """Increment pending dora count by 1 (for deferred kan dora)."""
+    total = len(wall.dora_indicators) + wall.pending_dora_count + 1
+    if total > MAX_DORA_INDICATORS:
+        raise InvalidActionError(
+            f"Cannot exceed {MAX_DORA_INDICATORS} dora indicators "
+            f"(current: {len(wall.dora_indicators)}, pending: {wall.pending_dora_count})",
+        )
     return wall.model_copy(update={"pending_dora_count": wall.pending_dora_count + 1})
 
 
@@ -279,21 +315,19 @@ def tiles_remaining(wall: Wall) -> int:
     return len(wall.live_tiles)
 
 
-def collect_ura_dora_indicators(wall: Wall, *, include_kan_ura: bool, num_dora: int) -> list[int]:
+def collect_ura_dora_indicators(wall: Wall, *, include_kan_ura: bool) -> list[int]:
     """
     Get ura dora indicator tile IDs for riichi winners.
 
+    Uses the eagerly stored ura_dora_indicators tuple (captured at wall
+    creation) so that rinshan replenishment cannot corrupt the values.
+
     When include_kan_ura is False, return only 1 ura dora indicator.
-    When True, return one per revealed dora indicator (up to num_dora).
-    Returns empty list if dead wall or dora indicators are empty.
+    When True, return one per revealed dora indicator.
+    Returns empty list if no ura dora or dora indicators are available.
     """
-    if not wall.dead_wall_tiles or not wall.dora_indicators:
+    if not wall.ura_dora_indicators or not wall.dora_indicators:
         return []
 
-    ura_count = 1 if not include_kan_ura else num_dora
-    indicators: list[int] = []
-    for i in range(ura_count):
-        ura_index = URA_DORA_START_INDEX + i
-        if ura_index < len(wall.dead_wall_tiles):
-            indicators.append(wall.dead_wall_tiles[ura_index])
-    return indicators
+    ura_count = 1 if not include_kan_ura else len(wall.dora_indicators)
+    return list(wall.ura_dora_indicators[:ura_count])

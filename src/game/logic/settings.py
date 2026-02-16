@@ -142,6 +142,18 @@ class GameSettings(BaseModel):
 SUPPORTED_NUM_PLAYERS = 4
 
 
+def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
+    """Validate timer-related settings are within acceptable ranges."""
+    if settings.initial_bank_seconds <= 0:
+        errors.append("initial_bank_seconds must be positive")
+    if settings.round_bonus_seconds < 0:
+        errors.append("round_bonus_seconds must be non-negative")
+    if settings.meld_decision_seconds <= 0:
+        errors.append("meld_decision_seconds must be positive")
+    if settings.round_advance_timeout_seconds <= 0:
+        errors.append("round_advance_timeout_seconds must be positive")
+
+
 def validate_settings(settings: GameSettings) -> None:
     """Validate that all settings values are supported by the engine.
 
@@ -161,6 +173,14 @@ def validate_settings(settings: GameSettings) -> None:
 
     if not settings.tie_break_by_seat_order:
         errors.append("tie_break_by_seat_order=False is not supported (no alternative tie-break strategy)")
+
+    if len(settings.uma) != settings.num_players:
+        errors.append(f"uma must have {settings.num_players} entries, got {len(settings.uma)}")
+
+    if sum(settings.uma) != 0:
+        errors.append(f"uma values must sum to zero, got {sum(settings.uma)}")
+
+    _validate_timer_settings(settings, errors)
 
     if errors:
         raise UnsupportedSettingsError("; ".join(errors))

@@ -16,6 +16,7 @@ from game.logic.round import (
 )
 from game.logic.scoring import (
     HandResult,
+    ScoringContext,
     apply_double_ron_score,
     calculate_hand_value,
     calculate_hand_value_with_tiles,
@@ -153,7 +154,10 @@ class TestApplyDoubleRonWithPao:
 
         winners = [(0, hand_result_0), (2, hand_result_2)]
         new_round, _new_game, result = apply_double_ron_score(
-            game_state, winners=winners, loser_seat=1, winning_tile=0
+            game_state,
+            winners=winners,
+            loser_seat=1,
+            winning_tile=0,
         )
 
         # seat 0's 32000: split 50/50 between loser(1) and pao(3) -> 16000 each
@@ -290,7 +294,8 @@ class TestCalculateHandValueErrors:
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles), score=25000)
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, bad_tiles[0], settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, bad_tiles[0])
 
         assert result.error is not None
 
@@ -301,14 +306,8 @@ class TestCalculateHandValueErrors:
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles), score=25000)
 
         settings = GameSettings()
-        result = calculate_hand_value_with_tiles(
-            player,
-            round_state,
-            list(bad_tiles),
-            bad_tiles[0],
-            settings,
-            is_tsumo=False,
-        )
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value_with_tiles(ctx, list(bad_tiles), bad_tiles[0])
 
         assert result.error is not None
 
@@ -327,14 +326,8 @@ class TestCalculateHandValueErrors:
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), is_riichi=True, score=25000)
 
         settings = GameSettings()
-        result = calculate_hand_value_with_tiles(
-            player,
-            round_state,
-            list(tiles),
-            win_tile,
-            settings,
-            is_tsumo=False,
-        )
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value_with_tiles(ctx, list(tiles), win_tile)
 
         # should succeed (valid hand) and riichi yaku included
         assert result.error is None

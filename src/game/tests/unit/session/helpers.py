@@ -1,10 +1,13 @@
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from game.logic.enums import WindName
 from game.logic.types import GameView, PlayerView
-from game.session.manager import SessionManager
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection
+
+if TYPE_CHECKING:
+    from game.session.manager import SessionManager
 
 
 async def create_started_game(
@@ -39,7 +42,7 @@ async def create_started_game(
 
     # clear message history for clean test assertions
     for conn in connections:
-        conn._outbox.clear()  # noqa: SLF001
+        conn._outbox.clear()
 
     return connections
 
@@ -69,7 +72,7 @@ def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockCo
     """Create a game with a player who has an assigned seat."""
     conn = MockConnection()
     game = Game(game_id="game1")
-    session = manager._session_store.create_session("Alice", "game1")  # noqa: SLF001
+    session = manager._session_store.create_session("Alice", "game1")
     player = Player(
         connection=conn,
         name="Alice",
@@ -78,7 +81,7 @@ def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockCo
         seat=0,
     )
     game.players[conn.connection_id] = player
-    manager._games["game1"] = game  # noqa: SLF001
-    manager._players[conn.connection_id] = player  # noqa: SLF001
-    manager._connections[conn.connection_id] = conn  # noqa: SLF001
+    manager._games["game1"] = game
+    manager._players[conn.connection_id] = player
+    manager._connections[conn.connection_id] = conn
     return game, player, conn

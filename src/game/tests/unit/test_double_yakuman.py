@@ -5,14 +5,18 @@ Tests that suuankou tanki and daisuushii are correctly identified as double yaku
 while regular suuankou stays at single yakuman (13 han).
 """
 
+from typing import TYPE_CHECKING
+
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.scoring import calculate_hand_value
+from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
-from game.logic.state import MahjongGameState
 from game.logic.state_utils import update_player
 from game.tests.conftest import create_game_state, create_player, create_round_state
+
+if TYPE_CHECKING:
+    from game.logic.state import MahjongGameState
 
 
 def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
@@ -54,7 +58,8 @@ class TestSuuankouTankiDoubleYakuman:
         player = round_state.players[1]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han == 26
@@ -77,7 +82,8 @@ class TestSuuankouTankiDoubleYakuman:
         player = round_state.players[1]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han == 13
@@ -114,7 +120,8 @@ class TestDaisuushiiDoubleYakuman:
         player = round_state.players[1]
 
         settings = GameSettings()
-        result = calculate_hand_value(player, round_state, win_tile, settings, is_tsumo=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han == 26

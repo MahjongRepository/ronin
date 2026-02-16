@@ -95,21 +95,22 @@ def discard_tile(
     Discard a tile from a player's hand.
 
     Returns (new_round_state, discard_record).
-    Raises ValueError if tile not in hand or violates kuikae.
+    Raises InvalidDiscardError if tile not in hand or violates kuikae.
     """
     player = round_state.players[seat]
 
     if tile_id not in player.tiles:
-        logger.warning(f"seat {seat} tried to discard tile {tile_id} not in hand, hand={player.tiles}")
+        logger.warning("seat %d tried to discard tile %d not in hand", seat, tile_id)
         raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
 
     # validate kuikae restriction
     if player.kuikae_tiles and tile_to_34(tile_id) in player.kuikae_tiles:
-        logger.warning(f"seat {seat} tried to discard tile {tile_id} forbidden by kuikae restriction")
+        logger.warning("seat %d tried to discard tile %d forbidden by kuikae restriction", seat, tile_id)
         raise InvalidDiscardError(f"tile {tile_id} is forbidden by kuikae restriction")
 
-    # check if this is tsumogiri (discarding the just-drawn tile)
-    is_tsumogiri = len(player.tiles) > 0 and player.tiles[-1] == tile_id
+    # Tsumogiri: discarding the just-drawn tile (last in hand).
+    # After a meld call (pon/chi), no tile was drawn, so tsumogiri is impossible.
+    is_tsumogiri = not round_state.is_after_meld_call and player.tiles[-1] == tile_id
 
     # create discard record
     discard = Discard(
@@ -123,7 +124,7 @@ def discard_tile(
     new_state = add_discard_to_player(new_state, seat, discard)
     new_state = update_all_discards(new_state, tile_id)
 
-    # clear player flags
+    # clear player and round flags
     new_state = update_player(
         new_state,
         seat,
@@ -132,6 +133,8 @@ def discard_tile(
         is_rinshan=False,
         kuikae_tiles=(),
     )
+    if round_state.is_after_meld_call:
+        new_state = new_state.model_copy(update={"is_after_meld_call": False})
 
     return new_state, discard
 
@@ -245,9 +248,8 @@ def _is_pure_karaten(
     # count tiles in player's hand + melds
     tile_counts = hand_to_34_array(tiles)
     for meld in melds:
-        if meld.tiles:
-            for t in meld.tiles:
-                tile_counts[tile_to_34(t)] += 1
+        for t in meld.tiles:
+            tile_counts[tile_to_34(t)] += 1
 
     # pure karaten: ALL waiting tiles have all 4 copies in player's possession
     return all(tile_counts[t34] >= MAX_TILE_COPIES for t34 in waiting)
@@ -267,9 +269,9 @@ def process_exhaustive_draw(
     apply_nagashi_mangan_score(). Otherwise calculates noten payments:
     3000 points total split from noten players to tempai players.
     - If all 4 tempai or all 4 noten: no payment
-    - 1 tempai, 3 noten: each noten pays 1000 to tempai
-    - 2 tempai, 2 noten: each noten pays 1500 to each tempai (750 each)
-    - 3 tempai, 1 noten: noten pays 1000 to each tempai
+    - 1 tempai, 3 noten: each noten pays 1000, tempai receives 3000
+    - 2 tempai, 2 noten: each noten pays 1500, each tempai receives 1500
+    - 3 tempai, 1 noten: noten pays 3000, each tempai receives 1000
     """
     round_state = game_state.round_state
 
@@ -286,7 +288,7 @@ def process_exhaustive_draw(
                     seat=player.seat,
                     closed_tiles=list(player.tiles),
                     melds=[meld_to_view(m) for m in player.melds],
-                )
+                ),
             )
         else:
             noten_seats.append(player.seat)

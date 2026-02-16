@@ -16,8 +16,8 @@ from game.logic.action_handlers import (
 )
 from game.logic.action_result import ActionResult
 from game.logic.call_resolution import (
-    _pick_best_meld_response,
     complete_added_kan_after_chankan_decline,
+    pick_best_meld_response,
     resolve_call_prompt,
 )
 from game.logic.enums import (
@@ -73,7 +73,7 @@ def _create_frozen_game_state() -> MahjongGameState:
 
 class TestPickBestMeldResponse:
     def test_pick_best_meld_with_meld_callers(self):
-        """Test _pick_best_meld_response with MeldCaller objects."""
+        """Test pick_best_meld_response with MeldCaller objects."""
         # create a prompt with MeldCaller objects
         tile_id = 0
         prompt = PendingCallPrompt(
@@ -93,7 +93,7 @@ class TestPickBestMeldResponse:
             CallResponse(seat=2, action=GameAction.CALL_CHI),
         ]
 
-        best = _pick_best_meld_response(responses, prompt)
+        best = pick_best_meld_response(responses, prompt)
 
         # pon has higher priority (1) than chi (2)
         assert best is not None
@@ -124,7 +124,7 @@ class TestResolveMeldResponse:
                     pending_dora_count=round_state.wall.pending_dora_count,
                 ),
                 "phase": RoundPhase.PLAYING,
-            }
+            },
         )
 
         # give player 1 three matching tiles for open kan
@@ -290,7 +290,10 @@ class TestCompleteAddedKanAfterChankanDecline:
 
         # complete the 4th kan (added kan)
         new_round_state, _new_game_state, events = complete_added_kan_after_chankan_decline(
-            round_state, game_state, caller_seat=0, tile_id=fourth_tile
+            round_state,
+            game_state,
+            caller_seat=0,
+            tile_id=fourth_tile,
         )
 
         # verify abortive draw for four kans
@@ -309,7 +312,7 @@ class TestHandleTsumoInvalidHand:
 
         # give the current player a non-winning hand
         non_winning_tiles = tuple(
-            TilesConverter.string_to_136_array(man="13579", pin="1357", sou="135", honors="12")
+            TilesConverter.string_to_136_array(man="13579", pin="1357", sou="135", honors="12"),
         )
         round_state = update_player(round_state, seat, tiles=non_winning_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -466,7 +469,10 @@ class TestHandleKanMultiCaller:
 
         # seat 1 calls open kan
         result = handle_kan(
-            round_state, game_state, seat=1, data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN)
+            round_state,
+            game_state,
+            seat=1,
+            data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
 
         # verify empty events (waiting for seat 2)
@@ -617,7 +623,10 @@ class TestHandleKanChankanOpportunity:
 
         # player 0 declares added kan on the 4th 1m tile
         result = handle_kan(
-            round_state, game_state, seat=0, data=KanActionData(tile_id=fourth_tile, kan_type=KanType.ADDED)
+            round_state,
+            game_state,
+            seat=0,
+            data=KanActionData(tile_id=fourth_tile, kan_type=KanType.ADDED),
         )
 
         # verify chankan prompt is created (handle_kan returns early at line 727)
@@ -692,7 +701,7 @@ class TestDiscardPromptValidation:
             handle_pon(round_state, game_state, seat=2, data=PonActionData(tile_id=tile_id))
 
 
-class TestChankanRiichiFuritenOnPass:
+class TestChankanRiechiFuritenOnPass:
     """Riichi player passing on chankan gets riichi furiten."""
 
     def test_riichi_player_passing_chankan_gets_riichi_furiten(self):
@@ -721,3 +730,25 @@ class TestChankanRiichiFuritenOnPass:
 
         assert result.new_round_state is not None
         assert result.new_round_state.players[1].is_riichi_furiten is True
+
+
+class TestOpenKanNoPromptSoftError:
+    """Open kan with no pending prompt returns soft error (consistent with pon/chi)."""
+
+    def test_open_kan_no_prompt_returns_error_event(self):
+        """Open kan when no call prompt exists returns error event, not exception."""
+        game_state = _create_frozen_game_state()
+        round_state = game_state.round_state
+
+        result = handle_kan(
+            round_state,
+            game_state,
+            seat=0,
+            data=KanActionData(tile_id=0, kan_type=KanType.OPEN),
+        )
+
+        assert isinstance(result, ActionResult)
+        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
+        assert len(error_events) == 1
+        assert error_events[0].code == GameErrorCode.INVALID_KAN
+        assert "no pending call prompt" in error_events[0].message

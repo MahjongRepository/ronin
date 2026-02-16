@@ -178,6 +178,4 @@ class TestUnifiedDiscardClaimIntegration:
                 found_discard_prompt = True
                 break
 
-        assert found_discard_prompt, (
-            "expected at least one DISCARD prompt in server state across multiple discards"
-        )
+        assert found_discard_prompt, "expected at least one DISCARD prompt in server state across multiple discards"

@@ -134,8 +134,8 @@ def _bounded_uint64(pcg: PCG64DXSM, bound: int) -> int:
     With 64-bit output and max bound of 136, rejection probability per step is
     ~136/2^64 ≈ 7.4x10^-18 — effectively zero overhead in practice.
     """
-    if bound <= 0:
-        raise ValueError("bound must be positive")
+    if bound <= 0 or bound > (1 << 64):
+        raise ValueError("bound must be in (0, 2^64]")
     limit = (1 << 64) - ((1 << 64) % bound)
     while True:
         r = pcg.next_uint64()

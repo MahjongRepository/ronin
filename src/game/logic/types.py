@@ -210,6 +210,28 @@ class MeldCaller(BaseModel):
     options: tuple[tuple[int, int], ...] | None = None
 
 
+class RonCallInput(BaseModel):
+    """Input data for ron call processing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ron_callers: list[int]
+    tile_id: int
+    discarder_seat: int
+    is_chankan: bool = False
+
+
+class MeldCallInput(BaseModel):
+    """Input data for meld call processing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    caller_seat: int
+    call_type: MeldCallType
+    tile_id: int
+    sequence_tiles: tuple[int, int] | None = None
+
+
 class AIPlayerAction(BaseModel):
     """AI player's chosen action during their turn."""
 
@@ -265,10 +287,5 @@ class GameView(BaseModel):
 
 # discriminated union for all round results
 RoundResult = (
-    TsumoResult
-    | RonResult
-    | DoubleRonResult
-    | ExhaustiveDrawResult
-    | AbortiveDrawResult
-    | NagashiManganResult
+    TsumoResult | RonResult | DoubleRonResult | ExhaustiveDrawResult | AbortiveDrawResult | NagashiManganResult
 )

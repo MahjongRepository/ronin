@@ -7,14 +7,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.logic.round import is_tempai
-from game.logic.settings import GameSettings
-from game.logic.state import MahjongPlayer
 from game.logic.state_utils import update_player
 from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
+    from game.logic.settings import GameSettings
     from game.logic.state import (
         MahjongGameState,
+        MahjongPlayer,
         MahjongRoundState,
     )
 
@@ -73,8 +73,9 @@ def declare_riichi(
     # check for double riichi (daburi)
     # double riichi is possible if:
     # 1. this is the player's first discard (riichi discard already added, so len == 1)
-    # 2. no open melds have been called by anyone
-    is_daburi = len(player.discards) == 1 and len(round_state.players_with_open_hands) == 0
+    # 2. no calls have been made by anyone (including closed kans)
+    no_calls = len(round_state.players_with_open_hands) == 0 and not any(p.melds for p in round_state.players)
+    is_daburi = len(player.discards) == 1 and no_calls
 
     new_round_state = update_player(
         round_state,
@@ -89,7 +90,7 @@ def declare_riichi(
         update={
             "riichi_sticks": game_state.riichi_sticks + 1,
             "round_state": new_round_state,
-        }
+        },
     )
 
     return new_round_state, new_game_state

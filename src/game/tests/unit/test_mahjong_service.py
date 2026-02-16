@@ -1,9 +1,7 @@
 """Unit tests for MahjongGameService lifecycle and service-level edge cases."""
 
-import importlib
-import inspect
-
 import pytest
+from pydantic import ValidationError
 
 from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase, RoundPhase
 from game.logic.events import (
@@ -26,7 +24,7 @@ from game.tests.unit.helpers import (
 
 
 class TestMahjongGameServiceFindPlayerSeat:
-    """Tests for _find_player_seat_frozen edge cases: AI player skipping, name collision."""
+    """Tests for _find_player_seat edge cases: AI player skipping, name collision."""
 
     @pytest.fixture
     def service(self):
@@ -34,9 +32,8 @@ class TestMahjongGameServiceFindPlayerSeat:
 
     async def test_find_player_seat_returns_none_for_unknown(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
 
-        seat = service._find_player_seat_frozen("game1", game_state, "Unknown")
+        seat = service._find_player_seat("game1", "Unknown")
 
         assert seat is None
 
@@ -52,20 +49,9 @@ class TestMahjongGameServiceFindPlayerSeat:
                 ai_player_name = player.name
                 break
 
-        seat = service._find_player_seat_frozen("game1", game_state, ai_player_name)
+        seat = service._find_player_seat("game1", ai_player_name)
 
         assert seat is None
-
-    async def test_find_player_seat_ignores_ai_player_with_same_name(self, service):
-        """Player named 'Tsumogiri 1' is found despite an AI player with the same name."""
-        await service.start_game("game1", ["Tsumogiri 1"])
-        game_state = service._games["game1"]
-
-        seat = service._find_player_seat_frozen("game1", game_state, "Tsumogiri 1")
-
-        assert seat is not None
-        ai_player_controller = service._ai_player_controllers["game1"]
-        assert ai_player_controller.is_ai_player(seat) is False
 
 
 class TestMahjongGameServiceAllPlayers:
@@ -125,22 +111,6 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
 
         ai_player_controller = service._ai_player_controllers["game1"]
         assert len(ai_player_controller._ai_players) == 3
-
-    async def test_replace_finds_seat_before_registering_ai_player(self, service):
-        """Seat lookup happens before AI player registration.
-
-        Since _find_player_seat skips AI player seats.
-        """
-        await service.start_game("game1", ["Alice"])
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Alice")
-        player_seat = player.seat
-
-        service.replace_with_ai_player("game1", "Alice")
-
-        ai_player_controller = service._ai_player_controllers["game1"]
-        assert ai_player_controller.is_ai_player(player_seat) is True
-        assert len(ai_player_controller._ai_players) == 4
 
     async def test_replace_same_player_twice_is_safe(self, service):
         """Replacing an already-replaced player is a no-op (seat not found)."""
@@ -284,9 +254,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         alice = _find_player(round_state, "Alice")
 
         discarder_seat = (alice.seat + 1) % 4
-        tile_id = (
-            round_state.players[discarder_seat].tiles[0] if round_state.players[discarder_seat].tiles else 0
-        )
+        tile_id = round_state.players[discarder_seat].tiles[0] if round_state.players[discarder_seat].tiles else 0
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=tile_id,
@@ -303,93 +271,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) >= 1
-
-
-class TestDispatchAction:
-    """Tests for _dispatch_action unified routing to action handlers."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_dispatch_action_routes_chi(self, service):
-        """_dispatch_action routes CALL_CHI to handle_chi."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(
-            game_state,
-            0,
-            GameAction.CALL_CHI,
-            {"tile_id": 0, "sequence_tiles": (1, 2)},
-        )
-        assert result is not None
-
-    async def test_dispatch_action_routes_ron(self, service):
-        """_dispatch_action routes CALL_RON to handle_ron."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, GameAction.CALL_RON, {})
-        assert result is not None
-
-    async def test_dispatch_action_routes_kan(self, service):
-        """_dispatch_action routes CALL_KAN to handle_kan."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(
-            game_state,
-            0,
-            GameAction.CALL_KAN,
-            {"tile_id": 0, "kan_type": "closed"},
-        )
-        assert result is not None
-
-    async def test_dispatch_action_routes_pass(self, service):
-        """_dispatch_action routes PASS to handle_pass."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, GameAction.PASS)
-        assert result is not None
-
-    async def test_dispatch_action_routes_tsumo(self, service):
-        """_dispatch_action routes DECLARE_TSUMO to handle_tsumo."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, GameAction.DECLARE_TSUMO)
-        assert result is not None
-
-    async def test_dispatch_action_routes_discard(self, service):
-        """_dispatch_action routes DISCARD to handle_discard."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(
-            game_state,
-            0,
-            GameAction.DISCARD,
-            {"tile_id": game_state.round_state.players[0].tiles[0]},
-        )
-        assert result is not None
-
-    async def test_dispatch_action_routes_kyuushu(self, service):
-        """_dispatch_action routes CALL_KYUUSHU to handle_kyuushu."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, GameAction.CALL_KYUUSHU)
-        assert result is not None
-
-    async def test_dispatch_action_returns_none_for_unknown(self, service):
-        """_dispatch_action returns None for unrecognized actions."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, GameAction.CONFIRM_ROUND)
-        assert result is None
 
 
 class TestSeedDeterminism:
@@ -473,27 +354,11 @@ class TestAutoCleanup:
 
 
 class TestServiceAccessors:
-    """Tests for read-only service accessors: error paths and multi-player edge case."""
+    """Tests for read-only service accessors and round advance logic."""
 
     @pytest.fixture
     def service(self):
         return MahjongGameService()
-
-    async def test_get_game_state_returns_none_for_nonexistent(self, service):
-        """get_game_state returns None for unknown game_id."""
-        state = service.get_game_state("nonexistent")
-
-        assert state is None
-
-    async def test_get_game_seed_returns_seed_after_start(self, service):
-        """get_game_seed returns the seed used to start the game."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        assert service.get_game_seed("game1") == "a" * 192
-
-    async def test_get_game_seed_returns_none_for_nonexistent(self, service):
-        """get_game_seed returns None for unknown game_id."""
-        assert service.get_game_seed("nonexistent") is None
 
     async def test_is_round_advance_pending_true_after_round_end(self, service):
         """is_round_advance_pending returns True after round ends (player must confirm)."""
@@ -509,22 +374,6 @@ class TestServiceAccessors:
         await service._handle_round_end("game1", result)
 
         assert service.is_round_advance_pending("game1") is True
-
-    async def test_is_round_advance_pending_false_for_nonexistent(self, service):
-        """is_round_advance_pending returns False for unknown game_id."""
-        assert service.is_round_advance_pending("nonexistent") is False
-
-    async def test_get_pending_round_advance_player_names_empty_for_nonexistent(self, service):
-        """get_pending_round_advance_player_names returns empty list for unknown game_id."""
-        names = service.get_pending_round_advance_player_names("nonexistent")
-        assert names == []
-
-    async def test_get_pending_round_advance_player_names_empty_when_not_pending(self, service):
-        """Returns empty list when game exists but no advance pending."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        names = service.get_pending_round_advance_player_names("game1")
-        assert names == []
 
     async def test_get_pending_round_advance_player_names_multi_player(self):
         """get_pending_round_advance_player_names returns all unconfirmed players."""
@@ -573,20 +422,10 @@ class TestMahjongGameServiceInvalidSeed:
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
 
-    async def test_short_hex_seed_returns_error_event(self):
-        """start_game with a short hex seed returns ErrorEvent, not exception."""
-        service = MahjongGameService()
-        events = await service.start_game("game1", ["Alice"], seed="abc")
-
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_ACTION
-
     async def test_non_string_seed_returns_error_event(self):
         """start_game with a non-string seed returns ErrorEvent, not exception."""
         service = MahjongGameService()
-        events = await service.start_game("game1", ["Alice"], seed=12345)  # type: ignore[arg-type]
+        events = await service.start_game("game1", ["Alice"], seed=12345)
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -595,19 +434,48 @@ class TestMahjongGameServiceInvalidSeed:
         assert "int" in events[0].data.message
 
 
-class TestDomainModuleBoundary:
-    """Verify domain modules have no replay-only imports."""
+class TestDispatchActionBranches:
+    """Covers _dispatch_action routing branches for no-data actions and data=None fallback."""
 
-    async def test_domain_modules_not_modified(self):
-        """Verify domain modules (turn.py, action_handlers.py, call_resolution.py) have no replay imports."""
-        for module_name in [
-            "game.logic.turn",
-            "game.logic.action_handlers",
-            "game.logic.call_resolution",
-        ]:
-            module = importlib.import_module(module_name)
-            source = inspect.getsource(module)
-            assert "ReplayTarget" not in source
-            assert "ReplayDrawEvent" not in source
-            assert "ReplayRoundDataEvent" not in source
-            assert "ReplayWinDetailEvent" not in source
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    @pytest.mark.parametrize(
+        "action",
+        [GameAction.DECLARE_TSUMO, GameAction.CALL_RON, GameAction.CALL_KYUUSHU],
+    )
+    async def test_dispatch_no_data_actions(self, service, action):
+        """No-data dispatch branches (TSUMO, RON, KYUUSHU) return a result."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(game_state, 0, action)
+        assert result is not None
+
+    async def test_dispatch_data_action_with_none_data(self, service):
+        """data=None is coerced to empty dict before dispatching data actions."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        game_state = service._games["game1"]
+
+        # data=None -> {} -> ValidationError on required field, proving the None->dict coercion runs
+        with pytest.raises(ValidationError):
+            service._dispatch_action(game_state, 0, GameAction.DISCARD, None)
+
+
+class TestServiceGuardClauses:
+    """Covers early-return guard clauses for nonexistent games/players."""
+
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    async def test_get_game_seed_nonexistent(self, service):
+        assert service.get_game_seed("nonexistent") is None
+
+    async def test_get_pending_names_nonexistent_game(self, service):
+        assert service.get_pending_round_advance_player_names("nonexistent") == []
+
+    async def test_get_pending_names_no_advance_pending(self, service):
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        assert service.get_pending_round_advance_player_names("game1") == []

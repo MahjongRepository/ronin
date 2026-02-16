@@ -1,10 +1,14 @@
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 from game.logic.enums import GameAction, KanType
 from game.session.room import RoomPlayerInfo
+
+# ASCII control character boundaries for input validation
+_SPACE_ORD = 0x20
+_DEL_ORD = 0x7F
 
 
 class ClientMessageType(StrEnum):
@@ -47,7 +51,17 @@ class JoinRoomMessage(BaseModel):
     type: Literal[ClientMessageType.JOIN_ROOM] = ClientMessageType.JOIN_ROOM
     room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     player_name: str = Field(min_length=1, max_length=50)
-    session_token: str = Field(min_length=1, max_length=100)
+    session_token: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_\-]+$")
+
+    @field_validator("player_name")
+    @classmethod
+    def _validate_player_name(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("player_name must not be blank")
+        if any(ord(c) < _SPACE_ORD or ord(c) == _DEL_ORD for c in stripped):
+            raise ValueError("player_name must not contain control characters")
+        return stripped
 
 
 class LeaveRoomMessage(BaseModel):
@@ -59,36 +73,42 @@ class SetReadyMessage(BaseModel):
     ready: bool
 
 
+_TILE_ID_FIELD = Field(ge=0, lt=136)
+
+
 class DiscardMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
     action: Literal[GameAction.DISCARD] = GameAction.DISCARD
-    tile_id: int
+    tile_id: int = _TILE_ID_FIELD
 
 
 class RiichiMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
     action: Literal[GameAction.DECLARE_RIICHI] = GameAction.DECLARE_RIICHI
-    tile_id: int
+    tile_id: int = _TILE_ID_FIELD
 
 
 class PonMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
     action: Literal[GameAction.CALL_PON] = GameAction.CALL_PON
-    tile_id: int
+    tile_id: int = _TILE_ID_FIELD
 
 
 class ChiMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
     action: Literal[GameAction.CALL_CHI] = GameAction.CALL_CHI
-    tile_id: int
-    sequence_tiles: tuple[int, int]
+    tile_id: int = _TILE_ID_FIELD
+    sequence_tiles: tuple[
+        Annotated[int, Field(ge=0, lt=136)],
+        Annotated[int, Field(ge=0, lt=136)],
+    ]
 
 
 class KanMessage(BaseModel):
     type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
     action: Literal[GameAction.CALL_KAN] = GameAction.CALL_KAN
-    tile_id: int
-    kan_type: KanType = KanType.OPEN
+    tile_id: int = _TILE_ID_FIELD
+    kan_type: KanType
 
 
 class NoDataActionMessage(BaseModel):
@@ -111,6 +131,13 @@ GameActionMessage = Annotated[
 class ChatMessage(BaseModel):
     type: Literal[ClientMessageType.CHAT] = ClientMessageType.CHAT
     text: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("text")
+    @classmethod
+    def _validate_text(cls, v: str) -> str:
+        if any((ord(c) < _SPACE_ORD and c not in ("\t", "\n", "\r")) or ord(c) == _DEL_ORD for c in v):
+            raise ValueError("text must not contain control characters")
+        return v
 
 
 class PingMessage(BaseModel):

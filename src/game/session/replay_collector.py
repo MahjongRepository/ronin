@@ -121,7 +121,10 @@ class ReplayCollector:
         return False
 
     def _inject_seed_if_game_started(
-        self, game_id: str, event: ServiceEvent, payload: dict[str, Any]
+        self,
+        game_id: str,
+        event: ServiceEvent,
+        payload: dict[str, Any],
     ) -> None:
         """Inject the game seed into the replay payload for GameStartedEvent."""
         if isinstance(event.data, GameStartedEvent):
@@ -141,7 +144,13 @@ class ReplayCollector:
         The my_tiles and seat fields are stripped from the merged output since each
         player's tiles are stored directly on the player dict and the per-seat
         perspective is meaningless after merging.
+
+        Assumes the caller passes a non-empty list of RoundStartedEvent entries.
+        All per-seat RoundStartedEvent entries for a round must arrive in a
+        contiguous block within a single collect_events() call.
         """
+        if not events:
+            return "{}"
         tiles_by_seat: dict[int, list[int]] = {}
         base_payload = service_event_payload(events[0])
 
@@ -154,8 +163,8 @@ class ReplayCollector:
             if seat in tiles_by_seat:
                 player_dict["tiles"] = tiles_by_seat[seat]
 
-        del base_payload["my_tiles"]
-        del base_payload["seat"]
+        base_payload.pop("my_tiles", None)
+        base_payload.pop("seat", None)
 
         return json.dumps(base_payload, default=str)
 
@@ -176,7 +185,7 @@ class ReplayCollector:
             version_tag = json.dumps({"version": REPLAY_VERSION})
             content = "\n".join([version_tag, *buffer])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
-        except OSError, ValueError:  # Python 3.14 syntax (PEP 758)
+        except (OSError, ValueError):  # fmt: skip
             logger.exception("Failed to save replay for game %s", game_id)
 
     def cleanup_game(self, game_id: str) -> None:

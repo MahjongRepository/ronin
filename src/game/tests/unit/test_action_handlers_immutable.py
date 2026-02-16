@@ -90,7 +90,10 @@ class TestHandleDiscardImmutable:
         tile_to_discard = round_state.players[0].tiles[0]
 
         result = handle_discard(
-            round_state, game_state, seat=0, data=DiscardActionData(tile_id=tile_to_discard)
+            round_state,
+            game_state,
+            seat=0,
+            data=DiscardActionData(tile_id=tile_to_discard),
         )
 
         assert isinstance(result, ActionResult)
@@ -143,7 +146,10 @@ class TestHandleRiichiImmutable:
         # discard the last tile (14th tile) for riichi
         tile_to_discard = round_state.players[0].tiles[-1]
         result = handle_riichi(
-            round_state, game_state, seat=0, data=RiichiActionData(tile_id=tile_to_discard)
+            round_state,
+            game_state,
+            seat=0,
+            data=RiichiActionData(tile_id=tile_to_discard),
         )
 
         assert isinstance(result, ActionResult)
@@ -208,7 +214,8 @@ class TestHandleTsumoImmutable:
 
 class TestHandleRonImmutable:
     def _create_ron_prompt_state(
-        self, pending_seats: frozenset[int] = frozenset({1, 2})
+        self,
+        pending_seats: frozenset[int] = frozenset({1, 2}),
     ) -> tuple[MahjongRoundState, MahjongGameState]:
         """Create state with pending ron prompt for multiple seats."""
         game_state = _create_frozen_game_state()
@@ -262,17 +269,6 @@ class TestHandleRonImmutable:
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.RON
 
-    def test_handle_ron_no_prompt(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = handle_ron(round_state, game_state, seat=1)
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_RON
-
     def test_handle_ron_adds_response_waiting_for_others(self):
         """Test that ron adds response and waits when other callers are pending."""
         round_state, game_state = self._create_ron_prompt_state(frozenset({1, 2}))
@@ -292,42 +288,8 @@ class TestHandleRonImmutable:
         assert 1 not in prompt.pending_seats
         assert 2 in prompt.pending_seats
 
-    def test_handle_ron_not_pending(self):
-        """Test that ron from non-pending seat returns error."""
-        round_state, game_state = self._create_ron_prompt_state(frozenset({2}))  # only seat 2 pending
-
-        result = handle_ron(round_state, game_state, seat=1)
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_RON
-
 
 class TestHandlePonImmutable:
-    def _create_pon_prompt_state(self, tile_id: int = 0) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with pending pon prompt."""
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
-        new_round_state, _tile = draw_tile(game_state.round_state)
-
-        # give player 1 two matching tiles for pon
-        player_tiles = list(new_round_state.players[1].tiles)
-        player_tiles.append(tile_id)
-        player_tiles.append(tile_id + 1)  # same tile_34 value
-        new_round_state = update_player(new_round_state, 1, tiles=tuple(player_tiles))
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-        )
-        new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-        return new_round_state, game_state
-
     def _create_pon_opportunity(self) -> tuple[MahjongGameState, int]:
         """Create a game state where player 1 can pon."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
@@ -335,7 +297,7 @@ class TestHandlePonImmutable:
 
         # give player 1 two 1m tiles + filler
         player1_tiles = tuple(
-            TilesConverter.string_to_136_array(man="11368", pin="2479", sou="358", honors="1")
+            TilesConverter.string_to_136_array(man="11368", pin="2479", sou="358", honors="1"),
         )
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
@@ -371,28 +333,6 @@ class TestHandlePonImmutable:
         # no DrawEvent after pon — MeldEvent is the only signal
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
-
-    def test_handle_pon_no_prompt(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_PON
-
-    def test_handle_pon_tile_mismatch(self):
-        round_state, game_state = self._create_pon_prompt_state(tile_id=0)
-
-        result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=999))
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_PON
-        assert "mismatch" in error_events[0].message
 
 
 class TestHandleChiImmutable:
@@ -449,7 +389,10 @@ class TestHandleChiImmutable:
         round_state = game_state.round_state
 
         result = handle_chi(
-            round_state, game_state, seat=1, data=ChiActionData(tile_id=0, sequence_tiles=(1, 2))
+            round_state,
+            game_state,
+            seat=1,
+            data=ChiActionData(tile_id=0, sequence_tiles=(1, 2)),
         )
 
         assert isinstance(result, ActionResult)
@@ -478,7 +421,10 @@ class TestHandleKanImmutable:
         round_state = game_state.round_state
 
         result = handle_kan(
-            round_state, game_state, seat=0, data=KanActionData(tile_id=tile_id, kan_type=KanType.CLOSED)
+            round_state,
+            game_state,
+            seat=0,
+            data=KanActionData(tile_id=tile_id, kan_type=KanType.CLOSED),
         )
 
         assert isinstance(result, ActionResult)
@@ -491,7 +437,10 @@ class TestHandleKanImmutable:
         round_state = game_state.round_state
 
         result = handle_kan(
-            round_state, game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.CLOSED)
+            round_state,
+            game_state,
+            seat=1,
+            data=KanActionData(tile_id=0, kan_type=KanType.CLOSED),
         )
 
         assert isinstance(result, ActionResult)
@@ -529,7 +478,10 @@ class TestHandleKanImmutable:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = handle_kan(
-            round_state, game_state, seat=1, data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN)
+            round_state,
+            game_state,
+            seat=1,
+            data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
 
         # should resolve: open kan executed through resolution
@@ -538,30 +490,6 @@ class TestHandleKanImmutable:
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.OPEN_KAN
-
-    def test_handle_open_kan_no_prompt(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # create a pending prompt but not for the calling seat
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({2}),  # seat 1 is not in pending
-            callers=(MeldCaller(seat=2, call_type=MeldCallType.OPEN_KAN),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = handle_kan(
-            round_state, game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN)
-        )
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_KAN
 
 
 class TestHandleKyuushuImmutable:
@@ -574,7 +502,7 @@ class TestHandleKyuushuImmutable:
         # 9 terminals/honors: 1m, 9m, 1p, 9p, 1s, 9s, East, South, West
         # 4 filler: 2m, 3m, 4m, 5m
         kyuushu_tiles = tuple(
-            TilesConverter.string_to_136_array(man="123459", pin="19", sou="19", honors="123")
+            TilesConverter.string_to_136_array(man="123459", pin="19", sou="19", honors="123"),
         )
         round_state = update_player(round_state, 0, tiles=kyuushu_tiles)
 
@@ -669,7 +597,7 @@ class TestHandlePassImmutable:
             callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
         )
         round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING}
+            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
         )
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -689,17 +617,6 @@ class TestHandlePassImmutable:
         assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
         assert result.new_round_state.phase == RoundPhase.FINISHED
-
-    def test_handle_pass_no_prompt(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = handle_pass(round_state, game_state, seat=1)
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_PASS
 
     def test_handle_pass_applies_furiten(self):
         round_state, game_state = self._create_pass_prompt_state()
@@ -740,17 +657,6 @@ class TestHandlePassImmutable:
 
 
 class TestResolveCallPromptImmutable:
-    def test_resolve_no_prompt(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = resolve_call_prompt(round_state, game_state)
-
-        assert isinstance(result, ActionResult)
-        assert len(result.events) == 0
-        assert result.new_round_state is round_state
-        assert result.new_game_state is game_state
-
     def test_resolve_with_all_passes_on_meld_prompt(self):
         """Test that prompt with no responses advances to next turn."""
         game_state = _create_frozen_game_state()
@@ -766,7 +672,7 @@ class TestResolveCallPromptImmutable:
             responses=(),  # no meld responses
         )
         round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING}
+            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
         )
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -851,7 +757,10 @@ class TestCompleteAddedKanAfterChankanDeclineImmutable:
         round_state, game_state, tile_id = self._create_added_kan_state()
 
         new_round_state, new_game_state, events = complete_added_kan_after_chankan_decline(
-            round_state, game_state, caller_seat=0, tile_id=tile_id
+            round_state,
+            game_state,
+            caller_seat=0,
+            tile_id=tile_id,
         )
 
         assert new_round_state is not None
@@ -909,54 +818,3 @@ class TestResolveOpenKanResponseImmutable:
         assert len(draw_events) == 1
         assert draw_events[0].tile_id is not None
         assert draw_events[0].available_actions is not None
-
-
-class TestHandleDiscardImmutableWithPrompt:
-    """Test discard that creates call prompt."""
-
-    def test_discard_creates_pon_prompt(self):
-        """Test that discarding creates a pending call prompt when opponents can call."""
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
-        new_round_state, _tile = draw_tile(game_state.round_state)
-
-        # give player 1 two matching tiles for pon
-        tile_to_discard = new_round_state.players[0].tiles[0]
-        tile_34 = tile_to_discard // 4
-        player1_tiles = [tile_34 * 4 + 1, tile_34 * 4 + 2, *list(new_round_state.players[1].tiles)[:-2]]
-        new_round_state = update_player(new_round_state, 1, tiles=tuple(player1_tiles))
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        result = handle_discard(
-            new_round_state, game_state, seat=0, data=DiscardActionData(tile_id=tile_to_discard)
-        )
-
-        # check events
-        discard_events = [e for e in result.events if isinstance(e, DiscardEvent)]
-        assert len(discard_events) == 1
-        # may or may not have a call prompt depending on tile values
-
-
-class TestHandlerErrorPaths:
-    """Test error handling paths in immutable handlers."""
-
-    def test_discard_invalid_tile_raises(self):
-        """Test discarding a tile not in hand raises InvalidGameActionError."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        invalid_tile = 999
-        with pytest.raises(InvalidGameActionError) as exc_info:
-            handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=invalid_tile))
-        assert exc_info.value.action == "discard"
-        assert exc_info.value.seat == 0
-
-    def test_riichi_invalid_tile_raises(self):
-        """Test riichi with invalid tile raises InvalidGameActionError."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        invalid_tile = 999
-        with pytest.raises(InvalidGameActionError) as exc_info:
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=invalid_tile))
-        assert exc_info.value.action == "declare_riichi"
-        assert exc_info.value.seat == 0

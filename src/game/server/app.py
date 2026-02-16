@@ -40,8 +40,8 @@ async def status(request: Request) -> JSONResponse:
             "active_rooms": session_manager.room_count,
             "active_games": session_manager.game_count,
             "capacity_used": session_manager.room_count + session_manager.game_count,
-            "max_games": settings.max_games,
-        }
+            "max_capacity": settings.max_capacity,
+        },
     )
 
 
@@ -51,17 +51,23 @@ async def list_rooms(request: Request) -> JSONResponse:
     return JSONResponse({"rooms": [r.model_dump() for r in rooms]})
 
 
+_MAX_REQUEST_BODY_SIZE = 4096
+
+
 async def create_room(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     settings: GameServerSettings = request.app.state.settings
 
     try:
-        body = await request.json()
+        raw_body = await request.body()
+        if len(raw_body) > _MAX_REQUEST_BODY_SIZE:
+            return JSONResponse({"error": "Request body too large"}, status_code=413)
+        body = json.loads(raw_body)
         room_request = CreateRoomRequest(**body)
-    except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+    except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, ValidationError):  # fmt: skip
+        return JSONResponse({"error": "Invalid request body"}, status_code=400)
 
-    if session_manager.room_count + session_manager.game_count >= settings.max_games:
+    if session_manager.room_count + session_manager.game_count >= settings.max_capacity:
         return JSONResponse({"error": "Server at capacity"}, status_code=503)
 
     if session_manager.get_room(room_request.room_id) is not None:
@@ -93,7 +99,9 @@ def create_app(
         storage = LocalReplayStorage(settings.replay_dir)
         replay_collector = ReplayCollector(storage)
         session_manager = SessionManager(
-            game_service, log_dir=settings.log_dir, replay_collector=replay_collector
+            game_service,
+            log_dir=settings.log_dir,
+            replay_collector=replay_collector,
         )
 
     if message_router is None:
@@ -114,8 +122,8 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,  # type: ignore[arg-type]
         allow_origins=settings.cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
     )
     app.state.settings = settings
     app.state.session_manager = session_manager
@@ -124,6 +132,11 @@ def create_app(
     return app
 
 
-settings = GameServerSettings()
-setup_logging(log_dir=settings.log_dir)
-app = create_app(settings=settings)
+def get_app() -> Starlette:
+    """ASGI application factory for production use (e.g., uvicorn --factory)."""
+    _settings = GameServerSettings()
+    setup_logging(log_dir=_settings.log_dir)
+    return create_app(settings=_settings)
+
+
+app = get_app()

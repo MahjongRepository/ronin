@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import GameAction, TimeoutType, WindName
 from game.logic.events import (
@@ -12,8 +12,10 @@ from game.logic.events import (
 )
 from game.logic.rng import RNG_VERSION
 from game.logic.service import GameService
-from game.logic.settings import GameSettings
 from game.logic.types import GamePlayerInfo, PlayerView
+
+if TYPE_CHECKING:
+    from game.logic.settings import GameSettings
 
 
 class MockResultEvent(GameEvent):
@@ -51,7 +53,7 @@ class MockGameService(GameService):
 
     async def handle_action(
         self,
-        game_id: str,  # noqa: ARG002
+        game_id: str,
         player_name: str,
         action: GameAction,
         data: dict[str, Any],
@@ -69,7 +71,7 @@ class MockGameService(GameService):
                     success=True,
                 ),
                 target=BroadcastTarget(),
-            )
+            ),
         ]
 
     async def start_game(
@@ -78,8 +80,8 @@ class MockGameService(GameService):
         player_names: list[str],
         *,
         seed: str | None = None,
-        settings: GameSettings | None = None,  # noqa: ARG002
-        wall: list[int] | None = None,  # noqa: ARG002
+        settings: GameSettings | None = None,
+        wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
         # store player seat assignments (seat 0 for first player)
         self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}
@@ -89,15 +91,17 @@ class MockGameService(GameService):
         player_count = len(player_names)
 
         players = [
-            GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count)
-            for i, name in enumerate(all_names)
+            GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
         ]
 
         return [
             ServiceEvent(
                 event=EventType.GAME_STARTED,
                 data=GameStartedEvent(
-                    game_id=game_id, players=players, dealer_seat=0, dealer_dice=((1, 1), (1, 1))
+                    game_id=game_id,
+                    players=players,
+                    dealer_seat=0,
+                    dealer_dice=((1, 1), (1, 1)),
                 ),
                 target=BroadcastTarget(),
             ),
@@ -143,14 +147,20 @@ class MockGameService(GameService):
 
     async def process_ai_player_actions_after_replacement(
         self,
-        game_id: str,  # noqa: ARG002
-        seat: int,  # noqa: ARG002
+        game_id: str,
+        seat: int,
     ) -> list[ServiceEvent]:
+        return []
+
+    def is_round_advance_pending(self, game_id: str) -> bool:
+        return False
+
+    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
         return []
 
     async def handle_timeout(
         self,
-        game_id: str,  # noqa: ARG002
+        game_id: str,
         player_name: str,
         timeout_type: TimeoutType,
     ) -> list[ServiceEvent]:
@@ -167,5 +177,5 @@ class MockGameService(GameService):
                     success=True,
                 ),
                 target=BroadcastTarget(),
-            )
+            ),
         ]

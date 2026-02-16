@@ -7,23 +7,12 @@ import pytest
 
 from game.logic.enums import CallType, MeldCallType, MeldViewType
 from game.logic.events import EventType
-from game.messaging.encoder import DecodeError, decode, encode
+from game.messaging.encoder import MAX_BUFFER_LEN, DecodeError, decode, encode
 
 
 class TestRoundTrip:
-    def test_round_trip_draw_event(self) -> None:
+    def test_round_trip_simple_event(self) -> None:
         data = {"type": EventType.DRAW, "seat": 0, "tile_id": 42, "target": "seat_0"}
-
-        assert decode(encode(data)) == data
-
-    def test_round_trip_discard_event(self) -> None:
-        data = {
-            "type": EventType.DISCARD,
-            "seat": 1,
-            "tile_id": 50,
-            "is_tsumogiri": True,
-            "target": "all",
-        }
 
         assert decode(encode(data)) == data
 
@@ -56,11 +45,6 @@ class TestRoundTrip:
 
     def test_round_trip_with_boolean_values(self) -> None:
         data = {"success": True, "error": False}
-
-        assert decode(encode(data)) == data
-
-    def test_round_trip_with_integer_values(self) -> None:
-        data = {"score": 25000, "negative_score": -8000, "zero": 0}
 
         assert decode(encode(data)) == data
 
@@ -102,6 +86,16 @@ class TestIntegerKeyConversion:
             "results": [{"0": 100, "1": -100}],
         }
 
+    def test_encode_converts_integer_keys_inside_tuple(self) -> None:
+        data = {
+            "results": ({0: 100, 1: -100},),
+        }
+        result = decode(encode(data))
+
+        assert result == {
+            "results": [{"0": 100, "1": -100}],
+        }
+
 
 class TestDecodeErrors:
     def test_invalid_msgpack_data_raises_decode_error(self) -> None:
@@ -115,3 +109,17 @@ class TestDecodeErrors:
 
         with pytest.raises(DecodeError, match="expected dict, got list"):
             decode(data)
+
+    def test_oversized_payload_rejected(self) -> None:
+        """Payloads exceeding MAX_BUFFER_LEN are rejected before deserialization."""
+        oversized = b"\x00" * (MAX_BUFFER_LEN + 1)
+
+        with pytest.raises(DecodeError, match="payload too large"):
+            decode(oversized)
+
+    def test_payload_at_limit_accepted(self) -> None:
+        """Payloads exactly at MAX_BUFFER_LEN are accepted for deserialization."""
+        data = msgpack.packb({"key": "x" * 100})
+        assert len(data) <= MAX_BUFFER_LEN
+        result = decode(data)
+        assert result["key"] == "x" * 100

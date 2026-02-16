@@ -11,7 +11,7 @@ All layers import exclusively from this module for event types.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -51,7 +51,10 @@ def parse_wire_target(value: str) -> EventTarget:
     if value == "all":
         return BroadcastTarget()
     if value.startswith("seat_"):
-        return SeatTarget(seat=int(value.split("_")[1]))
+        seat = int(value.split("_")[1])
+        if seat < 0:
+            raise ValueError(f"invalid seat number in target: {value}")
+        return SeatTarget(seat=seat)
     raise ValueError(f"invalid target value: {value}")
 
 
@@ -227,12 +230,6 @@ Event = (
 # ---------------------------------------------------------------------------
 
 
-def _normalize_event_value(value: str | Enum) -> str:
-    if isinstance(value, Enum):
-        return value.value
-    return value
-
-
 class ServiceEvent(BaseModel):
     """Event transport container for game service layer.
 
@@ -247,10 +244,10 @@ class ServiceEvent(BaseModel):
 
     @model_validator(mode="after")
     def _ensure_event_matches_data(self) -> ServiceEvent:
-        event_value = _normalize_event_value(self.event)
-        data_value = _normalize_event_value(self.data.type)
-        if event_value != data_value:
-            raise ValueError(f"ServiceEvent.event '{event_value}' does not match data.type '{data_value}'")
+        if self.event.value != self.data.type.value:
+            raise ValueError(
+                f"ServiceEvent.event '{self.event.value}' does not match data.type '{self.data.type.value}'",
+            )
         return self
 
 
@@ -273,9 +270,7 @@ def _get_unique_caller_seats(callers: list[int | MeldCaller]) -> list[int]:
 
 def _filter_callers_for_seat(callers: list[int | MeldCaller], seat: int) -> list[int | MeldCaller]:
     """Filter callers list to only include entries for the given seat."""
-    if callers and isinstance(callers[0], int):
-        return [c for c in callers if isinstance(c, int) and c == seat]
-    return [c for c in callers if isinstance(c, MeldCaller) and c.seat == seat]
+    return [c for c in callers if (isinstance(c, int) and c == seat) or (isinstance(c, MeldCaller) and c.seat == seat)]
 
 
 def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPromptEvent:
@@ -284,22 +279,25 @@ def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPro
     Ron-dominant: if seat has both ron and meld entries, produce a RON prompt.
     """
     is_ron = any(c == seat for c in event.callers if isinstance(c, int))
-    meld_callers: list[int | MeldCaller] = [
-        c for c in event.callers if isinstance(c, MeldCaller) and c.seat == seat
-    ]
+    meld_callers: list[int | MeldCaller] = [c for c in event.callers if isinstance(c, MeldCaller) and c.seat == seat]
 
+    target = f"seat_{seat}"
     if is_ron:
         return event.model_copy(
             update={
                 "call_type": CallType.RON,
                 "callers": [seat],
-            }
+                "target": target,
+            },
         )
+    if not meld_callers:
+        raise ValueError(f"seat {seat} has no ron or meld entries in DISCARD prompt callers")
     return event.model_copy(
         update={
             "call_type": CallType.MELD,
             "callers": meld_callers,
-        }
+            "target": target,
+        },
     )
 
 
@@ -320,14 +318,16 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
                 for seat in _get_unique_caller_seats(event.callers):
                     per_seat_event = _split_discard_prompt_for_seat(event, seat)
                     result.append(
-                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat))
+                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
                     )
             else:
                 for seat in _get_unique_caller_seats(event.callers):
                     per_seat_callers = _filter_callers_for_seat(event.callers, seat)
-                    per_seat_event = event.model_copy(update={"callers": per_seat_callers})
+                    per_seat_event = event.model_copy(
+                        update={"callers": per_seat_callers, "target": f"seat_{seat}"},
+                    )
                     result.append(
-                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat))
+                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
                     )
         else:
             result.append(
@@ -335,7 +335,7 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
                     event=event.type,
                     data=event,
                     target=parse_wire_target(event.target),
-                )
+                ),
             )
     return result
 

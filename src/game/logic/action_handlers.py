@@ -12,7 +12,7 @@ from game.logic.abortive import (
     can_call_kyuushu_kyuuhai,
 )
 from game.logic.action_result import ActionResult, create_draw_event
-from game.logic.call_resolution import _pick_best_meld_response, resolve_call_prompt
+from game.logic.call_resolution import pick_best_meld_response, resolve_call_prompt
 from game.logic.enums import (
     CallType,
     GameAction,
@@ -51,6 +51,7 @@ from game.logic.types import (
     DiscardActionData,
     KanActionData,
     MeldCaller,
+    MeldCallInput,
     PonActionData,
     RiichiActionData,
 )
@@ -65,7 +66,7 @@ TURN_ACTIONS = frozenset(
         GameAction.DECLARE_RIICHI,
         GameAction.DECLARE_TSUMO,
         GameAction.CALL_KYUUSHU,
-    }
+    },
 )
 
 
@@ -99,14 +100,14 @@ def _validate_call_prompt(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        logger.warning(f"invalid call from seat {seat}: no pending call prompt")
+        logger.warning("invalid call from seat %d: no pending call prompt", seat)
         return ActionResult(
             [
                 ErrorEvent(
                     code=error_code,
                     message="no pending call prompt",
                     target=f"seat_{seat}",
-                )
+                ),
             ],
             new_round_state=round_state,
             new_game_state=game_state,
@@ -114,7 +115,10 @@ def _validate_call_prompt(
 
     if prompt.tile_id != tile_id:
         logger.warning(
-            f"invalid call from seat {seat}: tile_id mismatch (expected={prompt.tile_id}, got={tile_id})"
+            "invalid call from seat %d: tile_id mismatch (expected=%d, got=%d)",
+            seat,
+            prompt.tile_id,
+            tile_id,
         )
         return ActionResult(
             [
@@ -122,7 +126,7 @@ def _validate_call_prompt(
                     code=error_code,
                     message="tile_id mismatch",
                     target=f"seat_{seat}",
-                )
+                ),
             ],
             new_round_state=round_state,
             new_game_state=game_state,
@@ -222,7 +226,7 @@ def _validate_meld_action_for_callers(
             reason=f"action {action.value} not available: no meld options for this seat",
         )
     allowed: frozenset[GameAction] = frozenset().union(
-        *(_MELD_CALL_TYPE_TO_GAME_ACTIONS.get(c.call_type, frozenset()) for c in seat_callers)
+        *(_MELD_CALL_TYPE_TO_GAME_ACTIONS.get(c.call_type, frozenset()) for c in seat_callers),
     )
     if action not in allowed:
         available = ", ".join(c.call_type.value for c in seat_callers)
@@ -233,6 +237,11 @@ def _validate_meld_action_for_callers(
         )
 
 
+def _is_ron_caller_on_prompt(prompt: PendingCallPrompt, seat: int) -> bool:
+    """Check if the seat is a ron caller (int entry) on the prompt."""
+    return any(c == seat for c in prompt.callers if isinstance(c, int))
+
+
 def _validate_caller_action_matches_prompt(
     prompt: PendingCallPrompt,
     seat: int,
@@ -240,48 +249,35 @@ def _validate_caller_action_matches_prompt(
 ) -> None:
     """Validate that the player's response action is among their available call types.
 
-    Raises InvalidGameActionError if:
-    - The player sends CALL_RON on a MELD prompt (ron not available on meld prompts)
-    - The player's action doesn't match any of their available call types in the prompt
+    Raises InvalidGameActionError if the action is not valid for the seat's role
+    on this prompt type.
     """
-    # For RON/CHANKAN prompts, only CALL_RON (and PASS, handled elsewhere) is valid
-    if prompt.call_type in (CallType.RON, CallType.CHANKAN):
+    # Ron-only prompts (RON, CHANKAN) and ron callers on DISCARD: only CALL_RON is valid
+    ron_only = prompt.call_type in (CallType.RON, CallType.CHANKAN) or (
+        prompt.call_type == CallType.DISCARD and _is_ron_caller_on_prompt(prompt, seat)
+    )
+    if ron_only:
         if action != GameAction.CALL_RON:
             raise InvalidGameActionError(
                 action=action.value,
                 seat=seat,
-                reason=f"only ron is valid on a {prompt.call_type.value} prompt",
+                reason=f"only ron is valid for this seat on a {prompt.call_type.value} prompt",
             )
         return
 
-    # For unified DISCARD prompts, valid actions depend on caller type
-    if prompt.call_type == CallType.DISCARD:
-        is_ron_caller = any(c == seat for c in prompt.callers if isinstance(c, int))
-        if is_ron_caller:
-            if action != GameAction.CALL_RON:
-                raise InvalidGameActionError(
-                    action=action.value,
-                    seat=seat,
-                    reason="only ron is valid for this seat on a discard prompt",
-                )
-            return
-        _validate_meld_action_for_callers(prompt, seat, action)
-        return
-
-    # For meld prompts, check action matches available call types
-    if prompt.call_type != CallType.MELD:
+    # Meld prompts and meld callers on DISCARD: ron is never valid, check meld types
+    if prompt.call_type not in (CallType.MELD, CallType.DISCARD):
         raise InvalidGameActionError(
             action=action.value,
             seat=seat,
             reason=f"unknown prompt type: {prompt.call_type.value}",
         )
 
-    # Ron is never valid on a meld-only prompt
     if action == GameAction.CALL_RON:
         raise InvalidGameActionError(
             action=action.value,
             seat=seat,
-            reason="cannot call ron on a meld prompt",
+            reason=f"cannot call ron on a {prompt.call_type.value} prompt",
         )
     _validate_meld_action_for_callers(prompt, seat, action)
 
@@ -292,7 +288,7 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
     When resolution fails, the error is from the response being executed (ron > pon/kan > chi),
     not from the player whose response happened to trigger resolution.
     Uses the same priority logic as resolve_call_prompt: ron callers sorted by caller order,
-    meld callers picked by _pick_best_meld_response (kan > pon > chi, distance tie-break).
+    meld callers picked by pick_best_meld_response (kan > pon > chi, distance tie-break).
     """
     ron_responses = [r for r in prompt.responses if r.action == GameAction.CALL_RON]
     if ron_responses:
@@ -301,12 +297,10 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
         ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, 999))
         return ron_responses[0].seat
     meld_responses = [
-        r
-        for r in prompt.responses
-        if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
+        r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
     ]
     if meld_responses:
-        best = _pick_best_meld_response(meld_responses, prompt)
+        best = pick_best_meld_response(meld_responses, prompt)
         if best is not None:
             return best.seat
     return fallback_seat
@@ -362,7 +356,10 @@ def handle_discard(
 
     try:
         new_round_state, new_game_state, events = process_discard_phase(
-            round_state, game_state, data.tile_id, is_riichi=False
+            round_state,
+            game_state,
+            data.tile_id,
+            is_riichi=False,
         )
         return ActionResult(
             events,
@@ -391,7 +388,10 @@ def handle_riichi(
 
     try:
         new_round_state, new_game_state, events = process_discard_phase(
-            round_state, game_state, data.tile_id, is_riichi=True
+            round_state,
+            game_state,
+            data.tile_id,
+            is_riichi=True,
         )
         return ActionResult(
             events,
@@ -442,14 +442,14 @@ def handle_ron(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        logger.warning(f"invalid ron from seat {seat}: no pending call prompt")
+        logger.warning("invalid ron from seat %d: no pending call prompt", seat)
         return ActionResult(
             [
                 ErrorEvent(
                     code=GameErrorCode.INVALID_RON,
                     message="no pending call prompt",
                     target=f"seat_{seat}",
-                )
+                ),
             ],
             new_round_state=round_state,
             new_game_state=game_state,
@@ -468,7 +468,9 @@ def handle_ron(
         return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
 
     return ActionResult(
-        [], new_round_state=new_round_state, new_game_state=new_game_state
+        [],
+        new_round_state=new_round_state,
+        new_game_state=new_game_state,
     )  # waiting for other callers
 
 
@@ -507,7 +509,9 @@ def handle_pon(
         return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
 
     return ActionResult(
-        [], new_round_state=new_round_state, new_game_state=new_game_state
+        [],
+        new_round_state=new_round_state,
+        new_game_state=new_game_state,
     )  # waiting for other callers
 
 
@@ -546,7 +550,9 @@ def handle_chi(
         return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
 
     return ActionResult(
-        [], new_round_state=new_round_state, new_game_state=new_game_state
+        [],
+        new_round_state=new_round_state,
+        new_game_state=new_game_state,
     )  # waiting for other callers
 
 
@@ -562,38 +568,16 @@ def _handle_open_kan_call_response(
     Record intent and trigger resolution when all callers have responded.
     Returns ActionResult with events and new state.
     """
-    prompt = round_state.pending_call_prompt
-    if prompt is None or seat not in prompt.pending_seats:
-        logger.warning(f"invalid open kan from seat {seat}: not a pending caller")
-        return ActionResult(
-            [
-                ErrorEvent(
-                    code=GameErrorCode.INVALID_KAN,
-                    message="not a pending caller",
-                    target=f"seat_{seat}",
-                )
-            ],
-            new_round_state=round_state,
-            new_game_state=game_state,
-        )
-
-    # tile_id mismatch is a race condition (prompt resolved and recreated) -> soft error
-    if prompt.tile_id != submitted_tile_id:
-        logger.warning(
-            f"invalid open kan from seat {seat}: tile_id mismatch "
-            f"(expected={prompt.tile_id}, got={submitted_tile_id})"
-        )
-        return ActionResult(
-            [
-                ErrorEvent(
-                    code=GameErrorCode.INVALID_KAN,
-                    message="tile_id mismatch",
-                    target=f"seat_{seat}",
-                )
-            ],
-            new_round_state=round_state,
-            new_game_state=game_state,
-        )
+    result = _validate_call_prompt(
+        round_state,
+        game_state,
+        seat,
+        submitted_tile_id,
+        GameErrorCode.INVALID_KAN,
+    )
+    if isinstance(result, ActionResult):
+        return result
+    prompt = result
 
     # validate caller action matches prompt
     _validate_caller_action_matches_prompt(prompt, seat, GameAction.CALL_KAN)
@@ -612,8 +596,51 @@ def _handle_open_kan_call_response(
         return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
 
     return ActionResult(
-        [], new_round_state=new_round_state, new_game_state=new_game_state
+        [],
+        new_round_state=new_round_state,
+        new_game_state=new_game_state,
     )  # waiting for other callers
+
+
+def _handle_self_kan(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    seat: int,
+    data: KanActionData,
+) -> ActionResult:
+    """Handle closed or added kan during the player's own turn.
+
+    Executes the kan immediately via process_meld_call, then checks for
+    chankan prompt or emits a draw event for the dead wall replacement tile.
+    """
+    try:
+        meld_call_type = data.kan_type.to_meld_call_type()
+        meld_input = MeldCallInput(caller_seat=seat, call_type=meld_call_type, tile_id=data.tile_id)
+        new_round_state, new_game_state, events = process_meld_call(
+            round_state,
+            game_state,
+            meld_input,
+        )
+    except GameRuleError as e:
+        raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
+
+    if new_round_state.phase == RoundPhase.FINISHED:
+        return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+
+    # check for chankan prompt (added kan may be robbed)
+    has_chankan_prompt = any(
+        e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.CHANKAN for e in events
+    )
+    if has_chankan_prompt:
+        return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+
+    # after kan, emit draw event for dead wall tile with available actions
+    if new_round_state.phase == RoundPhase.PLAYING:
+        player = new_round_state.players[seat]
+        drawn_tile = player.tiles[-1]
+        events = [*events, create_draw_event(new_round_state, new_game_state, seat, tile_id=drawn_tile)]
+
+    return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
 
 def handle_kan(
@@ -629,15 +656,8 @@ def handle_kan(
     Closed/added kan during own turn: execute immediately.
     Returns ActionResult with events and new state.
     """
-    # open kan requires a pending prompt - open kan is a call response to another player's
-    # discard and cannot be self-initiated, so no pending prompt means fabricated data
+    # Open kan is a call response to another player's discard (validated by _validate_call_prompt)
     if data.kan_type == KanType.OPEN:
-        if round_state.pending_call_prompt is None:
-            raise InvalidGameActionError(
-                action="call_kan",
-                seat=seat,
-                reason="open kan requires a pending call prompt",
-            )
         return _handle_open_kan_call_response(round_state, game_state, seat, data.tile_id)
 
     # closed/added kan cannot be called while a call prompt is pending
@@ -652,31 +672,7 @@ def handle_kan(
     if round_state.current_player_seat != seat:
         return _create_not_your_turn_error(seat, round_state, game_state)
 
-    try:
-        meld_call_type = data.kan_type.to_meld_call_type()
-        new_round_state, new_game_state, events = process_meld_call(
-            round_state, game_state, seat, meld_call_type, data.tile_id
-        )
-    except GameRuleError as e:
-        raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
-
-    if new_round_state.phase == RoundPhase.FINISHED:
-        return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
-
-    # check for chankan prompt
-    has_chankan_prompt = any(
-        e.type == EventType.CALL_PROMPT and getattr(e, "call_type", None) == CallType.CHANKAN for e in events
-    )
-    if has_chankan_prompt:
-        return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
-
-    # after kan, emit draw event for dead wall tile with available actions
-    if new_round_state.phase == RoundPhase.PLAYING:
-        player = new_round_state.players[seat]
-        drawn_tile = player.tiles[-1]
-        events.append(create_draw_event(new_round_state, new_game_state, seat, tile_id=drawn_tile))
-
-    return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+    return _handle_self_kan(round_state, game_state, seat, data)
 
 
 def handle_kyuushu(
@@ -734,14 +730,14 @@ def handle_pass(
 
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        logger.warning(f"invalid pass from seat {seat}: no pending call prompt")
+        logger.warning("invalid pass from seat %d: no pending call prompt", seat)
         return ActionResult(
             [
                 ErrorEvent(
                     code=GameErrorCode.INVALID_PASS,
                     message="no pending call prompt",
                     target=f"seat_{seat}",
-                )
+                ),
             ],
             new_round_state=round_state,
             new_game_state=game_state,
@@ -762,9 +758,11 @@ def handle_pass(
             new_round_state = update_player(new_round_state, seat, is_riichi_furiten=True)
         new_game_state = update_game_with_round(new_game_state, new_round_state)
 
-    # record pass and remove from pending (update the prompt)
+    # Remove from pending without recording a CallResponse. resolve_call_prompt
+    # treats absence from responses as a pass; only actionable responses (ron, pon,
+    # chi, kan) are recorded, keeping responses sparse for priority resolution.
     pending = set(prompt.pending_seats)
-    pending.discard(seat)
+    pending.remove(seat)
     new_prompt = prompt.model_copy(update={"pending_seats": frozenset(pending)})
     new_round_state = new_round_state.model_copy(update={"pending_call_prompt": new_prompt})
     new_game_state = update_game_with_round(new_game_state, new_round_state)

@@ -3,15 +3,13 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from game.logic.enums import RoundPhase
-from game.logic.meld_wrapper import FrozenMeld
-from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import Wall
+from game.logic.wall import Wall, _extract_ura_dora
 from game.messaging.router import MessageRouter
 from game.server.app import create_app
 from game.session.manager import SessionManager
@@ -20,13 +18,16 @@ from game.tests.mocks import MockConnection, MockGameService
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from game.logic.meld_wrapper import FrozenMeld
+    from game.logic.settings import GameSettings
+
 
 # ============================================================================
 # Test State Builder Helpers
 # ============================================================================
 
 
-def create_player(  # noqa: PLR0913
+def create_player(
     seat: int = 0,
     name: str | None = None,
     *,
@@ -62,7 +63,7 @@ def create_player(  # noqa: PLR0913
     )
 
 
-def create_round_state(  # noqa: PLR0913
+def create_round_state(
     *,
     players: Sequence[MahjongPlayer] | None = None,
     wall: Sequence[int] | None = None,
@@ -76,7 +77,7 @@ def create_round_state(  # noqa: PLR0913
     players_with_open_hands: Sequence[int] | None = None,
     pending_dora_count: int = 0,
     phase: RoundPhase = RoundPhase.WAITING,
-    pending_call_prompt: Any = None,  # noqa: ANN401
+    pending_call_prompt: Any = None,
     wall_obj: Wall | None = None,
 ) -> MahjongRoundState:
     """Create a MahjongRoundState with sensible defaults for testing.
@@ -90,10 +91,12 @@ def create_round_state(  # noqa: PLR0913
     if wall_obj is not None:
         game_wall = wall_obj
     else:
+        dead_wall_tuple = tuple(dead_wall) if dead_wall is not None else ()
         game_wall = Wall(
             live_tiles=tuple(wall) if wall is not None else (),
-            dead_wall_tiles=tuple(dead_wall) if dead_wall is not None else (),
+            dead_wall_tiles=dead_wall_tuple,
             dora_indicators=tuple(dora_indicators) if dora_indicators is not None else (),
+            ura_dora_indicators=_extract_ura_dora(dead_wall_tuple),
             pending_dora_count=pending_dora_count,
         )
     return MahjongRoundState(
@@ -104,15 +107,13 @@ def create_round_state(  # noqa: PLR0913
         round_wind=round_wind,
         turn_count=turn_count,
         all_discards=tuple(all_discards) if all_discards is not None else (),
-        players_with_open_hands=(
-            tuple(players_with_open_hands) if players_with_open_hands is not None else ()
-        ),
+        players_with_open_hands=(tuple(players_with_open_hands) if players_with_open_hands is not None else ()),
         phase=phase,
         pending_call_prompt=pending_call_prompt,
     )
 
 
-def create_game_state(  # noqa: PLR0913
+def create_game_state(
     round_state: MahjongRoundState | None = None,
     *,
     round_number: int = 0,

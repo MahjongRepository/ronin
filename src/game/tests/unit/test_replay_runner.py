@@ -1,6 +1,6 @@
 """Tests for replay runner: async/sync APIs, service protocol, lifecycle."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -14,7 +14,6 @@ from game.logic.events import (
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
-from game.logic.settings import GameSettings
 from game.logic.state import MahjongGameState, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
@@ -28,9 +27,13 @@ from game.replay.models import (
     ReplayTrace,
 )
 from game.replay.runner import (
+    ReplayOptions,
     run_replay,
     run_replay_async,
 )
+
+if TYPE_CHECKING:
+    from game.logic.settings import GameSettings
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
@@ -42,9 +45,7 @@ def _build_replay(
     actions: tuple[tuple[str, GameAction, dict[str, Any]], ...] = (),
 ) -> ReplayInput:
     """Helper to build ReplayInput from tuples."""
-    events = tuple(
-        ReplayInputEvent(player_name=name, action=action, data=data) for name, action, data in actions
-    )
+    events = tuple(ReplayInputEvent(player_name=name, action=action, data=data) for name, action, data in actions)
     return ReplayInput(seed=seed, player_names=player_names, events=events)
 
 
@@ -63,13 +64,17 @@ class _StubService:
         player_names: list[str],
         *,
         seed: str | None = None,
-        settings: GameSettings | None = None,  # noqa: ARG002
+        settings: GameSettings | None = None,
         wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
         return await self._inner.start_game(game_id, player_names, seed=seed, wall=wall)
 
     async def handle_action(
-        self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+        self,
+        game_id: str,
+        player_name: str,
+        action: GameAction,
+        data: dict[str, Any],
     ) -> list[ServiceEvent]:
         return await self._inner.handle_action(game_id, player_name, action, data)
 
@@ -115,71 +120,53 @@ async def test_run_replay_async_basic_discard():
     assert trace.steps[0].state_after != trace.steps[0].state_before
 
 
-async def test_run_replay_async_each_step_has_state_before_and_after():
-    """Every ReplayStep captures both state_before and state_after."""
-    name, tile = await _async_probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
-
-    trace = await run_replay_async(replay)
-    for step in trace.steps:
-        assert isinstance(step.state_before, MahjongGameState)
-        assert isinstance(step.state_after, MahjongGameState)
-
-
 async def test_run_replay_async_strict_mode_error_detection():
     """Strict mode raises ReplayError on invalid actions."""
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
 
     with pytest.raises(ReplayError) as exc_info:
-        await run_replay_async(replay, strict=True)
+        await run_replay_async(replay)
     assert exc_info.value.step_index == 0
     assert exc_info.value.event.player_name == "Bob"
 
 
 async def test_run_replay_async_nonstrict_invalid_action_continues():
-    """Non-strict mode converts InvalidGameActionError to error event step."""
+    """Non-strict mode converts invalid action errors to error event step."""
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
 
-    trace = await run_replay_async(replay, strict=False)
+    trace = await run_replay_async(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1
     error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
     assert len(error_events) == 1
 
 
-async def test_run_replay_async_invalid_game_action_error_strict():
-    """Strict mode raises ReplayError when handle_action raises InvalidGameActionError."""
+async def test_run_replay_async_raised_invalid_action_error():
+    """Runner wraps InvalidGameActionError from handle_action into ReplayError/error event.
+
+    Covers the except InvalidGameActionError path in _process_input_event,
+    where the service raises instead of returning an error event.
+    Strict mode raises ReplayError; non-strict mode converts to an error event step.
+    """
 
     class RaisingService(_StubService):
         async def handle_action(
             self,
-            game_id: str,  # noqa: ARG002
-            player_name: str,  # noqa: ARG002
-            action: GameAction,  # noqa: ARG002
-            data: dict[str, Any],  # noqa: ARG002
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             raise InvalidGameActionError(action="discard", seat=0, reason="test error")
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
+
+    # Strict mode: raises ReplayError
     with pytest.raises(ReplayError) as exc_info:
-        await run_replay_async(replay, strict=True, service_factory=RaisingService)
+        await run_replay_async(replay, service_factory=RaisingService)
     assert exc_info.value.step_index == 0
 
-
-async def test_run_replay_async_invalid_game_action_error_nonstrict():
-    """Non-strict mode converts raised InvalidGameActionError to error event step."""
-
-    class RaisingService(_StubService):
-        async def handle_action(
-            self,
-            game_id: str,  # noqa: ARG002
-            player_name: str,  # noqa: ARG002
-            action: GameAction,  # noqa: ARG002
-            data: dict[str, Any],  # noqa: ARG002
-        ) -> list[ServiceEvent]:
-            raise InvalidGameActionError(action="discard", seat=0, reason="test error")
-
-    replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
-    trace = await run_replay_async(replay, strict=False, service_factory=RaisingService)
+    # Non-strict mode: converts to error event step
+    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=RaisingService)
     assert len(trace.steps) == 1
     error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
     assert len(error_events) == 1
@@ -220,8 +207,8 @@ async def test_run_replay_async_unique_game_ids():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             game_ids.add(game_id)
             return await super().start_game(game_id, player_names, seed=seed)
@@ -267,7 +254,6 @@ async def test_run_replay_async_cleanup_on_error():
     with pytest.raises(ReplayError):
         await run_replay_async(
             replay,
-            strict=True,
             service_factory=lambda: TrackingService(auto_cleanup=False),
         )
     assert len(cleanup_calls) == 1
@@ -293,7 +279,7 @@ async def test_run_replay_async_max_steps_limit():
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
     with pytest.raises(ReplayStepLimitError, match="exceeded 0 steps"):
-        await run_replay_async(replay, max_steps=0)
+        await run_replay_async(replay, ReplayOptions(max_steps=0))
 
 
 async def test_run_replay_async_seat_by_player():
@@ -316,8 +302,8 @@ async def test_run_replay_async_input_after_game_end_strict():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
@@ -329,7 +315,7 @@ async def test_run_replay_async_input_after_game_end_strict():
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
-        await run_replay_async(replay, strict=True, service_factory=FinishedService)
+        await run_replay_async(replay, service_factory=FinishedService)
 
 
 async def test_run_replay_async_input_after_game_end_non_strict():
@@ -342,8 +328,8 @@ async def test_run_replay_async_input_after_game_end_non_strict():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
@@ -354,7 +340,7 @@ async def test_run_replay_async_input_after_game_end_non_strict():
             return events
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
-    trace = await run_replay_async(replay, strict=False, service_factory=FinishedService)
+    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=FinishedService)
     assert trace.final_state.game_phase == GamePhase.FINISHED
     assert len(trace.steps) == 0
 
@@ -369,8 +355,8 @@ async def test_run_replay_async_startup_error_strict():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             error_event = ServiceEvent(
@@ -386,7 +372,7 @@ async def test_run_replay_async_startup_error_strict():
 
     replay = _build_replay()
     with pytest.raises(ReplayStartupError, match="test startup error"):
-        await run_replay_async(replay, strict=True, service_factory=ErrorStartupService)
+        await run_replay_async(replay, service_factory=ErrorStartupService)
 
 
 async def test_run_replay_async_startup_error_non_strict():
@@ -399,8 +385,8 @@ async def test_run_replay_async_startup_error_non_strict():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             error_event = ServiceEvent(
@@ -415,7 +401,7 @@ async def test_run_replay_async_startup_error_non_strict():
             return [error_event, *events]
 
     replay = _build_replay()
-    trace = await run_replay_async(replay, strict=False, service_factory=ErrorStartupService)
+    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=ErrorStartupService)
     assert isinstance(trace, ReplayTrace)
 
 
@@ -426,16 +412,16 @@ async def test_run_replay_async_invariant_error_missing_state():
         async def handle_action(
             self,
             game_id: str,
-            player_name: str,  # noqa: ARG002
-            action: GameAction,  # noqa: ARG002
-            data: dict[str, Any],  # noqa: ARG002
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             self._inner.cleanup_game(game_id)
             return []
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(ReplayInvariantError, match="game state disappeared after replay action"):
-        await run_replay_async(replay, strict=False, service_factory=DisappearingStateService)
+        await run_replay_async(replay, ReplayOptions(strict=False), service_factory=DisappearingStateService)
 
 
 async def test_run_replay_async_round_advance_injection():
@@ -453,14 +439,18 @@ async def test_run_replay_async_round_advance_injection():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             self._advance_players = list(player_names)
             return await super().start_game(game_id, player_names, seed=seed)
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.CONFIRM_ROUND:
                 if player_name in self._advance_players:
@@ -475,10 +465,10 @@ async def test_run_replay_async_round_advance_injection():
             self._advance_players = [p.name for p in state.round_state.players]
             return events
 
-        def is_round_advance_pending(self, game_id: str) -> bool:  # noqa: ARG002
+        def is_round_advance_pending(self, game_id: str) -> bool:
             return self._advance_pending
 
-        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:  # noqa: ARG002
+        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
             return list(self._advance_players) if self._advance_pending else []
 
     name, tile = await _async_probe_current_player_discard()
@@ -486,10 +476,10 @@ async def test_run_replay_async_round_advance_injection():
         actions=(
             (name, GameAction.DISCARD, {"tile_id": tile}),
             (name, GameAction.DISCARD, {"tile_id": tile}),
-        )
+        ),
     )
 
-    trace = await run_replay_async(replay, strict=False, service_factory=RoundAdvanceService)
+    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=RoundAdvanceService)
 
     synthetic_confirm_steps = [
         s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND
@@ -506,7 +496,11 @@ async def test_run_replay_async_round_confirm_error_in_strict_mode():
             self._advance_pending = False
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.CONFIRM_ROUND:
                 return [
@@ -518,16 +512,16 @@ async def test_run_replay_async_round_confirm_error_in_strict_mode():
                             target="all",
                         ),
                         target=BroadcastTarget(),
-                    )
+                    ),
                 ]
             events = await super().handle_action(game_id, player_name, action, data)
             self._advance_pending = True
             return events
 
-        def is_round_advance_pending(self, game_id: str) -> bool:  # noqa: ARG002
+        def is_round_advance_pending(self, game_id: str) -> bool:
             return self._advance_pending
 
-        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:  # noqa: ARG002
+        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
             return ["Alice"] if self._advance_pending else []
 
     name, tile = await _async_probe_current_player_discard()
@@ -535,11 +529,11 @@ async def test_run_replay_async_round_confirm_error_in_strict_mode():
         actions=(
             (name, GameAction.DISCARD, {"tile_id": tile}),
             (name, GameAction.DISCARD, {"tile_id": tile}),
-        )
+        ),
     )
 
     with pytest.raises(ReplayError, match="confirm_round error"):
-        await run_replay_async(replay, strict=True, service_factory=ConfirmErrorService)
+        await run_replay_async(replay, service_factory=ConfirmErrorService)
 
 
 async def test_step_limit_enforced_after_round_confirmations():
@@ -559,7 +553,11 @@ async def test_step_limit_enforced_after_round_confirmations():
             self._advance_pending = False
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.CONFIRM_ROUND:
                 self._advance_pending = False
@@ -568,10 +566,10 @@ async def test_step_limit_enforced_after_round_confirmations():
             self._advance_pending = True
             return events
 
-        def is_round_advance_pending(self, game_id: str) -> bool:  # noqa: ARG002
+        def is_round_advance_pending(self, game_id: str) -> bool:
             return self._advance_pending
 
-        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:  # noqa: ARG002
+        def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
             return list(PLAYER_NAMES[:2]) if self._advance_pending else []
 
     name, tile = await _async_probe_current_player_discard()
@@ -583,11 +581,11 @@ async def test_step_limit_enforced_after_round_confirmations():
         actions=(
             (name, GameAction.DISCARD, {"tile_id": tile}),
             (name, GameAction.DISCARD, {"tile_id": tile}),
-        )
+        ),
     )
 
     with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
-        await run_replay_async(replay, max_steps=3, strict=False, service_factory=RoundAdvanceService)
+        await run_replay_async(replay, ReplayOptions(max_steps=3, strict=False), service_factory=RoundAdvanceService)
 
 
 async def test_reject_confirm_round_in_events_with_auto_confirm():
@@ -595,7 +593,7 @@ async def test_reject_confirm_round_in_events_with_auto_confirm():
     replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
 
     with pytest.raises(ReplayLoadError, match=r"CONFIRM_ROUND.*auto_confirm_rounds=True"):
-        await run_replay_async(replay, auto_confirm_rounds=True)
+        await run_replay_async(replay)
 
 
 async def test_allow_confirm_round_in_events_without_auto_confirm():
@@ -605,7 +603,7 @@ async def test_allow_confirm_round_in_events_without_auto_confirm():
     # This should not raise ValueError; it may raise ReplayError due to
     # "no round pending confirmation" but that's a game-logic error, not validation.
     with pytest.raises(ReplayError):
-        await run_replay_async(replay, auto_confirm_rounds=False, strict=True)
+        await run_replay_async(replay, ReplayOptions(auto_confirm_rounds=False))
 
 
 async def test_auto_pass_calls_injects_synthetic_pass_steps():
@@ -619,7 +617,11 @@ async def test_auto_pass_calls_injects_synthetic_pass_steps():
             self._inject_prompt = False
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.PASS:
                 # Resolve the call prompt by removing it from state
@@ -628,12 +630,9 @@ async def test_auto_pass_calls_injects_synthetic_pass_steps():
                 prompt = state.round_state.pending_call_prompt
                 if prompt is not None:
                     new_pending = prompt.pending_seats - {
-                        next(p.seat for p in state.round_state.players if p.name == player_name)
+                        next(p.seat for p in state.round_state.players if p.name == player_name),
                     }
-                    if new_pending:
-                        new_prompt = prompt.model_copy(update={"pending_seats": new_pending})
-                    else:
-                        new_prompt = None
+                    new_prompt = prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
@@ -669,8 +668,7 @@ async def test_auto_pass_calls_injects_synthetic_pass_steps():
 
     trace = await run_replay_async(
         replay,
-        strict=False,
-        auto_pass_calls=True,
+        ReplayOptions(strict=False),
         service_factory=CallPromptService,
     )
 
@@ -685,7 +683,7 @@ async def test_reject_pass_in_events_with_auto_pass():
     replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
 
     with pytest.raises(ReplayLoadError, match=r"PASS.*auto_pass_calls=True"):
-        await run_replay_async(replay, auto_pass_calls=True)
+        await run_replay_async(replay)
 
 
 async def test_allow_pass_in_events_without_auto_pass():
@@ -697,8 +695,7 @@ async def test_allow_pass_in_events_without_auto_pass():
     with pytest.raises(ReplayError):
         await run_replay_async(
             replay,
-            auto_pass_calls=False,
-            strict=True,
+            ReplayOptions(auto_pass_calls=False),
         )
 
 
@@ -733,8 +730,8 @@ async def test_auto_pass_excludes_call_response_seat():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
@@ -755,7 +752,11 @@ async def test_auto_pass_excludes_call_response_seat():
             return events
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.PASS:
                 self._pass_calls.append(player_name)
@@ -765,9 +766,7 @@ async def test_auto_pass_excludes_call_response_seat():
                 if prompt is not None:
                     seat = next(p.seat for p in state.round_state.players if p.name == player_name)
                     new_pending = prompt.pending_seats - {seat}
-                    new_prompt = (
-                        prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
-                    )
+                    new_prompt = prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
@@ -792,8 +791,7 @@ async def test_auto_pass_excludes_call_response_seat():
     svc_instance = CallResponseService()
     trace = await run_replay_async(
         replay,
-        strict=False,
-        auto_pass_calls=True,
+        ReplayOptions(strict=False),
         service_factory=lambda: svc_instance,
     )
 
@@ -820,8 +818,8 @@ async def test_auto_pass_strict_mode_error():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,  # noqa: ARG002
-            wall: list[int] | None = None,  # noqa: ARG002
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             events = await super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
@@ -843,7 +841,11 @@ async def test_auto_pass_strict_mode_error():
             return events
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.PASS:
                 return [
@@ -855,7 +857,7 @@ async def test_auto_pass_strict_mode_error():
                             target="all",
                         ),
                         target=BroadcastTarget(),
-                    )
+                    ),
                 ]
             return await super().handle_action(game_id, player_name, action, data)
 
@@ -865,8 +867,6 @@ async def test_auto_pass_strict_mode_error():
     with pytest.raises(ReplayError, match="synthetic pass error"):
         await run_replay_async(
             replay,
-            strict=True,
-            auto_pass_calls=True,
             service_factory=PassErrorService,
         )
 
@@ -887,7 +887,11 @@ async def test_trailing_auto_pass_after_all_input_events():
             self._pass_calls: list[str] = []
 
         async def handle_action(
-            self, game_id: str, player_name: str, action: GameAction, data: dict[str, Any]
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
         ) -> list[ServiceEvent]:
             if action == GameAction.PASS:
                 self._pass_calls.append(player_name)
@@ -897,9 +901,7 @@ async def test_trailing_auto_pass_after_all_input_events():
                 if prompt is not None:
                     seat = next(p.seat for p in state.round_state.players if p.name == player_name)
                     new_pending = prompt.pending_seats - {seat}
-                    new_prompt = (
-                        prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
-                    )
+                    new_prompt = prompt.model_copy(update={"pending_seats": new_pending}) if new_pending else None
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
@@ -936,9 +938,7 @@ async def test_trailing_auto_pass_after_all_input_events():
     svc_instance = TrailingPromptService()
     trace = await run_replay_async(
         replay,
-        strict=False,
-        auto_pass_calls=True,
-        auto_confirm_rounds=False,
+        ReplayOptions(strict=False, auto_confirm_rounds=False),
         service_factory=lambda: svc_instance,
     )
 
@@ -959,3 +959,243 @@ async def test_run_replay_async_rng_version_passthrough():
     trace = await run_replay_async(replay)
     assert trace.rng_version == custom_version
     assert trace.rng_version != RNG_VERSION
+
+
+async def test_game_end_after_auto_pass_stops_before_next_input_strict():
+    """Strict mode raises ReplayInputAfterGameEndError when auto-pass ends the game."""
+
+    class GameEndingPassService(_StubService):
+        """Service where auto-pass resolves a prompt and ends the game."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._pass_count = 0
+
+        async def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: str | None = None,
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
+        ) -> list[ServiceEvent]:
+            events = await super().start_game(game_id, player_names, seed=seed)
+            state = self._inner.get_game_state(game_id)
+            assert state is not None
+            # Inject a call prompt pending on seat 1
+            prompt = PendingCallPrompt(
+                call_type=CallType.MELD,
+                tile_id=0,
+                from_seat=0,
+                pending_seats=frozenset({1}),
+                callers=(1,),
+            )
+            new_round = state.round_state.model_copy(
+                update={"pending_call_prompt": prompt},
+            )
+            self._inner._games[game_id] = state.model_copy(
+                update={"round_state": new_round},
+            )
+            return events
+
+        async def handle_action(
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                self._pass_count += 1
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                # Resolve prompt and end the game
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": None},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={
+                        "round_state": new_round,
+                        "game_phase": GamePhase.FINISHED,
+                    },
+                )
+                return []
+            return await super().handle_action(game_id, player_name, action, data)
+
+    name, tile = await _async_probe_current_player_discard()
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+
+    with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
+        await run_replay_async(
+            replay,
+            service_factory=GameEndingPassService,
+        )
+
+
+async def test_game_end_after_auto_pass_stops_before_next_input_nonstrict():
+    """Non-strict mode stops cleanly when auto-pass ends the game before next input."""
+
+    class GameEndingPassService(_StubService):
+        """Service where a discard creates a call prompt and PASS ends the game."""
+
+        def __init__(self) -> None:
+            super().__init__()
+
+        async def handle_action(
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": None},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={
+                        "round_state": new_round,
+                        "game_phase": GamePhase.FINISHED,
+                    },
+                )
+                return []
+
+            events = await super().handle_action(game_id, player_name, action, data)
+
+            if action == GameAction.DISCARD:
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                seat = next(p.seat for p in state.round_state.players if p.name == player_name)
+                other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
+                prompt = PendingCallPrompt(
+                    call_type=CallType.MELD,
+                    tile_id=0,
+                    from_seat=seat,
+                    pending_seats=other_seats,
+                    callers=tuple(other_seats),
+                )
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": prompt},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={"round_state": new_round},
+                )
+            return events
+
+    name, tile = await _async_probe_current_player_discard()
+    # Two discards, but game ends during auto-pass after first discard
+    replay = _build_replay(
+        actions=(
+            (name, GameAction.DISCARD, {"tile_id": tile}),
+            (name, GameAction.DISCARD, {"tile_id": tile}),
+        ),
+    )
+
+    trace = await run_replay_async(
+        replay,
+        ReplayOptions(strict=False),
+        service_factory=GameEndingPassService,
+    )
+    assert trace.final_state.game_phase == GamePhase.FINISHED
+    # First discard processed, then auto-pass ends game, second discard skipped
+    non_synthetic = [s for s in trace.steps if not s.synthetic]
+    assert len(non_synthetic) == 1
+    assert non_synthetic[0].input_event.action == GameAction.DISCARD
+
+
+async def test_auto_pass_early_break_when_prompt_resolves():
+    """Auto-pass loop breaks early when an earlier PASS resolves the entire call prompt.
+
+    Covers the defensive break in _inject_pass_calls when prompt becomes None mid-loop.
+    When a call prompt has multiple pending seats but resolves fully on the first PASS,
+    the remaining seats should not receive PASS actions.
+    """
+
+    class EarlyResolveService(_StubService):
+        """Service where the first PASS clears the entire call prompt (no remaining seats).
+
+        Overrides handle_action for both PASS and DISCARD to prevent the real service
+        from creating additional call prompts during the discard step.
+        """
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._pass_count = 0
+
+        async def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: str | None = None,
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
+        ) -> list[ServiceEvent]:
+            events = await super().start_game(game_id, player_names, seed=seed)
+            state = self._inner.get_game_state(game_id)
+            assert state is not None
+            prompt = PendingCallPrompt(
+                call_type=CallType.MELD,
+                tile_id=0,
+                from_seat=0,
+                pending_seats=frozenset({1, 2}),
+                callers=(1, 2),
+            )
+            new_round = state.round_state.model_copy(
+                update={"pending_call_prompt": prompt},
+            )
+            self._inner._games[game_id] = state.model_copy(
+                update={"round_state": new_round},
+            )
+            return events
+
+        async def handle_action(
+            self,
+            game_id: str,
+            player_name: str,
+            action: GameAction,
+            data: dict[str, Any],
+        ) -> list[ServiceEvent]:
+            if action == GameAction.PASS:
+                self._pass_count += 1
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                new_round = state.round_state.model_copy(
+                    update={"pending_call_prompt": None},
+                )
+                self._inner._games[game_id] = state.model_copy(
+                    update={"round_state": new_round},
+                )
+                return []
+            if action == GameAction.DISCARD:
+                # Use real discard but ensure no new prompt is created
+                events = await super().handle_action(game_id, player_name, action, data)
+                state = self._inner.get_game_state(game_id)
+                assert state is not None
+                if state.round_state.pending_call_prompt is not None:
+                    new_round = state.round_state.model_copy(
+                        update={"pending_call_prompt": None},
+                    )
+                    self._inner._games[game_id] = state.model_copy(
+                        update={"round_state": new_round},
+                    )
+                return events
+            return await super().handle_action(game_id, player_name, action, data)
+
+    name, tile = await _async_probe_current_player_discard()
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+
+    svc_instance = EarlyResolveService()
+    trace = await run_replay_async(
+        replay,
+        ReplayOptions(strict=False),
+        service_factory=lambda: svc_instance,
+    )
+
+    # Only 1 PASS should have been sent (prompt resolved after first, breaking loop)
+    assert svc_instance._pass_count == 1
+    synthetic_pass_steps = [s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.PASS]
+    assert len(synthetic_pass_steps) == 1

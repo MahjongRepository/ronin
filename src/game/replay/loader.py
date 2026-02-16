@@ -22,6 +22,12 @@ from game.replay.models import REPLAY_VERSION, REQUIRED_PLAYER_COUNT, ReplayInpu
 # Minimum number of events: version tag + game_started.
 _MIN_EVENT_COUNT = 2
 
+# A chi meld requires exactly 2 tiles from the caller's hand (the sequence partners).
+_CHI_SEQUENCE_TILE_COUNT = 2
+
+# Safety limit to prevent memory exhaustion from maliciously large replay files.
+_MAX_REPLAY_LINES = 100_000
+
 # Event types that do not represent player actions (skipped silently).
 _NON_ACTION_EVENTS = frozenset(
     {
@@ -31,7 +37,7 @@ _NON_ACTION_EVENTS = frozenset(
         "dora_revealed",
         "riichi_declared",
         "game_end",
-    }
+    },
 )
 
 
@@ -67,7 +73,7 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
     rng_version = first.get("rng_version")
     if rng_version is None:
         raise ReplayLoadError(
-            "game_started event missing 'rng_version' field (old replay format not supported)"
+            "game_started event missing 'rng_version' field (old replay format not supported)",
         )
     if rng_version != RNG_VERSION:
         raise ReplayLoadError(f"Replay RNG version mismatch: expected {RNG_VERSION}, got {rng_version}")
@@ -89,6 +95,8 @@ def load_replay_from_string(content: str) -> ReplayInput:
     lines = [line for line in content.splitlines() if line.strip()]
     if not lines:
         raise ReplayLoadError("Empty replay content")
+    if len(lines) > _MAX_REPLAY_LINES:
+        raise ReplayLoadError(f"Replay exceeds maximum line count ({_MAX_REPLAY_LINES})")
 
     events: list[dict[str, Any]] = []
     for i, line in enumerate(lines):
@@ -103,7 +111,7 @@ def load_replay_from_string(content: str) -> ReplayInput:
     _validate_version_tag(events[0])
     seed, rng_version, players = _validate_game_started(events[1])
 
-    seat_to_name: dict[int, str] = {p["seat"]: p["name"] for p in players}
+    seat_to_name = _extract_seat_to_name(players)
     player_names = _reconstruct_input_order(seed, seat_to_name)
 
     actions: list[ReplayInputEvent] = []
@@ -130,8 +138,27 @@ def load_replay_from_file(path: str | Path) -> ReplayInput:
     return load_replay_from_string(content)
 
 
+def _extract_seat_to_name(players: list[dict[str, Any]]) -> dict[int, str]:
+    """Extract seat-to-name mapping from game_started players, validating structure."""
+    seat_to_name: dict[int, str] = {}
+    for i, player in enumerate(players):
+        if not isinstance(player, dict):
+            raise ReplayLoadError(f"game_started player entry {i} is not a dict")
+        try:
+            seat = player["seat"]
+            name = player["name"]
+        except KeyError as exc:
+            raise ReplayLoadError(f"game_started player entry {i} missing required field: {exc}") from exc
+        if not isinstance(seat, int):
+            raise ReplayLoadError(f"game_started player entry {i} has non-integer seat: {seat!r}")
+        if not isinstance(name, str) or not name:
+            raise ReplayLoadError(f"game_started player entry {i} has invalid name: {name!r}")
+        seat_to_name[seat] = name
+    return seat_to_name
+
+
 def _reconstruct_input_order(
-    seed: str | None,
+    seed: str,
     seat_to_name: dict[int, str],
 ) -> tuple[str, str, str, str]:
     """Reconstruct the original player name input order from the seed.
@@ -145,7 +172,7 @@ def _reconstruct_input_order(
     expected_seats = set(range(REQUIRED_PLAYER_COUNT))
     if set(seat_to_name.keys()) != expected_seats:
         raise ReplayLoadError(
-            f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}"
+            f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}",
         )
     rng = create_seat_rng(seed)
     seat_order = rng.sample(range(REQUIRED_PLAYER_COUNT), REQUIRED_PLAYER_COUNT)
@@ -191,7 +218,7 @@ def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> Repla
     action = GameAction.DECLARE_RIICHI if is_riichi else GameAction.DISCARD
     try:
         player_name = seat_to_name[seat]
-    except KeyError:  # pragma: no cover
+    except KeyError:
         raise ReplayLoadError(f"discard event references unknown seat: {seat}") from None
     return ReplayInputEvent(
         player_name=player_name,
@@ -209,7 +236,7 @@ def _parse_meld(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayIn
         raise ReplayLoadError(f"meld event missing required field: {exc}") from exc
     try:
         player_name = seat_to_name[caller_seat]
-    except KeyError:  # pragma: no cover
+    except KeyError:
         raise ReplayLoadError(f"meld event references unknown seat: {caller_seat}") from None
 
     if meld_type == "chi":
@@ -225,10 +252,14 @@ def _parse_chi_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
     """Parse a chi meld event."""
     try:
         called_tile_id = event["called_tile_id"]
-    except KeyError as exc:  # pragma: no cover
+    except KeyError as exc:
         raise ReplayLoadError(f"chi meld event missing required field: {exc}") from exc
     tile_ids = event.get("tile_ids", [])
     sequence_tiles = [t for t in tile_ids if t != called_tile_id]
+    if len(sequence_tiles) != _CHI_SEQUENCE_TILE_COUNT:
+        raise ReplayLoadError(
+            f"chi meld must have exactly 2 sequence tiles (excluding called tile), got {len(sequence_tiles)}",
+        )
     return ReplayInputEvent(
         player_name=player_name,
         action=GameAction.CALL_CHI,
@@ -240,7 +271,7 @@ def _parse_pon_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
     """Parse a pon meld event."""
     try:
         called_tile_id = event["called_tile_id"]
-    except KeyError as exc:  # pragma: no cover
+    except KeyError as exc:
         raise ReplayLoadError(f"pon meld event missing required field: {exc}") from exc
     return ReplayInputEvent(
         player_name=player_name,
@@ -253,7 +284,7 @@ def _parse_kan_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
     """Parse a kan meld event (open_kan, closed_kan, added_kan)."""
     meld_type = event.get("meld_type")
     kan_type_map = {"open_kan": "open", "closed_kan": "closed", "added_kan": "added"}
-    kan_type = kan_type_map.get(meld_type, "open")
+    kan_type = kan_type_map[meld_type]  # Caller guarantees valid meld_type
 
     tile_id = _extract_kan_tile_id(event)
     return ReplayInputEvent(
@@ -279,7 +310,7 @@ def _extract_kan_tile_id(event: dict[str, Any]) -> int:
         return tile_ids[0]
     if called_tile_id is not None:
         return called_tile_id
-    raise ReplayLoadError("kan meld event missing both 'tile_ids' and 'called_tile_id'")  # pragma: no cover
+    raise ReplayLoadError("kan meld event missing both 'tile_ids' and 'called_tile_id'")
 
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
@@ -315,16 +346,19 @@ def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -
     try:
         winner_seat = result["winner_seat"]
         player_name = seat_to_name[winner_seat]
-    except KeyError as exc:  # pragma: no cover
+    except KeyError as exc:
         raise ReplayLoadError(f"ron round_end missing or invalid field: {exc}") from exc
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON)]
 
 
 def _parse_double_ron_round_end(
-    result: dict[str, Any], seat_to_name: dict[int, str]
+    result: dict[str, Any],
+    seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
     """Parse a double_ron round_end result."""
     winners = result.get("winners", [])
+    if not winners:
+        raise ReplayLoadError("double_ron round_end must have at least one winner")
     try:
         return [
             ReplayInputEvent(
@@ -333,12 +367,13 @@ def _parse_double_ron_round_end(
             )
             for w in winners
         ]
-    except KeyError as exc:  # pragma: no cover
+    except KeyError as exc:
         raise ReplayLoadError(f"double_ron round_end missing or invalid field: {exc}") from exc
 
 
 def _parse_abortive_draw_round_end(
-    result: dict[str, Any], seat_to_name: dict[int, str]
+    result: dict[str, Any],
+    seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
     """Parse an abortive_draw round_end result."""
     reason = result.get("reason")
@@ -348,6 +383,6 @@ def _parse_abortive_draw_round_end(
     try:
         seat = result["seat"]
         player_name = seat_to_name[seat]
-    except KeyError as exc:  # pragma: no cover
+    except KeyError as exc:
         raise ReplayLoadError(f"nine_terminals abortive_draw missing or invalid field: {exc}") from exc
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_KYUUSHU)]

@@ -10,9 +10,12 @@ from game.logic.state import (
     CallResponse,
     Discard,
     MahjongGameState,
+    MahjongPlayer,
     MahjongRoundState,
     PendingCallPrompt,
 )
+
+_PLAYER_FIELDS = set(MahjongPlayer.model_fields)
 
 
 def update_player(
@@ -31,7 +34,15 @@ def update_player(
     Returns:
         New MahjongRoundState with updated player
 
+    Raises:
+        ValueError: If seat is out of bounds or update fields are invalid
+
     """
+    if not (0 <= seat < len(round_state.players)):
+        raise ValueError(f"Invalid seat {seat}, expected 0-{len(round_state.players) - 1}")
+    invalid_fields = set(updates) - _PLAYER_FIELDS
+    if invalid_fields:
+        raise ValueError(f"Invalid player fields: {invalid_fields}")
     players = list(round_state.players)
     players[seat] = round_state.players[seat].model_copy(update=updates)
     return round_state.model_copy(update={"players": tuple(players)})
@@ -81,7 +92,10 @@ def remove_tile_from_player(
     """
     player = round_state.players[seat]
     tiles = list(player.tiles)
-    tiles.remove(tile_id)
+    try:
+        tiles.remove(tile_id)
+    except ValueError:
+        raise ValueError(f"Tile {tile_id} not in hand of player at seat {seat}") from None
     return update_player(round_state, seat, tiles=tuple(tiles))
 
 
@@ -120,12 +134,12 @@ def advance_turn(
         New MahjongRoundState with turn advanced
 
     """
-    new_seat = (round_state.current_player_seat + 1) % 4
+    new_seat = (round_state.current_player_seat + 1) % len(round_state.players)
     return round_state.model_copy(
         update={
             "current_player_seat": new_seat,
             "turn_count": round_state.turn_count + 1,
-        }
+        },
     )
 
 
@@ -161,12 +175,12 @@ def add_prompt_response(
 
     """
     pending = set(prompt.pending_seats)
-    pending.discard(response.seat)
+    pending.remove(response.seat)
     return prompt.model_copy(
         update={
             "responses": (*prompt.responses, response),
             "pending_seats": frozenset(pending),
-        }
+        },
     )
 
 
@@ -222,6 +236,8 @@ def clear_all_players_ippatsu(
         New MahjongRoundState with all ippatsu flags cleared
 
     """
+    if not any(p.is_ippatsu for p in round_state.players):
+        return round_state
     players = list(round_state.players)
     for i, p in enumerate(players):
         if p.is_ippatsu:

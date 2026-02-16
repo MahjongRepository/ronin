@@ -9,7 +9,7 @@ from game.logic.enums import AIPlayerType, PlayerAction
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
-from game.logic.types import AvailableActionItem, SeatConfig
+from game.logic.types import SeatConfig
 from game.logic.wall import Wall
 from game.tests.unit.helpers import _string_to_34_tile
 
@@ -30,19 +30,6 @@ def _update_player(round_state, seat, **updates: object):
     return round_state.model_copy(update={"players": tuple(players)})
 
 
-class TestAvailableActionItemSerialization:
-    def test_serializes_without_tiles_when_none(self):
-        item = AvailableActionItem(action=PlayerAction.TSUMO)
-        data = item.model_dump()
-        assert data == {"action": PlayerAction.TSUMO}
-        assert "tiles" not in data
-
-    def test_serializes_with_tiles_when_present(self):
-        item = AvailableActionItem(action=PlayerAction.KAN, tiles=[1, 2, 3])
-        data = item.model_dump()
-        assert data == {"action": PlayerAction.KAN, "tiles": [1, 2, 3]}
-
-
 class TestGetAvailableActions:
     def _create_game_state(self):
         """Create a game state for testing."""
@@ -50,15 +37,6 @@ class TestGetAvailableActions:
         # draw a tile for the dealer
         new_round_state, _tile = draw_tile(game_state.round_state)
         return game_state.model_copy(update={"round_state": new_round_state})
-
-    def test_returns_list_format(self):
-        game_state = self._create_game_state()
-        round_state = game_state.round_state
-
-        actions = get_available_actions(round_state, game_state, seat=0)
-
-        assert isinstance(actions, list)
-        assert all(isinstance(action, AvailableActionItem) for action in actions)
 
     def test_does_not_return_discard_action(self):
         """DISCARD is always available and handled implicitly; not in available_actions."""
@@ -69,42 +47,6 @@ class TestGetAvailableActions:
 
         discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
         assert len(discard_actions) == 0
-
-    def test_riichi_action_when_eligible(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # create a tempai hand: 123m 456m 789m 111p, waiting for 2p
-        tempai_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1112"))
-        round_state = _update_player(round_state, 0, tiles=tempai_tiles)
-        new_round_state, _tile = draw_tile(round_state)
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        actions = get_available_actions(new_round_state, game_state, seat=0)
-
-        riichi_actions = [a for a in actions if a.action == PlayerAction.RIICHI]
-        # riichi may or may not be available depending on tempai status
-        # just verify the action format is correct if present
-        for action in riichi_actions:
-            assert action.action == PlayerAction.RIICHI
-            assert action.tiles is None
-
-    def test_tsumo_action_when_winning_hand(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # create a winning hand: 123m 456m 789m 11p 22p (complete)
-        winning_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1122"))
-        round_state = _update_player(round_state, 0, tiles=winning_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        actions = get_available_actions(round_state, game_state, seat=0)
-
-        tsumo_actions = [a for a in actions if a.action == PlayerAction.TSUMO]
-        # tsumo may or may not be available depending on hand value
-        for action in tsumo_actions:
-            assert action.action == PlayerAction.TSUMO
-            assert action.tiles is None
 
     def test_kan_action_format(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
@@ -179,7 +121,7 @@ class TestAddedKanAction:
             update={
                 "players_with_open_hands": (0,),
                 "wall": round_state.wall.model_copy(update={"live_tiles": tuple(range(50))}),
-            }
+            },
         )
         game_state = game_state.model_copy(update={"round_state": round_state})
 

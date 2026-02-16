@@ -11,7 +11,7 @@ from starlette.testclient import TestClient
 from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
-from game.messaging.types import ClientMessageType, SessionMessageType
+from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.tests.mocks import MockGameService
 
@@ -197,6 +197,31 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.ROOM_JOINED
             assert response["room_id"] == "test-room"
 
+    def test_invalid_msgpack_returns_error_and_keeps_connection(self, client):
+        """Sending invalid MessagePack data returns an error without disconnecting."""
+        self._create_room(client, "test_game")
+
+        with client.websocket_connect("/ws/test_game") as ws:
+            # Send garbage bytes that aren't valid MessagePack
+            ws.send_bytes(b"\xff\xff\xff")
+
+            response = self._receive_message(ws)
+            assert response["type"] == SessionMessageType.ERROR
+            assert response["code"] == SessionErrorCode.INVALID_MESSAGE
+
+            # Connection should still be alive - verify by sending a valid message
+            self._send_message(
+                ws,
+                {
+                    "type": ClientMessageType.JOIN_ROOM,
+                    "room_id": "test_game",
+                    "player_name": "TestPlayer",
+                    "session_token": "tok-test",
+                },
+            )
+            response = self._receive_message(ws)
+            assert response["type"] == SessionMessageType.ROOM_JOINED
+
 
 class TestHealthEndpoint:
     @pytest.fixture
@@ -225,7 +250,7 @@ class TestStatusEndpoint:
             "active_rooms": 0,
             "active_games": 0,
             "capacity_used": 0,
-            "max_games": 100,
+            "max_capacity": 100,
         }
 
     def test_status_reflects_active_rooms(self, client):
@@ -251,10 +276,12 @@ class TestCreateRoomEndpoint:
     def test_create_room_invalid_body(self, client):
         response = client.post("/rooms", content=b"not json")
         assert response.status_code == 400
+        assert response.json() == {"error": "Invalid request body"}
 
     def test_create_room_invalid_room_id(self, client):
         response = client.post("/rooms", json={"room_id": "bad id!"})
         assert response.status_code == 400
+        assert response.json() == {"error": "Invalid request body"}
 
     def test_create_room_duplicate(self, client):
         client.post("/rooms", json={"room_id": "dupe"})
@@ -269,24 +296,25 @@ class TestCreateRoomEndpoint:
         assert response.status_code == 409
         assert response.json() == {"error": "Game with this ID already exists"}
 
-    def test_create_room_with_custom_num_ai_players(self, client):
-        response = client.post("/rooms", json={"room_id": "mixed-room", "num_ai_players": 2})
+    @pytest.mark.parametrize(
+        ("room_id", "num_ai"),
+        [("mixed-room", 2), ("pvp-room", 0)],
+    )
+    def test_create_room_with_custom_num_ai_players(self, client, room_id, num_ai):
+        response = client.post("/rooms", json={"room_id": room_id, "num_ai_players": num_ai})
         assert response.status_code == 201
-        assert response.json() == {"room_id": "mixed-room", "num_ai_players": 2, "status": "created"}
-
-    def test_create_room_with_zero_ai_players(self, client):
-        response = client.post("/rooms", json={"room_id": "pvp-room", "num_ai_players": 0})
-        assert response.status_code == 201
-        assert response.json() == {"room_id": "pvp-room", "num_ai_players": 0, "status": "created"}
+        assert response.json() == {"room_id": room_id, "num_ai_players": num_ai, "status": "created"}
 
     def test_create_room_invalid_num_ai_players(self, client):
         response = client.post("/rooms", json={"room_id": "bad-room", "num_ai_players": 5})
         assert response.status_code == 400
+        assert response.json() == {"error": "Invalid request body"}
 
     def test_create_room_legacy_num_bots_rejected(self, client):
         """Legacy payload using num_bots is rejected via extra=forbid."""
         response = client.post("/rooms", json={"room_id": "legacy-room", "num_bots": 2})
         assert response.status_code == 400
+        assert response.json() == {"error": "Invalid request body"}
 
     def test_list_rooms_shows_room_info(self, client):
         client.post("/rooms", json={"room_id": "ai-room", "num_ai_players": 3})
@@ -307,3 +335,9 @@ class TestCreateRoomEndpoint:
         response = client.post("/rooms", json={"room_id": "overflow"})
         assert response.status_code == 503
         assert response.json() == {"error": "Server at capacity"}
+
+    def test_create_room_oversized_body_rejected(self, client):
+        oversized = b'{"room_id": "' + b"x" * 5000 + b'"}'
+        response = client.post("/rooms", content=oversized, headers={"Content-Type": "application/json"})
+        assert response.status_code == 413
+        assert response.json() == {"error": "Request body too large"}

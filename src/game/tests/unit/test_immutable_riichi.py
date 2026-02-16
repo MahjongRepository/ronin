@@ -9,6 +9,7 @@ construction not achievable via replays.
 
 from mahjong.tile import TilesConverter
 
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.riichi import declare_riichi
 from game.logic.settings import GameSettings
 from game.logic.state import (
@@ -32,6 +33,7 @@ class TestDeclareRiichiDaburi:
         *,
         player_discards: tuple[Discard, ...] | None = None,
         players_with_open_hands: tuple[int, ...] | None = None,
+        other_player_melds: dict[int, tuple[FrozenMeld, ...]] | None = None,
     ) -> tuple[MahjongRoundState, MahjongGameState]:
         """Create game state for testing riichi declaration."""
         player = MahjongPlayer(
@@ -41,7 +43,11 @@ class TestDeclareRiichiDaburi:
             score=25000,
             discards=player_discards or (),
         )
-        players = (player, *tuple(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
+        melds_map = other_player_melds or {}
+        players = (
+            player,
+            *tuple(MahjongPlayer(seat=i, name=f"AI{i}", score=25000, melds=melds_map.get(i, ())) for i in range(1, 4)),
+        )
         round_state = MahjongRoundState(
             wall=Wall(live_tiles=tuple(range(10))),
             players=players,
@@ -59,9 +65,7 @@ class TestDeclareRiichiDaburi:
         is added to player.discards. So for double riichi, len(discards) == 1.
         """
         round_state, game_state = self._create_game_state(
-            player_discards=(
-                Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),
-            ),
+            player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
             players_with_open_hands=(),
         )
         assert round_state.players[0].is_daburi is False
@@ -105,10 +109,31 @@ class TestDeclareRiichiDaburi:
     def test_no_double_riichi_if_open_hands_exist(self):
         """No double riichi if any player has called an open meld."""
         round_state, game_state = self._create_game_state(
-            player_discards=(
-                Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),
-            ),
+            player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
             players_with_open_hands=(1,),
+        )
+
+        settings = GameSettings()
+        new_round_state, _new_game_state = declare_riichi(
+            round_state,
+            game_state,
+            seat=0,
+            settings=settings,
+        )
+
+        assert new_round_state.players[0].is_daburi is False
+
+    def test_no_double_riichi_if_other_player_has_closed_kan(self):
+        """No double riichi if another player declared a closed kan."""
+        closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="1111")),
+            opened=False,
+        )
+        round_state, game_state = self._create_game_state(
+            player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
+            players_with_open_hands=(),
+            other_player_melds={1: (closed_kan,)},
         )
 
         settings = GameSettings()

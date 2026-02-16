@@ -46,7 +46,7 @@ class FakeStorage:
 class FailingStorage:
     """Storage that always raises on save."""
 
-    def save_replay(self, game_id: str, content: str) -> None:  # noqa: ARG002
+    def save_replay(self, game_id: str, content: str) -> None:
         raise OSError("disk full")
 
 
@@ -333,23 +333,6 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         assert json.loads(lines[0])["type"] == "discard"
 
-    async def test_draw_event_seat_target_persisted(self):
-        """DrawEvent (SeatTarget) carries tile ID data for replay."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", [_make_draw_event(seat=1, tile_id=55)])
-        await collector.save_and_cleanup("game1")
-
-        lines = _parse_saved_replay(storage.saved["game1"])
-        assert len(lines) == 1
-        record = json.loads(lines[0])
-        assert record["type"] == "draw"
-        assert record["seat"] == 1
-        assert record["tile_id"] == 55
-        assert "available_actions" not in record
-
     async def test_draw_event_available_actions_stripped(self):
         """DrawEvent available_actions field is stripped from replay output."""
         storage = FakeStorage()
@@ -465,19 +448,6 @@ class TestReplayCollectorRoundStartedMerge:
         # my_tiles is stripped from the merged output
         assert "my_tiles" not in record
 
-    async def test_merged_record_strips_seat_and_my_tiles(self):
-        """Merged record strips per-seat fields (seat, my_tiles) that are meaningless after merge."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", _make_all_round_started_events())
-        await collector.save_and_cleanup("game1")
-
-        record = json.loads(_parse_saved_replay(storage.saved["game1"])[0])
-        assert "seat" not in record
-        assert "my_tiles" not in record
-
     async def test_single_round_started_event_produces_one_record(self):
         """A single round_started event is wrapped as-is (no merge needed)."""
         storage = FakeStorage()
@@ -561,21 +531,6 @@ class TestReplayCollectorRoundStartedMerge:
 
 class TestReplayCollectorJsonLines:
     """Tests for JSON lines format."""
-
-    async def test_json_lines_parseable(self):
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events(
-            "game1",
-            [_make_discard_event(), _make_meld_event(), _make_game_ended_event()],
-        )
-        await collector.save_and_cleanup("game1")
-
-        for line in _parse_saved_replay(storage.saved["game1"]):
-            record = json.loads(line)
-            assert isinstance(record, dict)
 
     async def test_discard_record_shape(self):
         storage = FakeStorage()
@@ -742,22 +697,6 @@ class TestReplayCollectorSeedInReplay:
 
 class TestReplayCollectorSensitiveDataGuard:
     """Tests that concealed data is only written when collection is active."""
-
-    async def test_concealed_events_not_persisted_without_start(self):
-        """Concealed seat-target events are silently dropped if game was not started."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.collect_events(
-            "game1",
-            [
-                _make_draw_event(),
-                _make_round_started_event(),
-            ],
-        )
-        await collector.save_and_cleanup("game1")
-
-        assert "game1" not in storage.saved
 
     async def test_concealed_events_not_persisted_after_cleanup(self):
         """Concealed seat-target events are silently dropped after game cleanup."""

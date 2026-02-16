@@ -304,7 +304,7 @@ class TestRoundAdvanceTimerIntegration:
         await asyncio.sleep(0.1)
         timer.stop()
 
-        assert timer.remaining_bank == 10.0
+        assert timer._bank_seconds == 10.0
 
     async def test_fixed_timer_cancel_does_not_consume_bank(self):
         """Cancelling a fixed timer does not consume bank time."""
@@ -318,7 +318,7 @@ class TestRoundAdvanceTimerIntegration:
         await asyncio.sleep(0.05)
         timer.cancel()
 
-        assert timer.remaining_bank == 10.0
+        assert timer._bank_seconds == 10.0
 
     async def test_fixed_timer_cancelled_by_turn_timer(self):
         """Starting a turn timer cancels an active fixed timer."""
@@ -470,4 +470,23 @@ class TestRoundAdvanceManager:
 
         assert manager.is_pending("g1")
         assert not manager.is_pending("g2")
+        assert manager.get_unconfirmed_seats("g1") == {0, 1}
+
+    def test_confirm_seat_rejects_non_required_seat(self, manager):
+        """confirm_seat returns False for seats not in the required set (e.g. AI seats)."""
+        manager.setup_pending("g1", ai_player_seats={2, 3})
+
+        result = manager.confirm_seat("g1", 2)
+
+        assert result is False
+        assert manager.is_pending("g1")
+        assert manager.get_unconfirmed_seats("g1") == {0, 1}
+
+    def test_confirm_seat_rejects_out_of_range_seat(self, manager):
+        """confirm_seat returns False for seats not in the required set."""
+        manager.setup_pending("g1", ai_player_seats={2, 3})
+
+        result = manager.confirm_seat("g1", 99)
+
+        assert result is False
         assert manager.get_unconfirmed_seats("g1") == {0, 1}

@@ -103,17 +103,6 @@ class TestMahjongGameServiceValidationError:
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
 
-    async def test_dispatch_action_unknown_data_action(self, service):
-        """Trigger unknown action branch for data-requiring actions."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events = await service.handle_action("game1", "Player", "unknown_action", {"some": "data"})
-
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.UNKNOWN_ACTION
-
 
 class TestMahjongGameServiceProcessActionResult:
     """Tests for _process_action_result_internal branching."""

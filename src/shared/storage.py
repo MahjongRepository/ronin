@@ -51,7 +51,7 @@ class LocalReplayStorage:
         if not target.is_relative_to(self._replay_dir):
             raise ValueError(f"Path traversal rejected: '{game_id}' resolves outside replay directory")
 
-        os.makedirs(str(self._replay_dir), mode=_REPLAY_DIR_MODE, exist_ok=True)  # noqa: PTH103
+        self._replay_dir.mkdir(mode=_REPLAY_DIR_MODE, parents=True, exist_ok=True)
         self._replay_dir.chmod(_REPLAY_DIR_MODE)
 
         fd, tmp_path = tempfile.mkstemp(dir=str(self._replay_dir), suffix=".tmp", prefix=".replay_")

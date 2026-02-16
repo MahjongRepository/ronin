@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING
 
 from game.logic.enums import AbortiveDrawType
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.settings import GameSettings
 from game.logic.tiles import WINDS_34, is_terminal_or_honor, tile_to_34
 from game.logic.types import AbortiveDrawResult
 
 if TYPE_CHECKING:
+    from game.logic.settings import GameSettings
     from game.logic.state import (
         MahjongGameState,
         MahjongPlayer,
@@ -37,8 +37,10 @@ def can_call_kyuushu_kyuuhai(
         if p.discards:
             return False
 
-    # check if any melds have been made
+    # check if any calls have been made (including closed kans)
     if round_state.players_with_open_hands:
+        return False
+    if any(p.melds for p in round_state.players):
         return False
 
     # count unique terminal/honor tile types in hand
@@ -72,6 +74,7 @@ def call_kyuushu_kyuuhai(
     result = AbortiveDrawResult(
         reason=AbortiveDrawType.NINE_TERMINALS,
         scores=scores,
+        score_changes={p.seat: 0 for p in round_state.players},
         seat=round_state.current_player_seat,
     )
     return round_state, result
@@ -112,10 +115,7 @@ def check_four_kans(round_state: MahjongRoundState, settings: GameSettings) -> b
             players_with_kans.add(player.seat)
 
     # abortive draw only if max kans reached AND multiple players have kans
-    return (
-        total_kans >= settings.max_kans_per_round
-        and len(players_with_kans) >= settings.min_players_for_kan_abort
-    )
+    return total_kans >= settings.max_kans_per_round and len(players_with_kans) >= settings.min_players_for_kan_abort
 
 
 def check_four_winds(round_state: MahjongRoundState, settings: GameSettings) -> bool:

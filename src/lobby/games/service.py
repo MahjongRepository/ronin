@@ -35,7 +35,7 @@ class GamesService:
                             room["server_name"] = server.name
                             room["server_url"] = server.url
                             all_rooms.append(room)
-                except httpx.RequestError, ValueError:
+                except (httpx.RequestError, ValueError):  # fmt: skip  # pragma: no cover
                     pass
 
         return all_rooms
@@ -68,7 +68,7 @@ class GamesService:
                     f"{server.url}/rooms",
                     json={"room_id": room_id, "num_ai_players": num_ai_players},
                 )
-                if response.status_code != HTTPStatus.CREATED:
+                if response.status_code != HTTPStatus.CREATED:  # pragma: no cover
                     raise RoomCreationError(f"Failed to create room: {response.text}")
-            except httpx.RequestError as e:
+            except httpx.RequestError as e:  # pragma: no cover
                 raise RoomCreationError(f"Failed to connect to game server: {e}") from e

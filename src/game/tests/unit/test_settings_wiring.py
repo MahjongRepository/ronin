@@ -90,6 +90,44 @@ class TestValidateSettings:
     def test_enchousen_none_passes(self):
         validate_settings(GameSettings(enchousen=EnchousenType.NONE))
 
+    def test_uma_wrong_length_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
+            validate_settings(GameSettings(uma=(20, 10, -10)))
+
+    def test_uma_too_many_entries_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
+            validate_settings(GameSettings(uma=(20, 10, -10, -10, -10)))
+
+    def test_uma_nonzero_sum_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="uma values must sum to zero"):
+            validate_settings(GameSettings(uma=(20, 10, -10, -10)))
+
+    def test_uma_valid_passes(self):
+        validate_settings(GameSettings(uma=(30, 10, -10, -30)))
+
+    def test_initial_bank_seconds_zero_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
+            validate_settings(GameSettings(initial_bank_seconds=0))
+
+    def test_initial_bank_seconds_negative_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
+            validate_settings(GameSettings(initial_bank_seconds=-1))
+
+    def test_round_bonus_seconds_negative_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="round_bonus_seconds must be non-negative"):
+            validate_settings(GameSettings(round_bonus_seconds=-1))
+
+    def test_round_bonus_seconds_zero_passes(self):
+        validate_settings(GameSettings(round_bonus_seconds=0))
+
+    def test_meld_decision_seconds_zero_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="meld_decision_seconds must be positive"):
+            validate_settings(GameSettings(meld_decision_seconds=0))
+
+    def test_round_advance_timeout_seconds_zero_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="round_advance_timeout_seconds must be positive"):
+            validate_settings(GameSettings(round_advance_timeout_seconds=0))
+
     def test_init_game_validates_settings(self):
         configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
@@ -404,9 +442,7 @@ def _make_kan_test_round_state(
     players = [
         create_player(seat=caller_seat, tiles=caller_tiles, score=25000),
     ]
-    players.extend(
-        create_player(seat=s, tiles=_OTHER_HAND, score=25000) for s in range(4) if s != caller_seat
-    )
+    players.extend(create_player(seat=s, tiles=_OTHER_HAND, score=25000) for s in range(4) if s != caller_seat)
     players.sort(key=lambda p: p.seat)
 
     dead_wall = tuple(range(100, 114))

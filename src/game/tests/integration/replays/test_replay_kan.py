@@ -104,7 +104,7 @@ async def test_added_kan_state_consistency():
         events=_build_added_kan_events(),
     )
 
-    trace = await run_replay_async(replay, auto_pass_calls=True)
+    trace = await run_replay_async(replay)
 
     # Find the kan step
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
@@ -156,7 +156,7 @@ async def test_added_kan_hand_tile_count():
         events=_build_added_kan_events(),
     )
 
-    trace = await run_replay_async(replay, auto_pass_calls=True)
+    trace = await run_replay_async(replay)
 
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
@@ -192,7 +192,7 @@ async def test_added_kan_deferred_dora_reveal():
         events=_build_added_kan_events(),
     )
 
-    trace = await run_replay_async(replay, auto_pass_calls=True)
+    trace = await run_replay_async(replay)
 
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)

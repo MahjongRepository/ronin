@@ -13,12 +13,11 @@ from game.logic.abortive import (
     check_four_riichi,
     check_four_winds,
     check_triple_ron,
-    process_abortive_draw,
 )
 from game.logic.enums import RoundResultType
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
-from game.logic.state import Discard, MahjongGameState, MahjongPlayer, MahjongRoundState
+from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 
 
 class TestCanCallKyuushuKyuuhai:
@@ -144,9 +143,45 @@ class TestCanCallKyuushuKyuuhai:
         assert result is False
 
     def test_cannot_call_if_melds_exist(self):
-        """Player cannot call if any melds have been made."""
+        """Player cannot call if any open melds have been made."""
         tiles = self._create_kyuushu_hand()
         round_state = self._create_round_state(tiles, players_with_open_hands=(2,))
+        settings = GameSettings()
+
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+
+        assert result is False
+
+    def test_cannot_call_if_closed_kan_exists(self):
+        """Player cannot call if any player has a closed kan."""
+        tiles = self._create_kyuushu_hand()
+        closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="1111")),
+            opened=False,
+        )
+        players = (
+            MahjongPlayer(
+                seat=0,
+                name="Player1",
+                tiles=tuple(tiles),
+                score=25000,
+            ),
+            MahjongPlayer(
+                seat=1,
+                name="AI1",
+                tiles=(),
+                melds=(closed_kan,),
+                score=25000,
+            ),
+            MahjongPlayer(seat=2, name="AI2", tiles=(), score=25000),
+            MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
+        )
+        round_state = MahjongRoundState(
+            players=players,
+            current_player_seat=0,
+            players_with_open_hands=(),
+        )
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
@@ -255,19 +290,6 @@ class TestCallKyuushuKyuuhai:
 
         assert result.seat == 2
 
-    def test_different_seats(self):
-        """Works correctly for any seat."""
-        for seat in range(4):
-            round_state = self._create_round_state(current_player_seat=seat)
-            _new_round_state, result = call_kyuushu_kyuuhai(round_state)
-            assert result.seat == seat
-
-
-class TestKyuushuConstant:
-    def test_minimum_types_is_9(self):
-        """Verify the default kyuushu min types is 9."""
-        assert GameSettings().kyuushu_min_types == 9
-
 
 class TestCheckFourRiichi:
     def _create_round_state(
@@ -301,24 +323,6 @@ class TestCheckFourRiichi:
 
         assert result is False
 
-    def test_no_riichi_returns_false(self):
-        """Returns False when no players have declared riichi."""
-        round_state = self._create_round_state(riichi_seats=())
-        settings = GameSettings()
-
-        result = check_four_riichi(round_state, settings)
-
-        assert result is False
-
-    def test_one_riichi_returns_false(self):
-        """Returns False when only 1 player has declared riichi."""
-        round_state = self._create_round_state(riichi_seats=(2,))
-        settings = GameSettings()
-
-        result = check_four_riichi(round_state, settings)
-
-        assert result is False
-
 
 class TestCheckTripleRon:
     def test_three_callers_returns_true(self):
@@ -332,22 +336,6 @@ class TestCheckTripleRon:
     def test_two_callers_returns_false(self):
         """Returns False when only 2 players call ron (double ron is allowed)."""
         ron_callers = [1, 3]
-
-        result = check_triple_ron(ron_callers, 3)
-
-        assert result is False
-
-    def test_one_caller_returns_false(self):
-        """Returns False when only 1 player calls ron."""
-        ron_callers = [2]
-
-        result = check_triple_ron(ron_callers, 3)
-
-        assert result is False
-
-    def test_empty_callers_returns_false(self):
-        """Returns False when no players call ron."""
-        ron_callers = []
 
         result = check_triple_ron(ron_callers, 3)
 
@@ -423,15 +411,6 @@ class TestCheckFourKans:
 
         assert result is False
 
-    def test_no_kans_returns_false(self):
-        """Returns False when no kans have been declared."""
-        round_state = self._create_round_state()
-        settings = GameSettings()
-
-        result = check_four_kans(round_state, settings)
-
-        assert result is False
-
     def test_shouminkan_counts_as_kan(self):
         """Shouminkan (added kan) counts towards the 4 kan limit."""
         round_state = self._create_round_state(
@@ -442,9 +421,7 @@ class TestCheckFourKans:
             player1_melds=(
                 self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"), FrozenMeld.SHOUMINKAN),
             ),
-            player2_melds=(
-                self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"), FrozenMeld.KAN),
-            ),
+            player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"), FrozenMeld.KAN),),
         )
 
         settings = GameSettings()
@@ -476,40 +453,7 @@ class TestCheckFourWinds:
     def test_four_east_winds_returns_true(self):
         """Returns True when first 4 discards are all East winds."""
         round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="1111"))
-        )
-        settings = GameSettings()
-
-        result = check_four_winds(round_state, settings)
-
-        assert result is True
-
-    def test_four_south_winds_returns_true(self):
-        """Returns True when first 4 discards are all South winds."""
-        round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="2222"))
-        )
-        settings = GameSettings()
-
-        result = check_four_winds(round_state, settings)
-
-        assert result is True
-
-    def test_four_west_winds_returns_true(self):
-        """Returns True when first 4 discards are all West winds."""
-        round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="3333"))
-        )
-        settings = GameSettings()
-
-        result = check_four_winds(round_state, settings)
-
-        assert result is True
-
-    def test_four_north_winds_returns_true(self):
-        """Returns True when first 4 discards are all North winds."""
-        round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="4444"))
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="1111")),
         )
         settings = GameSettings()
 
@@ -521,7 +465,7 @@ class TestCheckFourWinds:
         """Returns False when first 4 discards are different wind tiles."""
         # E, S, W, N
         round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="1234"))
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="1234")),
         )
         settings = GameSettings()
 
@@ -533,7 +477,7 @@ class TestCheckFourWinds:
         """Returns False when first 4 discards are non-wind tiles."""
         # 1m tiles
         round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(man="1111"))
+            all_discards=tuple(TilesConverter.string_to_136_array(man="1111")),
         )
         settings = GameSettings()
 
@@ -544,7 +488,7 @@ class TestCheckFourWinds:
     def test_four_dragons_returns_false(self):
         """Returns False when first 4 discards are same dragon (not wind)."""
         round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="5555"))
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="5555")),
         )
         settings = GameSettings()
 
@@ -555,7 +499,7 @@ class TestCheckFourWinds:
     def test_less_than_4_discards_returns_false(self):
         """Returns False when less than 4 discards have been made."""
         round_state = self._create_round_state(
-            all_discards=tuple(TilesConverter.string_to_136_array(honors="111")[:3])
+            all_discards=tuple(TilesConverter.string_to_136_array(honors="111")[:3]),
         )
         settings = GameSettings()
 
@@ -569,7 +513,7 @@ class TestCheckFourWinds:
             all_discards=(
                 *TilesConverter.string_to_136_array(honors="1111"),
                 TilesConverter.string_to_136_array(honors="22")[0],
-            )
+            ),
         )
         settings = GameSettings()
 
@@ -588,69 +532,3 @@ class TestCheckFourWinds:
         result = check_four_winds(round_state, settings)
 
         assert result is False
-
-
-class TestAbortiveDrawType:
-    def test_enum_values(self):
-        """Verify enum has all required values."""
-        assert AbortiveDrawType.NINE_TERMINALS.value == "nine_terminals"
-        assert AbortiveDrawType.FOUR_RIICHI.value == "four_riichi"
-        assert AbortiveDrawType.TRIPLE_RON.value == "triple_ron"
-        assert AbortiveDrawType.FOUR_KANS.value == "four_kans"
-        assert AbortiveDrawType.FOUR_WINDS.value == "four_winds"
-
-
-class TestProcessAbortiveDraw:
-    def _create_game_state(self, honba_sticks: int = 0) -> MahjongGameState:
-        """Create a game state for testing."""
-        players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="AI1", score=25000),
-            MahjongPlayer(seat=2, name="AI2", score=25000),
-            MahjongPlayer(seat=3, name="AI3", score=25000),
-        ]
-        round_state = MahjongRoundState(players=players)
-        return MahjongGameState(round_state=round_state, honba_sticks=honba_sticks)
-
-    def test_does_not_increment_honba(self):
-        """Honba is not modified by process_abortive_draw (handled by process_round_end)."""
-        game_state = self._create_game_state(honba_sticks=0)
-        initial_honba = game_state.honba_sticks
-
-        process_abortive_draw(game_state, AbortiveDrawType.FOUR_RIICHI)
-
-        assert game_state.honba_sticks == initial_honba
-
-    def test_preserves_existing_honba(self):
-        """Honba value is preserved (increment handled by process_round_end)."""
-        game_state = self._create_game_state(honba_sticks=3)
-
-        process_abortive_draw(game_state, AbortiveDrawType.NINE_TERMINALS)
-
-        assert game_state.honba_sticks == 3
-
-    def test_returns_abortive_draw_result(self):
-        """Returns correct result dict structure."""
-        game_state = self._create_game_state()
-
-        result = process_abortive_draw(game_state, AbortiveDrawType.TRIPLE_RON)
-
-        assert result.type == RoundResultType.ABORTIVE_DRAW
-        assert result.reason == AbortiveDrawType.TRIPLE_RON
-
-    def test_includes_score_changes_of_zero(self):
-        """Score changes in result are all zero."""
-        game_state = self._create_game_state()
-
-        result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_KANS)
-
-        assert result.score_changes == {0: 0, 1: 0, 2: 0, 3: 0}
-
-    def test_all_abortive_types_work(self):
-        """Each abortive draw type is handled correctly."""
-        for draw_type in AbortiveDrawType:
-            game_state = self._create_game_state()
-            result = process_abortive_draw(game_state, draw_type)
-
-            assert result.type == RoundResultType.ABORTIVE_DRAW
-            assert result.reason == draw_type

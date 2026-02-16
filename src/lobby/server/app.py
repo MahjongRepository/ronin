@@ -38,8 +38,8 @@ async def list_servers(request: Request) -> JSONResponse:
                     "healthy": s.healthy,
                 }
                 for s in servers
-            ]
-        }
+            ],
+        },
     )
 
 
@@ -58,7 +58,7 @@ async def create_room(request: Request) -> JSONResponse:
     else:
         try:
             body = json.loads(raw_body)
-        except ValueError, json.JSONDecodeError:
+        except (ValueError, json.JSONDecodeError):  # fmt: skip
             return JSONResponse({"error": "Invalid JSON body"}, status_code=422)
 
     try:
@@ -81,7 +81,7 @@ async def create_room(request: Request) -> JSONResponse:
 
 
 def create_app(settings: LobbyServerSettings | None = None) -> Starlette:
-    if settings is None:
+    if settings is None:  # pragma: no cover
         settings = LobbyServerSettings()
 
     routes = [

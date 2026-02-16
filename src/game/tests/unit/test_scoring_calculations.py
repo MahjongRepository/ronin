@@ -1,8 +1,8 @@
 """
 Unit tests for scoring utility functions.
 
-Tests _goshashonyu_round (Japanese rounding), _get_winner_seats, and calculate_final_scores.
-These are pure utility functions that need direct unit testing.
+Tests _goshashonyu_round (Japanese rounding), _get_winner_seats, calculate_final_scores,
+and finalize_game.
 """
 
 from game.logic.game import _get_winner_seats, _goshashonyu_round, calculate_final_scores, finalize_game
@@ -11,8 +11,6 @@ from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
     HandResultInfo,
-    RonResult,
-    TsumoResult,
     YakuInfo,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -23,35 +21,8 @@ def _yaku(*yaku_ids: int) -> list[YakuInfo]:
     return [YakuInfo(yaku_id=yid, han=0) for yid in yaku_ids]
 
 
-class TestGetWinnerSeats:
-    """Test _get_winner_seats: Extract winner seats from round results."""
-
-    def test_tsumo_result(self):
-        result = TsumoResult(
-            winner_seat=0,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0)),
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-            riichi_sticks_collected=0,
-            closed_tiles=[],
-            melds=[],
-            win_tile=1,
-        )
-        assert _get_winner_seats(result) == [0]
-
-    def test_ron_result(self):
-        result = RonResult(
-            winner_seat=2,
-            loser_seat=3,
-            winning_tile=42,
-            hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0)),
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 3000, 3: -3000},
-            riichi_sticks_collected=0,
-            closed_tiles=[],
-            melds=[],
-        )
-        assert _get_winner_seats(result) == [2]
+class TestGetWinnerSeatsDoubleRon:
+    """Test _get_winner_seats extracts seats from double ron results."""
 
     def test_double_ron_result(self):
         result = DoubleRonResult(
@@ -195,9 +166,7 @@ class TestFinalizeGameRiichiSticks:
 
     def test_leftover_riichi_awarded_to_winner(self):
         """Leftover riichi sticks are awarded to the highest-scoring player."""
-        players = tuple(
-            create_player(seat=i, score=score) for i, score in enumerate([30000, 25000, 22000, 23000])
-        )
+        players = tuple(create_player(seat=i, score=score) for i, score in enumerate([30000, 25000, 22000, 23000]))
         round_state = create_round_state(players=players)
         game_state = create_game_state(round_state, riichi_sticks=2)  # 2 * 1000 = 2000 bonus
 

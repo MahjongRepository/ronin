@@ -42,56 +42,38 @@ timeout = 10
 [tool.ruff]
 src = ["src"]
 target-version = "py314"
-line-length = 110
+line-length = 120
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D100", # Missing docstring in public module
-    "D101", # Missing docstring in public class
-    "D102", # Missing docstring in public method
-    "D103", # Missing docstring in public function
-    "D104", # Missing docstring in public package
-    "D107", # Missing docstring in __init__
-    "D200", # One-line docstring should fit on one line
-    "D203", # One blank line before class
-    "D213", # Multi-line summary second line
-    "D212", # Multi-line summary first line should end with a period
-    "COM812", # Trailing comma missing
-    # Exception message rules - overly pedantic. Standard Python patterns like
-    # `raise SomeError("message")` are clear and readable. Forcing message extraction
-    # to variables adds boilerplate without improving clarity.
-    "TRY003", # Avoid specifying long messages outside exception class
+    "D", # Dockstring styles
     "EM101",  # Exception must not use a string literal
     "EM102",  # Exception must not use an f-string literal
-    # Pydantic models used in function signatures need runtime imports for validation
-    "TC001",  # Move application import into type-checking block
-    "TC003",  # Move stdlib import into type-checking block
+    "TRY003", # Avoid specifying long messages outside exception class
     "G004",  # Convert to lazy `%` formatting
     "TD", # TODO comments
     "FIX002",# Line contains TODO
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# tests are allowed to have less restrictive rules
-"test_*.py" = [
-    "ANN001", # Missing type annotation for function argument
-    "ANN201", # Missing return type annotation
-    "ANN202", # Missing return type annotation for private function
+"{test_*.py,conftest.py,**/tests/**/helpers.py,**/tests/**/mocks/*.py}" = [
+    "ANN", # Missing type annotation
+    "ARG", # Unused function arguments
+    "PLR0913", # Too many arguments (test factories)
+    "PLR0915", # Too many statements
     "PLR2004", # Magic value used in comparison
     "S101", # Use of `assert` detected
-    "S105", # Possible hardcoded password - test fixtures use literal session_token values
+    "S105", # Possible hardcoded password
     "S106", # Possible hardcoded password assigned to argument
-    "SLF001", # Private member accessed - common in tests to verify internal state
-    "D401", # Imperative mood - test helpers often use descriptive names
-    "PLR0915", # Too many statements - integration tests need thorough assertions
+    "SLF001", # Private member accessed
 ]
-"conftest.py" = [
-    "ANN001", # Missing type annotation for function argument
-    "ANN201", # Missing return type annotation
-]
+# Base class methods define the interface contract; parameters are unused in the default implementation
+"src/game/logic/ai_player.py" = ["ARG002"]
 "src/game/logic/shanten.py" = ["TID251"]
-"src/game/tests/unit/test_shanten.py" = ["TID251"]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "mahjong.shanten".msg = "Use game.logic.shanten instead of mahjong.shanten directly."
@@ -101,6 +83,23 @@ python-version = "3.14"
 
 [tool.ty.src]
 include = ["src"]
+
+[tool.ty.rules]
+# Promote all non-error default rules to error for stricter checking
+division-by-zero = "error"               # default: ignore
+possibly-unresolved-reference = "error"   # default: warn
+possibly-missing-attribute = "error"      # default: warn
+possibly-missing-import = "error"         # default: warn
+possibly-missing-implicit-call = "error"  # default: warn
+deprecated = "error"                      # default: warn
+redundant-cast = "error"                  # default: warn
+ineffective-final = "error"              # default: warn
+ambiguous-protocol-member = "error"       # default: warn
+invalid-ignore-comment = "error"          # default: warn
+ignore-comment-unknown-rule = "error"     # default: warn
+invalid-legacy-positional-parameter = "error"  # default: warn
+unused-ignore-comment = "error"           # default: warn
+unused-type-ignore-comment = "error"      # default: warn
 
 [[tool.ty.overrides]]
 include = ["**/test_*.py", "**/conftest.py"]
@@ -121,7 +120,7 @@ unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["**/tests/*", "**/test_*", "src/lobby/*", "src/game/logic/ai_player.py", "src/game/logic/ai_player_controller.py", "src/debug.py", "src/shared/logging.py"]
+omit = ["**/tests/*", "**/test_*", "src/game/logic/ai_player.py", "src/game/logic/ai_player_controller.py", "src/debug.py", "src/shared/logging.py"]
 
 [tool.coverage.report]
 show_missing = true

@@ -146,7 +146,7 @@ servers:
                     "num_ai_players": 1,
                     "players": ["Alice", "Bob"],
                 },
-            ]
+            ],
         }
 
         with patch("httpx.AsyncClient") as mock_client:

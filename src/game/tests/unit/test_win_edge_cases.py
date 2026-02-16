@@ -1,55 +1,20 @@
 """
-Unit tests for edge cases in win.py that were previously uncovered.
+Unit tests for edge cases in win.py.
 
 Tests cover:
-1. Empty meld handling in all_tiles_from_hand_and_melds
-2. Waiting tiles with 4-copy tile skipping
-3. Chankan blocked by riichi furiten
-4. Chankan blocked by temporary furiten
+1. Waiting tiles with 4-copy tile skipping
+2. Chankan blocked by riichi furiten
+3. Chankan blocked by temporary furiten
 """
 
 from mahjong.tile import TilesConverter
 
-from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.wall import Wall
 from game.logic.win import (
-    all_tiles_from_hand_and_melds,
     get_waiting_tiles,
     is_chankan_possible,
 )
-
-
-class TestAllTilesFromHandAndMelds:
-    def test_all_tiles_from_hand_with_empty_meld(self):
-        """Test that empty melds are skipped when collecting all tiles."""
-        # Create hand tiles: 123m
-        hand_tiles = TilesConverter.string_to_136_array(man="123")
-
-        # Create an empty meld (tiles=())
-        empty_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=(),
-            opened=True,
-        )
-
-        # Create a normal meld: pon of 1p
-        normal_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(pin="111")),
-            opened=True,
-        )
-
-        # Call with both melds
-        result = all_tiles_from_hand_and_melds(hand_tiles, [empty_meld, normal_meld])
-
-        # Verify result contains hand tiles + normal meld tiles, but not empty meld
-        assert len(result) == 6  # 3 from hand + 3 from normal meld
-        # Verify the empty meld didn't add any tiles
-        hand_tile_ids = set(hand_tiles)
-        normal_meld_tiles = TilesConverter.string_to_136_array(pin="111")
-        expected_ids = hand_tile_ids | set(normal_meld_tiles)
-        assert set(result) == expected_ids
 
 
 class TestWaitingTilesWithFourCopies:

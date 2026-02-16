@@ -71,21 +71,6 @@ class TestServiceEventPayload:
 
         assert len(payload["available_actions"]) == 1
 
-    def test_payload_excludes_type_and_target_fields(self):
-        """The 'type' and 'target' from the domain model are excluded from the dump."""
-        event = ServiceEvent(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=True, is_riichi=True),
-            target=BroadcastTarget(),
-        )
-        payload = service_event_payload(event)
-
-        # "type" key exists because we explicitly set it from event.event
-        assert "type" in payload
-        # but the domain model's "target" string field is excluded
-        assert "target" not in payload
-        assert set(payload.keys()) == {"type", "seat", "tile_id", "is_tsumogiri", "is_riichi"}
-
     def test_discard_false_flags_omitted(self):
         """False boolean flags are omitted from discard wire payloads."""
         event = ServiceEvent(

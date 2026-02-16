@@ -88,7 +88,7 @@ class TestRonPlusMeldCallersRonWins:
             update={
                 "pending_seats": frozenset(),
                 "responses": (CallResponse(seat=1, action=GameAction.CALL_RON),),
-            }
+            },
         )
         new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
         new_game = update_game_with_round(new_game, new_round)
@@ -141,7 +141,7 @@ class TestRonPassMeldClaims:
             update={
                 "pending_seats": frozenset(),
                 "responses": (CallResponse(seat=2, action=GameAction.CALL_PON),),
-            }
+            },
         )
         new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
         new_game = update_game_with_round(new_game, new_round)
@@ -248,7 +248,7 @@ class TestMultipleRonPlusMeld:
             update={
                 "pending_seats": frozenset(),
                 "responses": (CallResponse(seat=1, action=GameAction.CALL_RON),),
-            }
+            },
         )
         new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
         new_game = update_game_with_round(new_game, new_round)
@@ -301,7 +301,7 @@ class TestAllRonPassMeldPriority:
             update={
                 "pending_seats": frozenset(),
                 "responses": (CallResponse(seat=2, action=GameAction.CALL_PON),),
-            }
+            },
         )
         new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
         new_game = update_game_with_round(new_game, new_round)
@@ -514,9 +514,7 @@ class TestFourRiichiAbortAfterRonPass:
         players = tuple(
             create_player(
                 seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113"))
-                if i == 0
-                else (),
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
                 is_riichi=(i in (1, 2, 3)),
                 discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
             )

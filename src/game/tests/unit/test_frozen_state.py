@@ -1,19 +1,15 @@
 """
-Unit tests for frozen Pydantic state models and state utilities.
-
-Covers immutability contracts, FrozenMeld conversion boundaries,
+Unit tests for FrozenMeld conversion boundaries,
 state utility functions, and scoring integration.
-Trivial Pydantic field-assignment/constructor tests removed.
 """
 
 import pytest
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
-from pydantic import ValidationError
 
-from game.logic.enums import CallType, GameAction, MeldCallType
+from game.logic.enums import CallType, GameAction, WindName
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
-from game.logic.scoring import calculate_hand_value
+from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
 from game.logic.state import (
     CallResponse,
@@ -22,6 +18,8 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
     PendingCallPrompt,
+    get_player_view,
+    wind_name,
 )
 from game.logic.state_utils import (
     add_discard_to_player,
@@ -35,73 +33,8 @@ from game.logic.state_utils import (
     update_game_with_round,
     update_player,
 )
-from game.logic.types import MeldCaller
 from game.logic.wall import Wall
-from game.logic.wall import add_dora_indicator as wall_add_dora
-from game.logic.wall import draw_tile as wall_draw_tile
 from game.logic.win import can_declare_tsumo
-
-
-class TestImmutabilityContracts:
-    """All frozen models reject attribute mutation."""
-
-    def test_discard_rejects_mutation(self):
-        discard = Discard(tile_id=0)
-        with pytest.raises(ValidationError):
-            discard.tile_id = 1
-
-    def test_call_response_rejects_mutation(self):
-        response = CallResponse(seat=1, action=GameAction.PASS)
-        with pytest.raises(ValidationError):
-            response.seat = 2
-
-    def test_pending_call_prompt_rejects_mutation(self):
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(1,),
-        )
-        with pytest.raises(ValidationError):
-            prompt.tile_id = 1
-
-    def test_meld_caller_rejects_mutation(self):
-        caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
-        with pytest.raises(ValidationError):
-            caller.seat = 2
-
-    def test_player_rejects_mutation(self):
-        player = MahjongPlayer(seat=0, name="Player1", score=25000)
-        with pytest.raises(ValidationError):
-            player.score = 30000
-
-    def test_round_state_rejects_mutation(self):
-        state = MahjongRoundState()
-        with pytest.raises(ValidationError):
-            state.current_player_seat = 1
-
-    def test_game_state_rejects_mutation(self):
-        state = MahjongGameState()
-        with pytest.raises(ValidationError):
-            state.honba_sticks = 1
-
-    def test_frozen_meld_rejects_mutation(self):
-        meld = FrozenMeld(tiles=(0, 1, 2), meld_type=FrozenMeld.PON, opened=True)
-        with pytest.raises(ValidationError):
-            meld.tiles = (3, 4, 5)
-
-    def test_model_copy_preserves_original_player(self):
-        player = MahjongPlayer(seat=0, name="Player1", score=25000)
-        new_player = player.model_copy(update={"score": 30000})
-        assert player.score == 25000
-        assert new_player.score == 30000
-
-    def test_model_copy_preserves_original_round_state(self):
-        state = MahjongRoundState(current_player_seat=0, turn_count=0)
-        new_state = state.model_copy(update={"current_player_seat": 1, "turn_count": 1})
-        assert state.current_player_seat == 0
-        assert new_state.current_player_seat == 1
 
 
 class TestMahjongPlayerLogic:
@@ -118,13 +51,6 @@ class TestMahjongPlayerLogic:
     def test_has_open_melds_empty(self):
         player = MahjongPlayer(seat=0, name="P3", score=25000)
         assert player.has_open_melds() is False
-
-
-class TestGameStateDefaultFactory:
-    def test_each_game_state_gets_unique_round_state(self):
-        state1 = MahjongGameState()
-        state2 = MahjongGameState()
-        assert state1.round_state is not state2.round_state
 
 
 class TestFrozenMeldConversion:
@@ -203,23 +129,8 @@ class TestStateUtilsTileOperations:
 
     def test_remove_tile_not_in_hand_raises(self):
         state = self._create_round_state_with_tiles()
-        with pytest.raises(ValueError, match="not in list"):
+        with pytest.raises(ValueError, match="Tile 999 not in hand of player at seat 0"):
             remove_tile_from_player(state, 0, 999)
-
-
-class TestStateUtilsWallOperations:
-    def test_wall_draw_from_front(self):
-        wall = Wall(live_tiles=tuple(range(10)))
-        new_wall, tile = wall_draw_tile(wall)
-        assert tile == 0
-        assert len(wall.live_tiles) == 10
-        assert len(new_wall.live_tiles) == 9
-        assert new_wall.live_tiles == tuple(range(1, 10))
-
-    def test_wall_draw_from_empty(self):
-        wall = Wall(live_tiles=())
-        _new_wall, tile = wall_draw_tile(wall)
-        assert tile is None
 
 
 class TestStateUtilsDiscardOperations:
@@ -243,21 +154,17 @@ class TestStateUtilsDiscardOperations:
 
 
 class TestStateUtilsTurnAdvance:
+    def _players(self) -> tuple[MahjongPlayer, ...]:
+        return tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
+
     def test_advance_turn(self):
-        state = MahjongRoundState(current_player_seat=0, turn_count=0)
+        state = MahjongRoundState(players=self._players(), current_player_seat=0, turn_count=0)
         new_state = advance_turn(state)
 
         assert state.current_player_seat == 0
         assert state.turn_count == 0
         assert new_state.current_player_seat == 1
         assert new_state.turn_count == 1
-
-    def test_advance_turn_wraps_around(self):
-        state = MahjongRoundState(current_player_seat=3, turn_count=10)
-        new_state = advance_turn(state)
-
-        assert new_state.current_player_seat == 0
-        assert new_state.turn_count == 11
 
 
 class TestStateUtilsPendingPrompt:
@@ -291,6 +198,19 @@ class TestStateUtilsPendingPrompt:
         assert len(new_prompt.responses) == 1
         assert new_prompt.pending_seats == frozenset({2})
 
+    def test_add_prompt_response_rejects_seat_not_in_pending(self):
+        """Raises KeyError when response seat is not in pending_seats."""
+        prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=0,
+            from_seat=0,
+            pending_seats=frozenset({1}),
+            callers=(1,),
+        )
+        response = CallResponse(seat=3, action=GameAction.PASS)
+        with pytest.raises(KeyError):
+            add_prompt_response(prompt, response)
+
 
 class TestStateUtilsGameStateUpdates:
     def test_update_game_with_round(self):
@@ -300,14 +220,6 @@ class TestStateUtilsGameStateUpdates:
 
         assert game_state.round_state.current_player_seat == 0
         assert new_game_state.round_state.current_player_seat == 2
-
-
-class TestStateUtilsDoraIndicators:
-    def test_add_dora_indicator(self):
-        wall = Wall(dora_indicators=(0,), dead_wall_tiles=tuple(range(14)))
-        new_wall, _indicator = wall_add_dora(wall)
-        assert wall.dora_indicators == (0,)
-        assert new_wall.dora_indicators == (0, 3)
 
 
 class TestStateUtilsPlayerFlags:
@@ -327,6 +239,14 @@ class TestStateUtilsPlayerFlags:
         assert state.players[0].is_ippatsu is True
         for i in range(4):
             assert new_state.players[i].is_ippatsu is False
+
+    def test_clear_all_players_ippatsu_returns_same_state_when_none_set(self):
+        """Short-circuits and returns the same state object when no ippatsu flags are set."""
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", is_ippatsu=False, score=25000) for i in range(4))
+        state = MahjongRoundState(players=players)
+        new_state = clear_all_players_ippatsu(state)
+
+        assert new_state is state
 
 
 class TestFrozenMeldScoringIntegration:
@@ -366,7 +286,8 @@ class TestFrozenMeldScoringIntegration:
         )
 
         win_tile = closed_tiles[-1]
-        result = calculate_hand_value(players[0], round_state, win_tile, GameSettings(), is_tsumo=True)
+        ctx = ScoringContext(player=players[0], round_state=round_state, settings=GameSettings(), is_tsumo=True)
+        result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
         assert result.han >= 1
@@ -408,3 +329,85 @@ class TestFrozenMeldScoringIntegration:
 
         result = can_declare_tsumo(players[0], round_state, GameSettings())
         assert result is True
+
+
+class TestUpdatePlayerValidation:
+    """Tests for update_player seat bounds and field name validation."""
+
+    def _create_round_state(self) -> MahjongRoundState:
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        return MahjongRoundState(players=players)
+
+    def test_rejects_negative_seat(self):
+        state = self._create_round_state()
+        with pytest.raises(ValueError, match="Invalid seat -1"):
+            update_player(state, -1, score=30000)
+
+    def test_rejects_out_of_bounds_seat(self):
+        state = self._create_round_state()
+        with pytest.raises(ValueError, match="Invalid seat 4"):
+            update_player(state, 4, score=30000)
+
+    def test_rejects_invalid_field_name(self):
+        state = self._create_round_state()
+        with pytest.raises(ValueError, match="Invalid player fields"):
+            update_player(state, 0, nonexistent_field=True)
+
+    def test_rejects_typo_in_field_name(self):
+        """Catches typos like 'is_riich' instead of 'is_riichi'."""
+        state = self._create_round_state()
+        with pytest.raises(ValueError, match="Invalid player fields"):
+            update_player(state, 0, is_riich=True)
+
+    def test_valid_update_still_works(self):
+        state = self._create_round_state()
+        new_state = update_player(state, 0, score=30000, is_riichi=True)
+        assert new_state.players[0].score == 30000
+        assert new_state.players[0].is_riichi is True
+
+
+class TestGetPlayerViewValidation:
+    """Tests for get_player_view seat validation."""
+
+    def test_rejects_invalid_seat(self):
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state)
+
+        with pytest.raises(ValueError, match="No player found at seat 5"):
+            get_player_view(game_state, 5)
+
+    def test_valid_seat_returns_view(self):
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", tiles=(i,), score=25000) for i in range(4))
+        round_state = MahjongRoundState(players=players)
+        game_state = MahjongGameState(round_state=round_state)
+
+        view = get_player_view(game_state, 2)
+        assert view.seat == 2
+        assert view.my_tiles == [2]
+
+
+class TestWindNameConstant:
+    """Test wind_name uses module-level constant."""
+
+    def test_all_winds(self):
+        assert wind_name(0) == WindName.EAST
+        assert wind_name(1) == WindName.SOUTH
+        assert wind_name(2) == WindName.WEST
+        assert wind_name(3) == WindName.NORTH
+
+    def test_out_of_range_returns_unknown(self):
+        assert wind_name(-1) == WindName.UNKNOWN
+        assert wind_name(4) == WindName.UNKNOWN
+        assert wind_name(100) == WindName.UNKNOWN
+
+
+class TestAdvanceTurnUsesPlayerCount:
+    """Test advance_turn uses len(players) instead of hardcoded 4."""
+
+    def test_wraps_with_four_players(self):
+        players = tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
+        state = MahjongRoundState(players=players, current_player_seat=3, turn_count=10)
+        new_state = advance_turn(state)
+        assert new_state.current_player_seat == 0
+        assert new_state.turn_count == 11

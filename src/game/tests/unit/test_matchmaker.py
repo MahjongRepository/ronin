@@ -2,6 +2,8 @@
 Unit tests for Matchmaker.
 """
 
+import pytest
+
 from game.logic.enums import AIPlayerType
 from game.logic.matchmaker import fill_seats
 
@@ -80,3 +82,72 @@ class TestFillSeatsFourPlayers:
         for c1, c2 in zip(configs1, configs2, strict=True):
             assert c1.name == c2.name
             assert c1.ai_player_type == c2.ai_player_type
+
+
+class TestFillSeatsValidation:
+    """Tests for fill_seats input validation."""
+
+    def test_empty_player_names_raises(self):
+        """Empty player list raises ValueError."""
+        with pytest.raises(ValueError, match="Expected 1 to 4"):
+            fill_seats([])
+
+    def test_too_many_players_raises(self):
+        """More than 4 players raises ValueError."""
+        with pytest.raises(ValueError, match="Expected 1 to 4"):
+            fill_seats(["A", "B", "C", "D", "E"])
+
+    def test_duplicate_names_raises(self):
+        """Duplicate player names raises ValueError."""
+        with pytest.raises(ValueError, match="unique"):
+            fill_seats(["Alice", "Alice"])
+
+    def test_two_players_valid(self):
+        """2 players with 2 AI players is valid."""
+        configs = fill_seats(["Alice", "Bob"])
+        assert len(configs) == 4
+        player_configs = [c for c in configs if c.ai_player_type is None]
+        assert len(player_configs) == 2
+
+    def test_three_players_valid(self):
+        """3 players with 1 AI player is valid."""
+        configs = fill_seats(["Alice", "Bob", "Charlie"])
+        assert len(configs) == 4
+        ai_configs = [c for c in configs if c.ai_player_type is not None]
+        assert len(ai_configs) == 1
+
+    def test_empty_name_raises(self):
+        """Empty string player name raises ValueError."""
+        with pytest.raises(ValueError, match="empty or whitespace"):
+            fill_seats([""])
+
+    def test_whitespace_name_raises(self):
+        """Whitespace-only player name raises ValueError."""
+        with pytest.raises(ValueError, match="empty or whitespace"):
+            fill_seats(["  "])
+
+    def test_empty_name_among_valid_raises(self):
+        """Empty name mixed with valid names raises ValueError."""
+        with pytest.raises(ValueError, match="empty or whitespace"):
+            fill_seats(["Alice", ""])
+
+    def test_ai_player_name_collision_raises(self):
+        """Player named 'Tsumogiri 1' with 3 AI players raises ValueError."""
+        with pytest.raises(ValueError, match="AI player names"):
+            fill_seats(["Tsumogiri 1"])
+
+    def test_ai_player_name_collision_two_players(self):
+        """Player named 'Tsumogiri 1' with 2 AI players raises ValueError."""
+        with pytest.raises(ValueError, match="AI player names"):
+            fill_seats(["Alice", "Tsumogiri 1"])
+
+    def test_no_collision_with_four_players(self):
+        """'Tsumogiri 1' with 4 players (0 AI) is valid since no AI players are generated."""
+        configs = fill_seats(["Tsumogiri 1", "Tsumogiri 2", "Tsumogiri 3", "Alice"])
+        assert len(configs) == 4
+        assert all(c.ai_player_type is None for c in configs)
+
+    def test_no_collision_when_name_doesnt_match_generated_ai(self):
+        """'Tsumogiri 4' with 3 AI players is valid since AI names are Tsumogiri 1-3."""
+        configs = fill_seats(["Tsumogiri 4"])
+        assert len(configs) == 4

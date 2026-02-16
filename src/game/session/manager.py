@@ -124,20 +124,24 @@ class SessionManager:
         game_id = game.game_id
         player_name = player.name
         player_seat = player.seat
-        logger.info(f"player '{player_name}' left game {game_id}")
+        logger.info("player '%s' left game %s", player_name, game_id)
 
         lock = self._get_game_lock(game_id) if game.started else None
 
         if lock is not None:
             # started game: guard all state mutation under the per-game lock
             # to prevent races with handle_game_action and timeout callbacks
+            ai_events: list[ServiceEvent] = []
             async with lock:
                 self._session_store.mark_disconnected(player.session_token)
                 self._remove_player_from_game(game, connection.connection_id, player)
                 await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
                 # replace disconnected player with AI player (only if other players remain)
                 if not game.is_empty and player_seat is not None:
-                    await self._replace_with_ai_player(game, player_name, player_seat)
+                    ai_events = await self._replace_with_ai_player(game, player_name, player_seat)
+            # Close connections outside the lock if AI replacement ended the game
+            if self._has_game_ended(ai_events):
+                await self._close_connections_on_game_end(game, ai_events)
         else:
             # Two cases without a lock:
             # 1. Started game but lock not yet created (disconnect during _start_mahjong_game
@@ -180,7 +184,7 @@ class SessionManager:
     async def _cleanup_empty_game(self, game_id: str, game: Game) -> None:
         """Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state."""
         if game.is_empty and self._games.pop(game_id, None) is not None:
-            logger.info(f"game {game_id} is empty, cleaning up")
+            logger.info("game %s is empty, cleaning up", game_id)
             self._session_store.cleanup_game(game_id)
             self._timer_manager.cleanup_game(game_id)
             self._game_locks.pop(game_id, None)
@@ -189,13 +193,16 @@ class SessionManager:
             if self._replay_collector:
                 self._replay_collector.cleanup_game(game_id)
 
-    async def _replace_with_ai_player(self, game: Game, player_name: str, seat: int) -> None:
+    async def _replace_with_ai_player(self, game: Game, player_name: str, seat: int) -> list[ServiceEvent]:
         """
         Replace a disconnected player with an AI player and process any pending AI player actions.
 
         Must be called under the per-game lock (leave_game acquires it).
         Must be called BEFORE the is_empty cleanup check, and only when other
         players remain in the game.
+
+        Returns the events produced by AI player actions (caller handles game-end
+        connection closing outside the lock).
         """
         self._game_service.replace_with_ai_player(game.game_id, player_name)
 
@@ -211,7 +218,7 @@ class SessionManager:
         if events:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
-            await self._close_connections_on_game_end(game, events)
+        return events
 
     async def _handle_invalid_action(
         self,
@@ -219,19 +226,25 @@ class SessionManager:
         connection: ConnectionProtocol,
         player: Player,
         error: InvalidGameActionError,
-    ) -> None:
+    ) -> list[ServiceEvent]:
         """Handle a provably invalid game action: log, disconnect, replace with AI player.
 
         Must be called under the per-game lock.
         Connection close and empty-game cleanup happen OUTSIDE the lock (by the caller).
+        Returns AI replacement events (caller handles game-end connection closing outside the lock).
         """
         game_id = game.game_id
         player_name = player.name
         player_seat = player.seat
 
         logger.warning(
-            f"invalid game action: game={game_id} user_id={connection.connection_id} player={player_name} "
-            f"seat={error.seat} action={error.action} reason={error.reason}"
+            "invalid game action: game=%s user_id=%s player=%s seat=%s action=%s reason=%s",
+            game_id,
+            connection.connection_id,
+            player_name,
+            error.seat,
+            error.action,
+            error.reason,
         )
 
         self._session_store.mark_disconnected(player.session_token)
@@ -243,12 +256,20 @@ class SessionManager:
         )
 
         if not game.is_empty and player_seat is not None:
-            await self._replace_with_ai_player(game, player_name, player_seat)
+            return await self._replace_with_ai_player(game, player_name, player_seat)
+        return []
 
     async def _process_successful_action(
-        self, game: Game, game_id: str, player: Player, events: list[ServiceEvent]
-    ) -> None:
-        """Handle timer management and broadcasting after a successful game action."""
+        self,
+        game: Game,
+        game_id: str,
+        player: Player,
+        events: list[ServiceEvent],
+    ) -> bool:
+        """Handle timer management and broadcasting after a successful game action.
+
+        Returns True if the game ended (caller must close connections outside the lock).
+        """
         # failed actions (errors) should not consume bank time or cancel timers.
         # successful actions that produce no events (e.g. partial pass while
         # other callers are still pending) still stop the acting player's timer
@@ -261,37 +282,47 @@ class SessionManager:
 
         await self._broadcast_events(game, events)
         await self._maybe_start_timer(game, events)
-        await self._close_connections_on_game_end(game, events)
+        return self._has_game_ended(events)
 
     async def _process_invalid_action(
-        self, game: Game, game_id: str, error: InvalidGameActionError
-    ) -> ConnectionProtocol | None:
+        self,
+        game: Game,
+        game_id: str,
+        error: InvalidGameActionError,
+    ) -> tuple[ConnectionProtocol | None, list[ServiceEvent]]:
         """Handle InvalidGameActionError under the lock.
 
-        Returns the offender connection for post-lock close, or None if the offending seat
-        has no connected player (e.g. AI player seat).
+        Returns (offender_connection, ai_events). The offender connection is closed
+        outside the lock by the caller. ai_events may contain a GameEndedEvent
+        that requires closing all connections outside the lock.
         """
         # resolve offender by seat from exception (critical for resolution-triggered errors)
         offender_player = self._get_player_at_seat(game, error.seat)
         if offender_player is None:
             # offending seat has no connected player (AI player seat) — log and skip disconnect
             logger.warning(
-                f"game {game_id}: InvalidGameActionError at seat {error.seat} "
-                f"but no player found (likely an AI player seat), skipping disconnect"
+                "game %s: InvalidGameActionError at seat %s "
+                "but no player found (likely an AI player seat), skipping disconnect",
+                game_id,
+                error.seat,
             )
-            return None
+            return None, []
         offender_connection = offender_player.connection
+        ai_events: list[ServiceEvent] = []
         try:
-            await self._handle_invalid_action(game, offender_connection, offender_player, error)
-        except Exception:
+            ai_events = await self._handle_invalid_action(game, offender_connection, offender_player, error)
+        except (RuntimeError, OSError, ConnectionError, ValueError, InvalidGameActionError):  # fmt: skip
             logger.exception(
-                f"error during invalid action handling for game {game_id}, "
-                f"player already removed, continuing with disconnect"
+                "error during invalid action handling for game %s, player already removed, continuing with disconnect",
+                game_id,
             )
-        return offender_connection
+        return offender_connection, ai_events
 
     async def _close_offender_and_cleanup(
-        self, offender_connection: ConnectionProtocol | None, game_id: str, game: Game
+        self,
+        offender_connection: ConnectionProtocol | None,
+        game_id: str,
+        game: Game,
     ) -> None:
         """Close the offender's connection and clean up the game if empty.
 
@@ -326,6 +357,8 @@ class SessionManager:
             return
 
         offender_connection: ConnectionProtocol | None = None
+        game_ended = False
+        game_end_events: list[ServiceEvent] = []
         async with lock:
             try:
                 events = await self._game_service.handle_action(
@@ -335,10 +368,19 @@ class SessionManager:
                     data=data,
                 )
             except InvalidGameActionError as e:
-                offender_connection = await self._process_invalid_action(game, game_id, e)
+                offender_connection, ai_events = await self._process_invalid_action(game, game_id, e)
+                if self._has_game_ended(ai_events):
+                    game_end_events = ai_events
             else:
-                await self._process_successful_action(game, game_id, player, events)
+                game_ended = await self._process_successful_action(game, game_id, player, events)
+                if game_ended:
+                    game_end_events = events
 
+        # Close connections outside the lock to avoid deadlock risk from
+        # connection.close() triggering the WebSocket disconnect handler
+        # which calls leave_game (which also acquires the per-game lock).
+        if game_end_events:
+            await self._close_connections_on_game_end(game, game_end_events)
         await self._close_offender_and_cleanup(offender_connection, game_id, game)
 
     async def broadcast_chat(
@@ -377,18 +419,11 @@ class SessionManager:
         room = Room(room_id=room_id, num_ai_players=num_ai_players)
         self._rooms[room_id] = room
         self._room_locks[room_id] = asyncio.Lock()
-        logger.info(f"room created: {room_id} num_ai_players={num_ai_players}")
+        logger.info("room created: %s num_ai_players=%d", room_id, num_ai_players)
         return room
 
     def get_room(self, room_id: str) -> Room | None:
         return self._rooms.get(room_id)
-
-    def _get_room_lock(self, room_id: str) -> asyncio.Lock:
-        lock = self._room_locks.get(room_id)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._room_locks[room_id] = lock
-        return lock
 
     def is_in_room(self, connection_id: str) -> bool:
         return connection_id in self._room_players
@@ -416,7 +451,11 @@ class SessionManager:
         ]
 
     async def join_room(
-        self, connection: ConnectionProtocol, room_id: str, player_name: str, session_token: str
+        self,
+        connection: ConnectionProtocol,
+        room_id: str,
+        player_name: str,
+        session_token: str,
     ) -> None:
         """Handle a player joining a room."""
         if self.is_in_active_game(connection.connection_id):
@@ -436,49 +475,44 @@ class SessionManager:
             )
             return
 
-        room = self._rooms.get(room_id)
-        if room is None:
+        room_lock = self._room_locks.get(room_id)
+        if room_lock is None:
             await self._send_error(connection, SessionErrorCode.ROOM_NOT_FOUND, "Room does not exist")
             return
 
-        if room.transitioning:
-            await self._send_error(
-                connection,
-                SessionErrorCode.ROOM_TRANSITIONING,
-                "Room is starting a game",
+        start_heartbeat = False
+        async with room_lock:
+            if await self._validate_join_room(room_id, player_name, connection):
+                return
+
+            room = self._rooms[room_id]
+            room_player = RoomPlayer(
+                connection=connection,
+                name=player_name,
+                room_id=room_id,
+                session_token=session_token,
             )
-            return
+            self._room_players[connection.connection_id] = room_player
+            room.players[connection.connection_id] = room_player
 
-        if room.is_full:
-            await self._send_error(connection, SessionErrorCode.ROOM_FULL, "Room is full")
-            return
+            if room.host_connection_id is None:
+                room.host_connection_id = connection.connection_id
+                start_heartbeat = True
 
-        if player_name in room.player_names:
-            await self._send_error(
-                connection,
-                SessionErrorCode.NAME_TAKEN,
-                "That name is already taken in this room",
-            )
-            return
+            # Capture snapshot inside the lock for messages sent outside
+            player_info = room.get_player_info()
+            num_ai_players = room.num_ai_players
 
-        room_player = RoomPlayer(
-            connection=connection, name=player_name, room_id=room_id, session_token=session_token
-        )
-        self._room_players[connection.connection_id] = room_player
-        room.players[connection.connection_id] = room_player
-
-        # First player becomes the host
-        if room.host_connection_id is None:
-            room.host_connection_id = connection.connection_id
+        if start_heartbeat:
             self._heartbeat.start_for_room(room.room_id, self.get_room)
 
         await connection.send_message(
             RoomJoinedMessage(
                 room_id=room_id,
                 session_token=session_token,
-                players=room.get_player_info(),
-                num_ai_players=room.num_ai_players,
-            ).model_dump()
+                players=player_info,
+                num_ai_players=num_ai_players,
+            ).model_dump(),
         )
 
         await self._broadcast_to_room(
@@ -487,6 +521,43 @@ class SessionManager:
             exclude_connection_id=connection.connection_id,
         )
 
+    async def _validate_join_room(
+        self,
+        room_id: str,
+        player_name: str,
+        connection: ConnectionProtocol,
+    ) -> bool:
+        """Validate room join preconditions under the room lock.
+
+        Returns True if validation failed (error already sent), False if the join is allowed.
+        """
+        room = self._rooms.get(room_id)
+        if room is None:
+            await self._send_error(connection, SessionErrorCode.ROOM_NOT_FOUND, "Room does not exist")
+            return True
+
+        if room.transitioning:
+            await self._send_error(
+                connection,
+                SessionErrorCode.ROOM_TRANSITIONING,
+                "Room is starting a game",
+            )
+            return True
+
+        if room.is_full:
+            await self._send_error(connection, SessionErrorCode.ROOM_FULL, "Room is full")
+            return True
+
+        if player_name in room.player_names:
+            await self._send_error(
+                connection,
+                SessionErrorCode.NAME_TAKEN,
+                "That name is already taken in this room",
+            )
+            return True
+
+        return False
+
     async def leave_room(self, connection: ConnectionProtocol, *, notify_player: bool = True) -> None:
         """Handle a player leaving a room."""
         room_player = self._room_players.get(connection.connection_id)
@@ -494,15 +565,19 @@ class SessionManager:
             return
 
         room_id = room_player.room_id
-        room_lock = self._get_room_lock(room_id)
+        player_name = room_player.name
+        room_lock = self._room_locks.get(room_id)
+        should_cleanup = False
+        if room_lock is None:
+            # Room already cleaned up; just remove the stale room_player reference.
+            self._room_players.pop(connection.connection_id, None)
+            return
+
         async with room_lock:
             room = self._rooms.get(room_id)
             if room is None:
                 self._room_players.pop(connection.connection_id, None)
-                self._room_locks.pop(room_id, None)
                 return
-
-            player_name = room_player.name
 
             room.players.pop(connection.connection_id, None)
             self._room_players.pop(connection.connection_id, None)
@@ -513,7 +588,11 @@ class SessionManager:
             should_cleanup = room.is_empty
             if should_cleanup:
                 self._rooms.pop(room_id, None)
-                self._room_locks.pop(room_id, None)
+
+        # Clean up the lock outside the async with block to avoid
+        # deleting the lock while still holding it.
+        if should_cleanup:
+            self._room_locks.pop(room_id, None)
 
         if notify_player:
             with contextlib.suppress(RuntimeError, OSError):
@@ -542,7 +621,9 @@ class SessionManager:
             return
 
         room_id = room_player.room_id
-        room_lock = self._get_room_lock(room_id)
+        room_lock = self._room_locks.get(room_id)
+        if room_lock is None:
+            return
         should_transition = False
         async with room_lock:
             room = self._rooms.get(room_id)
@@ -567,7 +648,9 @@ class SessionManager:
 
     async def _transition_room_to_game(self, room_id: str) -> None:
         """Transition a room to a running game when all players are ready."""
-        room_lock = self._get_room_lock(room_id)
+        room_lock = self._room_locks.get(room_id)
+        if room_lock is None:
+            return
         async with room_lock:
             room = self._rooms.get(room_id)
             if room is None or not room.transitioning:
@@ -596,8 +679,9 @@ class SessionManager:
                 self._room_players.pop(rp.connection_id, None)
 
             self._rooms.pop(room.room_id, None)
-            self._room_locks.pop(room.room_id, None)
 
+        # Clean up the lock outside the async with block.
+        self._room_locks.pop(room_id, None)
         await self._heartbeat.stop_for_room(room_id)
 
         message = GameStartingMessage().model_dump()
@@ -688,33 +772,41 @@ class SessionManager:
         self._game_locks[game.game_id] = asyncio.Lock()
         self._heartbeat.start_for_game(game.game_id, self.get_game)
 
+        game_end_events: list[ServiceEvent] = []
         async with self._game_locks[game.game_id]:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
-            await self._replace_disconnected_players(game, player_names)
+            ai_events = await self._replace_disconnected_players(game, player_names)
+            if self._has_game_ended(ai_events):
+                game_end_events = ai_events
 
-    async def _replace_disconnected_players(self, game: Game, original_player_names: list[str]) -> None:
+        # Close connections outside the lock
+        if game_end_events:
+            await self._close_connections_on_game_end(game, game_end_events)
+
+    async def _replace_disconnected_players(
+        self,
+        game: Game,
+        original_player_names: list[str],
+    ) -> list[ServiceEvent]:
         """Replace players who disconnected during start_game or subsequent broadcasts.
 
         Called under the per-game lock. Players who left before seats/locks
         were set up could not be replaced by leave_game, so handle them here.
+        Returns events that may contain a GameEndedEvent (caller handles
+        connection closing outside the lock).
         """
+        all_events: list[ServiceEvent] = []
         connected_names = set(game.player_names)
         for name in original_player_names:
             if name not in connected_names and not game.is_empty:
                 seat = self._game_service.get_player_seat(game.game_id, name)
                 if seat is not None:
-                    self._game_service.replace_with_ai_player(game.game_id, name)
-                    player_timer = self._timer_manager.remove_timer(game.game_id, seat)
-                    if player_timer:
-                        player_timer.cancel()
-                    ai_player_events = await self._game_service.process_ai_player_actions_after_replacement(
-                        game.game_id, seat
-                    )
-                    if ai_player_events:
-                        await self._broadcast_events(game, ai_player_events)
-                        await self._maybe_start_timer(game, ai_player_events)
-                        await self._close_connections_on_game_end(game, ai_player_events)
+                    ai_events = await self._replace_with_ai_player(game, name, seat)
+                    all_events.extend(ai_events)
+                    if self._has_game_ended(ai_events):
+                        break
+        return all_events
 
     async def _broadcast_events(
         self,
@@ -769,7 +861,7 @@ class SessionManager:
         game_id = game.game_id
 
         # game ended -- cancel all timers
-        if any(isinstance(event.data, GameEndedEvent) for event in events):
+        if self._has_game_ended(events):
             self._timer_manager.cancel_all(game_id)
             return
 
@@ -842,7 +934,7 @@ class SessionManager:
         handlers will clean up session state (remove players, clean up empty
         game) when connections close.
         """
-        if not any(isinstance(event.data, GameEndedEvent) for event in events):
+        if not self._has_game_ended(events):
             return
         if self._replay_collector:
             await self._replay_collector.save_and_cleanup(game.game_id)
@@ -856,6 +948,9 @@ class SessionManager:
                 return player
         return None
 
+    def _has_game_ended(self, events: list[ServiceEvent]) -> bool:
+        return any(isinstance(event.data, GameEndedEvent) for event in events)
+
     def _has_game_events(self, events: list[ServiceEvent]) -> bool:
         return any(not isinstance(event.data, (ErrorEvent, FuritenEvent)) for event in events)
 
@@ -868,6 +963,7 @@ class SessionManager:
             return
 
         offender_connection: ConnectionProtocol | None = None
+        game_end_events: list[ServiceEvent] = []
         async with lock:
             game = self._games.get(game_id)
             if game is None:
@@ -886,10 +982,18 @@ class SessionManager:
             try:
                 events = await self._game_service.handle_timeout(game_id, player.name, timeout_type)
             except InvalidGameActionError as e:
-                offender_connection = await self._process_invalid_action(game, game_id, e)
+                offender_connection, ai_events = await self._process_invalid_action(game, game_id, e)
+                if self._has_game_ended(ai_events):
+                    game_end_events = ai_events
             else:
                 await self._broadcast_events(game, events)
                 await self._maybe_start_timer(game, events)
-                await self._close_connections_on_game_end(game, events)
+                if self._has_game_ended(events):
+                    game_end_events = events
 
+        # Close connections outside the lock to avoid deadlock risk from
+        # connection.close() triggering the WebSocket disconnect handler
+        # which calls leave_game (which also acquires the per-game lock).
+        if game_end_events:
+            await self._close_connections_on_game_end(game, game_end_events)
         await self._close_offender_and_cleanup(offender_connection, game_id, game)
