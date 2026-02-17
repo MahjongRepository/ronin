@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ronin - Mahjong</title>
+    <style>
+    *{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;background:#1a1a2e;color:#e0e0e0;min-height:100vh}a{color:#4ecca3;text-decoration:none}button{cursor:pointer;border:none;font-family:inherit}#app{max-width:900px;margin:0 auto;padding:24px}h1,h2{color:#e0e0e0;margin-bottom:16px}.btn{padding:8px 16px;border-radius:4px;font-size:14px;font-weight:600;transition:background-color .2s}.btn-primary{background:#4ecca3;color:#1a1a2e}.btn-primary:hover{background:#3daa8a}.btn-secondary{background:#0f3460;color:#e0e0e0}.btn-secondary:hover{background:rgb(21.8918918919,75.8918918919,140.1081081081)}.btn-small{padding:4px 8px;font-size:12px;background:#4ecca3;color:#1a1a2e;border-radius:4px}.btn-small:hover{background:#3daa8a}.error-message{color:#ff6b6b;padding:8px}.empty-message{color:#666;padding:16px;text-align:center}.lobby h1{text-align:center;font-size:2rem;margin-bottom:24px}.lobby-controls{display:flex;gap:8px;justify-content:center;margin-bottom:24px}.lobby-status{text-align:center;margin-bottom:16px}.games-list{display:flex;flex-direction:column;gap:8px}.game-item{display:flex;align-items:center;justify-content:space-between;padding:16px;background:#16213e;border-radius:8px}.game-id{font-family:"SF Mono","Fira Code",monospace;font-size:14px}.game-players{color:#a0a0a0;font-size:14px}.game-full{color:#666;font-size:12px}
+    </style>
+    <script src="/public/env.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="lobby">
+            <h1>Ronin Mahjong</h1>
+            <div class="lobby-controls">
+                <button class="btn btn-primary" id="create-room-btn">Create Room</button>
+                <button class="btn btn-secondary" id="refresh-btn">Refresh</button>
+            </div>
+            <div class="lobby-status" id="lobby-status"></div>
+            <div class="games-list" id="games-list">Loading rooms...</div>
+        </div>
+    </div>
+    <script>
+    // Lobby inline JavaScript — no TypeScript, no npm dependencies
+    const LOBBY_URL =
+        window.__LOBBY_URL__ || "http://localhost:8710";
+    const PLAYER_NAME_SUFFIX_LENGTH = 6;
+
+    function generatePlayerName() {
+        const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let suffix = "";
+        for (let i = 0; i < PLAYER_NAME_SUFFIX_LENGTH; i++) {
+            suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return "Player_" + suffix;
+    }
+
+    const playerName = generatePlayerName();
+
+    function showStatus(text, isError) {
+        const el = document.getElementById("lobby-status");
+        if (!el) return;
+        el.replaceChildren();
+        if (!text) return;
+        const p = document.createElement("p");
+        if (isError) p.className = "error-message";
+        p.textContent = text;
+        el.appendChild(p);
+    }
+
+    function parseServerUrl(serverUrl, roomId) {
+        try {
+            const url = new URL(serverUrl);
+            url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+            url.pathname = "/ws/" + roomId;
+            return url.toString();
+        } catch {
+            return null;
+        }
+    }
+
+    // Session keys must match SESSION_KEYS in src/session-storage.ts
+    function navigateToRoom(roomId, wsUrl) {
+        sessionStorage.setItem("ws_url", wsUrl);
+        sessionStorage.setItem("player_name", playerName);
+        sessionStorage.setItem("room_id", roomId);
+        window.location.href = "/#/room/" + roomId;
+    }
+
+    function createRoomItem(room) {
+        const item = document.createElement("div");
+        item.className = "game-item";
+
+        const idSpan = document.createElement("span");
+        idSpan.className = "game-id";
+        idSpan.textContent = room.room_id;
+        item.appendChild(idSpan);
+
+        const playersSpan = document.createElement("span");
+        playersSpan.className = "game-players";
+        playersSpan.textContent = room.player_count + "/" + room.players_needed + " players";
+        item.appendChild(playersSpan);
+
+        if (room.player_count < room.players_needed) {
+            const btn = document.createElement("button");
+            btn.className = "btn btn-small";
+            btn.textContent = "Join";
+            btn.addEventListener("click", function () {
+                const wsUrl = parseServerUrl(room.server_url, room.room_id);
+                if (wsUrl) {
+                    navigateToRoom(room.room_id, wsUrl);
+                } else {
+                    showStatus("Invalid server URL", true);
+                }
+            });
+            item.appendChild(btn);
+        } else {
+            const fullSpan = document.createElement("span");
+            fullSpan.className = "game-full";
+            fullSpan.textContent = "Full";
+            item.appendChild(fullSpan);
+        }
+
+        return item;
+    }
+
+    async function loadRooms() {
+        const container = document.getElementById("games-list");
+        try {
+            const res = await fetch(LOBBY_URL + "/rooms");
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            container.replaceChildren();
+            if (data.rooms.length === 0) {
+                const p = document.createElement("p");
+                p.className = "empty-message";
+                p.textContent = "No rooms available. Create one!";
+                container.appendChild(p);
+            } else {
+                for (const room of data.rooms) {
+                    container.appendChild(createRoomItem(room));
+                }
+            }
+        } catch {
+            container.replaceChildren();
+            const p = document.createElement("p");
+            p.className = "error-message";
+            p.textContent = "Failed to load rooms";
+            container.appendChild(p);
+        }
+    }
+
+    async function handleCreateRoom() {
+        showStatus("Creating room...");
+        try {
+            const res = await fetch(LOBBY_URL + "/rooms", { method: "POST" });
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            if (!data.room_id || !data.websocket_url) {
+                showStatus("Invalid server response", true);
+                return;
+            }
+            navigateToRoom(data.room_id, data.websocket_url);
+        } catch {
+            showStatus("Failed to create room", true);
+        }
+    }
+
+    document.getElementById("create-room-btn").addEventListener("click", handleCreateRoom);
+    document.getElementById("refresh-btn").addEventListener("click", loadRooms);
+    loadRooms();
+    </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="lobby">
+    <h1>Ronin Mahjong</h1>
+    <div class="lobby-controls">
+        <form method="POST" action="/rooms/new">
+            <input type="hidden" name="player_name" value="{{ player_name }}">
+            <button type="submit" class="btn btn-primary">Create Room</button>
+        </form>
+        <a href="/" class="btn btn-secondary">Refresh</a>
+    </div>
+
+    {% if error %}
+    <div class="lobby-status">
+        <p class="error-message">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    <div class="games-list">
+        {% if rooms %}
+            {% for room in rooms %}
+            <div class="game-item">
+                <span class="game-id">{{ room.room_id }}</span>
+                <span class="game-players">{{ room.player_count }}/{{ room.players_needed }} players</span>
+                {% if room.player_count < room.players_needed %}
+                <a class="btn btn-small"
+                   href="{{ game_client_url }}/?ws_url={{ room.websocket_url | urlencode }}&player_name={{ player_name | urlencode }}#/room/{{ room.room_id }}">
+                    Join
+                </a>
+                {% else %}
+                <span class="game-full">Full</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="empty-message">No rooms available. Create one!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

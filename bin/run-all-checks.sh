@@ -29,10 +29,10 @@ run_check "Lint" "make lint"
 run_check "Typecheck" "make typecheck"
 run_check "Test" "make test"
 
-# --- Client Checks ---
-run_check "Client format" "make format-client"
-run_check "Client lint" "make lint-client"
-run_check "Client typecheck" "make typecheck-client"
+# --- Frontend Checks ---
+run_check "Frontend format" "make format-frontend"
+run_check "Frontend lint" "make lint-frontend"
+run_check "Frontend typecheck" "make typecheck-frontend"
 
 # If the script reaches this line, it's because no check failed and the script never exited.
 echo "🎉 All checks are good, thank you!"

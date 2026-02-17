@@ -5,9 +5,9 @@
 
 set -e
 
-GAME_PORT=${GAME_PORT:-8001}
-LOBBY_PORT=${LOBBY_PORT:-8000}
-CLIENT_PORT=${CLIENT_PORT:-3000}
+GAME_PORT=${GAME_PORT:-8711}
+LOBBY_PORT=${LOBBY_PORT:-8710}
+CLIENT_PORT=${CLIENT_PORT:-8712}
 MAX_RETRIES=10
 
 kill_tree() {
@@ -48,10 +48,17 @@ export GAME_CORS_ORIGINS="http://localhost:$CLIENT_PORT"
 export LOBBY_CORS_ORIGINS="http://localhost:$CLIENT_PORT"
 
 # Generate client env config with lobby URL
-mkdir -p client/public
-cat > client/public/env.js <<EOF
+mkdir -p frontend/public
+cat > frontend/public/env.js <<EOF
 window.__LOBBY_URL__ = "http://localhost:$LOBBY_PORT";
 EOF
+
+# Build lobby CSS for server-side templates
+(cd frontend && bun run sass:lobby)
+
+# Set lobby settings for template rendering
+export LOBBY_GAME_CLIENT_URL="http://localhost:$CLIENT_PORT"
+export LOBBY_STATIC_DIR="frontend/public"
 
 cleanup() {
     echo "Stopping servers..."
@@ -77,7 +84,7 @@ if ! wait_for_server $GAME_PORT; then
 fi
 
 echo "Starting client dev server on port $CLIENT_PORT..."
-(cd client && PORT=$CLIENT_PORT bun run dev) &
+(cd frontend && PORT=$CLIENT_PORT bun run dev) &
 CLIENT_PID=$!
 sleep 2
 if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
@@ -86,5 +93,5 @@ if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
 fi
 
 echo "Starting lobby server on port $LOBBY_PORT..."
-echo "Open http://localhost:$CLIENT_PORT in your browser"
+echo "Open http://localhost:$LOBBY_PORT in your browser"
 uv run uvicorn lobby.server.app:app --reload --host 0.0.0.0 --port $LOBBY_PORT

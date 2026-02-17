@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
-.PHONY: test run-local-server run-debug lint format typecheck typecheck-client format-client lint-client run-all-checks run-games deadcode
+.PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend run-all-checks run-games deadcode
 
 test:
 	uv run pytest -v
@@ -9,30 +9,30 @@ run-local-server:
 	@bash ./bin/run-local-server.sh
 
 lint:
-	uv run ruff format --check src
-	uv run ruff check src
+	uv run ruff format --check backend
+	uv run ruff check backend
 
 format:
-	uv run ruff check --fix src
-	uv run ruff format src
+	uv run ruff check --fix backend
+	uv run ruff format backend
 
 typecheck:
-	uv run ty check src
+	uv run ty check backend
 
-typecheck-client:
-	cd client && bun run typecheck
+typecheck-frontend:
+	cd frontend && bun run typecheck
 
-format-client:
-	cd client && bun run fmt
+format-frontend:
+	cd frontend && bun run fmt
 
-lint-client:
-	cd client && bun run lint
+lint-frontend:
+	cd frontend && bun run lint
 
 run-debug:
-	PYTHONPATH=src uv run python src/debug.py
+	PYTHONPATH=backend uv run python backend/debug.py
 
 run-all-checks:
 	@bash ./bin/run-all-checks.sh|| true
 
 deadcode:
-	uv run python bin/check-dead-code.py src
+	uv run python bin/check-dead-code.py backend

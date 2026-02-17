@@ -12,6 +12,8 @@ dependencies = [
     "mahjong==2.0.0.dev1",
     "msgpack>=1.1.2",
     "xiangting>=5.0.0",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.20",
 ]
 
 [dependency-groups]
@@ -29,10 +31,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lobby", "src/game", "src/shared"]
+packages = ["backend/lobby", "backend/game", "backend/shared"]
 
 [tool.pytest.ini_options]
-testpaths = ["src"]
+testpaths = ["backend"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 python_files = "test_*.py"
@@ -40,7 +42,7 @@ addopts = "-p no:warnings --no-header --tb=short -qq --cov --cov-report=term:ski
 timeout = 10
 
 [tool.ruff]
-src = ["src"]
+src = ["backend"]
 target-version = "py314"
 line-length = 120
 
@@ -69,8 +71,8 @@ ignore = [
     "SLF001", # Private member accessed
 ]
 # Base class methods define the interface contract; parameters are unused in the default implementation
-"src/game/logic/ai_player.py" = ["ARG002"]
-"src/game/logic/shanten.py" = ["TID251"]
+"backend/game/logic/ai_player.py" = ["ARG002"]
+"backend/game/logic/shanten.py" = ["TID251"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
@@ -82,7 +84,7 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseS
 python-version = "3.14"
 
 [tool.ty.src]
-include = ["src"]
+include = ["backend"]
 
 [tool.ty.rules]
 # Promote all non-error default rules to error for stricter checking
@@ -119,8 +121,8 @@ invalid-parameter-default = "warn"
 unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
-source = ["src"]
-omit = ["**/tests/*", "**/test_*", "src/game/logic/ai_player.py", "src/game/logic/ai_player_controller.py", "src/debug.py", "src/shared/logging.py"]
+source = ["backend"]
+omit = ["**/tests/*", "**/test_*", "backend/game/logic/ai_player.py", "backend/game/logic/ai_player_controller.py", "backend/debug.py", "backend/shared/logging.py"]
 
 [tool.coverage.report]
 show_missing = true
