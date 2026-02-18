@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from game.logic.enums import WindName
 from game.logic.types import GameView, PlayerView
@@ -34,7 +33,7 @@ async def create_started_game(
     for name in player_names:
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, game_id, name, str(uuid4()))
+        await manager.join_room(conn, game_id, name)
         connections.append(conn)
 
     # ready up all players (last one triggers game start)
@@ -95,7 +94,7 @@ async def disconnect_and_reconnect(
 ) -> tuple[MockConnection, str]:
     """Disconnect a player and reconnect with a fresh connection.
 
-    Returns (new_connection, new_session_token).
+    Returns (new_connection, session_token). The token is unchanged (no rotation).
     """
     player = manager._players[conn.connection_id]
     token = player.session_token
@@ -108,6 +107,5 @@ async def disconnect_and_reconnect(
 
     reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
-    new_token = reconnect_msgs[0]["session_token"]
 
-    return new_conn, new_token
+    return new_conn, token

@@ -7,7 +7,7 @@ import yaml
 from lobby.registry.types import GameServer
 
 
-def _get_default_config_path() -> Path:
+def _get_default_config_path() -> Path:  # pragma: no cover — production default, tests always provide config_path
     """Return the file-relative default path to servers.yaml."""
     backend_root = Path(__file__).parent.parent.parent
     return backend_root / "config" / "servers.yaml"

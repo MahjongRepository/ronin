@@ -3,6 +3,7 @@ import pytest
 from game.messaging.router import MessageRouter
 from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
+from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
 
 
@@ -10,7 +11,7 @@ from game.tests.mocks import MockConnection, MockGameService
 async def setup():
     game_service = MockGameService()
     session_manager = SessionManager(game_service)
-    router = MessageRouter(session_manager)
+    router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
     connection = MockConnection()
     await router.handle_connect(connection)
     return router, connection, session_manager
@@ -22,14 +23,14 @@ class TestRoomMessageRouting:
     async def test_join_room_routes_to_session_manager(self, setup):
         router, connection, session_manager = setup
         session_manager.create_room("room1")
+        ticket = make_test_game_ticket("Alice", "room1")
 
         await router.handle_message(
             connection,
             {
                 "type": ClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
-                "player_name": "Alice",
-                "session_token": "tok-alice",
+                "game_ticket": ticket,
             },
         )
 
@@ -38,14 +39,14 @@ class TestRoomMessageRouting:
     async def test_leave_room_routes_to_session_manager(self, setup):
         router, connection, session_manager = setup
         session_manager.create_room("room1")
+        ticket = make_test_game_ticket("Alice", "room1")
 
         await router.handle_message(
             connection,
             {
                 "type": ClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
-                "player_name": "Alice",
-                "session_token": "tok-alice",
+                "game_ticket": ticket,
             },
         )
         connection._outbox.clear()
@@ -57,14 +58,14 @@ class TestRoomMessageRouting:
     async def test_set_ready_routes_to_session_manager(self, setup):
         router, connection, session_manager = setup
         session_manager.create_room("room1", num_ai_players=2)
+        ticket = make_test_game_ticket("Alice", "room1")
 
         await router.handle_message(
             connection,
             {
                 "type": ClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
-                "player_name": "Alice",
-                "session_token": "tok-alice",
+                "game_ticket": ticket,
             },
         )
         connection._outbox.clear()
@@ -79,14 +80,14 @@ class TestRoomMessageRouting:
     async def test_chat_routes_to_room_when_in_room(self, setup):
         router, connection, session_manager = setup
         session_manager.create_room("room1", num_ai_players=2)
+        ticket = make_test_game_ticket("Alice", "room1")
 
         await router.handle_message(
             connection,
             {
                 "type": ClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
-                "player_name": "Alice",
-                "session_token": "tok-alice",
+                "game_ticket": ticket,
             },
         )
         connection._outbox.clear()
@@ -116,14 +117,14 @@ class TestRoomMessageRouting:
     async def test_disconnect_leaves_room(self, setup):
         router, connection, session_manager = setup
         session_manager.create_room("room1")
+        ticket = make_test_game_ticket("Alice", "room1")
 
         await router.handle_message(
             connection,
             {
                 "type": ClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
-                "player_name": "Alice",
-                "session_token": "tok-alice",
+                "game_ticket": ticket,
             },
         )
 

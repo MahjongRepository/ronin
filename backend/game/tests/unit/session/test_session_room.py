@@ -54,7 +54,7 @@ class TestGetRoomsInfo:
         manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         infos = manager.get_rooms_info()
         assert len(infos) == 1
@@ -75,17 +75,40 @@ class TestJoinRoom:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ROOM_JOINED
         assert msg["room_id"] == "room1"
-        assert msg["session_token"] == "tok-alice"
+        assert msg["player_name"] == "Alice"
         assert msg["num_ai_players"] == 3
         assert len(msg["players"]) == 1
         assert msg["players"][0]["name"] == "Alice"
         assert msg["players"][0]["ready"] is False
+
+    async def test_join_room_propagates_user_id(self, manager):
+        """user_id from game ticket flows through RoomPlayer to SessionData and Player."""
+        manager.create_room("room1", num_ai_players=3)
+        conn = MockConnection()
+        manager.register_connection(conn)
+
+        await manager.join_room(conn, "room1", "Alice", user_id="user-abc-123")
+
+        # Verify user_id stored in RoomPlayer
+        room_player = manager._room_players[conn.connection_id]
+        assert room_player.user_id == "user-abc-123"
+
+        # Trigger room-to-game transition
+        await manager.set_ready(conn, ready=True)
+
+        # Verify user_id propagated to Player and SessionData
+        player = manager._players.get(conn.connection_id)
+        assert player is not None
+        assert player.user_id == "user-abc-123"
+        session = manager._session_store.get_session(player.session_token)
+        assert session is not None
+        assert session.user_id == "user-abc-123"
 
     async def test_join_room_notifies_others(self, manager):
         manager.create_room("room1", num_ai_players=2)
@@ -94,8 +117,8 @@ class TestJoinRoom:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
 
         # conn1 should have received: room_joined + player_joined(Bob)
         player_joined_msgs = [m for m in conn1.sent_messages if m.get("type") == SessionMessageType.PLAYER_JOINED]
@@ -106,7 +129,7 @@ class TestJoinRoom:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "nonexistent", "Alice", "tok-alice")
+        await manager.join_room(conn, "nonexistent", "Alice")
 
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -119,8 +142,8 @@ class TestJoinRoom:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
 
         msg = conn2.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -131,9 +154,9 @@ class TestJoinRoom:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         conn._outbox.clear()
-        await manager.join_room(conn, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn, "room1", "Bob")
 
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -144,12 +167,12 @@ class TestJoinRoom:
         manager.create_room("game1", num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "game1", "Alice", "tok-alice")
+        await manager.join_room(conn, "game1", "Alice")
         await manager.set_ready(conn, ready=True)
         conn._outbox.clear()
 
         manager.create_room("room1")
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -162,8 +185,8 @@ class TestJoinRoom:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Alice", "tok-alice2")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Alice")
 
         msg = conn2.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -176,7 +199,7 @@ class TestJoinRoom:
 
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -191,7 +214,7 @@ class TestLeaveRoom:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         conn._outbox.clear()
         await manager.leave_room(conn)
 
@@ -204,8 +227,8 @@ class TestLeaveRoom:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
         conn1._outbox.clear()
         conn2._outbox.clear()
 
@@ -220,7 +243,7 @@ class TestLeaveRoom:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         assert manager.get_room("room1") is not None
 
         await manager.leave_room(conn)
@@ -234,8 +257,8 @@ class TestLeaveRoom:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
 
         room = manager.get_room("room1")
         assert room.host_connection_id == conn1.connection_id
@@ -255,7 +278,7 @@ class TestLeaveRoom:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         conn._outbox.clear()
         await manager.leave_room(conn, notify_player=False)
 
@@ -273,8 +296,8 @@ class TestSetReady:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
         conn1._outbox.clear()
         conn2._outbox.clear()
 
@@ -302,7 +325,7 @@ class TestSetReady:
         manager.create_room("game1", num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "game1", "Alice", "tok-alice")
+        await manager.join_room(conn, "game1", "Alice")
         await manager.set_ready(conn, ready=True)
         conn._outbox.clear()
 
@@ -315,7 +338,7 @@ class TestSetReady:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         await manager.set_ready(conn, ready=True)
         conn._outbox.clear()
 
@@ -334,7 +357,7 @@ class TestRoomToGameTransition:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         conn._outbox.clear()
 
         await manager.set_ready(conn, ready=True)
@@ -356,8 +379,8 @@ class TestRoomToGameTransition:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
         conn1._outbox.clear()
         conn2._outbox.clear()
 
@@ -381,7 +404,7 @@ class TestRoomToGameTransition:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         assert manager.is_in_room(conn.connection_id)
 
         await manager.set_ready(conn, ready=True)
@@ -389,18 +412,18 @@ class TestRoomToGameTransition:
         assert manager.is_in_active_game(conn.connection_id)
 
     async def test_session_token_flows_through_transition(self, manager):
-        """session_token sent at join_room is preserved in the Player after transition."""
+        """Server-generated session_token is preserved in the Player after transition."""
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.join_room(conn, "room1", "Alice", "my-token-123")
+        await manager.join_room(conn, "room1", "Alice")
         await manager.set_ready(conn, ready=True)
 
         player = manager._players[conn.connection_id]
-        assert player.session_token == "my-token-123"
+        assert player.session_token  # server-generated UUID
 
-        session = manager._session_store._sessions.get("my-token-123")
+        session = manager._session_store._sessions.get(player.session_token)
         assert session is not None
         assert session.player_name == "Alice"
 
@@ -417,14 +440,14 @@ class TestIsInRoom:
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         assert manager.is_in_room(conn.connection_id)
 
     async def test_not_in_room_after_leave(self, manager):
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
         await manager.leave_room(conn)
         assert not manager.is_in_room(conn.connection_id)
 
@@ -439,8 +462,8 @@ class TestRoomChat:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
         conn1._outbox.clear()
         conn2._outbox.clear()
 
@@ -467,7 +490,7 @@ class TestRoomChat:
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         # Simulate room removal
         manager._rooms.pop("room1", None)
@@ -485,7 +508,7 @@ class TestRoomEdgeCases:
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         # Simulate room removal
         manager._rooms.pop("room1", None)
@@ -499,7 +522,7 @@ class TestRoomEdgeCases:
         manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         manager._rooms.pop("room1", None)
         conn._outbox.clear()
@@ -513,7 +536,7 @@ class TestRoomEdgeCases:
         manager.create_room("room1", num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         room = manager.get_room("room1")
         room.transitioning = True
@@ -547,8 +570,8 @@ class TestRoomEdgeCases:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
 
         # Both ready up
         await manager.set_ready(conn1, ready=True)

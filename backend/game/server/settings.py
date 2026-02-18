@@ -19,6 +19,11 @@ class GameServerSettings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:8712"]
     replay_dir: str = Field(default="data/replays", min_length=1)
 
+    # Read from AUTH_GAME_TICKET_SECRET (not GAME_GAME_TICKET_SECRET).
+    # The secret lives under the AUTH_ namespace because it's shared auth infrastructure,
+    # but GameServerSettings uses GAME_ prefix. validation_alias overrides the env var name.
+    game_ticket_secret: str = Field(validation_alias="AUTH_GAME_TICKET_SECRET", min_length=1)
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def validate_cors_origins(cls, v: str | list[str]) -> list[str]:

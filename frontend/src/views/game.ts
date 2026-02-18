@@ -12,7 +12,7 @@ import {
     clearGameSession,
     clearSessionData,
     getGameSession,
-    setSessionToken,
+    getGameTicket,
     storeGameSession,
 } from "../session-storage";
 import { consumeHandoff, drainBufferedMessages, setActiveSocket } from "../socket-handoff";
@@ -44,17 +44,17 @@ function appendLog(entry: LogEntry): void {
 
 function persistGameSessionFromStorage(): void {
     const wsUrl = sessionStorage.getItem("ws_url");
-    const sessionToken = sessionStorage.getItem("session_token");
-    if (wsUrl && sessionToken) {
-        storeGameSession(currentGameId, wsUrl, sessionToken);
+    const gameTicket = getGameTicket();
+    if (wsUrl && gameTicket) {
+        storeGameSession(currentGameId, wsUrl, gameTicket);
     }
 }
 
 function enableAutoReconnectFromStorage(): void {
     const wsUrl = sessionStorage.getItem("ws_url");
-    const sessionToken = sessionStorage.getItem("session_token");
-    if (wsUrl && sessionToken && socket) {
-        reconnectSessionToken = sessionToken;
+    const gameTicket = getGameTicket();
+    if (wsUrl && gameTicket && socket) {
+        reconnectGameTicket = gameTicket;
         socket.enableReconnect(wsUrl, sendReconnectMessage);
     }
 }
@@ -123,7 +123,7 @@ function tryReconnectFromSession(gameId: string, generation: number): TemplateRe
         if (viewGeneration !== generation) {
             return;
         }
-        attemptReconnection(session.wsUrl, session.sessionToken);
+        attemptReconnection(session.wsUrl, session.gameTicket);
     }, 0);
     return renderGameView(gameId);
 }
@@ -152,8 +152,20 @@ function redirectToLobby(gameId: string): TemplateResult {
     `;
 }
 
+/** Check if a message is a reconnect response (success or error). */
+function isReconnectResponse(message: Record<string, unknown>): boolean {
+    if (message.type === SessionMessageType.GAME_RECONNECTED) {
+        return true;
+    }
+    if (message.type === SessionMessageType.ERROR) {
+        const code = String(message.code || "");
+        return code.startsWith("reconnect_") || code === "invalid_ticket";
+    }
+    return false;
+}
+
 let isReconnecting = false;
-let reconnectSessionToken = "";
+let reconnectGameTicket = "";
 let reconnectRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectRetryCount = 0;
 const MAX_RECONNECT_RETRIES = 15;
@@ -164,23 +176,18 @@ function sendReconnectMessage(): void {
     }
     isReconnecting = true;
     socket.send({
+        game_ticket: reconnectGameTicket,
         room_id: currentGameId,
-        session_token: reconnectSessionToken,
         type: ClientMessageType.RECONNECT,
     });
 }
 
-function attemptReconnection(wsUrl: string, sessionToken: string): void {
-    reconnectSessionToken = sessionToken;
+function attemptReconnection(wsUrl: string, gameTicket: string): void {
+    reconnectGameTicket = gameTicket;
 
     socket = new GameSocket(
         (message) => {
-            // Clear reconnecting flag on server response
-            if (
-                message.type === SessionMessageType.GAME_RECONNECTED ||
-                (message.type === SessionMessageType.ERROR &&
-                    String(message.code).startsWith("reconnect_"))
-            ) {
+            if (isReconnectResponse(message)) {
                 isReconnecting = false;
             }
             handleGameMessage(message);
@@ -213,21 +220,12 @@ const PERMANENT_RECONNECT_CODES = new Set([
     "reconnect_in_room",
     "reconnect_already_active",
     "reconnect_snapshot_failed",
+    "invalid_ticket",
 ]);
-
-function updateSessionToken(newToken: string): void {
-    reconnectSessionToken = newToken;
-    setSessionToken(newToken);
-    const wsUrl = sessionStorage.getItem("ws_url");
-    if (wsUrl) {
-        storeGameSession(currentGameId, wsUrl, newToken);
-    }
-}
 
 function handleReconnected(message: Record<string, unknown>): void {
     clearReconnectRetryTimer();
     reconnectRetryCount = 0;
-    updateSessionToken(message.session_token as string);
     appendLog({
         raw: JSON.stringify(message, null, 2),
         timestamp: new Date().toLocaleTimeString(),
@@ -302,10 +300,7 @@ function handleSessionMessage(message: Record<string, unknown>): boolean {
         handleReconnected(message);
         return true;
     }
-    if (
-        message.type === SessionMessageType.ERROR &&
-        String(message.code || "").startsWith("reconnect_")
-    ) {
+    if (message.type === SessionMessageType.ERROR && isReconnectResponse(message)) {
         return handleReconnectError(String(message.code));
     }
     return false;
@@ -335,11 +330,7 @@ function bindGameHandlers(): void {
 
     socket.setHandlers(
         (message) => {
-            if (
-                message.type === SessionMessageType.GAME_RECONNECTED ||
-                (message.type === SessionMessageType.ERROR &&
-                    String(message.code).startsWith("reconnect_"))
-            ) {
+            if (isReconnectResponse(message)) {
                 isReconnecting = false;
             }
             handleGameMessage(message);
@@ -347,7 +338,7 @@ function bindGameHandlers(): void {
         (status) => {
             connectionStatus = status;
             updateStatusDisplay();
-            if (status === ConnectionStatus.CONNECTED && reconnectSessionToken) {
+            if (status === ConnectionStatus.CONNECTED && reconnectGameTicket) {
                 sendReconnectMessage();
             }
             if (status === ConnectionStatus.DISCONNECTED) {
@@ -412,7 +403,7 @@ export function cleanupGameView(): void {
     viewGeneration++;
     clearReconnectRetryTimer();
     isReconnecting = false;
-    reconnectSessionToken = "";
+    reconnectGameTicket = "";
     reconnectRetryCount = 0;
     if (socket) {
         socket.disableReconnect();

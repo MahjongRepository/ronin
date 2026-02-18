@@ -6,6 +6,7 @@ from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
 from lobby.server.settings import LobbyServerSettings
+from shared.auth.settings import AuthSettings
 
 
 class TestLobbyEndpoints:
@@ -20,13 +21,24 @@ servers:
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("/* test */")
+        users_file = tmp_path / "users.json"
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
                 static_dir=str(static_dir),
             ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="test-secret",
+                users_file=str(users_file),
+            ),
         )
-        return TestClient(app)
+        c = TestClient(app)
+        # Register a user so authenticated endpoints can be tested
+        c.post(
+            "/register",
+            data={"username": "apiuser", "password": "securepass123", "confirm_password": "securepass123"},
+        )
+        return c
 
     def test_health(self, client):
         response = client.get("/health")

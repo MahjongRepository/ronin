@@ -60,6 +60,9 @@ EOF
 export LOBBY_GAME_CLIENT_URL="http://localhost:$CLIENT_PORT"
 export LOBBY_STATIC_DIR="frontend/public"
 
+# Shared HMAC secret for game ticket signing/verification
+export AUTH_GAME_TICKET_SECRET="local-dev-secret-do-not-use-in-production"
+
 cleanup() {
     echo "Stopping servers..."
     if [ -n "$GAME_PID" ]; then
@@ -74,7 +77,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Starting game server on port $GAME_PORT..."
-uv run uvicorn game.server.app:app --reload --host 0.0.0.0 --port $GAME_PORT &
+uv run uvicorn --factory game.server.app:get_app --reload --host 0.0.0.0 --port $GAME_PORT &
 GAME_PID=$!
 
 echo "Waiting for game server to be ready..."
@@ -94,4 +97,4 @@ fi
 
 echo "Starting lobby server on port $LOBBY_PORT..."
 echo "Open http://localhost:$LOBBY_PORT in your browser"
-uv run uvicorn lobby.server.app:app --reload --host 0.0.0.0 --port $LOBBY_PORT
+uv run uvicorn --factory lobby.server.app:get_app --reload --host 0.0.0.0 --port $LOBBY_PORT

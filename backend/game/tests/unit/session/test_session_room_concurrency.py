@@ -24,8 +24,8 @@ class TestConcurrentSetReady:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
         conn1._outbox.clear()
         conn2._outbox.clear()
 
@@ -50,7 +50,7 @@ class TestConcurrentSetReady:
         conns = [MockConnection() for _ in range(4)]
         for i, conn in enumerate(conns):
             manager.register_connection(conn)
-            await manager.join_room(conn, "room1", f"Player{i}", f"tok-{i}")
+            await manager.join_room(conn, "room1", f"Player{i}")
             conn._outbox.clear()
 
         # All set ready concurrently
@@ -71,8 +71,8 @@ class TestConcurrentSetReady:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
 
         # Alice readies, Bob leaves concurrently
         await asyncio.gather(

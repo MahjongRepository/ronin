@@ -13,6 +13,7 @@ from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
 from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
 from game.server.app import create_app
+from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockGameService
 
 
@@ -41,13 +42,13 @@ class TestWebSocketIntegration:
 
     def _join_room_and_ready(self, ws, room_id: str, player_name: str) -> list[dict]:
         """Join a room, ready up, and return all received messages."""
+        ticket = make_test_game_ticket(player_name, room_id)
         self._send_message(
             ws,
             {
                 "type": ClientMessageType.JOIN_ROOM,
                 "room_id": room_id,
-                "player_name": player_name,
-                "session_token": "tok-test",
+                "game_ticket": ticket,
             },
         )
         messages = []
@@ -68,19 +69,20 @@ class TestWebSocketIntegration:
         self._create_room(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
+            ticket = make_test_game_ticket("TestPlayer", "test_game")
             self._send_message(
                 ws,
                 {
                     "type": ClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
-                    "player_name": "TestPlayer",
-                    "session_token": "tok-test",
+                    "game_ticket": ticket,
                 },
             )
 
             response = self._receive_message(ws)
             assert response["type"] == SessionMessageType.ROOM_JOINED
             assert response["room_id"] == "test_game"
+            assert response["player_name"] == "TestPlayer"
             assert len(response["players"]) == 1
             assert response["players"][0]["name"] == "TestPlayer"
 
@@ -89,25 +91,25 @@ class TestWebSocketIntegration:
         self._create_room(client, "test_game", num_ai_players=2)
 
         with client.websocket_connect("/ws/test_game") as ws1:
+            ticket1 = make_test_game_ticket("Player1", "test_game")
             self._send_message(
                 ws1,
                 {
                     "type": ClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
-                    "player_name": "Player1",
-                    "session_token": "tok-p1",
+                    "game_ticket": ticket1,
                 },
             )
             self._receive_message(ws1)  # room_joined
 
             with client.websocket_connect("/ws/test_game") as ws2:
+                ticket2 = make_test_game_ticket("Player2", "test_game", user_id="user-2")
                 self._send_message(
                     ws2,
                     {
                         "type": ClientMessageType.JOIN_ROOM,
                         "room_id": "test_game",
-                        "player_name": "Player2",
-                        "session_token": "tok-p2",
+                        "game_ticket": ticket2,
                     },
                 )
                 self._receive_message(ws2)  # room_joined
@@ -182,14 +184,14 @@ class TestWebSocketIntegration:
         self._create_room(client, "test-room", num_ai_players=2)
 
         with client.websocket_connect("/ws/test-room") as ws:
-            # send join_room without room_id -- the endpoint should inject it
+            # The ticket must match the path room_id (test-room), not the payload room_id
+            ticket = make_test_game_ticket("TestPlayer", "test-room")
             self._send_message(
                 ws,
                 {
                     "type": ClientMessageType.JOIN_ROOM,
                     "room_id": "ignored",
-                    "player_name": "TestPlayer",
-                    "session_token": "tok-test",
+                    "game_ticket": ticket,
                 },
             )
 
@@ -210,17 +212,54 @@ class TestWebSocketIntegration:
             assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
             # Connection should still be alive - verify by sending a valid message
+            ticket = make_test_game_ticket("TestPlayer", "test_game")
             self._send_message(
                 ws,
                 {
                     "type": ClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
-                    "player_name": "TestPlayer",
-                    "session_token": "tok-test",
+                    "game_ticket": ticket,
                 },
             )
             response = self._receive_message(ws)
             assert response["type"] == SessionMessageType.ROOM_JOINED
+
+    def test_join_room_with_invalid_ticket(self, client):
+        """An invalid game ticket returns an INVALID_TICKET error."""
+        self._create_room(client, "test_game")
+
+        with client.websocket_connect("/ws/test_game") as ws:
+            self._send_message(
+                ws,
+                {
+                    "type": ClientMessageType.JOIN_ROOM,
+                    "room_id": "test_game",
+                    "game_ticket": "not-a-valid-ticket",
+                },
+            )
+
+            response = self._receive_message(ws)
+            assert response["type"] == SessionMessageType.ERROR
+            assert response["code"] == SessionErrorCode.INVALID_TICKET
+
+    def test_join_room_valid_ticket_returns_server_generated_token(self, client):
+        """A valid game ticket results in room_joined with a server-generated session token."""
+        self._create_room(client, "test_game")
+
+        with client.websocket_connect("/ws/test_game") as ws:
+            ticket = make_test_game_ticket("TestPlayer", "test_game")
+            self._send_message(
+                ws,
+                {
+                    "type": ClientMessageType.JOIN_ROOM,
+                    "room_id": "test_game",
+                    "game_ticket": ticket,
+                },
+            )
+
+            response = self._receive_message(ws)
+            assert response["type"] == SessionMessageType.ROOM_JOINED
+            assert response["player_name"] == "TestPlayer"
 
 
 class TestHealthEndpoint:

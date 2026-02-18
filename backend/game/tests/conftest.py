@@ -1,8 +1,13 @@
+import os
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from game.logic.enums import RoundPhase
+
+# Game server settings require AUTH_GAME_TICKET_SECRET. Set a test default
+# before any GameServerSettings is instantiated.
+os.environ.setdefault("AUTH_GAME_TICKET_SECRET", "test-secret")
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -13,6 +18,7 @@ from game.logic.wall import Wall, _extract_ura_dora
 from game.messaging.router import MessageRouter
 from game.server.app import create_app
 from game.session.manager import SessionManager
+from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import MockConnection, MockGameService
 
 if TYPE_CHECKING:
@@ -151,7 +157,7 @@ def session_manager(game_service):
 
 @pytest.fixture
 def message_router(session_manager):
-    return MessageRouter(session_manager)
+    return MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
 
 
 @pytest.fixture

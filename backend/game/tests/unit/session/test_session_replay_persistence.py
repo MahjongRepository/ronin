@@ -57,7 +57,7 @@ async def _create_started_game_with_collector(
     manager.create_room(game_id, num_ai_players=3)
     conn = MockConnection()
     manager.register_connection(conn)
-    await manager.join_room(conn, game_id, "Alice", "tok-alice")
+    await manager.join_room(conn, game_id, "Alice")
     await manager.set_ready(conn, ready=True)
     conn._outbox.clear()
     return [conn]
@@ -160,7 +160,7 @@ class TestSessionReplayCleanup:
         manager.create_room("game1", num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "game1", "Alice", "tok-alice")
+        await manager.join_room(conn, "game1", "Alice")
         await manager.set_ready(conn, ready=True)
 
         await manager.leave_game(conn)  # should not raise

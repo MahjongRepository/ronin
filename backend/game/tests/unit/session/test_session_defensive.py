@@ -83,8 +83,8 @@ class TestSessionManagerDefensiveChecks:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "game1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "game1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "game1", "Alice")
+        await manager.join_room(conn2, "game1", "Bob")
 
         # patch start_game to return an error (simulating unsupported settings)
         error_events = [
@@ -124,8 +124,8 @@ class TestSessionManagerDefensiveChecks:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "game1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "game1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "game1", "Alice")
+        await manager.join_room(conn2, "game1", "Bob")
 
         # patch start_game to return an error (game.started rolled back to False)
         error_events = [
@@ -172,7 +172,7 @@ class TestRoomDefensiveChecks:
         # Remove the room but leave the lock
         manager._rooms.pop("room1", None)
 
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         error_msgs = [m for m in conn.sent_messages if m.get("code") == SessionErrorCode.ROOM_NOT_FOUND]
         assert len(error_msgs) == 1
@@ -182,7 +182,7 @@ class TestRoomDefensiveChecks:
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         # Remove room but not the lock to simulate the room being cleaned
         # up by another coroutine between lock check and lock acquisition.
@@ -200,7 +200,7 @@ class TestRoomDefensiveChecks:
         manager.create_room("room1")
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice", "tok-alice")
+        await manager.join_room(conn, "room1", "Alice")
 
         # Simulate the lock being cleaned up already
         manager._room_locks.pop("room1", None)

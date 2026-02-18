@@ -1,9 +1,8 @@
-const SESSION_KEYS = ["ws_url", "player_name", "room_id", "session_token"] as const;
+const SESSION_KEYS = ["ws_url", "game_ticket", "room_id"] as const;
 
 /** Clear all session storage keys used during room/game lifecycle. */
 export function clearSessionData(gameId?: string): void {
     if (gameId) {
-        sessionStorage.removeItem(`session_token:${gameId}`);
         sessionStorage.removeItem(`game_session:${gameId}`);
     }
     for (const key of SESSION_KEYS) {
@@ -11,25 +10,19 @@ export function clearSessionData(gameId?: string): void {
     }
 }
 
-/** Get the session token, generating a new UUID if none exists. */
-export function getSessionToken(): string {
-    const existing = sessionStorage.getItem("session_token");
-    if (existing) {
-        return existing;
-    }
-    const token = crypto.randomUUID();
-    sessionStorage.setItem("session_token", token);
-    return token;
+/** Retrieve the game ticket from sessionStorage. */
+export function getGameTicket(): string | null {
+    return sessionStorage.getItem("game_ticket");
 }
 
-/** Store the session token received from the server. */
-export function setSessionToken(token: string): void {
-    sessionStorage.setItem("session_token", token);
+/** Store the game ticket received from the lobby. */
+export function setGameTicket(ticket: string): void {
+    sessionStorage.setItem("game_ticket", ticket);
 }
 
 interface GameSessionData {
     wsUrl: string;
-    sessionToken: string;
+    gameTicket: string;
 }
 
 function isGameSessionData(data: unknown): data is GameSessionData {
@@ -38,14 +31,14 @@ function isGameSessionData(data: unknown): data is GameSessionData {
         data !== null &&
         "wsUrl" in data &&
         typeof (data as Record<string, unknown>).wsUrl === "string" &&
-        "sessionToken" in data &&
-        typeof (data as Record<string, unknown>).sessionToken === "string"
+        "gameTicket" in data &&
+        typeof (data as Record<string, unknown>).gameTicket === "string"
     );
 }
 
 /** Store game session data for reconnection. */
-export function storeGameSession(gameId: string, wsUrl: string, sessionToken: string): void {
-    sessionStorage.setItem(`game_session:${gameId}`, JSON.stringify({ sessionToken, wsUrl }));
+export function storeGameSession(gameId: string, wsUrl: string, gameTicket: string): void {
+    sessionStorage.setItem(`game_session:${gameId}`, JSON.stringify({ gameTicket, wsUrl }));
 }
 
 /** Retrieve stored game session data for reconnection. */

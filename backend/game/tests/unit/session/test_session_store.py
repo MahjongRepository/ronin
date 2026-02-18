@@ -78,35 +78,3 @@ class TestSessionStore:
     def test_mark_reconnected_ignores_unknown_token(self):
         store = SessionStore()
         store.mark_reconnected("nonexistent")  # should not raise
-
-    def test_prepare_token_rotation_returns_new_token(self):
-        store = SessionStore()
-        session = store.create_session("Alice", "g1")
-        old_token = session.session_token
-        new_token = store.prepare_token_rotation(old_token)
-        assert new_token is not None
-        assert new_token != old_token
-        # old token still resolves (not yet committed)
-        assert store.get_session(old_token) is session
-
-    def test_commit_token_rotation_migrates_session(self):
-        store = SessionStore()
-        session = store.create_session("Alice", "g1")
-        old_token = session.session_token
-        new_token = store.prepare_token_rotation(old_token)
-        store.commit_token_rotation(old_token, new_token)
-        # old token no longer resolves
-        assert store.get_session(old_token) is None
-        # new token resolves to the same session object
-        result = store.get_session(new_token)
-        assert result is session
-        assert result.session_token == new_token
-        assert result.player_name == "Alice"
-
-    def test_prepare_token_rotation_returns_none_for_unknown_token(self):
-        store = SessionStore()
-        assert store.prepare_token_rotation("nonexistent") is None
-
-    def test_commit_token_rotation_noop_for_unknown_token(self):
-        store = SessionStore()
-        store.commit_token_rotation("nonexistent", "new-token")  # should not raise

@@ -139,8 +139,8 @@ class TestSessionManagerDisconnect:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "game1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "game1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "game1", "Alice")
+        await manager.join_room(conn2, "game1", "Bob")
 
         # patch start_game to simulate a disconnect happening during the await.
         original_start = manager._game_service.start_game
@@ -184,8 +184,8 @@ class TestSessionManagerDisconnect:
         manager.register_connection(conn1)
         manager.register_connection(conn2)
 
-        await manager.join_room(conn1, "game1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "game1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "game1", "Alice")
+        await manager.join_room(conn2, "game1", "Bob")
 
         original_start = manager._game_service.start_game
 

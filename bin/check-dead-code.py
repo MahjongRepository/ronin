@@ -301,6 +301,7 @@ def _resolve_live_definitions(
     method_aliases: dict[str, set[str]],
     class_methods: dict[str, set[str]],
     class_implicit_methods: dict[str, set[str]],
+    ignored: set[str] | None = None,
 ) -> set[str]:
     live: set[str] = set()
     stack: list[str] = []
@@ -333,6 +334,8 @@ def _resolve_live_definitions(
         add_live(name)
     for name in module_refs.attrs:
         add_attr_live(name)
+    for name in ignored or ():
+        add_live(name)
     while stack:
         name = stack.pop()
         refs = def_refs.get(name)
@@ -355,6 +358,7 @@ def find_dead_code(src: Path) -> DeadCodeReport:
         scan.method_aliases,
         scan.class_methods,
         scan.class_implicit_methods,
+        scan.ignored,
     )
     test_referenced_defs: set[str] = set()
     for name in test_refs.names:

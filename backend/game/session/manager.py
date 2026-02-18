@@ -475,45 +475,18 @@ class SessionManager:
                     saved_bank_seconds,
                 )
 
-                # Mark session as reconnected and clear bank state while keeping
-                # the old token. If the send below fails, the disconnect handler
-                # will find the session under the old token and mark it
-                # disconnected again, allowing the client to retry.
+                # Mark session as reconnected and clear bank state.
+                # If the send below fails, the disconnect handler
+                # will find the session and mark it disconnected again,
+                # allowing the client to retry with the same token.
                 self._session_store.mark_reconnected(session_token)
                 session.remaining_bank_seconds = None
 
-                # Generate the new token to include in the response, but do NOT
-                # rotate yet. Rotating before the send would delete the old
-                # token; if the send then fails the client can never reconnect
-                # (it only knows the old token).
-                new_token = self._session_store.prepare_token_rotation(session_token)
-                if new_token is None:
-                    game.players.pop(connection.connection_id, None)
-                    self._players.pop(connection.connection_id, None)
-                    removed_timer = self._timer_manager.remove_timer(game_id, seat)
-                    if removed_timer:
-                        removed_timer.stop()
-                        session.remaining_bank_seconds = removed_timer.bank_seconds
-                    self._session_store.mark_disconnected(session_token)
-                    self._game_service.replace_with_ai_player(game_id, session.player_name)
-                    await self._send_error(
-                        connection,
-                        SessionErrorCode.RECONNECT_RETRY_LATER,
-                        "Session rotation failed, retry shortly",
-                    )
-                    return
-
                 await connection.send_message(
                     GameReconnectedMessage(
-                        session_token=new_token,
                         **snapshot.model_dump(),
                     ).model_dump(),
                 )
-
-                # Send succeeded — commit the token rotation now that the
-                # client knows the new token.
-                self._session_store.commit_token_rotation(session_token, new_token)
-                player.session_token = new_token
 
                 await self._broadcast_to_game(
                     game=game,
@@ -660,6 +633,7 @@ class SessionManager:
             connection=connection,
             name=session.player_name,
             session_token=session.session_token,
+            user_id=session.user_id,
             game_id=game.game_id,
             seat=seat,
         )
@@ -751,7 +725,8 @@ class SessionManager:
         connection: ConnectionProtocol,
         room_id: str,
         player_name: str,
-        session_token: str,
+        user_id: str = "",
+        session_token: str = "",
     ) -> None:
         """Handle a player joining a room."""
         if self.is_in_active_game(connection.connection_id):
@@ -787,6 +762,7 @@ class SessionManager:
                 name=player_name,
                 room_id=room_id,
                 session_token=session_token,
+                user_id=user_id,
             )
             self._room_players[connection.connection_id] = room_player
             room.players[connection.connection_id] = room_player
@@ -805,7 +781,7 @@ class SessionManager:
         await connection.send_message(
             RoomJoinedMessage(
                 room_id=room_id,
-                session_token=session_token,
+                player_name=player_name,
                 players=player_info,
                 num_ai_players=num_ai_players,
             ).model_dump(),
@@ -963,11 +939,17 @@ class SessionManager:
             self._games[room.room_id] = game
 
             for rp in room_players:
-                session = self._session_store.create_session(rp.name, room.room_id, token=rp.session_token)
+                session = self._session_store.create_session(
+                    rp.name,
+                    room.room_id,
+                    token=rp.session_token,
+                    user_id=rp.user_id,
+                )
                 player = Player(
                     connection=rp.connection,
                     name=rp.name,
                     session_token=session.session_token,
+                    user_id=rp.user_id,
                     game_id=room.room_id,
                 )
                 self._players[rp.connection_id] = player

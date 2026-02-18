@@ -27,6 +27,7 @@ class SessionData:
     session_token: str
     player_name: str
     game_id: str
+    user_id: str = ""  # from verified game ticket, for audit/logging
     seat: int | None = None
     disconnected_at: float | None = None  # time.monotonic() timestamp, None if connected
     remaining_bank_seconds: float | None = None  # preserved bank time for reconnection
@@ -46,6 +47,7 @@ class Player:
     connection: ConnectionProtocol
     name: str
     session_token: str
+    user_id: str = ""  # from verified game ticket
     game_id: str | None = None
     seat: int | None = None
 

@@ -1,10 +1,13 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+# Mahjong has 4 total seats; at most 3 can be AI players.
+MAX_AI_PLAYERS = 3
+
 
 class CreateRoomRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    num_ai_players: int = Field(default=3, ge=0, le=3)
+    num_ai_players: int = Field(default=MAX_AI_PLAYERS, ge=0, le=MAX_AI_PLAYERS)
 
 
 class CreateRoomResponse(BaseModel):

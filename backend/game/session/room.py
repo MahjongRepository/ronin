@@ -30,6 +30,7 @@ class RoomPlayer:
     name: str
     room_id: str
     session_token: str
+    user_id: str = ""  # from verified game ticket
     ready: bool = False
 
     @property

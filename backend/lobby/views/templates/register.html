@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Ronin Mahjong{% endblock %}
+
+{% block content %}
+<div class="lobby">
+    <h1>Ronin Mahjong</h1>
+    <div class="auth-form">
+        <h2>Register</h2>
+
+        {% if error %}
+        <div class="lobby-status">
+            <p class="error-message">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/register">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required minlength="3" maxlength="30">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required minlength="8">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required minlength="8">
+            </div>
+            <button type="submit" class="btn btn-primary">Register</button>
+        </form>
+        <p class="auth-link">Already have an account? <a href="/login">Login</a></p>
+    </div>
+</div>
+{% endblock %}

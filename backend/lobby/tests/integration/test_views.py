@@ -7,6 +7,7 @@ from starlette.testclient import TestClient
 from lobby.games.service import RoomCreationError
 from lobby.server.app import create_app
 from lobby.server.settings import LobbyServerSettings
+from shared.auth.settings import AuthSettings
 
 
 class TestLobbyViews:
@@ -21,13 +22,24 @@ servers:
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
+        users_file = tmp_path / "users.json"
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
                 static_dir=str(static_dir),
             ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="test-secret",
+                users_file=str(users_file),
+            ),
         )
-        return TestClient(app)
+        c = TestClient(app)
+        # Register and login a user for authenticated view tests
+        c.post(
+            "/register",
+            data={"username": "viewuser", "password": "securepass123", "confirm_password": "securepass123"},
+        )
+        return c
 
     def _mock_httpx_no_healthy_servers(self):
         """Patch httpx so health checks fail (no healthy servers, empty room list)."""
@@ -117,7 +129,6 @@ servers:
         try:
             response = client.get("/")
             assert '<form method="POST" action="/rooms/new">' in response.text
-            assert 'name="player_name"' in response.text
         finally:
             patcher.stop()
 
@@ -174,19 +185,18 @@ servers:
         finally:
             patcher.stop()
 
-    def test_create_room_redirects_to_game_client(self, client):
+    def test_create_room_redirects_with_game_ticket(self, client):
         patcher = self._mock_httpx_for_create()
         try:
             response = client.post(
                 "/rooms/new",
-                data={"player_name": "TestPlayer"},
                 follow_redirects=False,
             )
             assert response.status_code == 303
             location = response.headers["location"]
             assert location.startswith("http://localhost:8712/")
             assert "ws_url=" in location
-            assert "player_name=TestPlayer" in location
+            assert "game_ticket=" in location
         finally:
             patcher.stop()
 
@@ -213,10 +223,7 @@ servers:
                 return_value=rooms,
             ),
         ):
-            response = client.post(
-                "/rooms/new",
-                data={"player_name": "TestPlayer"},
-            )
+            response = client.post("/rooms/new")
             assert response.status_code == 200
             assert "No healthy game servers" in response.text
             assert "existing-room" in response.text

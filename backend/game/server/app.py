@@ -89,10 +89,10 @@ def create_app(
     session_manager: SessionManager | None = None,
     message_router: MessageRouter | None = None,
 ) -> Starlette:
-    if settings is None:
-        settings = GameServerSettings()
+    if settings is None:  # pragma: no cover
+        settings = GameServerSettings()  # ty: ignore[missing-argument]
 
-    if game_service is None:
+    if game_service is None:  # pragma: no cover
         game_service = MahjongGameService()
 
     if session_manager is None:
@@ -105,7 +105,7 @@ def create_app(
         )
 
     if message_router is None:
-        message_router = MessageRouter(session_manager)
+        message_router = MessageRouter(session_manager, game_ticket_secret=settings.game_ticket_secret)
 
     async def ws_endpoint(websocket: WebSocket) -> None:
         await websocket_endpoint(websocket, message_router)
@@ -132,11 +132,8 @@ def create_app(
     return app
 
 
-def get_app() -> Starlette:
+def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
     """ASGI application factory for production use (e.g., uvicorn --factory)."""
-    _settings = GameServerSettings()
+    _settings = GameServerSettings()  # ty: ignore[missing-argument]
     setup_logging()
     return create_app(settings=_settings)
-
-
-app = get_app()

@@ -14,6 +14,8 @@ dependencies = [
     "xiangting>=5.0.0",
     "jinja2>=3.1.6",
     "python-multipart>=0.0.20",
+    "bcrypt>=4.0.0",
+    "anyio>=4.0.0",
 ]
 
 [dependency-groups]
@@ -113,10 +115,13 @@ include = ["**/test_*.py", "**/conftest.py"]
 # list -> tuple at runtime, making tests functionally correct
 # Note: possibly-missing-attribute and unresolved-attribute are ignored because
 # tests often access union type members after type-narrowing assertions that ty doesn't track
+# Note: missing-argument is ignored because pydantic-settings classes read
+# required fields from environment variables at runtime
 possibly-unresolved-reference = "warn"
 possibly-missing-attribute = "ignore"
 unresolved-attribute = "ignore"
 invalid-argument-type = "ignore"
+missing-argument = "ignore"
 invalid-parameter-default = "warn"
 unused-ignore-comment = "ignore"
 

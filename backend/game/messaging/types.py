@@ -57,23 +57,13 @@ class SessionErrorCode(StrEnum):
     RECONNECT_IN_ROOM = "reconnect_in_room"
     RECONNECT_ALREADY_ACTIVE = "reconnect_already_active"
     RECONNECT_SNAPSHOT_FAILED = "reconnect_snapshot_failed"
+    INVALID_TICKET = "invalid_ticket"
 
 
 class JoinRoomMessage(BaseModel):
     type: Literal[ClientMessageType.JOIN_ROOM] = ClientMessageType.JOIN_ROOM
     room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
-    player_name: str = Field(min_length=1, max_length=50)
-    session_token: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_\-]+$")
-
-    @field_validator("player_name")
-    @classmethod
-    def _validate_player_name(cls, v: str) -> str:
-        stripped = v.strip()
-        if not stripped:
-            raise ValueError("player_name must not be blank")
-        if any(ord(c) < _SPACE_ORD or ord(c) == _DEL_ORD for c in stripped):
-            raise ValueError("player_name must not contain control characters")
-        return stripped
+    game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 class LeaveRoomMessage(BaseModel):
@@ -159,7 +149,7 @@ class PingMessage(BaseModel):
 class ReconnectMessage(BaseModel):
     type: Literal[ClientMessageType.RECONNECT] = ClientMessageType.RECONNECT
     room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
-    session_token: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_\-]+$")
+    game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 ClientMessage = (
@@ -185,7 +175,7 @@ class GameLeftMessage(BaseModel):
 class RoomJoinedMessage(BaseModel):
     type: Literal[SessionMessageType.ROOM_JOINED] = SessionMessageType.ROOM_JOINED
     room_id: str
-    session_token: str
+    player_name: str
     players: list[RoomPlayerInfo]
     num_ai_players: int
 
@@ -241,7 +231,6 @@ class GameReconnectedMessage(ReconnectionSnapshot):
     """Full game state snapshot sent to a reconnecting player."""
 
     type: Literal[SessionMessageType.GAME_RECONNECTED] = SessionMessageType.GAME_RECONNECTED
-    session_token: str
 
 
 _NonGameMessage = Annotated[

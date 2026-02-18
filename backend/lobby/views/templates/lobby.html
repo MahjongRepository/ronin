@@ -3,9 +3,14 @@
 {% block content %}
 <div class="lobby">
     <h1>Ronin Mahjong</h1>
+    <div class="lobby-header">
+        <span class="username">{{ username }}</span>
+        <form method="POST" action="/logout" style="display:inline">
+            <button type="submit" class="btn btn-small">Logout</button>
+        </form>
+    </div>
     <div class="lobby-controls">
         <form method="POST" action="/rooms/new">
-            <input type="hidden" name="player_name" value="{{ player_name }}">
             <button type="submit" class="btn btn-primary">Create Room</button>
         </form>
         <a href="/" class="btn btn-secondary">Refresh</a>
@@ -24,10 +29,9 @@
                 <span class="game-id">{{ room.room_id }}</span>
                 <span class="game-players">{{ room.player_count }}/{{ room.players_needed }} players</span>
                 {% if room.player_count < room.players_needed %}
-                <a class="btn btn-small"
-                   href="{{ game_client_url }}/?ws_url={{ room.websocket_url | urlencode }}&player_name={{ player_name | urlencode }}#/room/{{ room.room_id }}">
-                    Join
-                </a>
+                <form method="POST" action="/rooms/{{ room.room_id }}/join" style="display:inline">
+                    <button type="submit" class="btn btn-small">Join</button>
+                </form>
                 {% else %}
                 <span class="game-full">Full</span>
                 {% endif %}

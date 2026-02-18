@@ -262,8 +262,8 @@ class TestGameEndFromStartGame:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-        await manager.join_room(conn1, "room1", "Alice", "tok-alice")
-        await manager.join_room(conn2, "room1", "Bob", "tok-bob")
+        await manager.join_room(conn1, "room1", "Alice")
+        await manager.join_room(conn2, "room1", "Bob")
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
             return_value=_make_game_end_events(),

@@ -10,8 +10,8 @@ import { type TemplateResult, html, render } from "lit-html";
 import { beginHandoff, isHandoffPending, setActiveSocket } from "../socket-handoff";
 import {
     clearSessionData,
-    getSessionToken,
-    setSessionToken,
+    getGameTicket,
+    setGameTicket,
     storeGameSession,
 } from "../session-storage";
 import { GameSocket } from "../websocket";
@@ -46,27 +46,27 @@ function resetRoomState(roomId: string): void {
 /** Persist URL query params to sessionStorage and clean the URL. */
 function persistQueryParams(roomId: string, params: URLSearchParams): void {
     const wsUrl = params.get("ws_url");
-    const playerName = params.get("player_name");
-    if (wsUrl && playerName) {
+    const gameTicket = params.get("game_ticket");
+    if (wsUrl && gameTicket) {
         sessionStorage.setItem("ws_url", wsUrl);
-        sessionStorage.setItem("player_name", playerName);
+        setGameTicket(gameTicket);
         sessionStorage.setItem("room_id", roomId);
         history.replaceState(null, "", location.pathname + location.hash);
     }
 }
 
 /** Read connection params from URL query params (cross-origin handoff) or sessionStorage (page refresh). */
-function resolveConnectionParams(roomId: string): { playerName: string; wsUrl: string } | null {
+function resolveConnectionParams(roomId: string): { wsUrl: string } | null {
     const params = new URLSearchParams(location.search);
     persistQueryParams(roomId, params);
 
-    const playerName = params.get("player_name") || sessionStorage.getItem("player_name");
     const wsUrl = params.get("ws_url") || sessionStorage.getItem("ws_url");
+    const gameTicket = params.get("game_ticket") || sessionStorage.getItem("game_ticket");
 
-    if (!wsUrl || !playerName || !wsUrl.includes(`/ws/${roomId}`)) {
+    if (!wsUrl || !gameTicket || !wsUrl.includes(`/ws/${roomId}`)) {
         return null;
     }
-    return { playerName, wsUrl };
+    return { wsUrl };
 }
 
 export function roomView(roomId: string): TemplateResult {
@@ -83,7 +83,7 @@ export function roomView(roomId: string): TemplateResult {
         if (viewGeneration !== generation) {
             return;
         }
-        connectToRoom(connection.wsUrl, roomId, connection.playerName);
+        connectToRoom(connection.wsUrl, roomId);
     }, 0);
 
     return renderRoomView(roomId);
@@ -99,7 +99,7 @@ function redirectToLobby(): TemplateResult {
     `;
 }
 
-function connectToRoom(wsUrl: string, roomId: string, playerName: string): void {
+function connectToRoom(wsUrl: string, roomId: string): void {
     if (socket) {
         socket.disconnect();
     }
@@ -115,9 +115,8 @@ function connectToRoom(wsUrl: string, roomId: string, playerName: string): void 
             // send join_room when connected
             if (status === ConnectionStatus.CONNECTED && socket) {
                 socket.send({
-                    player_name: playerName,
+                    game_ticket: getGameTicket(),
                     room_id: roomId,
-                    session_token: getSessionToken(),
                     type: ClientMessageType.JOIN_ROOM,
                 });
             }
@@ -129,8 +128,9 @@ function connectToRoom(wsUrl: string, roomId: string, playerName: string): void 
 }
 
 function onRoomJoined(message: Record<string, unknown>): void {
-    if (message.session_token) {
-        setSessionToken(message.session_token as string);
+    if (message.player_name) {
+        // player_name comes from the verified game ticket via the server
+        sessionStorage.setItem("player_name", message.player_name as string);
     }
     players = (message.players as RoomPlayerInfo[]) ?? [];
     updatePlayerList();
@@ -162,10 +162,10 @@ function onPlayerReadyChanged(message: Record<string, unknown>): void {
 }
 
 function onGameStarting(roomId: string): void {
-    const sessionToken = sessionStorage.getItem("session_token");
+    const gameTicket = getGameTicket();
     const wsUrl = sessionStorage.getItem("ws_url");
-    if (sessionToken && wsUrl) {
-        storeGameSession(roomId, wsUrl, sessionToken);
+    if (gameTicket && wsUrl) {
+        storeGameSession(roomId, wsUrl, gameTicket);
     }
     appendChat(LOG_TYPE_SYSTEM, "Game starting!");
     beginHandoff(roomId);

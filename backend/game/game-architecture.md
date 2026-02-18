@@ -23,9 +23,9 @@ All messages use MessagePack binary format with a `type` field. The server only 
 
 #### Client -> Server (Room Phase)
 
-**Join Room**
+**Join Room** (requires HMAC-signed game ticket from the lobby server)
 ```json
-{"type": "join_room", "room_id": "room123", "player_name": "Alice"}
+{"type": "join_room", "room_id": "room123", "game_ticket": "<signed-ticket>"}
 ```
 
 **Leave Room**
@@ -55,16 +55,16 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "ping"}
 ```
 
-**Reconnect** (rejoin an active game after disconnecting)
+**Reconnect** (rejoin an active game after disconnecting; uses the original game ticket for authentication)
 ```json
-{"type": "reconnect", "room_id": "game123", "session_token": "abc-123"}
+{"type": "reconnect", "room_id": "game123", "game_ticket": "<signed-ticket>"}
 ```
 
 #### Server -> Client (Room Phase)
 
 **Room Joined** (sent to the joining player with full room state)
 ```json
-{"type": "room_joined", "room_id": "room123", "players": [{"name": "Alice", "ready": false}], "num_ai_players": 3}
+{"type": "room_joined", "room_id": "room123", "player_name": "Alice", "players": [{"name": "Alice", "ready": false}], "num_ai_players": 3}
 ```
 
 **Room Left** (sent to the player who left)
@@ -133,9 +133,9 @@ Note: The `furiten` event is sent only to the affected player (target `seat_N`),
 {"type": "pong"}
 ```
 
-**Game Reconnected** (sent to the reconnecting player with full game state snapshot and rotated session token)
+**Game Reconnected** (sent to the reconnecting player with full game state snapshot)
 ```json
-{"type": "game_reconnected", "game_id": "game123", "session_token": "new-token", "seat": 0, "players": [...], "round_wind": "East", "round_number": 1, "current_player_seat": 0, "dora_indicators": [...], "honba_sticks": 0, "riichi_sticks": 0, "my_tiles": [...], "dice": [3, 4], "tiles_remaining": 70, "player_states": [...], "dealer_seat": 0, "dealer_dice": [[1, 2], [3, 4]]}
+{"type": "game_reconnected", "game_id": "game123", "seat": 0, "players": [...], "round_wind": "East", "round_number": 1, "current_player_seat": 0, "dora_indicators": [...], "honba_sticks": 0, "riichi_sticks": 0, "my_tiles": [...], "dice": [3, 4], "tiles_remaining": 70, "player_states": [...], "dealer_seat": 0, "dealer_dice": [[1, 2], [3, 4]]}
 ```
 
 **Player Reconnected** (broadcast to other players in game)
@@ -168,6 +168,7 @@ Error codes:
 - `reconnect_in_room` - Connection is currently in a room
 - `reconnect_already_active` - Connection already in a game
 - `reconnect_snapshot_failed` - Failed to build game state snapshot
+- `invalid_ticket` - Game ticket is invalid or has a room_id mismatch
 
 ## Internal Architecture
 
@@ -231,14 +232,14 @@ The game service communicates through a typed event pipeline:
 
 ### Server Configuration
 
-`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_games` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`. Injected into the Starlette app via `create_app()`.
+`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias). Injected into the Starlette app via `create_app()`.
 
 ### Room Model
 
 `session/room.py` defines the pre-game lobby data structures:
 
 - **Room** - Dataclass representing a lobby with `room_id`, `num_ai_players`, `host_connection_id`, `transitioning` flag (prevents new joins during room-to-game conversion), `players` dict, and `settings: GameSettings`. Properties: `players_needed`, `is_full`, `all_ready`, `get_player_info()`
-- **RoomPlayer** - Dataclass for a player in the lobby with `connection`, `name`, `room_id`, `session_token`, and `ready` state
+- **RoomPlayer** - Dataclass for a player in the lobby with `connection`, `name`, `room_id`, `session_token`, `user_id`, and `ready` state
 - **RoomPlayerInfo** - Pydantic model for room state messages with `name` and `ready` fields
 
 ### Game Logic Layer
@@ -327,13 +328,13 @@ When a player disconnects from a started game (either by closing the connection 
 ### Reconnection
 
 When a disconnected player reconnects:
-1. The session token is validated (must be disconnected, must match the game ID from the WebSocket path)
-2. Guard checks prevent reconnection if the connection is already in a room or game
-3. Under the per-game lock, stale connections at the seat are evicted
-4. The AI player at the seat is removed via `restore_human_player()`
-5. A `ReconnectionSnapshot` is built containing the full game state for the player's seat
-6. The player is registered in the session layer with a timer initialized from saved bank seconds
-7. The session token is rotated (old token invalidated, new token issued)
+1. The game ticket is HMAC-verified by the router (signature, expiry, room binding)
+2. The session is looked up by the game ticket string (must be disconnected, must match the game ID from the WebSocket path)
+3. Guard checks prevent reconnection if the connection is already in a room or game
+4. Under the per-game lock, stale connections at the seat are evicted
+5. The AI player at the seat is removed via `restore_human_player()`
+6. A `ReconnectionSnapshot` is built containing the full game state for the player's seat
+7. The player is registered in the session layer with a timer initialized from saved bank seconds
 8. The `game_reconnected` message with the full snapshot is sent to the reconnecting player
 9. A `player_reconnected` message is broadcast to other players
 10. If it is the reconnected player's turn (no pending call prompt or round advance), the draw event is re-sent directly (bypassing replay collector to avoid duplicates)
@@ -343,18 +344,20 @@ Reconnection is not possible after all human players disconnect (the game is can
 
 For invalid game actions, the `InvalidGameActionError` exception carries a `seat` attribute for blame attribution: when a resolution-time error is caused by a different player's prior bad data, the offending seat (not the action requester) is disconnected.
 
-### Session Identity
+### Authentication & Session Identity
 
-Sessions are created server-side during the room-to-game transition. When all required players in a room are ready, the server generates a `session_token` (UUID) for each player, creates sessions in `SessionStore`, and transitions the room into a game — all on the same WebSocket connection. The token is managed server-side for reconnection support.
+**Game Ticket Authentication**: Players authenticate via HMAC-SHA256 signed game tickets issued by the lobby server. The `MessageRouter` verifies the ticket signature and expiry using `shared.auth.game_ticket.verify_game_ticket()` for both `join_room` and `reconnect` messages. Tickets have a 24-hour TTL (matching the lobby session). The ticket contains `user_id`, `username`, `room_id`, `issued_at`, and `expires_at`. The router rejects invalid, expired, or room-mismatched tickets with `INVALID_TICKET` error. On success, the router extracts `username` and `user_id` from the verified ticket and passes them to `SessionManager.join_room()`. The ticket secret is shared between the lobby and game servers via the `AUTH_GAME_TICKET_SECRET` environment variable.
+
+**Game Ticket as Session Token**: The game ticket string serves as the session identifier for the entire game lifecycle, including reconnection. When a player joins a room, the router passes the game ticket string as the `session_token` to the session layer. On reconnect, the client sends the same game ticket; the router verifies the HMAC signature, then the session manager looks up the session by the ticket string. There is no token rotation — the same ticket is used throughout.
 
 Session lifecycle:
-- **Created**: When the room transitions to a game (server generates tokens for all players)
+- **Created**: When a player joins a room (session token = game ticket string)
 - **Seat bound**: When the game starts, the player's seat is recorded on the session
 - **Marked disconnected**: When a player disconnects from a started game (timestamp recorded)
 - **Removed**: When a player leaves before the game starts, or on defensive cleanup
 - **Cleaned up**: When a game ends and is empty, all sessions for that game are removed
 
-Session data (`SessionData`) stores: session token, player name, game ID, seat number, disconnect timestamp, and remaining bank seconds. Sessions are in-memory only (no persistence). On reconnection, the session token is validated, the AI player at the seat is removed, the human player is restored, and a new rotated session token is issued. Bank time is preserved across disconnect/reconnect cycles. `SessionStore` provides `get_session()` (lookup by token), `mark_reconnected()` (clears disconnect state), `prepare_token_rotation()` (generates new token without invalidating old), and `commit_token_rotation()` (swaps old token for new) for reconnection support. The two-phase rotation ensures the old token remains valid until the client confirms receipt of the new token.
+Session data (`SessionData`) stores: session token (game ticket string), player name, game ID, user_id (from verified game ticket), seat number, disconnect timestamp, and remaining bank seconds. Sessions are in-memory only (no persistence). On reconnection, the game ticket is HMAC-verified by the router, then the session is looked up by the ticket string, the AI player at the seat is removed, and the human player is restored. Bank time is preserved across disconnect/reconnect cycles. `SessionStore` provides `get_session()` (lookup by token) and `mark_reconnected()` (clears disconnect state) for reconnection support.
 
 ### Per-Player Timers
 
@@ -465,6 +468,7 @@ ronin/
 - **State builders** (`tests/conftest.py`) - Factory functions `create_player()`, `create_round_state()`, `create_game_state()` for constructing frozen Pydantic state objects with sensible defaults, avoiding boilerplate in every test
 - **Copy-on-write helpers** (`tests/unit/helpers.py`) - `_update_round_state()` and `_update_player()` for modifying frozen state in test setup via `model_copy(update={...})`
 - **Session helpers** (`tests/unit/session/helpers.py`) - `create_started_game()` orchestrates full room lifecycle (create/join/ready/start) for session tests; `disconnect_and_reconnect()` simulates disconnect and reconnection for reconnection tests
+- **Auth helpers** (`tests/helpers/auth.py`) - `make_test_game_ticket()` creates HMAC-signed game tickets for test use; `TEST_TICKET_SECRET` is the shared secret used by test fixtures
 
 ### Unit Tests (No Sockets)
 
@@ -476,10 +480,11 @@ async def test_join_room():
     router.handle_connect(connection)
 
     session_manager.create_room("room1", num_ai_players=3)
+    ticket = make_test_game_ticket("Alice", "room1")
     await router.handle_message(connection, {
         "type": "join_room",
         "room_id": "room1",
-        "player_name": "Alice",
+        "game_ticket": ticket,
     })
 
     response = connection.sent_messages[0]
@@ -497,7 +502,8 @@ def test_websocket():
     client = TestClient(app)
     client.post("/rooms", json={"room_id": "test_room"})
     with client.websocket_connect("/ws/test_room") as ws:
-        ws.send_bytes(msgpack.packb({"type": "join_room", "room_id": "test_room", "player_name": "Alice"}))
+        ticket = make_test_game_ticket("Alice", "test_room")
+        ws.send_bytes(msgpack.packb({"type": "join_room", "room_id": "test_room", "game_ticket": ticket}))
         response = msgpack.unpackb(ws.receive_bytes())
         assert response["type"] == "room_joined"
 ```
