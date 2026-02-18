@@ -55,6 +55,11 @@ All messages use MessagePack binary format with a `type` field. The server only 
 {"type": "ping"}
 ```
 
+**Reconnect** (rejoin an active game after disconnecting)
+```json
+{"type": "reconnect", "room_id": "game123", "session_token": "abc-123"}
+```
+
 #### Server -> Client (Room Phase)
 
 **Room Joined** (sent to the joining player with full room state)
@@ -128,6 +133,16 @@ Note: The `furiten` event is sent only to the affected player (target `seat_N`),
 {"type": "pong"}
 ```
 
+**Game Reconnected** (sent to the reconnecting player with full game state snapshot and rotated session token)
+```json
+{"type": "game_reconnected", "game_id": "game123", "session_token": "new-token", "seat": 0, "players": [...], "round_wind": "East", "round_number": 1, "current_player_seat": 0, "dora_indicators": [...], "honba_sticks": 0, "riichi_sticks": 0, "my_tiles": [...], "dice": [3, 4], "tiles_remaining": 70, "player_states": [...], "dealer_seat": 0, "dealer_dice": [[1, 2], [3, 4]]}
+```
+
+**Player Reconnected** (broadcast to other players in game)
+```json
+{"type": "player_reconnected", "player_name": "Alice"}
+```
+
 **Error**
 ```json
 {"type": "session_error", "code": "game_full", "message": "Game is full"}
@@ -145,6 +160,14 @@ Error codes:
 - `game_not_started` - Player tried to perform a game action before the game started
 - `invalid_message` - Message could not be parsed
 - `action_failed` - Game action failed
+- `reconnect_no_session` - No disconnected session found for the provided token
+- `reconnect_no_seat` - Session has no seat assignment
+- `reconnect_game_gone` - Game no longer exists (all players disconnected)
+- `reconnect_game_mismatch` - Session token does not match the WebSocket path game ID
+- `reconnect_retry_later` - Game is starting, retry shortly (transient)
+- `reconnect_in_room` - Connection is currently in a room
+- `reconnect_already_active` - Connection already in a game
+- `reconnect_snapshot_failed` - Failed to build game state snapshot
 
 ## Internal Architecture
 
@@ -178,7 +201,9 @@ GameService (game logic interface)              EventPayload (wire serialization
     → returns list[ServiceEvent]                    → service_event_payload()
     Methods: start_game, handle_action,             → shape_call_prompt_payload()
              get_player_seat, handle_timeout,
-             replace_with_ai_player,
+             replace_with_ai_player, restore_human_player,
+             build_reconnection_snapshot,
+             build_draw_event_for_seat,
              process_ai_player_actions_after_replacement
 ```
 
@@ -229,10 +254,10 @@ The `logic/` module implements Riichi Mahjong rules:
 - **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `_validate_caller_action_matches_prompt()` enforces per-caller action validity (ron callers can only CALL_RON on DISCARD prompts, meld callers validated against their available call types); `handle_pass` removes the caller from `pending_seats` and applies furiten (for DISCARD prompts, only ron callers receive furiten) without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`; `_find_offending_seat_from_prompt()` uses resolution priority logic for blame attribution when call resolution fails
 - **CallResolution** (`call_resolution.py`) - Resolves pending call prompts after all callers respond; picks winning response by priority (ron > pon/kan > chi > all pass); handles triple ron abortive draw, double/single ron, meld resolution, and chankan decline completion; for DISCARD prompts, `_finalize_discard_post_ron_check()` performs deferred dora reveal and riichi finalization after no ron, and `_resolve_all_passed_discard()` handles the all-passed case (dora/riichi already finalized, just advances turn)
 - **Matchmaker** - Assigns players to randomized seats and fills remaining seats with AI players; supports 1-4 players based on `num_ai_players` setting; returns `list[SeatConfig]`
-- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each player gets an independent timer instance; `stop()` cancels timer and deducts bank time, while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
-- **AIPlayerController** - Pure decision-maker for AI players using `dict[int, AIPlayer]` seat-to-AI-player mapping; provides `is_ai_player()`, `add_ai_player()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime AI player addition for disconnect replacement
+- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each player gets an independent timer instance; accepts optional `bank_seconds` constructor parameter for restoring preserved bank time on reconnection; `stop()` cancels timer and deducts bank time, while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
+- **AIPlayerController** - Pure decision-maker for AI players using `dict[int, AIPlayer]` seat-to-AI-player mapping; provides `is_ai_player()`, `add_ai_player()`, `remove_ai_player()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime AI player addition for disconnect replacement
 - **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `AIPlayerType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
-- **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView` with seat and score only, `dice` field), `PlayerStanding` (seat, score, final_score), `MeldCaller` (seat and call_type only, no server-internal fields), `AIPlayerAction`, `AvailableActionItem`; `RoundResult` union type
+- **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView` with seat and score only, `dice` field), `PlayerStanding` (seat, score, final_score), `MeldCaller` (seat and call_type only, no server-internal fields), `AIPlayerAction`, `AvailableActionItem`, reconnection models (`DiscardInfo`, `PlayerReconnectState`, `ReconnectionSnapshot`); `RoundResult` union type
 - **RNG** (`rng.py`) - Random number generation for wall shuffling; pure Python PCG64DXSM (Permuted Congruential Generator with DXSM output function); 768-bit cryptographic seed generation via `secrets.token_bytes`; hash-based per-round derivation with SHA512 domain separation; Fisher-Yates shuffle with rejection sampling; dice rolling; `RNG_VERSION` constant for replay compatibility; `generate_seed()`, `generate_shuffled_wall_and_dice()`, `create_seat_rng()`, `validate_seed_hex()`
 - **Wall** (`wall.py`) - Frozen Pydantic `Wall` model encapsulating wall state (live wall, dead wall, dora indicators, pending dora count, dice values); `WallBreakInfo` model for computed break positions; dice-based wall breaking following standard Riichi Mahjong rules (68-stack ring model); `create_wall()`, `create_wall_from_tiles()`, `deal_initial_hands()`, `draw_tile()`, `draw_from_dead_wall()`, `add_dora_indicator()`, `reveal_pending_dora()`, `increment_pending_dora()`, `is_wall_exhausted()`, `tiles_remaining()`, `collect_ura_dora_indicators()`
 - **Tiles** - 136-tile set with suits (man, pin, sou), honors (winds, dragons), and red fives; tile constants, 136-to-34 format conversion, terminal/honor checks, tile sorting, and hand-to-34-array conversion
@@ -295,9 +320,26 @@ When a player disconnects from a started game (either by closing the connection 
 1. The player's connection is closed (code 1008 for invalid actions, normal close for voluntary disconnect)
 2. The player is removed from the session layer (`game.players`)
 3. If other players remain, `replace_with_ai_player()` registers an AI player at the disconnected player's seat
-4. The disconnected player's timer is cancelled
+4. The disconnected player's timer is stopped (elapsed turn time deducted from bank) and remaining bank seconds are saved to the session for reconnection
 5. `process_ai_player_actions_after_replacement()` handles any pending turn, call prompt, or round-advance confirmation for the replaced seat
 6. If the last player disconnects, the game is cleaned up (no all-AI-player games)
+
+### Reconnection
+
+When a disconnected player reconnects:
+1. The session token is validated (must be disconnected, must match the game ID from the WebSocket path)
+2. Guard checks prevent reconnection if the connection is already in a room or game
+3. Under the per-game lock, stale connections at the seat are evicted
+4. The AI player at the seat is removed via `restore_human_player()`
+5. A `ReconnectionSnapshot` is built containing the full game state for the player's seat
+6. The player is registered in the session layer with a timer initialized from saved bank seconds
+7. The session token is rotated (old token invalidated, new token issued)
+8. The `game_reconnected` message with the full snapshot is sent to the reconnecting player
+9. A `player_reconnected` message is broadcast to other players
+10. If it is the reconnected player's turn (no pending call prompt or round advance), the draw event is re-sent directly (bypassing replay collector to avoid duplicates)
+11. Stale connections are closed outside the lock
+
+Reconnection is not possible after all human players disconnect (the game is canceled immediately).
 
 For invalid game actions, the `InvalidGameActionError` exception carries a `seat` attribute for blame attribution: when a resolution-time error is caused by a different player's prior bad data, the offending seat (not the action requester) is disconnected.
 
@@ -312,7 +354,7 @@ Session lifecycle:
 - **Removed**: When a player leaves before the game starts, or on defensive cleanup
 - **Cleaned up**: When a game ends and is empty, all sessions for that game are removed
 
-Session data (`SessionData`) stores: session token, player name, game ID, seat number, and disconnect timestamp. Sessions are in-memory only (no persistence). Reconnection logic (rebinding a new WebSocket to an existing session) is not yet implemented.
+Session data (`SessionData`) stores: session token, player name, game ID, seat number, disconnect timestamp, and remaining bank seconds. Sessions are in-memory only (no persistence). On reconnection, the session token is validated, the AI player at the seat is removed, the human player is restored, and a new rotated session token is issued. Bank time is preserved across disconnect/reconnect cycles. `SessionStore` provides `get_session()` (lookup by token), `mark_reconnected()` (clears disconnect state), `prepare_token_rotation()` (generates new token without invalidating old), and `commit_token_rotation()` (swaps old token for new) for reconnection support. The two-phase rotation ensures the old token remains valid until the client confirms receipt of the new token.
 
 ### Per-Player Timers
 
@@ -422,7 +464,7 @@ ronin/
 - **MockGameService** (`tests/mocks/game_service.py`) - Implements `GameService` interface; echoes actions as broadcast events; creates mock seat assignments on `start_game()`
 - **State builders** (`tests/conftest.py`) - Factory functions `create_player()`, `create_round_state()`, `create_game_state()` for constructing frozen Pydantic state objects with sensible defaults, avoiding boilerplate in every test
 - **Copy-on-write helpers** (`tests/unit/helpers.py`) - `_update_round_state()` and `_update_player()` for modifying frozen state in test setup via `model_copy(update={...})`
-- **Session helpers** (`tests/unit/session/helpers.py`) - `create_started_game()` orchestrates full room lifecycle (create/join/ready/start) for session tests
+- **Session helpers** (`tests/unit/session/helpers.py`) - `create_started_game()` orchestrates full room lifecycle (create/join/ready/start) for session tests; `disconnect_and_reconnect()` simulates disconnect and reconnection for reconnection tests
 
 ### Unit Tests (No Sockets)
 

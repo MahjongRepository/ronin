@@ -9,6 +9,7 @@ from game.messaging.types import (
     ChiMessage,
     ClientMessageType,
     DiscardMessage,
+    ReconnectMessage,
     SessionErrorCode,
     SessionMessageType,
     parse_client_message,
@@ -36,6 +37,25 @@ class TestMessageRouterBranches:
         connection = MockConnection()
         await router.handle_connect(connection)
         return router, connection, session_manager
+
+    async def test_reconnect_routes_to_session_manager(self, setup):
+        """Reconnect message dispatches through router to session_manager.reconnect."""
+        router, connection, _ = setup
+
+        await router.handle_message(
+            connection,
+            {
+                "type": ClientMessageType.RECONNECT,
+                "room_id": "game1",
+                "session_token": "tok-abc",
+            },
+        )
+
+        # no session exists, so we get an error back
+        assert len(connection.sent_messages) == 1
+        response = connection.sent_messages[0]
+        assert response["type"] == SessionMessageType.ERROR
+        assert response["code"] == SessionErrorCode.RECONNECT_NO_SESSION
 
     async def test_disconnect_without_joining_game(self, setup):
         """Disconnecting a registered connection that never joined a game returns cleanly."""
@@ -220,6 +240,49 @@ class TestParseClientMessage:
 
     def test_parse_game_action_invalid_action(self):
         data = {"type": "game_action", "action": "invalid_action"}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+
+class TestReconnectMessageParsing:
+    """Validate ReconnectMessage parsing and field validation."""
+
+    def test_parse_reconnect_message(self):
+        data = {
+            "type": "reconnect",
+            "room_id": "game1",
+            "session_token": "tok-abc_123",
+        }
+        msg = parse_client_message(data)
+        assert isinstance(msg, ReconnectMessage)
+        assert msg.room_id == "game1"
+        assert msg.session_token == "tok-abc_123"
+
+    def test_reconnect_missing_session_token_rejected(self):
+        data = {"type": "reconnect", "room_id": "game1"}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_reconnect_missing_room_id_rejected(self):
+        data = {"type": "reconnect", "session_token": "tok-abc"}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_reconnect_invalid_session_token_pattern_rejected(self):
+        data = {
+            "type": "reconnect",
+            "room_id": "game1",
+            "session_token": "tok with spaces!",
+        }
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
+    def test_reconnect_invalid_room_id_pattern_rejected(self):
+        data = {
+            "type": "reconnect",
+            "room_id": "room with spaces!",
+            "session_token": "tok-abc",
+        }
         with pytest.raises(ValidationError):
             parse_client_message(data)
 

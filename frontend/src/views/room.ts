@@ -8,7 +8,12 @@ import {
 } from "../protocol";
 import { type TemplateResult, html, render } from "lit-html";
 import { beginHandoff, isHandoffPending, setActiveSocket } from "../socket-handoff";
-import { clearSessionData, getSessionToken, setSessionToken } from "../session-storage";
+import {
+    clearSessionData,
+    getSessionToken,
+    setSessionToken,
+    storeGameSession,
+} from "../session-storage";
 import { GameSocket } from "../websocket";
 import { getLobbyUrl } from "../env";
 import { navigate } from "../router";
@@ -157,6 +162,11 @@ function onPlayerReadyChanged(message: Record<string, unknown>): void {
 }
 
 function onGameStarting(roomId: string): void {
+    const sessionToken = sessionStorage.getItem("session_token");
+    const wsUrl = sessionStorage.getItem("ws_url");
+    if (sessionToken && wsUrl) {
+        storeGameSession(roomId, wsUrl, sessionToken);
+    }
     appendChat(LOG_TYPE_SYSTEM, "Game starting!");
     beginHandoff(roomId);
     navigate(`/game/${roomId}`);

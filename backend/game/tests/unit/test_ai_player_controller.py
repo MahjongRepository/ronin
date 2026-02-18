@@ -241,3 +241,19 @@ class TestAIPlayerControllerManagement:
         controller.add_ai_player(2, AIPlayer())
 
         assert controller.is_ai_player(2) is True
+
+    def test_remove_ai_player(self):
+        """remove_ai_player unregisters an AI from a seat."""
+        ai = AIPlayer()
+        controller = AIPlayerController({1: ai})
+        assert controller.is_ai_player(1) is True
+
+        controller.remove_ai_player(1)
+
+        assert controller.is_ai_player(1) is False
+        assert 1 not in controller.ai_player_seats
+
+    def test_remove_ai_player_nonexistent_seat_is_safe(self):
+        """Removing AI from a seat with no AI does nothing."""
+        controller = AIPlayerController({})
+        controller.remove_ai_player(3)

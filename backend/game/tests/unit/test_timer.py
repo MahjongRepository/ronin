@@ -124,6 +124,14 @@ class TestTurnTimerBankEdgeCases:
         assert first_called is False
 
 
+class TestTurnTimerBankSecondsProperty:
+    def test_bank_seconds_with_override(self):
+        """Constructor bank_seconds override replaces initial_bank_seconds."""
+        config = TimerConfig(initial_bank_seconds=10.0)
+        timer = TurnTimer(config, bank_seconds=2.5)
+        assert timer.bank_seconds == 2.5
+
+
 class TestTimerCallbackException:
     async def test_timer_callback_exception_is_caught(self):
         """Timer catches exceptions from callback without re-raising."""

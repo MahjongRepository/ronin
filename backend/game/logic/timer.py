@@ -46,11 +46,16 @@ class TurnTimer:
     Uses a bank system for turn time (initial + round bonus) and a fixed timer for meld decisions.
     """
 
-    def __init__(self, config: TimerConfig | None = None) -> None:
+    def __init__(self, config: TimerConfig | None = None, bank_seconds: float | None = None) -> None:
         self._config = config or TimerConfig()
-        self._bank_seconds: float = self._config.initial_bank_seconds
+        self._bank_seconds: float = bank_seconds if bank_seconds is not None else self._config.initial_bank_seconds
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
+
+    @property
+    def bank_seconds(self) -> float:
+        """Remaining bank time (seconds)."""
+        return self._bank_seconds
 
     def add_round_bonus(self) -> None:
         """Add round bonus time to the bank."""

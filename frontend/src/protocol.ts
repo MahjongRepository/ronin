@@ -5,6 +5,7 @@ export enum ClientMessageType {
     GAME_ACTION = "game_action",
     CHAT = "chat",
     PING = "ping",
+    RECONNECT = "reconnect",
 }
 
 export enum SessionMessageType {
@@ -17,6 +18,8 @@ export enum SessionMessageType {
     CHAT = "chat",
     ERROR = "session_error",
     PONG = "pong",
+    GAME_RECONNECTED = "game_reconnected",
+    PLAYER_RECONNECTED = "player_reconnected",
 }
 
 export enum EventType {

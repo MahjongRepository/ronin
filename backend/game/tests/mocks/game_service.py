@@ -12,7 +12,7 @@ from game.logic.events import (
 )
 from game.logic.rng import RNG_VERSION
 from game.logic.service import GameService
-from game.logic.types import GamePlayerInfo, PlayerView
+from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
     from game.logic.settings import GameSettings
@@ -144,6 +144,15 @@ class MockGameService(GameService):
         player_name: str,
     ) -> None:
         pass
+
+    def restore_human_player(self, game_id: str, seat: int) -> None:
+        pass
+
+    def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
+        return None
+
+    def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
+        return []
 
     async def process_ai_player_actions_after_replacement(
         self,

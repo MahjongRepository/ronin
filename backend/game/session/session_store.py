@@ -42,6 +42,41 @@ class SessionStore:
         """Remove a single session by token."""
         self._sessions.pop(token, None)
 
+    def get_session(self, token: str) -> SessionData | None:
+        """Look up a session by token."""
+        return self._sessions.get(token)
+
+    def mark_reconnected(self, token: str) -> None:
+        """Clear disconnect state for a reconnected session."""
+        session = self._sessions.get(token)
+        if session is not None:
+            session.disconnected_at = None
+
+    def prepare_token_rotation(self, token: str) -> str | None:
+        """Generate a new token for rotation without removing the old one.
+
+        Returns the new token string, or None if the session doesn't exist.
+        The old token remains valid until commit_token_rotation() is called.
+        """
+        session = self._sessions.get(token)
+        if session is None:
+            return None
+        return str(uuid4())
+
+    def commit_token_rotation(self, old_token: str, new_token: str) -> None:
+        """Commit a previously prepared token rotation by swapping old -> new.
+
+        Call this only after the client has received the new token (e.g. after
+        a successful send_message). This ensures the old token remains valid
+        if the send fails, so the client can retry with its known token.
+        """
+        session = self._sessions.get(old_token)
+        if session is None:
+            return
+        self._sessions.pop(old_token, None)
+        session.session_token = new_token
+        self._sessions[new_token] = session
+
     def cleanup_game(self, game_id: str) -> None:
         """Remove all sessions associated with a game."""
         tokens_to_remove = [token for token, session in self._sessions.items() if session.game_id == game_id]

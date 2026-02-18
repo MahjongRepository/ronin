@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from game.logic.settings import GameSettings
     from game.logic.state import MahjongGameState
+    from game.logic.types import ReconnectionSnapshot
 
 
 class GameService(ABC):
@@ -115,6 +116,24 @@ class GameService(ABC):
 
         Handles the case where the replaced player had a pending turn or call.
         """
+        ...
+
+    @abstractmethod
+    def restore_human_player(self, game_id: str, seat: int) -> None:
+        """Remove the AI player at a seat and restore it for human control."""
+        ...
+
+    @abstractmethod
+    def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
+        """Build a full game state snapshot for a reconnecting player at the given seat.
+
+        Must be called after restore_human_player() so the AI player flag is correct.
+        """
+        ...
+
+    @abstractmethod
+    def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
+        """Rebuild the draw event with available actions for a specific seat."""
         ...
 
     @abstractmethod

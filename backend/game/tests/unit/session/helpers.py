@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from game.logic.enums import WindName
 from game.logic.types import GameView, PlayerView
+from game.messaging.types import SessionMessageType
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection
 
@@ -85,3 +86,28 @@ def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockCo
     manager._players[conn.connection_id] = player
     manager._connections[conn.connection_id] = conn
     return game, player, conn
+
+
+async def disconnect_and_reconnect(
+    manager: SessionManager,
+    conn: MockConnection,
+    game_id: str = "game1",
+) -> tuple[MockConnection, str]:
+    """Disconnect a player and reconnect with a fresh connection.
+
+    Returns (new_connection, new_session_token).
+    """
+    player = manager._players[conn.connection_id]
+    token = player.session_token
+
+    await manager.leave_game(conn, notify_player=False)
+
+    new_conn = MockConnection()
+    manager.register_connection(new_conn)
+    await manager.reconnect(new_conn, game_id, token)
+
+    reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
+    assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
+    new_token = reconnect_msgs[0]["session_token"]
+
+    return new_conn, new_token

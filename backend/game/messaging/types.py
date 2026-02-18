@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 from game.logic.enums import GameAction, KanType
+from game.logic.types import ReconnectionSnapshot
 from game.session.room import RoomPlayerInfo
 
 # ASCII control character boundaries for input validation
@@ -18,6 +19,7 @@ class ClientMessageType(StrEnum):
     GAME_ACTION = "game_action"
     CHAT = "chat"
     PING = "ping"
+    RECONNECT = "reconnect"
 
 
 class SessionMessageType(StrEnum):
@@ -31,6 +33,8 @@ class SessionMessageType(StrEnum):
     CHAT = "chat"
     ERROR = "session_error"
     PONG = "pong"
+    GAME_RECONNECTED = "game_reconnected"
+    PLAYER_RECONNECTED = "player_reconnected"
 
 
 class SessionErrorCode(StrEnum):
@@ -45,6 +49,14 @@ class SessionErrorCode(StrEnum):
     GAME_NOT_STARTED = "game_not_started"
     INVALID_MESSAGE = "invalid_message"
     ACTION_FAILED = "action_failed"
+    RECONNECT_NO_SESSION = "reconnect_no_session"
+    RECONNECT_NO_SEAT = "reconnect_no_seat"
+    RECONNECT_GAME_GONE = "reconnect_game_gone"
+    RECONNECT_GAME_MISMATCH = "reconnect_game_mismatch"
+    RECONNECT_RETRY_LATER = "reconnect_retry_later"
+    RECONNECT_IN_ROOM = "reconnect_in_room"
+    RECONNECT_ALREADY_ACTIVE = "reconnect_already_active"
+    RECONNECT_SNAPSHOT_FAILED = "reconnect_snapshot_failed"
 
 
 class JoinRoomMessage(BaseModel):
@@ -144,6 +156,12 @@ class PingMessage(BaseModel):
     type: Literal[ClientMessageType.PING] = ClientMessageType.PING
 
 
+class ReconnectMessage(BaseModel):
+    type: Literal[ClientMessageType.RECONNECT] = ClientMessageType.RECONNECT
+    room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    session_token: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_\-]+$")
+
+
 ClientMessage = (
     JoinRoomMessage
     | LeaveRoomMessage
@@ -156,6 +174,7 @@ ClientMessage = (
     | NoDataActionMessage
     | ChatMessage
     | PingMessage
+    | ReconnectMessage
 )
 
 
@@ -211,8 +230,22 @@ class PongMessage(BaseModel):
     type: Literal[SessionMessageType.PONG] = SessionMessageType.PONG
 
 
+class PlayerReconnectedMessage(BaseModel):
+    """Broadcast to other players when a player reconnects."""
+
+    type: Literal[SessionMessageType.PLAYER_RECONNECTED] = SessionMessageType.PLAYER_RECONNECTED
+    player_name: str
+
+
+class GameReconnectedMessage(ReconnectionSnapshot):
+    """Full game state snapshot sent to a reconnecting player."""
+
+    type: Literal[SessionMessageType.GAME_RECONNECTED] = SessionMessageType.GAME_RECONNECTED
+    session_token: str
+
+
 _NonGameMessage = Annotated[
-    JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | ChatMessage | PingMessage,
+    JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | ChatMessage | PingMessage | ReconnectMessage,
     Field(discriminator="type"),
 ]
 

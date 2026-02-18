@@ -15,6 +15,7 @@ from game.messaging.types import (
     NoDataActionMessage,
     PingMessage,
     PonMessage,
+    ReconnectMessage,
     RiichiMessage,
     SessionErrorCode,
     SetReadyMessage,
@@ -76,6 +77,12 @@ class MessageRouter:
             await self._session_manager.set_ready(connection, ready=message.ready)
         elif isinstance(message, _GAME_ACTION_TYPES):
             await self._handle_game_action(connection, message)
+        elif isinstance(message, ReconnectMessage):
+            await self._session_manager.reconnect(
+                connection=connection,
+                room_id=message.room_id,
+                session_token=message.session_token,
+            )
         elif isinstance(message, PingMessage):
             await self._session_manager.handle_ping(connection)
         elif isinstance(message, ChatMessage):

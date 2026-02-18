@@ -41,6 +41,22 @@ class TimerManager:
         timers = self._timers.get(game_id)
         return timers.get(seat) if timers else None
 
+    def add_timer(
+        self,
+        game_id: str,
+        seat: int,
+        config: TimerConfig | None = None,
+        bank_seconds: float | None = None,
+    ) -> None:
+        """Create a timer for a single seat (used on reconnection).
+
+        If bank_seconds is provided, the timer is initialized with that bank time
+        instead of the default initial_bank_seconds (preserves bank across disconnect).
+        """
+        timers = self._timers.get(game_id)
+        if timers is not None:
+            timers[seat] = TurnTimer(config=config, bank_seconds=bank_seconds)
+
     def remove_timer(self, game_id: str, seat: int) -> TurnTimer | None:
         """Remove and return the timer for a seat (used on disconnect)."""
         timers = self._timers.get(game_id)

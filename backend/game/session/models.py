@@ -29,6 +29,7 @@ class SessionData:
     game_id: str
     seat: int | None = None
     disconnected_at: float | None = None  # time.monotonic() timestamp, None if connected
+    remaining_bank_seconds: float | None = None  # preserved bank time for reconnection
 
 
 @dataclass

@@ -23,6 +23,7 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
+from game.logic.action_result import create_draw_event
 from game.logic.ai_player import AIPlayer, AIPlayerStrategy
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import AIPlayerType, CallType, GameAction, GameErrorCode, RoundPhase, TimeoutType
@@ -58,6 +59,7 @@ from game.logic.state import (
     MahjongPlayer,
     PendingCallPrompt,
     get_player_view,
+    meld_to_view,
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import (
@@ -66,13 +68,17 @@ from game.logic.turn import (
 from game.logic.types import (
     ChiActionData,
     DiscardActionData,
+    DiscardInfo,
     GamePlayerInfo,
     KanActionData,
     MeldCaller,
+    PlayerReconnectState,
     PonActionData,
+    ReconnectionSnapshot,
     RiichiActionData,
     RoundResult,
 )
+from game.logic.wall import tiles_remaining
 from game.logic.win import is_effective_furiten
 
 if TYPE_CHECKING:
@@ -864,6 +870,87 @@ class MahjongGameService(GameService):
         ai_player = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         ai_player_controller.add_ai_player(seat, ai_player)
         logger.info("replaced '%s' (seat %d) with AI player", player_name, seat)
+
+    def restore_human_player(self, game_id: str, seat: int) -> None:
+        """Remove the AI player at a seat and restore it for human control."""
+        controller = self._ai_player_controllers.get(game_id)
+        if controller:
+            controller.remove_ai_player(seat)
+
+    def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
+        """Build a full game state snapshot for a reconnecting player at the given seat."""
+        game_state = self._games.get(game_id)
+        if game_state is None:
+            return None
+
+        round_state = game_state.round_state
+        controller = self._ai_player_controllers.get(game_id)
+
+        players_info = [
+            GamePlayerInfo(
+                seat=p.seat,
+                name=p.name,
+                is_ai_player=controller.is_ai_player(p.seat) if controller else False,
+            )
+            for p in round_state.players
+        ]
+
+        player_states = [
+            PlayerReconnectState(
+                seat=p.seat,
+                score=p.score,
+                discards=[
+                    DiscardInfo(
+                        tile_id=d.tile_id,
+                        is_tsumogiri=d.is_tsumogiri,
+                        is_riichi_discard=d.is_riichi_discard,
+                    )
+                    for d in p.discards
+                ],
+                melds=[meld_to_view(m) for m in p.melds],
+                is_riichi=p.is_riichi,
+            )
+            for p in round_state.players
+        ]
+
+        view = get_player_view(game_state, seat)
+
+        return ReconnectionSnapshot(
+            game_id=game_id,
+            players=players_info,
+            dealer_seat=round_state.dealer_seat,
+            dealer_dice=game_state.dealer_dice,
+            seat=seat,
+            round_wind=view.round_wind,
+            round_number=view.round_number,
+            current_player_seat=round_state.current_player_seat,
+            dora_indicators=view.dora_indicators,
+            honba_sticks=view.honba_sticks,
+            riichi_sticks=view.riichi_sticks,
+            my_tiles=view.my_tiles,
+            dice=view.dice,
+            tiles_remaining=tiles_remaining(round_state.wall),
+            player_states=player_states,
+        )
+
+    def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
+        """Rebuild the draw event with available actions for a specific seat."""
+        game_state = self._games.get(game_id)
+        if game_state is None:
+            return []
+
+        round_state = game_state.round_state
+        if round_state.current_player_seat != seat:
+            return []
+
+        player = round_state.players[seat]
+        if not player.tiles:
+            return []
+
+        # The last tile in hand is the drawn tile
+        tile_id = player.tiles[-1]
+        draw_event = create_draw_event(round_state, game_state, seat, tile_id)
+        return convert_events([draw_event])
 
     async def _auto_confirm_pending_advance(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
         """Auto-confirm a seat's pending round advance after AI player replacement.

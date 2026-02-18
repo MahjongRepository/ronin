@@ -3,7 +3,7 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import GameAction, MeldViewType, TimeoutType
+from game.logic.enums import GameAction, MeldViewType, RoundPhase, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -22,10 +22,12 @@ from game.messaging.event_payload import service_event_payload, shape_call_promp
 from game.messaging.types import (
     ErrorMessage,
     GameLeftMessage,
+    GameReconnectedMessage,
     GameStartingMessage,
     PlayerJoinedMessage,
     PlayerLeftMessage,
     PlayerReadyChangedMessage,
+    PlayerReconnectedMessage,
     PongMessage,
     RoomJoinedMessage,
     RoomLeftMessage,
@@ -33,7 +35,7 @@ from game.messaging.types import (
     SessionErrorCode,
 )
 from game.session.heartbeat import HeartbeatMonitor
-from game.session.models import Game, Player
+from game.session.models import Game, Player, SessionData
 from game.session.room import Room, RoomPlayer
 from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerManager
@@ -138,7 +140,7 @@ class SessionManager:
                 await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
                 # replace disconnected player with AI player (only if other players remain)
                 if not game.is_empty and player_seat is not None:
-                    ai_events = await self._replace_with_ai_player(game, player_name, player_seat)
+                    ai_events = await self._replace_with_ai_player(game, player_name, player_seat, player.session_token)
             # Close connections outside the lock if AI replacement ended the game
             if self._has_game_ended(ai_events):
                 await self._close_connections_on_game_end(game, ai_events)
@@ -193,7 +195,13 @@ class SessionManager:
             if self._replay_collector:
                 self._replay_collector.cleanup_game(game_id)
 
-    async def _replace_with_ai_player(self, game: Game, player_name: str, seat: int) -> list[ServiceEvent]:
+    async def _replace_with_ai_player(
+        self,
+        game: Game,
+        player_name: str,
+        seat: int,
+        session_token: str | None = None,
+    ) -> list[ServiceEvent]:
         """
         Replace a disconnected player with an AI player and process any pending AI player actions.
 
@@ -206,10 +214,14 @@ class SessionManager:
         """
         self._game_service.replace_with_ai_player(game.game_id, player_name)
 
-        # cancel the disconnected player's timer to prevent stale callbacks
+        # stop (not cancel) the timer to deduct elapsed bank time, then save remaining bank
         player_timer = self._timer_manager.remove_timer(game.game_id, seat)
         if player_timer:
-            player_timer.cancel()
+            player_timer.stop()
+            if session_token is not None:
+                session = self._session_store.get_session(session_token)
+                if session is not None:
+                    session.remaining_bank_seconds = player_timer.bank_seconds
 
         # process AI player actions if the replaced player had a pending turn or call.
         # the caller (leave_game) already holds the game lock, so no separate
@@ -254,7 +266,7 @@ class SessionManager:
         )
 
         if not game.is_empty and player_seat is not None:
-            return await self._replace_with_ai_player(game, player_name, player_seat)
+            return await self._replace_with_ai_player(game, player_name, player_seat, player.session_token)
         return []
 
     async def _process_successful_action(
@@ -401,6 +413,298 @@ class SessionManager:
         """Respond to client ping with pong and update activity timestamp."""
         self._heartbeat.record_ping(connection.connection_id)
         await connection.send_message(PongMessage().model_dump())
+
+    # --- Reconnection ---
+
+    async def reconnect(
+        self,
+        connection: ConnectionProtocol,
+        room_id: str,
+        session_token: str,
+    ) -> None:
+        """Handle a player reconnecting to an active game."""
+        result = await self._validate_reconnect(connection, room_id, session_token)
+        if result is None:
+            return
+
+        session, game, lock, seat = result
+        game_id = session.game_id
+        stale_connections: list[ConnectionProtocol] = []
+
+        try:
+            async with lock:
+                # Revalidate session state inside the lock to guard against a
+                # concurrent reconnect that completed while we waited for the lock.
+                current_session = self._session_store.get_session(session_token)
+                if current_session is None or current_session.disconnected_at is None:
+                    await self._send_error(
+                        connection,
+                        SessionErrorCode.RECONNECT_NO_SESSION,
+                        "No disconnected session found",
+                    )
+                    return
+
+                # Read bank seconds inside the lock so disconnect processing
+                # (which writes remaining_bank_seconds under the same lock)
+                # is guaranteed to have completed.
+                saved_bank_seconds = current_session.remaining_bank_seconds
+
+                self._evict_stale_connections(game, seat, stale_connections)
+                self._game_service.restore_human_player(game_id, seat)
+
+                try:
+                    snapshot = self._game_service.build_reconnection_snapshot(game_id, seat)
+                except Exception:
+                    # Reinstate AI player so the seat isn't orphaned
+                    self._game_service.replace_with_ai_player(game_id, session.player_name)
+                    raise
+                if snapshot is None:
+                    self._game_service.replace_with_ai_player(game_id, session.player_name)
+                    await self._send_error(
+                        connection,
+                        SessionErrorCode.RECONNECT_SNAPSHOT_FAILED,
+                        "Failed to build game state",
+                    )
+                    return
+
+                player = self._register_reconnected_player(
+                    connection,
+                    session,
+                    game,
+                    seat,
+                    saved_bank_seconds,
+                )
+
+                # Mark session as reconnected and clear bank state while keeping
+                # the old token. If the send below fails, the disconnect handler
+                # will find the session under the old token and mark it
+                # disconnected again, allowing the client to retry.
+                self._session_store.mark_reconnected(session_token)
+                session.remaining_bank_seconds = None
+
+                # Generate the new token to include in the response, but do NOT
+                # rotate yet. Rotating before the send would delete the old
+                # token; if the send then fails the client can never reconnect
+                # (it only knows the old token).
+                new_token = self._session_store.prepare_token_rotation(session_token)
+                if new_token is None:
+                    game.players.pop(connection.connection_id, None)
+                    self._players.pop(connection.connection_id, None)
+                    removed_timer = self._timer_manager.remove_timer(game_id, seat)
+                    if removed_timer:
+                        removed_timer.stop()
+                        session.remaining_bank_seconds = removed_timer.bank_seconds
+                    self._session_store.mark_disconnected(session_token)
+                    self._game_service.replace_with_ai_player(game_id, session.player_name)
+                    await self._send_error(
+                        connection,
+                        SessionErrorCode.RECONNECT_RETRY_LATER,
+                        "Session rotation failed, retry shortly",
+                    )
+                    return
+
+                await connection.send_message(
+                    GameReconnectedMessage(
+                        session_token=new_token,
+                        **snapshot.model_dump(),
+                    ).model_dump(),
+                )
+
+                # Send succeeded — commit the token rotation now that the
+                # client knows the new token.
+                self._session_store.commit_token_rotation(session_token, new_token)
+                player.session_token = new_token
+
+                await self._broadcast_to_game(
+                    game=game,
+                    message=PlayerReconnectedMessage(
+                        player_name=session.player_name,
+                    ).model_dump(),
+                    exclude_connection_id=connection.connection_id,
+                )
+
+                await self._send_turn_state_on_reconnect(game_id, seat, player)
+        finally:
+            # Close stale sockets outside the game lock, including on failure
+            # paths where early returns would otherwise orphan them.
+            for stale_conn in stale_connections:
+                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+                    await stale_conn.close(code=1000, reason="replaced_by_reconnect")
+
+        logger.info(
+            "player '%s' reconnected to game '%s' at seat %d",
+            session.player_name,
+            game_id,
+            seat,
+        )
+
+    async def _validate_reconnect(
+        self,
+        connection: ConnectionProtocol,
+        room_id: str,
+        session_token: str,
+    ) -> tuple[SessionData, Game, asyncio.Lock, int] | None:
+        """Validate reconnect preconditions. Returns (session, game, lock, seat) or None on error."""
+        result = await self._validate_reconnect_session(connection, room_id, session_token)
+        if result is None:
+            return None
+
+        session, game, lock, seat = result
+
+        if self.is_in_room(connection.connection_id):
+            await self._send_error(
+                connection,
+                SessionErrorCode.RECONNECT_IN_ROOM,
+                "Connection is currently in a room",
+            )
+            return None
+
+        if self.is_in_active_game(connection.connection_id):
+            await self._send_error(
+                connection,
+                SessionErrorCode.RECONNECT_ALREADY_ACTIVE,
+                "Connection already in a game",
+            )
+            return None
+
+        return session, game, lock, seat
+
+    async def _validate_reconnect_session(
+        self,
+        connection: ConnectionProtocol,
+        room_id: str,
+        session_token: str,
+    ) -> tuple[SessionData, Game, asyncio.Lock, int] | None:
+        """Validate session-level reconnect preconditions."""
+        session = self._session_store.get_session(session_token)
+        if session is None or session.disconnected_at is None:
+            # No session: permanent error. Session exists but not yet
+            # disconnected (e.g. client reconnects before server detects the
+            # old connection drop): retryable so the client tries again after
+            # the server processes the disconnect.
+            code = (
+                SessionErrorCode.RECONNECT_RETRY_LATER if session is not None else SessionErrorCode.RECONNECT_NO_SESSION
+            )
+            message = (
+                "Session not yet disconnected, retry shortly"
+                if session is not None
+                else "No disconnected session found"
+            )
+            await self._send_error(connection, code, message)
+            return None
+
+        if session.game_id != room_id:
+            await self._send_error(
+                connection,
+                SessionErrorCode.RECONNECT_GAME_MISMATCH,
+                "Session token is not valid for this game",
+            )
+            return None
+
+        seat = session.seat
+        if seat is None:
+            await self._send_error(
+                connection,
+                SessionErrorCode.RECONNECT_NO_SEAT,
+                "Session has no seat assignment",
+            )
+            return None
+
+        game = self._games.get(session.game_id)
+        if game is None:
+            self._session_store.remove_session(session_token)
+            await self._send_error(
+                connection,
+                SessionErrorCode.RECONNECT_GAME_GONE,
+                "Game no longer exists",
+            )
+            return None
+
+        lock = self._get_game_lock(session.game_id)
+        if lock is None:
+            await self._send_error(
+                connection,
+                SessionErrorCode.RECONNECT_RETRY_LATER,
+                "Game is starting, retry shortly",
+            )
+            return None
+
+        return session, game, lock, seat
+
+    def _evict_stale_connections(
+        self,
+        game: Game,
+        seat: int,
+        stale_out: list[ConnectionProtocol],
+    ) -> None:
+        """Remove stale connections at a seat and collect them for closing outside the lock."""
+        stale_ids = [cid for cid, p in game.players.items() if p.seat == seat]
+        for cid in stale_ids:
+            game.players.pop(cid, None)
+            self._players.pop(cid, None)
+            stale_conn = self._connections.pop(cid, None)
+            if stale_conn is not None:
+                self._heartbeat.record_disconnect(cid)
+                stale_out.append(stale_conn)
+
+    def _register_reconnected_player(
+        self,
+        connection: ConnectionProtocol,
+        session: SessionData,
+        game: Game,
+        seat: int,
+        saved_bank_seconds: float | None,
+    ) -> Player:
+        """Create and register a reconnected player and set up timer."""
+        player = Player(
+            connection=connection,
+            name=session.player_name,
+            session_token=session.session_token,
+            game_id=game.game_id,
+            seat=seat,
+        )
+        self._players[connection.connection_id] = player
+        game.players[connection.connection_id] = player
+
+        timer_config = TimerConfig.from_settings(game.settings)
+        self._timer_manager.add_timer(
+            game.game_id,
+            seat,
+            config=timer_config,
+            bank_seconds=saved_bank_seconds,
+        )
+        return player
+
+    async def _send_turn_state_on_reconnect(
+        self,
+        game_id: str,
+        seat: int,
+        player: Player,
+    ) -> None:
+        """Send draw event for a reconnected player when it is currently their turn.
+
+        Uses direct connection.send_message() instead of _broadcast_events() to avoid
+        recording duplicate events in the replay collector.
+        """
+        game_state = self._game_service.get_game_state(game_id)
+        if game_state is None:
+            return
+
+        round_state = game_state.round_state
+        if round_state.phase != RoundPhase.PLAYING or self._game_service.is_round_advance_pending(game_id):
+            return
+
+        prompt = round_state.pending_call_prompt
+        if prompt is not None:
+            return
+
+        if round_state.current_player_seat == seat:
+            events = self._game_service.build_draw_event_for_seat(game_id, seat)
+            for event in events:
+                message = service_event_payload(event)
+                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+                    await player.connection.send_message(message)
+            self._timer_manager.start_turn_timer(game_id, seat)
 
     # --- Room management ---
 

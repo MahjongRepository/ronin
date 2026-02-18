@@ -38,6 +38,10 @@ class AIPlayerController:
         """Register an AI player at a seat (replacing a disconnected player)."""
         self._ai_players[seat] = ai_player
 
+    def remove_ai_player(self, seat: int) -> None:
+        """Remove an AI player from a seat (for reconnection)."""
+        self._ai_players.pop(seat, None)
+
     @property
     def ai_player_seats(self) -> set[int]:
         """Return the set of seats occupied by AI players."""

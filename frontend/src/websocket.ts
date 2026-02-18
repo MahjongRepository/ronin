@@ -4,11 +4,20 @@ import { decode, encode } from "@msgpack/msgpack";
 export type MessageHandler = (message: Record<string, unknown>) => void;
 export type StatusHandler = (status: ConnectionStatus) => void;
 
+const MAX_RECONNECT_ATTEMPTS = 10;
+const MAX_BACKOFF_MS = 30_000;
+
 export class GameSocket {
     private ws: WebSocket | null = null;
     private pingInterval: ReturnType<typeof setInterval> | null = null;
     private onMessage: MessageHandler;
     private onStatusChange: StatusHandler;
+
+    private reconnectAttempts = 0;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private reconnectEnabled = false;
+    private reconnectUrl: string | null = null;
+    private onReconnect: (() => void) | null = null;
 
     constructor(onMessage: MessageHandler, onStatusChange: StatusHandler) {
         this.onMessage = onMessage;
@@ -26,6 +35,7 @@ export class GameSocket {
             if (this.ws !== ws) {
                 return;
             }
+            this.reconnectAttempts = 0;
             this.onStatusChange(ConnectionStatus.CONNECTED);
             this.pingInterval = setInterval(() => {
                 this.send({ type: ClientMessageType.PING });
@@ -55,8 +65,9 @@ export class GameSocket {
                 return;
             }
             this.clearPingInterval();
-            this.onStatusChange(ConnectionStatus.DISCONNECTED);
             this.ws = null;
+            this.onStatusChange(ConnectionStatus.DISCONNECTED);
+            this.scheduleReconnect();
         };
 
         ws.onerror = () => {
@@ -65,6 +76,24 @@ export class GameSocket {
             }
             this.onStatusChange(ConnectionStatus.ERROR);
         };
+    }
+
+    /** Enable auto-reconnect on disconnect with exponential backoff. */
+    enableReconnect(url: string, onReconnect: () => void): void {
+        this.reconnectEnabled = true;
+        this.reconnectUrl = url;
+        this.onReconnect = onReconnect;
+    }
+
+    /** Disable auto-reconnect and cancel any pending retry. */
+    disableReconnect(): void {
+        this.reconnectEnabled = false;
+        this.reconnectUrl = null;
+        this.onReconnect = null;
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
     }
 
     /**
@@ -88,11 +117,55 @@ export class GameSocket {
     }
 
     disconnect(): void {
+        this.disableReconnect();
         this.clearPingInterval();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
+    }
+
+    private scheduleReconnect(): void {
+        if (!this.reconnectEnabled || !this.reconnectUrl) {
+            return;
+        }
+        if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            return;
+        }
+
+        const delayMs = Math.min(1000 * 2 ** this.reconnectAttempts, MAX_BACKOFF_MS);
+        this.reconnectAttempts++;
+
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.executeReconnect();
+        }, delayMs);
+    }
+
+    private executeReconnect(): void {
+        if (!this.reconnectEnabled || !this.reconnectUrl) {
+            return;
+        }
+        const savedCallback = this.onReconnect;
+
+        this.connect(this.reconnectUrl);
+        this.wrapOnopenForReconnect(savedCallback);
+    }
+
+    private wrapOnopenForReconnect(callback: (() => void) | null): void {
+        const { ws } = this;
+        if (!ws) {
+            return;
+        }
+        const originalOnopen = ws.onopen;
+        ws.onopen = (event) => {
+            if (originalOnopen) {
+                (originalOnopen as (ev: Event) => void)(event);
+            }
+            if (callback && this.ws === ws) {
+                callback();
+            }
+        };
     }
 
     private clearPingInterval(): void {

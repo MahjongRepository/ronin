@@ -5,11 +5,18 @@ import {
     GameAction,
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
+    SessionMessageType,
 } from "../protocol";
 import { type TemplateResult, html, render } from "lit-html";
+import {
+    clearGameSession,
+    clearSessionData,
+    getGameSession,
+    setSessionToken,
+    storeGameSession,
+} from "../session-storage";
 import { consumeHandoff, drainBufferedMessages, setActiveSocket } from "../socket-handoff";
-import type { GameSocket } from "../websocket";
-import { clearSessionData } from "../session-storage";
+import { GameSocket } from "../websocket";
 import { getLobbyUrl } from "../env";
 
 interface LogEntry {
@@ -35,16 +42,35 @@ function appendLog(entry: LogEntry): void {
     }
 }
 
+function persistGameSessionFromStorage(): void {
+    const wsUrl = sessionStorage.getItem("ws_url");
+    const sessionToken = sessionStorage.getItem("session_token");
+    if (wsUrl && sessionToken) {
+        storeGameSession(currentGameId, wsUrl, sessionToken);
+    }
+}
+
+function enableAutoReconnectFromStorage(): void {
+    const wsUrl = sessionStorage.getItem("ws_url");
+    const sessionToken = sessionStorage.getItem("session_token");
+    if (wsUrl && sessionToken && socket) {
+        reconnectSessionToken = sessionToken;
+        socket.enableReconnect(wsUrl, sendReconnectMessage);
+    }
+}
+
 function activateHandoffSocket(handoffSocket: GameSocket): void {
     socket = handoffSocket;
     connectionStatus = handoffSocket.isOpen
         ? ConnectionStatus.CONNECTED
         : ConnectionStatus.DISCONNECTED;
     setActiveSocket(handoffSocket);
+    persistGameSessionFromStorage();
 
     // Rebind handlers synchronously so no messages are lost between
     // consumeHandoff() and the next event-loop tick.
     bindGameHandlers();
+    enableAutoReconnectFromStorage();
 
     // Replay any messages that arrived during the handoff window
     // (between beginHandoff in room view and bindGameHandlers above).
@@ -80,12 +106,30 @@ function initHandoff(gameId: string, generation: number): TemplateResult | null 
     return renderGameView(gameId);
 }
 
-export function gameView(gameId: string): TemplateResult {
-    // reset state for this view
+function resetGameState(gameId: string): number {
     logs = [];
     connectionStatus = ConnectionStatus.DISCONNECTED;
     currentGameId = gameId;
-    const generation = ++viewGeneration;
+    reconnectRetryCount = 0;
+    return ++viewGeneration;
+}
+
+function tryReconnectFromSession(gameId: string, generation: number): TemplateResult | null {
+    const session = getGameSession(gameId);
+    if (!session) {
+        return null;
+    }
+    setTimeout(() => {
+        if (viewGeneration !== generation) {
+            return;
+        }
+        attemptReconnection(session.wsUrl, session.sessionToken);
+    }, 0);
+    return renderGameView(gameId);
+}
+
+export function gameView(gameId: string): TemplateResult {
+    const generation = resetGameState(gameId);
 
     // try to acquire socket from room handoff
     const handoffResult = initHandoff(gameId, generation);
@@ -93,8 +137,8 @@ export function gameView(gameId: string): TemplateResult {
         return handoffResult;
     }
 
-    // no handoff available - direct game URLs are not supported after room migration
-    return redirectToLobby(gameId);
+    // no handoff — attempt reconnection from stored session
+    return tryReconnectFromSession(gameId, generation) ?? redirectToLobby(gameId);
 }
 
 // no handoff socket means direct navigation - redirect to lobby
@@ -108,7 +152,170 @@ function redirectToLobby(gameId: string): TemplateResult {
     `;
 }
 
+let isReconnecting = false;
+let reconnectSessionToken = "";
+let reconnectRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectRetryCount = 0;
+const MAX_RECONNECT_RETRIES = 15;
+
+function sendReconnectMessage(): void {
+    if (isReconnecting || !socket) {
+        return;
+    }
+    isReconnecting = true;
+    socket.send({
+        room_id: currentGameId,
+        session_token: reconnectSessionToken,
+        type: ClientMessageType.RECONNECT,
+    });
+}
+
+function attemptReconnection(wsUrl: string, sessionToken: string): void {
+    reconnectSessionToken = sessionToken;
+
+    socket = new GameSocket(
+        (message) => {
+            // Clear reconnecting flag on server response
+            if (
+                message.type === SessionMessageType.GAME_RECONNECTED ||
+                (message.type === SessionMessageType.ERROR &&
+                    String(message.code).startsWith("reconnect_"))
+            ) {
+                isReconnecting = false;
+            }
+            handleGameMessage(message);
+        },
+        (status) => {
+            connectionStatus = status;
+            updateStatusDisplay();
+            if (status === ConnectionStatus.CONNECTED) {
+                sendReconnectMessage();
+            }
+            if (status === ConnectionStatus.DISCONNECTED) {
+                isReconnecting = false;
+            }
+        },
+    );
+
+    setActiveSocket(socket);
+
+    // Enable auto-reconnect for network drops
+    socket.enableReconnect(wsUrl, sendReconnectMessage);
+
+    socket.connect(wsUrl);
+}
+
+const PERMANENT_RECONNECT_CODES = new Set([
+    "reconnect_no_session",
+    "reconnect_no_seat",
+    "reconnect_game_gone",
+    "reconnect_game_mismatch",
+    "reconnect_in_room",
+    "reconnect_already_active",
+    "reconnect_snapshot_failed",
+]);
+
+function updateSessionToken(newToken: string): void {
+    reconnectSessionToken = newToken;
+    setSessionToken(newToken);
+    const wsUrl = sessionStorage.getItem("ws_url");
+    if (wsUrl) {
+        storeGameSession(currentGameId, wsUrl, newToken);
+    }
+}
+
+function handleReconnected(message: Record<string, unknown>): void {
+    clearReconnectRetryTimer();
+    reconnectRetryCount = 0;
+    updateSessionToken(message.session_token as string);
+    appendLog({
+        raw: JSON.stringify(message, null, 2),
+        timestamp: new Date().toLocaleTimeString(),
+        type: LOG_TYPE_SYSTEM,
+    });
+    appendLog({
+        raw: `Reconnected to game at seat ${message.seat}`,
+        timestamp: new Date().toLocaleTimeString(),
+        type: LOG_TYPE_SYSTEM,
+    });
+    updateLogPanel();
+}
+
+function clearReconnectRetryTimer(): void {
+    if (reconnectRetryTimer !== null) {
+        clearTimeout(reconnectRetryTimer);
+        reconnectRetryTimer = null;
+    }
+}
+
+function scheduleReconnectRetry(): void {
+    if (reconnectRetryCount >= MAX_RECONNECT_RETRIES) {
+        redirectOnPermanentError();
+        return;
+    }
+    reconnectRetryCount++;
+    clearReconnectRetryTimer();
+    reconnectRetryTimer = setTimeout(() => {
+        reconnectRetryTimer = null;
+        isReconnecting = false;
+        sendReconnectMessage();
+    }, 1000);
+}
+
+function redirectOnPermanentError(): void {
+    clearReconnectRetryTimer();
+    if (socket) {
+        socket.disableReconnect();
+    }
+    clearGameSession(currentGameId);
+    clearSessionData(currentGameId);
+    window.location.replace(getLobbyUrl());
+}
+
+function handleReconnectError(code: string): boolean {
+    if (PERMANENT_RECONNECT_CODES.has(code)) {
+        redirectOnPermanentError();
+        return true;
+    }
+    if (code === "reconnect_retry_later") {
+        scheduleReconnectRetry();
+        return true;
+    }
+    return false;
+}
+
+function autoConfirmRoundEnd(): void {
+    if (!socket) {
+        return;
+    }
+    const currentSocket = socket;
+    setTimeout(() => {
+        currentSocket.send({
+            action: GameAction.CONFIRM_ROUND,
+            type: ClientMessageType.GAME_ACTION,
+        });
+    }, 1000);
+}
+
+function handleSessionMessage(message: Record<string, unknown>): boolean {
+    if (message.type === SessionMessageType.GAME_RECONNECTED) {
+        handleReconnected(message);
+        return true;
+    }
+    if (
+        message.type === SessionMessageType.ERROR &&
+        String(message.code || "").startsWith("reconnect_")
+    ) {
+        return handleReconnectError(String(message.code));
+    }
+    return false;
+}
+
 function handleGameMessage(message: Record<string, unknown>): void {
+    if (handleSessionMessage(message)) {
+        return;
+    }
+
     appendLog({
         raw: JSON.stringify(message, null, 2),
         timestamp: new Date().toLocaleTimeString(),
@@ -116,15 +323,8 @@ function handleGameMessage(message: Record<string, unknown>): void {
     });
     updateLogPanel();
 
-    // auto-confirm round advancement after a short delay
-    if (message.type === EventType.ROUND_END && socket) {
-        const currentSocket = socket;
-        setTimeout(() => {
-            currentSocket.send({
-                action: GameAction.CONFIRM_ROUND,
-                type: ClientMessageType.GAME_ACTION,
-            });
-        }, 1000);
+    if (message.type === EventType.ROUND_END) {
+        autoConfirmRoundEnd();
     }
 }
 
@@ -134,10 +334,25 @@ function bindGameHandlers(): void {
     }
 
     socket.setHandlers(
-        (message) => handleGameMessage(message),
+        (message) => {
+            if (
+                message.type === SessionMessageType.GAME_RECONNECTED ||
+                (message.type === SessionMessageType.ERROR &&
+                    String(message.code).startsWith("reconnect_"))
+            ) {
+                isReconnecting = false;
+            }
+            handleGameMessage(message);
+        },
         (status) => {
             connectionStatus = status;
             updateStatusDisplay();
+            if (status === ConnectionStatus.CONNECTED && reconnectSessionToken) {
+                sendReconnectMessage();
+            }
+            if (status === ConnectionStatus.DISCONNECTED) {
+                isReconnecting = false;
+            }
         },
     );
 }
@@ -195,7 +410,12 @@ function updateStatusDisplay(): void {
 
 export function cleanupGameView(): void {
     viewGeneration++;
+    clearReconnectRetryTimer();
+    isReconnecting = false;
+    reconnectSessionToken = "";
+    reconnectRetryCount = 0;
     if (socket) {
+        socket.disableReconnect();
         socket.disconnect();
         socket = null;
     }
@@ -203,6 +423,12 @@ export function cleanupGameView(): void {
 }
 
 function handleLeaveGame(): void {
+    if (socket) {
+        socket.disableReconnect();
+        socket.disconnect();
+        socket = null;
+    }
+    clearGameSession(currentGameId);
     clearSessionData(currentGameId);
     window.location.replace(getLobbyUrl());
 }

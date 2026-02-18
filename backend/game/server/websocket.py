@@ -60,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
                 )
                 continue
-            if data.get("type") == ClientMessageType.JOIN_ROOM:
+            if data.get("type") in (ClientMessageType.JOIN_ROOM, ClientMessageType.RECONNECT):
                 data["room_id"] = room_id
             await router.handle_message(connection, data)
     except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip

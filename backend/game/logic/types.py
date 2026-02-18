@@ -285,6 +285,44 @@ class GameView(BaseModel):
     dice: tuple[int, int] = (1, 1)
 
 
+class DiscardInfo(BaseModel):
+    """Discard tile information for reconnection snapshot."""
+
+    tile_id: int
+    is_tsumogiri: bool = False
+    is_riichi_discard: bool = False
+
+
+class PlayerReconnectState(BaseModel):
+    """Per-player visible state in a reconnection snapshot."""
+
+    seat: int
+    score: int
+    discards: list[DiscardInfo]
+    melds: list[MeldView]
+    is_riichi: bool
+
+
+class ReconnectionSnapshot(BaseModel):
+    """Full game state snapshot sent to a reconnecting player."""
+
+    game_id: str
+    players: list[GamePlayerInfo]
+    dealer_seat: int
+    dealer_dice: tuple[tuple[int, int], tuple[int, int]]
+    seat: int
+    round_wind: WindName
+    round_number: int
+    current_player_seat: int
+    dora_indicators: list[int]
+    honba_sticks: int
+    riichi_sticks: int
+    my_tiles: list[int]
+    dice: tuple[int, int]
+    tiles_remaining: int
+    player_states: list[PlayerReconnectState]
+
+
 # discriminated union for all round results
 RoundResult = (
     TsumoResult | RonResult | DoubleRonResult | ExhaustiveDrawResult | AbortiveDrawResult | NagashiManganResult
