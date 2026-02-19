@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, GameErrorCode
 from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.tests.mocks import MockConnection
 
@@ -112,7 +113,7 @@ class TestSessionManagerDefensiveChecks:
         assert "game1" not in manager._game_locks
 
         # error should have been broadcast to players
-        error_msgs = [m for m in conn1.sent_messages if m.get("type") == EventType.ERROR]
+        error_msgs = [m for m in conn1.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ERROR]]
         assert len(error_msgs) == 1
         assert error_msgs[0]["message"] == "unsupported settings"
 

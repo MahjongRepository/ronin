@@ -7,6 +7,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.types import MeldCaller
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionMessageType
 
 from .helpers import create_started_game
@@ -31,7 +32,7 @@ class TestSessionManager:
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
-        assert msg["type"] == EventType.DRAW
+        assert msg.get("t") == EVENT_TYPE_INT[EventType.DRAW]
         assert msg["action"] == GameAction.DISCARD
 
     async def test_targeted_events_only_sent_to_target_player(self, manager):
@@ -66,9 +67,9 @@ class TestSessionManager:
         # both players should receive the event
         assert len(conns[0].sent_messages) == 1
         assert len(conns[1].sent_messages) == 1
-        assert conns[0].sent_messages[0]["type"] == EventType.DRAW
+        assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.DRAW]
         assert conns[0].sent_messages[0]["action"] == GameAction.DISCARD
-        assert conns[1].sent_messages[0]["type"] == EventType.DRAW
+        assert conns[1].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.DRAW]
         assert conns[1].sent_messages[0]["action"] == GameAction.DISCARD
 
     async def test_call_prompt_only_sent_to_callers(self, manager):
@@ -92,7 +93,7 @@ class TestSessionManager:
 
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0]["type"] == EventType.CALL_PROMPT
+        assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         assert len(conns[1].sent_messages) == 0
 
     async def test_call_prompt_sent_once_when_player_has_multiple_meld_options(self, manager):
@@ -120,6 +121,6 @@ class TestSessionManager:
 
         # seat 0 should receive the call_prompt exactly once
         assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0]["type"] == EventType.CALL_PROMPT
+        assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         # seat 1 (Bob) should not receive it
         assert len(conns[1].sent_messages) == 0

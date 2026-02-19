@@ -1,16 +1,13 @@
-"""Unit tests for get_player_view and meld_to_view."""
+"""Unit tests for get_player_view."""
 
-import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import MeldViewType, WindName
-from game.logic.meld_wrapper import FrozenMeld
+from game.logic.enums import WindName
 from game.logic.state import (
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
     get_player_view,
-    meld_to_view,
 )
 from game.logic.wall import Wall
 
@@ -132,22 +129,3 @@ class TestGetPlayerView:
         assert view0.my_tiles != view1.my_tiles
         assert len(view0.my_tiles) == 13
         assert len(view1.my_tiles) == 13
-
-
-class TestMeldToView:
-    @pytest.mark.parametrize(
-        ("meld_type", "opened", "expected"),
-        [
-            (FrozenMeld.CHI, True, MeldViewType.CHI),
-            (FrozenMeld.PON, True, MeldViewType.PON),
-            (FrozenMeld.KAN, True, MeldViewType.OPEN_KAN),
-            (FrozenMeld.KAN, False, MeldViewType.CLOSED_KAN),
-            (FrozenMeld.CHANKAN, True, MeldViewType.ADDED_KAN),
-            (FrozenMeld.SHOUMINKAN, True, MeldViewType.ADDED_KAN),
-        ],
-    )
-    def test_meld_type_mapping(self, meld_type, opened, expected):
-        tile_count = 4 if meld_type in (FrozenMeld.KAN, FrozenMeld.CHANKAN, FrozenMeld.SHOUMINKAN) else 3
-        tiles = tuple(range(tile_count))
-        meld = FrozenMeld(meld_type=meld_type, tiles=tiles, opened=opened)
-        assert meld_to_view(meld).type == expected

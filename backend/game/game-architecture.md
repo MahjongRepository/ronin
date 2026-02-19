@@ -19,7 +19,7 @@ Connect to `ws://localhost:8711/ws/{room_id}` (room must be created first via lo
 
 ### Message Format
 
-All messages use MessagePack binary format with a `type` field. The server only accepts and sends binary WebSocket frames.
+All messages use MessagePack binary format. Room/session messages use a string `"type"` field. Game events use an integer `"t"` field (see Game Events below). The server only accepts and sends binary WebSocket frames.
 
 #### Client -> Server (Room Phase)
 
@@ -102,19 +102,24 @@ All messages use MessagePack binary format with a `type` field. The server only 
 ```
 
 **Game Events** (sent as flat top-level messages, no wrapper envelope)
+
+Game events use integer `"t"` keys for event types (0=meld, 1=draw, 2=discard, 3=call_prompt, 4=round_end, 5=riichi_declared, 6=dora_revealed, 7=error, 8=game_started, 9=round_started, 10=game_end, 11=furiten). Meld events use a compact IMME integer encoding.
+
 ```json
-{"type": "game_started", "players": [{"seat": 0, "name": "Alice", "is_ai_player": false}, ...]}
-{"type": "round_started", "seat": 0, "round_wind": "East", ...}
-{"type": "draw", "seat": 0, "tile_id": 42, "available_actions": [...]}
-{"type": "discard", "seat": 2, "tile_id": 55, "is_tsumogiri": true}
-{"type": "meld", "meld_type": "pon", "caller_seat": 1, "tile_ids": [8, 9, 10], "from_seat": 0, "called_tile_id": 10}
-{"type": "dora_revealed", "tile_id": 42}
-{"type": "call_prompt", "call_type": "ron", "tile_id": 55, "from_seat": 2, "caller_seat": 0}
-{"type": "call_prompt", "call_type": "meld", "tile_id": 55, "from_seat": 2, "caller_seat": 0, "available_calls": [{"call_type": "pon"}, {"call_type": "chi", "options": [[40, 44]]}]}
-{"type": "round_end", "result": {...}}
-{"type": "furiten", "is_furiten": true}
-{"type": "game_end", "winner_seat": 0, "standings": [...]}
+{"t": 8, "players": [{"seat": 0, "name": "Alice", "is_ai_player": false}, ...]}
+{"t": 9, "seat": 0, "round_wind": "East", ...}
+{"t": 1, "seat": 0, "tile_id": 42, "available_actions": [...]}
+{"t": 2, "seat": 2, "tile_id": 55, "is_tsumogiri": true}
+{"t": 0, "m": 12345}
+{"t": 6, "tile_id": 42}
+{"t": 3, "call_type": "ron", "tile_id": 55, "from_seat": 2, "caller_seat": 0}
+{"t": 3, "call_type": "meld", "tile_id": 55, "from_seat": 2, "caller_seat": 0, "available_calls": [{"call_type": "pon"}, {"call_type": "chi", "options": [[40, 44]]}]}
+{"t": 4, "result": {...}}
+{"t": 11, "is_furiten": true}
+{"t": 10, "winner_seat": 0, "standings": [...]}
 ```
+
+The `"m"` field in meld events is an IMME (Integer-Mapped Meld Encoding) value that losslessly encodes all meld fields (type, tiles, caller, from_seat) in a single 15-bit integer. See `shared/lib/melds/README.md` for encoding details.
 
 Note: The `furiten` event is sent only to the affected player (target `seat_N`), not broadcast.
 
@@ -219,7 +224,7 @@ The game service communicates through a typed event pipeline:
 
 - **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id: int and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with game view fields inlined at top level). After pon/chi, no DrawEvent is emitted — the client infers turn ownership from `MeldEvent.caller_seat`.
 - **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events (`available_actions` stripped); per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
-- **EventType** - String enum defining all event type identifiers
+- **EventType** - StrEnum defining all event type identifiers internally; mapped to stable integer codes for wire serialization via `EVENT_TYPE_INT` in `event_payload.py`
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists; DISCARD prompts are split per-seat via `_split_discard_prompt_for_seat()` into RON or MELD wire events (ron-dominant: if a seat has both ron and meld eligibility, only a RON prompt is sent)
 - `extract_round_result()` extracts round results from ServiceEvent lists
 
@@ -227,7 +232,7 @@ The game service communicates through a typed event pipeline:
 
 `messaging/event_payload.py` centralizes the transformation of domain events into wire-format payloads, used by both `SessionManager` (for WebSocket broadcast) and `ReplayCollector` (for persistence):
 
-- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type string as `"type"`. Falsy default fields are omitted for wire compactness: `DiscardEvent.is_tsumogiri` and `DiscardEvent.is_riichi` when `False`, `DrawEvent.available_actions` when empty, `RoundEndEvent` win result `pao_seat` and `ura_dora_indicators` when `None`. Clients must treat absent fields as their default values
+- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type as an integer `"t"` key (mapped via `EVENT_TYPE_INT`). `MeldEvent` is special-cased to produce a compact `{"t": 0, "m": <IMME_int>}` payload (2 fields instead of 7). Falsy default fields are omitted for wire compactness: `DiscardEvent.is_tsumogiri` and `DiscardEvent.is_riichi` when `False`, `DrawEvent.available_actions` when empty, `RoundEndEvent` win result `pao_seat` and `ura_dora_indicators` when `None`. Clients must treat absent fields as their default values
 - `shape_call_prompt_payload()` transforms `CallPromptEvent` payloads based on call type: for ron/chankan, drops the callers list and extracts `caller_seat`; for meld, builds an `available_calls` list with per-caller options
 
 ### Server Configuration
@@ -385,7 +390,8 @@ The replay adapter (`backend/game/replay/`) enables deterministic replay of game
 - **ReplayTrace** captures full output: startup events, per-step state transitions (`state_before`/`state_after`), and final state; rejects replays with missing or mismatched `rng_version`
 - **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace; support `auto_confirm_rounds` (injects synthetic `CONFIRM_ROUND` steps) and `auto_pass_calls` (injects synthetic `PASS` steps for pending call prompts)
 - **ReplayServiceProtocol** is the replay-facing protocol boundary; default factory uses `MahjongGameService(auto_cleanup=False)`
-- **ReplayLoader** (`loader.py`) parses JSON Lines files (produced by `ReplayCollector`) back into `ReplayInput`; reconstructs original player name input order from the seed via RNG reconstruction; maps event types to game actions (discard, meld, ron, tsumo, etc.)
+- **ReplayLoader** (`loader.py`) parses JSON Lines files (produced by `ReplayCollector`) back into `ReplayInput`; reconstructs original player name input order from the seed via RNG reconstruction; dispatches events by integer `"t"` key; decodes compact meld events via IMME `decode_meld_compact()`; maps event types to game actions (discard, meld, ron, tsumo, etc.)
+- **Replay format version**: `REPLAY_VERSION` constant in `models.py` (currently `"0.2-dev"`); loader validates version compatibility
 - **Determinism contract**: same seed + same input events = identical trace; AI player strategies must be deterministic given the same state
 - **Dependency direction**: `game.replay` imports from `game.logic`; game logic modules never import from `game.replay` (enforced by AST-based integration test)
 - `start_game()` accepts an optional hex string `seed` parameter for deterministic game creation; when omitted, a cryptographic hex seed is generated via `rng.generate_seed()`
@@ -397,6 +403,14 @@ ronin/
 ├── pyproject.toml
 ├── Makefile
 └── backend/
+    ├── shared/
+    │   └── lib/
+    │       └── melds/
+    │           ├── __init__.py     # Public API re-exports
+    │           ├── compact.py      # IMME encoder/decoder (zero external deps)
+    │           ├── fixtures.py     # Test fixture builder for all meld types
+    │           ├── serializers.py  # Format comparison (JSON, msgpack, compact)
+    │           └── README.md       # IMME encoding documentation
     └── game/
         ├── server/
         │   ├── app.py          # Starlette app factory
@@ -449,6 +463,7 @@ ronin/
         │   ├── abortive.py         # Abortive draw detection
         │   ├── state.py            # Game state dataclasses
         │   ├── state_utils.py      # Pure functions for immutable state updates
+        │   ├── meld_compact.py     # Bridge: FrozenMeld/MeldEvent -> IMME compact encoding
         │   ├── meld_wrapper.py     # FrozenMeld immutable wrapper for external Meld class
         │   ├── settings.py         # GameSettings Pydantic model with configurable rules
         │   ├── ai_player.py         # AI player logic

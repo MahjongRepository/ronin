@@ -51,6 +51,7 @@ from game.logic.game import (
     process_round_end,
 )
 from game.logic.matchmaker import fill_seats
+from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.rng import generate_seed
 from game.logic.round_advance import RoundAdvanceManager
 from game.logic.service import GameService
@@ -59,7 +60,6 @@ from game.logic.state import (
     MahjongPlayer,
     PendingCallPrompt,
     get_player_view,
-    meld_to_view,
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import (
@@ -907,7 +907,7 @@ class MahjongGameService(GameService):
                     )
                     for d in p.discards
                 ],
-                melds=[meld_to_view(m) for m in p.melds],
+                melds=[frozen_meld_to_compact(m) for m in p.melds],
                 is_riichi=p.is_riichi,
             )
             for p in round_state.players

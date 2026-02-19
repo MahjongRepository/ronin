@@ -14,6 +14,7 @@ from game.logic.melds import (
     call_closed_kan,
     call_open_kan,
     call_pon,
+    resolve_added_kan_tile,
 )
 from game.logic.settings import GameSettings
 from game.logic.tiles import tile_to_34
@@ -471,6 +472,63 @@ class TestCallAddedKanImmutable:
         new_state, _meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
 
         assert new_state.players[0].is_rinshan is True
+
+
+class TestResolveAddedKanTile:
+    """Tests for resolve_added_kan_tile validation and resolution."""
+
+    @staticmethod
+    def _pon_meld(tiles):
+        return FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(tiles[:3]),
+            opened=True,
+            called_tile=tiles[0],
+            who=0,
+            from_who=3,
+        )
+
+    def test_raises_when_no_matching_pon(self):
+        """Reject added kan when player has no pon of the requested tile type."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        round_state = _round_state((man_1m[0], *_PIN_TILES))
+
+        with pytest.raises(InvalidMeldError, match="no pon of tile type"):
+            resolve_added_kan_tile(round_state, 0, man_1m[0], GameSettings())
+
+    def test_raises_when_tile_not_in_hand_and_no_same_type(self):
+        """Reject added kan when neither the exact tile nor a same-type copy is in hand."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        pon_meld = self._pon_meld(man_1m)
+        # Hand has no 1m tiles (all 4 copies are in the pon or missing)
+        round_state = _round_state(_PIN_TILES, player0_melds=(pon_meld,))
+
+        with pytest.raises(InvalidMeldError, match="not in hand"):
+            resolve_added_kan_tile(round_state, 0, man_1m[3], GameSettings())
+
+    def test_resolves_same_type_tile_when_exact_id_not_in_hand(self):
+        """When the exact tile_id is not in hand, resolve to a same-type copy."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        pon_meld = self._pon_meld(man_1m)
+        # Hand has man_1m[3] (copy index 3), but we request man_1m[2] (not in hand)
+        player0_tiles = (man_1m[3], *_PIN_TILES)
+        round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
+
+        # man_1m[2] is not in the hand but same tile_34 type
+        resolved = resolve_added_kan_tile(round_state, 0, man_1m[2], GameSettings())
+
+        assert resolved == man_1m[3]
+
+    def test_returns_exact_tile_when_in_hand(self):
+        """When the exact tile_id is in hand, return it directly."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        pon_meld = self._pon_meld(man_1m)
+        player0_tiles = (man_1m[3], *_PIN_TILES)
+        round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
+
+        resolved = resolve_added_kan_tile(round_state, 0, man_1m[3], GameSettings())
+
+        assert resolved == man_1m[3]
 
 
 class TestFrozenMeldValidation:

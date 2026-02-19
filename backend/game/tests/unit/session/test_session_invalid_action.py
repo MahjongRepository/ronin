@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.logic.exceptions import InvalidGameActionError
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionMessageType
 from game.tests.mocks import MockResultEvent
 
@@ -124,7 +125,7 @@ class TestSessionManagerInvalidAction:
         await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
 
         # Bob should receive the AI player action event
-        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
+        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
 
     async def test_resolution_triggered_attribution_disconnects_offender(self, manager):

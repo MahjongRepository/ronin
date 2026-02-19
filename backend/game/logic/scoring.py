@@ -13,9 +13,10 @@ from typing import TYPE_CHECKING
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
 
+from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.meld_wrapper import frozen_melds_to_melds
 from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
-from game.logic.state import meld_to_view, seat_to_wind
+from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array
 from game.logic.types import (
@@ -339,7 +340,7 @@ def apply_tsumo_score(
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
             closed_tiles=list(winner.tiles),
-            melds=[meld_to_view(m) for m in winner.melds],
+            melds=[frozen_meld_to_compact(m) for m in winner.melds],
             win_tile=winner.tiles[-1],
             pao_seat=winner.pao_seat,
             ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
@@ -416,7 +417,7 @@ def apply_ron_score(
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
             closed_tiles=list(winner.tiles),
-            melds=[meld_to_view(m) for m in winner.melds],
+            melds=[frozen_meld_to_compact(m) for m in winner.melds],
             pao_seat=winner.pao_seat,
             ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
         ),
@@ -493,7 +494,7 @@ def apply_double_ron_score(
                     riichi_bonus // settings.riichi_stick_value if winner_seat == riichi_receiver else 0
                 ),
                 closed_tiles=list(winner.tiles),
-                melds=[meld_to_view(m) for m in winner.melds],
+                melds=[frozen_meld_to_compact(m) for m in winner.melds],
                 pao_seat=winner.pao_seat,
                 ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
             ),

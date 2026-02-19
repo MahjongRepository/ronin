@@ -725,6 +725,51 @@ def call_closed_kan(
     return new_state, meld
 
 
+def resolve_added_kan_tile(
+    round_state: MahjongRoundState,
+    seat: int,
+    tile_id: int,
+    settings: GameSettings,
+) -> int:
+    """Validate and resolve the tile_id for an added kan declaration.
+
+    Checks kan preconditions, verifies a matching pon exists, and resolves the
+    tile_id to the actual in-hand copy. Must be called before chankan checks so
+    that the resolved tile is used consistently for prompts and scoring.
+
+    Returns the resolved tile_id (the actual physical tile in hand).
+    """
+    player = round_state.players[seat]
+    tile_34 = tile_to_34(tile_id)
+
+    _validate_kan_preconditions(
+        round_state,
+        settings,
+        reject_riichi=True,
+        player=player,
+        kan_label="added kan",
+    )
+
+    # verify a matching pon exists
+    has_pon = any(meld.type == FrozenMeld.PON and tile_to_34(meld.tiles[0]) == tile_34 for meld in player.melds)
+    if not has_pon:
+        logger.warning("cannot call added kan for seat %d: no pon of tile type %d", seat, tile_34)
+        raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
+
+    # resolve tile by type: the caller may provide any tile_id of the correct
+    # tile_34 type (e.g. from a replay where only the type is known from IMME
+    # encoding). Find the actual in-hand copy of this tile type.
+    if tile_id in player.tiles:
+        return tile_id
+
+    resolved_tile_id = next((t for t in player.tiles if tile_to_34(t) == tile_34), -1)
+    if resolved_tile_id == -1:
+        logger.warning("cannot call added kan for seat %d: tile %d not in hand", seat, tile_id)
+        raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")
+
+    return resolved_tile_id
+
+
 def call_added_kan(
     round_state: MahjongRoundState,
     seat: int,
@@ -735,7 +780,7 @@ def call_added_kan(
     Execute an added kan (shouminkan) declaration.
 
     Player upgrades an existing pon to a kan by adding the 4th tile.
-    Note: This can be robbed by other players (chankan) if they are waiting on this tile.
+    The tile_id should already be resolved via resolve_added_kan_tile().
     Returns (new_round_state, upgraded_meld).
     """
     player = round_state.players[seat]
@@ -764,7 +809,6 @@ def call_added_kan(
         logger.warning("cannot call added kan for seat %d: no pon of tile type %d", seat, tile_34)
         raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
 
-    # verify tile is in hand
     if tile_id not in player.tiles:
         logger.warning("cannot call added kan for seat %d: tile %d not in hand", seat, tile_id)
         raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")

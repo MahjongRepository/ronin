@@ -20,6 +20,7 @@ from game.logic.types import (
     PlayerStanding,
     TenpaiHand,
 )
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockResultEvent
 
@@ -45,7 +46,7 @@ class TestSessionManagerTimers:
 
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
-        timeout_msgs = [m for m in conns[0].sent_messages if m.get("type") == EventType.DRAW]
+        timeout_msgs = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(timeout_msgs) == 1
 
     async def test_timeout_on_missing_game_does_nothing(self, manager):

@@ -311,14 +311,15 @@ function handleGameMessage(message: Record<string, unknown>): void {
         return;
     }
 
+    const eventType = message.t as number;
     appendLog({
         raw: JSON.stringify(message, null, 2),
         timestamp: new Date().toLocaleTimeString(),
-        type: String(message.type || LOG_TYPE_UNKNOWN),
+        type: String(eventType ?? LOG_TYPE_UNKNOWN),
     });
     updateLogPanel();
 
-    if (message.type === EventType.ROUND_END) {
+    if (eventType === EventType.ROUND_END) {
         autoConfirmRoundEnd();
     }
 }

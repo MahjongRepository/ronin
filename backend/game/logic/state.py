@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.enums import CallType, GameAction, GamePhase, MeldViewType, RoundPhase, WindName
+from game.logic.enums import CallType, GameAction, GamePhase, RoundPhase, WindName
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import GameSettings
 from game.logic.tiles import WINDS_34
-from game.logic.types import GameView, MeldCaller, MeldView, PlayerView
+from game.logic.types import GameView, MeldCaller, PlayerView
 from game.logic.wall import Wall
 
 NUM_WINDS = 4
@@ -164,25 +164,6 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
         my_tiles=my_tiles,
         players=players_view,
         dice=round_state.wall.dice,
-    )
-
-
-def meld_to_view(meld: FrozenMeld) -> MeldView:
-    """Convert a FrozenMeld object to a MeldView model."""
-    if meld.type == FrozenMeld.CHI:
-        view_type = MeldViewType.CHI
-    elif meld.type == FrozenMeld.PON:
-        view_type = MeldViewType.PON
-    elif meld.type == FrozenMeld.KAN:
-        view_type = MeldViewType.OPEN_KAN if meld.opened else MeldViewType.CLOSED_KAN
-    else:
-        # chankan and shouminkan
-        view_type = MeldViewType.ADDED_KAN
-
-    return MeldView(
-        type=view_type,
-        tile_ids=list(meld.tiles),
-        from_who=meld.from_who,
     )
 
 

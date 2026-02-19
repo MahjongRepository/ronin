@@ -15,7 +15,7 @@ from game.logic.rng import RNG_VERSION, TOTAL_WALL_SIZE
 from game.logic.state import MahjongGameState
 
 REQUIRED_PLAYER_COUNT = 4
-REPLAY_VERSION = "0.1-dev"
+REPLAY_VERSION = "0.2-dev"
 
 
 class ReplayInputEvent(BaseModel):

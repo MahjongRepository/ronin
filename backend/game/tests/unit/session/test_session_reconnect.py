@@ -18,6 +18,7 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import SessionData
@@ -323,7 +324,7 @@ class TestReconnectTurnState:
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, "game1", alice_token)
 
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("type") == EventType.DRAW]
+        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 1
         assert draw_msgs[0]["tile_id"] == 42
 
@@ -547,7 +548,7 @@ class TestReconnectEdgeCases:
         # reconnect succeeds, but no draw event sent
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 1
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("type") == EventType.DRAW]
+        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 0
 
     @pytest.mark.asyncio
@@ -569,7 +570,7 @@ class TestReconnectEdgeCases:
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, "game1", alice_token)
 
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("type") == EventType.DRAW]
+        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 0
 
     @pytest.mark.asyncio
@@ -601,7 +602,7 @@ class TestReconnectEdgeCases:
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, "game1", alice_token)
 
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("type") == EventType.DRAW]
+        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 0
 
 
@@ -623,7 +624,7 @@ class TestReconnectThenPlay:
 
         await manager.handle_game_action(new_conn, GameAction.DISCARD, {"tile_id": 1})
 
-        action_msgs = [m for m in new_conn.sent_messages if m.get("type") == EventType.DRAW]
+        action_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(action_msgs) == 1
         assert action_msgs[0]["player"] == "Alice"
         assert action_msgs[0]["action"] == GameAction.DISCARD

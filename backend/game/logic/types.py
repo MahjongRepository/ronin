@@ -14,7 +14,6 @@ from game.logic.enums import (
     AIPlayerType,
     KanType,
     MeldCallType,
-    MeldViewType,
     PlayerAction,
     RoundResultType,
     WindName,
@@ -93,7 +92,7 @@ class TsumoResult(BaseModel):
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
-    melds: list[MeldView]
+    melds: list[int]
     win_tile: int
     pao_seat: int | None = None
     ura_dora_indicators: list[int] | None = None
@@ -111,7 +110,7 @@ class RonResult(BaseModel):
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
-    melds: list[MeldView]
+    melds: list[int]
     pao_seat: int | None = None
     ura_dora_indicators: list[int] | None = None
 
@@ -123,7 +122,7 @@ class DoubleRonWinner(BaseModel):
     hand_result: HandResultInfo
     riichi_sticks_collected: int
     closed_tiles: list[int]
-    melds: list[MeldView]
+    melds: list[int]
     pao_seat: int | None = None
     ura_dora_indicators: list[int] | None = None
 
@@ -144,7 +143,7 @@ class TenpaiHand(BaseModel):
 
     seat: int
     closed_tiles: list[int]
-    melds: list[MeldView]
+    melds: list[int]
 
 
 class ExhaustiveDrawResult(BaseModel):
@@ -254,14 +253,6 @@ class AvailableActionItem(BaseModel):
         return d
 
 
-class MeldView(BaseModel):
-    """Meld display information."""
-
-    type: MeldViewType
-    tile_ids: list[int]
-    from_who: int | None
-
-
 class PlayerView(BaseModel):
     """Player-visible information about another player."""
 
@@ -299,7 +290,7 @@ class PlayerReconnectState(BaseModel):
     seat: int
     score: int
     discards: list[DiscardInfo]
-    melds: list[MeldView]
+    melds: list[int]
     is_riichi: bool
 
 

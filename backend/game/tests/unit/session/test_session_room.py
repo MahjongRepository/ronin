@@ -363,9 +363,10 @@ class TestRoomToGameTransition:
         await manager.set_ready(conn, ready=True)
 
         # should have received: player_ready_changed + game_starting + game events
-        msg_types = [m["type"] for m in conn.sent_messages]
-        assert SessionMessageType.PLAYER_READY_CHANGED in msg_types
-        assert SessionMessageType.GAME_STARTING in msg_types
+        # Session messages have "type", game events have "t"
+        session_types = [m["type"] for m in conn.sent_messages if "type" in m]
+        assert SessionMessageType.PLAYER_READY_CHANGED in session_types
+        assert SessionMessageType.GAME_STARTING in session_types
 
         # room should be gone
         assert manager.get_room("room1") is None

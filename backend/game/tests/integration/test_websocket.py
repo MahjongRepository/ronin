@@ -11,6 +11,7 @@ from starlette.testclient import TestClient
 from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.tests.helpers.auth import make_test_game_ticket
@@ -61,7 +62,7 @@ class TestWebSocketIntegration:
             msg = self._receive_message(ws)
             messages.append(msg)
             # Stop after we've received a game event (round_started or draw)
-            if msg.get("type") in (EventType.ROUND_STARTED, EventType.DRAW):
+            if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
                 break
         return messages
 
@@ -168,7 +169,7 @@ class TestWebSocketIntegration:
             )
 
             response = self._receive_message(ws)
-            assert response["type"] == EventType.DRAW
+            assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert response["player"] == "Player1"
             assert response["action"] == GameAction.DISCARD
             assert response["success"] is True

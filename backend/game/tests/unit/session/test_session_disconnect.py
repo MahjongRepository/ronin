@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionMessageType
 from game.tests.mocks import MockConnection, MockResultEvent
 
@@ -114,7 +115,7 @@ class TestSessionManagerDisconnect:
         await manager.leave_game(conns[0])
 
         # Bob should receive the AI player action event
-        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("type") == EventType.DRAW]
+        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
 
     async def test_stale_timeout_after_replacement_is_noop(self, manager):
@@ -234,7 +235,7 @@ class TestSessionManagerDisconnect:
         await manager.set_ready(conn2, ready=True)
 
         # Bob should receive the AI player action event
-        ai_player_msgs = [m for m in conn2.sent_messages if m.get("type") == EventType.DRAW]
+        ai_player_msgs = [m for m in conn2.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
 
     async def test_leave_game_skips_ai_player_replacement_when_lock_missing(self, manager):

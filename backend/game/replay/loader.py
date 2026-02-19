@@ -16,14 +16,14 @@ from pathlib import Path
 from typing import Any
 
 from game.logic.enums import GameAction
+from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION, create_seat_rng, validate_seed_hex
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.replay.models import REPLAY_VERSION, REQUIRED_PLAYER_COUNT, ReplayInput, ReplayInputEvent
+from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.
 _MIN_EVENT_COUNT = 2
-
-# A chi meld requires exactly 2 tiles from the caller's hand (the sequence partners).
-_CHI_SEQUENCE_TILE_COUNT = 2
 
 # Safety limit to prevent memory exhaustion from maliciously large replay files.
 _MAX_REPLAY_LINES = 100_000
@@ -31,12 +31,12 @@ _MAX_REPLAY_LINES = 100_000
 # Event types that do not represent player actions (skipped silently).
 _NON_ACTION_EVENTS = frozenset(
     {
-        "game_started",
-        "round_started",
-        "draw",
-        "dora_revealed",
-        "riichi_declared",
-        "game_end",
+        EVENT_TYPE_INT[EventType.GAME_STARTED],
+        EVENT_TYPE_INT[EventType.ROUND_STARTED],
+        EVENT_TYPE_INT[EventType.DRAW],
+        EVENT_TYPE_INT[EventType.DORA_REVEALED],
+        EVENT_TYPE_INT[EventType.RIICHI_DECLARED],
+        EVENT_TYPE_INT[EventType.GAME_END],
     },
 )
 
@@ -63,8 +63,8 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
 
     Returns (seed, rng_version, players).
     """
-    if first.get("type") != "game_started":
-        raise ReplayLoadError(f"First event must be game_started, got: {first.get('type')}")
+    if first.get("t") != EVENT_TYPE_INT[EventType.GAME_STARTED]:
+        raise ReplayLoadError(f"First event must be game_started, got: {first.get('t')}")
 
     seed = first.get("seed")
     if seed is None:
@@ -189,18 +189,22 @@ def _extract_action(
     or None if the event does not represent a player action.
     Raise ReplayLoadError for unknown event types.
     """
-    event_type = event.get("type")
+    event_type = event.get("t")
+    if event_type is None:
+        raise ReplayLoadError("Event missing required 't' field")
+    if not isinstance(event_type, int) or isinstance(event_type, bool):
+        raise ReplayLoadError(f"Event 't' field must be an integer, got {type(event_type).__name__}")
 
     if event_type in _NON_ACTION_EVENTS:
         return None
 
-    if event_type == "discard":
+    if event_type == EVENT_TYPE_INT[EventType.DISCARD]:
         return [_parse_discard(event, seat_to_name)]
 
-    if event_type == "meld":
-        return [_parse_meld(event, seat_to_name)]
+    if event_type == EVENT_TYPE_INT[EventType.MELD]:
+        return [_parse_meld_compact(event, seat_to_name)]
 
-    if event_type == "round_end":
+    if event_type == EVENT_TYPE_INT[EventType.ROUND_END]:
         return _parse_round_end(event, seat_to_name)
 
     raise ReplayLoadError(f"Unknown event type: {event_type!r}")
@@ -227,39 +231,40 @@ def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> Repla
     )
 
 
-def _parse_meld(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
-    """Parse a meld event into the corresponding call action."""
-    meld_type = event.get("meld_type")
+def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
+    """Parse a compact meld event {"t": 0, "m": <IMME_int>} into a call action."""
+    imme_value = event.get("m")
+    if imme_value is None:
+        raise ReplayLoadError("Compact meld event missing 'm' field")
+    if not isinstance(imme_value, int) or isinstance(imme_value, bool):
+        raise ReplayLoadError(f"Compact meld 'm' field must be an integer, got {type(imme_value).__name__}")
+
     try:
-        caller_seat = event["caller_seat"]
-    except KeyError as exc:
-        raise ReplayLoadError(f"meld event missing required field: {exc}") from exc
+        meld_data = decode_meld_compact(imme_value)
+    except (ValueError, TypeError) as exc:
+        raise ReplayLoadError(f"Invalid compact meld value {imme_value}: {exc}") from exc
+    caller_seat = meld_data["caller_seat"]
+    meld_type = meld_data["meld_type"]
+
     try:
         player_name = seat_to_name[caller_seat]
     except KeyError:
         raise ReplayLoadError(f"meld event references unknown seat: {caller_seat}") from None
 
     if meld_type == "chi":
-        return _parse_chi_meld(event, player_name)
+        return _parse_chi_from_meld_data(meld_data, player_name)
     if meld_type == "pon":
-        return _parse_pon_meld(event, player_name)
+        return _parse_pon_from_meld_data(meld_data, player_name)
     if meld_type in ("open_kan", "closed_kan", "added_kan"):
-        return _parse_kan_meld(event, player_name)
-    raise ReplayLoadError(f"Unknown meld_type: {meld_type!r}")
+        return _parse_kan_from_meld_data(meld_data, player_name)
+    raise ReplayLoadError(f"Unknown meld_type in decoded IMME: {meld_type!r}")
 
 
-def _parse_chi_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent:
-    """Parse a chi meld event."""
-    try:
-        called_tile_id = event["called_tile_id"]
-    except KeyError as exc:
-        raise ReplayLoadError(f"chi meld event missing required field: {exc}") from exc
-    tile_ids = event.get("tile_ids", [])
+def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
+    """Parse a chi action from a decoded MeldData dict."""
+    called_tile_id = meld_data["called_tile_id"]
+    tile_ids = meld_data["tile_ids"]
     sequence_tiles = [t for t in tile_ids if t != called_tile_id]
-    if len(sequence_tiles) != _CHI_SEQUENCE_TILE_COUNT:
-        raise ReplayLoadError(
-            f"chi meld must have exactly 2 sequence tiles (excluding called tile), got {len(sequence_tiles)}",
-        )
     return ReplayInputEvent(
         player_name=player_name,
         action=GameAction.CALL_CHI,
@@ -267,12 +272,9 @@ def _parse_chi_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
     )
 
 
-def _parse_pon_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent:
-    """Parse a pon meld event."""
-    try:
-        called_tile_id = event["called_tile_id"]
-    except KeyError as exc:
-        raise ReplayLoadError(f"pon meld event missing required field: {exc}") from exc
+def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
+    """Parse a pon action from a decoded MeldData dict."""
+    called_tile_id = meld_data["called_tile_id"]
     return ReplayInputEvent(
         player_name=player_name,
         action=GameAction.CALL_PON,
@@ -280,37 +282,22 @@ def _parse_pon_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent
     )
 
 
-def _parse_kan_meld(event: dict[str, Any], player_name: str) -> ReplayInputEvent:
-    """Parse a kan meld event (open_kan, closed_kan, added_kan)."""
-    meld_type = event.get("meld_type")
+def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
+    """Parse a kan action from a decoded MeldData dict."""
+    meld_type = meld_data["meld_type"]
     kan_type_map = {"open_kan": "open", "closed_kan": "closed", "added_kan": "added"}
-    kan_type = kan_type_map[meld_type]  # Caller guarantees valid meld_type
+    kan_type = kan_type_map[meld_type]
 
-    tile_id = _extract_kan_tile_id(event)
+    tile_ids = meld_data["tile_ids"]
+    called_tile_id = meld_data["called_tile_id"]
+
+    tile_id = called_tile_id if called_tile_id is not None else tile_ids[0]
+
     return ReplayInputEvent(
         player_name=player_name,
         action=GameAction.CALL_KAN,
         data={"tile_id": tile_id, "kan_type": kan_type},
     )
-
-
-def _extract_kan_tile_id(event: dict[str, Any]) -> int:
-    """Extract the representative tile ID from a kan meld event.
-
-    For added_kan, prefer called_tile_id (the tile being added to the pon).
-    For open/closed kan, prefer the first tile from tile_ids.
-    """
-    meld_type = event.get("meld_type")
-    called_tile_id = event.get("called_tile_id")
-    tile_ids = event.get("tile_ids", [])
-
-    if meld_type == "added_kan" and called_tile_id is not None:
-        return called_tile_id
-    if tile_ids:
-        return tile_ids[0]
-    if called_tile_id is not None:
-        return called_tile_id
-    raise ReplayLoadError("kan meld event missing both 'tile_ids' and 'called_tile_id'")
 
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:

@@ -10,13 +10,13 @@ from mahjong.agari import Agari
 
 from game.logic import wall as wall_ops
 from game.logic.exceptions import InvalidDiscardError
+from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.shanten import calculate_shanten
 from game.logic.state import (
     Discard,
     MahjongGameState,
     MahjongRoundState,
-    meld_to_view,
 )
 from game.logic.state_utils import (
     add_discard_to_player,
@@ -287,7 +287,7 @@ def process_exhaustive_draw(
                 TenpaiHand(
                     seat=player.seat,
                     closed_tiles=list(player.tiles),
-                    melds=[meld_to_view(m) for m in player.melds],
+                    melds=[frozen_meld_to_compact(m) for m in player.melds],
                 ),
             )
         else:

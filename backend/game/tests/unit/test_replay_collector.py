@@ -28,7 +28,7 @@ from game.logic.types import (
     PlayerView,
     TenpaiHand,
 )
-from game.messaging.event_payload import service_event_payload
+from game.messaging.event_payload import EVENT_TYPE_INT, service_event_payload
 from game.replay.models import REPLAY_VERSION
 from game.session.replay_collector import ReplayCollector
 
@@ -231,10 +231,10 @@ class TestReplayCollectorLifecycle:
         assert len(lines) == 2
 
         record0 = json.loads(lines[0])
-        assert record0["type"] == "discard"
+        assert record0["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
         record1 = json.loads(lines[1])
-        assert record1["type"] == "meld"
+        assert record1["t"] == EVENT_TYPE_INT[EventType.MELD]
 
     def test_cleanup_discards_buffer(self):
         storage = FakeStorage()
@@ -290,8 +290,12 @@ class TestReplayCollectorFiltering:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
-        types = [json.loads(line)["type"] for line in lines]
-        assert types == ["discard", "draw", "round_started"]
+        types = [json.loads(line)["t"] for line in lines]
+        assert types == [
+            EVENT_TYPE_INT[EventType.DISCARD],
+            EVENT_TYPE_INT[EventType.DRAW],
+            EVENT_TYPE_INT[EventType.ROUND_STARTED],
+        ]
 
     async def test_excluded_types_are_filtered(self):
         """CallPromptEvent, ErrorEvent, FuritenEvent are excluded."""
@@ -312,7 +316,7 @@ class TestReplayCollectorFiltering:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
-        assert json.loads(lines[0])["type"] == "discard"
+        assert json.loads(lines[0])["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
     async def test_excluded_broadcast_types_are_filtered(self):
         """Excluded types are filtered even when broadcast-targeted."""
@@ -331,7 +335,7 @@ class TestReplayCollectorFiltering:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
-        assert json.loads(lines[0])["type"] == "discard"
+        assert json.loads(lines[0])["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
     async def test_draw_event_available_actions_stripped(self):
         """DrawEvent available_actions field is stripped from replay output."""
@@ -354,7 +358,7 @@ class TestReplayCollectorFiltering:
         await collector.save_and_cleanup("game1")
 
         record = json.loads(_parse_saved_replay(storage.saved["game1"])[0])
-        assert record["type"] == "draw"
+        assert record["t"] == EVENT_TYPE_INT[EventType.DRAW]
         assert record["tile_id"] == 42
         assert "available_actions" not in record
 
@@ -380,15 +384,15 @@ class TestReplayCollectorFiltering:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 7
-        types = [json.loads(line)["type"] for line in lines]
+        types = [json.loads(line)["t"] for line in lines]
         expected = [
-            "game_started",
-            "discard",
-            "meld",
-            "riichi_declared",
-            "dora_revealed",
-            "round_end",
-            "game_end",
+            EVENT_TYPE_INT[EventType.GAME_STARTED],
+            EVENT_TYPE_INT[EventType.DISCARD],
+            EVENT_TYPE_INT[EventType.MELD],
+            EVENT_TYPE_INT[EventType.RIICHI_DECLARED],
+            EVENT_TYPE_INT[EventType.DORA_REVEALED],
+            EVENT_TYPE_INT[EventType.ROUND_END],
+            EVENT_TYPE_INT[EventType.GAME_END],
         ]
         assert types == expected
 
@@ -409,7 +413,7 @@ class TestReplayCollectorFiltering:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
-        assert json.loads(lines[0])["type"] == "discard"
+        assert json.loads(lines[0])["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
 
 class TestReplayCollectorRoundStartedMerge:
@@ -427,7 +431,7 @@ class TestReplayCollectorRoundStartedMerge:
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         record = json.loads(lines[0])
-        assert record["type"] == "round_started"
+        assert record["t"] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
 
     async def test_merged_record_contains_all_players_tiles(self):
         """Merged round_started record has tiles for every player from my_tiles."""
@@ -460,7 +464,7 @@ class TestReplayCollectorRoundStartedMerge:
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         record = json.loads(lines[0])
-        assert record["type"] == "round_started"
+        assert record["t"] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
         # Only seat 2's tiles are populated from my_tiles (single event, no merge partner)
         players = record["players"]
         seat2_player = next(p for p in players if p["seat"] == 2)
@@ -485,8 +489,8 @@ class TestReplayCollectorRoundStartedMerge:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 2
-        types = [json.loads(line)["type"] for line in lines]
-        assert types == ["round_started", "draw"]
+        types = [json.loads(line)["t"] for line in lines]
+        assert types == [EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]]
 
     async def test_game_started_then_merged_round_started_then_draw(self):
         """Realistic startup: game_started → merged round_started → draw."""
@@ -506,8 +510,12 @@ class TestReplayCollectorRoundStartedMerge:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
-        types = [json.loads(line)["type"] for line in lines]
-        assert types == ["game_started", "round_started", "draw"]
+        types = [json.loads(line)["t"] for line in lines]
+        assert types == [
+            EVENT_TYPE_INT[EventType.GAME_STARTED],
+            EVENT_TYPE_INT[EventType.ROUND_STARTED],
+            EVENT_TYPE_INT[EventType.DRAW],
+        ]
 
     async def test_round_started_across_separate_collect_calls(self):
         """Round_started events in separate collect_events calls produce separate records."""
@@ -525,8 +533,12 @@ class TestReplayCollectorRoundStartedMerge:
 
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
-        types = [json.loads(line)["type"] for line in lines]
-        assert types == ["round_started", "discard", "round_started"]
+        types = [json.loads(line)["t"] for line in lines]
+        assert types == [
+            EVENT_TYPE_INT[EventType.ROUND_STARTED],
+            EVENT_TYPE_INT[EventType.DISCARD],
+            EVENT_TYPE_INT[EventType.ROUND_STARTED],
+        ]
 
 
 class TestReplayCollectorJsonLines:
@@ -541,7 +553,7 @@ class TestReplayCollectorJsonLines:
         await collector.save_and_cleanup("game1")
 
         record = json.loads(_parse_saved_replay(storage.saved["game1"])[0])
-        assert record["type"] == "discard"
+        assert record["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert record["seat"] == 2
         assert record["tile_id"] == 42
         assert "is_tsumogiri" not in record
@@ -624,7 +636,7 @@ class TestReplayCollectorSeedInReplay:
         await collector.save_and_cleanup("game1")
 
         record = json.loads(_parse_saved_replay(storage.saved["game1"])[0])
-        assert record["type"] == "game_started"
+        assert record["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
         assert record["seed"] == "d" * 192
 
     async def test_seed_only_in_game_started_event(self):

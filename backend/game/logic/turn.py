@@ -50,6 +50,7 @@ from game.logic.melds import (
     can_call_chi,
     can_call_open_kan,
     can_call_pon,
+    resolve_added_kan_tile,
 )
 from game.logic.riichi import can_declare_riichi, declare_riichi
 from game.logic.round import (
@@ -752,12 +753,22 @@ def _process_added_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle an added kan meld call."""
+    # validate and resolve tile_id to the actual in-hand copy before chankan
+    # checks, so the resolved tile is used consistently for prompts, scoring,
+    # and kan execution.
+    resolved_tile_id = resolve_added_kan_tile(
+        round_state,
+        caller_seat,
+        tile_id,
+        game_state.settings,
+    )
+
     # check for chankan first (using current state before kan is executed)
-    chankan_seats = is_chankan_possible(round_state, caller_seat, tile_id)
+    chankan_seats = is_chankan_possible(round_state, caller_seat, resolved_tile_id)
     if chankan_seats:
         prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
-            tile_id=tile_id,
+            tile_id=resolved_tile_id,
             from_seat=caller_seat,
             pending_seats=frozenset(chankan_seats),
             callers=tuple(chankan_seats),
@@ -768,7 +779,7 @@ def _process_added_kan_call(
         events: list[GameEvent] = [
             CallPromptEvent(
                 call_type=CallType.CHANKAN,
-                tile_id=tile_id,
+                tile_id=resolved_tile_id,
                 from_seat=caller_seat,
                 callers=chankan_callers,
                 target="all",
@@ -777,7 +788,7 @@ def _process_added_kan_call(
         return new_round_state, new_game_state, events
 
     old_dora_count = len(round_state.wall.dora_indicators)
-    new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, game_state.settings)
+    new_round_state, meld = call_added_kan(round_state, caller_seat, resolved_tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
     events = [
         MeldEvent(

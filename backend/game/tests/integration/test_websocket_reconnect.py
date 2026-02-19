@@ -17,6 +17,7 @@ from game.logic.types import (
     ReconnectionSnapshot,
 )
 from game.messaging.encoder import decode, encode
+from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.session.models import Player, SessionData
@@ -77,7 +78,7 @@ def _join_room_and_start(ws, room_id: str, player_name: str) -> list[dict]:
     while True:
         msg = _recv(ws)
         messages.append(msg)
-        if msg.get("type") in (EventType.ROUND_STARTED, EventType.DRAW):
+        if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
             break
     return messages
 
@@ -277,6 +278,6 @@ class TestWebSocketReconnect:
             )
 
             action_msg = _recv(ws)
-            assert action_msg["type"] == EventType.DRAW
+            assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert action_msg["player"] == "Player1"
             assert action_msg["success"] is True

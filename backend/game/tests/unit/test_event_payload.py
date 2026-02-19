@@ -18,9 +18,23 @@ from game.logic.types import (
     TsumoResult,
 )
 from game.messaging.event_payload import (
+    EVENT_TYPE_INT,
     service_event_payload,
     shape_call_prompt_payload,
 )
+from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
+
+
+class TestEventTypeIntExhaustiveness:
+    """Verify EVENT_TYPE_INT covers every EventType member."""
+
+    def test_all_event_types_mapped(self):
+        missing = set(EventType) - set(EVENT_TYPE_INT)
+        assert not missing, f"EVENT_TYPE_INT missing entries for: {missing}"
+
+    def test_no_duplicate_integer_values(self):
+        values = list(EVENT_TYPE_INT.values())
+        assert len(values) == len(set(values)), "EVENT_TYPE_INT has duplicate integer values"
 
 
 class TestServiceEventPayload:
@@ -34,7 +48,7 @@ class TestServiceEventPayload:
         )
         payload = service_event_payload(event)
 
-        assert payload["type"] == EventType.DISCARD
+        assert payload["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert payload["seat"] == 0
         assert payload["tile_id"] == 10
         assert "is_tsumogiri" not in payload
@@ -50,7 +64,7 @@ class TestServiceEventPayload:
         )
         payload = service_event_payload(event)
 
-        assert payload["type"] == EventType.DRAW
+        assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
         assert payload["seat"] == 1
         assert payload["tile_id"] == 42
         assert "available_actions" not in payload
@@ -82,7 +96,7 @@ class TestServiceEventPayload:
 
         assert "is_tsumogiri" not in payload
         assert "is_riichi" not in payload
-        assert set(payload.keys()) == {"type", "seat", "tile_id"}
+        assert set(payload.keys()) == {"t", "seat", "tile_id"}
 
     def test_discard_true_flags_included(self):
         """True boolean flags are included in discard wire payloads."""
@@ -200,10 +214,10 @@ class TestShapeCallPromptPayload:
 
 
 class TestMeldEventPayload:
-    """Tests for MeldEvent wire payload shaping."""
+    """Tests for MeldEvent compact wire payload."""
 
-    def test_added_kan_includes_original_pon_data(self):
-        """Added kan MeldEvent serialization includes called_tile_id and from_seat."""
+    def test_meld_event_produces_compact_format(self):
+        """MeldEvent is serialized as compact {"t": 0, "m": <IMME_int>}."""
         event = ServiceEvent(
             event=EventType.MELD,
             data=MeldEvent(
@@ -217,12 +231,17 @@ class TestMeldEventPayload:
         )
         payload = service_event_payload(event)
 
-        assert payload["type"] == EventType.MELD
-        assert payload["meld_type"] == "added_kan"
-        assert payload["caller_seat"] == 0
-        assert payload["tile_ids"] == [4, 5, 6, 7]
-        assert payload["called_tile_id"] == 5
-        assert payload["from_seat"] == 2
+        assert payload["t"] == EVENT_TYPE_MELD
+        assert "m" in payload
+        assert set(payload.keys()) == {"t", "m"}
+
+        # Round-trip: decode the IMME value and verify fields
+        decoded = decode_meld_compact(payload["m"])
+        assert decoded["meld_type"] == "added_kan"
+        assert decoded["caller_seat"] == 0
+        assert decoded["tile_ids"] == [4, 5, 6, 7]
+        assert decoded["called_tile_id"] == 5
+        assert decoded["from_seat"] == 2
 
 
 _HAND_RESULT = HandResultInfo(han=1, fu=30, yaku=[])

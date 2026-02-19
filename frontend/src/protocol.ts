@@ -23,18 +23,18 @@ export enum SessionMessageType {
 }
 
 export enum EventType {
-    DRAW = "draw",
-    DISCARD = "discard",
-    MELD = "meld",
-    CALL_PROMPT = "call_prompt",
-    ROUND_END = "round_end",
-    RIICHI_DECLARED = "riichi_declared",
-    DORA_REVEALED = "dora_revealed",
-    ERROR = "error",
-    GAME_STARTED = "game_started",
-    ROUND_STARTED = "round_started",
-    GAME_END = "game_end",
-    FURITEN = "furiten",
+    MELD = 0,
+    DRAW = 1,
+    DISCARD = 2,
+    CALL_PROMPT = 3,
+    ROUND_END = 4,
+    RIICHI_DECLARED = 5,
+    DORA_REVEALED = 6,
+    ERROR = 7,
+    GAME_STARTED = 8,
+    ROUND_STARTED = 9,
+    GAME_END = 10,
+    FURITEN = 11,
 }
 
 export enum GameAction {
