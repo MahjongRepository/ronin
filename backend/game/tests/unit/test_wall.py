@@ -8,7 +8,8 @@ and edge cases.
 import pytest
 
 from game.logic.exceptions import InvalidActionError
-from game.logic.rng import SEED_BYTES, TOTAL_WALL_SIZE
+from game.logic.rng import SEED_BYTES
+from game.logic.tiles import NUM_TILES
 from game.logic.wall import (
     DEAD_WALL_SIZE,
     DEAD_WALL_STACKS,
@@ -36,14 +37,14 @@ FIXED_SEED = "ab" * SEED_BYTES
 
 def _make_tile_list() -> list[int]:
     """Create a standard 0-135 tile list for testing."""
-    return list(range(TOTAL_WALL_SIZE))
+    return list(range(NUM_TILES))
 
 
 class TestCreateWall:
     def test_has_correct_sizes(self):
         """Live wall = 122 tiles, dead wall = 14 tiles, 1 initial dora indicator."""
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        assert len(wall.live_tiles) == TOTAL_WALL_SIZE - DEAD_WALL_SIZE
+        assert len(wall.live_tiles) == NUM_TILES - DEAD_WALL_SIZE
         assert len(wall.dead_wall_tiles) == DEAD_WALL_SIZE
         assert len(wall.dora_indicators) == 1
 
@@ -51,7 +52,7 @@ class TestCreateWall:
         """All 136 tile IDs present across live + dead wall."""
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         all_tiles = list(wall.live_tiles) + list(wall.dead_wall_tiles)
-        assert sorted(all_tiles) == list(range(TOTAL_WALL_SIZE))
+        assert sorted(all_tiles) == list(range(NUM_TILES))
 
     def test_initial_dora_from_dead_wall(self):
         """Initial dora indicator is dead wall tile at FIRST_DORA_INDEX."""
@@ -128,12 +129,12 @@ class TestCreateWallFromTiles:
             create_wall_from_tiles(list(range(200)))
 
     def test_duplicate_tiles(self):
-        tiles = [0] * TOTAL_WALL_SIZE
+        tiles = [0] * NUM_TILES
         with pytest.raises(ValueError, match="unique"):
             create_wall_from_tiles(tiles)
 
     def test_out_of_range_tile_ids(self):
-        tiles = list(range(TOTAL_WALL_SIZE))
+        tiles = list(range(NUM_TILES))
         tiles[0] = 999
         with pytest.raises(ValueError, match="integers in"):
             create_wall_from_tiles(tiles)
@@ -560,4 +561,4 @@ class TestSplitWallByDice:
         tiles = _make_tile_list()
         live, dead = _split_wall_by_dice(tiles, (4, 5), dealer_seat=2)
         all_tiles = list(live) + list(dead)
-        assert sorted(all_tiles) == list(range(TOTAL_WALL_SIZE))
+        assert sorted(all_tiles) == list(range(NUM_TILES))

@@ -12,6 +12,7 @@ from game.logic import wall as wall_ops
 from game.logic.exceptions import InvalidDiscardError
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.scoring import apply_nagashi_mangan_score
+from game.logic.settings import NUM_PLAYERS
 from game.logic.shanten import calculate_shanten
 from game.logic.state import (
     Discard,
@@ -25,7 +26,7 @@ from game.logic.state_utils import (
     update_all_discards,
     update_player,
 )
-from game.logic.tiles import hand_to_34_array, is_terminal_or_honor, tile_to_34
+from game.logic.tiles import NUM_TILE_TYPES, hand_to_34_array, is_terminal_or_honor, tile_to_34
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, TenpaiHand
 from game.logic.win import MAX_TILE_COPIES
 
@@ -55,7 +56,7 @@ def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
     """
     tiles_34 = hand_to_34_array(tiles)
     waiting = set()
-    for tile_34 in range(34):
+    for tile_34 in range(NUM_TILE_TYPES):
         if tiles_34[tile_34] >= MAX_TILE_COPIES:
             continue
         tiles_34[tile_34] += 1
@@ -301,7 +302,7 @@ def process_exhaustive_draw(
             return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats, tenpai_hands)
 
     scores = {p.seat: p.score for p in round_state.players}
-    score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
+    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
 
     # calculate noten payments
     tempai_count = len(tempai_seats)

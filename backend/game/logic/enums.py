@@ -2,7 +2,7 @@
 String enum definitions for Mahjong game concepts.
 """
 
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 
 class PlayerAction(StrEnum):
@@ -69,6 +69,8 @@ MELD_CALL_PRIORITY: dict[MeldCallType, int] = {
     MeldCallType.CHI: 2,
 }
 
+FALLBACK_MELD_PRIORITY = 99  # sorts unknown call types after all known ones
+
 
 class KanType(StrEnum):
     """Subtypes of kan declarations."""
@@ -98,6 +100,60 @@ class CallType(StrEnum):
     DISCARD = "discard"  # unified discard claim (ron + meld callers)
 
 
+class WireCallType(IntEnum):
+    """Integer wire encoding for CallType."""
+
+    RON = 0
+    MELD = 1
+    CHANKAN = 2
+
+
+class WireMeldCallType(IntEnum):
+    """Integer wire encoding for MeldCallType."""
+
+    PON = 0
+    CHI = 1
+    OPEN_KAN = 2
+
+
+class WirePlayerAction(IntEnum):
+    """Integer wire encoding for PlayerAction."""
+
+    DISCARD = 0
+    RIICHI = 1
+    TSUMO = 2
+    KAN = 3
+    ADDED_KAN = 4
+    KYUUSHU = 5
+
+
+class WireClientMessageType(IntEnum):
+    """Integer wire encoding for client-to-server message types."""
+
+    JOIN_ROOM = 0
+    LEAVE_ROOM = 1
+    SET_READY = 2
+    GAME_ACTION = 3
+    CHAT = 4
+    PING = 5
+    RECONNECT = 6
+
+
+class WireGameAction(IntEnum):
+    """Integer wire encoding for game actions."""
+
+    DISCARD = 0
+    DECLARE_RIICHI = 1
+    DECLARE_TSUMO = 2
+    CALL_RON = 3
+    CALL_PON = 4
+    CALL_CHI = 5
+    CALL_KAN = 6
+    CALL_KYUUSHU = 7
+    PASS = 8
+    CONFIRM_ROUND = 9
+
+
 class AbortiveDrawType(StrEnum):
     """Types of abortive draws in Mahjong."""
 
@@ -118,6 +174,43 @@ class RoundResultType(StrEnum):
     ABORTIVE_DRAW = "abortive_draw"
     NAGASHI_MANGAN = "nagashi_mangan"
     GAME_END = "game_end"
+
+
+class WireEventType(IntEnum):
+    """Integer wire encoding for EventType."""
+
+    MELD = 0
+    DRAW = 1
+    DISCARD = 2
+    CALL_PROMPT = 3
+    ROUND_END = 4
+    RIICHI_DECLARED = 5
+    DORA_REVEALED = 6
+    ERROR = 7
+    GAME_STARTED = 8
+    ROUND_STARTED = 9
+    GAME_END = 10
+    FURITEN = 11
+
+
+class WireRoundResultType(IntEnum):
+    """Integer wire encoding for RoundResultType."""
+
+    TSUMO = 0
+    RON = 1
+    DOUBLE_RON = 2
+    EXHAUSTIVE_DRAW = 3
+    ABORTIVE_DRAW = 4
+    NAGASHI_MANGAN = 5
+
+
+class WireWind(IntEnum):
+    """Integer wire encoding for WindName."""
+
+    EAST = 0
+    SOUTH = 1
+    WEST = 2
+    NORTH = 3
 
 
 class WindName(StrEnum):

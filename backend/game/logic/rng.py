@@ -21,8 +21,10 @@ import hashlib
 import random
 import secrets
 
+from game.logic.settings import NUM_PLAYERS
+from game.logic.tiles import NUM_TILES
+
 SEED_BYTES = 96  # 768 bits — exceeds 136!/(4!)^34 ≈ 2^616 unique game space (136! ≈ 2^772.5)
-TOTAL_WALL_SIZE = 136
 RNG_VERSION = "pcg64dxsm-v1"  # Stored in game metadata for replay compatibility detection
 _DOMAIN_PREFIX = b"ronin-wall-v1:"  # Domain separator for hash-based derivation (versioned)
 _DEALER_DOMAIN_PREFIX = b"ronin-dealer-v1:"  # Domain separator for dealer determination
@@ -177,7 +179,7 @@ def generate_shuffled_wall_and_dice(seed_hex: str, round_number: int) -> tuple[l
     PCG stream, so the dice values are fully determined by the seed and round.
     """
     pcg = _derive_round_pcg(seed_hex, round_number)
-    tiles = list(range(TOTAL_WALL_SIZE))
+    tiles = list(range(NUM_TILES))
     shuffled = _fisher_yates_shuffle(tiles, pcg)
     dice = roll_dice(pcg)
     return shuffled, dice
@@ -212,9 +214,9 @@ def determine_first_dealer(seed_hex: str) -> tuple[int, tuple[int, int], tuple[i
     """
     pcg = _derive_dealer_pcg(seed_hex)
     first_dice = roll_dice(pcg)
-    temp_dealer = (sum(first_dice) - 1) % 4
+    temp_dealer = (sum(first_dice) - 1) % NUM_PLAYERS
     second_dice = roll_dice(pcg)
-    dealer = (temp_dealer + sum(second_dice) - 1) % 4
+    dealer = (temp_dealer + sum(second_dice) - 1) % NUM_PLAYERS
     return dealer, first_dice, second_dice
 
 

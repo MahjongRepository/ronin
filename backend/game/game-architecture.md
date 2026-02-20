@@ -103,23 +103,24 @@ All messages use MessagePack binary format. Room/session messages use a string `
 
 **Game Events** (sent as flat top-level messages, no wrapper envelope)
 
-Game events use integer `"t"` keys for event types (0=meld, 1=draw, 2=discard, 3=call_prompt, 4=round_end, 5=riichi_declared, 6=dora_revealed, 7=error, 8=game_started, 9=round_started, 10=game_end, 11=furiten). Meld events use a compact IMME integer encoding.
+Game events use integer `"t"` keys for event types (0=meld, 1=draw, 2=discard, 3=call_prompt, 4=round_end, 5=riichi_declared, 6=dora_revealed, 7=error, 8=game_started, 9=round_started, 10=game_end, 11=furiten). All game event fields use compact Pydantic `serialization_alias` keys for wire compactness (e.g., `"s"` for seat, `"ws"` for winner_seat). Meld events use IMME integer encoding. Draw and discard events use packed integer encoding via `messaging/compact.py`.
 
 ```json
-{"t": 8, "players": [{"seat": 0, "name": "Alice", "is_ai_player": false}, ...]}
-{"t": 9, "seat": 0, "round_wind": "East", ...}
-{"t": 1, "seat": 0, "tile_id": 42, "available_actions": [...]}
-{"t": 2, "seat": 2, "tile_id": 55, "is_tsumogiri": true}
+{"t": 8, "gid": "abc", "p": [{"s": 0, "nm": "Alice", "ai": 0}, ...], "dl": 0, "dd": [[1,2],[3,4]]}
+{"t": 9, "s": 0, "w": "East", "n": 1, "dl": 0, "cp": 0, "di": [...], "h": 0, "r": 0, "mt": [...], "p": [{"s": 0, "sc": 25000}, ...], "dc": [3,4]}
+{"t": 1, "d": 42}
+{"t": 1, "d": 42, "aa": [{"a": "discard", "tl": [0,1,2]}]}
+{"t": 2, "d": 597}
 {"t": 0, "m": 12345}
-{"t": 6, "tile_id": 42}
-{"t": 3, "call_type": "ron", "tile_id": 55, "from_seat": 2, "caller_seat": 0}
-{"t": 3, "call_type": "meld", "tile_id": 55, "from_seat": 2, "caller_seat": 0, "available_calls": [{"call_type": "pon"}, {"call_type": "chi", "options": [[40, 44]]}]}
-{"t": 4, "result": {...}}
-{"t": 11, "is_furiten": true}
-{"t": 10, "winner_seat": 0, "standings": [...]}
+{"t": 6, "ti": 42}
+{"t": 3, "clt": "ron", "ti": 55, "frs": 2, "cs": 0}
+{"t": 3, "clt": "meld", "ti": 55, "frs": 2, "cs": 0, "ac": [{"clt": "pon"}, {"clt": "chi", "opt": [[40, 44]]}]}
+{"t": 4, "rt": 0, "ws": 0, "hr": {...}, "scs": {...}, "sch": {...}, ...}
+{"t": 11, "f": true}
+{"t": 10, "ws": 0, "st": [{"s": 0, "sc": 42300, "fs": 52}, ...]}
 ```
 
-The `"m"` field in meld events is an IMME (Integer-Mapped Meld Encoding) value that losslessly encodes all meld fields (type, tiles, caller, from_seat) in a single 15-bit integer. See `shared/lib/melds/README.md` for encoding details.
+The `"m"` field in meld events is an IMME (Integer-Mapped Meld Encoding) value that losslessly encodes all meld fields (type, tiles, caller, from_seat) in a single 15-bit integer. See `shared/lib/melds/README.md` for encoding details. The `"d"` field in draw/discard events is a packed integer encoding seat and tile_id (draw: `d = seat * 136 + tile_id`) or seat, tile_id, tsumogiri, and riichi flags (discard: `d = flag * 544 + seat * 136 + tile_id`). See `messaging/compact.py` for encoding details.
 
 Note: The `furiten` event is sent only to the affected player (target `seat_N`), not broadcast.
 
@@ -138,9 +139,9 @@ Note: The `furiten` event is sent only to the affected player (target `seat_N`),
 {"type": "pong"}
 ```
 
-**Game Reconnected** (sent to the reconnecting player with full game state snapshot)
+**Game Reconnected** (sent to the reconnecting player with full game state snapshot, uses compact aliases)
 ```json
-{"type": "game_reconnected", "game_id": "game123", "seat": 0, "players": [...], "round_wind": "East", "round_number": 1, "current_player_seat": 0, "dora_indicators": [...], "honba_sticks": 0, "riichi_sticks": 0, "my_tiles": [...], "dice": [3, 4], "tiles_remaining": 70, "player_states": [...], "dealer_seat": 0, "dealer_dice": [[1, 2], [3, 4]]}
+{"type": "game_reconnected", "gid": "game123", "s": 0, "p": [...], "w": "East", "n": 1, "cp": 0, "di": [...], "h": 0, "r": 0, "mt": [...], "dc": [3, 4], "tr": 70, "pst": [...], "dl": 0, "dd": [[1, 2], [3, 4]]}
 ```
 
 **Player Reconnected** (broadcast to other players in game)
@@ -222,7 +223,7 @@ This enables:
 
 The game service communicates through a typed event pipeline:
 
-- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id: int and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with game view fields inlined at top level). After pon/chi, no DrawEvent is emitted — the client infers turn ownership from `MeldEvent.caller_seat`.
+- **GameEvent** (Pydantic base, `game.logic.events`) - Domain events like DrawEvent (carries tile_id: int and available_actions), DiscardEvent, MeldEvent, DoraRevealedEvent, RoundEndEvent, FuritenEvent, GameStartedEvent, RoundStartedEvent, etc. All events use integer tile IDs only (no string representations). Event model fields use Pydantic `serialization_alias` for compact wire keys (e.g., `"s"` for seat, `"di"` for dora_indicators); `DrawEvent` and `DiscardEvent` fields are not aliased as they are packed into integers by `service_event_payload()`. Game start produces a two-phase sequence: `GameStartedEvent` (broadcast) followed by `RoundStartedEvent` (per-seat events with game view fields inlined at top level). After pon/chi, no DrawEvent is emitted — the client infers turn ownership from `MeldEvent.caller_seat`.
 - **ServiceEvent** - Transport container wrapping a GameEvent with typed routing metadata (`BroadcastTarget` or `SeatTarget`). Events are serialized as flat top-level messages on the wire (no wrapper envelope). The `ReplayCollector` persists broadcast gameplay events and seat-targeted `DrawEvent` events (`available_actions` stripped); per-seat `RoundStartedEvent` views are merged into a single record with all players' tiles for full game reconstruction.
 - **EventType** - StrEnum defining all event type identifiers internally; mapped to stable integer codes for wire serialization via `EVENT_TYPE_INT` in `event_payload.py`
 - `convert_events()` transforms GameEvent lists into ServiceEvent lists; DISCARD prompts are split per-seat via `_split_discard_prompt_for_seat()` into RON or MELD wire events (ron-dominant: if a seat has both ron and meld eligibility, only a RON prompt is sent)
@@ -232,8 +233,8 @@ The game service communicates through a typed event pipeline:
 
 `messaging/event_payload.py` centralizes the transformation of domain events into wire-format payloads, used by both `SessionManager` (for WebSocket broadcast) and `ReplayCollector` (for persistence):
 
-- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, stripping internal `type` and `target` fields and adding the event type as an integer `"t"` key (mapped via `EVENT_TYPE_INT`). `MeldEvent` is special-cased to produce a compact `{"t": 0, "m": <IMME_int>}` payload (2 fields instead of 7). Falsy default fields are omitted for wire compactness: `DiscardEvent.is_tsumogiri` and `DiscardEvent.is_riichi` when `False`, `DrawEvent.available_actions` when empty, `RoundEndEvent` win result `pao_seat` and `ura_dora_indicators` when `None`. Clients must treat absent fields as their default values
-- `shape_call_prompt_payload()` transforms `CallPromptEvent` payloads based on call type: for ron/chankan, drops the callers list and extracts `caller_seat`; for meld, builds an `available_calls` list with per-caller options
+- `service_event_payload()` converts a `ServiceEvent` into a wire-format dict, adding the event type as an integer `"t"` key (mapped via `EVENT_TYPE_INT`). `MeldEvent` is special-cased to produce a compact `{"t": 0, "m": <IMME_int>}` payload. `DrawEvent` and `DiscardEvent` are packed into a single integer `"d"` field via `encode_draw()`/`encode_discard()` from `messaging/compact.py`; draw events include `"aa"` (available actions) when present. All other events use Pydantic `serialization_alias` via `model_dump(by_alias=True, exclude_none=True)` for compact field names and automatic None-exclusion. `RoundEndEvent` is flattened: the nested result dict is inlined with `"rt"` for the result type
+- `shape_call_prompt_payload()` transforms `CallPromptEvent` payloads (using compact alias keys) based on call type: for ron/chankan, drops the callers list (`"clr"`) and extracts `"cs"` (caller seat); for meld, builds an `"ac"` (available calls) list with per-caller options (`"clt"`, `"opt"`)
 
 ### Server Configuration
 
@@ -390,7 +391,7 @@ The replay adapter (`backend/game/replay/`) enables deterministic replay of game
 - **ReplayTrace** captures full output: startup events, per-step state transitions (`state_before`/`state_after`), and final state; rejects replays with missing or mismatched `rng_version`
 - **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace; support `auto_confirm_rounds` (injects synthetic `CONFIRM_ROUND` steps) and `auto_pass_calls` (injects synthetic `PASS` steps for pending call prompts)
 - **ReplayServiceProtocol** is the replay-facing protocol boundary; default factory uses `MahjongGameService(auto_cleanup=False)`
-- **ReplayLoader** (`loader.py`) parses JSON Lines files (produced by `ReplayCollector`) back into `ReplayInput`; reconstructs original player name input order from the seed via RNG reconstruction; dispatches events by integer `"t"` key; decodes compact meld events via IMME `decode_meld_compact()`; maps event types to game actions (discard, meld, ron, tsumo, etc.)
+- **ReplayLoader** (`loader.py`) parses JSON Lines files (produced by `ReplayCollector`) back into `ReplayInput`; reconstructs original player name input order from the seed via RNG reconstruction; dispatches events by integer `"t"` key; decodes compact meld events via IMME `decode_meld_compact()`; decodes draw/discard events via packed integer decoding (`decode_draw`/`decode_discard` from `messaging/compact.py`); all replay keys use compact aliases (e.g., `"sd"` for seed, `"rv"` for rng_version, `"p"` for players, `"s"` for seat, `"nm"` for name); maps event types to game actions (discard, meld, ron, tsumo, etc.)
 - **Replay format version**: `REPLAY_VERSION` constant in `models.py` (currently `"0.2-dev"`); loader validates version compatibility
 - **Determinism contract**: same seed + same input events = identical trace; AI player strategies must be deterministic given the same state
 - **Dependency direction**: `game.replay` imports from `game.logic`; game logic modules never import from `game.replay` (enforced by AST-based integration test)
@@ -420,6 +421,7 @@ ronin/
         ├── messaging/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── types.py        # Message schemas (Pydantic)
+        │   ├── compact.py      # Packed integer encoding for draw/discard events
         │   ├── encoder.py      # MessagePack encoding/decoding
         │   ├── event_payload.py # Event payload shaping for wire and replay serialization
         │   └── router.py       # Message routing

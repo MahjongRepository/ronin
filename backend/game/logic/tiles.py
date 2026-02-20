@@ -9,22 +9,6 @@ Tile representation utilities for Mahjong game.
 # sou (bamboo): 72-107 (1s-9s, 4 copies each)
 # honors: 108-135 (E, S, W, N, Haku, Hatsu, Chun, 4 copies each)
 
-MAN_START = 0
-MAN_END = 35
-PIN_START = 36
-PIN_END = 71
-SOU_START = 72
-SOU_END = 107
-HONOR_START = 108
-HONOR_END = 135
-
-# tile ranges in 34-format (each unique tile type)
-MAN_34_START = 0
-MAN_34_END = 8
-PIN_34_START = 9
-PIN_34_END = 17
-SOU_34_START = 18
-SOU_34_END = 26
 HONOR_34_START = 27
 HONOR_34_END = 33
 
@@ -49,6 +33,10 @@ TERMINALS_34 = [0, 8, 9, 17, 18, 26]
 
 TILE_ID_MIN = 0
 TILE_ID_MAX = 135
+
+NUM_TILES = 136  # Total tiles in 136-format (4 copies of 34 tile types)
+NUM_TILE_TYPES = 34  # Unique tile types in 34-format
+TILES_PER_SUIT = 9  # Tiles per numbered suit (1-9 of man, pin, sou)
 
 
 def tile_to_34(tile_id: int) -> int:
@@ -96,7 +84,7 @@ def hand_to_34_array(tiles: list[int] | tuple[int, ...]) -> list[int]:
     The 34-array has 34 elements, where each index represents a tile type
     and the value is the count of that tile type in the hand.
     """
-    tiles_34 = [0] * 34
+    tiles_34 = [0] * NUM_TILE_TYPES
     for tile_id in tiles:
         tiles_34[tile_to_34(tile_id)] += 1
     return tiles_34

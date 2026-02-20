@@ -139,7 +139,8 @@ class GameSettings(BaseModel):
     round_advance_timeout_seconds: float = 15
 
 
-SUPPORTED_NUM_PLAYERS = 4
+NUM_PLAYERS = 4
+MAX_AI_PLAYERS = NUM_PLAYERS - 1
 
 
 def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
@@ -162,8 +163,8 @@ def validate_settings(settings: GameSettings) -> None:
     """
     errors: list[str] = []
 
-    if settings.num_players != SUPPORTED_NUM_PLAYERS:
-        errors.append(f"num_players={settings.num_players} is not supported (only 4-player games)")
+    if settings.num_players != NUM_PLAYERS:
+        errors.append(f"num_players={settings.num_players} is not supported (only {NUM_PLAYERS}-player games)")
 
     if settings.has_agariyame:
         errors.append("has_agariyame=True is not supported (agariyame not yet implemented)")

@@ -5,6 +5,7 @@ Game initialization and progression for Mahjong.
 from game.logic.enums import GamePhase, RoundPhase, RoundResultType
 from game.logic.rng import RNG_VERSION, determine_first_dealer
 from game.logic.settings import (
+    NUM_PLAYERS,
     EnchousenType,
     GameSettings,
     GameType,
@@ -74,7 +75,7 @@ def calculate_final_scores(
     4. Apply uma spread
     5. Adjust 1st place to ensure zero-sum
     """
-    oka_total = ((settings.target_score - settings.starting_score) * 4) // 1000
+    oka_total = ((settings.target_score - settings.starting_score) * NUM_PLAYERS) // 1000
 
     adjusted = []
     for i, (seat, raw_score) in enumerate(raw_scores):
@@ -290,7 +291,7 @@ def process_round_end(
     new_round_wind = round_state.round_wind
 
     if should_rotate:
-        new_dealer_seat = (dealer_seat + 1) % 4
+        new_dealer_seat = (dealer_seat + 1) % NUM_PLAYERS
         new_unique_dealers += 1
         new_round_wind = _get_wind_for_unique_dealers(new_unique_dealers, game_state.settings)
 
@@ -371,7 +372,7 @@ def finalize_game(
     starting_dealer = game_state.starting_dealer_seat
 
     def _tie_break_key(p: MahjongPlayer) -> tuple[int, int]:
-        return (-p.score, (p.seat - starting_dealer) % 4)
+        return (-p.score, (p.seat - starting_dealer) % NUM_PLAYERS)
 
     # find winner: highest score, ties broken by proximity to starting dealer
     winner_seat = min(round_state.players, key=_tie_break_key).seat

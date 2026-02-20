@@ -6,9 +6,8 @@ Assigns players to random seats and fills remaining slots with AI players.
 
 from game.logic.enums import AIPlayerType
 from game.logic.rng import create_seat_rng
+from game.logic.settings import NUM_PLAYERS
 from game.logic.types import SeatConfig
-
-NUM_PLAYERS = 4
 
 
 def _ai_player_names(num_ai: int) -> set[str]:

@@ -1,7 +1,8 @@
 import pytest
 
+from game.logic.enums import WireClientMessageType
 from game.messaging.router import MessageRouter
-from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
@@ -28,7 +29,7 @@ class TestRoomMessageRouting:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
@@ -44,14 +45,14 @@ class TestRoomMessageRouting:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
         )
         connection._outbox.clear()
 
-        await router.handle_message(connection, {"type": ClientMessageType.LEAVE_ROOM})
+        await router.handle_message(connection, {"t": WireClientMessageType.LEAVE_ROOM})
 
         assert any(m.get("type") == SessionMessageType.ROOM_LEFT for m in connection.sent_messages)
 
@@ -63,7 +64,7 @@ class TestRoomMessageRouting:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
@@ -72,7 +73,7 @@ class TestRoomMessageRouting:
 
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.SET_READY, "ready": True},
+            {"t": WireClientMessageType.SET_READY, "ready": True},
         )
 
         assert any(m.get("type") == SessionMessageType.PLAYER_READY_CHANGED for m in connection.sent_messages)
@@ -85,7 +86,7 @@ class TestRoomMessageRouting:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
@@ -94,7 +95,7 @@ class TestRoomMessageRouting:
 
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.CHAT, "text": "Hello room!"},
+            {"t": WireClientMessageType.CHAT, "text": "Hello room!"},
         )
 
         chat_msgs = [m for m in connection.sent_messages if m.get("type") == SessionMessageType.CHAT]
@@ -109,7 +110,7 @@ class TestRoomMessageRouting:
         # not in room or game - should get NOT_IN_GAME error
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.CHAT, "text": "Hello!"},
+            {"t": WireClientMessageType.CHAT, "text": "Hello!"},
         )
 
         assert any(m.get("code") == SessionErrorCode.NOT_IN_GAME for m in connection.sent_messages)
@@ -122,7 +123,7 @@ class TestRoomMessageRouting:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
@@ -139,7 +140,7 @@ class TestRoomMessageRouting:
         # join_room without required fields
         await router.handle_message(
             connection,
-            {"type": ClientMessageType.JOIN_ROOM},
+            {"t": WireClientMessageType.JOIN_ROOM},
         )
 
         assert any(m.get("code") == SessionErrorCode.INVALID_MESSAGE for m in connection.sent_messages)

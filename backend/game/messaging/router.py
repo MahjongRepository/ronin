@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from game.logic.enums import GameAction
 from game.logic.exceptions import GameRuleError
 from game.messaging.types import (
     ChatMessage,
@@ -142,10 +143,11 @@ class MessageRouter:
     ) -> None:
         """Route a game action message, handling expected and fatal errors."""
         try:
-            data = message.model_dump(exclude={"type", "action"})
+            data = message.model_dump(exclude={"t", "a"})
+            action = GameAction[message.a.name]
             await self._session_manager.handle_game_action(
                 connection=connection,
-                action=message.action,
+                action=action,
                 data=data,
             )
         except (GameRuleError, ValueError, KeyError, TypeError) as e:

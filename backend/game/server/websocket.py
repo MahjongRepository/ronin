@@ -5,9 +5,10 @@ from uuid import uuid4
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from game.logic.enums import WireClientMessageType
 from game.messaging.encoder import DecodeError
 from game.messaging.protocol import ConnectionProtocol
-from game.messaging.types import ClientMessageType, ErrorMessage, SessionErrorCode
+from game.messaging.types import ErrorMessage, SessionErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
                 )
                 continue
-            if data.get("type") in (ClientMessageType.JOIN_ROOM, ClientMessageType.RECONNECT):
+            if data.get("t") in (WireClientMessageType.JOIN_ROOM, WireClientMessageType.RECONNECT):
                 data["room_id"] = room_id
             await router.handle_message(connection, data)
     except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip

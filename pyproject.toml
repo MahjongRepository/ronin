@@ -127,7 +127,7 @@ unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
 source = ["backend"]
-omit = ["**/tests/*", "**/test_*", "backend/game/logic/ai_player.py", "backend/game/logic/ai_player_controller.py", "backend/debug.py", "backend/shared/logging.py"]
+omit = ["**/tests/*", "**/test_*", "backend/game/logic/ai_player.py", "backend/game/logic/ai_player_controller.py", "backend/debug.py", "backend/shared/logging.py", "backend/game/replay/external/tenhou.py"]
 
 [tool.coverage.report]
 show_missing = true

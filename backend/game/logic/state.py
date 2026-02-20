@@ -11,12 +11,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from game.logic.enums import CallType, GameAction, GamePhase, RoundPhase, WindName
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
-from game.logic.settings import GameSettings
+from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import WINDS_34
 from game.logic.types import GameView, MeldCaller, PlayerView
 from game.logic.wall import Wall
-
-NUM_WINDS = 4
 
 _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
 
@@ -169,7 +167,7 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
 
 def wind_name(wind: int) -> WindName:
     """Convert wind index to name."""
-    return _WIND_NAMES[wind] if 0 <= wind < NUM_WINDS else WindName.UNKNOWN
+    return _WIND_NAMES[wind] if 0 <= wind < len(_WIND_NAMES) else WindName.UNKNOWN
 
 
 def seat_to_wind(seat: int, dealer_seat: int) -> int:
@@ -179,5 +177,5 @@ def seat_to_wind(seat: int, dealer_seat: int) -> int:
     Dealer is always East, and winds rotate counter-clockwise from there.
     Returns the wind tile constant (27-30) for use with mahjong library HandConfig.
     """
-    relative_position = (seat - dealer_seat) % 4
+    relative_position = (seat - dealer_seat) % NUM_PLAYERS
     return WINDS_34[relative_position]

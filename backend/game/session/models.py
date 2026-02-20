@@ -1,13 +1,10 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from game.logic.settings import GameSettings
+from game.logic.settings import MAX_AI_PLAYERS, GameSettings
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
-
-MAX_AI_PLAYERS = 3
-TOTAL_PLAYERS = 4
 
 
 def validate_num_ai_players(num_ai_players: int) -> None:

@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from game.logic.settings import GameSettings
-from game.session.models import TOTAL_PLAYERS, validate_num_ai_players
+from game.logic.settings import NUM_PLAYERS, GameSettings
+from game.session.models import validate_num_ai_players
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
@@ -59,7 +59,7 @@ class Room:
 
     @property
     def players_needed(self) -> int:
-        return TOTAL_PLAYERS - self.num_ai_players
+        return NUM_PLAYERS - self.num_ai_players
 
     @property
     def player_names(self) -> list[str]:
@@ -71,7 +71,7 @@ class Room:
 
     @property
     def total_seats(self) -> int:
-        return TOTAL_PLAYERS
+        return NUM_PLAYERS
 
     @property
     def is_empty(self) -> bool:

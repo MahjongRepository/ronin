@@ -115,7 +115,7 @@ class TestSessionManagerDefensiveChecks:
         # error should have been broadcast to players
         error_msgs = [m for m in conn1.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ERROR]]
         assert len(error_msgs) == 1
-        assert error_msgs[0]["message"] == "unsupported settings"
+        assert error_msgs[0]["msg"] == "unsupported settings"
 
     async def test_leave_pre_start_game_removes_session(self, manager):
         """Leaving a game that hasn't started (e.g. start failure) removes the session."""

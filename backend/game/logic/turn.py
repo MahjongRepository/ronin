@@ -18,6 +18,7 @@ from game.logic.abortive import (
 )
 from game.logic.actions import get_available_actions
 from game.logic.enums import (
+    FALLBACK_MELD_PRIORITY,
     MELD_CALL_PRIORITY,
     CallType,
     MeldCallType,
@@ -69,6 +70,7 @@ from game.logic.scoring import (
     calculate_hand_value,
     calculate_hand_value_with_tiles,
 )
+from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
     MahjongGameState,
     MahjongPlayer,
@@ -201,7 +203,7 @@ def _check_riichi_furiten(
     tile_34 = tile_to_34(tile_id)
     new_state = round_state
 
-    for seat in range(4):
+    for seat in range(NUM_PLAYERS):
         if seat == discarder_seat:
             continue
         player = new_state.players[seat]
@@ -231,7 +233,7 @@ def _find_meld_callers(
     """
     meld_calls: list[MeldCaller] = []
 
-    for seat in range(4):
+    for seat in range(NUM_PLAYERS):
         if seat == discarder_seat:
             continue
 
@@ -267,7 +269,7 @@ def _find_meld_callers(
             )
 
     # sort by priority: kan > pon > chi
-    meld_calls.sort(key=lambda x: MELD_CALL_PRIORITY.get(x.call_type, 99))
+    meld_calls.sort(key=lambda x: MELD_CALL_PRIORITY.get(x.call_type, FALLBACK_MELD_PRIORITY))
 
     return meld_calls
 
@@ -464,7 +466,7 @@ def _find_ron_callers(
     """
     ron_callers = []
 
-    for seat in range(4):
+    for seat in range(NUM_PLAYERS):
         if seat == discarder_seat:
             continue
 
@@ -474,7 +476,7 @@ def _find_ron_callers(
 
     # sort by priority: counter-clockwise from discarder (closer = higher priority)
     def distance_from_discarder(s: int) -> int:
-        return (s - discarder_seat) % 4
+        return (s - discarder_seat) % NUM_PLAYERS
 
     ron_callers.sort(key=distance_from_discarder)
 

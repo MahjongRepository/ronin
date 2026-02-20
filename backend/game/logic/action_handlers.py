@@ -12,7 +12,7 @@ from game.logic.abortive import (
     can_call_kyuushu_kyuuhai,
 )
 from game.logic.action_result import ActionResult, create_draw_event
-from game.logic.call_resolution import pick_best_meld_response, resolve_call_prompt
+from game.logic.call_resolution import FALLBACK_CALLER_ORDER, pick_best_meld_response, resolve_call_prompt
 from game.logic.enums import (
     CallType,
     GameAction,
@@ -40,7 +40,7 @@ from game.logic.state_utils import (
     update_game_with_round,
     update_player,
 )
-from game.logic.tiles import is_honor, tile_to_34
+from game.logic.tiles import TILES_PER_SUIT, is_honor, tile_to_34
 from game.logic.turn import (
     process_discard_phase,
     process_meld_call,
@@ -163,7 +163,7 @@ def _validate_chi_sequence(
     # The 3 tiles must form a valid sequence (consecutive values in same suit, not honor)
     all_34 = sorted(tile_to_34(t) for t in (*sequence_tiles, tile_id))
     is_consecutive = all_34[1] == all_34[0] + 1 and all_34[2] == all_34[0] + 2
-    is_same_suit = all_34[0] // 9 == all_34[2] // 9
+    is_same_suit = all_34[0] // TILES_PER_SUIT == all_34[2] // TILES_PER_SUIT
     if is_honor(all_34[0]) or not is_consecutive or not is_same_suit:
         raise InvalidGameActionError(
             action="call_chi",
@@ -294,7 +294,7 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
     if ron_responses:
         # Sort by caller order (counter-clockwise from discarder), same as _resolve_ron_responses
         caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
-        ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, 999))
+        ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, FALLBACK_CALLER_ORDER))
         return ron_responses[0].seat
     meld_responses = [
         r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)

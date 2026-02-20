@@ -2,12 +2,11 @@ import pytest
 from mahjong.tile import TilesConverter
 from pydantic import ValidationError
 
-from game.logic.enums import GameAction
+from game.logic.enums import WireClientMessageType, WireGameAction
 from game.logic.exceptions import InvalidDiscardError
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
     ChiMessage,
-    ClientMessageType,
     DiscardMessage,
     ReconnectMessage,
     SessionErrorCode,
@@ -47,7 +46,7 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.RECONNECT,
+                "t": WireClientMessageType.RECONNECT,
                 "room_id": "game1",
                 "game_ticket": ticket,
             },
@@ -66,7 +65,7 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.RECONNECT,
+                "t": WireClientMessageType.RECONNECT,
                 "room_id": "game1",
                 "game_ticket": "invalid-ticket-string",
             },
@@ -88,7 +87,7 @@ class TestMessageRouterBranches:
     async def test_invalid_message_returns_error(self, setup):
         router, connection, _ = setup
 
-        await router.handle_message(connection, {"type": "invalid"})
+        await router.handle_message(connection, {"t": "invalid"})
 
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
@@ -101,7 +100,7 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.CHAT,
+                "t": WireClientMessageType.CHAT,
                 "text": "Hello!",
             },
         )
@@ -115,7 +114,7 @@ class TestMessageRouterBranches:
         """Ping message dispatches through router to session_manager.handle_ping."""
         router, connection, _ = setup
 
-        await router.handle_message(connection, {"type": ClientMessageType.PING})
+        await router.handle_message(connection, {"t": WireClientMessageType.PING})
 
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
@@ -138,9 +137,9 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.GAME_ACTION,
-                "action": GameAction.DISCARD,
-                "tile_id": 0,
+                "t": WireClientMessageType.GAME_ACTION,
+                "a": WireGameAction.DISCARD,
+                "ti": 0,
             },
         )
 
@@ -167,9 +166,9 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.GAME_ACTION,
-                "action": GameAction.DISCARD,
-                "tile_id": 0,
+                "t": WireClientMessageType.GAME_ACTION,
+                "a": WireGameAction.DISCARD,
+                "ti": 0,
             },
         )
 
@@ -196,9 +195,9 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.GAME_ACTION,
-                "action": GameAction.DISCARD,
-                "tile_id": TilesConverter.string_to_136_array(man="1")[0],
+                "t": WireClientMessageType.GAME_ACTION,
+                "a": WireGameAction.DISCARD,
+                "ti": TilesConverter.string_to_136_array(man="1")[0],
             },
         )
 
@@ -225,9 +224,9 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.GAME_ACTION,
-                "action": GameAction.DISCARD,
-                "tile_id": 0,
+                "t": WireClientMessageType.GAME_ACTION,
+                "a": WireGameAction.DISCARD,
+                "ti": 0,
             },
         )
 
@@ -242,7 +241,7 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
@@ -258,7 +257,7 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": "invalid-ticket-data",
             },
@@ -278,7 +277,7 @@ class TestMessageRouterBranches:
         await router.handle_message(
             connection,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": "room1",
                 "game_ticket": ticket,
             },
@@ -295,28 +294,33 @@ class TestParseClientMessage:
     """Validate parse_client_message error handling and non-trivial parsing."""
 
     def test_parse_invalid_type_rejected(self):
-        data = {"type": "join_game", "game_id": "game1", "game_ticket": "some-ticket"}
+        data = {"t": 99, "game_id": "game1", "game_ticket": "some-ticket"}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_parse_chi_coerces_sequence_tiles_to_tuple(self):
-        data = {"type": "game_action", "action": "call_chi", "tile_id": 40, "sequence_tiles": [41, 42]}
+        data = {
+            "t": WireClientMessageType.GAME_ACTION,
+            "a": WireGameAction.CALL_CHI,
+            "ti": 40,
+            "sequence_tiles": [41, 42],
+        }
         msg = parse_client_message(data)
         assert isinstance(msg, ChiMessage)
         assert msg.sequence_tiles == (41, 42)
 
     def test_parse_kan_message_requires_kan_type(self):
-        data = {"type": "game_action", "action": "call_kan", "tile_id": 8}
+        data = {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.CALL_KAN, "ti": 8}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_parse_game_action_missing_required_field(self):
-        data = {"type": "game_action", "action": "discard"}
+        data = {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_parse_game_action_invalid_action(self):
-        data = {"type": "game_action", "action": "invalid_action"}
+        data = {"t": WireClientMessageType.GAME_ACTION, "a": 99}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
@@ -326,7 +330,7 @@ class TestReconnectMessageParsing:
 
     def test_parse_reconnect_message(self):
         data = {
-            "type": "reconnect",
+            "t": WireClientMessageType.RECONNECT,
             "room_id": "game1",
             "game_ticket": "some-ticket-string",
         }
@@ -336,18 +340,18 @@ class TestReconnectMessageParsing:
         assert msg.game_ticket == "some-ticket-string"
 
     def test_reconnect_missing_game_ticket_rejected(self):
-        data = {"type": "reconnect", "room_id": "game1"}
+        data = {"t": WireClientMessageType.RECONNECT, "room_id": "game1"}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_reconnect_missing_room_id_rejected(self):
-        data = {"type": "reconnect", "game_ticket": "some-ticket"}
+        data = {"t": WireClientMessageType.RECONNECT, "game_ticket": "some-ticket"}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_reconnect_invalid_room_id_pattern_rejected(self):
         data = {
-            "type": "reconnect",
+            "t": WireClientMessageType.RECONNECT,
             "room_id": "room with spaces!",
             "game_ticket": "some-ticket",
         }
@@ -359,29 +363,34 @@ class TestInputValidation:
     """Boundary validation for wire message fields."""
 
     def test_tile_id_negative_rejected(self):
-        data = {"type": "game_action", "action": "discard", "tile_id": -1}
+        data = {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": -1}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_tile_id_too_large_rejected(self):
-        data = {"type": "game_action", "action": "discard", "tile_id": 136}
+        data = {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 136}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_tile_id_max_valid(self):
-        data = {"type": "game_action", "action": "discard", "tile_id": 135}
+        data = {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 135}
         msg = parse_client_message(data)
         assert isinstance(msg, DiscardMessage)
         assert msg.tile_id == 135
 
     def test_chi_sequence_tile_out_of_range_rejected(self):
-        data = {"type": "game_action", "action": "call_chi", "tile_id": 0, "sequence_tiles": [4, 200]}
+        data = {
+            "t": WireClientMessageType.GAME_ACTION,
+            "a": WireGameAction.CALL_CHI,
+            "ti": 0,
+            "sequence_tiles": [4, 200],
+        }
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
     def test_join_room_missing_game_ticket_rejected(self):
         data = {
-            "type": "join_room",
+            "t": WireClientMessageType.JOIN_ROOM,
             "room_id": "room1",
         }
         with pytest.raises(ValidationError):
@@ -389,7 +398,7 @@ class TestInputValidation:
 
     def test_join_room_empty_game_ticket_rejected(self):
         data = {
-            "type": "join_room",
+            "t": WireClientMessageType.JOIN_ROOM,
             "room_id": "room1",
             "game_ticket": "",
         }
@@ -398,7 +407,7 @@ class TestInputValidation:
 
     def test_chat_text_with_null_byte_rejected(self):
         data = {
-            "type": "chat",
+            "t": WireClientMessageType.CHAT,
             "text": "hello\x00world",
         }
         with pytest.raises(ValidationError, match="control characters"):
@@ -406,7 +415,7 @@ class TestInputValidation:
 
     def test_chat_text_with_escape_rejected(self):
         data = {
-            "type": "chat",
+            "t": WireClientMessageType.CHAT,
             "text": "hello\x1bworld",
         }
         with pytest.raises(ValidationError, match="control characters"):
@@ -414,7 +423,7 @@ class TestInputValidation:
 
     def test_chat_text_allows_common_whitespace(self):
         data = {
-            "type": "chat",
+            "t": WireClientMessageType.CHAT,
             "text": "hello\tworld\nfoo",
         }
         msg = parse_client_message(data)
@@ -422,7 +431,7 @@ class TestInputValidation:
 
     def test_chat_text_valid(self):
         data = {
-            "type": "chat",
+            "t": WireClientMessageType.CHAT,
             "text": "hello world!",
         }
         msg = parse_client_message(data)

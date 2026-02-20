@@ -1,4 +1,4 @@
-from game.logic.enums import MeldViewType
+from game.logic.enums import MeldViewType, WireCallType, WireMeldCallType, WirePlayerAction, WireRoundResultType
 from game.logic.events import (
     BroadcastTarget,
     DiscardEvent,
@@ -17,6 +17,7 @@ from game.logic.types import (
     RonResult,
     TsumoResult,
 )
+from game.messaging.compact import decode_discard, decode_draw
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
     service_event_payload,
@@ -40,7 +41,8 @@ class TestEventTypeIntExhaustiveness:
 class TestServiceEventPayload:
     """Tests for centralized event payload shaping."""
 
-    def test_broadcast_event_payload(self):
+    def test_discard_produces_packed_integer(self):
+        """Discard event produces {"t": 2, "d": <packed_int>}."""
         event = ServiceEvent(
             event=EventType.DISCARD,
             data=DiscardEvent(seat=0, tile_id=10, is_riichi=True),
@@ -49,14 +51,15 @@ class TestServiceEventPayload:
         payload = service_event_payload(event)
 
         assert payload["t"] == EVENT_TYPE_INT[EventType.DISCARD]
-        assert payload["seat"] == 0
-        assert payload["tile_id"] == 10
-        assert "is_tsumogiri" not in payload
-        assert payload["is_riichi"] is True
-        # internal fields excluded
-        assert "target" not in payload or payload.get("target") is None
+        assert set(payload.keys()) == {"t", "d"}
+        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
+        assert seat == 0
+        assert tile_id == 10
+        assert is_tsumogiri is False
+        assert is_riichi is True
 
-    def test_seat_target_event_payload(self):
+    def test_draw_produces_packed_integer(self):
+        """Draw event produces {"t": 1, "d": <packed_int>}."""
         event = ServiceEvent(
             event=EventType.DRAW,
             data=DrawEvent(seat=1, tile_id=42, target="seat_1"),
@@ -65,12 +68,13 @@ class TestServiceEventPayload:
         payload = service_event_payload(event)
 
         assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
-        assert payload["seat"] == 1
-        assert payload["tile_id"] == 42
-        assert "available_actions" not in payload
+        assert set(payload.keys()) == {"t", "d"}
+        seat, tile_id = decode_draw(payload["d"])
+        assert seat == 1
+        assert tile_id == 42
 
     def test_draw_with_available_actions_included(self):
-        """Non-empty available_actions are included in draw wire payloads."""
+        """Non-empty available_actions are included as 'aa' with compact keys."""
         event = ServiceEvent(
             event=EventType.DRAW,
             data=DrawEvent(
@@ -83,23 +87,29 @@ class TestServiceEventPayload:
         )
         payload = service_event_payload(event)
 
-        assert len(payload["available_actions"]) == 1
+        assert "aa" in payload
+        assert len(payload["aa"]) == 1
+        assert payload["aa"][0] == {"a": WirePlayerAction.DISCARD, "tl": [10]}
 
-    def test_discard_false_flags_omitted(self):
-        """False boolean flags are omitted from discard wire payloads."""
+    def test_draw_available_action_none_tiles_excluded(self):
+        """Available action with tiles=None omits the tiles field."""
         event = ServiceEvent(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10),
-            target=BroadcastTarget(),
+            event=EventType.DRAW,
+            data=DrawEvent(
+                seat=0,
+                tile_id=10,
+                target="seat_0",
+                available_actions=[AvailableActionItem(action="tsumo")],
+            ),
+            target=SeatTarget(seat=0),
         )
         payload = service_event_payload(event)
 
-        assert "is_tsumogiri" not in payload
-        assert "is_riichi" not in payload
-        assert set(payload.keys()) == {"t", "seat", "tile_id"}
+        assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
+        assert "tl" not in payload["aa"][0]
 
-    def test_discard_true_flags_included(self):
-        """True boolean flags are included in discard wire payloads."""
+    def test_discard_all_flags(self):
+        """Discard with both tsumogiri and riichi encodes correctly."""
         event = ServiceEvent(
             event=EventType.DISCARD,
             data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=True, is_riichi=True),
@@ -107,109 +117,120 @@ class TestServiceEventPayload:
         )
         payload = service_event_payload(event)
 
-        assert payload["is_tsumogiri"] is True
-        assert payload["is_riichi"] is True
+        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
+        assert seat == 0
+        assert tile_id == 10
+        assert is_tsumogiri is True
+        assert is_riichi is True
+
+    def test_discard_no_flags(self):
+        """Discard with no flags encodes correctly."""
+        event = ServiceEvent(
+            event=EventType.DISCARD,
+            data=DiscardEvent(seat=2, tile_id=50),
+            target=BroadcastTarget(),
+        )
+        payload = service_event_payload(event)
+
+        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
+        assert seat == 2
+        assert tile_id == 50
+        assert is_tsumogiri is False
+        assert is_riichi is False
 
 
 class TestShapeCallPromptPayload:
-    """Tests for call prompt wire payload shaping."""
+    """Tests for call prompt wire payload shaping with compact keys."""
 
     def test_ron_prompt_drops_callers_keeps_caller_seat(self):
         payload = {
-            "type": "call_prompt",
-            "call_type": "ron",
-            "tile_id": 42,
-            "from_seat": 1,
-            "callers": [0],
+            "clt": WireCallType.RON,
+            "ti": 42,
+            "frs": 1,
+            "clr": [0],
         }
         result = shape_call_prompt_payload(payload)
 
-        assert "callers" not in result
+        assert "clr" not in result
         assert result == {
-            "type": "call_prompt",
-            "call_type": "ron",
-            "tile_id": 42,
-            "from_seat": 1,
-            "caller_seat": 0,
+            "clt": WireCallType.RON,
+            "ti": 42,
+            "frs": 1,
+            "cs": 0,
         }
 
     def test_chankan_prompt_drops_callers_keeps_caller_seat(self):
         payload = {
-            "type": "call_prompt",
-            "call_type": "chankan",
-            "tile_id": 42,
-            "from_seat": 1,
-            "callers": [3],
+            "clt": WireCallType.CHANKAN,
+            "ti": 42,
+            "frs": 1,
+            "clr": [3],
         }
         result = shape_call_prompt_payload(payload)
 
-        assert "callers" not in result
-        assert result["caller_seat"] == 3
+        assert "clr" not in result
+        assert result["cs"] == 3
 
     def test_meld_prompt_replaces_callers_with_available_calls(self):
         payload = {
-            "type": "call_prompt",
-            "call_type": "meld",
-            "tile_id": 42,
-            "from_seat": 1,
-            "callers": [
-                {"seat": 0, "call_type": "pon", "options": None},
+            "clt": WireCallType.MELD,
+            "ti": 42,
+            "frs": 1,
+            "clr": [
+                {"s": 0, "clt": WireMeldCallType.PON, "opt": None},
             ],
         }
         result = shape_call_prompt_payload(payload)
 
-        assert "callers" not in result
-        assert result["caller_seat"] == 0
-        assert result["available_calls"] == [{"call_type": "pon"}]
+        assert "clr" not in result
+        assert result["cs"] == 0
+        assert result["ac"] == [{"clt": WireMeldCallType.PON}]
 
     def test_meld_prompt_preserves_chi_options(self):
         payload = {
-            "type": "call_prompt",
-            "call_type": "meld",
-            "tile_id": 42,
-            "from_seat": 1,
-            "callers": [
-                {"seat": 0, "call_type": "chi", "options": [[40, 44]]},
+            "clt": WireCallType.MELD,
+            "ti": 42,
+            "frs": 1,
+            "clr": [
+                {"s": 0, "clt": WireMeldCallType.CHI, "opt": [[40, 44]]},
             ],
         }
         result = shape_call_prompt_payload(payload)
 
-        assert result["caller_seat"] == 0
-        assert result["available_calls"] == [
-            {"call_type": "chi", "options": [[40, 44]]},
+        assert result["cs"] == 0
+        assert result["ac"] == [
+            {"clt": WireMeldCallType.CHI, "opt": [[40, 44]]},
         ]
 
     def test_unknown_call_type_returns_payload_unchanged(self):
         payload = {
-            "type": "call_prompt",
-            "call_type": "unknown",
-            "tile_id": 42,
-            "from_seat": 1,
-            "callers": [0],
+            "clt": 99,
+            "ti": 42,
+            "frs": 1,
+            "clr": [0],
         }
         result = shape_call_prompt_payload(payload)
 
         assert result == payload
-        assert result["callers"] == [0]
+        assert result["clr"] == [0]
 
     def test_meld_prompt_multiple_call_types(self):
         payload = {
-            "type": "call_prompt",
-            "call_type": "meld",
-            "tile_id": 55,
-            "from_seat": 3,
-            "callers": [
-                {"seat": 0, "call_type": "pon", "options": None},
-                {"seat": 0, "call_type": "chi", "options": [[57, 63]]},
+            "clt": WireCallType.MELD,
+            "ti": 55,
+            "frs": 3,
+            "clr": [
+                {"s": 0, "clt": WireMeldCallType.PON, "opt": None},
+                {"s": 0, "clt": WireMeldCallType.CHI, "opt": [[57, 63]]},
             ],
         }
         result = shape_call_prompt_payload(payload)
 
-        assert "callers" not in result
-        assert result["caller_seat"] == 0
-        assert result["available_calls"] == [
-            {"call_type": "pon"},
-            {"call_type": "chi", "options": [[57, 63]]},
+        assert "clr" not in result
+        assert result["cs"] == 0
+        assert result["ac"] == [
+            {"clt": WireMeldCallType.PON},
+            {"clt": WireMeldCallType.CHI, "opt": [[57, 63]]},
         ]
 
 
@@ -235,7 +256,6 @@ class TestMeldEventPayload:
         assert "m" in payload
         assert set(payload.keys()) == {"t", "m"}
 
-        # Round-trip: decode the IMME value and verify fields
         decoded = decode_meld_compact(payload["m"])
         assert decoded["meld_type"] == "added_kan"
         assert decoded["caller_seat"] == 0
@@ -248,8 +268,8 @@ _HAND_RESULT = HandResultInfo(han=1, fu=30, yaku=[])
 _SCORES = {0: 25000, 1: 25000, 2: 25000, 3: 25000}
 
 
-class TestRoundEndWinFieldStripping:
-    """Tests that pao_seat and ura_dora_indicators are omitted when None."""
+class TestRoundEndPayload:
+    """Tests for round_end flattening with compact keys and exclude_none."""
 
     def test_tsumo_none_fields_omitted(self):
         """Tsumo result omits pao_seat and ura_dora_indicators when None."""
@@ -273,9 +293,11 @@ class TestRoundEndWinFieldStripping:
         payload = service_event_payload(event)
 
         assert "result" not in payload
-        assert payload["result_type"] == "tsumo"
-        assert "pao_seat" not in payload
-        assert "ura_dora_indicators" not in payload
+        assert payload["rt"] == WireRoundResultType.TSUMO
+        assert "ps" not in payload
+        assert "ud" not in payload
+        assert payload["ws"] == 0
+        assert payload["wt"] == 1
 
     def test_tsumo_present_fields_kept(self):
         """Tsumo result keeps pao_seat and ura_dora_indicators when set."""
@@ -300,8 +322,8 @@ class TestRoundEndWinFieldStripping:
         )
         payload = service_event_payload(event)
 
-        assert payload["pao_seat"] == 2
-        assert payload["ura_dora_indicators"] == [10]
+        assert payload["ps"] == 2
+        assert payload["ud"] == [10]
 
     def test_ron_none_fields_omitted(self):
         """Ron result omits pao_seat and ura_dora_indicators when None."""
@@ -325,8 +347,9 @@ class TestRoundEndWinFieldStripping:
         )
         payload = service_event_payload(event)
 
-        assert "pao_seat" not in payload
-        assert "ura_dora_indicators" not in payload
+        assert "ps" not in payload
+        assert "ud" not in payload
+        assert payload["rt"] == WireRoundResultType.RON
 
     def test_double_ron_none_fields_omitted(self):
         """Double ron winners omit pao_seat and ura_dora_indicators when None."""
@@ -361,6 +384,7 @@ class TestRoundEndWinFieldStripping:
         )
         payload = service_event_payload(event)
 
-        for winner in payload["winners"]:
-            assert "pao_seat" not in winner
-            assert "ura_dora_indicators" not in winner
+        assert payload["rt"] == WireRoundResultType.DOUBLE_RON
+        for winner in payload["wn"]:
+            assert "ps" not in winner
+            assert "ud" not in winner

@@ -31,3 +31,4 @@ thoughts
 bin/run-bots-games.sh
 Makefile.bots
 data/*
+backend/data/*

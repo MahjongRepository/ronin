@@ -232,7 +232,7 @@ function handleReconnected(message: Record<string, unknown>): void {
         type: LOG_TYPE_SYSTEM,
     });
     appendLog({
-        raw: `Reconnected to game at seat ${message.seat}`,
+        raw: `Reconnected to game at seat ${message.s}`,
         timestamp: new Date().toLocaleTimeString(),
         type: LOG_TYPE_SYSTEM,
     });

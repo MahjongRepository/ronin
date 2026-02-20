@@ -55,6 +55,7 @@ from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.rng import generate_seed
 from game.logic.round_advance import RoundAdvanceManager
 from game.logic.service import GameService
+from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
     MahjongGameState,
     MahjongPlayer,
@@ -159,7 +160,7 @@ class MahjongGameService(GameService):
             return self._create_error_event(GameErrorCode.INVALID_ACTION, str(e))
         self._games[game_id] = frozen_game
 
-        self._furiten_state[game_id] = dict.fromkeys(range(4), False)
+        self._furiten_state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
 
         ai_players: dict[int, AIPlayer] = {}
         for seat, config in enumerate(seat_configs):
@@ -223,17 +224,20 @@ class MahjongGameService(GameService):
 
     def _create_round_started_events(self, game_state: MahjongGameState) -> list[ServiceEvent]:
         """Create round_started events for all players."""
-        return [
-            ServiceEvent(
-                event=EventType.ROUND_STARTED,
-                data=RoundStartedEvent(
-                    **get_player_view(game_state, seat).model_dump(),
-                    target=f"seat_{seat}",
+        events = []
+        for seat in range(NUM_PLAYERS):
+            view = get_player_view(game_state, seat)
+            # Copy raw attribute values instead of using model_dump() to avoid
+            # double-application of WireScore serializers on PlayerView.score.
+            view_fields = {name: getattr(view, name) for name in view.model_fields}
+            events.append(
+                ServiceEvent(
+                    event=EventType.ROUND_STARTED,
+                    data=RoundStartedEvent(**view_fields, target=f"seat_{seat}"),
+                    target=SeatTarget(seat=seat),
                 ),
-                target=SeatTarget(seat=seat),
             )
-            for seat in range(4)
-        ]
+        return events
 
     async def handle_action(
         self,
@@ -807,7 +811,7 @@ class MahjongGameService(GameService):
         if game_state is None:
             return events
         if game_state.round_state.phase == RoundPhase.PLAYING:
-            events.extend(self._check_furiten_changes(game_id, list(range(4))))
+            events.extend(self._check_furiten_changes(game_id, list(range(NUM_PLAYERS))))
         return events
 
     def _check_furiten_changes(self, game_id: str, seats: list[int]) -> list[ServiceEvent]:
@@ -1020,7 +1024,7 @@ class MahjongGameService(GameService):
         frozen_game = init_round(frozen_game)
         self._games[game_id] = frozen_game
 
-        self._furiten_state[game_id] = dict.fromkeys(range(4), False)
+        self._furiten_state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
 
         ai_player_controller = self._ai_player_controllers[game_id]
 

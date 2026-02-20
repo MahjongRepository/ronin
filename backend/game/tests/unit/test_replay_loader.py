@@ -8,13 +8,14 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, WireRoundResultType
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION
+from game.messaging.compact import encode_discard
 from game.messaging.event_payload import EVENT_TYPE_INT
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
-    _MAX_REPLAY_LINES,
+    _MAX_REPLAY_EVENTS,
     ReplayLoadError,
     load_replay_from_file,
     load_replay_from_string,
@@ -30,15 +31,15 @@ VERSION_TAG_LINE = json.dumps({"version": REPLAY_VERSION})
 GAME_STARTED_LINE = json.dumps(
     {
         "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-        "game_id": "test-game",
-        "players": [
-            {"seat": 0, "name": "Alice", "is_ai_player": False},
-            {"seat": 1, "name": "Bob", "is_ai_player": False},
-            {"seat": 2, "name": "Charlie", "is_ai_player": False},
-            {"seat": 3, "name": "Diana", "is_ai_player": False},
+        "gid": "test-game",
+        "p": [
+            {"s": 0, "nm": "Alice", "ai": 0},
+            {"s": 1, "nm": "Bob", "ai": 0},
+            {"s": 2, "nm": "Charlie", "ai": 0},
+            {"s": 3, "nm": "Diana", "ai": 0},
         ],
-        "seed": _TEST_SEED,
-        "rng_version": RNG_VERSION,
+        "sd": _TEST_SEED,
+        "rv": RNG_VERSION,
     },
 )
 
@@ -66,8 +67,8 @@ def _compact_meld(
 
 
 def _build_event_log(*extra_lines: str) -> str:
-    """Build an event-log string with version tag, game_started header, and extra lines."""
-    return "\n".join([VERSION_TAG_LINE, GAME_STARTED_LINE, *extra_lines])
+    """Build an event-log string as concatenated JSON objects."""
+    return "".join([VERSION_TAG_LINE, GAME_STARTED_LINE, *extra_lines])
 
 
 def test_parse_single_discard():
@@ -75,8 +76,7 @@ def test_parse_single_discard():
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
-            "seat": 0,
-            "tile_id": 118,
+            "d": encode_discard(0, 118, is_tsumogiri=False, is_riichi=False),
         },
     )
     content = _build_event_log(ROUND_STARTED_LINE, DRAW_LINE, discard)
@@ -96,9 +96,7 @@ def test_discard_with_riichi_maps_to_declare_riichi():
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
-            "seat": 1,
-            "tile_id": 50,
-            "is_riichi": True,
+            "d": encode_discard(1, 50, is_tsumogiri=False, is_riichi=True),
         },
     )
     content = _build_event_log(discard)
@@ -176,9 +174,9 @@ def test_round_end_tsumo():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "tsumo",
-            "winner_seat": 2,
-            "score_changes": {},
+            "rt": WireRoundResultType.TSUMO,
+            "ws": 2,
+            "sch": {},
         },
     )
     content = _build_event_log(round_end)
@@ -194,9 +192,9 @@ def test_round_end_ron():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "ron",
-            "winner_seat": 1,
-            "loser_seat": 0,
+            "rt": WireRoundResultType.RON,
+            "ws": 1,
+            "ls": 0,
         },
     )
     content = _build_event_log(round_end)
@@ -212,11 +210,11 @@ def test_round_end_double_ron():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "double_ron",
-            "loser_seat": 0,
-            "winners": [
-                {"winner_seat": 3},
-                {"winner_seat": 1},
+            "rt": WireRoundResultType.DOUBLE_RON,
+            "ls": 0,
+            "wn": [
+                {"ws": 3},
+                {"ws": 1},
             ],
         },
     )
@@ -235,9 +233,9 @@ def test_round_end_abortive_nine_terminals():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "abortive_draw",
-            "reason": "nine_terminals",
-            "seat": 0,
+            "rt": WireRoundResultType.ABORTIVE_DRAW,
+            "rn": "nine_terminals",
+            "s": 0,
         },
     )
     content = _build_event_log(round_end)
@@ -253,8 +251,8 @@ def test_round_end_abortive_other_skipped():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "abortive_draw",
-            "reason": "four_riichi",
+            "rt": WireRoundResultType.ABORTIVE_DRAW,
+            "rn": "four_riichi",
         },
     )
     content = _build_event_log(round_end)
@@ -268,9 +266,9 @@ def test_round_end_exhaustive_draw_skipped():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "exhaustive_draw",
-            "tempai_seats": [],
-            "noten_seats": [],
+            "rt": WireRoundResultType.EXHAUSTIVE_DRAW,
+            "ts": [],
+            "ns": [],
         },
     )
     content = _build_event_log(round_end)
@@ -294,7 +292,7 @@ def test_non_action_events_skipped():
 
 
 def test_error_missing_version_tag():
-    """ReplayLoadError when first line is not a version tag."""
+    """ReplayLoadError when replay has only one event (no version tag + game_started pair)."""
     content = GAME_STARTED_LINE
     with pytest.raises(ReplayLoadError, match="must contain at least a version tag"):
         load_replay_from_string(content)
@@ -303,50 +301,51 @@ def test_error_missing_version_tag():
 def test_error_version_mismatch():
     """ReplayLoadError when version tag has wrong version."""
     bad_version = json.dumps({"version": "99.0"})
-    content = f"{bad_version}\n{GAME_STARTED_LINE}"
+    content = f"{bad_version}{GAME_STARTED_LINE}"
     with pytest.raises(ReplayLoadError, match="Replay version mismatch"):
         load_replay_from_string(content)
 
 
 def test_error_missing_version_field():
-    """ReplayLoadError when first line has no 'version' field."""
+    """ReplayLoadError when first event has no 'version' field."""
     no_version = json.dumps({"something": "else"})
-    content = f"{no_version}\n{GAME_STARTED_LINE}"
+    content = f"{no_version}{GAME_STARTED_LINE}"
     with pytest.raises(ReplayLoadError, match="must be a version tag"):
         load_replay_from_string(content)
 
 
 def test_error_missing_game_started():
     """ReplayLoadError when second event is not game_started."""
-    content = "\n".join([VERSION_TAG_LINE, json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_STARTED], "view": {}})])
+    round_started = json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_STARTED], "view": {}})
+    content = f"{VERSION_TAG_LINE}{round_started}"
     with pytest.raises(ReplayLoadError, match="First event must be game_started"):
         load_replay_from_string(content)
 
 
 def test_error_malformed_json():
     """ReplayLoadError for malformed JSON."""
-    content = VERSION_TAG_LINE + "\n" + GAME_STARTED_LINE + "\n{invalid json}"
-    with pytest.raises(ReplayLoadError, match="Malformed JSON on line 3"):
+    content = VERSION_TAG_LINE + "{invalid json}"
+    with pytest.raises(ReplayLoadError, match="Malformed JSON"):
         load_replay_from_string(content)
 
 
 def test_error_missing_rng_version():
-    """ReplayLoadError when game_started missing rng_version."""
+    """ReplayLoadError when game_started missing rv."""
     no_version = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "players": [
-                {"seat": 0, "name": "A", "is_ai_player": False},
-                {"seat": 1, "name": "B", "is_ai_player": False},
-                {"seat": 2, "name": "C", "is_ai_player": False},
-                {"seat": 3, "name": "D", "is_ai_player": False},
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "p": [
+                {"s": 0, "nm": "A", "ai": 0},
+                {"s": 1, "nm": "B", "ai": 0},
+                {"s": 2, "nm": "C", "ai": 0},
+                {"s": 3, "nm": "D", "ai": 0},
             ],
         },
     )
-    with pytest.raises(ReplayLoadError, match="missing 'rng_version' field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_version}")
+    with pytest.raises(ReplayLoadError, match="missing 'rv' field"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}{no_version}")
 
 
 def test_error_rng_version_mismatch():
@@ -354,37 +353,37 @@ def test_error_rng_version_mismatch():
     bad_version = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": "old-version-v0",
-            "players": [
-                {"seat": 0, "name": "A", "is_ai_player": False},
-                {"seat": 1, "name": "B", "is_ai_player": False},
-                {"seat": 2, "name": "C", "is_ai_player": False},
-                {"seat": 3, "name": "D", "is_ai_player": False},
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": "old-version-v0",
+            "p": [
+                {"s": 0, "nm": "A", "ai": 0},
+                {"s": 1, "nm": "B", "ai": 0},
+                {"s": 2, "nm": "C", "ai": 0},
+                {"s": 3, "nm": "D", "ai": 0},
             ],
         },
     )
     with pytest.raises(ReplayLoadError, match="RNG version mismatch"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_version}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_version}")
 
 
 def test_error_missing_seed():
-    """ReplayLoadError when game_started missing seed."""
+    """ReplayLoadError when game_started missing sd."""
     no_seed = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "players": [
-                {"seat": 0, "name": "A"},
-                {"seat": 1, "name": "B"},
-                {"seat": 2, "name": "C"},
-                {"seat": 3, "name": "D"},
+            "gid": "test",
+            "p": [
+                {"s": 0, "nm": "A"},
+                {"s": 1, "nm": "B"},
+                {"s": 2, "nm": "C"},
+                {"s": 3, "nm": "D"},
             ],
         },
     )
-    with pytest.raises(ReplayLoadError, match="missing 'seed' field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_seed}")
+    with pytest.raises(ReplayLoadError, match="missing 'sd' field"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}{no_seed}")
 
 
 def test_error_non_hex_seed():
@@ -392,19 +391,19 @@ def test_error_non_hex_seed():
     bad_seed = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": "not-hex-seed" + "0" * 180,
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"seat": 0, "name": "A", "is_ai_player": False},
-                {"seat": 1, "name": "B", "is_ai_player": False},
-                {"seat": 2, "name": "C", "is_ai_player": False},
-                {"seat": 3, "name": "D", "is_ai_player": False},
+            "gid": "test",
+            "sd": "not-hex-seed" + "0" * 180,
+            "rv": RNG_VERSION,
+            "p": [
+                {"s": 0, "nm": "A", "ai": 0},
+                {"s": 1, "nm": "B", "ai": 0},
+                {"s": 2, "nm": "C", "ai": 0},
+                {"s": 3, "nm": "D", "ai": 0},
             ],
         },
     )
     with pytest.raises(ReplayLoadError, match="invalid seed"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_seed}")
 
 
 def test_error_unknown_event_type():
@@ -432,8 +431,7 @@ def test_load_replay_from_file(tmp_path: Path):
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
-            "seat": 0,
-            "tile_id": 118,
+            "d": encode_discard(0, 118, is_tsumogiri=False, is_riichi=False),
         },
     )
     content = _build_event_log(discard)
@@ -452,17 +450,17 @@ def test_load_replay_from_file_io_error():
 
 
 def test_error_missing_players():
-    """ReplayLoadError when game_started missing players."""
+    """ReplayLoadError when game_started missing p."""
     no_players = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": RNG_VERSION,
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": RNG_VERSION,
         },
     )
-    with pytest.raises(ReplayLoadError, match="missing 'players' field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_players}")
+    with pytest.raises(ReplayLoadError, match="missing 'p' field"):
+        load_replay_from_string(f"{VERSION_TAG_LINE}{no_players}")
 
 
 def test_error_unknown_round_end_result_type():
@@ -470,7 +468,7 @@ def test_error_unknown_round_end_result_type():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "unknown_result",
+            "rt": 99,
         },
     )
     content = _build_event_log(round_end)
@@ -478,19 +476,32 @@ def test_error_unknown_round_end_result_type():
         load_replay_from_string(content)
 
 
-def test_error_discard_missing_seat():
-    """ReplayLoadError when discard event missing 'seat' field."""
-    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "tile_id": 10})
+def test_error_discard_missing_d_field():
+    """ReplayLoadError when discard event missing 'd' field."""
+    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD]})
     content = _build_event_log(discard)
-    with pytest.raises(ReplayLoadError, match="discard event missing required field"):
+    with pytest.raises(ReplayLoadError, match="discard event missing 'd' field"):
         load_replay_from_string(content)
 
 
-def test_error_discard_missing_tile_id():
-    """ReplayLoadError when discard event missing 'tile_id' field."""
-    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "seat": 0})
+def test_error_discard_invalid_packed_value():
+    """ReplayLoadError when discard event has out-of-range packed value."""
+    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": 9999})
     content = _build_event_log(discard)
-    with pytest.raises(ReplayLoadError, match="discard event missing required field"):
+    with pytest.raises(ReplayLoadError, match="Invalid discard packed value"):
+        load_replay_from_string(content)
+
+
+def test_error_discard_unknown_seat(monkeypatch: pytest.MonkeyPatch):
+    """ReplayLoadError when decoded discard references a seat not in game_started."""
+    monkeypatch.setattr(
+        replay_loader_module,
+        "decode_discard",
+        lambda _d: (9, 0, False, False),
+    )
+    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": 0})
+    content = _build_event_log(discard)
+    with pytest.raises(ReplayLoadError, match="discard event references unknown seat"):
         load_replay_from_string(content)
 
 
@@ -549,27 +560,27 @@ def test_error_invalid_seat_indices():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"seat": 0, "name": "A"},
-                {"seat": 1, "name": "B"},
-                {"seat": 2, "name": "C"},
-                {"seat": 5, "name": "D"},
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": RNG_VERSION,
+            "p": [
+                {"s": 0, "nm": "A"},
+                {"s": 1, "nm": "B"},
+                {"s": 2, "nm": "C"},
+                {"s": 5, "nm": "D"},
             ],
         },
     )
     with pytest.raises(ReplayLoadError, match="must have exactly seats"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
 
 
 def test_error_round_end_tsumo_missing_winner_seat():
-    """ReplayLoadError when tsumo round_end missing winner_seat."""
+    """ReplayLoadError when tsumo round_end missing ws."""
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "tsumo",
+            "rt": WireRoundResultType.TSUMO,
         },
     )
     content = _build_event_log(round_end)
@@ -578,11 +589,11 @@ def test_error_round_end_tsumo_missing_winner_seat():
 
 
 def test_error_ron_round_end_missing_winner_seat():
-    """ReplayLoadError when ron round_end missing winner_seat."""
+    """ReplayLoadError when ron round_end missing ws."""
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "ron",
+            "rt": WireRoundResultType.RON,
         },
     )
     content = _build_event_log(round_end)
@@ -595,8 +606,8 @@ def test_error_double_ron_empty_winners():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "double_ron",
-            "winners": [],
+            "rt": WireRoundResultType.DOUBLE_RON,
+            "wn": [],
         },
     )
     content = _build_event_log(round_end)
@@ -605,11 +616,11 @@ def test_error_double_ron_empty_winners():
 
 
 def test_error_double_ron_missing_winners():
-    """ReplayLoadError when double_ron round_end has no winners field."""
+    """ReplayLoadError when double_ron round_end has no wn field."""
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "double_ron",
+            "rt": WireRoundResultType.DOUBLE_RON,
         },
     )
     content = _build_event_log(round_end)
@@ -618,12 +629,12 @@ def test_error_double_ron_missing_winners():
 
 
 def test_error_double_ron_winner_missing_seat():
-    """ReplayLoadError when double_ron winner entry missing winner_seat."""
+    """ReplayLoadError when double_ron winner entry missing ws."""
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "double_ron",
-            "winners": [{"some_field": 1}],
+            "rt": WireRoundResultType.DOUBLE_RON,
+            "wn": [{"some_field": 1}],
         },
     )
     content = _build_event_log(round_end)
@@ -632,12 +643,12 @@ def test_error_double_ron_winner_missing_seat():
 
 
 def test_error_abortive_draw_nine_terminals_missing_seat():
-    """ReplayLoadError when nine_terminals abortive_draw missing seat."""
+    """ReplayLoadError when nine_terminals abortive_draw missing s."""
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "abortive_draw",
-            "reason": "nine_terminals",
+            "rt": WireRoundResultType.ABORTIVE_DRAW,
+            "rn": "nine_terminals",
         },
     )
     content = _build_event_log(round_end)
@@ -650,7 +661,7 @@ def test_round_end_nagashi_mangan_skipped():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "result_type": "nagashi_mangan",
+            "rt": WireRoundResultType.NAGASHI_MANGAN,
         },
     )
     content = _build_event_log(round_end)
@@ -658,21 +669,29 @@ def test_round_end_nagashi_mangan_skipped():
     assert len(replay.events) == 0
 
 
-def test_error_discard_unknown_seat():
-    """ReplayLoadError when discard event references a seat not in game_started players."""
-    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "seat": 5, "tile_id": 10})
+def test_error_discard_negative_packed_value():
+    """ReplayLoadError when discard event has a negative packed value."""
+    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": -1})
     content = _build_event_log(discard)
-    with pytest.raises(ReplayLoadError, match="discard event references unknown seat"):
+    with pytest.raises(ReplayLoadError, match="Invalid discard packed value"):
         load_replay_from_string(content)
 
 
-def test_error_exceeds_max_replay_lines():
-    """ReplayLoadError when replay content exceeds the maximum line count."""
-    lines = [VERSION_TAG_LINE, GAME_STARTED_LINE]
+def test_error_discard_boolean_packed_value():
+    """ReplayLoadError when discard event has a boolean packed value."""
+    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": True})
+    content = _build_event_log(discard)
+    with pytest.raises(ReplayLoadError, match="Invalid discard packed value"):
+        load_replay_from_string(content)
+
+
+def test_error_exceeds_max_replay_events():
+    """ReplayLoadError when replay content exceeds the maximum event count."""
+    events = [VERSION_TAG_LINE, GAME_STARTED_LINE]
     filler = json.dumps({"t": EVENT_TYPE_INT[EventType.DRAW], "seat": 0, "tile_id": 0})
-    lines.extend([filler] * _MAX_REPLAY_LINES)
-    content = "\n".join(lines)
-    with pytest.raises(ReplayLoadError, match="maximum line count"):
+    events.extend([filler] * _MAX_REPLAY_EVENTS)
+    content = "".join(events)
+    with pytest.raises(ReplayLoadError, match="maximum event count"):
         load_replay_from_string(content)
 
 
@@ -681,34 +700,34 @@ def test_error_player_entry_not_dict():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": RNG_VERSION,
-            "players": ["Alice", "Bob", "Charlie", "Diana"],
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": RNG_VERSION,
+            "p": ["Alice", "Bob", "Charlie", "Diana"],
         },
     )
     with pytest.raises(ReplayLoadError, match="player entry 0 is not a dict"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
 
 
 def test_error_player_entry_missing_seat():
-    """ReplayLoadError when a game_started player entry is missing 'seat'."""
+    """ReplayLoadError when a game_started player entry is missing 's'."""
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"name": "A"},
-                {"seat": 1, "name": "B"},
-                {"seat": 2, "name": "C"},
-                {"seat": 3, "name": "D"},
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": RNG_VERSION,
+            "p": [
+                {"nm": "A"},
+                {"s": 1, "nm": "B"},
+                {"s": 2, "nm": "C"},
+                {"s": 3, "nm": "D"},
             ],
         },
     )
     with pytest.raises(ReplayLoadError, match="player entry 0 missing required field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
 
 
 def test_error_player_entry_non_integer_seat():
@@ -716,19 +735,19 @@ def test_error_player_entry_non_integer_seat():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"seat": "zero", "name": "A"},
-                {"seat": 1, "name": "B"},
-                {"seat": 2, "name": "C"},
-                {"seat": 3, "name": "D"},
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": RNG_VERSION,
+            "p": [
+                {"s": "zero", "nm": "A"},
+                {"s": 1, "nm": "B"},
+                {"s": 2, "nm": "C"},
+                {"s": 3, "nm": "D"},
             ],
         },
     )
     with pytest.raises(ReplayLoadError, match="non-integer seat"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
 
 
 def test_error_boolean_event_type():
@@ -750,16 +769,16 @@ def test_error_player_entry_empty_name():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-            "game_id": "test",
-            "seed": _TEST_SEED,
-            "rng_version": RNG_VERSION,
-            "players": [
-                {"seat": 0, "name": ""},
-                {"seat": 1, "name": "B"},
-                {"seat": 2, "name": "C"},
-                {"seat": 3, "name": "D"},
+            "gid": "test",
+            "sd": _TEST_SEED,
+            "rv": RNG_VERSION,
+            "p": [
+                {"s": 0, "nm": ""},
+                {"s": 1, "nm": "B"},
+                {"s": 2, "nm": "C"},
+                {"s": 3, "nm": "D"},
             ],
         },
     )
     with pytest.raises(ReplayLoadError, match="invalid name"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")

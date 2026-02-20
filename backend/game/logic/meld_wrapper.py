@@ -11,10 +11,12 @@ from typing import ClassVar, Literal
 from mahjong.meld import Meld
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from game.logic.settings import NUM_PLAYERS
+
 _MIN_MELD_TILES = 3
 _MAX_MELD_TILES = 4
 _MIN_SEAT = 0
-_MAX_SEAT = 3
+_MAX_SEAT = NUM_PLAYERS - 1
 
 MeldType = Literal["chi", "pon", "kan", "shouminkan", "chankan"]
 

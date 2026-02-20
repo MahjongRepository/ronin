@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
-.PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend run-all-checks run-games deadcode
+.PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend run-all-checks run-games deadcode generate-replays
 
 test:
 	uv run pytest -v
@@ -36,3 +36,6 @@ run-all-checks:
 
 deadcode:
 	uv run python bin/check-dead-code.py backend
+
+generate-replays:
+	PYTHONPATH=backend uv run python -m game.replay.external.tenhou

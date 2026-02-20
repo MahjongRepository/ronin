@@ -16,7 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType, WindName
+from game.logic.enums import CallType, GameErrorCode, MeldViewType
 from game.logic.types import (
     AvailableActionItem,
     GamePlayerInfo,
@@ -24,6 +24,8 @@ from game.logic.types import (
     PlayerStanding,
     PlayerView,
     RoundResult,
+    WireCallTypeField,
+    WireWindField,
 )
 
 # ---------------------------------------------------------------------------
@@ -130,10 +132,10 @@ class CallPromptEvent(GameEvent):
     """Event sent to players who can respond to a call opportunity."""
 
     type: Literal[EventType.CALL_PROMPT] = EventType.CALL_PROMPT
-    call_type: CallType
-    tile_id: int
-    from_seat: int
-    callers: list[int | MeldCaller]
+    call_type: WireCallTypeField = Field(serialization_alias="clt")
+    tile_id: int = Field(serialization_alias="ti")
+    from_seat: int = Field(serialization_alias="frs")
+    callers: list[int | MeldCaller] = Field(serialization_alias="clr")
 
 
 class RoundEndEvent(GameEvent):
@@ -147,7 +149,7 @@ class RiichiDeclaredEvent(GameEvent):
     """Event broadcast when a player declares riichi."""
 
     type: Literal[EventType.RIICHI_DECLARED] = EventType.RIICHI_DECLARED
-    seat: int
+    seat: int = Field(serialization_alias="s")
 
 
 class DoraRevealedEvent(GameEvent):
@@ -155,15 +157,15 @@ class DoraRevealedEvent(GameEvent):
 
     type: Literal[EventType.DORA_REVEALED] = EventType.DORA_REVEALED
     target: str = "all"
-    tile_id: int
+    tile_id: int = Field(serialization_alias="ti")
 
 
 class ErrorEvent(GameEvent):
     """Event sent to a player when an error occurs."""
 
     type: Literal[EventType.ERROR] = EventType.ERROR
-    code: GameErrorCode
-    message: str
+    code: GameErrorCode = Field(serialization_alias="cd")
+    message: str = Field(serialization_alias="msg")
 
 
 class GameStartedEvent(GameEvent):
@@ -171,42 +173,42 @@ class GameStartedEvent(GameEvent):
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
     target: str = "all"
-    game_id: str
-    players: list[GamePlayerInfo]
-    dealer_seat: int
-    dealer_dice: tuple[tuple[int, int], tuple[int, int]]
+    game_id: str = Field(serialization_alias="gid")
+    players: list[GamePlayerInfo] = Field(serialization_alias="p")
+    dealer_seat: int = Field(serialization_alias="dl")
+    dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
 
 
 class RoundStartedEvent(GameEvent):
     """Event sent to each player when a new round starts."""
 
     type: Literal[EventType.ROUND_STARTED] = EventType.ROUND_STARTED
-    seat: int
-    round_wind: WindName
-    round_number: int
-    dealer_seat: int
-    current_player_seat: int
-    dora_indicators: list[int]
-    honba_sticks: int
-    riichi_sticks: int
-    my_tiles: list[int]
-    players: list[PlayerView]
-    dice: tuple[int, int] = (1, 1)
+    seat: int = Field(serialization_alias="s")
+    round_wind: WireWindField = Field(serialization_alias="w")
+    round_number: int = Field(serialization_alias="n")
+    dealer_seat: int = Field(serialization_alias="dl")
+    current_player_seat: int = Field(serialization_alias="cp")
+    dora_indicators: list[int] = Field(serialization_alias="di")
+    honba_sticks: int = Field(serialization_alias="h")
+    riichi_sticks: int = Field(serialization_alias="r")
+    my_tiles: list[int] = Field(serialization_alias="mt")
+    players: list[PlayerView] = Field(serialization_alias="p")
+    dice: tuple[int, int] = Field(default=(1, 1), serialization_alias="dc")
 
 
 class GameEndedEvent(GameEvent):
     """Event sent when the entire game ends."""
 
     type: Literal[EventType.GAME_END] = EventType.GAME_END
-    winner_seat: int
-    standings: list[PlayerStanding]
+    winner_seat: int = Field(serialization_alias="ws")
+    standings: list[PlayerStanding] = Field(serialization_alias="st")
 
 
 class FuritenEvent(GameEvent):
     """Event sent to a player when their furiten state changes."""
 
     type: Literal[EventType.FURITEN] = EventType.FURITEN
-    is_furiten: bool
+    is_furiten: bool = Field(serialization_alias="f")
 
 
 Event = (

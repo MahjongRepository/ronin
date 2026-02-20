@@ -4,6 +4,8 @@ import logging
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 
+from game.logic.settings import NUM_PLAYERS
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +53,7 @@ class RoundAdvanceManager:
         Returns True if all seats are already confirmed (all AI players),
         meaning the caller should advance immediately.
         """
-        player_seats = {seat for seat in range(4) if seat not in ai_player_seats}
+        player_seats = {seat for seat in range(NUM_PLAYERS) if seat not in ai_player_seats}
         pending = PendingRoundAdvance(
             confirmed_seats=set(ai_player_seats),
             required_seats=player_seats,

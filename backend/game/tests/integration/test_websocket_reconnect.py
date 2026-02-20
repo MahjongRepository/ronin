@@ -9,7 +9,7 @@ import time
 import pytest
 from starlette.testclient import TestClient
 
-from game.logic.enums import GameAction, WindName
+from game.logic.enums import WindName, WireClientMessageType, WireGameAction
 from game.logic.events import EventType
 from game.logic.types import (
     GamePlayerInfo,
@@ -18,7 +18,7 @@ from game.logic.types import (
 )
 from game.messaging.encoder import decode, encode
 from game.messaging.event_payload import EVENT_TYPE_INT
-from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.session.models import Player, SessionData
 from game.tests.helpers.auth import make_test_game_ticket
@@ -67,14 +67,14 @@ def _join_room_and_start(ws, room_id: str, player_name: str) -> list[dict]:
     _send(
         ws,
         {
-            "type": ClientMessageType.JOIN_ROOM,
+            "t": WireClientMessageType.JOIN_ROOM,
             "room_id": room_id,
             "game_ticket": ticket,
         },
     )
     messages = [_recv(ws)]  # room_joined
 
-    _send(ws, {"type": ClientMessageType.SET_READY, "ready": True})
+    _send(ws, {"t": WireClientMessageType.SET_READY, "ready": True})
     while True:
         msg = _recv(ws)
         messages.append(msg)
@@ -152,7 +152,7 @@ class TestWebSocketReconnect:
             _send(
                 ws,
                 {
-                    "type": ClientMessageType.RECONNECT,
+                    "t": WireClientMessageType.RECONNECT,
                     "room_id": "test_game",
                     "game_ticket": ticket,
                 },
@@ -160,8 +160,8 @@ class TestWebSocketReconnect:
 
             msg = _recv(ws)
             assert msg["type"] == SessionMessageType.GAME_RECONNECTED
-            assert msg["game_id"] == "test_game"
-            assert msg["seat"] == 0
+            assert msg["gid"] == "test_game"
+            assert msg["s"] == 0
 
     def test_reconnect_invalid_ticket_over_websocket(self, client):
         """Reconnect with invalid ticket returns structured error over WebSocket."""
@@ -171,7 +171,7 @@ class TestWebSocketReconnect:
             _send(
                 ws,
                 {
-                    "type": ClientMessageType.RECONNECT,
+                    "t": WireClientMessageType.RECONNECT,
                     "room_id": "test_game",
                     "game_ticket": "invalid-ticket-string",
                 },
@@ -214,7 +214,7 @@ class TestWebSocketReconnect:
             _send(
                 ws,
                 {
-                    "type": ClientMessageType.RECONNECT,
+                    "t": WireClientMessageType.RECONNECT,
                     "room_id": "test_game",
                     "game_ticket": ticket,
                 },
@@ -237,7 +237,7 @@ class TestWebSocketReconnect:
             _send(
                 ws,
                 {
-                    "type": ClientMessageType.RECONNECT,
+                    "t": WireClientMessageType.RECONNECT,
                     "room_id": "ignored_value",
                     "game_ticket": ticket,
                 },
@@ -245,7 +245,7 @@ class TestWebSocketReconnect:
 
             msg = _recv(ws)
             assert msg["type"] == SessionMessageType.GAME_RECONNECTED
-            assert msg["game_id"] == "test_game"
+            assert msg["gid"] == "test_game"
 
     def test_reconnect_then_game_action(self, client):
         """Player reconnects and can send game actions over the same WebSocket."""
@@ -259,7 +259,7 @@ class TestWebSocketReconnect:
             _send(
                 ws,
                 {
-                    "type": ClientMessageType.RECONNECT,
+                    "t": WireClientMessageType.RECONNECT,
                     "room_id": "test_game",
                     "game_ticket": ticket,
                 },
@@ -271,9 +271,9 @@ class TestWebSocketReconnect:
             _send(
                 ws,
                 {
-                    "type": ClientMessageType.GAME_ACTION,
-                    "action": GameAction.DISCARD,
-                    "tile_id": 0,
+                    "t": WireClientMessageType.GAME_ACTION,
+                    "a": WireGameAction.DISCARD,
+                    "ti": 0,
                 },
             )
 

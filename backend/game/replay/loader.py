@@ -1,7 +1,7 @@
 """Replay loader: parse ReplayCollector event-log format into ReplayInput.
 
-The ReplayCollector writes gameplay events as JSON Lines (one JSON object per
-line). This module reads that format, extracts player actions from the event
+The ReplayCollector writes gameplay events as concatenated JSON objects on a single line.
+This module reads that format, extracts player actions from the event
 stream, and constructs a validated ReplayInput for the replay runner.
 
 Event types that represent player actions are mapped via an explicit allowlist.
@@ -15,18 +15,20 @@ import json
 from pathlib import Path
 from typing import Any
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, WireRoundResultType
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION, create_seat_rng, validate_seed_hex
+from game.logic.settings import NUM_PLAYERS
+from game.messaging.compact import decode_discard
 from game.messaging.event_payload import EVENT_TYPE_INT
-from game.replay.models import REPLAY_VERSION, REQUIRED_PLAYER_COUNT, ReplayInput, ReplayInputEvent
+from game.replay.models import REPLAY_VERSION, ReplayInput, ReplayInputEvent
 from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.
 _MIN_EVENT_COUNT = 2
 
 # Safety limit to prevent memory exhaustion from maliciously large replay files.
-_MAX_REPLAY_LINES = 100_000
+_MAX_REPLAY_EVENTS = 100_000
 
 # Event types that do not represent player actions (skipped silently).
 _NON_ACTION_EVENTS = frozenset(
@@ -66,14 +68,14 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
     if first.get("t") != EVENT_TYPE_INT[EventType.GAME_STARTED]:
         raise ReplayLoadError(f"First event must be game_started, got: {first.get('t')}")
 
-    seed = first.get("seed")
+    seed = first.get("sd")
     if seed is None:
-        raise ReplayLoadError("game_started event missing 'seed' field")
+        raise ReplayLoadError("game_started event missing 'sd' field")
 
-    rng_version = first.get("rng_version")
+    rng_version = first.get("rv")
     if rng_version is None:
         raise ReplayLoadError(
-            "game_started event missing 'rng_version' field (old replay format not supported)",
+            "game_started event missing 'rv' field (old replay format not supported)",
         )
     if rng_version != RNG_VERSION:
         raise ReplayLoadError(f"Replay RNG version mismatch: expected {RNG_VERSION}, got {rng_version}")
@@ -83,27 +85,26 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
     except (ValueError, TypeError) as exc:
         raise ReplayLoadError(f"game_started event has invalid seed: {exc}") from exc
 
-    players = first.get("players")
+    players = first.get("p")
     if not players or not isinstance(players, list):
-        raise ReplayLoadError("game_started event missing 'players' field")
+        raise ReplayLoadError("game_started event missing 'p' field")
 
     return seed, rng_version, players
 
 
 def load_replay_from_string(content: str) -> ReplayInput:
-    """Parse ReplayCollector event-log format (JSON Lines) into ReplayInput."""
-    lines = [line for line in content.splitlines() if line.strip()]
-    if not lines:
+    """Parse concatenated JSON objects (split on '}{') into ReplayInput."""
+    content = content.strip()
+    if not content:
         raise ReplayLoadError("Empty replay content")
-    if len(lines) > _MAX_REPLAY_LINES:
-        raise ReplayLoadError(f"Replay exceeds maximum line count ({_MAX_REPLAY_LINES})")
 
-    events: list[dict[str, Any]] = []
-    for i, line in enumerate(lines):
-        try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError as exc:
-            raise ReplayLoadError(f"Malformed JSON on line {i + 1}: {exc}") from exc
+    try:
+        events = json.loads("[" + content.replace("}{", "},{") + "]")
+    except json.JSONDecodeError as exc:
+        raise ReplayLoadError(f"Malformed JSON: {exc}") from exc
+
+    if len(events) > _MAX_REPLAY_EVENTS:
+        raise ReplayLoadError(f"Replay exceeds maximum event count ({_MAX_REPLAY_EVENTS})")
 
     if len(events) < _MIN_EVENT_COUNT:
         raise ReplayLoadError("Replay must contain at least a version tag and game_started event")
@@ -145,8 +146,8 @@ def _extract_seat_to_name(players: list[dict[str, Any]]) -> dict[int, str]:
         if not isinstance(player, dict):
             raise ReplayLoadError(f"game_started player entry {i} is not a dict")
         try:
-            seat = player["seat"]
-            name = player["name"]
+            seat = player["s"]
+            name = player["nm"]
         except KeyError as exc:
             raise ReplayLoadError(f"game_started player entry {i} missing required field: {exc}") from exc
         if not isinstance(seat, int):
@@ -169,13 +170,13 @@ def _reconstruct_input_order(
     the name ordering that, when fed back through fill_seats with the same
     seed, recreates the original seating.
     """
-    expected_seats = set(range(REQUIRED_PLAYER_COUNT))
+    expected_seats = set(range(NUM_PLAYERS))
     if set(seat_to_name.keys()) != expected_seats:
         raise ReplayLoadError(
             f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}",
         )
     rng = create_seat_rng(seed)
-    seat_order = rng.sample(range(REQUIRED_PLAYER_COUNT), REQUIRED_PLAYER_COUNT)
+    seat_order = rng.sample(range(NUM_PLAYERS), NUM_PLAYERS)
     return tuple(seat_to_name[s] for s in seat_order)  # type: ignore[return-value]
 
 
@@ -211,14 +212,14 @@ def _extract_action(
 
 
 def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
-    """Parse a discard event into a DISCARD or DECLARE_RIICHI action."""
+    """Parse a discard event from packed integer encoding."""
+    d = event.get("d")
+    if d is None:
+        raise ReplayLoadError("discard event missing 'd' field")
     try:
-        seat = event["seat"]
-        tile_id = event["tile_id"]
-    except KeyError as exc:
-        raise ReplayLoadError(f"discard event missing required field: {exc}") from exc
-    is_riichi = event.get("is_riichi", False)
-
+        seat, tile_id, _is_tsumogiri, is_riichi = decode_discard(d)
+    except (ValueError, TypeError) as exc:
+        raise ReplayLoadError(f"Invalid discard packed value: {exc}") from exc
     action = GameAction.DECLARE_RIICHI if is_riichi else GameAction.DISCARD
     try:
         player_name = seat_to_name[seat]
@@ -302,18 +303,18 @@ def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
     """Parse a round_end event into player action(s), if any."""
-    result_type = event.get("result_type")
+    result_type = event.get("rt")
 
-    if result_type == "tsumo":
+    if result_type == WireRoundResultType.TSUMO:
         return _parse_tsumo_round_end(event, seat_to_name)
-    if result_type == "ron":
+    if result_type == WireRoundResultType.RON:
         return _parse_ron_round_end(event, seat_to_name)
-    if result_type == "double_ron":
+    if result_type == WireRoundResultType.DOUBLE_RON:
         return _parse_double_ron_round_end(event, seat_to_name)
-    if result_type == "abortive_draw":
+    if result_type == WireRoundResultType.ABORTIVE_DRAW:
         return _parse_abortive_draw_round_end(event, seat_to_name)
     # exhaustive_draw, nagashi_mangan — no player action
-    if result_type in ("exhaustive_draw", "nagashi_mangan"):
+    if result_type in (WireRoundResultType.EXHAUSTIVE_DRAW, WireRoundResultType.NAGASHI_MANGAN):
         return None
     raise ReplayLoadError(f"Unknown round_end result type: {result_type!r}")
 
@@ -321,7 +322,7 @@ def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> lis
 def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
     """Parse a tsumo round_end result."""
     try:
-        winner_seat = result["winner_seat"]
+        winner_seat = result["ws"]
         player_name = seat_to_name[winner_seat]
     except KeyError as exc:
         raise ReplayLoadError(f"tsumo round_end missing or invalid field: {exc}") from exc
@@ -331,7 +332,7 @@ def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str])
 def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
     """Parse a ron round_end result."""
     try:
-        winner_seat = result["winner_seat"]
+        winner_seat = result["ws"]
         player_name = seat_to_name[winner_seat]
     except KeyError as exc:
         raise ReplayLoadError(f"ron round_end missing or invalid field: {exc}") from exc
@@ -343,13 +344,13 @@ def _parse_double_ron_round_end(
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
     """Parse a double_ron round_end result."""
-    winners = result.get("winners", [])
+    winners = result.get("wn", [])
     if not winners:
         raise ReplayLoadError("double_ron round_end must have at least one winner")
     try:
         return [
             ReplayInputEvent(
-                player_name=seat_to_name[w["winner_seat"]],
+                player_name=seat_to_name[w["ws"]],
                 action=GameAction.CALL_RON,
             )
             for w in winners
@@ -363,12 +364,12 @@ def _parse_abortive_draw_round_end(
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
     """Parse an abortive_draw round_end result."""
-    reason = result.get("reason")
+    reason = result.get("rn")
     if reason != "nine_terminals":
         # Other abortive draws (four_riichi, etc.) are not player actions
         return None
     try:
-        seat = result["seat"]
+        seat = result["s"]
         player_name = seat_to_name[seat]
     except KeyError as exc:
         raise ReplayLoadError(f"nine_terminals abortive_draw missing or invalid field: {exc}") from exc

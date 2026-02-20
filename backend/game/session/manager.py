@@ -22,7 +22,6 @@ from game.messaging.event_payload import service_event_payload, shape_call_promp
 from game.messaging.types import (
     ErrorMessage,
     GameLeftMessage,
-    GameReconnectedMessage,
     GameStartingMessage,
     PlayerJoinedMessage,
     PlayerLeftMessage,
@@ -33,6 +32,7 @@ from game.messaging.types import (
     RoomLeftMessage,
     SessionChatMessage,
     SessionErrorCode,
+    SessionMessageType,
 )
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
@@ -52,8 +52,6 @@ logger = logging.getLogger(__name__)
 
 
 class SessionManager:
-    MAX_PLAYERS_PER_GAME = 4  # Mahjong requires exactly 4 players
-
     def __init__(
         self,
         game_service: GameService,
@@ -482,11 +480,9 @@ class SessionManager:
                 self._session_store.mark_reconnected(session_token)
                 session.remaining_bank_seconds = None
 
-                await connection.send_message(
-                    GameReconnectedMessage(
-                        **snapshot.model_dump(),
-                    ).model_dump(),
-                )
+                payload = snapshot.model_dump(by_alias=True, exclude_none=True)
+                payload["type"] = SessionMessageType.GAME_RECONNECTED
+                await connection.send_message(payload)
 
                 await self._broadcast_to_game(
                     game=game,

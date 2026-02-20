@@ -8,11 +8,11 @@ Replay tests by ensuring the service layer works correctly.
 import pytest
 from starlette.testclient import TestClient
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, WireClientMessageType, WireGameAction
 from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
 from game.messaging.event_payload import EVENT_TYPE_INT
-from game.messaging.types import ClientMessageType, SessionErrorCode, SessionMessageType
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockGameService
@@ -47,7 +47,7 @@ class TestWebSocketIntegration:
         self._send_message(
             ws,
             {
-                "type": ClientMessageType.JOIN_ROOM,
+                "t": WireClientMessageType.JOIN_ROOM,
                 "room_id": room_id,
                 "game_ticket": ticket,
             },
@@ -56,7 +56,7 @@ class TestWebSocketIntegration:
         # Drain: room_joined, player_ready_changed, game_starting, game events...
         messages.append(self._receive_message(ws))  # room_joined
 
-        self._send_message(ws, {"type": ClientMessageType.SET_READY, "ready": True})
+        self._send_message(ws, {"t": WireClientMessageType.SET_READY, "ready": True})
         # Drain remaining startup messages
         while True:
             msg = self._receive_message(ws)
@@ -74,7 +74,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.JOIN_ROOM,
+                    "t": WireClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
                     "game_ticket": ticket,
                 },
@@ -96,7 +96,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws1,
                 {
-                    "type": ClientMessageType.JOIN_ROOM,
+                    "t": WireClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
                     "game_ticket": ticket1,
                 },
@@ -108,7 +108,7 @@ class TestWebSocketIntegration:
                 self._send_message(
                     ws2,
                     {
-                        "type": ClientMessageType.JOIN_ROOM,
+                        "t": WireClientMessageType.JOIN_ROOM,
                         "room_id": "test_game",
                         "game_ticket": ticket2,
                     },
@@ -120,7 +120,7 @@ class TestWebSocketIntegration:
                 self._send_message(
                     ws1,
                     {
-                        "type": ClientMessageType.CHAT,
+                        "t": WireClientMessageType.CHAT,
                         "text": "Hello!",
                     },
                 )
@@ -143,7 +143,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.CHAT,
+                    "t": WireClientMessageType.CHAT,
                     "text": "Hello from game!",
                 },
             )
@@ -162,9 +162,9 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.GAME_ACTION,
-                    "action": GameAction.DISCARD,
-                    "tile_id": 0,
+                    "t": WireClientMessageType.GAME_ACTION,
+                    "a": WireGameAction.DISCARD,
+                    "ti": 0,
                 },
             )
 
@@ -190,7 +190,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.JOIN_ROOM,
+                    "t": WireClientMessageType.JOIN_ROOM,
                     "room_id": "ignored",
                     "game_ticket": ticket,
                 },
@@ -217,7 +217,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.JOIN_ROOM,
+                    "t": WireClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
                     "game_ticket": ticket,
                 },
@@ -233,7 +233,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.JOIN_ROOM,
+                    "t": WireClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
                     "game_ticket": "not-a-valid-ticket",
                 },
@@ -252,7 +252,7 @@ class TestWebSocketIntegration:
             self._send_message(
                 ws,
                 {
-                    "type": ClientMessageType.JOIN_ROOM,
+                    "t": WireClientMessageType.JOIN_ROOM,
                     "room_id": "test_game",
                     "game_ticket": ticket,
                 },

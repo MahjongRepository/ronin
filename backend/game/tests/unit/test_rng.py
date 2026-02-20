@@ -10,7 +10,6 @@ import pytest
 from game.logic.rng import (
     PCG64DXSM,
     SEED_BYTES,
-    TOTAL_WALL_SIZE,
     _bounded_uint64,
     _derive_round_pcg,
     _fisher_yates_shuffle,
@@ -21,6 +20,7 @@ from game.logic.rng import (
     roll_dice,
     validate_seed_hex,
 )
+from game.logic.tiles import NUM_TILES
 
 # A fixed seed for deterministic tests (192 hex chars = 96 bytes)
 FIXED_SEED = "ab" * SEED_BYTES
@@ -222,9 +222,9 @@ class TestFisherYatesShuffle:
     def test_permutation_invariants(self):
         """Every shuffle is a valid permutation (no duplicates, no missing tiles)."""
         pcg = PCG64DXSM(state=12345, increment=67890)
-        tiles = list(range(TOTAL_WALL_SIZE))
+        tiles = list(range(NUM_TILES))
         shuffled = _fisher_yates_shuffle(tiles, pcg)
-        assert sorted(shuffled) == list(range(TOTAL_WALL_SIZE))
+        assert sorted(shuffled) == list(range(NUM_TILES))
 
     def test_does_not_modify_input(self):
         """Shuffling returns a new list, original is unchanged."""
@@ -332,8 +332,8 @@ class TestGenerateShuffledWallAndDice:
     def test_valid_wall(self):
         """Returned wall has 136 unique tiles (0-135)."""
         wall, _ = generate_shuffled_wall_and_dice(FIXED_SEED, 0)
-        assert len(wall) == TOTAL_WALL_SIZE
-        assert sorted(wall) == list(range(TOTAL_WALL_SIZE))
+        assert len(wall) == NUM_TILES
+        assert sorted(wall) == list(range(NUM_TILES))
 
     def test_valid_dice(self):
         """Returned dice are both in [1, 6]."""
@@ -357,7 +357,7 @@ class TestGenerateShuffledWallAndDice:
     def test_wall_is_shuffled(self):
         """Wall is not in sorted order."""
         wall, _ = generate_shuffled_wall_and_dice(FIXED_SEED, 0)
-        assert wall != list(range(TOTAL_WALL_SIZE))
+        assert wall != list(range(NUM_TILES))
 
 
 class TestDetermineFirstDealer:

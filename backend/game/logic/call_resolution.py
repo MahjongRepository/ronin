@@ -16,6 +16,7 @@ from game.logic.abortive import (
 )
 from game.logic.action_result import ActionResult, create_draw_event
 from game.logic.enums import (
+    FALLBACK_MELD_PRIORITY,
     MELD_CALL_PRIORITY,
     CallType,
     GameAction,
@@ -31,6 +32,7 @@ from game.logic.events import (
 )
 from game.logic.melds import call_added_kan
 from game.logic.riichi import declare_riichi
+from game.logic.settings import NUM_PLAYERS
 from game.logic.state_utils import (
     advance_turn,
     clear_pending_prompt,
@@ -54,6 +56,8 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+FALLBACK_CALLER_ORDER = 999  # sorts unknown seats after all known ones
 
 
 _ACTION_TO_MELD_CALL_TYPE = {
@@ -87,7 +91,10 @@ def pick_best_meld_response(
     caller_priority: dict[tuple[int, MeldCallType], int] = {}
     for caller in prompt.callers:
         if isinstance(caller, MeldCaller):
-            caller_priority[(caller.seat, caller.call_type)] = MELD_CALL_PRIORITY.get(caller.call_type, 99)
+            caller_priority[(caller.seat, caller.call_type)] = MELD_CALL_PRIORITY.get(
+                caller.call_type,
+                FALLBACK_MELD_PRIORITY,
+            )
 
     # in DISCARD prompts, ron callers (int entries) may pass on ron and fall
     # back to a meld action. Their MeldCaller was stripped by the ron-dominant
@@ -102,7 +109,7 @@ def pick_best_meld_response(
             valid_responses.append(response)
         elif response.seat in ron_caller_seats:
             # ron caller falling back to meld: derive priority from action
-            caller_priority[(response.seat, call_type)] = MELD_CALL_PRIORITY.get(call_type, 99)
+            caller_priority[(response.seat, call_type)] = MELD_CALL_PRIORITY.get(call_type, FALLBACK_MELD_PRIORITY)
             valid_responses.append(response)
         else:
             logger.warning(
@@ -114,11 +121,11 @@ def pick_best_meld_response(
     def sort_key(response: CallResponse) -> tuple[int, int]:
         call_type = _action_to_meld_call_type(response.action)
         priority = caller_priority[(response.seat, call_type)]
-        distance = (response.seat - prompt.from_seat) % 4
+        distance = (response.seat - prompt.from_seat) % NUM_PLAYERS
         return (priority, distance)
 
     best: CallResponse | None = None
-    best_key: tuple[int, int] = (999, 999)
+    best_key: tuple[int, int] = (FALLBACK_CALLER_ORDER, FALLBACK_CALLER_ORDER)
     for response in valid_responses:
         key = sort_key(response)
         if key < best_key:
@@ -136,7 +143,7 @@ def _resolve_ron_responses(
     """Resolve ron responses from the pending call prompt."""
     # sort by position in prompt.callers (counter-clockwise from discarder)
     caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
-    ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, 999))
+    ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, FALLBACK_CALLER_ORDER))
 
     # triple ron - abortive draw (all three opponents declared ron)
     settings = game_state.settings

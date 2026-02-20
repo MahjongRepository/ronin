@@ -11,10 +11,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from game.logic.enums import GameAction
 from game.logic.events import ErrorEvent, ServiceEvent
-from game.logic.rng import RNG_VERSION, TOTAL_WALL_SIZE
+from game.logic.rng import RNG_VERSION
+from game.logic.settings import NUM_PLAYERS
 from game.logic.state import MahjongGameState
+from game.logic.tiles import NUM_TILES
 
-REQUIRED_PLAYER_COUNT = 4
 REPLAY_VERSION = "0.2-dev"
 
 
@@ -47,8 +48,8 @@ class ReplayInput(BaseModel):
 
     @model_validator(mode="after")
     def _validate_replay_input(self) -> ReplayInput:
-        if len(set(self.player_names)) != REQUIRED_PLAYER_COUNT:
-            raise ValueError("ReplayInput.player_names must contain 4 unique names")
+        if len(set(self.player_names)) != NUM_PLAYERS:
+            raise ValueError(f"ReplayInput.player_names must contain {NUM_PLAYERS} unique names")
         player_name_set = set(self.player_names)
         invalid_names = {event.player_name for event in self.events if event.player_name not in player_name_set}
         if invalid_names:
@@ -56,13 +57,13 @@ class ReplayInput(BaseModel):
                 f"ReplayInput.events contain unknown player_name values: {sorted(invalid_names)}",
             )
         if self.wall is not None:
-            if len(self.wall) != TOTAL_WALL_SIZE:
+            if len(self.wall) != NUM_TILES:
                 raise ValueError(
-                    f"ReplayInput.wall must contain exactly {TOTAL_WALL_SIZE} tiles, got {len(self.wall)}",
+                    f"ReplayInput.wall must contain exactly {NUM_TILES} tiles, got {len(self.wall)}",
                 )
-            if sorted(self.wall) != list(range(TOTAL_WALL_SIZE)):
+            if sorted(self.wall) != list(range(NUM_TILES)):
                 raise ValueError(
-                    f"ReplayInput.wall must be a permutation of tile IDs 0..{TOTAL_WALL_SIZE - 1}",
+                    f"ReplayInput.wall must be a permutation of tile IDs 0..{NUM_TILES - 1}",
                 )
         return self
 

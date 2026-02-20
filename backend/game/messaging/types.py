@@ -3,23 +3,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
-from game.logic.enums import GameAction, KanType
-from game.logic.types import ReconnectionSnapshot
+from game.logic.enums import KanType, WireClientMessageType, WireGameAction
+from game.logic.tiles import NUM_TILES
 from game.session.room import RoomPlayerInfo
 
 # ASCII control character boundaries for input validation
 _SPACE_ORD = 0x20
 _DEL_ORD = 0x7F
-
-
-class ClientMessageType(StrEnum):
-    JOIN_ROOM = "join_room"
-    LEAVE_ROOM = "leave_room"
-    SET_READY = "set_ready"
-    GAME_ACTION = "game_action"
-    CHAT = "chat"
-    PING = "ping"
-    RECONNECT = "reconnect"
 
 
 class SessionMessageType(StrEnum):
@@ -61,77 +51,77 @@ class SessionErrorCode(StrEnum):
 
 
 class JoinRoomMessage(BaseModel):
-    type: Literal[ClientMessageType.JOIN_ROOM] = ClientMessageType.JOIN_ROOM
+    t: Literal[WireClientMessageType.JOIN_ROOM] = WireClientMessageType.JOIN_ROOM
     room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 class LeaveRoomMessage(BaseModel):
-    type: Literal[ClientMessageType.LEAVE_ROOM] = ClientMessageType.LEAVE_ROOM
+    t: Literal[WireClientMessageType.LEAVE_ROOM] = WireClientMessageType.LEAVE_ROOM
 
 
 class SetReadyMessage(BaseModel):
-    type: Literal[ClientMessageType.SET_READY] = ClientMessageType.SET_READY
+    t: Literal[WireClientMessageType.SET_READY] = WireClientMessageType.SET_READY
     ready: bool
 
 
-_TILE_ID_FIELD = Field(ge=0, lt=136)
+_TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES, validation_alias="ti")
 
 
 class DiscardMessage(BaseModel):
-    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: Literal[GameAction.DISCARD] = GameAction.DISCARD
+    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: Literal[WireGameAction.DISCARD] = WireGameAction.DISCARD
     tile_id: int = _TILE_ID_FIELD
 
 
 class RiichiMessage(BaseModel):
-    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: Literal[GameAction.DECLARE_RIICHI] = GameAction.DECLARE_RIICHI
+    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: Literal[WireGameAction.DECLARE_RIICHI] = WireGameAction.DECLARE_RIICHI
     tile_id: int = _TILE_ID_FIELD
 
 
 class PonMessage(BaseModel):
-    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: Literal[GameAction.CALL_PON] = GameAction.CALL_PON
+    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: Literal[WireGameAction.CALL_PON] = WireGameAction.CALL_PON
     tile_id: int = _TILE_ID_FIELD
 
 
 class ChiMessage(BaseModel):
-    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: Literal[GameAction.CALL_CHI] = GameAction.CALL_CHI
+    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: Literal[WireGameAction.CALL_CHI] = WireGameAction.CALL_CHI
     tile_id: int = _TILE_ID_FIELD
     sequence_tiles: tuple[
-        Annotated[int, Field(ge=0, lt=136)],
-        Annotated[int, Field(ge=0, lt=136)],
+        Annotated[int, Field(ge=0, lt=NUM_TILES)],
+        Annotated[int, Field(ge=0, lt=NUM_TILES)],
     ]
 
 
 class KanMessage(BaseModel):
-    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: Literal[GameAction.CALL_KAN] = GameAction.CALL_KAN
+    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: Literal[WireGameAction.CALL_KAN] = WireGameAction.CALL_KAN
     tile_id: int = _TILE_ID_FIELD
     kan_type: KanType
 
 
 class NoDataActionMessage(BaseModel):
-    type: Literal[ClientMessageType.GAME_ACTION] = ClientMessageType.GAME_ACTION
-    action: Literal[
-        GameAction.DECLARE_TSUMO,
-        GameAction.CALL_RON,
-        GameAction.CALL_KYUUSHU,
-        GameAction.PASS,
-        GameAction.CONFIRM_ROUND,
+    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: Literal[
+        WireGameAction.DECLARE_TSUMO,
+        WireGameAction.CALL_RON,
+        WireGameAction.CALL_KYUUSHU,
+        WireGameAction.PASS,
+        WireGameAction.CONFIRM_ROUND,
     ]
 
 
 GameActionMessage = Annotated[
     DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
-    Field(discriminator="action"),
+    Field(discriminator="a"),
 ]
 
 
 class ChatMessage(BaseModel):
-    type: Literal[ClientMessageType.CHAT] = ClientMessageType.CHAT
+    t: Literal[WireClientMessageType.CHAT] = WireClientMessageType.CHAT
     text: str = Field(min_length=1, max_length=1000)
 
     @field_validator("text")
@@ -143,11 +133,11 @@ class ChatMessage(BaseModel):
 
 
 class PingMessage(BaseModel):
-    type: Literal[ClientMessageType.PING] = ClientMessageType.PING
+    t: Literal[WireClientMessageType.PING] = WireClientMessageType.PING
 
 
 class ReconnectMessage(BaseModel):
-    type: Literal[ClientMessageType.RECONNECT] = ClientMessageType.RECONNECT
+    t: Literal[WireClientMessageType.RECONNECT] = WireClientMessageType.RECONNECT
     room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     game_ticket: str = Field(min_length=1, max_length=2000)
 
@@ -227,15 +217,9 @@ class PlayerReconnectedMessage(BaseModel):
     player_name: str
 
 
-class GameReconnectedMessage(ReconnectionSnapshot):
-    """Full game state snapshot sent to a reconnecting player."""
-
-    type: Literal[SessionMessageType.GAME_RECONNECTED] = SessionMessageType.GAME_RECONNECTED
-
-
 _NonGameMessage = Annotated[
     JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | ChatMessage | PingMessage | ReconnectMessage,
-    Field(discriminator="type"),
+    Field(discriminator="t"),
 ]
 
 _non_game_adapter = TypeAdapter(_NonGameMessage)
@@ -245,9 +229,9 @@ _game_action_adapter = TypeAdapter(GameActionMessage)
 def parse_client_message(data: dict[str, Any]) -> ClientMessage:
     """Parse a raw dict into a typed ClientMessage.
 
-    Game action messages use a two-level discriminator (type then action),
+    Game action messages use a two-level discriminator (t then a),
     so they are routed to a separate adapter.
     """
-    if data.get("type") == ClientMessageType.GAME_ACTION:
+    if data.get("t") == WireClientMessageType.GAME_ACTION:
         return _game_action_adapter.validate_python(data)
     return _non_game_adapter.validate_python(data)

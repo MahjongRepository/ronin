@@ -21,8 +21,9 @@ replenishment overwrites those positions.
 from pydantic import BaseModel, ConfigDict
 
 from game.logic.exceptions import InvalidActionError
-from game.logic.rng import TOTAL_WALL_SIZE, generate_shuffled_wall_and_dice
-from game.logic.tiles import sort_tiles
+from game.logic.rng import generate_shuffled_wall_and_dice
+from game.logic.settings import NUM_PLAYERS
+from game.logic.tiles import NUM_TILES, sort_tiles
 
 DEAD_WALL_SIZE = 14
 FIRST_DORA_INDEX = 2
@@ -30,7 +31,6 @@ MAX_DORA_INDICATORS = 5
 URA_DORA_START_INDEX = 7
 RINSHAN_START_INDEX = 13  # Rinshan draws start from here and go left (13, 12, 11, 10)
 MAX_RINSHAN_DRAWS = 4
-NUM_PLAYERS = 4
 TILES_PER_DEAL_BLOCK = 4
 DEAL_BLOCKS = 3
 TILES_PER_FINAL_DEAL = 1
@@ -120,8 +120,8 @@ def _split_wall_by_dice(
     Live wall: tiles in dealing order (top, bottom per stack, starting from
     the stack left of the break going counter-clockwise).
     """
-    if len(tiles) != TOTAL_WALL_SIZE:
-        raise ValueError(f"Expected {TOTAL_WALL_SIZE} tiles, got {len(tiles)}")
+    if len(tiles) != NUM_TILES:
+        raise ValueError(f"Expected {NUM_TILES} tiles, got {len(tiles)}")
     break_info = compute_wall_break_info(dice, dealer_seat)
     break_stack = break_info.break_stack
 
@@ -168,11 +168,11 @@ def create_wall_from_tiles(tiles: list[int], dice: tuple[int, int] = (1, 1)) -> 
 
     The dice parameter stores the dice values as metadata for display tests.
     """
-    if len(tiles) != TOTAL_WALL_SIZE:
-        raise ValueError(f"Expected {TOTAL_WALL_SIZE} tiles, got {len(tiles)}")
-    if not all(isinstance(t, int) and 0 <= t <= TOTAL_WALL_SIZE - 1 for t in tiles):
-        raise ValueError(f"All tile IDs must be integers in [0, {TOTAL_WALL_SIZE - 1}]")
-    if len(set(tiles)) != TOTAL_WALL_SIZE:
+    if len(tiles) != NUM_TILES:
+        raise ValueError(f"Expected {NUM_TILES} tiles, got {len(tiles)}")
+    if not all(isinstance(t, int) and 0 <= t <= NUM_TILES - 1 for t in tiles):
+        raise ValueError(f"All tile IDs must be integers in [0, {NUM_TILES - 1}]")
+    if len(set(tiles)) != NUM_TILES:
         raise ValueError("All tile IDs must be unique (full permutation)")
 
     dead_wall_tiles = tuple(tiles[-DEAD_WALL_SIZE:])

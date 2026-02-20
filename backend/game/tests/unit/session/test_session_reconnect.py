@@ -18,6 +18,7 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
+from game.messaging.compact import encode_draw
 from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
@@ -97,8 +98,8 @@ class TestSessionManagerReconnect:
 
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 1
-        assert reconnect_msgs[0]["game_id"] == "game1"
-        assert reconnect_msgs[0]["seat"] == 0
+        assert reconnect_msgs[0]["gid"] == "game1"
+        assert reconnect_msgs[0]["s"] == 0
 
         bob_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_RECONNECTED]
         assert len(bob_msgs) == 1
@@ -326,7 +327,7 @@ class TestReconnectTurnState:
 
         draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 1
-        assert draw_msgs[0]["tile_id"] == 42
+        assert draw_msgs[0]["d"] == encode_draw(0, 42)
 
 
 class TestReconnectEdgeCases:

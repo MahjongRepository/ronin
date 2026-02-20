@@ -14,16 +14,15 @@ from game.logic.round import (
     add_dora_indicator,
     draw_from_dead_wall,
 )
+from game.logic.settings import NUM_PLAYERS
 from game.logic.state_utils import clear_all_players_ippatsu, update_player
-from game.logic.tiles import DRAGONS_34, WINDS_34, is_honor, tile_to_34
+from game.logic.tiles import DRAGONS_34, TILES_PER_SUIT, WINDS_34, is_honor, tile_to_34
 from game.logic.wall import increment_pending_dora, tiles_remaining
 from game.logic.win import get_waiting_tiles
 
 if TYPE_CHECKING:
     from game.logic.settings import GameSettings
     from game.logic.state import MahjongPlayer, MahjongRoundState
-
-TILES_PER_SUIT = 9
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +125,7 @@ def can_call_chi(
     if player.is_riichi:
         return []
 
-    expected_caller = (discarder_seat + 1) % 4
+    expected_caller = (discarder_seat + 1) % NUM_PLAYERS
     if caller_seat != expected_caller:
         return []
 
@@ -135,7 +134,7 @@ def can_call_chi(
     if is_honor(discarded_34):
         return []
 
-    tile_value = discarded_34 % 9
+    tile_value = discarded_34 % TILES_PER_SUIT
     hand_tiles_by_34 = _build_same_suit_tile_map(player.tiles, discarded_34)
 
     return _find_chi_combinations(discarded_34, tile_value, hand_tiles_by_34)
@@ -146,14 +145,12 @@ def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: 
     Build a map of tiles in hand that are in the same suit as discarded tile.
     """
     result: dict[int, list[int]] = {}
-    discarded_suit = discarded_34 // 9
+    discarded_suit = discarded_34 // TILES_PER_SUIT
 
     for t in tiles:
         t34 = tile_to_34(t)
-        if t34 // 9 == discarded_suit:
-            if t34 not in result:
-                result[t34] = []
-            result[t34].append(t)
+        if t34 // TILES_PER_SUIT == discarded_suit:
+            result.setdefault(t34, []).append(t)
 
     return result
 

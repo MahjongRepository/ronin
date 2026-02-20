@@ -15,7 +15,7 @@ from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.meld_wrapper import frozen_melds_to_melds
-from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
+from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_optional_rules
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array
@@ -286,7 +286,7 @@ def apply_tsumo_score(
     is_dealer_win = winner_seat == round_state.dealer_seat
     honba_bonus_per_loser = game_state.honba_sticks * settings.honba_tsumo_bonus_per_loser
 
-    score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
+    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
 
     if winner.pao_seat is not None:
         # pao tsumo: liable player pays the full amount
@@ -298,7 +298,7 @@ def apply_tsumo_score(
                 hand_result=hand_result,
                 honba_bonus_per_loser=honba_bonus_per_loser,
             )
-            for s in range(4)
+            for s in range(NUM_PLAYERS)
             if s != winner_seat
         )
         score_changes[winner.pao_seat] = -total_payment
@@ -306,7 +306,7 @@ def apply_tsumo_score(
     else:
         # normal tsumo scoring
         total_payment = 0
-        for seat in range(4):
+        for seat in range(NUM_PLAYERS):
             if seat == winner_seat:
                 continue
             payment = _tsumo_payment_for_seat(
@@ -381,7 +381,7 @@ def apply_ron_score(
     total_payment = hand_result.cost_main + honba_bonus
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
-    score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
+    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
 
     if winner.pao_seat is not None and winner.pao_seat != loser_seat:
         # pao ron with different pao player: split 50/50
@@ -444,15 +444,15 @@ def apply_double_ron_score(
     settings = game_state.settings
     scores = _current_scores(game_state)
 
-    score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
+    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
     honba_bonus = game_state.honba_sticks * settings.honba_ron_bonus
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
     # determine who gets riichi sticks: winner closest to loser's right (counter-clockwise)
     winner_seats = {w[0] for w in winners}
     riichi_receiver: int | None = None
-    for offset in range(1, 4):
-        check_seat = (loser_seat + offset) % 4
+    for offset in range(1, NUM_PLAYERS):
+        check_seat = (loser_seat + offset) % NUM_PLAYERS
         if check_seat in winner_seats:
             riichi_receiver = check_seat
             break
@@ -534,11 +534,11 @@ def apply_nagashi_mangan_score(
     round_state = game_state.round_state
     settings = game_state.settings
     scores = _current_scores(game_state)
-    score_changes: dict[int, int] = {0: 0, 1: 0, 2: 0, 3: 0}
+    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
 
     for winner_seat in qualifying_seats:
         is_dealer = winner_seat == round_state.dealer_seat
-        for seat in range(4):
+        for seat in range(NUM_PLAYERS):
             if seat == winner_seat:
                 continue
             payment = (

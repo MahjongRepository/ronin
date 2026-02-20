@@ -14,11 +14,11 @@ from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
-from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
+from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_optional_rules
 from game.logic.shanten import calculate_shanten
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
-from game.logic.tiles import WINDS_34, hand_to_34_array, tile_to_34
+from game.logic.tiles import NUM_TILE_TYPES, WINDS_34, hand_to_34_array, tile_to_34
 from game.logic.wall import is_wall_exhausted
 
 if TYPE_CHECKING:
@@ -132,7 +132,7 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     waiting = set()
 
     # check each of the 34 tile types
-    for tile_34 in range(34):
+    for tile_34 in range(NUM_TILE_TYPES):
         # skip if already 4 of this tile (can't draw a 5th)
         if tiles_34[tile_34] >= MAX_TILE_COPIES:
             continue
@@ -339,7 +339,7 @@ def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_ti
     kan_tile_34 = tile_to_34(kan_tile)
     chankan_seats = []
 
-    for seat in range(4):
+    for seat in range(NUM_PLAYERS):
         if seat == caller_seat:
             continue
 

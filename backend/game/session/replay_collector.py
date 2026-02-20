@@ -1,7 +1,7 @@
 """Replay collector for persisting gameplay events for post-game analysis.
 
 Collects broadcast gameplay events and selected seat-targeted concealed events
-during a game and writes them as JSON lines to storage at game end. Broadcast
+during a game and writes them as a single-line JSON array to storage at game end. Broadcast
 events capture public game state transitions (discards, melds, round end, etc.).
 Seat-targeted DrawEvent carries concealed draw data (available_actions stripped).
 Per-seat RoundStartedEvent views are merged into a single record with all
@@ -103,7 +103,7 @@ class ReplayCollector:
 
             payload = service_event_payload(event)
             if isinstance(event.data, DrawEvent):
-                payload.pop("available_actions", None)
+                payload.pop("aa", None)
             self._inject_seed_if_game_started(game_id, event, payload)
             buffer.append(json.dumps(payload, default=str))
 
@@ -130,10 +130,10 @@ class ReplayCollector:
         if isinstance(event.data, GameStartedEvent):
             seed = self._seeds.get(game_id)
             if seed is not None:
-                payload["seed"] = seed
+                payload["sd"] = seed
             rng_version = self._rng_versions.get(game_id)
             if rng_version is not None:
-                payload["rng_version"] = rng_version
+                payload["rv"] = rng_version
 
     @staticmethod
     def _merge_round_started_payloads(events: list[ServiceEvent]) -> str:
@@ -158,13 +158,13 @@ class ReplayCollector:
             data: RoundStartedEvent = event.data  # type: ignore[assignment]
             tiles_by_seat[data.seat] = data.my_tiles
 
-        for player_dict in base_payload["players"]:
-            seat = player_dict["seat"]
+        for player_dict in base_payload["p"]:
+            seat = player_dict["s"]
             if seat in tiles_by_seat:
-                player_dict["tiles"] = tiles_by_seat[seat]
+                player_dict["tl"] = tiles_by_seat[seat]
 
-        base_payload.pop("my_tiles", None)
-        base_payload.pop("seat", None)
+        base_payload.pop("mt", None)
+        base_payload.pop("s", None)
 
         return json.dumps(base_payload, default=str)
 
@@ -183,7 +183,7 @@ class ReplayCollector:
 
         try:
             version_tag = json.dumps({"version": REPLAY_VERSION})
-            content = "\n".join([version_tag, *buffer])
+            content = "".join([version_tag, *buffer])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
         except (OSError, ValueError):  # fmt: skip
             logger.exception("Failed to save replay for game %s", game_id)
