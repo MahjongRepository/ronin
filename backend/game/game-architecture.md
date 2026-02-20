@@ -201,7 +201,7 @@ MessagePack encode/decode (encoder.py)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (game/player management, delegates to SessionStore + TimerManager + HeartbeatMonitor, concurrency locks)
+SessionManager (game/player management, delegates to RoomManager + SessionStore + TimerManager + HeartbeatMonitor, concurrency locks)
     │                                                       │
     ▼                                                       ▼
 GameService (game logic interface)              EventPayload (wire serialization)
@@ -238,21 +238,22 @@ The game service communicates through a typed event pipeline:
 
 ### Server Configuration
 
-`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias). Injected into the Starlette app via `create_app()`.
+`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `room_ttl_seconds` (default 3600, min 60s — controls room TTL; expired rooms have their player connections closed by a background reaper task), `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias). Injected into the Starlette app via `create_app()`. The app registers startup/shutdown hooks to start/stop the room reaper background task.
 
 ### Room Model
 
 `session/room.py` defines the pre-game lobby data structures:
 
-- **Room** - Dataclass representing a lobby with `room_id`, `num_ai_players`, `host_connection_id`, `transitioning` flag (prevents new joins during room-to-game conversion), `players` dict, and `settings: GameSettings`. Properties: `players_needed`, `is_full`, `all_ready`, `get_player_info()`
+- **Room** - Dataclass representing a lobby with `room_id`, `num_ai_players`, `host_connection_id`, `transitioning` flag (prevents new joins during room-to-game conversion), `players` dict, `settings: GameSettings`, and `created_at` (monotonic timestamp for TTL comparison). Properties: `players_needed`, `is_full`, `all_ready`, `get_player_info()`
 - **RoomPlayer** - Dataclass for a player in the lobby with `connection`, `name`, `room_id`, `session_token`, `user_id`, and `ready` state
-- **RoomPlayerInfo** - Pydantic model for room state messages with `name` and `ready` fields
+- **RoomPlayerInfo** - Pydantic model (in `messaging/types.py`) for room state messages with `name` and `ready` fields
 
 ### Game Logic Layer
 
 The `logic/` module implements Riichi Mahjong rules:
 
-- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both player and AI player actions through the same handler pipeline; manages AI player followup loop (`_process_ai_player_followup`, capped at `MAX_AI_PLAYER_TURN_ITERATIONS=100`) and AI player call response dispatch (`_dispatch_ai_player_call_responses`, capped at `MAX_AI_PLAYER_CALL_ITERATIONS=10`); tracks per-player furiten state and emits `FuritenEvent` on state transitions; delegates round-advance confirmation tracking to `RoundAdvanceManager`; AI player tsumogiri fallback when an AI player's chosen action fails; auto-confirms pending round-advance after AI player replacement; returns `list[ServiceEvent]`
+- **MahjongService** - Unified orchestration entry point implementing GameService interface; dispatches both player and AI player actions through the same handler pipeline; manages AI player followup loop (`_process_ai_player_followup`, capped at `MAX_AI_PLAYER_TURN_ITERATIONS=100`) and AI player call response dispatch (`_dispatch_ai_player_call_responses`, capped at `MAX_AI_PLAYER_CALL_ITERATIONS=10`); delegates furiten state tracking to `FuritenTracker`; delegates round-advance confirmation tracking to `RoundAdvanceManager`; AI player tsumogiri fallback when an AI player's chosen action fails; auto-confirms pending round-advance after AI player replacement; returns `list[ServiceEvent]`
+- **FuritenTracker** (`logic/furiten_tracker.py`) - Tracks per-seat furiten state and emits change events. Maintains a boolean per seat per game. After each action, compares effective furiten against the last known value, emitting `FuritenEvent` for any changes. Only checks during `PLAYING` phase. Follows the same pattern as `RoundAdvanceManager`: pure state tracking, no side effects, narrow API, `cleanup_game()` for teardown
 - **RoundAdvanceManager** - Manages round advancement confirmation state (`PendingRoundAdvance`) for all games; tracks which player seats still need to confirm readiness between rounds; AI player seats are pre-confirmed at setup; provides `setup_pending()`, `confirm_seat()`, `is_pending()`, `get_unconfirmed_seats()`, `is_seat_required()`, and `cleanup_game()`
 - **MahjongGame** - Manages game state across multiple rounds (hanchan); uma/oka end-game score adjustment with goshashonyu rounding (remainder ≤500 rounds toward zero, >500 rounds away); `init_game()` accepts optional `wall` parameter for deterministic testing; seed is a hex string; wall creation uses `dealer_seat` for dice-based wall breaking
 - **Round** - Handles a single round with draws, discards, pending dora reveal, nagashi mangan detection, and keishiki tenpai with pure karaten exclusion; delegates wall operations (draw, dead wall replenishment, dora management) to `wall.py`
@@ -319,7 +320,7 @@ Rooms use a `num_ai_players` parameter (0-3) instead of separate game modes. The
 - `num_ai_players=0`: game starts when 4 players all ready up (pure PvP)
 - `num_ai_players=1` or `num_ai_players=2`: game starts when the required players all ready up, remaining seats filled with AI players
 
-The `num_ai_players` is set at room creation time via `POST /rooms` and stored on the `Room` dataclass. Players join a room, toggle ready, and the game starts when all required players are ready. The room transitions to a `Game` via `SessionManager._transition_room_to_game()`.
+The `num_ai_players` is set at room creation time via `POST /rooms` and stored on the `Room` dataclass. Players join a room, toggle ready, and the game starts when all required players are ready. The room transitions to a `Game` via `RoomManager._transition_room_to_game()`, which delegates back to `SessionManager._handle_room_transition()` via callback.
 
 ### Disconnect-to-AI-Player Replacement
 
@@ -392,7 +393,7 @@ The replay adapter (`backend/game/replay/`) enables deterministic replay of game
 - **run_replay()** / **run_replay_async()** feed recorded actions through the service and return a trace; support `auto_confirm_rounds` (injects synthetic `CONFIRM_ROUND` steps) and `auto_pass_calls` (injects synthetic `PASS` steps for pending call prompts)
 - **ReplayServiceProtocol** is the replay-facing protocol boundary; default factory uses `MahjongGameService(auto_cleanup=False)`
 - **ReplayLoader** (`loader.py`) parses JSON Lines files (produced by `ReplayCollector`) back into `ReplayInput`; reconstructs original player name input order from the seed via RNG reconstruction; dispatches events by integer `"t"` key; decodes compact meld events via IMME `decode_meld_compact()`; decodes draw/discard events via packed integer decoding (`decode_draw`/`decode_discard` from `messaging/compact.py`); all replay keys use compact aliases (e.g., `"sd"` for seed, `"rv"` for rng_version, `"p"` for players, `"s"` for seat, `"nm"` for name); maps event types to game actions (discard, meld, ron, tsumo, etc.)
-- **Replay format version**: `REPLAY_VERSION` constant in `models.py` (currently `"0.2-dev"`); loader validates version compatibility
+- **Replay format version**: `REPLAY_VERSION` constant in `models.py` (currently `"0.3-dev"`); loader validates version compatibility
 - **Determinism contract**: same seed + same input events = identical trace; AI player strategies must be deterministic given the same state
 - **Dependency direction**: `game.replay` imports from `game.logic`; game logic modules never import from `game.replay` (enforced by AST-based integration test)
 - `start_game()` accepts an optional hex string `seed` parameter for deterministic game creation; when omitted, a cryptographic hex seed is generated via `rng.generate_seed()`
@@ -427,9 +428,11 @@ ronin/
         │   └── router.py       # Message routing
         ├── session/
         │   ├── models.py        # Player, Game, SessionData dataclasses
-        │   ├── room.py          # Room, RoomPlayer, RoomPlayerInfo for pre-game lobby
+        │   ├── room.py          # Room, RoomPlayer for pre-game lobby
         │   ├── types.py         # Pydantic models (RoomInfo for lobby listing)
         │   ├── manager.py       # Session/game management
+        │   ├── room_manager.py  # Room lifecycle management (creation, join/leave, readiness, TTL expiration)
+        │   ├── broadcast.py     # Shared broadcast utility for sending messages to player groups
         │   ├── session_store.py # In-memory session identity persistence
         │   ├── replay_collector.py # Collects broadcast events and merges per-seat round_started views for post-game persistence
         │   ├── timer_manager.py # Per-player turn timer lifecycle
@@ -452,6 +455,7 @@ ronin/
         │   ├── events.py           # Domain event models, ServiceEvent, convert_events()
         │   ├── exceptions.py       # Typed domain exceptions (GameRuleError hierarchy)
         │   ├── round_advance.py    # Round advancement confirmation state machine
+        │   ├── furiten_tracker.py  # Per-player furiten state change tracking and event emission
         │   ├── ai_player_controller.py # AI player turn and call handling
         │   ├── enums.py            # String enum definitions for game concepts
         │   ├── types.py            # Pydantic models for cross-component data
@@ -531,4 +535,4 @@ Deterministic game flow testing using the replay system with fixture files (`tes
 
 ### Architecture Boundary Tests
 
-AST-based static analysis (`tests/integration/test_architecture_boundary.py`) parses all files under `game/logic/` and verifies none import from `game.replay`, enforcing the one-way dependency direction at the test level.
+AST-based static analysis (`tests/integration/test_architecture_boundary.py`) enforces layer boundary rules: (1) `game.logic` must not import from `game.replay`, (2) `game.messaging` must not import from `game.session`. Only runtime imports are checked; `TYPE_CHECKING` imports are excluded.

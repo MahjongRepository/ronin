@@ -171,7 +171,7 @@ class TestRoomDefensiveChecks:
         manager.register_connection(conn)
 
         # Remove the room but leave the lock
-        manager._rooms.pop("room1", None)
+        manager._room_manager._rooms.pop("room1", None)
 
         await manager.join_room(conn, "room1", "Alice")
 
@@ -187,14 +187,14 @@ class TestRoomDefensiveChecks:
 
         # Remove room but not the lock to simulate the room being cleaned
         # up by another coroutine between lock check and lock acquisition.
-        manager._rooms.pop("room1", None)
+        manager._room_manager._rooms.pop("room1", None)
 
-        assert conn.connection_id in manager._room_players
+        assert conn.connection_id in manager._room_manager._room_players
 
         await manager.leave_room(conn)
 
         # room_player reference should be cleaned up
-        assert conn.connection_id not in manager._room_players
+        assert conn.connection_id not in manager._room_manager._room_players
 
     async def test_set_ready_returns_when_lock_missing(self, manager):
         """set_ready returns silently when room lock is missing."""
@@ -204,7 +204,7 @@ class TestRoomDefensiveChecks:
         await manager.join_room(conn, "room1", "Alice")
 
         # Simulate the lock being cleaned up already
-        manager._room_locks.pop("room1", None)
+        manager._room_manager._room_locks.pop("room1", None)
 
         # Should not raise
         await manager.set_ready(conn, ready=True)
@@ -212,4 +212,4 @@ class TestRoomDefensiveChecks:
     async def test_transition_returns_when_lock_missing(self, manager):
         """_transition_room_to_game returns when lock is missing."""
         # Should not raise
-        await manager._transition_room_to_game("nonexistent_room")
+        await manager._room_manager._transition_room_to_game("nonexistent_room")

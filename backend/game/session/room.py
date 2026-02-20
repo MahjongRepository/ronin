@@ -1,22 +1,15 @@
 """Room model for pre-game lobby phase."""
 
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
-
 from game.logic.settings import NUM_PLAYERS, GameSettings
+from game.messaging.types import RoomPlayerInfo
 from game.session.models import validate_num_ai_players
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
-
-
-class RoomPlayerInfo(BaseModel):
-    """Player info for room state messages."""
-
-    name: str
-    ready: bool
 
 
 @dataclass
@@ -52,6 +45,9 @@ class Room:
     transitioning: bool = False
     players: dict[str, RoomPlayer] = field(default_factory=dict)  # connection_id -> RoomPlayer
     settings: GameSettings = field(default_factory=GameSettings)
+    # Monotonic clock for TTL comparison. Assumes in-memory-only room lifecycle
+    # (monotonic time resets on process restart, which is fine since rooms are not persisted).
+    created_at: float = field(default_factory=time.monotonic)
 
     def __post_init__(self) -> None:
         """Validate num_ai_players is within the allowed range."""

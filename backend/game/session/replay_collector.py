@@ -1,12 +1,12 @@
 """Replay collector for persisting gameplay events for post-game analysis.
 
 Collects broadcast gameplay events and selected seat-targeted concealed events
-during a game and writes them as a single-line JSON array to storage at game end. Broadcast
-events capture public game state transitions (discards, melds, round end, etc.).
-Seat-targeted DrawEvent carries concealed draw data (available_actions stripped).
-Per-seat RoundStartedEvent views are merged into a single record with all
-players' tiles for full game reconstruction. Internal prompt and error event
-types are excluded.
+during a game and writes them as newline-delimited JSON to storage at game end.
+Broadcast events capture public game state transitions (discards, melds, round
+end, etc.). Seat-targeted DrawEvent carries concealed draw data
+(available_actions stripped). Per-seat RoundStartedEvent views are merged into
+a single record with all players' tiles for full game reconstruction. Internal
+prompt and error event types are excluded.
 """
 
 from __future__ import annotations
@@ -183,7 +183,7 @@ class ReplayCollector:
 
         try:
             version_tag = json.dumps({"version": REPLAY_VERSION})
-            content = "".join([version_tag, *buffer])
+            content = "\n".join([version_tag, *buffer])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
         except (OSError, ValueError):  # fmt: skip
             logger.exception("Failed to save replay for game %s", game_id)

@@ -67,8 +67,8 @@ def _compact_meld(
 
 
 def _build_event_log(*extra_lines: str) -> str:
-    """Build an event-log string as concatenated JSON objects."""
-    return "".join([VERSION_TAG_LINE, GAME_STARTED_LINE, *extra_lines])
+    """Build a newline-delimited event-log string."""
+    return "\n".join([VERSION_TAG_LINE, GAME_STARTED_LINE, *extra_lines])
 
 
 def test_parse_single_discard():
@@ -301,7 +301,7 @@ def test_error_missing_version_tag():
 def test_error_version_mismatch():
     """ReplayLoadError when version tag has wrong version."""
     bad_version = json.dumps({"version": "99.0"})
-    content = f"{bad_version}{GAME_STARTED_LINE}"
+    content = f"{bad_version}\n{GAME_STARTED_LINE}"
     with pytest.raises(ReplayLoadError, match="Replay version mismatch"):
         load_replay_from_string(content)
 
@@ -309,7 +309,7 @@ def test_error_version_mismatch():
 def test_error_missing_version_field():
     """ReplayLoadError when first event has no 'version' field."""
     no_version = json.dumps({"something": "else"})
-    content = f"{no_version}{GAME_STARTED_LINE}"
+    content = f"{no_version}\n{GAME_STARTED_LINE}"
     with pytest.raises(ReplayLoadError, match="must be a version tag"):
         load_replay_from_string(content)
 
@@ -317,14 +317,14 @@ def test_error_missing_version_field():
 def test_error_missing_game_started():
     """ReplayLoadError when second event is not game_started."""
     round_started = json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_STARTED], "view": {}})
-    content = f"{VERSION_TAG_LINE}{round_started}"
+    content = f"{VERSION_TAG_LINE}\n{round_started}"
     with pytest.raises(ReplayLoadError, match="First event must be game_started"):
         load_replay_from_string(content)
 
 
 def test_error_malformed_json():
     """ReplayLoadError for malformed JSON."""
-    content = VERSION_TAG_LINE + "{invalid json}"
+    content = VERSION_TAG_LINE + "\n{invalid json}"
     with pytest.raises(ReplayLoadError, match="Malformed JSON"):
         load_replay_from_string(content)
 
@@ -345,7 +345,7 @@ def test_error_missing_rng_version():
         },
     )
     with pytest.raises(ReplayLoadError, match="missing 'rv' field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{no_version}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_version}")
 
 
 def test_error_rng_version_mismatch():
@@ -365,7 +365,7 @@ def test_error_rng_version_mismatch():
         },
     )
     with pytest.raises(ReplayLoadError, match="RNG version mismatch"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_version}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_version}")
 
 
 def test_error_missing_seed():
@@ -383,7 +383,7 @@ def test_error_missing_seed():
         },
     )
     with pytest.raises(ReplayLoadError, match="missing 'sd' field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{no_seed}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_seed}")
 
 
 def test_error_non_hex_seed():
@@ -403,7 +403,7 @@ def test_error_non_hex_seed():
         },
     )
     with pytest.raises(ReplayLoadError, match="invalid seed"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_seed}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
 
 
 def test_error_unknown_event_type():
@@ -460,7 +460,7 @@ def test_error_missing_players():
         },
     )
     with pytest.raises(ReplayLoadError, match="missing 'p' field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{no_players}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_players}")
 
 
 def test_error_unknown_round_end_result_type():
@@ -572,7 +572,7 @@ def test_error_invalid_seat_indices():
         },
     )
     with pytest.raises(ReplayLoadError, match="must have exactly seats"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
 def test_error_round_end_tsumo_missing_winner_seat():
@@ -690,7 +690,7 @@ def test_error_exceeds_max_replay_events():
     events = [VERSION_TAG_LINE, GAME_STARTED_LINE]
     filler = json.dumps({"t": EVENT_TYPE_INT[EventType.DRAW], "seat": 0, "tile_id": 0})
     events.extend([filler] * _MAX_REPLAY_EVENTS)
-    content = "".join(events)
+    content = "\n".join(events)
     with pytest.raises(ReplayLoadError, match="maximum event count"):
         load_replay_from_string(content)
 
@@ -707,7 +707,7 @@ def test_error_player_entry_not_dict():
         },
     )
     with pytest.raises(ReplayLoadError, match="player entry 0 is not a dict"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
 def test_error_player_entry_missing_seat():
@@ -727,7 +727,7 @@ def test_error_player_entry_missing_seat():
         },
     )
     with pytest.raises(ReplayLoadError, match="player entry 0 missing required field"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
 def test_error_player_entry_non_integer_seat():
@@ -747,7 +747,7 @@ def test_error_player_entry_non_integer_seat():
         },
     )
     with pytest.raises(ReplayLoadError, match="non-integer seat"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
 def test_error_boolean_event_type():
@@ -781,4 +781,4 @@ def test_error_player_entry_empty_name():
         },
     )
     with pytest.raises(ReplayLoadError, match="invalid name"):
-        load_replay_from_string(f"{VERSION_TAG_LINE}{bad_started}")
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")

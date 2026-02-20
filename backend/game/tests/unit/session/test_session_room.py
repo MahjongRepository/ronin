@@ -96,7 +96,7 @@ class TestJoinRoom:
         await manager.join_room(conn, "room1", "Alice", user_id="user-abc-123")
 
         # Verify user_id stored in RoomPlayer
-        room_player = manager._room_players[conn.connection_id]
+        room_player = manager._room_manager._room_players[conn.connection_id]
         assert room_player.user_id == "user-abc-123"
 
         # Trigger room-to-game transition
@@ -494,7 +494,7 @@ class TestRoomChat:
         await manager.join_room(conn, "room1", "Alice")
 
         # Simulate room removal
-        manager._rooms.pop("room1", None)
+        manager._room_manager._rooms.pop("room1", None)
         conn._outbox.clear()
 
         await manager.broadcast_room_chat(conn, "Hello!")
@@ -511,9 +511,9 @@ class TestRoomEdgeCases:
         manager.register_connection(conn)
         await manager.join_room(conn, "room1", "Alice")
 
-        # Simulate room removal
-        manager._rooms.pop("room1", None)
-        manager._room_locks.pop("room1", None)
+        # Simulate room removal via internal state
+        manager._room_manager._rooms.pop("room1", None)
+        manager._room_manager._room_locks.pop("room1", None)
 
         await manager.leave_room(conn)
         assert not manager.is_in_room(conn.connection_id)
@@ -525,7 +525,7 @@ class TestRoomEdgeCases:
         manager.register_connection(conn)
         await manager.join_room(conn, "room1", "Alice")
 
-        manager._rooms.pop("room1", None)
+        manager._room_manager._rooms.pop("room1", None)
         conn._outbox.clear()
 
         await manager.set_ready(conn, ready=True)
@@ -560,7 +560,7 @@ class TestRoomEdgeCases:
         room = manager.get_room("room1")
         room.transitioning = False
 
-        await manager._transition_room_to_game("room1")
+        await manager._room_manager._transition_room_to_game("room1")
         # Room still exists
         assert manager.get_room("room1") is not None
 
@@ -585,7 +585,7 @@ class TestRoomEdgeCases:
 
         # Now call _transition_room_to_game directly -- it should abort
         # because all_ready is no longer true
-        await manager._transition_room_to_game("room1")
+        await manager._room_manager._transition_room_to_game("room1")
 
         # Room should still exist (transition aborted and reset transitioning)
         room = manager.get_room("room1")

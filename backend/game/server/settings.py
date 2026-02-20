@@ -18,6 +18,7 @@ class GameServerSettings(BaseSettings):
     log_dir: str = Field(default="backend/logs/game", min_length=1)
     cors_origins: list[str] = ["http://localhost:8712"]
     replay_dir: str = Field(default="backend/data/replays", min_length=1)
+    room_ttl_seconds: int = Field(default=3600, ge=60)  # 1 hour default, min 60s
 
     # Read from AUTH_GAME_TICKET_SECRET (not GAME_GAME_TICKET_SECRET).
     # The secret lives under the AUTH_ namespace because it's shared auth infrastructure,

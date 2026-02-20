@@ -102,6 +102,7 @@ def create_app(
             game_service,
             log_dir=settings.log_dir,
             replay_collector=replay_collector,
+            room_ttl_seconds=settings.room_ttl_seconds,
         )
 
     if message_router is None:
@@ -118,7 +119,13 @@ def create_app(
         WebSocketRoute("/ws/{room_id}", ws_endpoint),
     ]
 
-    app = Starlette(routes=routes)
+    async def on_startup() -> None:
+        session_manager.start_room_reaper()
+
+    async def on_shutdown() -> None:
+        await session_manager.stop_room_reaper()
+
+    app = Starlette(routes=routes, on_startup=[on_startup], on_shutdown=[on_shutdown])
     app.add_middleware(
         CORSMiddleware,  # type: ignore[arg-type]
         allow_origins=settings.cors_origins,

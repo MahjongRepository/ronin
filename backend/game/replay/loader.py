@@ -1,6 +1,6 @@
 """Replay loader: parse ReplayCollector event-log format into ReplayInput.
 
-The ReplayCollector writes gameplay events as concatenated JSON objects on a single line.
+The ReplayCollector writes gameplay events as newline-delimited JSON objects.
 This module reads that format, extracts player actions from the event
 stream, and constructs a validated ReplayInput for the replay runner.
 
@@ -93,13 +93,13 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
 
 
 def load_replay_from_string(content: str) -> ReplayInput:
-    """Parse concatenated JSON objects (split on '}{') into ReplayInput."""
+    """Parse newline-delimited JSON objects into ReplayInput."""
     content = content.strip()
     if not content:
         raise ReplayLoadError("Empty replay content")
 
     try:
-        events = json.loads("[" + content.replace("}{", "},{") + "]")
+        events = [json.loads(line) for line in content.split("\n") if line]
     except json.JSONDecodeError as exc:
         raise ReplayLoadError(f"Malformed JSON: {exc}") from exc
 

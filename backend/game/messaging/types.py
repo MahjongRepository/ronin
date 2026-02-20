@@ -5,11 +5,17 @@ from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 from game.logic.enums import KanType, WireClientMessageType, WireGameAction
 from game.logic.tiles import NUM_TILES
-from game.session.room import RoomPlayerInfo
 
 # ASCII control character boundaries for input validation
 _SPACE_ORD = 0x20
 _DEL_ORD = 0x7F
+
+
+class RoomPlayerInfo(BaseModel):
+    """Player info for room state messages."""
+
+    name: str
+    ready: bool
 
 
 class SessionMessageType(StrEnum):

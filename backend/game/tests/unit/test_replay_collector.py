@@ -53,7 +53,7 @@ class FailingStorage:
 
 def _parse_saved_replay(content: str) -> list[dict]:
     """Parse saved replay content, validate version tag, return event dicts."""
-    events = json.loads("[" + content.replace("}{", "},{") + "]")
+    events = [json.loads(line) for line in content.strip().split("\n") if line]
     assert len(events) >= 1
     assert events[0] == {"version": REPLAY_VERSION}
     return events[1:]

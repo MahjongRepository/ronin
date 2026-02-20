@@ -570,7 +570,7 @@ class TenhouConverter:
 def convert_replay(filepath: Path) -> str:
     with filepath.open() as f:
         content = f.read().strip()
-    events = json.loads("[" + content.replace("}{", "},{") + "]")
+    events = [json.loads(line) for line in content.split("\n") if line]
     converter = TenhouConverter(events)
     return converter.convert()
 

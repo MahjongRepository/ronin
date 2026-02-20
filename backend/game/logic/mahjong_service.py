@@ -32,7 +32,6 @@ from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
     EventType,
-    FuritenEvent,
     GameEndedEvent,
     GameStartedEvent,
     RoundStartedEvent,
@@ -43,6 +42,7 @@ from game.logic.events import (
     parse_wire_target,
 )
 from game.logic.exceptions import InvalidActionError, InvalidGameActionError, UnsupportedSettingsError
+from game.logic.furiten_tracker import FuritenTracker
 from game.logic.game import (
     check_game_end,
     finalize_game,
@@ -80,7 +80,6 @@ from game.logic.types import (
     RoundResult,
 )
 from game.logic.wall import tiles_remaining
-from game.logic.win import is_effective_furiten
 
 if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
@@ -126,7 +125,7 @@ class MahjongGameService(GameService):
     def __init__(self, *, auto_cleanup: bool = True, settings: GameSettings | None = None) -> None:
         self._games: dict[str, MahjongGameState] = {}
         self._ai_player_controllers: dict[str, AIPlayerController] = {}
-        self._furiten_state: dict[str, dict[int, bool]] = {}
+        self._furiten_tracker = FuritenTracker()
         self._round_advance = RoundAdvanceManager()
         self._auto_cleanup = auto_cleanup
         self._settings = settings
@@ -160,7 +159,7 @@ class MahjongGameService(GameService):
             return self._create_error_event(GameErrorCode.INVALID_ACTION, str(e))
         self._games[game_id] = frozen_game
 
-        self._furiten_state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
+        self._furiten_tracker.init_game(game_id)
 
         ai_players: dict[int, AIPlayer] = {}
         for seat, config in enumerate(seat_configs):
@@ -810,49 +809,14 @@ class MahjongGameService(GameService):
         game_state = self._games.get(game_id)
         if game_state is None:
             return events
-        if game_state.round_state.phase == RoundPhase.PLAYING:
-            events.extend(self._check_furiten_changes(game_id, list(range(NUM_PLAYERS))))
-        return events
-
-    def _check_furiten_changes(self, game_id: str, seats: list[int]) -> list[ServiceEvent]:
-        """
-        Check if furiten state changed for the given seats and emit events.
-
-        Only emits an event if the effective furiten state differs from the last known state.
-        """
-        game_state = self._games.get(game_id)
-        if game_state is None or game_state.round_state.phase == RoundPhase.FINISHED:
-            return []
-
-        furiten_state = self._furiten_state.get(game_id, {})
-        events: list[ServiceEvent] = []
-
-        for seat in seats:
-            player = game_state.round_state.players[seat]
-            current = is_effective_furiten(player)
-            previous = furiten_state.get(seat, False)
-
-            if current != previous:
-                furiten_state[seat] = current
-                events.append(
-                    ServiceEvent(
-                        event=EventType.FURITEN,
-                        data=FuritenEvent(
-                            is_furiten=current,
-                            target=f"seat_{seat}",
-                        ),
-                        target=SeatTarget(seat=seat),
-                    ),
-                )
-
-        self._furiten_state[game_id] = furiten_state
+        events.extend(self._furiten_tracker.check_changes(game_id, game_state.round_state))
         return events
 
     def cleanup_game(self, game_id: str) -> None:
         """Remove all game state for a game that was abandoned or cleaned up externally."""
         self._games.pop(game_id, None)
         self._ai_player_controllers.pop(game_id, None)
-        self._furiten_state.pop(game_id, None)
+        self._furiten_tracker.cleanup_game(game_id)
         self._round_advance.cleanup_game(game_id)
 
     def replace_with_ai_player(self, game_id: str, player_name: str) -> None:
@@ -1024,7 +988,7 @@ class MahjongGameService(GameService):
         frozen_game = init_round(frozen_game)
         self._games[game_id] = frozen_game
 
-        self._furiten_state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
+        self._furiten_tracker.init_game(game_id)
 
         ai_player_controller = self._ai_player_controllers[game_id]
 
