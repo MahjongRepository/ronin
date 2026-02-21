@@ -105,6 +105,13 @@ class TestValidateSettings:
     def test_uma_valid_passes(self):
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))
 
+    def test_base_turn_seconds_negative_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="base_turn_seconds must be non-negative"):
+            validate_settings(GameSettings(base_turn_seconds=-1))
+
+    def test_base_turn_seconds_zero_passes(self):
+        validate_settings(GameSettings(base_turn_seconds=0))
+
     def test_initial_bank_seconds_zero_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
             validate_settings(GameSettings(initial_bank_seconds=0))
@@ -112,6 +119,10 @@ class TestValidateSettings:
     def test_initial_bank_seconds_negative_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
             validate_settings(GameSettings(initial_bank_seconds=-1))
+
+    def test_max_bank_below_initial_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="max_bank_seconds must be >= initial_bank_seconds"):
+            validate_settings(GameSettings(max_bank_seconds=5, initial_bank_seconds=20))
 
     def test_round_bonus_seconds_negative_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="round_bonus_seconds must be non-negative"):

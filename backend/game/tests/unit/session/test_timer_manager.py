@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from game.logic.enums import TimeoutType
+from game.logic.timer import TimerConfig
 from game.session.models import Game, Player
 from game.session.timer_manager import TimerManager
 from game.tests.mocks import MockConnection
@@ -185,10 +186,8 @@ class TestTimerManagerStartTurn:
 
     async def test_turn_timer_fires_callback(self, timer_manager, timeout_log):
         """Turn timer timeout invokes the on_timeout callback with correct args."""
-        timer_manager.create_timers("g1", [0])
-        timer = timer_manager.get_timer("g1", 0)
-        # set bank to near zero so timeout fires quickly
-        timer._bank_seconds = 0.01
+        config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.01)
+        timer_manager.create_timers("g1", [0], config=config)
 
         timer_manager.start_turn_timer("g1", 0)
         # wait for the timer to fire

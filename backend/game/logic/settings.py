@@ -133,9 +133,11 @@ class GameSettings(BaseModel):
     daisuushii_pao_set_threshold: int = 4
 
     # --- Timer / Round Pacing Settings ---
-    initial_bank_seconds: float = 3
-    round_bonus_seconds: float = 2
-    meld_decision_seconds: float = 2
+    base_turn_seconds: float = 5
+    initial_bank_seconds: float = 20
+    max_bank_seconds: float = 60
+    round_bonus_seconds: float = 10
+    meld_decision_seconds: float = 5
     round_advance_timeout_seconds: float = 15
 
 
@@ -145,8 +147,12 @@ MAX_AI_PLAYERS = NUM_PLAYERS - 1
 
 def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
     """Validate timer-related settings are within acceptable ranges."""
+    if settings.base_turn_seconds < 0:
+        errors.append("base_turn_seconds must be non-negative")
     if settings.initial_bank_seconds <= 0:
         errors.append("initial_bank_seconds must be positive")
+    if settings.max_bank_seconds < settings.initial_bank_seconds:
+        errors.append("max_bank_seconds must be >= initial_bank_seconds")
     if settings.round_bonus_seconds < 0:
         errors.append("round_bonus_seconds must be non-negative")
     if settings.meld_decision_seconds <= 0:

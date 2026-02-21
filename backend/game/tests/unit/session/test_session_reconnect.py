@@ -245,7 +245,7 @@ class TestBankTimePreservation:
 
     @pytest.mark.asyncio
     async def test_disconnect_mid_turn_deducts_elapsed_time(self, manager):
-        """Disconnect mid-turn deducts elapsed time from saved bank."""
+        """Disconnect mid-turn deducts time exceeding base_turn_seconds from saved bank."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
@@ -255,8 +255,9 @@ class TestBankTimePreservation:
         assert timer is not None
 
         initial_bank = timer.bank_seconds
-        # simulate 1 second of elapsed turn time
-        timer._turn_start_time = time.monotonic() - 1.0
+        base_time = timer._config.base_turn_seconds
+        # simulate elapsed time that exceeds base time by 1 second
+        timer._turn_start_time = time.monotonic() - (base_time + 1.0)
 
         await manager.leave_game(alice_conn, notify_player=False)
 
@@ -648,10 +649,11 @@ class TestMultipleReconnects:
         current_conn = alice_conn
 
         for _ in range(3):
-            # simulate 0.5s of elapsed turn time before each disconnect
+            # simulate elapsed time that exceeds base time by 0.5s
             timer = manager._timer_manager.get_timer("game1", 0)
             assert timer is not None
-            timer._turn_start_time = time.monotonic() - 0.5
+            base_time = timer._config.base_turn_seconds
+            timer._turn_start_time = time.monotonic() - (base_time + 0.5)
 
             player = manager._players[current_conn.connection_id]
             token = player.session_token

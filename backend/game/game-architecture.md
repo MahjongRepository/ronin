@@ -262,7 +262,7 @@ The `logic/` module implements Riichi Mahjong rules:
 - **ActionHandlers** - Validates and processes player actions using typed Pydantic data models (DiscardActionData, RiichiActionData, etc.); call responses (pon, chi, ron, open kan) record intent on `PendingCallPrompt`; `_validate_caller_action_matches_prompt()` enforces per-caller action validity (ron callers can only CALL_RON on DISCARD prompts, meld callers validated against their available call types); `handle_pass` removes the caller from `pending_seats` and applies furiten (for DISCARD prompts, only ron callers receive furiten) without emitting any events; resolution triggers when all callers have responded or passed via `resolve_call_prompt()` from `call_resolution`; `_find_offending_seat_from_prompt()` uses resolution priority logic for blame attribution when call resolution fails
 - **CallResolution** (`call_resolution.py`) - Resolves pending call prompts after all callers respond; picks winning response by priority (ron > pon/kan > chi > all pass); handles triple ron abortive draw, double/single ron, meld resolution, and chankan decline completion; for DISCARD prompts, `_finalize_discard_post_ron_check()` performs deferred dora reveal and riichi finalization after no ron, and `_resolve_all_passed_discard()` handles the all-passed case (dora/riichi already finalized, just advances turn)
 - **Matchmaker** - Assigns players to randomized seats and fills remaining seats with AI players; supports 1-4 players based on `num_ai_players` setting; returns `list[SeatConfig]`
-- **TurnTimer** - Server-side per-player bank time management with async timeout callbacks for turns, meld decisions, and round-advance confirmations; each player gets an independent timer instance; accepts optional `bank_seconds` constructor parameter for restoring preserved bank time on reconnection; `stop()` cancels timer and deducts bank time, while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
+- **TurnTimer** - Server-side per-player timer with base time + bank time model; each turn gets a guaranteed base time (default 5s) that resets every action, followed by a bank time reserve (default 20s initial, capped at 60s) that only drains when base time expires; bank replenished per round (default +10s), capped at `max_bank_seconds`; async timeout callbacks for turns, meld decisions, and round-advance confirmations; each player gets an independent timer instance; accepts optional `bank_seconds` constructor parameter for restoring preserved bank time on reconnection; `stop()` cancels timer and deducts bank time (only excess beyond base time), while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
 - **AIPlayerController** - Pure decision-maker for AI players using `dict[int, AIPlayer]` seat-to-AI-player mapping; provides `is_ai_player()`, `add_ai_player()`, `remove_ai_player()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime AI player addition for disconnect replacement
 - **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `AIPlayerType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView` with seat and score only, `dice` field), `PlayerStanding` (seat, score, final_score), `MeldCaller` (seat and call_type only, no server-internal fields), `AIPlayerAction`, `AvailableActionItem`, reconnection models (`DiscardInfo`, `PlayerReconnectState`, `ReconnectionSnapshot`); `RoundResult` union type
@@ -370,12 +370,18 @@ Session data (`SessionData`) stores: session token (game ticket string), player 
 
 Each player gets an independent `TurnTimer` instance, managed by `TimerManager` (`session/timer_manager.py`). `SessionManager` delegates all timer operations to `TimerManager` and provides a timeout callback.
 
+Timer model (base time + time bank):
+- Each turn gets a guaranteed **base time** (default 5s) that resets every action — acting within base time costs nothing
+- The **time bank** (default 20s initial, capped at 60s) is a reserve pool that only drains when base time expires; only the excess beyond base time is deducted
+- The total timer duration per turn is `base_turn_seconds + bank_seconds`
+- Round bonus (default +10s) replenishes the bank per round, capped at `max_bank_seconds`
+
 Timer behavior:
-- On round start, round bonus is added to all player timers
-- On turn start (draw or pon/chi meld), the current seat's timer starts counting bank time
-- On call prompt, meld timers start for all connected callers (PvP can have multiple simultaneous callers)
+- On round start, round bonus is added to all player timers (capped at `max_bank_seconds`)
+- On turn start (draw or pon/chi meld), the current seat's timer starts with base time + bank time
+- On call prompt, meld timers start for all connected callers (PvP can have multiple simultaneous callers) — meld timers are fixed duration and do not consume bank time
 - On round end, fixed-duration round-advance timers start for all players; when a player confirms (or the timer expires), they are marked as ready; once all players confirm, the next round begins
-- When a player acts, their timer stops (bank time deducted) and other callers' meld timers are cancelled (no bank time deducted)
+- When a player acts, their timer stops (only time exceeding base time is deducted from bank) and other callers' meld timers are cancelled (no bank time deducted)
 - On game end, all player timers are cleaned up
 
 ### AI Player Identity Separation
