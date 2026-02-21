@@ -15,6 +15,7 @@ from game.server.types import CreateRoomRequest
 from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
+from shared.db import Database, SqliteGameRepository
 from shared.logging import setup_logging
 from shared.storage import LocalReplayStorage
 
@@ -95,7 +96,15 @@ def create_app(
     if game_service is None:  # pragma: no cover
         game_service = MahjongGameService()
 
+    # When the app creates its own SessionManager, it owns the DB lifecycle.
+    owned_db: Database | None = None
+
     if session_manager is None:
+        db = Database(settings.database_path)
+        db.connect()
+        owned_db = db
+        game_repository = SqliteGameRepository(db)
+
         storage = LocalReplayStorage(settings.replay_dir)
         replay_collector = ReplayCollector(storage)
         session_manager = SessionManager(
@@ -103,6 +112,7 @@ def create_app(
             log_dir=settings.log_dir,
             replay_collector=replay_collector,
             room_ttl_seconds=settings.room_ttl_seconds,
+            game_repository=game_repository,
         )
 
     if message_router is None:
@@ -124,6 +134,8 @@ def create_app(
 
     async def on_shutdown() -> None:
         await session_manager.stop_room_reaper()
+        if owned_db is not None:
+            owned_db.close()
 
     app = Starlette(routes=routes, on_startup=[on_startup], on_shutdown=[on_shutdown])
     app.add_middleware(

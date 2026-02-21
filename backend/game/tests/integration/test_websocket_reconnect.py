@@ -136,7 +136,8 @@ class TestWebSocketReconnect:
     """Integration tests for reconnection over WebSocket transport."""
 
     @pytest.fixture
-    def client(self):
+    def client(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GAME_DATABASE_PATH", str(tmp_path / "test.db"))
         app = create_app(game_service=MockGameService())
         return TestClient(app)
 

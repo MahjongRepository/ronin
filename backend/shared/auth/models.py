@@ -1,4 +1,4 @@
-"""User account and session models for authentication."""
+"""Player account and session models for authentication."""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -12,8 +12,8 @@ class AccountType(StrEnum):
     BOT = "bot"
 
 
-class User(BaseModel, frozen=True):
-    """User account stored in the user repository."""
+class Player(BaseModel, frozen=True):
+    """Player account stored in the player repository."""
 
     user_id: str
     username: str

@@ -21,7 +21,6 @@ servers:
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("/* test */")
-        users_file = tmp_path / "users.json"
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -29,7 +28,7 @@ servers:
             ),
             auth_settings=AuthSettings(
                 game_ticket_secret="test-secret",
-                users_file=str(users_file),
+                database_path=str(tmp_path / "test.db"),
             ),
         )
         c = TestClient(app)
@@ -216,4 +215,51 @@ servers:
         assert response.status_code == 404
 
         response = client.post("/games")
+        assert response.status_code == 404
+
+
+class TestUnauthenticatedJsonEndpoints:
+    """Protected JSON endpoints return 401 with JSON body when unauthenticated."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        config_file = tmp_path / "servers.yaml"
+        config_file.write_text("""
+servers:
+  - name: "test-server"
+    url: "http://localhost:8711"
+""")
+        static_dir = tmp_path / "public"
+        (static_dir / "styles").mkdir(parents=True)
+        (static_dir / "styles" / "lobby.css").write_text("/* test */")
+        app = create_app(
+            settings=LobbyServerSettings(
+                config_path=config_file,
+                static_dir=str(static_dir),
+            ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="test-secret",
+                database_path=str(tmp_path / "test.db"),
+            ),
+        )
+        return TestClient(app)
+
+    def test_list_rooms_returns_401_json(self, client):
+        response = client.get("/rooms")
+        assert response.status_code == 401
+        assert response.json() == {"error": "Authentication required"}
+
+    def test_create_room_returns_401_json(self, client):
+        response = client.post("/rooms")
+        assert response.status_code == 401
+        assert response.json() == {"error": "Authentication required"}
+
+    def test_list_servers_returns_401_json(self, client):
+        response = client.get("/servers")
+        assert response.status_code == 401
+        assert response.json() == {"error": "Authentication required"}
+
+    def test_unknown_route_returns_404(self, client):
+        """Unknown routes return 404, not a redirect or auth error."""
+        response = client.get("/games")
         assert response.status_code == 404

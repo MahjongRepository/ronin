@@ -1,6 +1,6 @@
 import tempfile
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -654,3 +654,40 @@ class TestRoomEdgeCases:
         assert "race1" not in manager._game_locks
         # Service state should have been cleaned up by the post-await guard
         assert game_service.get_game_seed("race1") is None
+
+    async def test_start_mahjong_game_aborts_if_game_removed_during_record(self):
+        """_start_mahjong_game bails out if all players disconnect during _record_game_start.
+
+        Covers the race window where the game passes the second liveness check
+        (after start_game), but all players disconnect during the _record_game_start
+        await. The third liveness check detects this and returns before creating
+        locks/timers/heartbeat for a game no longer tracked.
+        """
+        game_repo = AsyncMock()
+        game_service = MockGameService()
+        mgr = SessionManager(game_service, game_repository=game_repo)
+
+        conn = MockConnection()
+        mgr.register_connection(conn)
+
+        game = Game(game_id="race2", num_ai_players=3)
+        player = Player(connection=conn, name="Alice", session_token="tok", game_id="race2")
+        game.players[conn.connection_id] = player
+        mgr._players[conn.connection_id] = player
+        mgr._games["race2"] = game
+
+        original_record = mgr._record_game_start
+
+        async def record_then_disconnect(g):
+            """Simulate all players disconnecting during _record_game_start."""
+            await original_record(g)
+            # Simulate _cleanup_empty_game removing the game during the await
+            mgr._games.pop(g.game_id, None)
+            game.players.clear()
+
+        with patch.object(mgr, "_record_game_start", side_effect=record_then_disconnect):
+            await mgr._start_mahjong_game(game)
+
+        # No lock, heartbeat, or timer state should have been created
+        assert "race2" not in mgr._game_locks
+        game_repo.create_game.assert_called_once()

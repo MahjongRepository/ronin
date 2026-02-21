@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import GameAction, MeldViewType, RoundPhase, TimeoutType
@@ -36,6 +37,7 @@ from game.session.models import Game, Player, SessionData
 from game.session.room_manager import RoomManager
 from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerManager
+from shared.dal.models import PlayedGame
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
@@ -45,6 +47,7 @@ if TYPE_CHECKING:
     from game.session.replay_collector import ReplayCollector
     from game.session.room import Room, RoomPlayer
     from game.session.types import RoomInfo
+    from shared.dal.game_repository import GameRepository
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +59,10 @@ class SessionManager:
         log_dir: str | None = None,
         replay_collector: ReplayCollector | None = None,
         room_ttl_seconds: int = 0,
+        game_repository: GameRepository | None = None,
     ) -> None:
         self._game_service = game_service
+        self._game_repository = game_repository
         self._log_dir = log_dir
         self._replay_collector = replay_collector
         self._connections: dict[str, ConnectionProtocol] = {}
@@ -103,6 +108,34 @@ class SessionManager:
                 game_state = self._game_service.get_game_state(game_id)
                 rng_version = game_state.rng_version if game_state is not None else ""
                 self._replay_collector.start_game(game_id, seed, rng_version)
+
+    async def _record_game_start(self, game: Game) -> None:
+        """Best-effort persist game start to the game repository."""
+        if self._game_repository is None:
+            return
+        player_ids = [p.user_id for p in game.players.values() if p.user_id]
+        played_game = PlayedGame(
+            game_id=game.game_id,
+            started_at=datetime.now(UTC),
+            player_ids=player_ids,
+        )
+        try:
+            await self._game_repository.create_game(played_game)
+        except Exception:
+            logger.exception("Failed to persist game start for %s", game.game_id)
+
+    async def _record_game_finish(self, game_id: str, end_reason: str) -> None:
+        """Best-effort persist game end to the game repository."""
+        if self._game_repository is None:
+            return
+        try:
+            await self._game_repository.finish_game(
+                game_id,
+                ended_at=datetime.now(UTC),
+                end_reason=end_reason,
+            )
+        except Exception:
+            logger.exception("Failed to persist game end for %s", game_id)
 
     async def _send_error(self, connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
@@ -188,6 +221,8 @@ class SessionManager:
         """Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state."""
         if game.is_empty and self._games.pop(game_id, None) is not None:
             logger.info("game is empty, cleaning up")
+            if game.started:
+                await self._record_game_finish(game_id, "abandoned")
             self._session_store.cleanup_game(game_id)
             self._timer_manager.cleanup_game(game_id)
             self._game_locks.pop(game_id, None)
@@ -800,6 +835,14 @@ class SessionManager:
             return
 
         self._start_replay_collection(game.game_id)
+        await self._record_game_start(game)
+
+        # Third liveness check: if all players disconnected during the
+        # _record_game_start await, _cleanup_empty_game already removed
+        # the game and cleaned up service/replay state. Bail out to
+        # avoid creating stale lock/timer/heartbeat entries.
+        if not self._is_game_alive(game):
+            return
 
         # assign seats to session players still connected after the await
         for player in game.players.values():
@@ -965,6 +1008,7 @@ class SessionManager:
             return
         if self._replay_collector:
             await self._replay_collector.save_and_cleanup(game.game_id)
+        await self._record_game_finish(game.game_id, "completed")
         for player in list(game.players.values()):
             with contextlib.suppress(RuntimeError, OSError):
                 await player.connection.close(code=1000, reason="game_ended")

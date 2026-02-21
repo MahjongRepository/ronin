@@ -35,3 +35,20 @@ class TestGameServerSettings:
     def test_replay_dir_empty_rejected(self):
         with pytest.raises(ValidationError, match="replay_dir"):
             GameServerSettings(replay_dir="")
+
+    def test_database_path_defaults(self, monkeypatch):
+        monkeypatch.delenv("GAME_DATABASE_PATH", raising=False)
+        monkeypatch.delenv("AUTH_DATABASE_PATH", raising=False)
+        settings = GameServerSettings()
+        assert settings.database_path == "backend/storage.db"
+
+    def test_database_path_from_game_env(self, monkeypatch):
+        monkeypatch.setenv("GAME_DATABASE_PATH", "custom/game.db")
+        settings = GameServerSettings()
+        assert settings.database_path == "custom/game.db"
+
+    def test_database_path_from_auth_env(self, monkeypatch):
+        monkeypatch.delenv("GAME_DATABASE_PATH", raising=False)
+        monkeypatch.setenv("AUTH_DATABASE_PATH", "custom/auth.db")
+        settings = GameServerSettings()
+        assert settings.database_path == "custom/auth.db"

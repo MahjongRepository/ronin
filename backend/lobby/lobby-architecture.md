@@ -13,14 +13,13 @@ Portal service for room discovery and creation.
 - `POST /register` - Create account, auto-login
 - `GET /health` - Health check
 - `POST /api/auth/bot` - Exchange bot API key for a game ticket
-- `POST /api/rooms/create` - Bot creates a new room and receives a game ticket (authenticates via API key in request body)
+- `POST /logout` - Clear session, redirect to login
 - `/static/` - Static files (CSS) served from `frontend/public/`
 
-### Protected (session cookie required)
+### Protected (session cookie or API key required)
 - `GET /` - Lobby HTML page (fully server-rendered Jinja2 template with zero JavaScript; fetches rooms and renders them inline)
 - `POST /rooms/new` - Create a room via HTML form POST, signs a game ticket, then 303 redirect to the game client with `ws_url` and `game_ticket` query params
 - `POST /rooms/{room_id}/join` - Join a room, signs a game ticket, then redirects to the game client
-- `POST /logout` - Clear session, redirect to login
 - `GET /servers` - List available game servers with health status
 - `GET /rooms` - List all available rooms across all healthy servers (used by the game client's room.ts)
 - `POST /rooms` - Create a new room with optional `num_ai_players` parameter (0-3, defaults to 3)
@@ -29,8 +28,8 @@ Portal service for room discovery and creation.
 
 Ronin uses a three-layer authentication model:
 
-1. **User Accounts** - Username/password registration and login via the lobby web interface. Passwords are hashed with bcrypt.
-2. **HMAC-Signed Game Tickets** - The lobby signs HMAC-SHA256 tickets that the game server verifies locally using a shared secret. Tickets contain user identity and room binding.
+1. **Player Accounts** - Username/password registration and login via the lobby web interface. Passwords are hashed with bcrypt.
+2. **HMAC-Signed Game Tickets** - The lobby signs HMAC-SHA256 tickets that the game server verifies locally using a shared secret. Tickets contain player identity and room binding.
 3. **Bot API Keys** - External bots authenticate via static API keys exchanged for game tickets through `POST /api/auth/bot`.
 
 Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room issues a signed game ticket and redirects to the game client. The game server verifies the ticket signature before allowing the WebSocket join.
@@ -41,7 +40,7 @@ Register a bot account using the CLI tool:
 
     uv run python bin/register-bot.py <bot_name>
 
-The API key is printed once and never stored. Set `AUTH_USERS_FILE` to control the user store location.
+The API key is printed once and never stored. Set `AUTH_DATABASE_PATH` to control the SQLite database location (default: `backend/storage.db`). If a legacy `AUTH_USERS_FILE` JSON file exists, it is migrated into SQLite on first startup.
 
 ### Running Locally
 
@@ -109,7 +108,7 @@ CORS middleware is configured with origins from `LOBBY_CORS_ORIGINS`, allowing a
 
 - **Server Layer** (`server/`) - Starlette REST API with CORS and auth middleware
 - **Settings** (`server/settings.py`) - `LobbyServerSettings` via pydantic-settings (`LOBBY_` env prefix)
-- **Auth** (`auth/`) - `AuthMiddleware` for cookie-based session authentication; unprotected paths: `/login`, `/register`, `/health`, `/api/auth/bot`, `/api/rooms/create`; JSON API prefixes (`/rooms`, `/servers`) return 401 instead of redirect when unauthenticated
+- **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie-based session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/rooms`, `/servers`) return 401 instead of redirect when unauthenticated
 - **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `_sign_ticket_and_redirect()` signs HMAC game tickets for room creation/join
 - **Registry** (`registry/`) - Game server discovery and health checks
 - **Games** (`games/`) - Room listing and creation logic
@@ -117,7 +116,8 @@ CORS middleware is configured with origins from `LOBBY_CORS_ORIGINS`, allowing a
 Dependencies on `shared/`:
 - `shared.logging.setup_logging` - Timestamped file and stdout logging
 - `shared.validators` - CORS origins parsing and custom env settings source
-- `shared.auth` - `AuthService`, `AuthSessionStore`, `FileUserRepository` for user management; `sign_game_ticket` for HMAC-signed game tickets
+- `shared.auth` - `AuthService`, `AuthSessionStore`, `PlayerRepository` for player management; `sign_game_ticket` for HMAC-signed game tickets
+- `shared.db` - `Database`, `SqlitePlayerRepository` for SQLite-backed player storage
 
 ## Project Structure
 
@@ -129,7 +129,9 @@ ronin/
         │   ├── app.py          # Starlette app factory and route handlers
         │   └── settings.py     # LobbyServerSettings (pydantic-settings)
         ├── auth/
-        │   └── middleware.py    # AuthMiddleware (cookie-based session auth)
+        │   ├── backend.py      # SessionOrApiKeyBackend (Starlette AuthenticationBackend)
+        │   ├── models.py       # AuthenticatedPlayer (Starlette BaseUser)
+        │   └── policy.py       # Route auth policy decorators and startup validation
         ├── views/
         │   ├── handlers.py     # View handlers (lobby_page, room creation/join with ticket signing)
         │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth)
@@ -196,5 +198,6 @@ Lobby settings (prefixed with `LOBBY_`):
 Auth settings (prefixed with `AUTH_`):
 
 - `AUTH_GAME_TICKET_SECRET` - HMAC-SHA256 secret for signing/verifying game tickets (shared between lobby and game server)
-- `AUTH_USERS_FILE` - Path to the file-backed user repository
+- `AUTH_DATABASE_PATH` - Path to the SQLite database file (default: `backend/storage.db`)
+- `AUTH_USERS_FILE` - Path to a legacy JSON user file for one-time migration into SQLite (optional)
 - `AUTH_COOKIE_SECURE` - Set cookie Secure flag (default: `false`, set `true` in production for HTTPS)

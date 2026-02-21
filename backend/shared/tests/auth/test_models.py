@@ -1,17 +1,17 @@
-"""Tests for User model validation."""
+"""Tests for Player model validation."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from shared.auth.models import AccountType, User
+from shared.auth.models import AccountType, Player
 
 
-class TestUserValidation:
+class TestPlayerValidation:
     def test_human_with_empty_password_hash_rejected(self):
         with pytest.raises(ValidationError, match="password hash"):
-            User(
+            Player(
                 user_id="u1",
                 username="alice",
                 password_hash="",
@@ -20,7 +20,7 @@ class TestUserValidation:
 
     def test_bot_without_api_key_hash_rejected(self):
         with pytest.raises(ValidationError, match="api_key_hash"):
-            User(
+            Player(
                 user_id="b1",
                 username="bot",
                 password_hash="!",
@@ -30,7 +30,7 @@ class TestUserValidation:
 
     def test_bot_with_empty_api_key_hash_rejected(self):
         with pytest.raises(ValidationError, match="api_key_hash"):
-            User(
+            Player(
                 user_id="b1",
                 username="bot",
                 password_hash="!",

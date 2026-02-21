@@ -22,7 +22,6 @@ servers:
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
-        users_file = tmp_path / "users.json"
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -30,7 +29,7 @@ servers:
             ),
             auth_settings=AuthSettings(
                 game_ticket_secret="test-secret",
-                users_file=str(users_file),
+                database_path=str(tmp_path / "test.db"),
             ),
         )
         c = TestClient(app)

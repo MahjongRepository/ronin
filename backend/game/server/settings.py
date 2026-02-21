@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
 from shared.validators import CorsEnvSettingsSource, parse_cors_origins
@@ -19,6 +19,12 @@ class GameServerSettings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:8712"]
     replay_dir: str = Field(default="backend/data/replays", min_length=1)
     room_ttl_seconds: int = Field(default=3600, ge=60)  # 1 hour default, min 60s
+
+    # SQLite database file path. Reads GAME_DATABASE_PATH or AUTH_DATABASE_PATH.
+    database_path: str = Field(
+        default="backend/storage.db",
+        validation_alias=AliasChoices("GAME_DATABASE_PATH", "AUTH_DATABASE_PATH"),
+    )
 
     # Read from AUTH_GAME_TICKET_SECRET (not GAME_GAME_TICKET_SECRET).
     # The secret lives under the AUTH_ namespace because it's shared auth infrastructure,

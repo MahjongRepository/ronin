@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
-    from shared.auth.models import AuthSession
+    from lobby.auth.models import AuthenticatedPlayer
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -71,7 +71,7 @@ def _render_lobby_with_error(
 
 
 def _sign_ticket_and_redirect(
-    user: AuthSession,
+    user: AuthenticatedPlayer,
     room_id: str,
     websocket_url: str,
     game_ticket_secret: str,
@@ -88,7 +88,7 @@ async def lobby_page(request: Request) -> Response:
     """GET / - render the lobby page with available rooms."""
     templates: Jinja2Templates = request.app.state.templates
     games_service = request.app.state.games_service
-    user: AuthSession = request.state.user
+    user = request.user
     rooms = await games_service.list_rooms()
 
     return templates.TemplateResponse(
@@ -108,7 +108,7 @@ async def create_room_and_redirect(request: Request) -> Response:
     auth_settings = request.app.state.auth_settings
     templates: Jinja2Templates = request.app.state.templates
     games_service = request.app.state.games_service
-    user: AuthSession = request.state.user
+    user = request.user
 
     try:
         result = await games_service.create_room(num_ai_players=3)
@@ -131,7 +131,7 @@ async def join_room_and_redirect(request: Request) -> Response:
     auth_settings = request.app.state.auth_settings
     templates: Jinja2Templates = request.app.state.templates
     games_service = request.app.state.games_service
-    user: AuthSession = request.state.user
+    user = request.user
     room_id = request.path_params["room_id"]
 
     rooms = await games_service.list_rooms()

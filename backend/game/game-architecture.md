@@ -238,7 +238,7 @@ The game service communicates through a typed event pipeline:
 
 ### Server Configuration
 
-`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `room_ttl_seconds` (default 3600, min 60s — controls room TTL; expired rooms have their player connections closed by a background reaper task), `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias). Injected into the Starlette app via `create_app()`. The app registers startup/shutdown hooks to start/stop the room reaper background task.
+`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `room_ttl_seconds` (default 3600, min 60s — controls room TTL; expired rooms have their player connections closed by a background reaper task), `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias), `database_path` (default `backend/storage.db`, read from `GAME_DATABASE_PATH` or `AUTH_DATABASE_PATH` via validation alias). Injected into the Starlette app via `create_app()`. The app registers startup/shutdown hooks to start/stop the room reaper background task. When the app creates its own `SessionManager`, it also creates and owns a `Database` instance (connected to `database_path`), injects a `SqliteGameRepository` into the session manager, and closes the database on shutdown. `SessionManager` accepts an optional `GameRepository` for persisting game lifecycle events: game starts (with player IDs and timestamp), completed games (`end_reason="completed"` after replay save), and abandoned games (`end_reason="abandoned"` when a started game is cleaned up because all players left). All database calls are best-effort — failures are logged but never block gameplay or socket cleanup.
 
 ### Room Model
 
@@ -406,6 +406,16 @@ ronin/
 ├── Makefile
 └── backend/
     ├── shared/
+    │   ├── dal/
+    │   │   ├── __init__.py           # Public API: PlayerRepository, GameRepository, PlayedGame
+    │   │   ├── models.py             # PlayedGame persistence model
+    │   │   ├── player_repository.py  # Abstract PlayerRepository interface
+    │   │   └── game_repository.py    # Abstract GameRepository interface
+    │   ├── db/
+    │   │   ├── __init__.py           # Public API: Database, SqlitePlayerRepository, SqliteGameRepository
+    │   │   ├── connection.py         # Database wrapper (SQLite connection, schema, migration)
+    │   │   ├── player_repository.py  # SQLite PlayerRepository implementation
+    │   │   └── game_repository.py    # SQLite GameRepository implementation
     │   └── lib/
     │       └── melds/
     │           ├── __init__.py     # Public API re-exports

@@ -13,6 +13,7 @@ progress*.txt
 
 .coverage
 backend/logs
+backend/storage.db*
 
 backend/debug.py
 
