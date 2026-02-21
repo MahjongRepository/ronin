@@ -58,6 +58,7 @@ class Game:
     game_id: str
     num_ai_players: int = 3
     started: bool = False
+    ended: bool = False
     players: dict[str, Player] = field(default_factory=dict)
     settings: GameSettings = field(default_factory=GameSettings)
 

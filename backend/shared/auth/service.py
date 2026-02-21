@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from shared.auth.models import AccountType, Player
-from shared.auth.password import hash_password, verify_password
 
 if TYPE_CHECKING:
     from shared.auth.models import AuthSession
+    from shared.auth.password import PasswordHasher
     from shared.auth.session_store import AuthSessionStore
     from shared.dal.player_repository import PlayerRepository
 
@@ -31,9 +31,16 @@ class AuthError(Exception):
 class AuthService:
     """Coordinate player registration, login, and session validation."""
 
-    def __init__(self, player_repo: PlayerRepository, session_store: AuthSessionStore | None = None) -> None:
+    def __init__(
+        self,
+        player_repo: PlayerRepository,
+        session_store: AuthSessionStore | None = None,
+        *,
+        password_hasher: PasswordHasher,
+    ) -> None:
         self._player_repo = player_repo
         self._session_store = session_store
+        self._hasher = password_hasher
 
     async def register(self, username: str, password: str) -> Player:
         """Register a new human player account."""
@@ -41,7 +48,7 @@ class AuthService:
         _validate_password(password)
         await self._ensure_username_available(username)
 
-        password_hashed = await hash_password(password)
+        password_hashed = await self._hasher.hash(password)
         player = Player(
             user_id=str(uuid4()),
             username=username,
@@ -80,7 +87,7 @@ class AuthService:
             raise AuthError("Invalid credentials")
         if player.account_type == AccountType.BOT:
             raise AuthError("Invalid credentials")
-        if not await verify_password(password, player.password_hash):
+        if not await self._hasher.verify(password, player.password_hash):
             raise AuthError("Invalid credentials")
         return store.create_session(player.user_id, player.username)
 

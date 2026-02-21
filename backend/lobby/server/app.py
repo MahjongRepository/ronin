@@ -37,6 +37,7 @@ from lobby.views.handlers import (
     lobby_page,
 )
 from shared.auth import AuthService, AuthSessionStore
+from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings
 from shared.db import Database, SqlitePlayerRepository
 from shared.logging import setup_logging
@@ -181,7 +182,8 @@ def create_app(
     db.migrate_from_json(auth_settings.legacy_users_file)
     player_repo = SqlitePlayerRepository(db)
     session_store = AuthSessionStore()
-    auth_service = AuthService(player_repo, session_store)
+    hasher = get_hasher(auth_settings.password_hasher)
+    auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:  # pragma: no cover

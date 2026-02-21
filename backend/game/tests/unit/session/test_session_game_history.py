@@ -187,7 +187,7 @@ class TestGameAbandonmentRecording:
         assert recorded["ended_at"] is not None
 
     async def test_completed_game_not_overwritten_by_abandon(self, manager_with_repo, game_repo):
-        """A game already marked as completed is not overwritten by the abandon path."""
+        """A game already marked as completed does not trigger a second finish_game call."""
         conns = await create_started_game(
             manager_with_repo,
             "game1",
@@ -198,9 +198,10 @@ class TestGameAbandonmentRecording:
         manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
         await manager_with_repo.handle_game_action(conns[0], GameAction.DISCARD, {})
 
-        # At this point finish_game was called with "completed".
-        # The disconnect handlers run _cleanup_empty_game which would try "abandoned",
-        # but the mock's idempotency guard prevents overwriting.
+        # finish_game should be called exactly once with "completed".
+        # The cleanup path (_cleanup_empty_game) must skip the "abandoned" call
+        # because game.ended is already True.
+        game_repo.finish_game.assert_called_once()
         recorded = game_repo.games["game1"]
         assert recorded["end_reason"] == "completed"
 

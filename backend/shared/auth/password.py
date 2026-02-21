@@ -1,29 +1,67 @@
-"""Password hashing utilities using bcrypt.
+"""Password hashing: protocol, bcrypt (production), and simple SHA-256 (tests).
 
-bcrypt is CPU-bound (~100ms per call). Both functions run the bcrypt
-operation off the event loop using anyio.to_thread.run_sync() to avoid
-blocking the Starlette event loop under concurrent requests.
+BcryptHasher is CPU-bound (~100ms per call) and runs off the event loop
+using anyio.to_thread.run_sync() to avoid blocking under concurrent requests.
+
+SimpleHasher uses SHA-256 with a "simple$" prefix for instant hashing.
+It is intended for tests only.
 """
+
+from __future__ import annotations
+
+import hashlib
+from typing import Protocol, runtime_checkable
 
 import bcrypt
 from anyio import to_thread
 
 
-async def hash_password(plain: str) -> str:
-    """Hash a plaintext password using bcrypt. Runs off the event loop."""
-    encoded = plain.encode("utf-8")
-    return await to_thread.run_sync(lambda: bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8"))
+@runtime_checkable
+class PasswordHasher(Protocol):
+    """Hash and verify passwords."""
+
+    async def hash(self, plain: str) -> str: ...
+
+    async def verify(self, plain: str, hashed: str) -> bool: ...
 
 
-async def verify_password(plain: str, hashed: str) -> bool:
-    """Verify a plaintext password against a bcrypt hash. Runs off the event loop.
+class BcryptHasher:
+    """Production hasher using bcrypt (async, off-thread)."""
 
-    Returns False for malformed hashes (e.g. corrupted data in the user store)
-    rather than propagating a ValueError.
-    """
-    encoded_plain = plain.encode("utf-8")
-    encoded_hash = hashed.encode("utf-8")
-    try:
-        return await to_thread.run_sync(lambda: bcrypt.checkpw(encoded_plain, encoded_hash))
-    except ValueError:
-        return False
+    async def hash(self, plain: str) -> str:
+        encoded = plain.encode("utf-8")
+        return await to_thread.run_sync(lambda: bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8"))
+
+    async def verify(self, plain: str, hashed: str) -> bool:
+        """Return False for malformed hashes rather than propagating a ValueError."""
+        encoded_plain = plain.encode("utf-8")
+        encoded_hash = hashed.encode("utf-8")
+        try:
+            return await to_thread.run_sync(lambda: bcrypt.checkpw(encoded_plain, encoded_hash))
+        except ValueError:
+            return False
+
+
+_SIMPLE_PREFIX = "simple$"
+
+
+class SimpleHasher:
+    """Fast SHA-256 hasher for tests. Not suitable for production use."""
+
+    async def hash(self, plain: str) -> str:
+        return _SIMPLE_PREFIX + hashlib.sha256(plain.encode("utf-8")).hexdigest()
+
+    async def verify(self, plain: str, hashed: str) -> bool:
+        if not hashed.startswith(_SIMPLE_PREFIX):
+            return False
+        expected = _SIMPLE_PREFIX + hashlib.sha256(plain.encode("utf-8")).hexdigest()
+        return hashed == expected
+
+
+def get_hasher(name: str = "bcrypt") -> PasswordHasher:
+    """Return a PasswordHasher by name ("bcrypt" or "simple")."""
+    if name == "bcrypt":
+        return BcryptHasher()
+    if name == "simple":
+        return SimpleHasher()
+    raise ValueError(f"Unknown password hasher: {name!r}")

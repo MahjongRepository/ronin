@@ -10,6 +10,10 @@ LOBBY_PORT=${LOBBY_PORT:-8710}
 CLIENT_PORT=${CLIENT_PORT:-8712}
 MAX_RETRIES=10
 
+if [ -f .env.local ]; then
+    set -a && . .env.local && set +a
+fi
+
 kill_tree() {
     local pid="$1"
     # kill children first, then the process itself
@@ -58,10 +62,6 @@ EOF
 
 # Set lobby settings for template rendering
 export LOBBY_GAME_CLIENT_URL="http://localhost:$CLIENT_PORT"
-export LOBBY_STATIC_DIR="frontend/public"
-
-# Shared HMAC secret for game ticket signing/verification
-export AUTH_GAME_TICKET_SECRET="local-dev-secret-do-not-use-in-production"
 
 cleanup() {
     echo "Stopping servers..."

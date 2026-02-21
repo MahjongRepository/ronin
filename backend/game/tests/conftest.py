@@ -1,13 +1,8 @@
-import os
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from game.logic.enums import RoundPhase
-
-# Game server settings require AUTH_GAME_TICKET_SECRET. Set a test default
-# before any GameServerSettings is instantiated.
-os.environ.setdefault("AUTH_GAME_TICKET_SECRET", "test-secret")
 from game.logic.state import (
     Discard,
     MahjongGameState,

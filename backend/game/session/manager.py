@@ -221,7 +221,7 @@ class SessionManager:
         """Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state."""
         if game.is_empty and self._games.pop(game_id, None) is not None:
             logger.info("game is empty, cleaning up")
-            if game.started:
+            if game.started and not game.ended:
                 await self._record_game_finish(game_id, "abandoned")
             self._session_store.cleanup_game(game_id)
             self._timer_manager.cleanup_game(game_id)
@@ -1006,6 +1006,7 @@ class SessionManager:
         """
         if not self._has_game_ended(events):
             return
+        game.ended = True
         if self._replay_collector:
             await self._replay_collector.save_and_cleanup(game.game_id)
         await self._record_game_finish(game.game_id, "completed")
