@@ -27,7 +27,7 @@ from lobby.auth.policy import (
 from lobby.games.service import GamesService, RoomCreationError
 from lobby.games.types import CreateRoomRequest
 from lobby.registry.manager import RegistryManager
-from lobby.server.middleware import SlashNormalizationMiddleware
+from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
 from lobby.server.settings import LobbyServerSettings
 from lobby.views.auth_handlers import bot_auth, login, login_page, logout, register, register_page
 from lobby.views.handlers import (
@@ -202,9 +202,10 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,  # type: ignore[arg-type]
         allow_origins=settings.cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-API-Key"],
     )
+    app.add_middleware(SecurityHeadersMiddleware)  # type: ignore[arg-type]
 
     registry = RegistryManager(settings.config_path)
     app.state.db = db
