@@ -33,7 +33,7 @@ class GamesService:
                         data = response.json()
                         for room in data.get("rooms", []):
                             room["server_name"] = server.name
-                            room["server_url"] = server.url
+                            room["server_url"] = server.client_url
                             all_rooms.append(room)
                 except (httpx.RequestError, ValueError):  # fmt: skip  # pragma: no cover
                     pass
@@ -52,7 +52,7 @@ class GamesService:
 
         await self._create_room_on_server(server, room_id, num_ai_players)
 
-        ws_url = server.url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = server.client_url.replace("http://", "ws://").replace("https://", "wss://")
         websocket_url = f"{ws_url}/ws/{room_id}"
 
         return CreateRoomResponse(

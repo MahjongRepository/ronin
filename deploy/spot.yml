@@ -1,0 +1,138 @@
+user: root
+
+targets:
+  dev:
+    hosts:
+      - {host: "159.69.156.252", name: "dev-server"}
+
+tasks:
+  - name: setup-docker
+    commands:
+      - name: install base packages
+        script: apt-get update && apt-get install -y kitty-terminfo micro
+
+      - name: install docker
+        script: |
+          if docker info >/dev/null 2>&1; then
+            echo "Docker already running: $(docker --version)"
+            exit 0
+          fi
+          curl -fsSL https://get.docker.com | sh
+
+      - name: verify docker
+        wait: {cmd: "docker info >/dev/null 2>&1", timeout: "15s", interval: "3s"}
+
+  - name: setup-firewall
+    commands:
+      - name: configure ufw
+        script: |
+          ufw default deny incoming
+          ufw default allow outgoing
+          ufw allow ssh
+          ufw allow http
+          ufw allow https
+          ufw --force enable
+
+      - name: restrict docker external access
+        script: |
+          # Docker bypasses UFW by manipulating iptables directly.
+          # The DOCKER-USER chain is processed before Docker's own rules,
+          # blocking external traffic from reaching published container ports.
+          # Flush and rebuild for idempotency.
+          iptables -F DOCKER-USER
+          iptables -A DOCKER-USER -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          iptables -A DOCKER-USER -i eth0 -j DROP
+          iptables -A DOCKER-USER -j RETURN
+          ip6tables -F DOCKER-USER
+          ip6tables -A DOCKER-USER -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          ip6tables -A DOCKER-USER -i eth0 -j DROP
+          ip6tables -A DOCKER-USER -j RETURN
+
+      - name: persist docker firewall rules
+        script: |
+          DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+          netfilter-persistent save
+
+  - name: setup-caddy
+    commands:
+      - name: verify dns
+        script: "dig +short $DOMAIN | grep -q '{SPOT_REMOTE_ADDR}'"
+
+      - name: install caddy
+        script: |
+          apt-get update
+          apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
+          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor | tee /usr/share/keyrings/caddy-stable-archive-keyring.gpg > /dev/null
+          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+          apt-get update
+          apt-get install -y caddy
+
+      - name: upload caddyfile
+        copy: {src: "config/Caddyfile", dst: "/etc/caddy/Caddyfile"}
+
+      - name: upload caddy systemd override
+        copy: {src: "config/caddy-env.conf", dst: "/etc/systemd/system/caddy.service.d/env.conf", mkdir: true}
+
+      - name: write caddy env
+        script: |
+          echo "DOMAIN=$DOMAIN" > /etc/caddy/env
+          systemctl daemon-reload
+
+      - name: restart caddy
+        script: |
+          systemctl enable caddy
+          systemctl restart caddy
+
+      - name: verify caddy is running
+        wait: {cmd: "systemctl is-active caddy", timeout: "15s", interval: "3s"}
+
+  - name: setup-app
+    commands:
+      - name: create app directory
+        script: mkdir -p /opt/ronin/config /opt/ronin/www
+
+      - name: init env file
+        copy: {src: ".env.example", dst: "/tmp/ronin-env-template"}
+
+      - name: apply env template
+        script: |
+          if [ -f /opt/ronin/.env ]; then
+            echo ".env already exists, skipping"
+          else
+            cp /tmp/ronin-env-template /opt/ronin/.env
+          fi
+          rm -f /tmp/ronin-env-template
+
+  - name: deploy
+    commands:
+      - name: upload docker-compose
+        copy: {src: "docker-compose.yml", dst: "/opt/ronin/docker-compose.yml"}
+
+      - name: upload server config
+        copy: {src: "config/servers.yaml", dst: "/opt/ronin/config/servers.yaml"}
+
+      - name: render server config
+        script: sed -i "s|%%DOMAIN%%|$DOMAIN|g" /opt/ronin/config/servers.yaml
+
+      - name: pull image
+        script: cd /opt/ronin && docker compose pull
+
+      - name: extract static files
+        script: |
+          id=$(docker create ghcr.io/mahjongrepository/ronin:latest)
+          rm -rf /opt/ronin/www/game-assets
+          mkdir -p /opt/ronin/www/game-assets
+          docker cp "$id:/app/frontend/dist/." /opt/ronin/www/game-assets/
+          docker rm "$id"
+
+      - name: reload caddy
+        script: systemctl reload caddy
+
+      - name: start services
+        script: cd /opt/ronin && docker compose up -d
+
+      - name: verify lobby is healthy
+        wait: {cmd: "curl -sf http://localhost:8710/health", timeout: "30s", interval: "5s"}
+
+      - name: verify game is healthy
+        wait: {cmd: "curl -sf http://localhost:8711/health", timeout: "30s", interval: "5s"}

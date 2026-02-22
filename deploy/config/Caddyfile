@@ -1,0 +1,16 @@
+{$DOMAIN} {
+    # Content-hashed static assets (game client + lobby CSS) — cache aggressively
+    handle /game-assets/* {
+        root * /opt/ronin/www
+        file_server
+        header Cache-Control "public, max-age=31536000, immutable"
+    }
+
+    handle /ws/* {
+        reverse_proxy localhost:8711
+    }
+
+    handle {
+        reverse_proxy localhost:8710
+    }
+}

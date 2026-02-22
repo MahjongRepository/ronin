@@ -15,6 +15,7 @@ from game.server.types import CreateRoomRequest
 from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
+from shared.build_info import APP_VERSION, GIT_COMMIT
 from shared.db import Database, SqliteGameRepository
 from shared.logging import setup_logging
 from shared.storage import LocalReplayStorage
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 
 
 async def health(_request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok"})
+    return JSONResponse({"status": "ok", "version": APP_VERSION, "commit": GIT_COMMIT})
 
 
 async def status(request: Request) -> JSONResponse:
@@ -38,6 +39,8 @@ async def status(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "status": "ok",
+            "version": APP_VERSION,
+            "commit": GIT_COMMIT,
             "active_rooms": session_manager.room_count,
             "active_games": session_manager.game_count,
             "capacity_used": session_manager.room_count + session_manager.game_count,

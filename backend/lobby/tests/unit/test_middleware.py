@@ -10,7 +10,11 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.testclient import TestClient
 
-from lobby.server.middleware import SECURITY_HEADERS, SecurityHeadersMiddleware, SlashNormalizationMiddleware
+from lobby.server.middleware import (
+    SECURITY_HEADERS,
+    SecurityHeadersMiddleware,
+    SlashNormalizationMiddleware,
+)
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -40,6 +44,8 @@ def _make_security_headers_app() -> Starlette:
     app = Starlette(
         routes=[
             Route("/items", _echo_path, methods=["GET"]),
+            Route("/game", _echo_path, methods=["GET"]),
+            Route("/game-assets/test.js", _echo_path, methods=["GET"]),
             WebSocketRoute("/ws", _ws_echo),
         ],
     )
@@ -106,3 +112,35 @@ class TestSecurityHeadersMiddleware:
         with security_client.websocket_connect("/ws") as ws:
             ws.send_text("hello")
             assert ws.receive_text() == "hello"
+
+    def test_game_route_allows_scripts(self, security_client: TestClient) -> None:
+        """Game page CSP allows script execution."""
+        response = security_client.get("/game")
+        csp = response.headers["content-security-policy"]
+        assert "script-src 'self'" in csp
+        assert "script-src 'none'" not in csp
+
+    def test_game_route_allows_websocket(self, security_client: TestClient) -> None:
+        """Game page CSP allows WebSocket connections."""
+        response = security_client.get("/game")
+        csp = response.headers["content-security-policy"]
+        assert "connect-src 'self' ws: wss:" in csp
+
+    def test_game_assets_route_allows_scripts(self, security_client: TestClient) -> None:
+        """Game asset paths also get the game CSP."""
+        response = security_client.get("/game-assets/test.js")
+        csp = response.headers["content-security-policy"]
+        assert "script-src 'self'" in csp
+
+    def test_non_game_route_blocks_scripts(self, security_client: TestClient) -> None:
+        """Non-game routes still block script execution."""
+        response = security_client.get("/items")
+        csp = response.headers["content-security-policy"]
+        assert "script-src 'none'" in csp
+
+    def test_game_route_trailing_slash_allows_scripts(self, security_client: TestClient) -> None:
+        """Game page with trailing slash still gets the game CSP."""
+        response = security_client.get("/game/")
+        csp = response.headers["content-security-policy"]
+        assert "script-src 'self'" in csp
+        assert "script-src 'none'" not in csp

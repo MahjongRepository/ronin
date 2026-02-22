@@ -19,7 +19,8 @@ class LobbyServerSettings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:8712"]
     config_path: Path | None = None
     static_dir: str = "frontend/public"
-    game_client_url: str = "http://localhost:8712"
+    game_client_url: str = "/game"
+    game_assets_dir: str = "frontend/dist"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

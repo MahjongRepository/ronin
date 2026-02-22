@@ -272,7 +272,10 @@ class TestHealthEndpoint:
     def test_health_returns_ok(self, client):
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "version" in data
+        assert "commit" in data
 
 
 class TestStatusEndpoint:
@@ -285,13 +288,13 @@ class TestStatusEndpoint:
         response = client.get("/status")
         assert response.status_code == 200
         data = response.json()
-        assert data == {
-            "status": "ok",
-            "active_rooms": 0,
-            "active_games": 0,
-            "capacity_used": 0,
-            "max_capacity": 100,
-        }
+        assert data["status"] == "ok"
+        assert data["active_rooms"] == 0
+        assert data["active_games"] == 0
+        assert data["capacity_used"] == 0
+        assert data["max_capacity"] == 100
+        assert "version" in data
+        assert "commit" in data
 
     def test_status_reflects_active_rooms(self, client):
         client.post("/rooms", json={"room_id": "r1"})

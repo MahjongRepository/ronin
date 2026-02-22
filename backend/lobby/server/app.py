@@ -33,12 +33,15 @@ from lobby.views.auth_handlers import bot_auth, login, login_page, logout, regis
 from lobby.views.handlers import (
     create_room_and_redirect,
     create_templates,
+    game_page,
     join_room_and_redirect,
+    load_game_assets_manifest,
     lobby_page,
 )
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings
+from shared.build_info import APP_VERSION, GIT_COMMIT
 from shared.db import Database, SqlitePlayerRepository
 from shared.logging import setup_logging
 
@@ -72,7 +75,7 @@ def _make_auth_error_handler(
 
 
 async def health(_request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok"})
+    return JSONResponse({"status": "ok", "version": APP_VERSION, "commit": GIT_COMMIT})
 
 
 async def list_servers(request: Request) -> JSONResponse:
@@ -142,10 +145,12 @@ def create_app(
         auth_settings = AuthSettings()  # type: ignore[call-arg]
 
     static_dir = Path(settings.static_dir).resolve()
+    game_assets_dir = Path(settings.game_assets_dir).resolve()
 
     routes = [
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
+        Route("/game", protected_html(game_page), methods=["GET"], name="game_page"),
         Route(
             "/rooms/new",
             protected_html(create_room_and_redirect),
@@ -170,8 +175,17 @@ def create_app(
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/api/auth/bot", public_route(bot_auth), methods=["POST"], name="bot_auth"),
-        Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"),
     ]
+
+    if static_dir.is_dir():
+        routes.append(Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"))
+
+    if game_assets_dir.is_dir():
+        routes.append(
+            Mount("/game-assets", app=StaticFiles(directory=str(game_assets_dir)), name="game_assets"),
+        )
+    else:
+        logger.warning("game assets directory not found, /game-assets/ will not be served", path=str(game_assets_dir))
 
     validate_route_auth_policy(routes)
     protected_api_paths = collect_protected_api_paths(routes)
@@ -212,7 +226,15 @@ def create_app(
     app.state.settings = settings
     app.state.auth_settings = auth_settings
     app.state.registry = registry
-    app.state.templates = create_templates()
+    templates = create_templates()
+    game_assets = load_game_assets_manifest(settings.game_assets_dir)
+    lobby_css = game_assets.get("lobby_css")
+    if lobby_css:
+        templates.env.globals["lobby_css_url"] = f"/game-assets/{lobby_css}"
+    else:
+        templates.env.globals["lobby_css_url"] = "/static/styles/lobby.css"
+    app.state.templates = templates
+    app.state.game_assets = game_assets
     games_service = GamesService(registry)
     app.state.games_service = games_service
     app.state.auth_service = auth_service

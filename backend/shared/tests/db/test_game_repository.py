@@ -28,10 +28,11 @@ def _game(
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> SqliteGameRepository:
+def repo(tmp_path: Path):
     db = Database(tmp_path / "test.db")
     db.connect()
-    return SqliteGameRepository(db)
+    yield SqliteGameRepository(db)
+    db.close()
 
 
 class TestCreateAndGet:

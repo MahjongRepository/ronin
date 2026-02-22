@@ -11,10 +11,14 @@ class TestLobbyServerSettings:
         monkeypatch.delenv("LOBBY_LOG_DIR", raising=False)
         monkeypatch.delenv("LOBBY_CORS_ORIGINS", raising=False)
         monkeypatch.delenv("LOBBY_CONFIG_PATH", raising=False)
+        monkeypatch.delenv("LOBBY_GAME_CLIENT_URL", raising=False)
+        monkeypatch.delenv("LOBBY_GAME_ASSETS_DIR", raising=False)
         settings = LobbyServerSettings()
         assert settings.log_dir == "backend/logs/lobby"
         assert settings.cors_origins == ["http://localhost:8712"]
         assert settings.config_path is None
+        assert settings.game_client_url == "/game"
+        assert settings.game_assets_dir == "frontend/dist"
 
     def test_config_path_override(self, monkeypatch):
         monkeypatch.setenv("LOBBY_CONFIG_PATH", "/etc/servers.yaml")

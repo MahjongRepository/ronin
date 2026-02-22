@@ -1,0 +1,4 @@
+servers:
+  - name: "game-1"
+    url: "http://game:8711"
+    public_url: "https://%%DOMAIN%%"
