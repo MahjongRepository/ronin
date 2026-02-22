@@ -4,8 +4,9 @@ Meld operations for Mahjong game (pon, chi, kan).
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
+
+import structlog
 
 from game.logic.enums import MeldCallType
 from game.logic.exceptions import InvalidMeldError
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
     from game.logic.settings import GameSettings
     from game.logic.state import MahjongPlayer, MahjongRoundState
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # meld size constants
 TILES_FOR_PON = 2
@@ -412,11 +413,11 @@ def _remove_matching_tiles(
 
     if len(removed_tiles) != count:
         logger.warning(
-            "cannot call %s for seat %d: need %d matching tiles, found %d",
-            meld_name,
-            seat,
-            count,
-            len(removed_tiles),
+            "cannot call meld: insufficient matching tiles",
+            meld_name=meld_name,
+            seat=seat,
+            needed=count,
+            found=len(removed_tiles),
         )
         raise InvalidMeldError(
             f"cannot call {meld_name}: need {count} matching tiles, found {len(removed_tiles)}",
@@ -750,7 +751,7 @@ def resolve_added_kan_tile(
     # verify a matching pon exists
     has_pon = any(meld.type == FrozenMeld.PON and tile_to_34(meld.tiles[0]) == tile_34 for meld in player.melds)
     if not has_pon:
-        logger.warning("cannot call added kan for seat %d: no pon of tile type %d", seat, tile_34)
+        logger.warning("cannot call added kan: no pon of tile type", seat=seat, tile_34=tile_34)
         raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
 
     # resolve tile by type: the caller may provide any tile_id of the correct
@@ -761,7 +762,7 @@ def resolve_added_kan_tile(
 
     resolved_tile_id = next((t for t in player.tiles if tile_to_34(t) == tile_34), -1)
     if resolved_tile_id == -1:
-        logger.warning("cannot call added kan for seat %d: tile %d not in hand", seat, tile_id)
+        logger.warning("cannot call added kan: tile not in hand", seat=seat, tile_id=tile_id)
         raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")
 
     return resolved_tile_id
@@ -803,11 +804,11 @@ def call_added_kan(
                 break
 
     if pon_meld is None:
-        logger.warning("cannot call added kan for seat %d: no pon of tile type %d", seat, tile_34)
+        logger.warning("cannot call added kan: no pon of tile type", seat=seat, tile_34=tile_34)
         raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
 
     if tile_id not in player.tiles:
-        logger.warning("cannot call added kan for seat %d: tile %d not in hand", seat, tile_id)
+        logger.warning("cannot call added kan: tile not in hand", seat=seat, tile_id=tile_id)
         raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")
 
     # remove the 4th tile from hand

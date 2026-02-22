@@ -2,15 +2,16 @@
 
 import asyncio
 import contextlib
-import logging
 import time
 from collections.abc import Callable
 from typing import Any, Protocol
 
+import structlog
+
 HEARTBEAT_CHECK_INTERVAL = 5  # seconds between heartbeat checks
 HEARTBEAT_TIMEOUT = 30  # seconds before disconnecting an idle client
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class _HasPlayers(Protocol):
@@ -91,11 +92,6 @@ class HeartbeatMonitor:
             for player in list(entity.players.values()):
                 last_ping = self._last_ping.get(player.connection_id)
                 if last_ping is not None and now - last_ping > HEARTBEAT_TIMEOUT:
-                    logger.info(
-                        "heartbeat timeout for %s in %s %s, disconnecting",
-                        player.connection_id,
-                        entity_type,
-                        entity_id,
-                    )
+                    logger.info("heartbeat timeout, disconnecting", entity_type=entity_type, entity_id=entity_id)
                     with contextlib.suppress(RuntimeError, OSError, ConnectionError):
                         await player.connection.close(code=1000, reason="heartbeat_timeout")

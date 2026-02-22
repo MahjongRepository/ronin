@@ -15,6 +15,10 @@ import json
 import time
 from dataclasses import asdict, dataclass
 
+import structlog
+
+logger = structlog.get_logger()
+
 _TOKEN_PARTS = 2  # base64url(payload).base64url(signature)
 
 TICKET_TTL_SECONDS = 86400  # 24 hours
@@ -54,15 +58,18 @@ def verify_game_ticket(token: str, secret: str) -> GameTicket | None:
 
     expected_sig = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).digest()
     if not hmac.compare_digest(provided_sig, expected_sig):
+        logger.debug("game ticket signature mismatch")
         return None
 
     try:
         data = json.loads(payload_bytes)
         ticket = GameTicket(**data)
     except json.JSONDecodeError, TypeError, KeyError:
+        logger.debug("game ticket malformed payload")
         return None
 
     if not isinstance(ticket.expires_at, (int, float)) or time.time() > ticket.expires_at:
+        logger.debug("game ticket expired")
         return None
 
     return ticket

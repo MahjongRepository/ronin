@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import contextlib
 import json
-import logging
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import structlog
 from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
@@ -42,7 +42,7 @@ from shared.auth.settings import AuthSettings
 from shared.db import Database, SqlitePlayerRepository
 from shared.logging import setup_logging
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable

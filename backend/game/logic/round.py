@@ -4,8 +4,7 @@ Round initialization and management for Mahjong game.
 
 from __future__ import annotations
 
-import logging
-
+import structlog
 from mahjong.agari import Agari
 
 from game.logic import wall as wall_ops
@@ -30,7 +29,7 @@ from game.logic.tiles import NUM_TILE_TYPES, hand_to_34_array, is_terminal_or_ho
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, TenpaiHand
 from game.logic.win import MAX_TILE_COPIES
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # hand size constants
 HAND_SIZE_AFTER_DRAW = 14
@@ -101,12 +100,12 @@ def discard_tile(
     player = round_state.players[seat]
 
     if tile_id not in player.tiles:
-        logger.warning("seat %d tried to discard tile %d not in hand", seat, tile_id)
+        logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
         raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
 
     # validate kuikae restriction
     if player.kuikae_tiles and tile_to_34(tile_id) in player.kuikae_tiles:
-        logger.warning("seat %d tried to discard tile %d forbidden by kuikae restriction", seat, tile_id)
+        logger.warning("discard forbidden by kuikae restriction", seat=seat, tile_id=tile_id)
         raise InvalidDiscardError(f"tile {tile_id} is forbidden by kuikae restriction")
 
     # Tsumogiri: discarding the just-drawn tile (last in hand).

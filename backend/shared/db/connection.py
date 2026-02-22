@@ -1,14 +1,15 @@
 """SQLite database connection and schema management."""
 
 import json
-import logging
 import os
 import sqlite3
 from pathlib import Path
 
+import structlog
+
 from shared.auth.models import Player
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 _DB_FILE_PERMISSIONS = 0o600
 
@@ -87,14 +88,14 @@ class Database:
         conn = self.connection
         row = conn.execute("SELECT COUNT(*) FROM players").fetchone()
         if row[0] > 0:
-            logger.info("Players table already has data, skipping migration")
+            logger.info("players table already has data, skipping migration")
             return 0
 
         players = self._parse_legacy_json(json_path, legacy_json_path)
         self._insert_migrated_players(conn, players)
 
         count = len(players)
-        logger.info("Migrated %d players from %s", count, legacy_json_path)
+        logger.info("migrated players from legacy file", count=count, path=legacy_json_path)
         return count
 
     def _parse_legacy_json(self, json_path: Path, display_path: str) -> list[Player]:
@@ -164,8 +165,4 @@ class Database:
                 try:
                     p.chmod(_DB_FILE_PERMISSIONS)
                 except OSError:
-                    logger.warning(
-                        "Could not set permissions %o on %s",
-                        _DB_FILE_PERMISSIONS,
-                        p,
-                    )
+                    logger.warning("could not set file permissions", permissions=oct(_DB_FILE_PERMISSIONS), path=str(p))

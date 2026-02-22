@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "bcrypt>=4.0.0",
     "anyio>=4.0.0",
+    "structlog>=24.4.0",
 ]
 
 [dependency-groups]

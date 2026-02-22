@@ -62,7 +62,10 @@ class TestCalculateShanten:
         tiles = _hand(man="123")  # 3 tiles
         with caplog.at_level(logging.WARNING, logger="game.logic.shanten"):
             calculate_shanten(tiles)
-        assert "Unexpected tile count 3" in caplog.text
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) == 1
+        assert warning_records[0].msg["event"] == "unexpected tile count in shanten calculation"
+        assert warning_records[0].msg["tile_count"] == 3
 
     def test_empty_hand_does_not_log_warning(self, caplog):
         """Empty hand (zero tiles) does not log a warning."""

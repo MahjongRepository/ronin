@@ -22,10 +22,10 @@ Replay files use the compact wire format with integer event types and short fiel
 """
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
+import structlog
 from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID
 
 from game.logic.enums import WireEventType, WireRoundResultType
@@ -33,7 +33,7 @@ from game.logic.types import WIRE_SCORE_DIVISOR
 from game.messaging.compact import decode_discard, decode_draw
 from shared.lib.melds.compact import decode_meld_compact
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 REPLAYS_DIR = Path("backend/data/replays")
 OUTPUT_DIR = Path("backend/data/tenhou_replays")

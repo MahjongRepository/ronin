@@ -10,13 +10,13 @@ On timeout, callbacks trigger auto-actions (tsumogiri for turns, pass for melds)
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from typing import TYPE_CHECKING
 
+import structlog
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

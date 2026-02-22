@@ -6,10 +6,10 @@ Handles hand value calculation and score application for wins (tsumo, ron, doubl
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import structlog
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
 
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
         MahjongRoundState,
     )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -167,15 +167,16 @@ def _evaluate_hand(
 
     if result.error:
         tile_counts_34 = hand_to_34_array(tiles)
-        discard_ids = [discard.tile_id for discard in ctx.player.discards]
         logger.error(
-            f"hand calculation error: {result.error} "
-            f"(seat={ctx.player.seat} name={ctx.player.name} "
-            f"tiles={tiles} tiles_34={tile_counts_34} tiles_count={len(tiles)} "
-            f"discards={discard_ids} discards_count={len(discard_ids)} "
-            f"round_wind={ctx.round_state.round_wind} dealer_seat={ctx.round_state.dealer_seat} "
-            f"phase={ctx.round_state.phase.value} wall_count={tiles_remaining(ctx.round_state.wall)} "
-            f"pending_dora_count={ctx.round_state.wall.pending_dora_count} ",
+            "hand calculation error",
+            error=result.error,
+            tiles=tiles,
+            tiles_34=tile_counts_34,
+            round_wind=ctx.round_state.round_wind,
+            dealer_seat=ctx.round_state.dealer_seat,
+            phase=ctx.round_state.phase.value,
+            wall_count=tiles_remaining(ctx.round_state.wall),
+            pending_dora_count=ctx.round_state.wall.pending_dora_count,
         )
         return HandResult(error=result.error)
 

@@ -7,13 +7,14 @@ directory (0o700) to prevent unintended access.
 """
 
 import contextlib
-import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Protocol
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 # Owner-only directory permissions for replay storage.
 _REPLAY_DIR_MODE = 0o700
@@ -71,4 +72,4 @@ class LocalReplayStorage:
             with contextlib.suppress(OSError):
                 Path(tmp_path).unlink()
             raise
-        logger.info("Saved replay for game %s to %s", game_id, target)
+        logger.info("saved replay", game_id=game_id, path=str(target))

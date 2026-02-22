@@ -6,9 +6,9 @@ The service manages state transitions while action handlers are pure functions
 that return new state.
 """
 
-import logging
 from typing import TYPE_CHECKING, Any
 
+import structlog
 from pydantic import ValidationError
 
 from game.logic.action_handlers import (
@@ -85,7 +85,7 @@ if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
     from game.logic.settings import GameSettings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Safety limits for AI player processing loops
 MAX_AI_PLAYER_TURN_ITERATIONS = 100
@@ -149,15 +149,18 @@ class MahjongGameService(GameService):
         When wall is provided, use it instead of generating from seed.
         """
         game_seed = seed if seed is not None else generate_seed()
-        logger.info("starting game %s with players: %s", game_id, player_names)
 
         game_settings = settings or self._settings
         try:
             seat_configs = fill_seats(player_names, seed=game_seed)
             frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings, wall=wall)
         except (UnsupportedSettingsError, ValueError, TypeError) as e:
+            logger.warning("game start failed", error=str(e))
             return self._create_error_event(GameErrorCode.INVALID_ACTION, str(e))
         self._games[game_id] = frozen_game
+
+        hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
+        logger.info("starting game", player_names=player_names, hands=hands)
 
         self._furiten_tracker.init_game(game_id)
 
@@ -252,15 +255,15 @@ class MahjongGameService(GameService):
         """
         if self._games.get(game_id) is None:
             # debug level: this is expected for confirm_round after game ends (race condition)
-            logger.debug("action from '%s' but game not found", player_name)
+            logger.debug("action but game not found")
             return self._create_error_event(GameErrorCode.GAME_ERROR, "game not found")
 
         seat = self._find_player_seat(game_id, player_name)
         if seat is None:
-            logger.warning("action from '%s' but player not in game", player_name)
+            logger.warning("action but player not in game")
             return self._create_error_event(GameErrorCode.GAME_ERROR, "player not in game")
 
-        logger.info("player '%s' (seat %d) action=%s", player_name, seat, action)
+        logger.debug("player action", action=action, action_data=data)
 
         # handle confirm_round before dispatching to game logic
         if action == GameAction.CONFIRM_ROUND:
@@ -270,6 +273,11 @@ class MahjongGameService(GameService):
 
         # reject game actions when the round is not in progress
         if game_state.round_state.phase != RoundPhase.PLAYING:
+            logger.warning(
+                "action rejected: round not in progress",
+                phase=game_state.round_state.phase.value,
+                action=action.value,
+            )
             return self._create_error_event(
                 GameErrorCode.INVALID_ACTION,
                 "round is not in progress",
@@ -278,6 +286,7 @@ class MahjongGameService(GameService):
 
         # turn actions are never valid while a call prompt is pending
         if game_state.round_state.pending_call_prompt is not None and action in TURN_ACTIONS:
+            logger.warning("action rejected: call prompt pending", action=action.value)
             raise InvalidGameActionError(
                 action=action.value,
                 seat=seat,
@@ -316,7 +325,7 @@ class MahjongGameService(GameService):
         try:
             result = self._dispatch_action(game_state, seat, action, data)
         except ValidationError as e:
-            logger.warning("validation error for seat %d action=%s: %s", seat, action, e)
+            logger.warning("validation error", action=action, error=str(e))
             return self._create_error_event(
                 GameErrorCode.VALIDATION_ERROR,
                 f"invalid action data: {e}",
@@ -324,7 +333,7 @@ class MahjongGameService(GameService):
             )
 
         if result is None:
-            logger.warning("unknown action '%s' from seat %d", action, seat)
+            logger.warning("unknown action", action=action)
             return self._create_error_event(
                 GameErrorCode.UNKNOWN_ACTION,
                 f"unknown action: {action}",
@@ -484,10 +493,12 @@ class MahjongGameService(GameService):
         For ROUND_ADVANCE timeout: auto-confirm round advancement.
         """
         if self._games.get(game_id) is None:
+            logger.warning("timeout for unknown game", game_id=game_id)
             return []
 
         seat = self._find_player_seat(game_id, player_name)
         if seat is None:
+            logger.warning("timeout for unknown player")
             return []
 
         if timeout_type == TimeoutType.TURN:
@@ -497,7 +508,7 @@ class MahjongGameService(GameService):
         if timeout_type == TimeoutType.ROUND_ADVANCE:
             return await self._handle_confirm_round(game_id, seat)
 
-        logger.error("unknown timeout type '%s' for player '%s'", timeout_type, player_name)
+        logger.error("unknown timeout type", timeout_type=timeout_type)
         raise InvalidActionError(f"Unknown timeout type: {timeout_type}")
 
     async def _handle_turn_timeout(
@@ -512,10 +523,13 @@ class MahjongGameService(GameService):
             return []
         player = game_state.round_state.players[seat]
         if game_state.round_state.current_player_seat != seat or not player.tiles:
+            logger.debug("turn timeout ignored: not current player or no tiles")
             return []
         if game_state.round_state.pending_call_prompt is not None:
+            logger.debug("turn timeout ignored: call prompt pending")
             return []
         tile_id = _find_timeout_discard_tile(player)
+        logger.info("turn timeout, auto-discarding", tile_id=tile_id)
         if tile_id is None:  # pragma: no cover -- defensive guard
             return []
         try:
@@ -523,11 +537,7 @@ class MahjongGameService(GameService):
         except InvalidGameActionError as e:
             if e.seat != seat:
                 raise
-            logger.warning(
-                "turn timeout '%s' seat %d: InvalidGameActionError (race), ignoring",
-                player_name,
-                seat,
-            )
+            logger.warning("turn timeout: InvalidGameActionError (race), ignoring")
             return []
 
     async def _handle_meld_timeout(
@@ -549,6 +559,7 @@ class MahjongGameService(GameService):
         prompt = game_state.round_state.pending_call_prompt
         if prompt is None or seat not in prompt.pending_seats:
             return []
+        logger.info("meld timeout, auto-passing")
         return await self.handle_action(game_id, player_name, GameAction.PASS, {})
 
     def _find_player_seat(
@@ -681,6 +692,7 @@ class MahjongGameService(GameService):
             else:
                 action, data = GameAction.PASS, {}
 
+            logger.debug("AI player call response", action=action.value, ai_seat=seat)
             result = self._dispatch_ai_player_call_action(game_id, seat, action, data)
             if result is None:
                 break
@@ -705,7 +717,7 @@ class MahjongGameService(GameService):
         except InvalidGameActionError as e:
             if e.seat != seat:
                 raise
-            logger.exception("AI player at seat %d dispatch failed action=%s", seat, action)
+            logger.exception("AI player dispatch failed", ai_seat=seat, action=action)
             return None
 
     def _dispatch_ai_player_call_action(
@@ -750,13 +762,17 @@ class MahjongGameService(GameService):
                 GameErrorCode.MISSING_ROUND_RESULT,
                 "round finished but no round result found",
             )
-        logger.info("round ended")
+        logger.info("round ended", result_type=type(round_result).__name__)
 
         frozen_game = process_round_end(frozen_game, round_result)
 
         if check_game_end(frozen_game):
             frozen_game, game_result = finalize_game(frozen_game)
-            logger.info("game ended")
+            logger.info(
+                "game ended",
+                winner_seat=game_result.winner_seat,
+                standings=[{"seat": s.seat, "score": s.final_score} for s in game_result.standings],
+            )
             # Always store finalized state before cleanup decision
             self._games[game_id] = frozen_game
 
@@ -791,6 +807,7 @@ class MahjongGameService(GameService):
         """Handle a player confirming readiness for the next round."""
         result = self._round_advance.confirm_seat(game_id, seat)
         if result is None:
+            logger.warning("confirm round rejected: no round pending")
             return self._create_error_event(
                 GameErrorCode.INVALID_ACTION,
                 "no round pending confirmation",
@@ -837,7 +854,7 @@ class MahjongGameService(GameService):
 
         ai_player = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         ai_player_controller.add_ai_player(seat, ai_player)
-        logger.info("replaced '%s' (seat %d) with AI player", player_name, seat)
+        logger.info("replaced player with AI", replaced_player=player_name, replaced_seat=seat)
 
     def restore_human_player(self, game_id: str, seat: int) -> None:
         """Remove the AI player at a seat and restore it for human control."""
@@ -983,10 +1000,11 @@ class MahjongGameService(GameService):
     async def _start_next_round(self, game_id: str) -> list[ServiceEvent]:
         """Start the next round and return events."""
         frozen_game = self._games[game_id]
-        logger.info("starting next round")
-
         frozen_game = init_round(frozen_game)
         self._games[game_id] = frozen_game
+
+        hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
+        logger.info("starting next round", hands=hands)
 
         self._furiten_tracker.init_game(game_id)
 
@@ -1060,7 +1078,7 @@ class MahjongGameService(GameService):
         except InvalidGameActionError as e:
             if e.seat != seat:
                 raise
-            logger.exception("AI player at seat %d %s action=%s", seat, label, action)
+            logger.exception("AI player error", ai_seat=seat, label=label, action=action)
             return None
 
     async def _execute_ai_player_turn(
@@ -1080,6 +1098,7 @@ class MahjongGameService(GameService):
             return None
 
         action, data = action_data
+        logger.debug("AI player action", action=action.value, ai_seat=seat)
         result = await self._try_ai_player_dispatch_async(
             game_id,
             seat,
@@ -1104,6 +1123,7 @@ class MahjongGameService(GameService):
         tile_id = _find_timeout_discard_tile(fallback_player)
         if tile_id is None:
             return None
+        logger.debug("AI player tsumogiri fallback", ai_seat=seat, tile_id=tile_id)
         return await self._try_ai_player_dispatch_async(
             game_id,
             seat,

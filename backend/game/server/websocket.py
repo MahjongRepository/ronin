@@ -1,8 +1,8 @@
 import contextlib
-import logging
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from game.logic.enums import WireClientMessageType
@@ -10,7 +10,7 @@ from game.messaging.encoder import DecodeError
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import ErrorMessage, SessionErrorCode
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 if TYPE_CHECKING:
     from game.messaging.router import MessageRouter
@@ -48,7 +48,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     room_id = websocket.path_params["room_id"]
 
     connection = WebSocketConnection(websocket)
-    logger.info("websocket connected: %s", connection.connection_id)
+    logger.info("websocket connected", connection_id=connection.connection_id)
     await router.handle_connect(connection)
 
     try:
@@ -56,7 +56,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
             try:
                 data = await connection.receive_message()
             except DecodeError as e:
-                logger.warning("decode error from %s: %s", connection.connection_id, e)
+                logger.warning("decode error", error=str(e))
                 await connection.send_message(
                     ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
                 )
@@ -67,5 +67,6 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip
         pass
     finally:
-        logger.info("websocket disconnected: %s", connection.connection_id)
+        logger.info("websocket disconnected", connection_id=connection.connection_id)
         await router.handle_disconnect(connection)
+        structlog.contextvars.clear_contextvars()

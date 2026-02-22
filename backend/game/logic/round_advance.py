@@ -1,12 +1,13 @@
 """Manage round advancement confirmation between rounds."""
 
-import logging
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 
+import structlog
+
 from game.logic.settings import NUM_PLAYERS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -82,7 +83,7 @@ class RoundAdvanceManager:
         if pending is None:
             return None
         if seat not in pending.required_seats:
-            logger.warning("seat %d is not in required_seats, ignoring", seat)
+            logger.warning("seat is not in required_seats, ignoring", seat=seat)
             return False
         pending.confirmed_seats.add(seat)
         if pending.all_confirmed:

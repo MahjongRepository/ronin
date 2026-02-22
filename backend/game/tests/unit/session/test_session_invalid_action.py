@@ -84,7 +84,7 @@ class TestSessionManagerInvalidAction:
         assert manager.get_game("game1") is None
 
     async def test_invalid_action_logs_warning(self, manager, caplog):
-        """The warning log contains user_id, player_name, seat, action, and reason."""
+        """The warning log contains action and reason as structured fields."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
@@ -92,14 +92,12 @@ class TestSessionManagerInvalidAction:
         with caplog.at_level(logging.WARNING):
             await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
 
-        warning_msgs = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warning_msgs) >= 1
-        msg = warning_msgs[0].message
-        assert conns[0].connection_id in msg
-        assert "Alice" in msg
-        assert "seat=0" in msg
-        assert "discard" in msg
-        assert "tile not in hand" in msg
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) >= 1
+        msg = warning_records[0].msg
+        assert msg["event"] == "invalid game action"
+        assert msg["action"] == "discard"
+        assert msg["reason"] == "tile not in hand"
 
     async def test_invalid_action_ai_player_processes_pending_actions(self, manager):
         """After AI player replacement, pending AI player actions are processed and broadcast."""

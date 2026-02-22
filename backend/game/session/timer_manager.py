@@ -1,8 +1,9 @@
 """Manage per-player turn timers for active games."""
 
-import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
+
+import structlog
 
 from game.logic.enums import TimeoutType
 from game.logic.timer import TimerConfig, TurnTimer
@@ -10,7 +11,7 @@ from game.logic.timer import TimerConfig, TurnTimer
 if TYPE_CHECKING:
     from game.session.models import Game
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Callback type: (game_id, timeout_type, seat) -> Awaitable[None]
 TimeoutCallback = Callable[[str, TimeoutType, int], Awaitable[None]]

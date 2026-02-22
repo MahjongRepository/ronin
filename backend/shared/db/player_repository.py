@@ -2,9 +2,10 @@
 
 import asyncio
 import json
-import logging
 import sqlite3
 from typing import TYPE_CHECKING
+
+import structlog
 
 from shared.auth.models import Player
 from shared.dal.player_repository import PlayerRepository
@@ -12,7 +13,7 @@ from shared.dal.player_repository import PlayerRepository
 if TYPE_CHECKING:
     from shared.db.connection import Database
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class SqlitePlayerRepository(PlayerRepository):

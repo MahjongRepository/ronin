@@ -1,8 +1,9 @@
 import asyncio
 import contextlib
-import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
+import structlog
 
 from game.logic.enums import GameAction, MeldViewType, RoundPhase, TimeoutType
 from game.logic.events import (
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
     from game.session.types import RoomInfo
     from shared.dal.game_repository import GameRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class SessionManager:
@@ -122,7 +123,7 @@ class SessionManager:
         try:
             await self._game_repository.create_game(played_game)
         except Exception:
-            logger.exception("Failed to persist game start for %s", game.game_id)
+            logger.exception("failed to persist game start")
 
     async def _record_game_finish(self, game_id: str, end_reason: str) -> None:
         """Best-effort persist game end to the game repository."""
@@ -135,9 +136,10 @@ class SessionManager:
                 end_reason=end_reason,
             )
         except Exception:
-            logger.exception("Failed to persist game end for %s", game_id)
+            logger.exception("failed to persist game end")
 
     async def _send_error(self, connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
+        logger.warning("session error sent to client", error_code=code.value, error_message=message)
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
 
     async def leave_game(
@@ -160,7 +162,7 @@ class SessionManager:
         game_id = game.game_id
         player_name = player.name
         player_seat = player.seat
-        logger.info("player '%s' left game", player_name)
+        logger.info("player left game")
 
         lock = self._get_game_lock(game_id) if game.started else None
 
@@ -284,14 +286,7 @@ class SessionManager:
         player_name = player.name
         player_seat = player.seat
 
-        logger.warning(
-            "invalid game action: user_id=%s player=%s seat=%s action=%s reason=%s",
-            connection.connection_id,
-            player_name,
-            error.seat,
-            error.action,
-            error.reason,
-        )
+        logger.warning("invalid game action", action=error.action, reason=error.reason)
 
         self._session_store.mark_disconnected(player.session_token)
         self._remove_player_from_game(game, connection.connection_id, player)
@@ -345,10 +340,7 @@ class SessionManager:
         offender_player = self._get_player_at_seat(game, error.seat)
         if offender_player is None:
             # offending seat has no connected player (AI player seat) — log and skip disconnect
-            logger.warning(
-                "InvalidGameActionError at seat %s but no player found (likely an AI player seat), skipping disconnect",
-                error.seat,
-            )
+            logger.warning("invalid action at AI player seat, skipping disconnect", error_seat=error.seat)
             return None, []
         offender_connection = offender_player.connection
         ai_events: list[ServiceEvent] = []
@@ -391,6 +383,7 @@ class SessionManager:
             return
 
         game_id = player.game_id
+        structlog.contextvars.bind_contextvars(seat=player.seat)
         lock = self._get_game_lock(game_id)
         if lock is None:
             await self._send_error(connection, SessionErrorCode.GAME_NOT_STARTED, "Game has not started yet")
@@ -538,12 +531,8 @@ class SessionManager:
                 with contextlib.suppress(RuntimeError, OSError, ConnectionError):
                     await stale_conn.close(code=1000, reason="replaced_by_reconnect")
 
-        logger.info(
-            "player '%s' reconnected to game '%s' at seat %d",
-            session.player_name,
-            game_id,
-            seat,
-        )
+        structlog.contextvars.bind_contextvars(seat=seat)
+        logger.info("player reconnected")
 
     async def _validate_reconnect(
         self,
@@ -775,6 +764,7 @@ class SessionManager:
         settings: GameSettings,
     ) -> None:
         """Create a Game from room players and start the mahjong game."""
+        structlog.contextvars.clear_contextvars()
         game = Game(game_id=room_id, num_ai_players=num_ai_players, settings=settings)
         self._games[room_id] = game
 

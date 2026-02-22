@@ -1,7 +1,7 @@
 import json
-import logging
 from typing import TYPE_CHECKING
 
+import structlog
 from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
@@ -19,7 +19,7 @@ from shared.db import Database, SqliteGameRepository
 from shared.logging import setup_logging
 from shared.storage import LocalReplayStorage
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 if TYPE_CHECKING:
     from starlette.requests import Request

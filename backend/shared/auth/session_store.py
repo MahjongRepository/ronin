@@ -2,16 +2,17 @@
 
 import asyncio
 import contextlib
-import logging
 import time
 from uuid import uuid4
+
+import structlog
 
 from shared.auth.models import AuthSession
 
 CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
 DEFAULT_SESSION_TTL_SECONDS = 86400  # 24 hours
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class AuthSessionStore:
@@ -64,7 +65,7 @@ class AuthSessionStore:
         for sid in expired:
             del self._sessions[sid]
         if expired:
-            logger.info("Cleaned up %d expired sessions", len(expired))
+            logger.info("cleaned up expired sessions", count=len(expired))
         return len(expired)
 
     def start_cleanup(self) -> None:

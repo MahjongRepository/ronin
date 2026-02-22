@@ -2,9 +2,12 @@ from http import HTTPStatus
 from pathlib import Path
 
 import httpx
+import structlog
 import yaml
 
 from lobby.registry.types import GameServer
+
+logger = structlog.get_logger()
 
 
 def _get_default_config_path() -> Path:  # pragma: no cover — production default, tests always provide config_path
@@ -49,5 +52,6 @@ class RegistryManager:
                         server.healthy = True
                     else:
                         server.healthy = False
-                except httpx.RequestError:
+                except httpx.RequestError as e:
+                    logger.warning("health check failed", server_name=server.name, error=str(e))
                     server.healthy = False

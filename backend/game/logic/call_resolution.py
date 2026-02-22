@@ -5,8 +5,9 @@ completion. Extracted from action_handlers.py to give the call-resolution state
 machine its own module and test surface.
 """
 
-import logging
 from typing import TYPE_CHECKING
+
+import structlog
 
 from game.logic.abortive import (
     AbortiveDrawType,
@@ -55,7 +56,7 @@ if TYPE_CHECKING:
         PendingCallPrompt,
     )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 FALLBACK_CALLER_ORDER = 999  # sorts unknown seats after all known ones
 
@@ -113,9 +114,9 @@ def pick_best_meld_response(
             valid_responses.append(response)
         else:
             logger.warning(
-                "ignoring meld response from seat %d with action %s: not in original callers",
-                response.seat,
-                response.action,
+                "ignoring meld response: not in original callers",
+                response_seat=response.seat,
+                action=response.action,
             )
 
     def sort_key(response: CallResponse) -> tuple[int, int]:
@@ -353,9 +354,9 @@ def resolve_call_prompt(  # noqa: PLR0911
 
     if prompt.pending_seats:
         logger.error(
-            "resolve_call_prompt called with %d pending seats: %s",
-            len(prompt.pending_seats),
-            prompt.pending_seats,
+            "resolve_call_prompt called with pending seats",
+            pending_count=len(prompt.pending_seats),
+            pending_seats=prompt.pending_seats,
         )
         raise ValueError(f"cannot resolve call prompt: {len(prompt.pending_seats)} seats have not responded")
 
@@ -366,6 +367,7 @@ def resolve_call_prompt(  # noqa: PLR0911
 
     # priority 1: ron
     if ron_responses:
+        logger.debug("call resolved: ron", winner_seats=[r.seat for r in ron_responses])
         return _resolve_ron_responses(round_state, game_state, prompt, ron_responses)
 
     # No ron -- finalize dora/riichi for DISCARD and MELD prompts.
@@ -395,6 +397,7 @@ def resolve_call_prompt(  # noqa: PLR0911
     if meld_responses:
         best = pick_best_meld_response(meld_responses, prompt)
         if best is not None:
+            logger.debug("call resolved: meld", caller_seat=best.seat, call_type=best.action.value)
             meld_result = _resolve_meld_response(resolved_round, resolved_game, prompt, best)
             # prepend dora/riichi events before meld events
             return ActionResult(
@@ -402,12 +405,10 @@ def resolve_call_prompt(  # noqa: PLR0911
                 new_round_state=meld_result.new_round_state,
                 new_game_state=meld_result.new_game_state,
             )
-        logger.error(
-            "all %d meld responses were from unrecognized callers; treating as all-pass",
-            len(meld_responses),
-        )
+        logger.error("all meld responses from unrecognized callers, treating as all-pass", count=len(meld_responses))
 
     # all passed
+    logger.debug("call resolved: all passed")
     new_round_state = clear_pending_prompt(resolved_round)
     new_game_state = update_game_with_round(resolved_game, new_round_state)
 

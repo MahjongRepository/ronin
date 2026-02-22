@@ -4,8 +4,9 @@ Turn loop orchestration for Mahjong game.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
+
+import structlog
 
 from game.logic.abortive import (
     AbortiveDrawType,
@@ -94,7 +95,7 @@ from game.logic.win import (
 if TYPE_CHECKING:
     from game.logic.settings import GameSettings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 def _maybe_emit_dora_event(
@@ -151,6 +152,7 @@ def process_draw_phase(
 
     # check for exhaustive draw before attempting to draw
     if check_exhaustive_draw(round_state):
+        logger.debug("exhaustive draw")
         new_round_state, new_game_state, result = process_exhaustive_draw(game_state)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
@@ -161,6 +163,8 @@ def process_draw_phase(
     new_round_state, drawn_tile = draw_tile(round_state)
     if drawn_tile is None:  # pragma: no cover
         raise AssertionError("drawn_tile is None after exhaustive draw check passed")
+
+    logger.debug("tile drawn", tile_id=drawn_tile)
 
     # update game state with new round state
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
@@ -285,7 +289,7 @@ def _validate_riichi_discard(
     Raises InvalidRiichiError if conditions are not met.
     """
     if not can_declare_riichi(player, round_state, settings):
-        logger.error("seat %d cannot declare riichi: conditions not met", player.seat)
+        logger.error("cannot declare riichi: conditions not met", seat=player.seat)
         raise InvalidRiichiError("cannot declare riichi: conditions not met")
 
     removed = False
@@ -308,6 +312,7 @@ def _check_abortive_draw(
     events: list[GameEvent],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Produce abortive draw result and mark round finished."""
+    logger.debug("abortive draw", draw_type=draw_type.value)
     result = process_abortive_draw(game_state, draw_type)
     new_round = round_state.model_copy(update={"phase": RoundPhase.FINISHED})
     new_game = game_state.model_copy(update={"round_state": new_round})
@@ -417,6 +422,8 @@ def process_discard_phase(
         ),
     )
 
+    logger.debug("tile discarded", tile_id=tile_id, is_tsumogiri=discard.is_tsumogiri, is_riichi=is_riichi)
+
     # check for four winds abortive draw
     if settings.has_suufon_renda and check_four_winds(new_round_state, settings):
         return _check_abortive_draw(new_round_state, new_game_state, AbortiveDrawType.FOUR_WINDS, events)
@@ -521,7 +528,7 @@ def process_ron_call(
         hand_result = calculate_hand_value_with_tiles(ctx, tiles_with_win, tile_id)
 
         if hand_result.error:
-            logger.error("ron calculation error for seat %d: %s", winner_seat, hand_result.error)
+            logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
             raise InvalidWinError(f"ron calculation error: {hand_result.error}")
 
         new_round_state, new_game_state, result = apply_ron_score(
@@ -530,6 +537,15 @@ def process_ron_call(
             discarder_seat,
             hand_result,
             tile_id,
+        )
+        logger.debug(
+            "ron declared",
+            winner_seat=winner_seat,
+            loser_seat=discarder_seat,
+            tile_id=tile_id,
+            han=hand_result.han,
+            fu=hand_result.fu,
+            cost=hand_result.cost_main,
         )
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
@@ -555,7 +571,7 @@ def process_ron_call(
             hand_result = calculate_hand_value_with_tiles(ctx, tiles_with_win, tile_id)
 
             if hand_result.error:
-                logger.error("ron calculation error for seat %d: %s", winner_seat, hand_result.error)
+                logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
                 raise InvalidWinError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
 
             winners.append((winner_seat, hand_result))
@@ -565,6 +581,12 @@ def process_ron_call(
             winners,
             discarder_seat,
             tile_id,
+        )
+        logger.debug(
+            "double ron declared",
+            winner_seats=[s for s, _ in winners],
+            loser_seat=discarder_seat,
+            tile_id=tile_id,
         )
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
@@ -590,7 +612,7 @@ def process_tsumo_call(
     winner = round_state.players[winner_seat]
 
     if not can_declare_tsumo(winner, round_state, settings):
-        logger.error("seat %d cannot declare tsumo: conditions not met", winner_seat)
+        logger.error("cannot declare tsumo: conditions not met", seat=winner_seat)
         raise InvalidWinError("cannot declare tsumo: conditions not met")
 
     # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
@@ -604,12 +626,20 @@ def process_tsumo_call(
     hand_result = calculate_hand_value(ctx, win_tile)
 
     if hand_result.error:
-        logger.error("tsumo calculation error for seat %d: %s", winner_seat, hand_result.error)
+        logger.error("tsumo calculation error", winner_seat=winner_seat, error=hand_result.error)
         raise InvalidWinError(f"tsumo calculation error: {hand_result.error}")
 
     # apply score changes
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
     new_round_state, new_game_state, result = apply_tsumo_score(new_game_state, winner_seat, hand_result)
+    logger.debug(
+        "tsumo declared",
+        winner_seat=winner_seat,
+        tile_id=win_tile,
+        han=hand_result.han,
+        fu=hand_result.fu,
+        cost=hand_result.cost_main,
+    )
     new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
     new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
     events.append(RoundEndEvent(result=result, target="all"))
@@ -625,6 +655,7 @@ def _process_pon_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a pon meld call."""
+    logger.debug("pon called", caller_seat=caller_seat, from_seat=discarder_seat, tile_id=tile_id)
     new_round_state, meld = call_pon(round_state, caller_seat, discarder_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
     events: list[GameEvent] = [
@@ -647,6 +678,7 @@ def _process_chi_call(
     sequence_tiles: tuple[int, int],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a chi meld call."""
+    logger.debug("chi called", caller_seat=caller_seat, tile_id=tile_id, sequence_tiles=sequence_tiles)
     discarder_seat = round_state.current_player_seat
     new_round_state, meld = call_chi(
         round_state,
@@ -695,6 +727,7 @@ def _process_open_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle an open kan meld call."""
+    logger.debug("open kan called", caller_seat=caller_seat, from_seat=discarder_seat, tile_id=tile_id)
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_open_kan(
         round_state,
@@ -729,6 +762,7 @@ def _process_closed_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a closed kan meld call."""
+    logger.debug("closed kan called", caller_seat=caller_seat, tile_id=tile_id)
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
@@ -755,6 +789,7 @@ def _process_added_kan_call(
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle an added kan meld call."""
+    logger.debug("added kan called", caller_seat=caller_seat, tile_id=tile_id)
     # validate and resolve tile_id to the actual in-hand copy before chankan
     # checks, so the resolved tile is used consistently for prompts, scoring,
     # and kan execution.
@@ -834,7 +869,7 @@ def process_meld_call(
 
     if call_type == MeldCallType.CHI:
         if meld_input.sequence_tiles is None:
-            logger.error("chi call from seat %d missing sequence_tiles", caller_seat)
+            logger.error("chi call missing sequence_tiles", caller_seat=caller_seat)
             raise InvalidMeldError("chi call requires sequence_tiles")
         return _process_chi_call(
             round_state,
@@ -853,5 +888,5 @@ def process_meld_call(
     if call_type == MeldCallType.ADDED_KAN:
         return _process_added_kan_call(round_state, game_state, caller_seat, tile_id)
 
-    logger.error("unknown call_type: %s from seat %d", call_type, caller_seat)  # pragma: no cover
+    logger.error("unknown call_type", call_type=call_type, caller_seat=caller_seat)  # pragma: no cover
     raise InvalidActionError(f"unknown call_type: {call_type}")  # pragma: no cover

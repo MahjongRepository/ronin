@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from typing import TYPE_CHECKING, Any
+
+import structlog
 
 from game.logic.events import (
     BroadcastTarget,
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from shared.storage import ReplayStorage
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Seat-targeted event types included in replay persistence.
 # DrawEvent carries the drawn tile ID needed for full game reconstruction.
@@ -186,7 +187,7 @@ class ReplayCollector:
             content = "\n".join([version_tag, *buffer])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
         except (OSError, ValueError):  # fmt: skip
-            logger.exception("Failed to save replay for game %s", game_id)
+            logger.exception("failed to save replay")
 
     def cleanup_game(self, game_id: str) -> None:
         """Discard the event buffer without persisting (abandoned game)."""

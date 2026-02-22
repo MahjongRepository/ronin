@@ -5,7 +5,7 @@ Each handler validates input and returns ActionResult containing events and opti
 These handlers are designed to be used by the MahjongGameService to process player actions.
 """
 
-import logging
+import structlog
 
 from game.logic.abortive import (
     call_kyuushu_kyuuhai,
@@ -57,7 +57,7 @@ from game.logic.types import (
 )
 from game.logic.win import apply_temporary_furiten
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Actions that require it to be the player's turn (not a call response)
 TURN_ACTIONS = frozenset(
@@ -100,7 +100,7 @@ def _validate_call_prompt(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        logger.warning("invalid call from seat %d: no pending call prompt", seat)
+        logger.warning("invalid call: no pending call prompt", seat=seat)
         return ActionResult(
             [
                 ErrorEvent(
@@ -114,12 +114,7 @@ def _validate_call_prompt(
         )
 
     if prompt.tile_id != tile_id:
-        logger.warning(
-            "invalid call from seat %d: tile_id mismatch (expected=%d, got=%d)",
-            seat,
-            prompt.tile_id,
-            tile_id,
-        )
+        logger.warning("invalid call: tile_id mismatch", seat=seat, expected=prompt.tile_id, got=tile_id)
         return ActionResult(
             [
                 ErrorEvent(
@@ -368,6 +363,7 @@ def handle_discard(
             new_game_state=new_game_state,
         )
     except GameRuleError as e:
+        logger.warning("discard rejected", reason=str(e))
         raise InvalidGameActionError(action="discard", seat=seat, reason=str(e)) from e
 
 
@@ -400,6 +396,7 @@ def handle_riichi(
             new_game_state=new_game_state,
         )
     except GameRuleError as e:
+        logger.warning("riichi rejected", reason=str(e))
         raise InvalidGameActionError(action="declare_riichi", seat=seat, reason=str(e)) from e
 
 
@@ -425,6 +422,7 @@ def handle_tsumo(
             new_game_state=new_game_state,
         )
     except GameRuleError as e:
+        logger.warning("tsumo rejected", reason=str(e))
         raise InvalidGameActionError(action="declare_tsumo", seat=seat, reason=str(e)) from e
 
 
@@ -442,7 +440,7 @@ def handle_ron(
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        logger.warning("invalid ron from seat %d: no pending call prompt", seat)
+        logger.warning("invalid ron: no pending call prompt", seat=seat)
         return ActionResult(
             [
                 ErrorEvent(
@@ -622,6 +620,7 @@ def _handle_self_kan(
             meld_input,
         )
     except GameRuleError as e:
+        logger.warning("kan rejected", reason=str(e))
         raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
 
     if new_round_state.phase == RoundPhase.FINISHED:
@@ -730,7 +729,7 @@ def handle_pass(
 
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
-        logger.warning("invalid pass from seat %d: no pending call prompt", seat)
+        logger.warning("invalid pass: no pending call prompt", seat=seat)
         return ActionResult(
             [
                 ErrorEvent(

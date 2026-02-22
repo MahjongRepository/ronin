@@ -2,9 +2,10 @@
 
 import asyncio
 import json
-import logging
 import sqlite3
 from typing import TYPE_CHECKING
+
+import structlog
 
 from shared.dal.game_repository import GameRepository
 from shared.dal.models import PlayedGame
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
     from shared.db.connection import Database
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class SqliteGameRepository(GameRepository):
@@ -45,7 +46,7 @@ class SqliteGameRepository(GameRepository):
                 self._db.connection.commit()
             except sqlite3.IntegrityError:
                 self._db.connection.rollback()
-                logger.warning("Game %s already exists, ignoring duplicate create", game.game_id)
+                logger.warning("game already exists, ignoring duplicate create", game_id=game.game_id)
 
     async def finish_game(
         self,
@@ -66,10 +67,7 @@ class SqliteGameRepository(GameRepository):
             )
             self._db.connection.commit()
             if cursor.rowcount == 0:
-                logger.warning(
-                    "finish_game had no effect for game %s (not found or already ended)",
-                    game_id,
-                )
+                logger.warning("finish_game had no effect (not found or already ended)", game_id=game_id)
 
     async def get_game(self, game_id: str) -> PlayedGame | None:
         """Retrieve a single game by its id."""

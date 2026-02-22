@@ -1,6 +1,6 @@
-import logging
 from typing import TYPE_CHECKING, Any
 
+import structlog
 from pydantic import ValidationError
 
 from game.logic.enums import GameAction
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
     from game.session.manager import SessionManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 _GAME_ACTION_TYPES = (
@@ -61,7 +61,7 @@ class MessageRouter:
         try:
             message = parse_client_message(raw_message)
         except (ValidationError, KeyError, TypeError, ValueError) as e:
-            logger.warning("invalid message from %s: %s", connection.connection_id, e)
+            logger.warning("invalid message", error=str(e))
             await connection.send_message(
                 ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
             )
@@ -91,9 +91,11 @@ class MessageRouter:
         """Verify game ticket signature, expiry, and room binding. Send error on failure."""
         ticket = verify_game_ticket(ticket_str, self._game_ticket_secret)
         if ticket is None:
+            logger.warning("invalid game ticket")
             await self._send_ticket_error(connection, "Invalid game ticket")
             return None
         if ticket.room_id != room_id:
+            logger.warning("ticket room_id mismatch", ticket_room_id=ticket.room_id, expected_room_id=room_id)
             await self._send_ticket_error(connection, "Ticket room_id mismatch")
             return None
         return ticket
@@ -151,12 +153,12 @@ class MessageRouter:
                 data=data,
             )
         except (GameRuleError, ValueError, KeyError, TypeError) as e:
-            logger.warning("action failed for %s: %s", connection.connection_id, e)
+            logger.warning("action failed", error=str(e))
             await connection.send_message(
                 ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump(),
             )
         except Exception:
-            logger.exception("fatal error during game action for %s", connection.connection_id)
+            logger.exception("fatal error during game action")
             await self._session_manager.close_game_on_error(connection)
 
     async def _handle_chat(self, connection: ConnectionProtocol, message: ChatMessage) -> None:

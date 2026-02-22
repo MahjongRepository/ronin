@@ -2,9 +2,10 @@
 
 import asyncio
 import contextlib
-import logging
 import time
 from typing import TYPE_CHECKING, Any
+
+import structlog
 
 from game.messaging.types import (
     ErrorMessage,
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
     from game.session.heartbeat import HeartbeatMonitor
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 _ROOM_REAPER_INTERVAL = 30  # seconds between reaper checks
 
@@ -72,7 +73,7 @@ class RoomManager:
         room = Room(room_id=room_id, num_ai_players=num_ai_players)
         self._rooms[room_id] = room
         self._room_locks[room_id] = asyncio.Lock()
-        logger.info("room created, num_ai_players=%d", num_ai_players)
+        logger.info("room created", num_ai_players=num_ai_players)
         return room
 
     def get_room(self, room_id: str) -> Room | None:
@@ -338,10 +339,10 @@ class RoomManager:
                     continue
 
                 logger.info(
-                    "room %s expired (age %.0fs > TTL %ds), closing",
-                    room.room_id,
-                    now - room.created_at,
-                    self._room_ttl_seconds,
+                    "room expired, closing",
+                    room_id=room.room_id,
+                    age_seconds=round(now - room.created_at),
+                    ttl_seconds=self._room_ttl_seconds,
                 )
 
                 if room.is_empty:
@@ -449,4 +450,5 @@ class RoomManager:
 
     @staticmethod
     async def _send_error(connection: ConnectionProtocol, code: SessionErrorCode, message: str) -> None:
+        logger.warning("room error sent to client", error_code=code.value, error_message=message)
         await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
