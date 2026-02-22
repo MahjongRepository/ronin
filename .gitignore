@@ -17,6 +17,9 @@ backend/storage.db*
 
 backend/debug.py
 
+deploy/assets/
+deploy/spot-llm.txt
+
 # ---
 
 # AI stuff

@@ -32,10 +32,17 @@ servers:
     (static_dir / "styles").mkdir(parents=True)
     (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
 
+    game_assets_dir = tmp_path / "dist"
+    game_assets_dir.mkdir()
+    (game_assets_dir / "manifest.json").write_text('{"js": "index-test.js", "css": "index-test.css"}')
+    (game_assets_dir / "index-test.js").write_text("console.log('test');")
+    (game_assets_dir / "index-test.css").write_text("body{}")
+
     app = create_app(
         settings=LobbyServerSettings(
             config_path=config_file,
             static_dir=str(static_dir),
+            game_assets_dir=str(game_assets_dir),
         ),
         auth_settings=AuthSettings(
             game_ticket_secret=TEST_SECRET,
@@ -86,7 +93,9 @@ def _insert_human_with_key(client, user_id: str, username: str, raw_key: str) ->
 class TestAuthEndpoints:
     @pytest.fixture
     def client(self, tmp_path):
-        return _make_client(tmp_path)
+        c = _make_client(tmp_path)
+        yield c
+        c.app.state.db.close()
 
     def test_login_page_renders(self, client):
         response = client.get("/login")
@@ -230,7 +239,8 @@ class TestCreateRoomWithTicket:
             "/register",
             data={"username": "gameuser", "password": "securepass123", "confirm_password": "securepass123"},
         )
-        return c
+        yield c
+        c.app.state.db.close()
 
     def _mock_httpx_for_create(self):
         """Patch httpx so health checks pass and room creation succeeds."""
@@ -262,7 +272,7 @@ class TestCreateRoomWithTicket:
             response = client.post("/rooms/new", follow_redirects=False)
             assert response.status_code == 303
             location = response.headers["location"]
-            assert location.startswith("http://localhost:8712/")
+            assert location.startswith("/game?")
             assert "game_ticket=" in location
             assert "ws_url=" in location
             # No player_name in URL params anymore
@@ -296,7 +306,8 @@ class TestJoinRoomWithTicket:
             "/register",
             data={"username": "joinuser", "password": "securepass123", "confirm_password": "securepass123"},
         )
-        return c
+        yield c
+        c.app.state.db.close()
 
     def _mock_httpx_with_rooms(self, rooms):
         mock_health_response = MagicMock()
@@ -363,7 +374,9 @@ class TestBotAuth:
 
     @pytest.fixture
     def client(self, tmp_path):
-        return _make_client(tmp_path)
+        c = _make_client(tmp_path)
+        yield c
+        c.app.state.db.close()
 
     def _mock_httpx_with_rooms(self, rooms):
         mock_health_response = MagicMock()
@@ -496,7 +509,9 @@ class TestApiKeyProtectedEndpoints:
 
     @pytest.fixture
     def client(self, tmp_path):
-        return _make_client(tmp_path)
+        c = _make_client(tmp_path)
+        yield c
+        c.app.state.db.close()
 
     def _mock_httpx_for_create(self):
         """Patch httpx so health checks pass and room creation succeeds."""

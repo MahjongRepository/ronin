@@ -11,6 +11,7 @@ from lobby.views.handlers import build_websocket_url, create_signed_ticket
 from shared.auth.models import AccountType
 from shared.auth.service import AuthError, AuthService
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
+from shared.build_info import APP_VERSION
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -56,7 +57,7 @@ def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSetti
 async def login_page(request: Request) -> Response:
     """GET /login - render login form."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "login.html", {"error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None, "app_version": APP_VERSION})
 
 
 async def login(request: Request) -> Response:
@@ -75,7 +76,7 @@ async def login(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"error": str(e)},
+            {"error": str(e), "app_version": APP_VERSION},
         )
 
     return _redirect_with_session_cookie(session, auth_settings)
@@ -84,7 +85,7 @@ async def login(request: Request) -> Response:
 async def register_page(request: Request) -> Response:
     """GET /register - render registration form."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "register.html", {"error": None})
+    return templates.TemplateResponse(request, "register.html", {"error": None, "app_version": APP_VERSION})
 
 
 async def register(request: Request) -> Response:
@@ -102,7 +103,7 @@ async def register(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "register.html",
-            {"error": "Passwords do not match"},
+            {"error": "Passwords do not match", "app_version": APP_VERSION},
         )
 
     try:
@@ -112,7 +113,7 @@ async def register(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "register.html",
-            {"error": str(e)},
+            {"error": str(e), "app_version": APP_VERSION},
         )
     return _redirect_with_session_cookie(session, auth_settings)
 

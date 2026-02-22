@@ -1,0 +1,69 @@
+services:
+  lobby:
+    image: ghcr.io/mahjongrepository/ronin:latest
+    command: >
+      uvicorn --factory lobby.server.app:get_app
+      --host 0.0.0.0 --port 8710
+      --proxy-headers
+      --log-level info
+    ports:
+      - "127.0.0.1:8710:8710"
+    environment:
+      AUTH_GAME_TICKET_SECRET: ${AUTH_GAME_TICKET_SECRET:?Set AUTH_GAME_TICKET_SECRET}
+      AUTH_DATABASE_PATH: /app/data/db/lobby.db
+      AUTH_COOKIE_SECURE: "true"
+      LOBBY_CONFIG_PATH: /app/config/servers.yaml
+      LOBBY_STATIC_DIR: /app/frontend/public
+      LOBBY_GAME_ASSETS_DIR: /app/frontend/dist
+      LOBBY_GAME_CLIENT_URL: /game
+      LOBBY_LOG_DIR: /app/data/logs/lobby
+      LOG_FORMAT: json
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./config/servers.yaml:/app/config/servers.yaml:ro
+      - lobby-db:/app/data/db
+      - logs:/app/data/logs
+    depends_on:
+      game:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8710/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  game:
+    image: ghcr.io/mahjongrepository/ronin:latest
+    command: >
+      uvicorn --factory game.server.app:get_app
+      --host 0.0.0.0 --port 8711
+      --proxy-headers
+      --log-level info
+    ports:
+      - "127.0.0.1:8711:8711"
+    environment:
+      AUTH_GAME_TICKET_SECRET: ${AUTH_GAME_TICKET_SECRET:?Set AUTH_GAME_TICKET_SECRET}
+      GAME_DATABASE_PATH: /app/data/db/game.db
+      GAME_LOG_DIR: /app/data/logs/game
+      GAME_REPLAY_DIR: /app/data/replays
+      LOG_FORMAT: json
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - game-db:/app/data/db
+      - logs:/app/data/logs
+      - replays:/app/data/replays
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8711/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  lobby-db:
+  game-db:
+  logs:
+  replays:

@@ -3,13 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="app-version" content="{{ app_version | default('dev') }}">
+    <meta name="git-commit" content="{{ git_commit | default('dev') }}">
     <title>{% block title %}Ronin - Mahjong{% endblock %}</title>
-    <link rel="stylesheet" href="/static/styles/lobby.css">
+    {% block styles %}
+    <link rel="stylesheet" href="{{ lobby_css_url }}">
+    {% endblock %}
 </head>
 <body>
     <div id="app">
         {% block content %}{% endblock %}
     </div>
+    <footer class="app-footer">v{{ app_version | default('dev') }}</footer>
     {% block scripts %}{% endblock %}
 </body>
 </html>

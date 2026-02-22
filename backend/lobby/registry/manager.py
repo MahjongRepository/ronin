@@ -34,6 +34,7 @@ class RegistryManager:
                 GameServer(
                     name=server_data["name"],
                     url=server_data["url"],
+                    public_url=server_data.get("public_url"),
                 ),
             )
 

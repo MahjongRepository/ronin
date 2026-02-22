@@ -22,6 +22,23 @@ class TestRegistryManagerLoadConfig:
         assert servers[0].name == "alpha"
         assert servers[1].url == "http://beta:8002"
 
+    def test_loads_public_url_from_yaml(self, tmp_path):
+        config = tmp_path / "servers.yaml"
+        config.write_text(
+            'servers:\n  - name: "game-1"\n    url: "http://game:8711"\n    public_url: "https://example.com"\n',
+        )
+        manager = RegistryManager(config_path=config)
+        server = manager.get_servers()[0]
+        assert server.url == "http://game:8711"
+        assert server.client_url == "https://example.com"
+
+    def test_client_url_falls_back_to_url_when_no_public_url(self, tmp_path):
+        config = tmp_path / "servers.yaml"
+        config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
+        manager = RegistryManager(config_path=config)
+        server = manager.get_servers()[0]
+        assert server.client_url == "http://s1:8001"
+
     def test_missing_config_file_results_in_no_servers(self, tmp_path):
         manager = RegistryManager(config_path=tmp_path / "nonexistent.yaml")
         assert manager.get_servers() == []

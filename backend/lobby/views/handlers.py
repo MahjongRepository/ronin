@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
-from starlette.responses import RedirectResponse
+from starlette.responses import PlainTextResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from lobby.games.service import RoomCreationError
 from shared.auth.game_ticket import TICKET_TTL_SECONDS, GameTicket, sign_game_ticket
+from shared.build_info import APP_VERSION, GIT_COMMIT
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -66,6 +68,8 @@ def _render_lobby_with_error(
             "rooms": rooms,
             "username": username,
             "error": error,
+            "app_version": APP_VERSION,
+            "git_commit": GIT_COMMIT,
         },
     )
 
@@ -80,7 +84,7 @@ def _sign_ticket_and_redirect(
     """Sign a game ticket and redirect to the game client."""
     signed_ticket = create_signed_ticket(user.user_id, user.username, room_id, game_ticket_secret)
     params = urlencode({"ws_url": websocket_url, "game_ticket": signed_ticket})
-    redirect_url = f"{game_client_url}/?{params}#/room/{room_id}"
+    redirect_url = f"{game_client_url}?{params}#/room/{room_id}"
     return RedirectResponse(redirect_url, status_code=303)
 
 
@@ -98,6 +102,8 @@ async def lobby_page(request: Request) -> Response:
             "rooms": rooms,
             "username": user.username,
             "error": None,
+            "app_version": APP_VERSION,
+            "git_commit": GIT_COMMIT,
         },
     )
 
@@ -146,4 +152,33 @@ async def join_room_and_redirect(request: Request) -> Response:
         websocket_url,
         auth_settings.game_ticket_secret,
         settings.game_client_url,
+    )
+
+
+def load_game_assets_manifest(game_assets_dir: str) -> dict[str, str]:
+    """Load the asset manifest mapping logical names to content-hashed filenames."""
+    manifest_path = Path(game_assets_dir).resolve() / "manifest.json"
+    if not manifest_path.exists():
+        return {}
+    try:
+        data = json.loads(manifest_path.read_text())
+    except json.JSONDecodeError as e:
+        msg = f"Malformed manifest.json at {manifest_path}: {e}"
+        raise ValueError(msg) from e
+    if not isinstance(data, dict):
+        msg = f"manifest.json must be a JSON object, got {type(data).__name__}"
+        raise TypeError(msg)
+    return data
+
+
+async def game_page(request: Request) -> Response:
+    """GET /game — render the game client page."""
+    templates: Jinja2Templates = request.app.state.templates
+    game_assets: dict[str, str] = request.app.state.game_assets
+    if not game_assets.get("js") or not game_assets.get("css"):
+        return PlainTextResponse("Game client assets not available", status_code=503)
+    return templates.TemplateResponse(
+        request,
+        "game.html",
+        {"game_assets": game_assets},
     )

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Headers added to every HTTP response to mitigate common web vulnerabilities.
-_CSP = (
+_LOBBY_CSP = (
     "default-src 'self'; "
     "script-src 'none'; "
     "style-src 'self' 'unsafe-inline'; "
@@ -17,15 +17,50 @@ _CSP = (
     "base-uri 'self'"
 )
 
-SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+# Game pages need scripts and WebSocket connections.
+_GAME_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "connect-src 'self' ws: wss:; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "base-uri 'self'"
+)
+
+_COMMON_HEADERS: list[tuple[bytes, bytes]] = [
     (b"x-content-type-options", b"nosniff"),
     (b"x-frame-options", b"DENY"),
-    (b"content-security-policy", _CSP.encode()),
+]
+
+SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    *_COMMON_HEADERS,
+    (b"content-security-policy", _LOBBY_CSP.encode()),
+]
+
+GAME_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    *_COMMON_HEADERS,
+    (b"content-security-policy", _GAME_CSP.encode()),
 ]
 
 
+def _is_game_path(path: str) -> bool:
+    """Check whether the request path belongs to the game client.
+
+    Trailing slashes are stripped before comparison so that the CSP selection
+    is consistent regardless of whether ``SlashNormalizationMiddleware`` has
+    already run.
+    """
+    normalized = path.rstrip("/") or "/"
+    return normalized == "/game" or path.startswith("/game-assets/")
+
+
 class SecurityHeadersMiddleware:
-    """Inject standard security headers into every HTTP response."""
+    """Inject standard security headers into every HTTP response.
+
+    Game paths (/game, /game-assets/) get a permissive CSP that allows scripts
+    and WebSocket connections. All other paths block scripts entirely.
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -35,10 +70,12 @@ class SecurityHeadersMiddleware:
             await self.app(scope, receive, send)
             return
 
+        extra_headers = GAME_SECURITY_HEADERS if _is_game_path(scope["path"]) else SECURITY_HEADERS
+
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
-                headers.extend(SECURITY_HEADERS)
+                headers.extend(extra_headers)
                 message["headers"] = headers
             await send(message)
 

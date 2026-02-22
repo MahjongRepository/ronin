@@ -37,12 +37,16 @@ servers:
             "/register",
             data={"username": "apiuser", "password": "securepass123", "confirm_password": "securepass123"},
         )
-        return c
+        yield c
+        app.state.db.close()
 
     def test_health(self, client):
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "version" in data
+        assert "commit" in data
 
     def test_list_servers(self, client):
         response = client.get("/servers")
@@ -242,7 +246,9 @@ servers:
                 database_path=str(tmp_path / "test.db"),
             ),
         )
-        return TestClient(app)
+        c = TestClient(app)
+        yield c
+        app.state.db.close()
 
     def test_list_rooms_returns_401_json(self, client):
         response = client.get("/rooms")

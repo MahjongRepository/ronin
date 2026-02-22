@@ -32,10 +32,11 @@ def _bot(user_id: str = "bot1", username: str = "TestBot", api_key_hash: str = "
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> SqlitePlayerRepository:
+def repo(tmp_path: Path):
     db = Database(tmp_path / "test.db")
     db.connect()
-    return SqlitePlayerRepository(db)
+    yield SqlitePlayerRepository(db)
+    db.close()
 
 
 class TestCreateAndRead:

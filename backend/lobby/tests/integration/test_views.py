@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -22,10 +23,21 @@ servers:
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
+
+        game_assets_dir = tmp_path / "dist"
+        game_assets_dir.mkdir()
+        (game_assets_dir / "index-abc123.js").write_text("console.log('game');")
+        (game_assets_dir / "index-abc123.css").write_text("body{}")
+        (game_assets_dir / "lobby-test.css").write_text("body { color: red; }")
+        (game_assets_dir / "manifest.json").write_text(
+            json.dumps({"js": "index-abc123.js", "css": "index-abc123.css", "lobby_css": "lobby-test.css"}),
+        )
+
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
                 static_dir=str(static_dir),
+                game_assets_dir=str(game_assets_dir),
             ),
             auth_settings=AuthSettings(
                 game_ticket_secret="test-secret",
@@ -38,7 +50,8 @@ servers:
             "/register",
             data={"username": "viewuser", "password": "securepass123", "confirm_password": "securepass123"},
         )
-        return c
+        yield c
+        app.state.db.close()
 
     def _mock_httpx_no_healthy_servers(self):
         """Patch httpx so health checks fail (no healthy servers, empty room list)."""
@@ -111,7 +124,7 @@ servers:
         patcher = self._mock_httpx_no_healthy_servers()
         try:
             response = client.get("/")
-            assert "/static/styles/lobby.css" in response.text
+            assert "/game-assets/lobby-test.css" in response.text
         finally:
             patcher.stop()
 
@@ -193,7 +206,7 @@ servers:
             )
             assert response.status_code == 303
             location = response.headers["location"]
-            assert location.startswith("http://localhost:8712/")
+            assert location.startswith("/game?")
             assert "ws_url=" in location
             assert "game_ticket=" in location
         finally:
@@ -231,3 +244,103 @@ servers:
         response = client.get("/static/styles/lobby.css")
         assert response.status_code == 200
         assert "text/css" in response.headers["content-type"]
+
+    def test_game_page_returns_html(self, client):
+        response = client.get("/game")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_game_page_includes_hashed_script(self, client):
+        response = client.get("/game")
+        assert "/game-assets/index-abc123.js" in response.text
+
+    def test_game_page_includes_hashed_css(self, client):
+        response = client.get("/game")
+        assert "/game-assets/index-abc123.css" in response.text
+
+    def test_game_page_requires_auth(self, tmp_path):
+        """Unauthenticated request to /game redirects to login."""
+        config_file = tmp_path / "servers.yaml"
+        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
+        static_dir = tmp_path / "public"
+        (static_dir / "styles").mkdir(parents=True)
+        (static_dir / "styles" / "lobby.css").write_text("")
+        game_assets_dir = tmp_path / "dist"
+        game_assets_dir.mkdir()
+        (game_assets_dir / "manifest.json").write_text("{}")
+        app = create_app(
+            settings=LobbyServerSettings(
+                config_path=config_file,
+                static_dir=str(static_dir),
+                game_assets_dir=str(game_assets_dir),
+            ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="s",
+                database_path=str(tmp_path / "test.db"),
+            ),
+        )
+        c = TestClient(app)
+        response = c.get("/game", follow_redirects=False)
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]
+        app.state.db.close()
+
+    def test_game_page_returns_503_when_assets_missing(self, tmp_path):
+        """Authenticated request to /game returns 503 when manifest is empty."""
+        config_file = tmp_path / "servers.yaml"
+        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
+        static_dir = tmp_path / "public"
+        (static_dir / "styles").mkdir(parents=True)
+        (static_dir / "styles" / "lobby.css").write_text("")
+        game_assets_dir = tmp_path / "dist"
+        game_assets_dir.mkdir()
+        (game_assets_dir / "manifest.json").write_text("{}")
+        app = create_app(
+            settings=LobbyServerSettings(
+                config_path=config_file,
+                static_dir=str(static_dir),
+                game_assets_dir=str(game_assets_dir),
+            ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="s",
+                database_path=str(tmp_path / "test.db"),
+            ),
+        )
+        c = TestClient(app)
+        c.post(
+            "/register",
+            data={"username": "testuser", "password": "securepass123", "confirm_password": "securepass123"},
+        )
+        response = c.get("/game")
+        assert response.status_code == 503
+        assert "Game client assets not available" in response.text
+        app.state.db.close()
+
+    def test_game_assets_served(self, client):
+        response = client.get("/game-assets/index-abc123.js")
+        assert response.status_code == 200
+        assert "javascript" in response.headers["content-type"]
+        assert "console.log('game')" in response.text
+
+    def test_game_assets_mount_skipped_when_dir_missing(self, tmp_path):
+        """When game_assets_dir does not exist, /game-assets/ is not mounted."""
+        config_file = tmp_path / "servers.yaml"
+        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
+        static_dir = tmp_path / "public"
+        (static_dir / "styles").mkdir(parents=True)
+        (static_dir / "styles" / "lobby.css").write_text("")
+        nonexistent_dir = tmp_path / "no-such-dir"
+        app = create_app(
+            settings=LobbyServerSettings(
+                config_path=config_file,
+                static_dir=str(static_dir),
+                game_assets_dir=str(nonexistent_dir),
+            ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="s",
+                database_path=str(tmp_path / "test.db"),
+            ),
+        )
+        route_names = {r.name for r in app.routes}
+        assert "game_assets" not in route_names
+        app.state.db.close()
