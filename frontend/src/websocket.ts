@@ -38,7 +38,7 @@ export class GameSocket {
             this.reconnectAttempts = 0;
             this.onStatusChange(ConnectionStatus.CONNECTED);
             this.pingInterval = setInterval(() => {
-                this.send({ type: ClientMessageType.PING });
+                this.send({ t: ClientMessageType.PING });
             }, 10_000);
         };
 

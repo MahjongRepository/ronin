@@ -117,7 +117,7 @@ function connectToRoom(wsUrl: string, roomId: string): void {
                 socket.send({
                     game_ticket: getGameTicket(),
                     room_id: roomId,
-                    type: ClientMessageType.JOIN_ROOM,
+                    t: ClientMessageType.JOIN_ROOM,
                 });
             }
         },
@@ -296,7 +296,7 @@ function handleToggleReady(): void {
     isReady = !isReady;
     socket.send({
         ready: isReady,
-        type: ClientMessageType.SET_READY,
+        t: ClientMessageType.SET_READY,
     });
 
     // update button text
@@ -323,15 +323,15 @@ function handleSendChat(): void {
         return;
     }
     socket.send({
+        t: ClientMessageType.CHAT,
         text,
-        type: ClientMessageType.CHAT,
     });
     input.value = "";
 }
 
 function handleLeaveRoom(): void {
     if (socket) {
-        socket.send({ type: ClientMessageType.LEAVE_ROOM });
+        socket.send({ t: ClientMessageType.LEAVE_ROOM });
     }
     clearSessionData();
     window.location.replace(getLobbyUrl());

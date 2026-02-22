@@ -178,7 +178,7 @@ function sendReconnectMessage(): void {
     socket.send({
         game_ticket: reconnectGameTicket,
         room_id: currentGameId,
-        type: ClientMessageType.RECONNECT,
+        t: ClientMessageType.RECONNECT,
     });
 }
 
@@ -289,8 +289,8 @@ function autoConfirmRoundEnd(): void {
     const currentSocket = socket;
     setTimeout(() => {
         currentSocket.send({
-            action: GameAction.CONFIRM_ROUND,
-            type: ClientMessageType.GAME_ACTION,
+            a: GameAction.CONFIRM_ROUND,
+            t: ClientMessageType.GAME_ACTION,
         });
     }, 1000);
 }

@@ -1,11 +1,11 @@
 export enum ClientMessageType {
-    JOIN_ROOM = "join_room",
-    LEAVE_ROOM = "leave_room",
-    SET_READY = "set_ready",
-    GAME_ACTION = "game_action",
-    CHAT = "chat",
-    PING = "ping",
-    RECONNECT = "reconnect",
+    JOIN_ROOM = 0,
+    LEAVE_ROOM = 1,
+    SET_READY = 2,
+    GAME_ACTION = 3,
+    CHAT = 4,
+    PING = 5,
+    RECONNECT = 6,
 }
 
 export enum SessionMessageType {
@@ -38,16 +38,16 @@ export enum EventType {
 }
 
 export enum GameAction {
-    DISCARD = "discard",
-    DECLARE_RIICHI = "declare_riichi",
-    DECLARE_TSUMO = "declare_tsumo",
-    CALL_RON = "call_ron",
-    CALL_PON = "call_pon",
-    CALL_CHI = "call_chi",
-    CALL_KAN = "call_kan",
-    CALL_KYUUSHU = "call_kyuushu",
-    PASS = "pass",
-    CONFIRM_ROUND = "confirm_round",
+    DISCARD = 0,
+    DECLARE_RIICHI = 1,
+    DECLARE_TSUMO = 2,
+    CALL_RON = 3,
+    CALL_PON = 4,
+    CALL_CHI = 5,
+    CALL_KAN = 6,
+    CALL_KYUUSHU = 7,
+    PASS = 8,
+    CONFIRM_ROUND = 9,
 }
 
 export enum ConnectionStatus {

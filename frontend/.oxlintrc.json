@@ -13,7 +13,8 @@
     "no-ternary": "off",
     "unicorn/no-null": "off",
     "unicorn/prefer-global-this": "off",
-    "unicorn/prefer-add-event-listener": "off"
+    "unicorn/prefer-add-event-listener": "off",
+    "id-length": ["warn", { "exceptions": ["t", "a", "s"] }]
   },
   "ignorePatterns": ["public/**"]
 }
