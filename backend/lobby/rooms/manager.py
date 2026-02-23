@@ -1,0 +1,197 @@
+"""Room manager for the lobby server."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import time
+from typing import TYPE_CHECKING
+
+import structlog
+
+from lobby.rooms.models import LobbyPlayer, LobbyRoom
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+logger = structlog.get_logger()
+
+
+class LobbyRoomManager:
+    """Manages pre-game rooms on the lobby server.
+
+    Purely state management — no WebSocket I/O. The WebSocket handler calls
+    manager methods and sends responses.
+    """
+
+    def __init__(
+        self,
+        room_ttl_seconds: int = 300,
+        on_room_expired: Callable[[str, list[str]], Awaitable[None]] | None = None,
+    ) -> None:
+        self._rooms: dict[str, LobbyRoom] = {}
+        self._player_rooms: dict[str, str] = {}  # connection_id -> room_id
+        self._room_ttl_seconds = room_ttl_seconds
+        self._on_room_expired = on_room_expired
+        self._reaper_task: asyncio.Task[None] | None = None
+
+    def create_room(self, room_id: str, num_ai_players: int = 3) -> LobbyRoom:
+        """Create a new room and return it."""
+        room = LobbyRoom(room_id=room_id, num_ai_players=num_ai_players)
+        self._rooms[room_id] = room
+        return room
+
+    def join_room(
+        self,
+        connection_id: str,
+        room_id: str,
+        user_id: str,
+        username: str,
+    ) -> dict | str:
+        """Join a room. Returns room state dict on success, or error string on failure."""
+        room = self._rooms.get(room_id)
+        if room is None:
+            return "room_not_found"
+        if room.transitioning:
+            return "room_transitioning"
+        if room.is_full:
+            return "room_full"
+        if room.has_user(user_id):
+            return "already_in_room"
+
+        player = LobbyPlayer(
+            connection_id=connection_id,
+            user_id=user_id,
+            username=username,
+        )
+        room.players[connection_id] = player
+        self._player_rooms[connection_id] = room_id
+
+        if room.host_connection_id is None:
+            room.host_connection_id = connection_id
+
+        return {
+            "type": "room_joined",
+            "room_id": room_id,
+            "player_name": username,
+            "players": [p.model_dump() for p in room.get_player_info()],
+            "num_ai_players": room.num_ai_players,
+        }
+
+    def leave_room(self, connection_id: str) -> str | None:
+        """Remove a player from their room. Returns room_id or None."""
+        room_id = self._player_rooms.pop(connection_id, None)
+        if room_id is None:
+            return None
+        room = self._rooms.get(room_id)
+        if room is None:
+            return room_id
+
+        room.players.pop(connection_id, None)
+
+        if room.host_connection_id == connection_id:
+            if room.players:
+                room.host_connection_id = next(iter(room.players))
+            else:
+                room.host_connection_id = None
+
+        if room.is_empty:
+            self._rooms.pop(room_id, None)
+
+        return room_id
+
+    def set_ready(self, connection_id: str, *, ready: bool) -> tuple[str, bool] | str:
+        """Set ready state. Returns (room_id, all_ready) or error string."""
+        room_id = self._player_rooms.get(connection_id)
+        if room_id is None:
+            return "not_in_room"
+        room = self._rooms.get(room_id)
+        if room is None:
+            return "not_in_room"
+        if room.transitioning:
+            return "room_transitioning"
+
+        player = room.players.get(connection_id)
+        if player is None:
+            return "not_in_room"
+
+        player.ready = ready
+
+        if room.all_ready:
+            room.transitioning = True
+
+        return (room_id, room.all_ready)
+
+    def clear_transitioning(self, room_id: str) -> None:
+        """Reset transitioning flag and all ready states on POST /games failure."""
+        room = self._rooms.get(room_id)
+        if room is None:
+            return
+        room.transitioning = False
+        for player in room.players.values():
+            player.ready = False
+
+    def get_room(self, room_id: str) -> LobbyRoom | None:
+        return self._rooms.get(room_id)
+
+    def get_rooms_info(self) -> list[dict]:
+        """Return room info for the lobby listing page."""
+        return [
+            {
+                "room_id": room.room_id,
+                "player_count": room.player_count,
+                "players_needed": room.players_needed,
+                "num_ai_players": room.num_ai_players,
+                "players": room.player_names,
+            }
+            for room in self._rooms.values()
+            if not room.transitioning
+        ]
+
+    def remove_room(self, room_id: str) -> None:
+        """Remove a room after game starts successfully."""
+        room = self._rooms.pop(room_id, None)
+        if room is not None:
+            for conn_id in list(room.players):
+                self._player_rooms.pop(conn_id, None)
+
+    def start_reaper(self) -> None:
+        """Start the periodic room reaper task."""
+        if self._reaper_task is not None:
+            return
+        self._reaper_task = asyncio.create_task(self._reaper_loop())
+
+    async def stop_reaper(self) -> None:
+        """Cancel the reaper task."""
+        if self._reaper_task is not None:
+            self._reaper_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._reaper_task
+            self._reaper_task = None
+
+    async def _reaper_loop(self) -> None:  # pragma: no cover — long-running background loop
+        """Periodically remove expired rooms."""
+        while True:
+            await asyncio.sleep(30)
+            await self._reap_expired_rooms()
+
+    async def _reap_expired_rooms(self) -> None:
+        """Remove rooms that have exceeded their TTL."""
+        now = time.monotonic()
+        expired: list[tuple[str, list[str]]] = []
+
+        for room_id, room in list(self._rooms.items()):
+            if room.transitioning:
+                continue
+            if now - room.created_at > self._room_ttl_seconds:
+                connection_ids = list(room.players.keys())
+                self.remove_room(room_id)
+                expired.append((room_id, connection_ids))
+                logger.info("room expired", room_id=room_id)
+
+        if self._on_room_expired:
+            for room_id, connection_ids in expired:
+                try:
+                    await self._on_room_expired(room_id, connection_ids)
+                except Exception:
+                    logger.exception("error in on_room_expired callback", room_id=room_id)

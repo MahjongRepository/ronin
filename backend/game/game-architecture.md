@@ -7,36 +7,32 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 ## REST API
 
 - `GET /health` - Health check
-- `GET /status` - Server status (`active_rooms`, `active_games`, `capacity_used`, `max_games`)
-- `GET /rooms` - List all rooms (pre-game lobbies)
-- `POST /rooms` - Create a room (called by lobby). Accepts `room_id` and optional `num_ai_players` field (0-3, defaults to 3)
+- `GET /status` - Server status (`pending_games`, `active_games`, `capacity_used`, `max_capacity`)
+- `POST /games` - Create a pending game (called by lobby). Accepts `game_id`, `players` list (each with `name`, `user_id`, `game_ticket`), and `num_ai_players` (0-3, defaults to 3). Validates each player's HMAC game ticket (signature, expiry, game_id binding, identity claims) before creating the game
 
 ## WebSocket API
 
 ### Connection
 
-Connect to `ws://localhost:8711/ws/{room_id}` (room must be created first via lobby or `POST /rooms`). The same WebSocket connection is used for both the room phase and the game phase.
+Connect to `ws://localhost:8711/ws/{game_id}` (game must be created first via lobby `POST /games`). The WebSocket handles only the game phase; the pre-game room phase lives on the lobby server.
 
 ### Message Format
 
-All messages use MessagePack binary format. Room/session messages use a string `"type"` field. Game events use an integer `"t"` field (see Game Events below). The server only accepts and sends binary WebSocket frames.
+All messages use MessagePack binary format. Session messages use a string `"type"` field. Game events use an integer `"t"` field (see Game Events below). The server only accepts and sends binary WebSocket frames.
 
-#### Client -> Server (Room Phase)
+#### Client -> Server (Identity Messages)
 
-**Join Room** (requires HMAC-signed game ticket from the lobby server)
+**Join Game** (connects to a pending game; requires HMAC-signed game ticket from lobby)
 ```json
-{"type": "join_room", "room_id": "room123", "game_ticket": "<signed-ticket>"}
+{"t": 7, "game_ticket": "<signed-ticket>"}
 ```
+Note: `game_id` is a connection-level property derived from the WebSocket URL path (`/ws/{game_id}`), not a message field.
 
-**Leave Room**
+**Reconnect** (rejoin an active game after disconnecting; uses the original game ticket for authentication)
 ```json
-{"type": "leave_room"}
+{"t": 6, "game_ticket": "<signed-ticket>"}
 ```
-
-**Set Ready**
-```json
-{"type": "set_ready", "ready": true}
-```
+Note: `game_id` is a connection-level property derived from the WebSocket URL path (`/ws/{game_id}`), not a message field.
 
 #### Client -> Server (Game Phase)
 
@@ -45,7 +41,7 @@ All messages use MessagePack binary format. Room/session messages use a string `
 {"type": "game_action", "action": "discard", "data": {"tile": "1m"}}
 ```
 
-**Chat** (works in both room and game phase)
+**Chat**
 ```json
 {"type": "chat", "text": "Hello!"}
 ```
@@ -55,49 +51,10 @@ All messages use MessagePack binary format. Room/session messages use a string `
 {"type": "ping"}
 ```
 
-**Reconnect** (rejoin an active game after disconnecting; uses the original game ticket for authentication)
-```json
-{"type": "reconnect", "room_id": "game123", "game_ticket": "<signed-ticket>"}
-```
-
-#### Server -> Client (Room Phase)
-
-**Room Joined** (sent to the joining player with full room state)
-```json
-{"type": "room_joined", "room_id": "room123", "player_name": "Alice", "players": [{"name": "Alice", "ready": false}], "num_ai_players": 3}
-```
-
-**Room Left** (sent to the player who left)
-```json
-{"type": "room_left"}
-```
-
-**Player Joined/Left** (broadcast to other players in room)
-```json
-{"type": "player_joined", "player_name": "Charlie"}
-{"type": "player_left", "player_name": "Charlie"}
-```
-
-**Player Ready Changed** (broadcast to all players in room)
-```json
-{"type": "player_ready_changed", "player_name": "Alice", "ready": true}
-```
-
-**Game Starting** (broadcast when all required players are ready, before game events)
-```json
-{"type": "game_starting"}
-```
-
 #### Server -> Client (Game Phase)
 
-**Game Left** (sent to the player who left)
+**Player Left** (broadcast to other players in game)
 ```json
-{"type": "game_left"}
-```
-
-**Player Joined/Left** (broadcast to other players in game)
-```json
-{"type": "player_joined", "player_name": "Charlie"}
 {"type": "player_left", "player_name": "Charlie"}
 ```
 
@@ -155,38 +112,34 @@ Note: The `furiten` event is sent only to the affected player (target `seat_N`),
 ```
 
 Error codes:
-- `already_in_game` - Player tried to join a room/game while already in one
-- `already_in_room` - Player tried to join a room while already in one
-- `room_not_found` - The requested room does not exist
-- `room_full` - Room has reached its player capacity (4 - num_ai_players)
-- `room_transitioning` - Room is currently transitioning to a game
-- `name_taken` - Player name is already used in the room/game
-- `not_in_room` - Player tried to perform a room action without being in a room
+- `already_in_game` - Player tried to join a game while already in one
 - `not_in_game` - Player tried to perform a game action without being in a game
 - `game_not_started` - Player tried to perform a game action before the game started
 - `invalid_message` - Message could not be parsed
 - `action_failed` - Game action failed
+- `join_game_not_found` - The requested game does not exist or is no longer pending
+- `join_game_already_started` - Game already started (use RECONNECT instead)
+- `join_game_no_session` - No session found for the provided game ticket
 - `reconnect_no_session` - No disconnected session found for the provided token
 - `reconnect_no_seat` - Session has no seat assignment
 - `reconnect_game_gone` - Game no longer exists (all players disconnected)
 - `reconnect_game_mismatch` - Session token does not match the WebSocket path game ID
 - `reconnect_retry_later` - Game is starting, retry shortly (transient)
-- `reconnect_in_room` - Connection is currently in a room
 - `reconnect_already_active` - Connection already in a game
 - `reconnect_snapshot_failed` - Failed to build game state snapshot
-- `invalid_ticket` - Game ticket is invalid or has a room_id mismatch
+- `invalid_ticket` - Game ticket is invalid or has a game_id mismatch
 
 ## Internal Architecture
 
 Clean architecture pattern with clear separation between layers:
 
 - **Transport Layer** (`server/`) - Starlette WebSocket + REST handling, environment-based server configuration
-- **Application Layer** (`messaging/`, `session/`) - Message routing, event payload shaping, room/session management
+- **Application Layer** (`messaging/`, `session/`) - Message routing, event payload shaping, session/game management
 - **Domain Layer** (`logic/`) - Riichi Mahjong game logic
 
 ### Protocol Abstraction
 
-All message handling logic operates through `ConnectionProtocol`, an abstract interface that decouples business logic from the WebSocket transport. Messages are encoded/decoded using MessagePack binary format:
+All message handling logic operates through `ConnectionProtocol`, an abstract interface that decouples business logic from the WebSocket transport. Each connection carries a `game_id` property derived from the WebSocket URL path (`/ws/{game_id}`). Messages are encoded/decoded using MessagePack binary format:
 
 ```
 WebSocket (Starlette)
@@ -201,7 +154,7 @@ MessagePack encode/decode (encoder.py)
 MessageRouter (pure Python, testable)
     │
     ▼
-SessionManager (game/player management, delegates to RoomManager + SessionStore + TimerManager + HeartbeatMonitor, concurrency locks)
+SessionManager (game/player management, delegates to SessionStore + TimerManager + HeartbeatMonitor, manages pending games, concurrency locks)
     │                                                       │
     ▼                                                       ▼
 GameService (game logic interface)              EventPayload (wire serialization)
@@ -238,15 +191,13 @@ The game service communicates through a typed event pipeline:
 
 ### Server Configuration
 
-`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `room_ttl_seconds` (default 3600, min 60s — controls room TTL; expired rooms have their player connections closed by a background reaper task), `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias), `database_path` (default `backend/storage.db`, read from `GAME_DATABASE_PATH` or `AUTH_DATABASE_PATH` via validation alias). Injected into the Starlette app via `create_app()`. The app registers startup/shutdown hooks to start/stop the room reaper background task. When the app creates its own `SessionManager`, it also creates and owns a `Database` instance (connected to `database_path`), injects a `SqliteGameRepository` into the session manager, and closes the database on shutdown. `SessionManager` accepts an optional `GameRepository` for persisting game lifecycle events: game starts (with player IDs and timestamp), completed games (`end_reason="completed"` after replay save), and abandoned games (`end_reason="abandoned"` when a started game is cleaned up because all players left). All database calls are best-effort — failures are logged but never block gameplay or socket cleanup.
+`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias), `database_path` (default `backend/storage.db`, read from `GAME_DATABASE_PATH` or `AUTH_DATABASE_PATH` via validation alias). Injected into the Starlette app via `create_app()`. On shutdown, the app cancels all pending game timeout tasks. When the app creates its own `SessionManager`, it also creates and owns a `Database` instance (connected to `database_path`), injects a `SqliteGameRepository` into the session manager, and closes the database on shutdown. `SessionManager` accepts an optional `GameRepository` for persisting game lifecycle events: game starts (with player IDs and timestamp), completed games (`end_reason="completed"` after replay save), and abandoned games (`end_reason="abandoned"` when a started game is cleaned up because all players left). All database calls are best-effort — failures are logged but never block gameplay or socket cleanup.
 
-### Room Model
+### Pending Game Model
 
-`session/room.py` defines the pre-game lobby data structures:
+`session/manager.py` defines `PendingGameInfo`, a dataclass tracking games waiting for players to connect via JOIN_GAME:
 
-- **Room** - Dataclass representing a lobby with `room_id`, `num_ai_players`, `host_connection_id`, `transitioning` flag (prevents new joins during room-to-game conversion), `players` dict, `settings: GameSettings`, and `created_at` (monotonic timestamp for TTL comparison). Properties: `players_needed`, `is_full`, `all_ready`, `get_player_info()`
-- **RoomPlayer** - Dataclass for a player in the lobby with `connection`, `name`, `room_id`, `session_token`, `user_id`, and `ready` state
-- **RoomPlayerInfo** - Pydantic model (in `messaging/types.py`) for room state messages with `name` and `ready` fields
+- **PendingGameInfo** - Tracks `game_id`, `expected_count` (human players expected), `connected_count`, `timeout_task` (configurable timeout via `pending_game_timeout_seconds`, default 10s), `player_specs` (player info from the lobby), and an embedded `asyncio.Lock` for concurrency control. When all expected players connect (or the timeout fires), `_complete_pending_game` starts the mahjong game with AI substitutes for missing players. If no humans connect before timeout, the game is cancelled instead of started
 
 ### Game Logic Layer
 
@@ -312,15 +263,15 @@ This eliminates the previous duplication where AI player and player call respons
 
 `AIPlayerController` is a pure decision-maker: `get_turn_action()` returns action data for an AI player's turn, `get_call_response()` returns the AI player's response to a call prompt. Neither method modifies game state or calls handlers directly. All state mutation flows through `MahjongGameService`.
 
-### Room-Based Game Creation
+### Game Creation
 
-Rooms use a `num_ai_players` parameter (0-3) instead of separate game modes. The `num_ai_players` value determines how many players are needed: `num_players_needed = 4 - num_ai_players`.
+Games are created by the lobby server via `POST /games` with a list of player specs (name, user_id, game_ticket) and `num_ai_players`. The game server creates a pending game, pre-registers sessions for each player, and starts a configurable timeout (default 10s via `pending_game_timeout_seconds`). Players connect via WebSocket and send JOIN_GAME with their game ticket. When all expected players connect (or the timeout fires), the game starts with AI substitutes for missing players.
 
-- `num_ai_players=3` (default): game starts when 1 player joins and readies up (1 player + 3 AI players)
-- `num_ai_players=0`: game starts when 4 players all ready up (pure PvP)
-- `num_ai_players=1` or `num_ai_players=2`: game starts when the required players all ready up, remaining seats filled with AI players
+The `num_ai_players` parameter (0-3) determines how many players are needed: `num_players_needed = 4 - num_ai_players`.
 
-The `num_ai_players` is set at room creation time via `POST /rooms` and stored on the `Room` dataclass. Players join a room, toggle ready, and the game starts when all required players are ready. The room transitions to a `Game` via `RoomManager._transition_room_to_game()`, which delegates back to `SessionManager._handle_room_transition()` via callback.
+- `num_ai_players=3` (default): game starts when 1 player connects (1 player + 3 AI players)
+- `num_ai_players=0`: game starts when 4 players all connect (pure PvP)
+- `num_ai_players=1` or `num_ai_players=2`: game starts when the required players connect, remaining seats filled with AI players
 
 ### Disconnect-to-AI-Player Replacement
 
@@ -335,9 +286,9 @@ When a player disconnects from a started game (either by closing the connection 
 ### Reconnection
 
 When a disconnected player reconnects:
-1. The game ticket is HMAC-verified by the router (signature, expiry, room binding)
+1. The game ticket is HMAC-verified by the router (signature, expiry, game binding)
 2. The session is looked up by the game ticket string (must be disconnected, must match the game ID from the WebSocket path)
-3. Guard checks prevent reconnection if the connection is already in a room or game
+3. Guard checks prevent reconnection if the connection is already in a game
 4. Under the per-game lock, stale connections at the seat are evicted
 5. The AI player at the seat is removed via `restore_human_player()`
 6. A `ReconnectionSnapshot` is built containing the full game state for the player's seat
@@ -353,13 +304,13 @@ For invalid game actions, the `InvalidGameActionError` exception carries a `seat
 
 ### Authentication & Session Identity
 
-**Game Ticket Authentication**: Players authenticate via HMAC-SHA256 signed game tickets issued by the lobby server. The `MessageRouter` verifies the ticket signature and expiry using `shared.auth.game_ticket.verify_game_ticket()` for both `join_room` and `reconnect` messages. Tickets have a 24-hour TTL (matching the lobby session). The ticket contains `user_id`, `username`, `room_id`, `issued_at`, and `expires_at`. The router rejects invalid, expired, or room-mismatched tickets with `INVALID_TICKET` error. On success, the router extracts `username` and `user_id` from the verified ticket and passes them to `SessionManager.join_room()`. The ticket secret is shared between the lobby and game servers via the `AUTH_GAME_TICKET_SECRET` environment variable.
+**Game Ticket Authentication**: Players authenticate via HMAC-SHA256 signed game tickets issued by the lobby server. The `MessageRouter` verifies the ticket signature and expiry using `shared.auth.game_ticket.verify_game_ticket()` for both `JOIN_GAME` and `RECONNECT` messages. Tickets have a 24-hour TTL (matching the lobby session). The ticket contains `user_id`, `username`, `room_id` (game_id), `issued_at`, and `expires_at`. The router rejects invalid, expired, or game-mismatched tickets with `INVALID_TICKET` error. On success, the router extracts `username` and `user_id` from the verified ticket and passes them to `SessionManager.join_game()`. The ticket secret is shared between the lobby and game servers via the `AUTH_GAME_TICKET_SECRET` environment variable.
 
-**Game Ticket as Session Token**: The game ticket string serves as the session identifier for the entire game lifecycle, including reconnection. When a player joins a room, the router passes the game ticket string as the `session_token` to the session layer. On reconnect, the client sends the same game ticket; the router verifies the HMAC signature, then the session manager looks up the session by the ticket string. There is no token rotation — the same ticket is used throughout.
+**Game Ticket as Session Token**: The game ticket string serves as the session identifier for the entire game lifecycle, including reconnection. When the lobby calls `POST /games`, it includes the game ticket string as the `game_ticket` in each player spec. The game server creates sessions using these ticket strings as session tokens. On reconnect, the client sends the same game ticket; the router verifies the HMAC signature, then the session manager looks up the session by the ticket string. There is no token rotation — the same ticket is used throughout.
 
 Session lifecycle:
-- **Created**: When a player joins a room (session token = game ticket string)
-- **Seat bound**: When the game starts, the player's seat is recorded on the session
+- **Created**: When the lobby calls `POST /games` (session token = game ticket string from player spec)
+- **Seat bound**: When the pending game completes and the mahjong game starts
 - **Marked disconnected**: When a player disconnects from a started game (timestamp recorded)
 - **Removed**: When a player leaves before the game starts, or on defensive cleanup
 - **Cleaned up**: When a game ends and is empty, all sessions for that game are removed
@@ -433,8 +384,8 @@ ronin/
         ├── server/
         │   ├── app.py          # Starlette app factory
         │   ├── settings.py     # GameServerSettings (env-based config via pydantic-settings)
-        │   ├── types.py        # REST API types
-        │   └── websocket.py    # WebSocket endpoint
+        │   ├── types.py        # REST API types (PlayerSpec, CreateGameRequest)
+        │   └── websocket.py    # WebSocket endpoint (game_id validation, WebSocketConnection)
         ├── messaging/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── types.py        # Message schemas (Pydantic)
@@ -443,11 +394,8 @@ ronin/
         │   ├── event_payload.py # Event payload shaping for wire and replay serialization
         │   └── router.py       # Message routing
         ├── session/
-        │   ├── models.py        # Player, Game, SessionData dataclasses
-        │   ├── room.py          # Room, RoomPlayer for pre-game lobby
-        │   ├── types.py         # Pydantic models (RoomInfo for lobby listing)
-        │   ├── manager.py       # Session/game management
-        │   ├── room_manager.py  # Room lifecycle management (creation, join/leave, readiness, TTL expiration)
+        │   ├── models.py        # Player, Game, SessionData, PendingGameInfo dataclasses
+        │   ├── manager.py       # Session/game management (including pending game lifecycle)
         │   ├── broadcast.py     # Shared broadcast utility for sending messages to player groups
         │   ├── session_store.py # In-memory session identity persistence
         │   ├── replay_collector.py # Collects broadcast events and merges per-seat round_started views for post-game persistence
@@ -500,11 +448,11 @@ ronin/
 
 ### Test Infrastructure (`tests/mocks/`, `tests/conftest.py`)
 
-- **MockConnection** (`tests/mocks/connection.py`) - Implements `ConnectionProtocol` with `asyncio.Queue` inbox and list outbox; provides `simulate_receive()` for injecting client messages and `sent_messages` for assertions
+- **MockConnection** (`tests/mocks/connection.py`) - Implements `ConnectionProtocol` with `asyncio.Queue` inbox and list outbox; accepts `game_id` constructor parameter (default `"test-game"`); provides `simulate_receive()` for injecting client messages and `sent_messages` for assertions
 - **MockGameService** (`tests/mocks/game_service.py`) - Implements `GameService` interface; echoes actions as broadcast events; creates mock seat assignments on `start_game()`
 - **State builders** (`tests/conftest.py`) - Factory functions `create_player()`, `create_round_state()`, `create_game_state()` for constructing frozen Pydantic state objects with sensible defaults, avoiding boilerplate in every test
 - **Copy-on-write helpers** (`tests/unit/helpers.py`) - `_update_round_state()` and `_update_player()` for modifying frozen state in test setup via `model_copy(update={...})`
-- **Session helpers** (`tests/unit/session/helpers.py`) - `create_started_game()` orchestrates full room lifecycle (create/join/ready/start) for session tests; `disconnect_and_reconnect()` simulates disconnect and reconnection for reconnection tests
+- **Session helpers** (`tests/unit/session/helpers.py`) - `create_started_game()` orchestrates full pending game lifecycle (create pending game/join/start) for session tests; `disconnect_and_reconnect()` simulates disconnect and reconnection for reconnection tests
 - **Auth helpers** (`tests/helpers/auth.py`) - `make_test_game_ticket()` creates HMAC-signed game tickets for test use; `TEST_TICKET_SECRET` is the shared secret used by test fixtures
 
 ### Unit Tests (No Sockets)
@@ -512,20 +460,16 @@ ronin/
 Use `MockConnection` to test message handling:
 
 ```python
-async def test_join_room():
-    connection = MockConnection()
+async def test_join_game():
+    connection = MockConnection(game_id="game1")
     router.handle_connect(connection)
 
-    session_manager.create_room("room1", num_ai_players=3)
-    ticket = make_test_game_ticket("Alice", "room1")
+    session_manager.create_pending_game("game1", player_specs=[...], num_ai_players=3)
+    ticket = make_test_game_ticket("Alice", "game1")
     await router.handle_message(connection, {
-        "type": "join_room",
-        "room_id": "room1",
+        "t": 7,
         "game_ticket": ticket,
     })
-
-    response = connection.sent_messages[0]
-    assert response["type"] == "room_joined"
 ```
 
 ### Integration Tests (With TestClient)
@@ -533,16 +477,13 @@ async def test_join_room():
 Use Starlette's `TestClient` for full WebSocket flow with MessagePack:
 
 ```python
-import msgpack
-
 def test_websocket():
     client = TestClient(app)
-    client.post("/rooms", json={"room_id": "test_room"})
-    with client.websocket_connect("/ws/test_room") as ws:
-        ticket = make_test_game_ticket("Alice", "test_room")
-        ws.send_bytes(msgpack.packb({"type": "join_room", "room_id": "test_room", "game_ticket": ticket}))
-        response = msgpack.unpackb(ws.receive_bytes())
-        assert response["type"] == "room_joined"
+    client.post("/games", json={"game_id": "test_game", "players": [...], "num_ai_players": 3})
+    with client.websocket_connect("/ws/test_game") as ws:
+        ticket = make_test_game_ticket("Alice", "test_game")
+        ws.send_bytes(encode({"t": 7, "game_ticket": ticket}))
+        response = decode(ws.receive_bytes())
 ```
 
 ### Replay-Based Integration Tests

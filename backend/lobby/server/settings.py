@@ -21,6 +21,7 @@ class LobbyServerSettings(BaseSettings):
     static_dir: str = "frontend/public"
     game_client_url: str = "/game"
     game_assets_dir: str = "frontend/dist"
+    ws_allowed_origin: str | None = "http://localhost:8710"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

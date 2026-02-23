@@ -139,6 +139,10 @@ class TestValidateSettings:
         with pytest.raises(UnsupportedSettingsError, match="round_advance_timeout_seconds must be positive"):
             validate_settings(GameSettings(round_advance_timeout_seconds=0))
 
+    def test_pending_game_timeout_seconds_zero_raises(self):
+        with pytest.raises(UnsupportedSettingsError, match="pending_game_timeout_seconds must be positive"):
+            validate_settings(GameSettings(pending_game_timeout_seconds=0))
+
     def test_init_game_validates_settings(self):
         configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):

@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 import contextlib
-import json
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import structlog
-from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, PlainTextResponse, Response
-from starlette.routing import Mount, Route
+from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from lobby.auth.backend import SessionOrApiKeyBackend
@@ -24,12 +22,13 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from lobby.games.service import GamesService, RoomCreationError
-from lobby.games.types import CreateRoomRequest
 from lobby.registry.manager import RegistryManager
+from lobby.rooms.connections import RoomConnectionManager
+from lobby.rooms.manager import LobbyRoomManager
+from lobby.rooms.websocket import room_websocket
 from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
 from lobby.server.settings import LobbyServerSettings
-from lobby.views.auth_handlers import bot_auth, login, login_page, logout, register, register_page
+from lobby.views.auth_handlers import bot_auth, bot_create_room, login, login_page, logout, register, register_page
 from lobby.views.handlers import (
     create_room_and_redirect,
     create_templates,
@@ -37,6 +36,7 @@ from lobby.views.handlers import (
     join_room_and_redirect,
     load_game_assets_manifest,
     lobby_page,
+    room_page,
 )
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
@@ -97,44 +97,6 @@ async def list_servers(request: Request) -> JSONResponse:
     )
 
 
-async def list_rooms(request: Request) -> JSONResponse:
-    games_service: GamesService = request.app.state.games_service
-    rooms = await games_service.list_rooms()
-    return JSONResponse({"rooms": rooms})
-
-
-async def create_room(request: Request) -> JSONResponse:
-    games_service: GamesService = request.app.state.games_service
-
-    raw_body = await request.body()
-    if not raw_body or raw_body.strip() == b"":
-        body = {}
-    else:
-        try:
-            body = json.loads(raw_body)
-        except (ValueError, json.JSONDecodeError):  # fmt: skip
-            return JSONResponse({"error": "Invalid JSON body"}, status_code=422)
-
-    try:
-        req = CreateRoomRequest(**body)
-    except (TypeError, ValidationError) as e:
-        return JSONResponse({"error": str(e)}, status_code=422)
-
-    try:
-        result = await games_service.create_room(num_ai_players=req.num_ai_players)
-    except RoomCreationError as e:
-        return JSONResponse({"error": str(e)}, status_code=503)
-
-    return JSONResponse(
-        {
-            "room_id": result.room_id,
-            "websocket_url": result.websocket_url,
-            "server_name": result.server_name,
-        },
-        status_code=201,
-    )
-
-
 def create_app(
     settings: LobbyServerSettings | None = None,
     auth_settings: AuthSettings | None = None,  # required in production (via get_app)
@@ -147,6 +109,16 @@ def create_app(
     static_dir = Path(settings.static_dir).resolve()
     game_assets_dir = Path(settings.game_assets_dir).resolve()
 
+    room_connections = RoomConnectionManager()
+    room_manager = LobbyRoomManager(
+        room_ttl_seconds=300,
+        on_room_expired=lambda room_id, _conn_ids: room_connections.close_connections(
+            room_id,
+            code=4002,
+            reason="room_expired",
+        ),
+    )
+
     routes = [
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
@@ -158,6 +130,12 @@ def create_app(
             name="create_room_and_redirect",
         ),
         Route(
+            "/rooms/{room_id}",
+            protected_html(room_page),
+            methods=["GET"],
+            name="room_page",
+        ),
+        Route(
             "/rooms/{room_id}/join",
             protected_html(join_room_and_redirect),
             methods=["POST"],
@@ -165,8 +143,8 @@ def create_app(
         ),
         # Protected JSON routes (return 401 JSON when unauthenticated)
         Route("/servers", protected_api(list_servers), methods=["GET"], name="list_servers"),
-        Route("/rooms", protected_api(list_rooms), methods=["GET"], name="list_rooms"),
-        Route("/rooms", protected_api(create_room), methods=["POST"], name="create_room"),
+        # WebSocket route (auth handled inside the handler)
+        WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         # Public routes
         Route("/health", public_route(health), methods=["GET"], name="health"),
         Route("/login", public_route(login_page), methods=["GET"], name="login_page"),
@@ -174,7 +152,8 @@ def create_app(
         Route("/register", public_route(register_page), methods=["GET"], name="register_page"),
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
-        Route("/api/auth/bot", public_route(bot_auth), methods=["POST"], name="bot_auth"),
+        Route("/api/auth/bot", protected_api(bot_auth), methods=["POST"], name="bot_auth"),
+        Route("/api/rooms", protected_api(bot_create_room), methods=["POST"], name="bot_create_room"),
     ]
 
     if static_dir.is_dir():
@@ -202,7 +181,9 @@ def create_app(
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:  # pragma: no cover
         session_store.start_cleanup()
+        room_manager.start_reaper()
         yield
+        await room_manager.stop_reaper()
         await session_store.stop_cleanup()
         db.close()
 
@@ -222,25 +203,48 @@ def create_app(
     app.add_middleware(SecurityHeadersMiddleware)  # type: ignore[arg-type]
 
     registry = RegistryManager(settings.config_path)
+    _attach_state(
+        app,
+        settings=settings,
+        auth_settings=auth_settings,
+        registry=registry,
+        db=db,
+        auth_service=auth_service,
+        room_manager=room_manager,
+        room_connections=room_connections,
+    )
+
+    logger.info("lobby server ready")
+    return app
+
+
+def _attach_state(  # noqa: PLR0913
+    app: Starlette,
+    *,
+    settings: LobbyServerSettings,
+    auth_settings: AuthSettings,
+    registry: RegistryManager,
+    db: Database,
+    auth_service: AuthService,
+    room_manager: LobbyRoomManager,
+    room_connections: RoomConnectionManager,
+) -> None:
     app.state.db = db
     app.state.settings = settings
     app.state.auth_settings = auth_settings
     app.state.registry = registry
+
     templates = create_templates()
     game_assets = load_game_assets_manifest(settings.game_assets_dir)
     lobby_css = game_assets.get("lobby_css")
-    if lobby_css:
-        templates.env.globals["lobby_css_url"] = f"/game-assets/{lobby_css}"
-    else:
-        templates.env.globals["lobby_css_url"] = "/static/styles/lobby.css"
+    templates.env.globals["lobby_css_url"] = f"/game-assets/{lobby_css}" if lobby_css else "/static/styles/lobby.css"
+    lobby_js = game_assets.get("lobby_js")
+    templates.env.globals["lobby_js_url"] = f"/game-assets/{lobby_js}" if lobby_js else "/static/scripts/lobby.js"
     app.state.templates = templates
     app.state.game_assets = game_assets
-    games_service = GamesService(registry)
-    app.state.games_service = games_service
     app.state.auth_service = auth_service
-
-    logger.info("lobby server ready")
-    return app
+    app.state.room_manager = room_manager
+    app.state.room_connections = room_connections
 
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore

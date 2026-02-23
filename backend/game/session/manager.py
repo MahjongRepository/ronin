@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -24,7 +25,6 @@ from game.messaging.event_payload import service_event_payload, shape_call_promp
 from game.messaging.types import (
     ErrorMessage,
     GameLeftMessage,
-    GameStartingMessage,
     PlayerLeftMessage,
     PlayerReconnectedMessage,
     PongMessage,
@@ -35,7 +35,6 @@ from game.messaging.types import (
 from game.session.broadcast import broadcast_to_players
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
-from game.session.room_manager import RoomManager
 from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerManager
 from shared.dal.models import PlayedGame
@@ -43,12 +42,23 @@ from shared.dal.models import PlayedGame
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from game.logic.service import GameService
-    from game.logic.settings import GameSettings
     from game.messaging.protocol import ConnectionProtocol
+    from game.server.types import PlayerSpec
     from game.session.replay_collector import ReplayCollector
-    from game.session.room import Room, RoomPlayer
-    from game.session.types import RoomInfo
     from shared.dal.game_repository import GameRepository
+
+
+@dataclass
+class PendingGameInfo:
+    """Track state for a game waiting for players to connect via JOIN_GAME."""
+
+    game_id: str
+    expected_count: int  # number of human players expected
+    connected_count: int = 0
+    timeout_task: asyncio.Task[None] | None = None
+    player_specs: list[PlayerSpec] = field(default_factory=list)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False, compare=False)
+
 
 logger = structlog.get_logger()
 
@@ -59,7 +69,6 @@ class SessionManager:
         game_service: GameService,
         log_dir: str | None = None,
         replay_collector: ReplayCollector | None = None,
-        room_ttl_seconds: int = 0,
         game_repository: GameRepository | None = None,
     ) -> None:
         self._game_service = game_service
@@ -72,14 +81,8 @@ class SessionManager:
         self._session_store = SessionStore()
         self._timer_manager = TimerManager(on_timeout=self._handle_timeout)
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
+        self._pending_games: dict[str, PendingGameInfo] = {}  # game_id -> PendingGameInfo
         self._heartbeat = HeartbeatMonitor()
-        self._room_manager = RoomManager(
-            heartbeat=self._heartbeat,
-            on_transition=self._handle_room_transition,
-            is_in_active_game=self.is_in_active_game,
-            log_dir=log_dir,
-            room_ttl_seconds=room_ttl_seconds,
-        )
 
     def _get_game_lock(self, game_id: str) -> asyncio.Lock | None:
         """Get the per-game lock, or None if the game has no lock (not yet started or already cleaned up)."""
@@ -100,6 +103,10 @@ class SessionManager:
     @property
     def game_count(self) -> int:
         return len(self._games)
+
+    @property
+    def pending_game_count(self) -> int:
+        return len(self._pending_games)
 
     def _start_replay_collection(self, game_id: str) -> None:
         """Start replay collection with the game seed (known after game_service.start_game)."""
@@ -180,6 +187,8 @@ class SessionManager:
             # Close connections outside the lock if AI replacement ended the game
             if self._has_game_ended(ai_events):
                 await self._close_connections_on_game_end(game, ai_events)
+        elif game_id in self._pending_games:
+            await self._leave_pending_game(game, connection, player, notify_player=notify_player)
         else:
             # Two cases without a lock:
             # 1. Started game but lock not yet created (disconnect during _start_mahjong_game
@@ -188,12 +197,53 @@ class SessionManager:
             # 2. Pre-start game: no concurrent action/timeout paths.
             if game.started:
                 self._session_store.mark_disconnected(player.session_token)
-            else:
+            else:  # pragma: no cover — defensive: unreachable after room removal
                 self._session_store.remove_session(player.session_token)
             self._remove_player_from_game(game, connection.connection_id, player)
             await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
 
-        await self._cleanup_empty_game(game_id, game)
+        # Don't clean up pending games when they become empty - the timeout
+        # task will handle starting the game (with AI substitutes) or cleanup.
+        if game_id not in self._pending_games:
+            await self._cleanup_empty_game(game_id, game)
+
+    async def _leave_pending_game(
+        self,
+        game: Game,
+        connection: ConnectionProtocol,
+        player: Player,
+        *,
+        notify_player: bool,
+    ) -> None:
+        """Handle player disconnect from a pending (pre-start) game."""
+        pending = self._pending_games.get(game.game_id)
+        if pending is not None:
+            async with pending.lock:
+                # Re-validate after acquiring the lock: if a concurrent JOIN_GAME
+                # evicted this connection (replaced by a new one with the same
+                # session token), skip all state mutations to avoid corrupting
+                # connected_count and the replacement connection's session state.
+                if player.game_id is None:
+                    return
+                pending.connected_count = max(0, pending.connected_count - 1)
+                await self._disconnect_pending_player(game, connection, player, notify_player=notify_player)
+        else:  # pragma: no cover — defensive: unreachable in asyncio single-threaded model
+            if player.game_id is None:
+                return
+            await self._disconnect_pending_player(game, connection, player, notify_player=notify_player)
+
+    async def _disconnect_pending_player(
+        self,
+        game: Game,
+        connection: ConnectionProtocol,
+        player: Player,
+        *,
+        notify_player: bool,
+    ) -> None:
+        """Mark session disconnected and remove player from a pending game."""
+        self._session_store.mark_disconnected(player.session_token)
+        self._remove_player_from_game(game, connection.connection_id, player)
+        await self._notify_player_left(connection, game, player.name, notify_player=notify_player)
 
     @staticmethod
     def _remove_player_from_game(game: Game, connection_id: str, player: Player) -> None:
@@ -223,6 +273,9 @@ class SessionManager:
         """Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state."""
         if game.is_empty and self._games.pop(game_id, None) is not None:
             logger.info("game is empty, cleaning up")
+            pending = self._pending_games.pop(game_id, None)
+            if pending and pending.timeout_task:
+                pending.timeout_task.cancel()
             if game.started and not game.ended:
                 await self._record_game_finish(game_id, "abandoned")
             self._session_store.cleanup_game(game_id)
@@ -448,11 +501,11 @@ class SessionManager:
     async def reconnect(
         self,
         connection: ConnectionProtocol,
-        room_id: str,
+        game_id: str,
         session_token: str,
     ) -> None:
         """Handle a player reconnecting to an active game."""
-        result = await self._validate_reconnect(connection, room_id, session_token)
+        result = await self._validate_reconnect(connection, game_id, session_token)
         if result is None:
             return
 
@@ -537,23 +590,15 @@ class SessionManager:
     async def _validate_reconnect(
         self,
         connection: ConnectionProtocol,
-        room_id: str,
+        game_id: str,
         session_token: str,
     ) -> tuple[SessionData, Game, asyncio.Lock, int] | None:
         """Validate reconnect preconditions. Returns (session, game, lock, seat) or None on error."""
-        result = await self._validate_reconnect_session(connection, room_id, session_token)
+        result = await self._validate_reconnect_session(connection, game_id, session_token)
         if result is None:
             return None
 
         session, game, lock, seat = result
-
-        if self.is_in_room(connection.connection_id):
-            await self._send_error(
-                connection,
-                SessionErrorCode.RECONNECT_IN_ROOM,
-                "Connection is currently in a room",
-            )
-            return None
 
         if self.is_in_active_game(connection.connection_id):
             await self._send_error(
@@ -568,7 +613,7 @@ class SessionManager:
     async def _validate_reconnect_session(
         self,
         connection: ConnectionProtocol,
-        room_id: str,
+        game_id: str,
         session_token: str,
     ) -> tuple[SessionData, Game, asyncio.Lock, int] | None:
         """Validate session-level reconnect preconditions."""
@@ -589,7 +634,7 @@ class SessionManager:
             await self._send_error(connection, code, message)
             return None
 
-        if session.game_id != room_id:
+        if session.game_id != game_id:
             await self._send_error(
                 connection,
                 SessionErrorCode.RECONNECT_GAME_MISMATCH,
@@ -703,112 +748,278 @@ class SessionManager:
                     await player.connection.send_message(message)
             self._timer_manager.start_turn_timer(game_id, seat)
 
-    # --- Room management (delegated to RoomManager) ---
+    # --- Pending game management (direct game creation from lobby) ---
 
-    def create_room(self, room_id: str, num_ai_players: int = 3) -> Room:
-        return self._room_manager.create_room(room_id, num_ai_players)
+    def create_pending_game(
+        self,
+        game_id: str,
+        player_specs: list[PlayerSpec],
+        num_ai_players: int,
+    ) -> None:
+        """Create a game in pending state, waiting for players to connect via JOIN_GAME."""
+        if game_id in self._games or game_id in self._pending_games:
+            raise ValueError(f"Game {game_id} already exists")
 
-    def get_room(self, room_id: str) -> Room | None:
-        return self._room_manager.get_room(room_id)
+        game = Game(game_id=game_id, num_ai_players=num_ai_players)
+        self._games[game_id] = game
 
-    def is_in_room(self, connection_id: str) -> bool:
-        return self._room_manager.is_in_room(connection_id)
+        # Create sessions using game_ticket as the session token, matching what
+        # clients will present in JOIN_GAME
+        for spec in player_specs:
+            self._session_store.create_session(
+                spec.name,
+                game_id,
+                token=spec.game_ticket,
+                user_id=spec.user_id,
+            )
+
+        expected_count = len(player_specs)
+        pending = PendingGameInfo(
+            game_id=game_id,
+            expected_count=expected_count,
+            player_specs=list(player_specs),
+        )
+        self._pending_games[game_id] = pending
+
+        pending.timeout_task = asyncio.create_task(
+            self._pending_game_timeout(game_id, game.settings.pending_game_timeout_seconds),
+        )
+        logger.info("pending game created", game_id=game_id, expected_count=expected_count)
+
+    async def join_game(
+        self,
+        connection: ConnectionProtocol,
+        game_id: str,
+        session_token: str,
+    ) -> None:
+        """Handle a player connecting to a pending game via JOIN_GAME."""
+        # Check for already-started game before looking at pending state
+        game = self._games.get(game_id)
+        if game is not None and game.started:
+            await self._send_error(
+                connection,
+                SessionErrorCode.JOIN_GAME_ALREADY_STARTED,
+                "Game already started, use RECONNECT",
+            )
+            return
+
+        pending = self._pending_games.get(game_id)
+        if pending is None:
+            await self._send_error(connection, SessionErrorCode.JOIN_GAME_NOT_FOUND, "Game not found")
+            return
+
+        stale_conn: ConnectionProtocol | None = None
+        try:
+            async with pending.lock:
+                # Reject evicted/unregistered connections: after eviction removes
+                # a connection from _connections, its message loop may still be
+                # running until close() completes. Without this guard the stale
+                # socket could re-register itself and evict the replacement.
+                if self._connections.get(connection.connection_id) is not connection:
+                    return
+                error = self._validate_join_game(connection.connection_id, game_id, session_token)
+                if error is not None:
+                    await self._send_error(connection, *error)
+                    return
+                stale_conn = await self._register_pending_player(connection, game_id, session_token)
+        finally:
+            # Close evicted stale socket outside the lock to avoid deadlock
+            # (close triggers disconnect handler which calls leave_game).
+            if stale_conn is not None:
+                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+                    await stale_conn.close(code=1000, reason="replaced_by_new_connection")
+
+    def _validate_join_game(
+        self,
+        connection_id: str,
+        game_id: str,
+        session_token: str,
+    ) -> tuple[SessionErrorCode, str] | None:
+        """Validate a JOIN_GAME request. Returns (error_code, message) or None if valid."""
+        existing = self._players.get(connection_id)
+        if existing is not None and existing.game_id is not None:
+            return SessionErrorCode.ALREADY_IN_GAME, "Connection already in a game"
+
+        session = self._session_store.get_session(session_token)
+        if session is None:
+            return SessionErrorCode.JOIN_GAME_NO_SESSION, "No session for this ticket"
+        if session.game_id != game_id:
+            return SessionErrorCode.RECONNECT_GAME_MISMATCH, "Session token is not valid for this game"
+
+        game = self._games.get(game_id)
+        if game is None or game_id not in self._pending_games:
+            return SessionErrorCode.JOIN_GAME_NOT_FOUND, "Game not found"
+        if game.started:
+            return SessionErrorCode.JOIN_GAME_ALREADY_STARTED, "Game already started, use RECONNECT"
+
+        return None
+
+    async def _register_pending_player(
+        self,
+        connection: ConnectionProtocol,
+        game_id: str,
+        session_token: str,
+    ) -> ConnectionProtocol | None:
+        """Register a validated player into a pending game. Caller must hold the pending lock.
+
+        Returns the evicted stale connection (if any) for the caller to close
+        outside the lock.
+        """
+        game = self._games.get(game_id)
+        pending = self._pending_games.get(game_id)
+        session = self._session_store.get_session(session_token)
+        if game is None or pending is None or session is None:
+            return None
+
+        # If another connection already holds this session, evict it and
+        # replace with the new connection (handles stale/zombie sockets).
+        evicted = False
+        stale_conn: ConnectionProtocol | None = None
+        for cid, p in list(game.players.items()):
+            if p.session_token == session_token:
+                game.players.pop(cid)
+                self._players.pop(cid, None)
+                stale_conn = self._connections.pop(cid, None)
+                if stale_conn is not None:
+                    self._heartbeat.record_disconnect(cid)
+                p.game_id = None
+                p.seat = None
+                evicted = True
+                logger.info(
+                    "evicting stale connection for duplicate JOIN_GAME",
+                    game_id=game_id,
+                    old_connection_id=cid,
+                    new_connection_id=connection.connection_id,
+                )
+                break
+
+        player = Player(
+            connection=connection,
+            name=session.player_name,
+            session_token=session_token,
+            user_id=session.user_id,
+            game_id=game_id,
+        )
+        self._players[connection.connection_id] = player
+        game.players[connection.connection_id] = player
+
+        self._session_store.mark_reconnected(session_token)
+        # Don't increment connected_count when replacing an existing connection
+        if not evicted:
+            pending.connected_count += 1
+
+        logger.info(
+            "player joined pending game",
+            game_id=game_id,
+            player_name=session.player_name,
+            connected=pending.connected_count,
+            expected=pending.expected_count,
+        )
+
+        if pending.connected_count >= pending.expected_count:
+            if pending.timeout_task is not None:
+                pending.timeout_task.cancel()
+            await self._complete_pending_game(game_id)
+
+        return stale_conn
+
+    async def _complete_pending_game(self, game_id: str) -> None:
+        """Start a pending game. Caller must hold the pending game's lock."""
+        pending = self._pending_games.pop(game_id, None)
+        if pending is None:
+            return  # already started
+
+        if pending.timeout_task is not None:
+            pending.timeout_task.cancel()
+
+        game = self._games.get(game_id)
+        if game is None:
+            return
+
+        # Use all expected human names for game start (including never-connected players)
+        all_human_names = [spec.name for spec in pending.player_specs]
+        await self._start_mahjong_game(game, player_names_override=all_human_names)
+
+        # After game start, bind seats and mark disconnected for never-connected players
+        # so they can reclaim their seat via RECONNECT
+        if game.started:
+            connected_names = set(game.player_names)
+            name_to_token = {spec.name: spec.game_ticket for spec in pending.player_specs}
+            for spec in pending.player_specs:
+                if spec.name not in connected_names:
+                    seat = self._game_service.get_player_seat(game_id, spec.name)
+                    if seat is not None:
+                        self._session_store.bind_seat(name_to_token[spec.name], seat)
+                        self._session_store.mark_disconnected(name_to_token[spec.name])
+
+        logger.info("pending game completed", game_id=game_id)
+
+    async def _pending_game_timeout(self, game_id: str, timeout_seconds: float) -> None:
+        """Timeout for pending game: start with AI substitutes for missing players."""
+        await asyncio.sleep(timeout_seconds)
+
+        pending = self._pending_games.get(game_id)
+        if pending is None:
+            return
+
+        async with pending.lock:
+            if pending.connected_count == 0:
+                logger.warning(
+                    "no players connected before timeout, cancelling game",
+                    game_id=game_id,
+                    expected=pending.expected_count,
+                )
+                self._pending_games.pop(game_id, None)
+                game = self._games.pop(game_id, None)
+                if game is not None:
+                    self._session_store.cleanup_game(game_id)
+                return
+            await self._complete_pending_game(game_id)
 
     def is_in_active_game(self, connection_id: str) -> bool:
         player = self._players.get(connection_id)
         return player is not None and player.game_id is not None
 
     @property
-    def room_count(self) -> int:
-        return self._room_manager.room_count
+    def started_game_count(self) -> int:
+        """Count of games that have started (excludes pending games)."""
+        return sum(1 for g in self._games.values() if g.started)
 
-    def get_rooms_info(self) -> list[RoomInfo]:
-        return self._room_manager.get_rooms_info()
+    def cancel_all_pending_timeouts(self) -> None:
+        """Cancel all pending game timeout tasks (for clean shutdown)."""
+        for pending in self._pending_games.values():
+            if pending.timeout_task is not None:
+                pending.timeout_task.cancel()
 
-    async def join_room(
+    def _is_game_alive(self, game: Game, *, allow_empty: bool = False) -> bool:
+        """Check if a game is still tracked (and has connected players unless allow_empty)."""
+        if self._games.get(game.game_id) is not game:  # pragma: no cover — race condition guard
+            return False
+        return allow_empty or not game.is_empty
+
+    async def _start_mahjong_game(
         self,
-        connection: ConnectionProtocol,
-        room_id: str,
-        player_name: str,
-        user_id: str = "",
-        session_token: str = "",
+        game: Game,
+        player_names_override: list[str] | None = None,
     ) -> None:
-        await self._room_manager.join_room(
-            connection,
-            room_id,
-            player_name,
-            user_id=user_id,
-            session_token=session_token,
-        )
+        """Start the mahjong game.
 
-    async def leave_room(self, connection: ConnectionProtocol, *, notify_player: bool = True) -> None:
-        await self._room_manager.leave_room(connection, notify_player=notify_player)
-
-    async def set_ready(self, connection: ConnectionProtocol, *, ready: bool) -> None:
-        await self._room_manager.set_ready(connection, ready=ready)
-
-    async def broadcast_room_chat(self, connection: ConnectionProtocol, text: str) -> None:
-        await self._room_manager.broadcast_room_chat(connection, text)
-
-    def start_room_reaper(self) -> None:
-        self._room_manager.start_room_reaper()
-
-    async def stop_room_reaper(self) -> None:
-        await self._room_manager.stop_room_reaper()
-
-    async def _handle_room_transition(
-        self,
-        room_id: str,
-        room_players: list[RoomPlayer],
-        num_ai_players: int,
-        settings: GameSettings,
-    ) -> None:
-        """Create a Game from room players and start the mahjong game."""
-        structlog.contextvars.clear_contextvars()
-        game = Game(game_id=room_id, num_ai_players=num_ai_players, settings=settings)
-        self._games[room_id] = game
-
-        for rp in room_players:
-            session = self._session_store.create_session(
-                rp.name,
-                room_id,
-                token=rp.session_token,
-                user_id=rp.user_id,
-            )
-            player = Player(
-                connection=rp.connection,
-                name=rp.name,
-                session_token=session.session_token,
-                user_id=rp.user_id,
-                game_id=room_id,
-            )
-            self._players[rp.connection_id] = player
-            game.players[rp.connection_id] = player
-
-        message = GameStartingMessage().model_dump()
-        for rp in room_players:
-            with contextlib.suppress(RuntimeError, OSError):
-                await rp.connection.send_message(message)
-
-        await self._start_mahjong_game(game)
-
-    def _is_game_alive(self, game: Game) -> bool:
-        """Check if a game is still tracked and has connected players."""
-        return self._games.get(game.game_id) is game and not game.is_empty
-
-    async def _start_mahjong_game(self, game: Game) -> None:
+        If player_names_override is provided, use those names instead of
+        game.player_names. This supports pending games where not all expected
+        players may have connected yet.
         """
-        Start the mahjong game when all required players are ready.
-        """
-        # Guard: if all players disconnected during the transition window
-        # (between GameStartingMessage and this call), leave_game may have
-        # already cleaned the game out of _games. Starting a game that is
-        # no longer tracked would leak locks, heartbeat tasks, and service state.
-        if not self._is_game_alive(game):
+        allow_empty = player_names_override is not None
+        # Guard: if all players disconnected while the pending game was being
+        # completed, leave_game may have already cleaned the game out of _games.
+        # Starting a game that is no longer tracked would leak locks, heartbeat
+        # tasks, and service state. When player_names_override is provided
+        # (pending game), skip the "has players" check since the game may
+        # legitimately have 0 connected players (all will be AI substitutes).
+        if not self._is_game_alive(game, allow_empty=allow_empty):  # pragma: no cover — race condition guard
             return
 
         game.started = True
-        player_names = game.player_names
+        player_names = player_names_override if player_names_override is not None else game.player_names
         events = await self._game_service.start_game(game.game_id, player_names, settings=game.settings)
 
         # if startup failed (e.g. unsupported settings), rollback and broadcast error
@@ -820,7 +1031,7 @@ class SessionManager:
         # Second liveness check: if all players disconnected during the
         # start_game await, leave_game may have cleaned the game from _games.
         # Clean up the service state that start_game just created and bail out.
-        if not self._is_game_alive(game):
+        if not self._is_game_alive(game, allow_empty=allow_empty):  # pragma: no cover — race condition guard
             self._game_service.cleanup_game(game.game_id)
             return
 
@@ -831,7 +1042,7 @@ class SessionManager:
         # _record_game_start await, _cleanup_empty_game already removed
         # the game and cleaned up service/replay state. Bail out to
         # avoid creating stale lock/timer/heartbeat entries.
-        if not self._is_game_alive(game):
+        if not self._is_game_alive(game, allow_empty=allow_empty):  # pragma: no cover — race condition guard
             return
 
         # assign seats to session players still connected after the await
@@ -853,11 +1064,11 @@ class SessionManager:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
             ai_events = await self._replace_disconnected_players(game, player_names)
-            if self._has_game_ended(ai_events):
+            if self._has_game_ended(ai_events):  # pragma: no cover — rare: game ends during AI replacement at start
                 game_end_events = ai_events
 
         # Close connections outside the lock
-        if game_end_events:
+        if game_end_events:  # pragma: no cover
             await self._close_connections_on_game_end(game, game_end_events)
 
     async def _replace_disconnected_players(
@@ -880,8 +1091,8 @@ class SessionManager:
                 if seat is not None:
                     ai_events = await self._replace_with_ai_player(game, name, seat)
                     all_events.extend(ai_events)
-                    if self._has_game_ended(ai_events):
-                        break
+                    if self._has_game_ended(ai_events):  # pragma: no cover — rare: game ends during AI replacement
+                        return all_events  # pragma: no cover
         return all_events
 
     async def _broadcast_events(

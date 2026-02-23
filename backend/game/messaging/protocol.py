@@ -17,9 +17,13 @@ class ConnectionProtocol(ABC):
     @property
     @abstractmethod
     def connection_id(self) -> str:
-        """
-        Unique identifier for this connection.
-        """
+        """Unique identifier for this connection."""
+        ...
+
+    @property
+    @abstractmethod
+    def game_id(self) -> str:
+        """Game ID from the WebSocket URL path (e.g., /ws/{game_id})."""
         ...
 
     @abstractmethod

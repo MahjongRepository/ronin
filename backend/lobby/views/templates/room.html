@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="room-app"
+     data-room-id="{{ room_id }}"
+     data-ws-url="{{ ws_url }}">
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ lobby_js_url }}"></script>
+{% endblock %}

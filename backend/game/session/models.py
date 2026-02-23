@@ -18,7 +18,7 @@ class SessionData:
     """Persistent session identity that survives WebSocket disconnects.
 
     Track a player's session across connection lifecycle events.
-    A session is created during room-to-game transition and cleaned up when the game ends.
+    A session is created when the lobby creates a pending game and cleaned up when the game ends.
     """
 
     session_token: str
@@ -35,7 +35,7 @@ class Player:
     """Represent a connected player in the session layer.
 
     Lifecycle:
-    - Created during room-to-game transition (game_id is set)
+    - Created when joining a pending game via JOIN_GAME (game_id is set)
     - On game start (_start_mahjong_game): seat is assigned
     - On leave_game: game_id and seat are cleared to None
     - On unregister: Player is removed from the registry entirely

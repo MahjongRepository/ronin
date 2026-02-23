@@ -1,6 +1,7 @@
 node_modules
 dist
 out
+public/scripts/
 public/styles/
 public/env.js
 *.tsbuildinfo

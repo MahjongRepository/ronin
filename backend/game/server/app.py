@@ -11,10 +11,11 @@ from starlette.routing import Route, WebSocketRoute
 from game.logic.mahjong_service import MahjongGameService
 from game.messaging.router import MessageRouter
 from game.server.settings import GameServerSettings
-from game.server.types import CreateRoomRequest
+from game.server.types import CreateGameRequest
 from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
+from shared.auth.game_ticket import verify_game_ticket
 from shared.build_info import APP_VERSION, GIT_COMMIT
 from shared.db import Database, SqliteGameRepository
 from shared.logging import setup_logging
@@ -41,24 +42,34 @@ async def status(request: Request) -> JSONResponse:
             "status": "ok",
             "version": APP_VERSION,
             "commit": GIT_COMMIT,
-            "active_rooms": session_manager.room_count,
-            "active_games": session_manager.game_count,
-            "capacity_used": session_manager.room_count + session_manager.game_count,
+            "pending_games": session_manager.pending_game_count,
+            "active_games": session_manager.started_game_count,
+            "capacity_used": session_manager.game_count,
             "max_capacity": settings.max_capacity,
         },
     )
 
 
-async def list_rooms(request: Request) -> JSONResponse:
-    session_manager: SessionManager = request.app.state.session_manager
-    rooms = session_manager.get_rooms_info()
-    return JSONResponse({"rooms": [r.model_dump() for r in rooms]})
-
-
 _MAX_REQUEST_BODY_SIZE = 4096
 
 
-async def create_room(request: Request) -> JSONResponse:
+def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> str | None:
+    """Verify each player's ticket signature, expiry, and identity claims.
+
+    Returns an error message string if validation fails, or None if all tickets are valid.
+    """
+    for player_spec in game_request.players:
+        ticket = verify_game_ticket(player_spec.game_ticket, secret)
+        if ticket is None:
+            return "Invalid or expired game ticket"
+        if ticket.room_id != game_request.game_id:
+            return "Ticket game_id mismatch"
+        if ticket.username != player_spec.name or ticket.user_id != player_spec.user_id:
+            return "Ticket identity mismatch"
+    return None
+
+
+async def create_game(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     settings: GameServerSettings = request.app.state.settings
 
@@ -67,22 +78,28 @@ async def create_room(request: Request) -> JSONResponse:
         if len(raw_body) > _MAX_REQUEST_BODY_SIZE:
             return JSONResponse({"error": "Request body too large"}, status_code=413)
         body = json.loads(raw_body)
-        room_request = CreateRoomRequest(**body)
+        game_request = CreateGameRequest(**body)
     except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, ValidationError):  # fmt: skip
         return JSONResponse({"error": "Invalid request body"}, status_code=400)
 
-    if session_manager.room_count + session_manager.game_count >= settings.max_capacity:
+    ticket_error = _validate_player_tickets(game_request, settings.game_ticket_secret)
+    if ticket_error is not None:
+        return JSONResponse({"error": ticket_error}, status_code=400)
+
+    if session_manager.game_count >= settings.max_capacity:
         return JSONResponse({"error": "Server at capacity"}, status_code=503)
 
-    if session_manager.get_room(room_request.room_id) is not None:
-        return JSONResponse({"error": "Room already exists"}, status_code=409)
-
-    if session_manager.get_game(room_request.room_id) is not None:
+    try:
+        session_manager.create_pending_game(
+            game_request.game_id,
+            game_request.players,
+            game_request.num_ai_players,
+        )
+    except ValueError:
         return JSONResponse({"error": "Game with this ID already exists"}, status_code=409)
 
-    session_manager.create_room(room_request.room_id, num_ai_players=room_request.num_ai_players)
     return JSONResponse(
-        {"room_id": room_request.room_id, "num_ai_players": room_request.num_ai_players, "status": "created"},
+        {"game_id": game_request.game_id, "status": "pending"},
         status_code=201,
     )
 
@@ -114,7 +131,6 @@ def create_app(
             game_service,
             log_dir=settings.log_dir,
             replay_collector=replay_collector,
-            room_ttl_seconds=settings.room_ttl_seconds,
             game_repository=game_repository,
         )
 
@@ -127,20 +143,16 @@ def create_app(
     routes = [
         Route("/health", health, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
-        Route("/rooms", list_rooms, methods=["GET"]),
-        Route("/rooms", create_room, methods=["POST"]),
-        WebSocketRoute("/ws/{room_id}", ws_endpoint),
+        Route("/games", create_game, methods=["POST"]),
+        WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 
-    async def on_startup() -> None:
-        session_manager.start_room_reaper()
-
     async def on_shutdown() -> None:
-        await session_manager.stop_room_reaper()
+        session_manager.cancel_all_pending_timeouts()
         if owned_db is not None:
             owned_db.close()
 
-    app = Starlette(routes=routes, on_startup=[on_startup], on_shutdown=[on_shutdown])
+    app = Starlette(routes=routes, on_shutdown=[on_shutdown])
     app.add_middleware(
         CORSMiddleware,  # type: ignore[arg-type]
         allow_origins=settings.cors_origins,

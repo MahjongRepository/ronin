@@ -16,9 +16,10 @@ if TYPE_CHECKING:
 
 
 class SessionOrApiKeyBackend(AuthenticationBackend):
-    """Authenticate requests via session cookie or X-API-Key header.
+    """Authenticate requests via session cookie/query param or X-API-Key header.
 
-    Checks the session cookie first. If absent or invalid, falls back to
+    Checks the session cookie first, then the ``session_id`` query parameter
+    (used by WebSocket clients). If both are absent or invalid, falls back to
     the X-API-Key header for bot accounts.
     """
 
@@ -29,7 +30,8 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
         self,
         conn: HTTPConnection,
     ) -> tuple[AuthCredentials, AuthenticatedPlayer] | None:
-        session_id = conn.cookies.get("session_id")
+        # Check cookie first, then fall back to query param (used by WebSocket clients).
+        session_id = conn.cookies.get("session_id") or conn.query_params.get("session_id")
         session = self._auth_service.validate_session(session_id)
         if session is not None:
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(

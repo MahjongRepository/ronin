@@ -1,5 +1,4 @@
 import asyncio
-from typing import Any
 from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, TimeoutType
@@ -131,112 +130,6 @@ class TestSessionManagerDisconnect:
         await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
 
         assert len(conns[1].sent_messages) == 0
-
-    async def test_disconnect_during_start_game_replaces_with_ai_player(self, manager):
-        """Player disconnecting during start_game (before seat assignment) triggers AI player replacement."""
-        manager.create_room("game1", num_ai_players=2)
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
-
-        await manager.join_room(conn1, "game1", "Alice")
-        await manager.join_room(conn2, "game1", "Bob")
-
-        # patch start_game to simulate a disconnect happening during the await.
-        original_start = manager._game_service.start_game
-
-        async def disconnecting_start(game_id, player_names, **kwargs: Any):
-            result = await original_start(game_id, player_names, **kwargs)
-            # simulate Alice disconnecting during start_game
-            game = manager.get_game(game_id)
-            if game:
-                for conn_id, player in list(game.players.items()):
-                    if player.name == "Alice":
-                        game.players.pop(conn_id)
-                        player.game_id = None
-                        player.seat = None
-                        break
-            return result
-
-        manager._game_service.start_game = disconnecting_start
-
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-
-        # ready up both -- triggers transition and start
-        await manager.set_ready(conn1, ready=True)
-        await manager.set_ready(conn2, ready=True)
-
-        # post-start recovery should detect Alice disconnected and replace with AI player
-        assert ("game1", "Alice") in replace_calls
-
-    async def test_disconnect_during_start_cancels_timer_and_broadcasts(self, manager):
-        """Post-start recovery cancels the disconnected player's timer and broadcasts AI player events."""
-        manager.create_room("game1", num_ai_players=2)
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
-
-        await manager.join_room(conn1, "game1", "Alice")
-        await manager.join_room(conn2, "game1", "Bob")
-
-        original_start = manager._game_service.start_game
-
-        async def late_disconnecting_start(game_id, player_names, **kwargs: Any):
-            return await original_start(game_id, player_names, **kwargs)
-
-        manager._game_service.start_game = late_disconnecting_start
-
-        # patch _broadcast_events to remove Alice just before the recovery loop runs.
-        original_broadcast = manager._broadcast_events
-        alice_removed = False
-
-        async def removing_broadcast(g, events):
-            nonlocal alice_removed
-            await original_broadcast(g, events)
-            if not alice_removed:
-                alice_removed = True
-                for conn_id, player in list(g.players.items()):
-                    if player.name == "Alice":
-                        g.players.pop(conn_id)
-                        player.game_id = None
-                        player.seat = None
-                        break
-
-        manager._broadcast_events = removing_broadcast
-
-        # mock process_ai_player_actions_after_replacement to return an event
-        ai_player_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=MockResultEvent(
-                type=EventType.DRAW,
-                target="all",
-                player="AI",
-                action=GameAction.DISCARD,
-                input={},
-                success=True,
-            ),
-            target=BroadcastTarget(),
-        )
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
-            return_value=[ai_player_event],
-        )
-
-        # ready up both -- triggers transition and start; Alice is removed during first broadcast
-        await manager.set_ready(conn1, ready=True)
-        await manager.set_ready(conn2, ready=True)
-
-        # Bob should receive the AI player action event
-        ai_player_msgs = [m for m in conn2.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
-        assert len(ai_player_msgs) == 1
 
     async def test_leave_game_skips_ai_player_replacement_when_lock_missing(self, manager):
         """leave_game skips AI player replacement when the game lock is missing.

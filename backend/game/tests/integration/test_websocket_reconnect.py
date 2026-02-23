@@ -61,20 +61,24 @@ def _recv(ws) -> dict:
     return decode(ws.receive_bytes())
 
 
-def _join_room_and_start(ws, room_id: str, player_name: str) -> list[dict]:
-    """Join a room (1 human + 3 AI), ready up, drain startup messages."""
-    ticket = make_test_game_ticket(player_name, room_id)
-    _send(
-        ws,
-        {
-            "t": WireClientMessageType.JOIN_ROOM,
-            "room_id": room_id,
-            "game_ticket": ticket,
+def _create_pending_game_and_tickets(client: TestClient, game_id: str = "test_game") -> list[str]:
+    """Create a pending game via POST /games. Return tickets."""
+    ticket = make_test_game_ticket("Player1", game_id, user_id="user-0")
+    resp = client.post(
+        "/games",
+        json={
+            "game_id": game_id,
+            "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
         },
     )
-    messages = [_recv(ws)]  # room_joined
+    assert resp.status_code == 201
+    return [ticket]
 
-    _send(ws, {"t": WireClientMessageType.SET_READY, "ready": True})
+
+def _join_game_and_start(ws, ticket: str) -> list[dict]:
+    """Join a pending game and drain startup messages."""
+    _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+    messages = []
     while True:
         msg = _recv(ws)
         messages.append(msg)
@@ -90,21 +94,13 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
     survives when Player1 disconnects via WebSocket close.
     Returns the game ticket string (which is the session token).
     """
-
     sm = client.app.state.session_manager
-    sm.create_room("test_game", num_ai_players=3)
+    tickets = _create_pending_game_and_tickets(client, "test_game")
+    ticket = tickets[0]
 
     # Player1 joins and starts the game via WebSocket
     with client.websocket_connect("/ws/test_game") as ws:
-        _join_room_and_start(ws, "test_game", "Player1")
-
-        # Grab Player1's session token (= the game ticket used during join)
-        ticket = None
-        for session in sm._session_store._sessions.values():
-            if session.player_name == "Player1" and session.game_id == "test_game":
-                ticket = session.session_token
-                break
-        assert ticket is not None
+        _join_game_and_start(ws, ticket)
 
         # Inject a "Player2" mock connection into the game so it survives Player1 leaving
         p2_conn = MockConnection()
@@ -154,7 +150,6 @@ class TestWebSocketReconnect:
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
-                    "room_id": "test_game",
                     "game_ticket": ticket,
                 },
             )
@@ -173,7 +168,6 @@ class TestWebSocketReconnect:
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
-                    "room_id": "test_game",
                     "game_ticket": "invalid-ticket-string",
                 },
             )
@@ -185,13 +179,12 @@ class TestWebSocketReconnect:
     def test_reconnect_game_gone_over_websocket(self, client):
         """Reconnect after game cleanup returns game_gone error."""
         sm = client.app.state.session_manager
-        sm.create_room("test_game", num_ai_players=3)
+        tickets = _create_pending_game_and_tickets(client, "test_game")
 
         # Start and leave via WebSocket (1 human = game gets cleaned up)
-        # Capture the ticket used during join from the session store before the game cleans up.
         ticket = None
         with client.websocket_connect("/ws/test_game") as ws:
-            _join_room_and_start(ws, "test_game", "Player1")
+            _join_game_and_start(ws, tickets[0])
             for session in sm._session_store._sessions.values():
                 if session.player_name == "Player1" and session.game_id == "test_game":
                     ticket = session.session_token
@@ -216,7 +209,6 @@ class TestWebSocketReconnect:
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
-                    "room_id": "test_game",
                     "game_ticket": ticket,
                 },
             )
@@ -225,8 +217,8 @@ class TestWebSocketReconnect:
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
 
-    def test_reconnect_path_injects_room_id(self, client):
-        """WebSocket path param overrides room_id in reconnect message payload."""
+    def test_reconnect_uses_connection_game_id(self, client):
+        """Reconnect uses game_id from the WebSocket URL path (connection-level property)."""
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
@@ -234,12 +226,10 @@ class TestWebSocketReconnect:
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
-            # Send reconnect with a wrong room_id; the path param overrides it
             _send(
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
-                    "room_id": "ignored_value",
                     "game_ticket": ticket,
                 },
             )
@@ -261,7 +251,6 @@ class TestWebSocketReconnect:
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
-                    "room_id": "test_game",
                     "game_ticket": ticket,
                 },
             )

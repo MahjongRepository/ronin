@@ -17,7 +17,18 @@ _LOBBY_CSP = (
     "base-uri 'self'"
 )
 
-# Game pages need scripts and WebSocket connections.
+# Room pages need scripts and same-origin WebSocket connections.
+_ROOM_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "base-uri 'self'"
+)
+
+# Game pages need scripts and WebSocket connections to external game servers.
 _GAME_CSP = (
     "default-src 'self'; "
     "script-src 'self'; "
@@ -38,21 +49,30 @@ SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
     (b"content-security-policy", _LOBBY_CSP.encode()),
 ]
 
+ROOM_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    *_COMMON_HEADERS,
+    (b"content-security-policy", _ROOM_CSP.encode()),
+]
+
 GAME_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
     *_COMMON_HEADERS,
     (b"content-security-policy", _GAME_CSP.encode()),
 ]
 
 
-def _is_game_path(path: str) -> bool:
-    """Check whether the request path belongs to the game client.
+def _get_csp_headers(path: str) -> list[tuple[bytes, bytes]]:
+    """Select the appropriate CSP headers based on the request path.
 
     Trailing slashes are stripped before comparison so that the CSP selection
     is consistent regardless of whether ``SlashNormalizationMiddleware`` has
     already run.
     """
     normalized = path.rstrip("/") or "/"
-    return normalized == "/game" or path.startswith("/game-assets/")
+    if normalized == "/game" or path.startswith("/game-assets/"):
+        return GAME_SECURITY_HEADERS
+    if normalized.startswith("/rooms/"):
+        return ROOM_SECURITY_HEADERS
+    return SECURITY_HEADERS
 
 
 class SecurityHeadersMiddleware:
@@ -70,7 +90,7 @@ class SecurityHeadersMiddleware:
             await self.app(scope, receive, send)
             return
 
-        extra_headers = GAME_SECURITY_HEADERS if _is_game_path(scope["path"]) else SECURITY_HEADERS
+        extra_headers = _get_csp_headers(scope["path"])
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":

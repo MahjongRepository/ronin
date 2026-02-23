@@ -1,11 +1,11 @@
 import contextlib
+import re
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from game.logic.enums import WireClientMessageType
 from game.messaging.encoder import DecodeError
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import ErrorMessage, SessionErrorCode
@@ -15,15 +15,23 @@ logger = structlog.get_logger()
 if TYPE_CHECKING:
     from game.messaging.router import MessageRouter
 
+_GAME_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_MAX_GAME_ID_LENGTH = 50
+
 
 class WebSocketConnection(ConnectionProtocol):
-    def __init__(self, websocket: WebSocket, connection_id: str | None = None) -> None:
+    def __init__(self, websocket: WebSocket, game_id: str, connection_id: str | None = None) -> None:
         self._websocket = websocket
+        self._game_id = game_id
         self._connection_id = connection_id or str(uuid4())
 
     @property
     def connection_id(self) -> str:
         return self._connection_id
+
+    @property
+    def game_id(self) -> str:
+        return self._game_id
 
     async def send_bytes(self, data: bytes) -> None:
         try:
@@ -43,11 +51,14 @@ class WebSocketConnection(ConnectionProtocol):
 
 
 async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> None:
+    game_id = websocket.path_params["game_id"]
+    if not _GAME_ID_PATTERN.match(game_id) or len(game_id) > _MAX_GAME_ID_LENGTH:
+        await websocket.close(code=4000, reason="invalid_game_id")
+        return
+
     await websocket.accept()
 
-    room_id = websocket.path_params["room_id"]
-
-    connection = WebSocketConnection(websocket)
+    connection = WebSocketConnection(websocket, game_id=game_id)
     logger.info("websocket connected", connection_id=connection.connection_id)
     await router.handle_connect(connection)
 
@@ -61,8 +72,6 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
                 )
                 continue
-            if data.get("t") in (WireClientMessageType.JOIN_ROOM, WireClientMessageType.RECONNECT):
-                data["room_id"] = room_id
             await router.handle_message(connection, data)
     except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip
         pass

@@ -10,16 +10,14 @@ from game.messaging.types import (
     ChiMessage,
     DiscardMessage,
     ErrorMessage,
-    JoinRoomMessage,
+    JoinGameMessage,
     KanMessage,
-    LeaveRoomMessage,
     NoDataActionMessage,
     PingMessage,
     PonMessage,
     ReconnectMessage,
     RiichiMessage,
     SessionErrorCode,
-    SetReadyMessage,
     parse_client_message,
 )
 from shared.auth.game_ticket import GameTicket, verify_game_ticket
@@ -67,36 +65,32 @@ class MessageRouter:
             )
             return
 
-        if isinstance(message, JoinRoomMessage):
-            await self._handle_join_room(connection, message)
-        elif isinstance(message, LeaveRoomMessage):
-            await self._session_manager.leave_room(connection)
-        elif isinstance(message, SetReadyMessage):
-            await self._session_manager.set_ready(connection, ready=message.ready)
-        elif isinstance(message, _GAME_ACTION_TYPES):
+        if isinstance(message, _GAME_ACTION_TYPES):
             await self._handle_game_action(connection, message)
+        elif isinstance(message, JoinGameMessage):
+            await self._handle_join_game(connection, message)
         elif isinstance(message, ReconnectMessage):
             await self._handle_reconnect(connection, message)
         elif isinstance(message, PingMessage):
             await self._session_manager.handle_ping(connection)
         elif isinstance(message, ChatMessage):
-            await self._handle_chat(connection, message)
+            await self._session_manager.broadcast_chat(connection, text=message.text)
 
     async def _verify_ticket(
         self,
         connection: ConnectionProtocol,
         ticket_str: str,
-        room_id: str,
+        game_id: str,
     ) -> GameTicket | None:
-        """Verify game ticket signature, expiry, and room binding. Send error on failure."""
+        """Verify game ticket signature, expiry, and game binding. Send error on failure."""
         ticket = verify_game_ticket(ticket_str, self._game_ticket_secret)
         if ticket is None:
             logger.warning("invalid game ticket")
             await self._send_ticket_error(connection, "Invalid game ticket")
             return None
-        if ticket.room_id != room_id:
-            logger.warning("ticket room_id mismatch", ticket_room_id=ticket.room_id, expected_room_id=room_id)
-            await self._send_ticket_error(connection, "Ticket room_id mismatch")
+        if ticket.room_id != game_id:
+            logger.warning("ticket game_id mismatch", ticket_room_id=ticket.room_id, expected_game_id=game_id)
+            await self._send_ticket_error(connection, "Ticket game_id mismatch")
             return None
         return ticket
 
@@ -106,20 +100,18 @@ class MessageRouter:
             ErrorMessage(code=SessionErrorCode.INVALID_TICKET, message=message).model_dump(),
         )
 
-    async def _handle_join_room(
+    async def _handle_join_game(
         self,
         connection: ConnectionProtocol,
-        message: JoinRoomMessage,
+        message: JoinGameMessage,
     ) -> None:
-        """Verify game ticket and join the room."""
-        ticket = await self._verify_ticket(connection, message.game_ticket, message.room_id)
+        """Verify game ticket and join a pending game."""
+        ticket = await self._verify_ticket(connection, message.game_ticket, connection.game_id)
         if ticket is None:
             return
-        await self._session_manager.join_room(
+        await self._session_manager.join_game(
             connection=connection,
-            room_id=message.room_id,
-            player_name=ticket.username,
-            user_id=ticket.user_id,
+            game_id=connection.game_id,
             session_token=message.game_ticket,
         )
 
@@ -129,12 +121,12 @@ class MessageRouter:
         message: ReconnectMessage,
     ) -> None:
         """Verify game ticket and attempt reconnection."""
-        ticket = await self._verify_ticket(connection, message.game_ticket, message.room_id)
+        ticket = await self._verify_ticket(connection, message.game_ticket, connection.game_id)
         if ticket is None:
             return
         await self._session_manager.reconnect(
             connection=connection,
-            room_id=message.room_id,
+            game_id=connection.game_id,
             session_token=message.game_ticket,
         )
 
@@ -161,23 +153,9 @@ class MessageRouter:
             logger.exception("fatal error during game action")
             await self._session_manager.close_game_on_error(connection)
 
-    async def _handle_chat(self, connection: ConnectionProtocol, message: ChatMessage) -> None:
-        """Route chat to room or game depending on player state."""
-        if self._session_manager.is_in_room(connection.connection_id):
-            await self._session_manager.broadcast_room_chat(
-                connection=connection,
-                text=message.text,
-            )
-        else:
-            await self._session_manager.broadcast_chat(
-                connection=connection,
-                text=message.text,
-            )
-
     async def handle_connect(self, connection: ConnectionProtocol) -> None:
         self._session_manager.register_connection(connection)
 
     async def handle_disconnect(self, connection: ConnectionProtocol) -> None:
-        await self._session_manager.leave_room(connection, notify_player=False)
         await self._session_manager.leave_game(connection, notify_player=False)
         self._session_manager.unregister_connection(connection)

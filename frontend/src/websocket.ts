@@ -79,10 +79,10 @@ export class GameSocket {
     }
 
     /** Enable auto-reconnect on disconnect with exponential backoff. */
-    enableReconnect(url: string, onReconnect: () => void): void {
+    enableReconnect(url: string, onReconnect?: () => void): void {
         this.reconnectEnabled = true;
         this.reconnectUrl = url;
-        this.onReconnect = onReconnect;
+        this.onReconnect = onReconnect ?? null;
     }
 
     /** Disable auto-reconnect and cancel any pending retry. */
@@ -94,15 +94,6 @@ export class GameSocket {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
         }
-    }
-
-    /**
-     * Replace message and status handlers on an existing open socket.
-     * Used during room-to-game handoff to rebind without reconnecting.
-     */
-    setHandlers(onMessage: MessageHandler, onStatusChange: StatusHandler): void {
-        this.onMessage = onMessage;
-        this.onStatusChange = onStatusChange;
     }
 
     /** Whether the underlying WebSocket is currently open. */

@@ -1,6 +1,6 @@
 # Lobby Service Architecture
 
-Portal service for room discovery and creation.
+Portal service for room management, authentication, and game client serving.
 
 **Port**: 8710
 
@@ -12,19 +12,22 @@ Portal service for room discovery and creation.
 - `GET /register` - Registration page
 - `POST /register` - Create account, auto-login
 - `GET /health` - Health check
-- `POST /api/auth/bot` - Exchange bot API key for a game ticket
 - `POST /logout` - Clear session, redirect to login
 - `/static/` - Static files (CSS) served from `frontend/public/`
 - `/game-assets/` - Built game client assets (content-hashed JS/CSS) served from `frontend/dist/`
 
 ### Protected (session cookie or API key required)
-- `GET /` - Lobby HTML page (fully server-rendered Jinja2 template with zero JavaScript; fetches rooms and renders them inline)
+- `GET /` - Lobby HTML page (server-rendered, lists rooms from local room manager)
 - `GET /game` - Game client HTML page (Jinja2 template serving the built frontend with content-hashed JS/CSS)
-- `POST /rooms/new` - Create a room via HTML form POST, signs a game ticket, then 303 redirect to `/game` with `ws_url` and `game_ticket` query params
-- `POST /rooms/{room_id}/join` - Join a room, signs a game ticket, then redirects to `/game`
+- `POST /rooms/new` - Create a local room, 303 redirect to `/rooms/{room_id}`
+- `GET /rooms/{room_id}` - Room page (Jinja2 template with embedded TypeScript for room UI)
+- `POST /rooms/{room_id}/join` - Validate room exists, redirect to `/rooms/{room_id}`
 - `GET /servers` - List available game servers with health status
-- `GET /rooms` - List all available rooms across all healthy servers (used by the game client's room.ts)
-- `POST /rooms` - Create a new room with optional `num_ai_players` parameter (0-3, defaults to 3)
+- `POST /api/auth/bot` - Create a lobby session for an authenticated bot to join a room via WebSocket
+- `POST /api/rooms` - Create a room (bot API); returns `room_id`, `session_id`, and `ws_url`
+
+### WebSocket (auth handled inside the handler)
+- `WS /ws/rooms/{room_id}` - Room WebSocket (JSON protocol, session cookie auth, origin check)
 
 ## Authentication
 
@@ -32,9 +35,9 @@ Ronin uses a three-layer authentication model:
 
 1. **Player Accounts** - Username/password registration and login via the lobby web interface. Passwords are hashed with bcrypt.
 2. **HMAC-Signed Game Tickets** - The lobby signs HMAC-SHA256 tickets that the game server verifies locally using a shared secret. Tickets contain player identity and room binding.
-3. **Bot API Keys** - External bots authenticate via static API keys exchanged for game tickets through `POST /api/auth/bot`.
+3. **Bot API Keys** - External bots authenticate via `X-API-Key` header on protected API routes (`POST /api/auth/bot`, `POST /api/rooms`). The lobby validates the key and returns a lobby session for WebSocket access.
 
-Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room issues a signed game ticket and redirects to `/game`. The game server verifies the ticket signature before allowing the WebSocket join.
+Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room redirects to the room page (`/rooms/{room_id}`). Game tickets are signed when all players ready up and the game transitions to the game server. The `SessionOrApiKeyBackend` checks session cookies first, then the `session_id` query parameter (used by WebSocket clients), then falls back to `X-API-Key` header for bot accounts.
 
 ### Bot Registration
 
@@ -48,45 +51,23 @@ The API key is printed once and never stored. Set `AUTH_DATABASE_PATH` to contro
 
 The `run-local-server.sh` script sets `AUTH_GAME_TICKET_SECRET` automatically and uses `uvicorn --factory` mode to start both servers.
 
-### List Rooms Response
+### Room WebSocket Protocol
 
-The lobby passes through room data from game servers as-is (fields like `room_id`, `player_count`, `players_needed`, `total_seats`, `num_ai_players`, `players` come from the game server and are not validated by the lobby). The lobby injects `server_name` and `server_url` into each room entry.
+The lobby room WebSocket uses JSON text frames. Client-to-server messages:
+- `{"type": "set_ready", "ready": true}` - Toggle ready state
+- `{"type": "chat", "text": "Hello!"}` - Send chat message
+- `{"type": "leave_room"}` - Leave the room
+- `{"type": "ping"}` - Heartbeat keep-alive
 
-```json
-{
-  "rooms": [
-    {
-      "room_id": "abc123",
-      "player_count": 2,
-      "players_needed": 3,
-      "total_seats": 4,
-      "num_ai_players": 1,
-      "players": ["Alice", "Bob"],
-      "server_name": "local-1",
-      "server_url": "http://localhost:8711"
-    }
-  ]
-}
-```
-
-### Create Room Request/Response
-
-```json
-// Request (POST /rooms):
-{"num_ai_players": 1}
-
-// Response (201):
-{
-  "room_id": "abc123",
-  "websocket_url": "ws://localhost:8711/ws/abc123",
-  "server_name": "local-1"
-}
-```
-
-### Error Responses
-
-- **422** - Invalid `num_ai_players` value (outside 0-3 range or wrong type). Returns Pydantic validation error details.
-- **503** - No healthy game servers available, or game server failed to create the room. Returns `{"error": "..."}`.
+Server-to-client messages:
+- `{"type": "room_joined", "room_id": "...", "player_name": "...", "players": [...], "num_ai_players": N}` - Sent on join
+- `{"type": "player_joined", "player_name": "...", "players": [...]}` - Player joined broadcast
+- `{"type": "player_left", "player_name": "...", "players": [...]}` - Player left broadcast
+- `{"type": "player_ready_changed", "player_name": "...", "ready": true, "players": [...]}` - Ready state broadcast
+- `{"type": "chat", "player_name": "...", "text": "..."}` - Chat broadcast
+- `{"type": "game_starting", "ws_url": "...", "game_ticket": "...", "game_id": "...", "game_client_url": "/game"}` - Game transition
+- `{"type": "error", "message": "..."}` - Error message
+- `{"type": "pong"}` - Heartbeat response
 
 ## Configuration
 
@@ -100,7 +81,7 @@ servers:
     url: "http://localhost:8711"
 ```
 
-The lobby checks server health via `GET /health` on every incoming request that touches servers (`GET /servers`, `GET /rooms`, `POST /rooms`). There is no background polling or caching — each request triggers a fresh health check of all configured servers.
+The lobby checks server health via `GET /health` on every incoming request that touches servers (`GET /servers`, game transitions). There is no background polling or caching — each request triggers a fresh health check of all configured servers.
 
 ### CORS
 
@@ -124,7 +105,8 @@ At startup, the backend reads this manifest and passes the filenames to the `gam
 
 The security headers middleware applies route-aware Content Security Policy:
 - **Lobby/auth pages** — `script-src 'none'` (no JavaScript)
-- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and WebSocket connections)
+- **Room pages** (`/rooms/`) — `script-src 'self'` and `connect-src 'self'` (allows scripts and same-origin WebSocket connections)
+- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers)
 
 ### Dev Mode
 
@@ -134,10 +116,10 @@ The security headers middleware applies route-aware Content Security Policy:
 
 - **Server Layer** (`server/`) - Starlette REST API with CORS and auth middleware
 - **Settings** (`server/settings.py`) - `LobbyServerSettings` via pydantic-settings (`LOBBY_` env prefix)
-- **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie-based session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/rooms`, `/servers`) return 401 instead of redirect when unauthenticated
-- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `_sign_ticket_and_redirect()` signs HMAC game tickets for room creation/join; `game_page` serves the built frontend via `game.html` template with manifest-driven asset URLs
+- **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
+- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `create_signed_ticket()` signs HMAC game tickets at game-start time; `game_page` serves the built frontend via `game.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template
 - **Registry** (`registry/`) - Game server discovery and health checks
-- **Games** (`games/`) - Room listing and creation logic
+- **Rooms** (`rooms/`) - Room management: `LobbyRoomManager` (room state, TTL reaper), `RoomConnectionManager` (WebSocket broadcasting), WebSocket handler (auth, origin check, game transition), typed message models, room data models
 
 Dependencies on `shared/`:
 - `shared.logging.setup_logging` - Timestamped file and stdout logging
@@ -153,26 +135,32 @@ ronin/
     └── lobby/
         ├── server/
         │   ├── app.py          # Starlette app factory and route handlers
+        │   ├── middleware.py   # SecurityHeadersMiddleware (route-aware CSP), SlashNormalizationMiddleware
         │   └── settings.py     # LobbyServerSettings (pydantic-settings)
         ├── auth/
         │   ├── backend.py      # SessionOrApiKeyBackend (Starlette AuthenticationBackend)
         │   ├── models.py       # AuthenticatedPlayer (Starlette BaseUser)
         │   └── policy.py       # Route auth policy decorators and startup validation
         ├── views/
-        │   ├── handlers.py     # View handlers (lobby_page, game_page, room creation/join with ticket signing)
-        │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth)
+        │   ├── handlers.py     # View handlers (lobby_page, room_page, game_page, room creation/join)
+        │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth, bot_create_room)
         │   └── templates/
         │       ├── base.html   # Base template with CSS block and scripts block
         │       ├── lobby.html  # Lobby page template
+        │       ├── room.html   # Room page template (WebSocket-based room UI)
         │       ├── game.html   # Game client template (manifest-driven asset URLs)
         │       ├── login.html  # Login form template
         │       └── register.html # Registration form template
         ├── registry/
         │   ├── types.py        # GameServer model
         │   └── manager.py      # RegistryManager
-        ├── games/
-        │   ├── types.py        # CreateRoomRequest, CreateRoomResponse
-        │   └── service.py      # GamesService, RoomCreationError
+        ├── rooms/
+        │   ├── __init__.py
+        │   ├── connections.py  # RoomConnectionManager (WebSocket broadcasting)
+        │   ├── manager.py      # LobbyRoomManager (room state, TTL reaper)
+        │   ├── messages.py     # Typed client->server lobby message models
+        │   ├── models.py       # LobbyRoom, LobbyPlayer, LobbyPlayerInfo
+        │   └── websocket.py    # Room WebSocket handler (auth, origin check, game transition)
         └── tests/
             ├── unit/
             └── integration/
@@ -180,37 +168,32 @@ ronin/
 
 ## Room Creation Flow
 
-### API Flow (POST /rooms)
-1. Client calls `POST /rooms` with optional `{"num_ai_players": N}` (defaults to 3)
-2. Lobby checks health of all configured game servers (sequentially, not concurrent)
-3. Lobby selects the first healthy server (no load balancing)
-4. Lobby generates a UUID4 room ID
-5. Lobby calls `POST /rooms` on the game server with `{"room_id": ..., "num_ai_players": ...}`
-6. Lobby constructs WebSocket URL by replacing `http://` with `ws://` (or `https://` with `wss://`) and appending `/ws/{room_id}`
-7. Lobby returns WebSocket URL to client
+### Browser Flow (POST /rooms/new)
+1. Authenticated user submits the HTML form
+2. Lobby generates a UUID room_id
+3. Lobby creates the room locally via `room_manager.create_room(room_id)`
+4. Lobby redirects (303) to `/rooms/{room_id}`
+5. Room page loads and connects to lobby WebSocket at `/ws/rooms/{room_id}`
+6. Server auto-joins the player to the room
 
-### Browser Flow (POST /rooms/new, POST /rooms/{room_id}/join)
-1. Authenticated user submits an HTML form
-2. Lobby creates the room on a game server (or validates the room exists for join)
-3. Lobby signs a 24-hour HMAC-SHA256 game ticket containing `user_id`, `username`, `room_id`, `issued_at`, `expires_at` using the `AUTH_GAME_TICKET_SECRET`. The game ticket doubles as the session identifier for the entire game lifecycle, including reconnection
-4. Lobby redirects (303) to `/game` (or the configured `LOBBY_GAME_CLIENT_URL`) with `ws_url` and `game_ticket` query params
-5. The game client connects to the WebSocket and sends the signed ticket in the `join_room` message
-6. The game server verifies the ticket signature and expiry before allowing the join
+### Game Transition Flow (all players ready)
+1. All players set ready via WebSocket
+2. Lobby signs HMAC game tickets for each player
+3. Lobby calls `POST /games` on a game server with player specs
+4. On success, lobby sends `game_starting` to each player with their ticket and WS URL
+5. Players navigate to game client and connect via `JOIN_GAME`
 
 ## Room Listing Flow
 
-1. Client calls `GET /rooms`
-2. Lobby checks health of all configured game servers
-3. Lobby calls `GET /rooms` on each healthy server (sequentially)
-4. Lobby aggregates results, injecting `server_name` and `server_url` into each room
-5. If a healthy server fails to respond or returns invalid JSON, that server is silently skipped
-6. Lobby returns combined list to client
+1. Client requests `GET /`
+2. Lobby calls `room_manager.get_rooms_info()` (local, no HTTP calls)
+3. Lobby renders the room list in the Jinja2 template
 
 ## Key Implementation Details
 
-- **Application state injection**: Services (`RegistryManager`, `GamesService`, `LobbyServerSettings`) are stored on `app.state` at creation time and accessed in handlers via `request.app.state`.
+- **Application state injection**: Services (`RegistryManager`, `LobbyRoomManager`, `RoomConnectionManager`, `LobbyServerSettings`) are stored on `app.state` at creation time and accessed in handlers via `request.app.state`.
 - **Module-level instantiation**: Importing `lobby.server.app` triggers settings creation, logging setup, and app creation. The `create_app()` factory exists for testing with custom settings.
-- **Room data is untyped**: `list_rooms()` returns `list[dict[str, Any]]` — room data from game servers passes through without Pydantic validation.
+- **Room data is strongly typed**: Room state is managed via `LobbyRoom` dataclass and `LobbyPlayerInfo` Pydantic model.
 
 ## Environment Variables
 
@@ -221,6 +204,7 @@ Lobby settings (prefixed with `LOBBY_`):
 - `LOBBY_CORS_ORIGINS` - Allowed CORS origins as JSON array or CSV string (default: `["http://localhost:8712"]`)
 - `LOBBY_STATIC_DIR` - Static files directory for CSS (default: `frontend/public`)
 - `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/game`)
+- `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
 - `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `manifest.json` (default: `frontend/dist`)
 
 Auth settings (prefixed with `AUTH_`):

@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 import structlog
 
-from shared.logging import _serialize_enums, rotate_log_file, setup_logging
+from shared.logging import _serialize_enums, setup_logging
 
 
 @pytest.fixture(autouse=True)
@@ -184,63 +184,3 @@ class TestSerializeEnums:
         event_dict = {"count": 42, "name": "test"}
         result = _serialize_enums(None, "", event_dict)
         assert result == {"count": 42, "name": "test"}
-
-
-class TestRotateLogFile:
-    def test_creates_new_log_file(self, tmp_path):
-        log_dir = tmp_path / "game"
-        setup_logging(log_dir=log_dir)
-
-        new_path = rotate_log_file(log_dir)
-        assert new_path is not None
-
-        assert new_path.exists()
-        assert new_path.parent == log_dir
-
-    def test_replaces_file_handler(self, tmp_path):
-        log_dir = tmp_path / "game"
-        setup_logging(log_dir=log_dir)
-
-        later_time = datetime(2099, 1, 1, 0, 0, 0, tzinfo=UTC)
-        with patch("shared.logging.datetime") as mock_dt:
-            mock_dt.now.return_value = later_time
-            mock_dt.strftime = datetime.strftime
-            new_path = rotate_log_file(log_dir)
-        assert new_path is not None
-
-        root = logging.getLogger()
-        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
-        assert len(file_handlers) == 1
-        assert Path(file_handlers[0].baseFilename) == new_path
-        assert new_path.name == "2099-01-01_00-00-00.log"
-
-    def test_preserves_stdout_handler(self, tmp_path):
-        log_dir = tmp_path / "game"
-        setup_logging(log_dir=log_dir)
-
-        rotate_log_file(log_dir)
-
-        root = logging.getLogger()
-        stream_handlers = [
-            h for h in root.handlers if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
-        ]
-        assert len(stream_handlers) == 1
-
-    def test_writes_to_new_file(self, tmp_path):
-        log_dir = tmp_path / "game"
-        setup_logging(log_dir=log_dir)
-
-        new_path = rotate_log_file(log_dir)
-        assert new_path is not None
-        test_logger = structlog.get_logger("test.rotate")
-        test_logger.info("after rotation")
-
-        assert "after rotation" in new_path.read_text()
-
-    def test_rotate_with_custom_name(self, tmp_path):
-        log_dir = tmp_path / "game"
-        setup_logging(log_dir=log_dir)
-
-        new_path = rotate_log_file(log_dir, name="my-game-id")
-        assert new_path is not None
-        assert new_path.name == "my-game-id.log"

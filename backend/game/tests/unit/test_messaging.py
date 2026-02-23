@@ -13,16 +13,18 @@ from game.messaging.types import (
     SessionMessageType,
     parse_client_message,
 )
+from game.server.types import PlayerSpec
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
 
 
 async def _setup_player_in_game(session_manager, connection):
-    """Put a player into a started game via the room flow."""
-    session_manager.create_room("game1", num_ai_players=3)
-    await session_manager.join_room(connection, "game1", "Alice")
-    await session_manager.set_ready(connection, ready=True)
+    """Put a player into a started game via the pending game flow."""
+    ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+    specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+    session_manager.create_pending_game("game1", specs, num_ai_players=3)
+    await session_manager.join_game(connection, "game1", ticket)
     connection._outbox.clear()
 
 
@@ -42,12 +44,11 @@ class TestMessageRouterBranches:
         """Reconnect message with valid ticket dispatches through router to session_manager.reconnect."""
         router, connection, _ = setup
 
-        ticket = make_test_game_ticket("Alice", "game1")
+        ticket = make_test_game_ticket("Alice", "test-game")
         await router.handle_message(
             connection,
             {
                 "t": WireClientMessageType.RECONNECT,
-                "room_id": "game1",
                 "game_ticket": ticket,
             },
         )
@@ -66,7 +67,6 @@ class TestMessageRouterBranches:
             connection,
             {
                 "t": WireClientMessageType.RECONNECT,
-                "room_id": "game1",
                 "game_ticket": "invalid-ticket-string",
             },
         )
@@ -75,6 +75,29 @@ class TestMessageRouterBranches:
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
         assert response["code"] == SessionErrorCode.INVALID_TICKET
+
+    async def test_join_game_with_ticket_game_id_mismatch(self, setup):
+        """JOIN_GAME with ticket signed for a different game returns INVALID_TICKET."""
+        router, connection, session_manager = setup
+        # Ticket is signed for "other-game" but connection.game_id is "test-game"
+        ticket = make_test_game_ticket("Alice", "other-game")
+
+        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+        session_manager.create_pending_game("test-game", specs, num_ai_players=3)
+
+        await router.handle_message(
+            connection,
+            {
+                "t": WireClientMessageType.JOIN_GAME,
+                "game_ticket": ticket,
+            },
+        )
+
+        assert len(connection.sent_messages) == 1
+        response = connection.sent_messages[0]
+        assert response["type"] == SessionMessageType.ERROR
+        assert response["code"] == SessionErrorCode.INVALID_TICKET
+        assert "mismatch" in response["message"]
 
     async def test_disconnect_without_joining_game(self, setup):
         """Disconnecting a registered connection that never joined a game returns cleanly."""
@@ -232,69 +255,12 @@ class TestMessageRouterBranches:
 
         assert connection.is_closed
 
-    async def test_join_room_with_valid_ticket(self, setup):
-        """Valid game ticket allows room join through the router."""
-        router, connection, session_manager = setup
-        session_manager.create_room("room1")
-        ticket = make_test_game_ticket("Alice", "room1")
-
-        await router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.JOIN_ROOM,
-                "room_id": "room1",
-                "game_ticket": ticket,
-            },
-        )
-
-        assert any(m.get("type") == SessionMessageType.ROOM_JOINED for m in connection.sent_messages)
-
-    async def test_join_room_with_invalid_ticket(self, setup):
-        """Invalid game ticket is rejected."""
-        router, connection, session_manager = setup
-        session_manager.create_room("room1")
-
-        await router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.JOIN_ROOM,
-                "room_id": "room1",
-                "game_ticket": "invalid-ticket-data",
-            },
-        )
-
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.INVALID_TICKET
-
-    async def test_join_room_with_room_id_mismatch(self, setup):
-        """Ticket signed for a different room is rejected."""
-        router, connection, session_manager = setup
-        session_manager.create_room("room1")
-        ticket = make_test_game_ticket("Alice", "other-room")
-
-        await router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.JOIN_ROOM,
-                "room_id": "room1",
-                "game_ticket": ticket,
-            },
-        )
-
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.INVALID_TICKET
-        assert "mismatch" in response["message"]
-
 
 class TestParseClientMessage:
     """Validate parse_client_message error handling and non-trivial parsing."""
 
     def test_parse_invalid_type_rejected(self):
-        data = {"t": 99, "game_id": "game1", "game_ticket": "some-ticket"}
+        data = {"t": 99, "game_ticket": "some-ticket"}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
@@ -331,30 +297,14 @@ class TestReconnectMessageParsing:
     def test_parse_reconnect_message(self):
         data = {
             "t": WireClientMessageType.RECONNECT,
-            "room_id": "game1",
             "game_ticket": "some-ticket-string",
         }
         msg = parse_client_message(data)
         assert isinstance(msg, ReconnectMessage)
-        assert msg.room_id == "game1"
         assert msg.game_ticket == "some-ticket-string"
 
     def test_reconnect_missing_game_ticket_rejected(self):
-        data = {"t": WireClientMessageType.RECONNECT, "room_id": "game1"}
-        with pytest.raises(ValidationError):
-            parse_client_message(data)
-
-    def test_reconnect_missing_room_id_rejected(self):
-        data = {"t": WireClientMessageType.RECONNECT, "game_ticket": "some-ticket"}
-        with pytest.raises(ValidationError):
-            parse_client_message(data)
-
-    def test_reconnect_invalid_room_id_pattern_rejected(self):
-        data = {
-            "t": WireClientMessageType.RECONNECT,
-            "room_id": "room with spaces!",
-            "game_ticket": "some-ticket",
-        }
+        data = {"t": WireClientMessageType.RECONNECT}
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
@@ -388,18 +338,16 @@ class TestInputValidation:
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
-    def test_join_room_missing_game_ticket_rejected(self):
+    def test_join_game_missing_game_ticket_rejected(self):
         data = {
-            "t": WireClientMessageType.JOIN_ROOM,
-            "room_id": "room1",
+            "t": WireClientMessageType.JOIN_GAME,
         }
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
-    def test_join_room_empty_game_ticket_rejected(self):
+    def test_join_game_empty_game_ticket_rejected(self):
         data = {
-            "t": WireClientMessageType.JOIN_ROOM,
-            "room_id": "room1",
+            "t": WireClientMessageType.JOIN_GAME,
             "game_ticket": "",
         }
         with pytest.raises(ValidationError):

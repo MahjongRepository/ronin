@@ -139,6 +139,7 @@ class GameSettings(BaseModel):
     round_bonus_seconds: float = 10
     meld_decision_seconds: float = 5
     round_advance_timeout_seconds: float = 15
+    pending_game_timeout_seconds: float = 10
 
 
 NUM_PLAYERS = 4
@@ -159,6 +160,8 @@ def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
         errors.append("meld_decision_seconds must be positive")
     if settings.round_advance_timeout_seconds <= 0:
         errors.append("round_advance_timeout_seconds must be positive")
+    if settings.pending_game_timeout_seconds <= 0:
+        errors.append("pending_game_timeout_seconds must be positive")
 
 
 def validate_settings(settings: GameSettings) -> None:

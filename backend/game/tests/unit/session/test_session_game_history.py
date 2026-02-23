@@ -7,7 +7,7 @@ from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
 from game.logic.types import PlayerStanding
 from game.session.manager import SessionManager
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import MockGameService
 
 from .helpers import create_started_game
 
@@ -77,15 +77,11 @@ class TestGameStartRecording:
 
     async def test_game_start_includes_player_ids(self, manager_with_repo, game_repo):
         """Player user_ids are captured in the PlayedGame record."""
-        manager_with_repo.create_room("game1", num_ai_players=3)
-        conn = MockConnection()
-        manager_with_repo.register_connection(conn)
-        await manager_with_repo.join_room(conn, "game1", "Alice", user_id="user-alice")
-        await manager_with_repo.set_ready(conn, ready=True)
+        await create_started_game(manager_with_repo, "game1", num_ai_players=3, player_names=["Alice"])
 
         game_repo.create_game.assert_called_once()
         recorded = game_repo.games["game1"]
-        assert "user-alice" in recorded["player_ids"]
+        assert "user-0" in recorded["player_ids"]
 
     async def test_game_start_skipped_without_repository(self, manager):
         """No error when game_repository is None (default)."""
@@ -204,19 +200,6 @@ class TestGameAbandonmentRecording:
         game_repo.finish_game.assert_called_once()
         recorded = game_repo.games["game1"]
         assert recorded["end_reason"] == "completed"
-
-    async def test_unstarted_game_not_recorded_as_abandoned(self, manager_with_repo, game_repo):
-        """Pre-start games that get cleaned up are not recorded as abandoned."""
-        manager_with_repo.create_room("game1", num_ai_players=3)
-        conn = MockConnection()
-        manager_with_repo.register_connection(conn)
-        await manager_with_repo.join_room(conn, "game1", "Alice")
-
-        # leave before the game starts
-        await manager_with_repo.leave_room(conn)
-
-        # finish_game should not have been called since game never started
-        game_repo.finish_game.assert_not_called()
 
     async def test_abandon_db_failure_does_not_block_cleanup(self, manager_with_repo, game_repo):
         """DB failure during abandon recording does not prevent game cleanup."""

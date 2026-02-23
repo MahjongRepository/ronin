@@ -7,8 +7,9 @@ from game.messaging.protocol import ConnectionProtocol
 
 
 class MockConnection(ConnectionProtocol):
-    def __init__(self, connection_id: str | None = None) -> None:
+    def __init__(self, connection_id: str | None = None, game_id: str = "test-game") -> None:
         self._connection_id = connection_id or str(uuid4())
+        self._game_id = game_id
         self._inbox: asyncio.Queue[bytes] = asyncio.Queue()
         self._outbox: list[dict[str, Any]] = []
         self._closed = False
@@ -18,6 +19,10 @@ class MockConnection(ConnectionProtocol):
     @property
     def connection_id(self) -> str:
         return self._connection_id
+
+    @property
+    def game_id(self) -> str:
+        return self._game_id
 
     @property
     def sent_messages(self) -> list[dict[str, Any]]:

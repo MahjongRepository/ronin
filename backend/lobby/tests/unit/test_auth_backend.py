@@ -74,6 +74,7 @@ class TestSessionCookieAuth:
     ) -> None:
         conn = MagicMock()
         conn.cookies = {"session_id": valid_session.session_id}
+        conn.query_params = {}
         conn.headers = {}
 
         result = await backend.authenticate(conn)
@@ -86,12 +87,51 @@ class TestSessionCookieAuth:
         assert user.username == "testuser"
         assert user.user_id == "user-1"
 
+    async def test_query_param_session_id_returns_authenticated_tuple(
+        self,
+        backend: SessionOrApiKeyBackend,
+        valid_session: AuthSession,
+    ) -> None:
+        """WebSocket clients pass session_id as a query parameter."""
+        conn = MagicMock()
+        conn.cookies = {}
+        conn.query_params = {"session_id": valid_session.session_id}
+        conn.headers = {}
+
+        result = await backend.authenticate(conn)
+
+        assert result is not None
+        credentials, user = result
+        assert isinstance(credentials, AuthCredentials)
+        assert "authenticated" in credentials.scopes
+        assert isinstance(user, AuthenticatedPlayer)
+        assert user.username == "testuser"
+
+    async def test_cookie_takes_precedence_over_query_param(
+        self,
+        backend: SessionOrApiKeyBackend,
+        valid_session: AuthSession,
+        session_store: AuthSessionStore,
+    ) -> None:
+        other_session = session_store.create_session("user-other", "otheruser")
+        conn = MagicMock()
+        conn.cookies = {"session_id": valid_session.session_id}
+        conn.query_params = {"session_id": other_session.session_id}
+        conn.headers = {}
+
+        result = await backend.authenticate(conn)
+
+        assert result is not None
+        _, user = result
+        assert user.username == "testuser"  # from cookie, not query param
+
     async def test_missing_cookie_returns_none(
         self,
         backend: SessionOrApiKeyBackend,
     ) -> None:
         conn = MagicMock()
         conn.cookies = {}
+        conn.query_params = {}
         conn.headers = {}
 
         result = await backend.authenticate(conn)
@@ -103,6 +143,7 @@ class TestSessionCookieAuth:
     ) -> None:
         conn = MagicMock()
         conn.cookies = {"session_id": "nonexistent-session-id"}
+        conn.query_params = {}
         conn.headers = {}
 
         result = await backend.authenticate(conn)
@@ -118,6 +159,7 @@ class TestSessionCookieAuth:
 
         conn = MagicMock()
         conn.cookies = {"session_id": session.session_id}
+        conn.query_params = {}
         conn.headers = {}
 
         result = await backend.authenticate(conn)
@@ -135,6 +177,7 @@ class TestApiKeyAuth:
 
         conn = MagicMock()
         conn.cookies = {}
+        conn.query_params = {}
         conn.headers = {"x-api-key": "test-api-key"}
 
         result = await backend.authenticate(conn)
@@ -153,6 +196,7 @@ class TestApiKeyAuth:
     ) -> None:
         conn = MagicMock()
         conn.cookies = {}
+        conn.query_params = {}
         conn.headers = {"x-api-key": "bogus-key"}
 
         result = await backend.authenticate(conn)
@@ -169,6 +213,7 @@ class TestApiKeyAuth:
 
         conn = MagicMock()
         conn.cookies = {}
+        conn.query_params = {}
         conn.headers = {"x-api-key": "sneaky-key"}
 
         result = await backend.authenticate(conn)
@@ -180,6 +225,7 @@ class TestApiKeyAuth:
     ) -> None:
         conn = MagicMock()
         conn.cookies = {}
+        conn.query_params = {}
         conn.headers = {"x-api-key": ""}
 
         result = await backend.authenticate(conn)
@@ -199,6 +245,7 @@ class TestSessionTakesPrecedenceOverApiKey:
 
         conn = MagicMock()
         conn.cookies = {"session_id": valid_session.session_id}
+        conn.query_params = {}
         conn.headers = {"x-api-key": "test-api-key"}
 
         result = await backend.authenticate(conn)

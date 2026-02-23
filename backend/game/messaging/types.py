@@ -11,21 +11,9 @@ _SPACE_ORD = 0x20
 _DEL_ORD = 0x7F
 
 
-class RoomPlayerInfo(BaseModel):
-    """Player info for room state messages."""
-
-    name: str
-    ready: bool
-
-
 class SessionMessageType(StrEnum):
     GAME_LEFT = "game_left"
-    ROOM_JOINED = "room_joined"
-    ROOM_LEFT = "room_left"
-    PLAYER_JOINED = "player_joined"
     PLAYER_LEFT = "player_left"
-    PLAYER_READY_CHANGED = "player_ready_changed"
-    GAME_STARTING = "game_starting"
     CHAT = "chat"
     ERROR = "session_error"
     PONG = "pong"
@@ -35,12 +23,6 @@ class SessionMessageType(StrEnum):
 
 class SessionErrorCode(StrEnum):
     ALREADY_IN_GAME = "already_in_game"
-    ALREADY_IN_ROOM = "already_in_room"
-    ROOM_NOT_FOUND = "room_not_found"
-    ROOM_FULL = "room_full"
-    ROOM_TRANSITIONING = "room_transitioning"
-    NAME_TAKEN = "name_taken"
-    NOT_IN_ROOM = "not_in_room"
     NOT_IN_GAME = "not_in_game"
     GAME_NOT_STARTED = "game_not_started"
     INVALID_MESSAGE = "invalid_message"
@@ -50,25 +32,12 @@ class SessionErrorCode(StrEnum):
     RECONNECT_GAME_GONE = "reconnect_game_gone"
     RECONNECT_GAME_MISMATCH = "reconnect_game_mismatch"
     RECONNECT_RETRY_LATER = "reconnect_retry_later"
-    RECONNECT_IN_ROOM = "reconnect_in_room"
     RECONNECT_ALREADY_ACTIVE = "reconnect_already_active"
     RECONNECT_SNAPSHOT_FAILED = "reconnect_snapshot_failed"
     INVALID_TICKET = "invalid_ticket"
-
-
-class JoinRoomMessage(BaseModel):
-    t: Literal[WireClientMessageType.JOIN_ROOM] = WireClientMessageType.JOIN_ROOM
-    room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
-    game_ticket: str = Field(min_length=1, max_length=2000)
-
-
-class LeaveRoomMessage(BaseModel):
-    t: Literal[WireClientMessageType.LEAVE_ROOM] = WireClientMessageType.LEAVE_ROOM
-
-
-class SetReadyMessage(BaseModel):
-    t: Literal[WireClientMessageType.SET_READY] = WireClientMessageType.SET_READY
-    ready: bool
+    JOIN_GAME_NOT_FOUND = "join_game_not_found"
+    JOIN_GAME_ALREADY_STARTED = "join_game_already_started"
+    JOIN_GAME_NO_SESSION = "join_game_no_session"
 
 
 _TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES, validation_alias="ti")
@@ -144,15 +113,16 @@ class PingMessage(BaseModel):
 
 class ReconnectMessage(BaseModel):
     t: Literal[WireClientMessageType.RECONNECT] = WireClientMessageType.RECONNECT
-    room_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    game_ticket: str = Field(min_length=1, max_length=2000)
+
+
+class JoinGameMessage(BaseModel):
+    t: Literal[WireClientMessageType.JOIN_GAME] = WireClientMessageType.JOIN_GAME
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 ClientMessage = (
-    JoinRoomMessage
-    | LeaveRoomMessage
-    | SetReadyMessage
-    | DiscardMessage
+    DiscardMessage
     | RiichiMessage
     | PonMessage
     | ChiMessage
@@ -161,6 +131,7 @@ ClientMessage = (
     | ChatMessage
     | PingMessage
     | ReconnectMessage
+    | JoinGameMessage
 )
 
 
@@ -168,36 +139,9 @@ class GameLeftMessage(BaseModel):
     type: Literal[SessionMessageType.GAME_LEFT] = SessionMessageType.GAME_LEFT
 
 
-class RoomJoinedMessage(BaseModel):
-    type: Literal[SessionMessageType.ROOM_JOINED] = SessionMessageType.ROOM_JOINED
-    room_id: str
-    player_name: str
-    players: list[RoomPlayerInfo]
-    num_ai_players: int
-
-
-class RoomLeftMessage(BaseModel):
-    type: Literal[SessionMessageType.ROOM_LEFT] = SessionMessageType.ROOM_LEFT
-
-
-class PlayerJoinedMessage(BaseModel):
-    type: Literal[SessionMessageType.PLAYER_JOINED] = SessionMessageType.PLAYER_JOINED
-    player_name: str
-
-
 class PlayerLeftMessage(BaseModel):
     type: Literal[SessionMessageType.PLAYER_LEFT] = SessionMessageType.PLAYER_LEFT
     player_name: str
-
-
-class PlayerReadyChangedMessage(BaseModel):
-    type: Literal[SessionMessageType.PLAYER_READY_CHANGED] = SessionMessageType.PLAYER_READY_CHANGED
-    player_name: str
-    ready: bool
-
-
-class GameStartingMessage(BaseModel):
-    type: Literal[SessionMessageType.GAME_STARTING] = SessionMessageType.GAME_STARTING
 
 
 class SessionChatMessage(BaseModel):
@@ -224,7 +168,7 @@ class PlayerReconnectedMessage(BaseModel):
 
 
 _NonGameMessage = Annotated[
-    JoinRoomMessage | LeaveRoomMessage | SetReadyMessage | ChatMessage | PingMessage | ReconnectMessage,
+    ChatMessage | PingMessage | ReconnectMessage | JoinGameMessage,
     Field(discriminator="t"),
 ]
 

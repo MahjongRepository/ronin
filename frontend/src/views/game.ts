@@ -8,14 +8,7 @@ import {
     SessionMessageType,
 } from "../protocol";
 import { type TemplateResult, html, render } from "lit-html";
-import {
-    clearGameSession,
-    clearSessionData,
-    getGameSession,
-    getGameTicket,
-    storeGameSession,
-} from "../session-storage";
-import { consumeHandoff, drainBufferedMessages, setActiveSocket } from "../socket-handoff";
+import { clearGameSession, clearSessionData, getGameSession } from "../session-storage";
 import { GameSocket } from "../websocket";
 import { getLobbyUrl } from "../env";
 
@@ -27,6 +20,13 @@ interface LogEntry {
 
 const MAX_LOG_ENTRIES = 500;
 
+/** Connection state machine:
+ *  JOINING  → initial connection, sends JOIN_GAME
+ *  PLAYING  → game joined successfully, game events flowing
+ *  (on disconnect while PLAYING → auto-reconnect sends RECONNECT, not JOIN_GAME)
+ */
+type GameConnectionState = "joining" | "playing";
+
 let socket: GameSocket | null = null;
 let logs: LogEntry[] = [];
 let connectionStatus = ConnectionStatus.DISCONNECTED;
@@ -35,6 +35,15 @@ let currentGameId = "";
 // to prevent orphaned connections after rapid navigation
 let viewGeneration = 0;
 
+let joinGameTicket = "";
+let gameConnectionState: GameConnectionState = "joining";
+
+let isReconnecting = false;
+let reconnectGameTicket = "";
+let reconnectRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectRetryCount = 0;
+const MAX_RECONNECT_RETRIES = 15;
+
 function appendLog(entry: LogEntry): void {
     logs.push(entry);
     if (logs.length > MAX_LOG_ENTRIES) {
@@ -42,106 +51,33 @@ function appendLog(entry: LogEntry): void {
     }
 }
 
-function persistGameSessionFromStorage(): void {
-    const wsUrl = sessionStorage.getItem("ws_url");
-    const gameTicket = getGameTicket();
-    if (wsUrl && gameTicket) {
-        storeGameSession(currentGameId, wsUrl, gameTicket);
-    }
-}
-
-function enableAutoReconnectFromStorage(): void {
-    const wsUrl = sessionStorage.getItem("ws_url");
-    const gameTicket = getGameTicket();
-    if (wsUrl && gameTicket && socket) {
-        reconnectGameTicket = gameTicket;
-        socket.enableReconnect(wsUrl, sendReconnectMessage);
-    }
-}
-
-function activateHandoffSocket(handoffSocket: GameSocket): void {
-    socket = handoffSocket;
-    connectionStatus = handoffSocket.isOpen
-        ? ConnectionStatus.CONNECTED
-        : ConnectionStatus.DISCONNECTED;
-    setActiveSocket(handoffSocket);
-    persistGameSessionFromStorage();
-
-    // Rebind handlers synchronously so no messages are lost between
-    // consumeHandoff() and the next event-loop tick.
-    bindGameHandlers();
-    enableAutoReconnectFromStorage();
-
-    // Replay any messages that arrived during the handoff window
-    // (between beginHandoff in room view and bindGameHandlers above).
-    // Process through handleGameMessage so game logic (e.g. auto-confirm
-    // on round_end) runs for buffered messages, not just logging.
-    for (const msg of drainBufferedMessages()) {
-        handleGameMessage(msg);
-    }
-
-    appendLog({
-        raw: "Transitioned from room to game",
-        timestamp: new Date().toLocaleTimeString(),
-        type: LOG_TYPE_SYSTEM,
-    });
-}
-
-function initHandoff(gameId: string, generation: number): TemplateResult | null {
-    const handoffSocket = consumeHandoff(gameId);
-    if (!handoffSocket) {
-        return null;
-    }
-
-    activateHandoffSocket(handoffSocket);
-
-    // Defer DOM update until the view template has been rendered.
-    setTimeout(() => {
-        if (viewGeneration !== generation) {
-            return;
-        }
-        updateLogPanel();
-    }, 0);
-
-    return renderGameView(gameId);
-}
-
 function resetGameState(gameId: string): number {
     logs = [];
     connectionStatus = ConnectionStatus.DISCONNECTED;
     currentGameId = gameId;
     reconnectRetryCount = 0;
+    joinGameTicket = "";
+    gameConnectionState = "joining";
     return ++viewGeneration;
-}
-
-function tryReconnectFromSession(gameId: string, generation: number): TemplateResult | null {
-    const session = getGameSession(gameId);
-    if (!session) {
-        return null;
-    }
-    setTimeout(() => {
-        if (viewGeneration !== generation) {
-            return;
-        }
-        attemptReconnection(session.wsUrl, session.gameTicket);
-    }, 0);
-    return renderGameView(gameId);
 }
 
 export function gameView(gameId: string): TemplateResult {
     const generation = resetGameState(gameId);
 
-    // try to acquire socket from room handoff
-    const handoffResult = initHandoff(gameId, generation);
-    if (handoffResult) {
-        return handoffResult;
+    const session = getGameSession(gameId);
+    if (session) {
+        setTimeout(() => {
+            if (viewGeneration !== generation) {
+                return;
+            }
+            attemptConnection(session.wsUrl, session.gameTicket);
+        }, 0);
+        return renderGameView(gameId);
     }
 
-    // no handoff — attempt reconnection from stored session
-    return tryReconnectFromSession(gameId, generation) ?? redirectToLobby(gameId);
+    return redirectToLobby(gameId);
 }
 
-// no handoff socket means direct navigation - redirect to lobby
 function redirectToLobby(gameId: string): TemplateResult {
     clearSessionData(gameId);
     setTimeout(() => {
@@ -150,6 +86,39 @@ function redirectToLobby(gameId: string): TemplateResult {
     return html`
         <p>Redirecting to lobby...</p>
     `;
+}
+
+function sendJoinGameMessage(): void {
+    if (!socket) {
+        return;
+    }
+    // game_id is derived from the WebSocket URL path (/ws/{game_id}),
+    // so the client only sends game_ticket and message type.
+    socket.send({
+        game_ticket: joinGameTicket,
+        t: ClientMessageType.JOIN_GAME,
+    });
+}
+
+function sendReconnectMessage(): void {
+    if (isReconnecting || !socket) {
+        return;
+    }
+    isReconnecting = true;
+    // game_id is derived from the WebSocket URL path, same as JOIN_GAME.
+    socket.send({
+        game_ticket: reconnectGameTicket,
+        t: ClientMessageType.RECONNECT,
+    });
+}
+
+/** Check if a message is a response to a JOIN_GAME request. */
+function isJoinGameResponse(message: Record<string, unknown>): boolean {
+    if (message.type === SessionMessageType.ERROR) {
+        const code = String(message.code || "");
+        return code.startsWith("join_game_");
+    }
+    return false;
 }
 
 /** Check if a message is a reconnect response (success or error). */
@@ -164,29 +133,17 @@ function isReconnectResponse(message: Record<string, unknown>): boolean {
     return false;
 }
 
-let isReconnecting = false;
-let reconnectGameTicket = "";
-let reconnectRetryTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectRetryCount = 0;
-const MAX_RECONNECT_RETRIES = 15;
-
-function sendReconnectMessage(): void {
-    if (isReconnecting || !socket) {
-        return;
-    }
-    isReconnecting = true;
-    socket.send({
-        game_ticket: reconnectGameTicket,
-        room_id: currentGameId,
-        t: ClientMessageType.RECONNECT,
-    });
-}
-
-function attemptReconnection(wsUrl: string, gameTicket: string): void {
+function attemptConnection(wsUrl: string, gameTicket: string): void {
+    joinGameTicket = gameTicket;
     reconnectGameTicket = gameTicket;
+    gameConnectionState = "joining";
 
     socket = new GameSocket(
         (message) => {
+            // Detect successful join → transition to "playing" state
+            if (gameConnectionState === "joining" && !isJoinGameResponse(message)) {
+                gameConnectionState = "playing";
+            }
             if (isReconnectResponse(message)) {
                 isReconnecting = false;
             }
@@ -196,7 +153,14 @@ function attemptReconnection(wsUrl: string, gameTicket: string): void {
             connectionStatus = status;
             updateStatusDisplay();
             if (status === ConnectionStatus.CONNECTED) {
-                sendReconnectMessage();
+                // State machine determines which identity message to send:
+                // - "joining": first connection or JOIN_GAME retry → send JOIN_GAME
+                // - "playing": reconnect after network drop → send RECONNECT
+                if (gameConnectionState === "joining") {
+                    sendJoinGameMessage();
+                } else {
+                    sendReconnectMessage();
+                }
             }
             if (status === ConnectionStatus.DISCONNECTED) {
                 isReconnecting = false;
@@ -204,11 +168,9 @@ function attemptReconnection(wsUrl: string, gameTicket: string): void {
         },
     );
 
-    setActiveSocket(socket);
-
-    // Enable auto-reconnect for network drops
-    socket.enableReconnect(wsUrl, sendReconnectMessage);
-
+    // enableReconnect handles automatic WebSocket reconnection on network drops.
+    // The status callback above decides JOIN_GAME vs RECONNECT based on gameConnectionState.
+    socket.enableReconnect(wsUrl);
     socket.connect(wsUrl);
 }
 
@@ -217,7 +179,6 @@ const PERMANENT_RECONNECT_CODES = new Set([
     "reconnect_no_seat",
     "reconnect_game_gone",
     "reconnect_game_mismatch",
-    "reconnect_in_room",
     "reconnect_already_active",
     "reconnect_snapshot_failed",
     "invalid_ticket",
@@ -282,6 +243,20 @@ function handleReconnectError(code: string): boolean {
     return false;
 }
 
+function handleJoinGameError(code: string): boolean {
+    if (code === "join_game_already_started") {
+        // Game already started — transition to reconnect flow.
+        // The status handler already fired CONNECTED (which sent JOIN_GAME),
+        // so we send RECONNECT immediately on the current connection.
+        gameConnectionState = "playing";
+        sendReconnectMessage();
+        return true;
+    }
+    // Other join_game errors are permanent (not_found, no_session)
+    redirectOnPermanentError();
+    return true;
+}
+
 function autoConfirmRoundEnd(): void {
     if (!socket) {
         return;
@@ -300,8 +275,14 @@ function handleSessionMessage(message: Record<string, unknown>): boolean {
         handleReconnected(message);
         return true;
     }
-    if (message.type === SessionMessageType.ERROR && isReconnectResponse(message)) {
-        return handleReconnectError(String(message.code));
+    if (message.type === SessionMessageType.ERROR) {
+        const code = String(message.code || "");
+        if (code.startsWith("reconnect_") || code === "invalid_ticket") {
+            return handleReconnectError(code);
+        }
+        if (code.startsWith("join_game_")) {
+            return handleJoinGameError(code);
+        }
     }
     return false;
 }
@@ -322,31 +303,6 @@ function handleGameMessage(message: Record<string, unknown>): void {
     if (eventType === EventType.ROUND_END) {
         autoConfirmRoundEnd();
     }
-}
-
-function bindGameHandlers(): void {
-    if (!socket) {
-        return;
-    }
-
-    socket.setHandlers(
-        (message) => {
-            if (isReconnectResponse(message)) {
-                isReconnecting = false;
-            }
-            handleGameMessage(message);
-        },
-        (status) => {
-            connectionStatus = status;
-            updateStatusDisplay();
-            if (status === ConnectionStatus.CONNECTED && reconnectGameTicket) {
-                sendReconnectMessage();
-            }
-            if (status === ConnectionStatus.DISCONNECTED) {
-                isReconnecting = false;
-            }
-        },
-    );
 }
 
 function renderGameView(gameId: string): TemplateResult {
@@ -400,12 +356,18 @@ function updateStatusDisplay(): void {
     }
 }
 
-export function cleanupGameView(): void {
-    viewGeneration++;
+function resetConnectionState(): void {
     clearReconnectRetryTimer();
     isReconnecting = false;
     reconnectGameTicket = "";
+    joinGameTicket = "";
+    gameConnectionState = "joining";
     reconnectRetryCount = 0;
+}
+
+export function cleanupGameView(): void {
+    viewGeneration++;
+    resetConnectionState();
     if (socket) {
         socket.disableReconnect();
         socket.disconnect();

@@ -15,7 +15,7 @@ class TestWebSocketConnection:
         """Verify that WebSocketDisconnect is converted to ConnectionError on send."""
         mock_ws = MagicMock()
         mock_ws.send_bytes = AsyncMock(side_effect=WebSocketDisconnect())
-        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
+        conn = WebSocketConnection(mock_ws, game_id="test-game", connection_id="test-conn")
 
         with pytest.raises(ConnectionError, match="WebSocket already disconnected"):
             await conn.send_bytes(b"data")
@@ -24,7 +24,7 @@ class TestWebSocketConnection:
         """Closing an already-disconnected WebSocket completes without error."""
         mock_ws = MagicMock()
         mock_ws.close = AsyncMock(side_effect=WebSocketDisconnect())
-        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
+        conn = WebSocketConnection(mock_ws, game_id="test-game", connection_id="test-conn")
 
         await conn.close()
 
@@ -32,7 +32,7 @@ class TestWebSocketConnection:
         """Verify that WebSocketDisconnect is converted to ConnectionError on receive."""
         mock_ws = MagicMock()
         mock_ws.receive_bytes = AsyncMock(side_effect=WebSocketDisconnect())
-        conn = WebSocketConnection(mock_ws, connection_id="test-conn")
+        conn = WebSocketConnection(mock_ws, game_id="test-game", connection_id="test-conn")
 
         with pytest.raises(ConnectionError, match="WebSocket already disconnected"):
             await conn.receive_bytes()

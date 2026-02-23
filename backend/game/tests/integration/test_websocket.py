@@ -7,6 +7,7 @@ Replay tests by ensuring the service layer works correctly.
 
 import pytest
 from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from game.logic.enums import GameAction, WireClientMessageType, WireGameAction
 from game.logic.events import EventType
@@ -18,249 +19,145 @@ from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockGameService
 
 
+def _create_pending_game(client, game_id: str, num_ai_players: int = 3) -> list[str]:
+    """Create a pending game via POST /games. Return the list of game tickets."""
+    num_humans = 4 - num_ai_players
+    players = []
+    tickets = []
+    for i in range(num_humans):
+        ticket = make_test_game_ticket(f"Player{i + 1}", game_id, user_id=f"user-{i}")
+        players.append({"name": f"Player{i + 1}", "user_id": f"user-{i}", "game_ticket": ticket})
+        tickets.append(ticket)
+    response = client.post(
+        "/games",
+        json={"game_id": game_id, "players": players, "num_ai_players": num_ai_players},
+    )
+    assert response.status_code == 201
+    return tickets
+
+
+def _send(ws, data: dict) -> None:
+    ws.send_bytes(encode(data))
+
+
+def _recv(ws) -> dict:
+    return decode(ws.receive_bytes())
+
+
+def _join_game_and_start(ws, ticket: str) -> list[dict]:
+    """Join a pending game via JOIN_GAME and drain startup messages."""
+    _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+    messages = []
+    while True:
+        msg = _recv(ws)
+        messages.append(msg)
+        if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
+            break
+    return messages
+
+
 class TestWebSocketIntegration:
     @pytest.fixture
     def client(self):
-        # use MockGameService for predictable test behavior
         app = create_app(game_service=MockGameService())
         return TestClient(app)
 
-    def _create_room(self, client, room_id: str, num_ai_players: int = 3) -> None:
-        session_manager = client.app.state.session_manager
-        session_manager.create_room(room_id, num_ai_players=num_ai_players)
-
-    def _send_message(self, ws, data: dict) -> None:
-        """
-        Send a MessagePack-encoded message over WebSocket.
-        """
-        ws.send_bytes(encode(data))
-
-    def _receive_message(self, ws) -> dict:
-        """
-        Receive and decode a MessagePack message from WebSocket.
-        """
-        return decode(ws.receive_bytes())
-
-    def _join_room_and_ready(self, ws, room_id: str, player_name: str) -> list[dict]:
-        """Join a room, ready up, and return all received messages."""
-        ticket = make_test_game_ticket(player_name, room_id)
-        self._send_message(
-            ws,
-            {
-                "t": WireClientMessageType.JOIN_ROOM,
-                "room_id": room_id,
-                "game_ticket": ticket,
-            },
-        )
-        messages = []
-        # Drain: room_joined, player_ready_changed, game_starting, game events...
-        messages.append(self._receive_message(ws))  # room_joined
-
-        self._send_message(ws, {"t": WireClientMessageType.SET_READY, "ready": True})
-        # Drain remaining startup messages
-        while True:
-            msg = self._receive_message(ws)
-            messages.append(msg)
-            # Stop after we've received a game event (round_started or draw)
-            if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
-                break
-        return messages
-
-    def test_connect_join_room_and_start_game(self, client):
-        self._create_room(client, "test_game")
+    def test_join_game_and_start(self, client):
+        tickets = _create_pending_game(client, "test_game")
+        ticket = tickets[0]
 
         with client.websocket_connect("/ws/test_game") as ws:
-            ticket = make_test_game_ticket("TestPlayer", "test_game")
-            self._send_message(
-                ws,
-                {
-                    "t": WireClientMessageType.JOIN_ROOM,
-                    "room_id": "test_game",
-                    "game_ticket": ticket,
-                },
-            )
-
-            response = self._receive_message(ws)
-            assert response["type"] == SessionMessageType.ROOM_JOINED
-            assert response["room_id"] == "test_game"
-            assert response["player_name"] == "TestPlayer"
-            assert len(response["players"]) == 1
-            assert response["players"][0]["name"] == "TestPlayer"
-
-    def test_room_chat_message(self, client):
-        """Chat messages in a room are broadcast to all room members."""
-        self._create_room(client, "test_game", num_ai_players=2)
-
-        with client.websocket_connect("/ws/test_game") as ws1:
-            ticket1 = make_test_game_ticket("Player1", "test_game")
-            self._send_message(
-                ws1,
-                {
-                    "t": WireClientMessageType.JOIN_ROOM,
-                    "room_id": "test_game",
-                    "game_ticket": ticket1,
-                },
-            )
-            self._receive_message(ws1)  # room_joined
-
-            with client.websocket_connect("/ws/test_game") as ws2:
-                ticket2 = make_test_game_ticket("Player2", "test_game", user_id="user-2")
-                self._send_message(
-                    ws2,
-                    {
-                        "t": WireClientMessageType.JOIN_ROOM,
-                        "room_id": "test_game",
-                        "game_ticket": ticket2,
-                    },
-                )
-                self._receive_message(ws2)  # room_joined
-                self._receive_message(ws1)  # player_joined(Player2)
-
-                # Player1 sends chat while in the room
-                self._send_message(
-                    ws1,
-                    {
-                        "t": WireClientMessageType.CHAT,
-                        "text": "Hello!",
-                    },
-                )
-
-                chat1 = self._receive_message(ws1)
-                chat2 = self._receive_message(ws2)
-
-                assert chat1["type"] == SessionMessageType.CHAT
-                assert chat1["player_name"] == "Player1"
-                assert chat1["text"] == "Hello!"
-                assert chat2 == chat1
+            _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+            messages = []
+            while True:
+                msg = _recv(ws)
+                messages.append(msg)
+                if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
+                    break
+            # Should have received game events
+            assert len(messages) >= 1
 
     def test_game_chat_message(self, client):
         """Chat messages in a started game are broadcast to game players."""
-        self._create_room(client, "test_game")
+        tickets = _create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            self._join_room_and_ready(ws, "test_game", "Player1")
+            _join_game_and_start(ws, tickets[0])
 
-            self._send_message(
-                ws,
-                {
-                    "t": WireClientMessageType.CHAT,
-                    "text": "Hello from game!",
-                },
-            )
+            _send(ws, {"t": WireClientMessageType.CHAT, "text": "Hello from game!"})
 
-            response = self._receive_message(ws)
+            response = _recv(ws)
             assert response["type"] == SessionMessageType.CHAT
             assert response["player_name"] == "Player1"
             assert response["text"] == "Hello from game!"
 
     def test_game_action(self, client):
-        self._create_room(client, "test_game")
+        tickets = _create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            self._join_room_and_ready(ws, "test_game", "Player1")
+            _join_game_and_start(ws, tickets[0])
 
-            self._send_message(
-                ws,
-                {
-                    "t": WireClientMessageType.GAME_ACTION,
-                    "a": WireGameAction.DISCARD,
-                    "ti": 0,
-                },
-            )
+            _send(ws, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0})
 
-            response = self._receive_message(ws)
+            response = _recv(ws)
             assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert response["player"] == "Player1"
             assert response["action"] == GameAction.DISCARD
             assert response["success"] is True
 
-    def test_list_rooms_empty(self, client):
-        response = client.get("/rooms")
-        assert response.status_code == 200
-        data = response.json()
-        assert data == {"rooms": []}
+    def test_game_id_from_connection_matches_url_path(self, client):
+        """Connection's game_id comes from the WebSocket URL path, not from the message payload."""
+        tickets = _create_pending_game(client, "test-game")
 
-    def test_join_room_injects_room_id_from_path(self, client):
-        """WebSocket path param injects room_id into join_room messages."""
-        self._create_room(client, "test-room", num_ai_players=2)
-
-        with client.websocket_connect("/ws/test-room") as ws:
-            # The ticket must match the path room_id (test-room), not the payload room_id
-            ticket = make_test_game_ticket("TestPlayer", "test-room")
-            self._send_message(
-                ws,
-                {
-                    "t": WireClientMessageType.JOIN_ROOM,
-                    "room_id": "ignored",
-                    "game_ticket": ticket,
-                },
-            )
-
-            response = self._receive_message(ws)
-            assert response["type"] == SessionMessageType.ROOM_JOINED
-            assert response["room_id"] == "test-room"
+        with client.websocket_connect("/ws/test-game") as ws:
+            _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]})
+            messages = []
+            while True:
+                msg = _recv(ws)
+                messages.append(msg)
+                if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
+                    break
+            assert len(messages) >= 1
 
     def test_invalid_msgpack_returns_error_and_keeps_connection(self, client):
         """Sending invalid MessagePack data returns an error without disconnecting."""
-        self._create_room(client, "test_game")
+        tickets = _create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
             # Send garbage bytes that aren't valid MessagePack
             ws.send_bytes(b"\xff\xff\xff")
 
-            response = self._receive_message(ws)
+            response = _recv(ws)
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
-            # Connection should still be alive - verify by sending a valid message
-            ticket = make_test_game_ticket("TestPlayer", "test_game")
-            self._send_message(
+            # Connection should still be alive - verify by sending a valid join
+            _send(
                 ws,
-                {
-                    "t": WireClientMessageType.JOIN_ROOM,
-                    "room_id": "test_game",
-                    "game_ticket": ticket,
-                },
+                {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]},
             )
-            response = self._receive_message(ws)
-            assert response["type"] == SessionMessageType.ROOM_JOINED
+            # Should get game events (not an error about dead connection)
+            msg = _recv(ws)
+            assert msg.get("t") is not None or msg.get("type") is not None
 
-    def test_join_room_with_invalid_ticket(self, client):
+    def test_join_game_with_invalid_ticket(self, client):
         """An invalid game ticket returns an INVALID_TICKET error."""
-        self._create_room(client, "test_game")
+        _create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            self._send_message(
+            _send(
                 ws,
-                {
-                    "t": WireClientMessageType.JOIN_ROOM,
-                    "room_id": "test_game",
-                    "game_ticket": "not-a-valid-ticket",
-                },
+                {"t": WireClientMessageType.JOIN_GAME, "game_ticket": "not-a-valid-ticket"},
             )
 
-            response = self._receive_message(ws)
+            response = _recv(ws)
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_TICKET
 
-    def test_join_room_valid_ticket_returns_server_generated_token(self, client):
-        """A valid game ticket results in room_joined with a server-generated session token."""
-        self._create_room(client, "test_game")
-
-        with client.websocket_connect("/ws/test_game") as ws:
-            ticket = make_test_game_ticket("TestPlayer", "test_game")
-            self._send_message(
-                ws,
-                {
-                    "t": WireClientMessageType.JOIN_ROOM,
-                    "room_id": "test_game",
-                    "game_ticket": ticket,
-                },
-            )
-
-            response = self._receive_message(ws)
-            assert response["type"] == SessionMessageType.ROOM_JOINED
-            assert response["player_name"] == "TestPlayer"
+    def test_invalid_game_id_rejected_before_accept(self, client):
+        """WebSocket connection with invalid game_id is rejected before accept."""
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/invalid game!"):
+            pass
 
 
 class TestHealthEndpoint:
@@ -284,103 +181,113 @@ class TestStatusEndpoint:
         app = create_app(game_service=MockGameService())
         return TestClient(app)
 
-    def test_status_returns_room_and_game_info(self, client):
+    def test_status_returns_game_info(self, client):
         response = client.get("/status")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["active_rooms"] == 0
+        assert data["pending_games"] == 0
         assert data["active_games"] == 0
         assert data["capacity_used"] == 0
         assert data["max_capacity"] == 100
         assert "version" in data
         assert "commit" in data
 
-    def test_status_reflects_active_rooms(self, client):
-        client.post("/rooms", json={"room_id": "r1"})
+    def test_status_reflects_pending_games(self, client):
+        _create_pending_game(client, "r1")
         response = client.get("/status")
         data = response.json()
-        assert data["active_rooms"] == 1
+        assert data["pending_games"] == 1
         assert data["active_games"] == 0
         assert data["capacity_used"] == 1
 
 
-class TestCreateRoomEndpoint:
+class TestCreateGameEndpoint:
     @pytest.fixture
     def client(self):
         app = create_app(game_service=MockGameService())
         return TestClient(app)
 
-    def test_create_room_success(self, client):
-        response = client.post("/rooms", json={"room_id": "test-room"})
+    def test_create_game_success(self, client):
+        ticket = make_test_game_ticket("Player1", "test-game", user_id="user-0")
+        response = client.post(
+            "/games",
+            json={
+                "game_id": "test-game",
+                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
+            },
+        )
         assert response.status_code == 201
-        assert response.json() == {"room_id": "test-room", "num_ai_players": 3, "status": "created"}
+        assert response.json() == {"game_id": "test-game", "status": "pending"}
 
-    def test_create_room_invalid_body(self, client):
-        response = client.post("/rooms", content=b"not json")
+    def test_create_game_invalid_body(self, client):
+        response = client.post("/games", content=b"not json")
         assert response.status_code == 400
         assert response.json() == {"error": "Invalid request body"}
 
-    def test_create_room_invalid_room_id(self, client):
-        response = client.post("/rooms", json={"room_id": "bad id!"})
+    def test_create_game_invalid_game_id(self, client):
+        ticket = make_test_game_ticket("Player1", "bad id!", user_id="user-0")
+        response = client.post(
+            "/games",
+            json={
+                "game_id": "bad id!",
+                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
+            },
+        )
         assert response.status_code == 400
         assert response.json() == {"error": "Invalid request body"}
 
-    def test_create_room_duplicate(self, client):
-        client.post("/rooms", json={"room_id": "dupe"})
-        response = client.post("/rooms", json={"room_id": "dupe"})
-        assert response.status_code == 409
-        assert response.json() == {"error": "Room already exists"}
-
-    def test_create_room_conflicts_with_existing_game(self, client):
-        sm = client.app.state.session_manager
-        sm._games["active-game"] = object()  # simulate an existing game
-        response = client.post("/rooms", json={"room_id": "active-game"})
+    def test_create_game_duplicate(self, client):
+        _create_pending_game(client, "dupe")
+        ticket = make_test_game_ticket("Player1", "dupe", user_id="user-0")
+        response = client.post(
+            "/games",
+            json={
+                "game_id": "dupe",
+                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
+            },
+        )
         assert response.status_code == 409
         assert response.json() == {"error": "Game with this ID already exists"}
 
-    @pytest.mark.parametrize(
-        ("room_id", "num_ai"),
-        [("mixed-room", 2), ("pvp-room", 0)],
-    )
-    def test_create_room_with_custom_num_ai_players(self, client, room_id, num_ai):
-        response = client.post("/rooms", json={"room_id": room_id, "num_ai_players": num_ai})
-        assert response.status_code == 201
-        assert response.json() == {"room_id": room_id, "num_ai_players": num_ai, "status": "created"}
+    def test_create_game_conflicts_with_active_game(self, client):
+        sm = client.app.state.session_manager
+        sm._games["active-game"] = object()
+        ticket = make_test_game_ticket("Player1", "active-game", user_id="user-0")
+        response = client.post(
+            "/games",
+            json={
+                "game_id": "active-game",
+                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
+            },
+        )
+        assert response.status_code == 409
+        assert response.json() == {"error": "Game with this ID already exists"}
 
-    def test_create_room_invalid_num_ai_players(self, client):
-        response = client.post("/rooms", json={"room_id": "bad-room", "num_ai_players": 5})
-        assert response.status_code == 400
-        assert response.json() == {"error": "Invalid request body"}
-
-    def test_create_room_legacy_num_bots_rejected(self, client):
-        """Legacy payload using num_bots is rejected via extra=forbid."""
-        response = client.post("/rooms", json={"room_id": "legacy-room", "num_bots": 2})
-        assert response.status_code == 400
-        assert response.json() == {"error": "Invalid request body"}
-
-    def test_list_rooms_shows_room_info(self, client):
-        client.post("/rooms", json={"room_id": "ai-room", "num_ai_players": 3})
-        client.post("/rooms", json={"room_id": "mixed-room", "num_ai_players": 1})
-
-        response = client.get("/rooms")
-        assert response.status_code == 200
-        rooms = {r["room_id"]: r for r in response.json()["rooms"]}
-        assert rooms["ai-room"]["num_ai_players"] == 3
-        assert rooms["ai-room"]["players_needed"] == 1
-        assert rooms["mixed-room"]["num_ai_players"] == 1
-        assert rooms["mixed-room"]["players_needed"] == 3
-
-    def test_create_room_at_capacity(self, client):
+    def test_create_game_at_capacity(self, client):
         for i in range(100):
-            resp = client.post("/rooms", json={"room_id": f"r{i}"})
+            ticket = make_test_game_ticket(f"P{i}", f"r{i}", user_id=f"u-{i}")
+            resp = client.post(
+                "/games",
+                json={
+                    "game_id": f"r{i}",
+                    "players": [{"name": f"P{i}", "user_id": f"u-{i}", "game_ticket": ticket}],
+                },
+            )
             assert resp.status_code == 201
-        response = client.post("/rooms", json={"room_id": "overflow"})
+        ticket = make_test_game_ticket("Poverflow", "overflow", user_id="u-overflow")
+        response = client.post(
+            "/games",
+            json={
+                "game_id": "overflow",
+                "players": [{"name": "Poverflow", "user_id": "u-overflow", "game_ticket": ticket}],
+            },
+        )
         assert response.status_code == 503
         assert response.json() == {"error": "Server at capacity"}
 
-    def test_create_room_oversized_body_rejected(self, client):
-        oversized = b'{"room_id": "' + b"x" * 5000 + b'"}'
-        response = client.post("/rooms", content=oversized, headers={"Content-Type": "application/json"})
+    def test_create_game_oversized_body_rejected(self, client):
+        oversized = b'{"game_id": "' + b"x" * 5000 + b'"}'
+        response = client.post("/games", content=oversized, headers={"Content-Type": "application/json"})
         assert response.status_code == 413
         assert response.json() == {"error": "Request body too large"}

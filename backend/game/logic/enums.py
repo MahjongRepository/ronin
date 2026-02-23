@@ -130,13 +130,11 @@ class WirePlayerAction(IntEnum):
 class WireClientMessageType(IntEnum):
     """Integer wire encoding for client-to-server message types."""
 
-    JOIN_ROOM = 0
-    LEAVE_ROOM = 1
-    SET_READY = 2
     GAME_ACTION = 3
     CHAT = 4
     PING = 5
     RECONNECT = 6
+    JOIN_GAME = 7
 
 
 class WireGameAction(IntEnum):

@@ -1,22 +1,23 @@
-"""Auth endpoints: login, register, logout, and bot auth for the lobby."""
+"""Auth endpoints: login, register, logout, bot auth, and bot room creation for the lobby."""
 
 from __future__ import annotations
 
 import json
+import uuid
 from typing import TYPE_CHECKING
 
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
-from lobby.views.handlers import build_websocket_url, create_signed_ticket
-from shared.auth.models import AccountType
-from shared.auth.service import AuthError, AuthService
+from shared.auth.service import AuthError
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
 from shared.build_info import APP_VERSION
+
+MAX_AI_PLAYERS = 3
 
 if TYPE_CHECKING:
     from starlette.requests import Request
 
-    from shared.auth.models import AuthSession, Player
+    from shared.auth.models import AuthSession
     from shared.auth.settings import AuthSettings
 
 
@@ -29,14 +30,6 @@ async def _parse_json_body(request: Request) -> dict | None:
     if not isinstance(body, dict):
         return None
     return body
-
-
-async def _validate_bot_api_key(auth_service: AuthService, api_key: str) -> Player | None:
-    """Validate a bot API key. Return the Player if valid, otherwise None."""
-    player = await auth_service.validate_api_key(api_key)
-    if player is None or player.account_type != AccountType.BOT:
-        return None
-    return player
 
 
 def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSettings) -> Response:
@@ -130,30 +123,48 @@ async def logout(request: Request) -> Response:
 
 
 async def bot_auth(request: Request) -> Response:
-    """POST /api/auth/bot {api_key, room_id} - exchange API key for game ticket."""
-    auth_service = request.app.state.auth_service
-    auth_settings = request.app.state.auth_settings
-    games_service = request.app.state.games_service
-
+    """POST /api/auth/bot {room_id} - create lobby session for bot to join room via WS."""
     body = await _parse_json_body(request)
     if body is None:
         return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
 
-    api_key = body.get("api_key")
     room_id = body.get("room_id")
+    if not isinstance(room_id, str) or not room_id:
+        return JSONResponse({"error": "room_id is required as a non-empty string"}, status_code=400)
 
-    if not isinstance(api_key, str) or not isinstance(room_id, str) or not api_key or not room_id:
-        return JSONResponse({"error": "api_key and room_id are required as non-empty strings"}, status_code=400)
-
-    player = await _validate_bot_api_key(auth_service, api_key)
-    if player is None:
-        return JSONResponse({"error": "Invalid API key"}, status_code=401)
-
-    rooms = await games_service.list_rooms()
-    room = next((r for r in rooms if r["room_id"] == room_id), None)
+    room_manager = request.app.state.room_manager
+    room = room_manager.get_room(room_id)
     if room is None:
         return JSONResponse({"error": "Room not found"}, status_code=404)
 
-    ws_url = build_websocket_url(room["server_url"], room_id)
-    signed = create_signed_ticket(player.user_id, player.username, room_id, auth_settings.game_ticket_secret)
-    return JSONResponse({"game_ticket": signed, "ws_url": ws_url})
+    auth_service = request.app.state.auth_service
+    session = auth_service.create_session(request.user.user_id, request.user.username)
+
+    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
+    ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
+    return JSONResponse({"session_id": session.session_id, "room_id": room_id, "ws_url": ws_url})
+
+
+async def bot_create_room(request: Request) -> Response:
+    """POST /api/rooms {num_ai_players?} - create a room (bot API key auth via header)."""
+    body = await _parse_json_body(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    num_ai_players = body.get("num_ai_players", MAX_AI_PLAYERS)
+    if not isinstance(num_ai_players, int) or not 0 <= num_ai_players <= MAX_AI_PLAYERS:
+        return JSONResponse({"error": "num_ai_players must be an integer 0-3"}, status_code=400)
+
+    room_manager = request.app.state.room_manager
+    room_id = str(uuid.uuid4())
+    room_manager.create_room(room_id, num_ai_players=num_ai_players)
+
+    auth_service = request.app.state.auth_service
+    session = auth_service.create_session(request.user.user_id, request.user.username)
+
+    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
+    ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
+    return JSONResponse(
+        {"room_id": room_id, "session_id": session.session_id, "ws_url": ws_url},
+        status_code=201,
+    )

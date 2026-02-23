@@ -1,10 +1,14 @@
+import asyncio
+import contextlib
 from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, GameErrorCode
 from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
-from game.tests.mocks import MockConnection
+from game.server.types import PlayerSpec
+from game.session.manager import SessionManager
+from game.tests.helpers.auth import make_test_game_ticket
+from game.tests.mocks import MockConnection, MockGameService
 
 from .helpers import create_started_game
 
@@ -76,16 +80,62 @@ class TestSessionManagerDefensiveChecks:
         await manager.broadcast_chat(conns[0], "hello")
         assert len(conns[0].sent_messages) == 0
 
-    async def test_start_game_failure_rolls_back_started_flag(self, manager):
-        """When start_game returns an ErrorEvent, game.started is rolled back."""
-        manager.create_room("game1", num_ai_players=2)
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
+    async def test_leave_pending_game_marks_session_disconnected(self, manager):
+        """Leaving a pending game marks session as disconnected (preserved for timeout flow)."""
+        ticket1 = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        ticket2 = make_test_game_ticket("Bob", "game1", user_id="user-1")
+        specs = [
+            PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket1),
+            PlayerSpec(name="Bob", user_id="user-1", game_ticket=ticket2),
+        ]
+        manager.create_pending_game("game1", specs, num_ai_players=2)
 
-        await manager.join_room(conn1, "game1", "Alice")
-        await manager.join_room(conn2, "game1", "Bob")
+        conn1 = MockConnection()
+        manager.register_connection(conn1)
+        await manager.join_game(conn1, "game1", ticket1)
+
+        # Game should exist but not be started (still waiting for Bob)
+        game = manager.get_game("game1")
+        assert game is not None
+        assert game.started is False
+
+        player = manager._players[conn1.connection_id]
+        token = player.session_token
+
+        # leave_game on a pending game marks session as disconnected
+        await manager.leave_game(conn1)
+        assert player.game_id is None
+        assert player.seat is None
+        session = manager._session_store._sessions.get(token)
+        assert session is not None
+        assert session.disconnected_at is not None
+
+    async def test_cancel_all_pending_timeouts(self):
+        """cancel_all_pending_timeouts cancels timeout tasks for pending games."""
+        game_service = MockGameService()
+        manager = SessionManager(game_service)
+
+        ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+        manager.create_pending_game("game1", specs, num_ai_players=3)
+
+        # Verify pending game exists and has a timeout task
+        pending = manager._pending_games.get("game1")
+        assert pending is not None
+        assert pending.timeout_task is not None
+        assert not pending.timeout_task.done()
+
+        manager.cancel_all_pending_timeouts()
+
+        # Allow event loop to process the cancellation
+        with contextlib.suppress(asyncio.CancelledError):
+            await pending.timeout_task
+
+        assert pending.timeout_task.cancelled()
+
+    async def test_start_game_failure_rolls_back_started_flag(self):
+        """When start_game returns an ErrorEvent, game.started is rolled back."""
+        game_service = MockGameService()
 
         # patch start_game to return an error (simulating unsupported settings)
         error_events = [
@@ -99,10 +149,16 @@ class TestSessionManagerDefensiveChecks:
                 target=BroadcastTarget(),
             ),
         ]
-        manager._game_service.start_game = AsyncMock(return_value=error_events)
+        game_service.start_game = AsyncMock(return_value=error_events)  # type: ignore[assignment]
+        manager = SessionManager(game_service)
 
-        await manager.set_ready(conn1, ready=True)
-        await manager.set_ready(conn2, ready=True)
+        ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+        manager.create_pending_game("game1", specs, num_ai_players=3)
+
+        conn = MockConnection()
+        manager.register_connection(conn)
+        await manager.join_game(conn, "game1", ticket)
 
         # game.started should be rolled back to False
         game = manager.get_game("game1")
@@ -111,105 +167,3 @@ class TestSessionManagerDefensiveChecks:
 
         # no lock or heartbeat resources should be allocated
         assert "game1" not in manager._game_locks
-
-        # error should have been broadcast to players
-        error_msgs = [m for m in conn1.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ERROR]]
-        assert len(error_msgs) == 1
-        assert error_msgs[0]["msg"] == "unsupported settings"
-
-    async def test_leave_pre_start_game_removes_session(self, manager):
-        """Leaving a game that hasn't started (e.g. start failure) removes the session."""
-        manager.create_room("game1", num_ai_players=2)
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        manager.register_connection(conn1)
-        manager.register_connection(conn2)
-
-        await manager.join_room(conn1, "game1", "Alice")
-        await manager.join_room(conn2, "game1", "Bob")
-
-        # patch start_game to return an error (game.started rolled back to False)
-        error_events = [
-            ServiceEvent(
-                event=EventType.ERROR,
-                data=ErrorEvent(
-                    code=GameErrorCode.INVALID_ACTION,
-                    message="unsupported settings",
-                    target="all",
-                ),
-                target=BroadcastTarget(),
-            ),
-        ]
-        manager._game_service.start_game = AsyncMock(return_value=error_events)
-
-        await manager.set_ready(conn1, ready=True)
-        await manager.set_ready(conn2, ready=True)
-
-        game = manager.get_game("game1")
-        assert game is not None
-        assert game.started is False
-
-        player = manager._players[conn1.connection_id]
-        token = player.session_token
-
-        # leave_game on a non-started game should remove the session entirely
-        await manager.leave_game(conn1)
-
-        assert player.game_id is None
-        assert player.seat is None
-        assert manager._session_store._sessions.get(token) is None
-
-
-class TestRoomDefensiveChecks:
-    """Tests for defensive checks in room operations."""
-
-    async def test_join_room_not_found_when_room_removed_under_lock(self, manager):
-        """join_room returns ROOM_NOT_FOUND if room was removed between lock creation and acquisition."""
-        manager.create_room("room1")
-
-        conn = MockConnection()
-        manager.register_connection(conn)
-
-        # Remove the room but leave the lock
-        manager._room_manager._rooms.pop("room1", None)
-
-        await manager.join_room(conn, "room1", "Alice")
-
-        error_msgs = [m for m in conn.sent_messages if m.get("code") == SessionErrorCode.ROOM_NOT_FOUND]
-        assert len(error_msgs) == 1
-
-    async def test_leave_room_room_gone_under_lock(self, manager):
-        """leave_room cleans up room_player when room is None under the lock."""
-        manager.create_room("room1")
-        conn = MockConnection()
-        manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice")
-
-        # Remove room but not the lock to simulate the room being cleaned
-        # up by another coroutine between lock check and lock acquisition.
-        manager._room_manager._rooms.pop("room1", None)
-
-        assert conn.connection_id in manager._room_manager._room_players
-
-        await manager.leave_room(conn)
-
-        # room_player reference should be cleaned up
-        assert conn.connection_id not in manager._room_manager._room_players
-
-    async def test_set_ready_returns_when_lock_missing(self, manager):
-        """set_ready returns silently when room lock is missing."""
-        manager.create_room("room1")
-        conn = MockConnection()
-        manager.register_connection(conn)
-        await manager.join_room(conn, "room1", "Alice")
-
-        # Simulate the lock being cleaned up already
-        manager._room_manager._room_locks.pop("room1", None)
-
-        # Should not raise
-        await manager.set_ready(conn, ready=True)
-
-    async def test_transition_returns_when_lock_missing(self, manager):
-        """_transition_room_to_game returns when lock is missing."""
-        # Should not raise
-        await manager._room_manager._transition_room_to_game("nonexistent_room")

@@ -1,8 +1,9 @@
 /**
- * Build the lobby CSS with a content-hashed filename.
+ * Build the lobby CSS and TypeScript with content-hashed filenames.
  *
- * Compiles SCSS via sass, hashes the output, writes to dist/ as lobby-{hash}.css,
- * and adds a "lobby_css" entry to the existing dist/manifest.json.
+ * Compiles SCSS via sass, hashes the output, writes to dist/ as lobby-{hash}.css.
+ * Builds lobby TypeScript via Bun.build, writes to dist/ as lobby-{hash}.js.
+ * Adds "lobby_css" and "lobby_js" entries to the existing dist/manifest.json.
  */
 
 import { readFileSync, renameSync, writeFileSync } from "fs";
@@ -20,18 +21,43 @@ if (sass.exitCode !== 0) {
     process.exit(1);
 }
 
-// Content-hash the output and rename
+// Content-hash the CSS output and rename
 const css = readFileSync(tmpFile);
-const hasher = new Bun.CryptoHasher("md5");
-hasher.update(css);
-const hash = hasher.digest("hex").slice(0, 8);
-const filename = `lobby-${hash}.css`;
+const cssHasher = new Bun.CryptoHasher("md5");
+cssHasher.update(css);
+const cssHash = cssHasher.digest("hex").slice(0, 8);
+const cssFilename = `lobby-${cssHash}.css`;
 
-renameSync(tmpFile, `dist/${filename}`);
+renameSync(tmpFile, `dist/${cssFilename}`);
+console.log(`Built lobby CSS: ${cssFilename}`);
 
-// Update the manifest with the lobby CSS entry
+// Build lobby TypeScript
+const tsResult = await Bun.build({
+    entrypoints: ["./src/lobby/index.ts"],
+    outdir: "dist",
+    naming: "lobby-[hash].[ext]",
+    minify: true,
+});
+
+if (!tsResult.success) {
+    console.error("TypeScript build failed:");
+    for (const log of tsResult.logs) {
+        console.error(log);
+    }
+    process.exit(1);
+}
+
+const jsOutput = tsResult.outputs.find((o) => o.path.endsWith(".js"));
+if (!jsOutput) {
+    console.error("No .js output found from lobby TypeScript build");
+    process.exit(1);
+}
+
+const jsFilename = jsOutput.path.split("/").pop()!;
+console.log(`Built lobby JS: ${jsFilename}`);
+
+// Update the manifest with lobby CSS and JS entries
 const manifest = JSON.parse(readFileSync("dist/manifest.json", "utf-8"));
-manifest.lobby_css = filename;
+manifest.lobby_css = cssFilename;
+manifest.lobby_js = jsFilename;
 writeFileSync("dist/manifest.json", JSON.stringify(manifest));
-
-console.log(`Built lobby CSS: ${filename}`);

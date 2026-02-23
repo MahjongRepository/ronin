@@ -169,7 +169,7 @@ class TestSessionManagerReconnect:
 
     @pytest.mark.asyncio
     async def test_reconnect_game_mismatch(self, manager):
-        """Reconnect on wrong room_id returns reconnect_game_mismatch."""
+        """Reconnect on wrong game_id returns reconnect_game_mismatch."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
@@ -333,26 +333,6 @@ class TestReconnectTurnState:
 
 class TestReconnectEdgeCases:
     """Tests for reconnect edge cases."""
-
-    @pytest.mark.asyncio
-    async def test_reconnect_in_room_rejected(self, manager):
-        """Reconnect while in a room returns error."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        manager.create_room("room2")
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.join_room(new_conn, "room2", "Alice2")
-
-        await manager.reconnect(new_conn, "game1", alice_token)
-
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
-        reconnect_errors = [m for m in error_msgs if m["code"] == SessionErrorCode.RECONNECT_IN_ROOM]
-        assert len(reconnect_errors) == 1
 
     @pytest.mark.asyncio
     async def test_reconnect_already_active_rejected(self, manager):

@@ -10,6 +10,15 @@ LOBBY_PORT=${LOBBY_PORT:-8710}
 CLIENT_PORT=${CLIENT_PORT:-8712}
 MAX_RETRIES=10
 
+# Kill any already-running servers on our ports
+for port in $GAME_PORT $LOBBY_PORT $CLIENT_PORT; do
+    pids=$(lsof -ti :"$port" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        echo "Killing existing processes on port $port..."
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+    fi
+done
+
 if [ -f .env.local ]; then
     set -a && . .env.local && set +a
 fi
@@ -57,11 +66,13 @@ cat > frontend/public/env.js <<EOF
 window.__LOBBY_URL__ = "http://localhost:$LOBBY_PORT";
 EOF
 
-# Build lobby CSS for server-side templates
-(cd frontend && bun run sass:lobby)
+# Build lobby CSS and JS for server-side templates
+(cd frontend && bun run sass:lobby && mkdir -p public/scripts && bun build src/lobby/index.ts --outfile public/scripts/lobby.js)
 
 # Set lobby settings for template rendering
-export LOBBY_GAME_CLIENT_URL="http://localhost:$CLIENT_PORT"
+export LOBBY_GAME_CLIENT_URL="/game"
+# Override the default ws_allowed_origin to match the local lobby port
+export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
 
 cleanup() {
     echo "Stopping servers..."

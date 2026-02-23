@@ -1,17 +1,14 @@
-"""Integration tests for lobby auth endpoints and full login-to-game-ticket flow."""
+"""Integration tests for lobby auth endpoints and full login flow."""
 
 import hashlib
 import secrets
-from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, urlparse
 
-import httpx
 import pytest
 from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
 from lobby.server.settings import LobbyServerSettings
-from shared.auth.game_ticket import verify_game_ticket
 from shared.auth.models import AccountType, Player
 from shared.auth.settings import AuthSettings
 
@@ -206,31 +203,18 @@ class TestAuthEndpoints:
         assert "next" in parse_qs(location.query)
 
     def test_authenticated_lobby_shows_username(self, client):
-        patcher = self._mock_httpx_no_healthy_servers()
-        try:
-            client.post(
-                "/register",
-                data={"username": "lobbyuser", "password": "securepass123", "confirm_password": "securepass123"},
-            )
-            response = client.get("/")
-            assert response.status_code == 200
-            assert "lobbyuser" in response.text
-            assert "Logout" in response.text
-        finally:
-            patcher.stop()
-
-    def _mock_httpx_no_healthy_servers(self):
-        """Patch httpx so health checks fail (no healthy servers, empty room list)."""
-        patcher = patch("httpx.AsyncClient")
-        mock_client = patcher.start()
-        mock_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.get.side_effect = httpx.RequestError("Connection refused")
-        return patcher
+        client.post(
+            "/register",
+            data={"username": "lobbyuser", "password": "securepass123", "confirm_password": "securepass123"},
+        )
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "lobbyuser" in response.text
+        assert "Logout" in response.text
 
 
-class TestCreateRoomWithTicket:
-    """Test that room creation signs a game ticket and redirects properly."""
+class TestCreateRoomRedirect:
+    """Test that room creation redirects to the room page."""
 
     @pytest.fixture
     def client(self, tmp_path):
@@ -242,62 +226,25 @@ class TestCreateRoomWithTicket:
         yield c
         c.app.state.db.close()
 
-    def _mock_httpx_for_create(self):
-        """Patch httpx so health checks pass and room creation succeeds."""
-        mock_health_response = AsyncMock()
-        mock_health_response.status_code = 200
-        mock_create_response = AsyncMock()
-        mock_create_response.status_code = 201
-        mock_rooms_response = MagicMock()
-        mock_rooms_response.status_code = 200
-        mock_rooms_response.json.return_value = {"rooms": []}
+    def test_create_room_redirects_to_room_page(self, client):
+        response = client.post("/rooms/new", follow_redirects=False)
+        assert response.status_code == 303
+        location = response.headers["location"]
+        assert location.startswith("/rooms/")
+        # No game ticket in URL
+        assert "game_ticket=" not in location
 
-        patcher = patch("httpx.AsyncClient")
-        mock_client = patcher.start()
-        mock_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = mock_instance
-
-        def get_side_effect(url):
-            if "/rooms" in url:
-                return mock_rooms_response
-            return mock_health_response
-
-        mock_instance.get.side_effect = get_side_effect
-        mock_instance.post.return_value = mock_create_response
-        return patcher
-
-    def test_create_room_redirects_with_game_ticket(self, client):
-        patcher = self._mock_httpx_for_create()
-        try:
-            response = client.post("/rooms/new", follow_redirects=False)
-            assert response.status_code == 303
-            location = response.headers["location"]
-            assert location.startswith("/game?")
-            assert "game_ticket=" in location
-            assert "ws_url=" in location
-            # No player_name in URL params anymore
-            assert "player_name=" not in location
-        finally:
-            patcher.stop()
-
-    def test_create_room_ticket_is_valid(self, client):
-        patcher = self._mock_httpx_for_create()
-        try:
-            response = client.post("/rooms/new", follow_redirects=False)
-            location = response.headers["location"]
-            parsed = urlparse(location)
-            params = parse_qs(parsed.query)
-            game_ticket = params["game_ticket"][0]
-
-            ticket = verify_game_ticket(game_ticket, TEST_SECRET)
-            assert ticket is not None
-            assert ticket.username == "gameuser"
-        finally:
-            patcher.stop()
+    def test_create_room_creates_local_room(self, client):
+        response = client.post("/rooms/new", follow_redirects=False)
+        location = response.headers["location"]
+        room_id = location.split("/rooms/")[1]
+        room = client.app.state.room_manager.get_room(room_id)
+        assert room is not None
+        assert room.num_ai_players == 3
 
 
-class TestJoinRoomWithTicket:
-    """Test that joining an existing room signs a game ticket."""
+class TestJoinRoomRedirect:
+    """Test that joining an existing room redirects to the room page."""
 
     @pytest.fixture
     def client(self, tmp_path):
@@ -309,68 +256,22 @@ class TestJoinRoomWithTicket:
         yield c
         c.app.state.db.close()
 
-    def _mock_httpx_with_rooms(self, rooms):
-        mock_health_response = MagicMock()
-        mock_health_response.status_code = 200
-        mock_rooms_response = MagicMock()
-        mock_rooms_response.status_code = 200
-        mock_rooms_response.json.return_value = {"rooms": rooms}
+    def test_join_room_redirects_to_room_page(self, client):
+        room_manager = client.app.state.room_manager
+        room_manager.create_room("test-room-123", num_ai_players=3)
 
-        patcher = patch("httpx.AsyncClient")
-        mock_client = patcher.start()
-        mock_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = mock_instance
-
-        def get_side_effect(url):
-            if "/health" in url:
-                return mock_health_response
-            if "/rooms" in url:
-                return mock_rooms_response
-            return mock_health_response
-
-        mock_instance.get.side_effect = get_side_effect
-        return patcher
-
-    def test_join_room_redirects_with_game_ticket(self, client):
-        rooms = [
-            {
-                "room_id": "room-abc",
-                "player_count": 1,
-                "players_needed": 2,
-                "server_url": "http://localhost:8711",
-            },
-        ]
-        patcher = self._mock_httpx_with_rooms(rooms)
-        try:
-            response = client.post("/rooms/room-abc/join", follow_redirects=False)
-            assert response.status_code == 303
-            location = response.headers["location"]
-            assert "game_ticket=" in location
-            assert "ws_url=" in location
-
-            parsed = urlparse(location)
-            params = parse_qs(parsed.query)
-            game_ticket = params["game_ticket"][0]
-
-            ticket = verify_game_ticket(game_ticket, TEST_SECRET)
-            assert ticket is not None
-            assert ticket.username == "joinuser"
-            assert ticket.room_id == "room-abc"
-        finally:
-            patcher.stop()
+        response = client.post("/rooms/test-room-123/join", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/rooms/test-room-123"
 
     def test_join_nonexistent_room_shows_error(self, client):
-        patcher = self._mock_httpx_with_rooms([])
-        try:
-            response = client.post("/rooms/no-such-room/join")
-            assert response.status_code == 200
-            assert "Room not found" in response.text
-        finally:
-            patcher.stop()
+        response = client.post("/rooms/no-such-room/join")
+        assert response.status_code == 200
+        assert "Room not found" in response.text
 
 
 class TestBotAuth:
-    """Test bot API key authentication endpoint."""
+    """Test bot API key authentication via X-API-Key header."""
 
     @pytest.fixture
     def client(self, tmp_path):
@@ -378,130 +279,175 @@ class TestBotAuth:
         yield c
         c.app.state.db.close()
 
-    def _mock_httpx_with_rooms(self, rooms):
-        mock_health_response = MagicMock()
-        mock_health_response.status_code = 200
-        mock_rooms_response = MagicMock()
-        mock_rooms_response.status_code = 200
-        mock_rooms_response.json.return_value = {"rooms": rooms}
+    def test_bot_auth_returns_room_info(self, client):
+        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        room_manager = client.app.state.room_manager
+        room_manager.create_room("room-bot", num_ai_players=3)
 
-        patcher = patch("httpx.AsyncClient")
-        mock_client = patcher.start()
-        mock_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = mock_instance
-
-        def get_side_effect(url):
-            if "/health" in url:
-                return mock_health_response
-            if "/rooms" in url:
-                return mock_rooms_response
-            return mock_health_response
-
-        mock_instance.get.side_effect = get_side_effect
-        return patcher
-
-    def test_bot_auth_exchanges_key_for_ticket(self, client):
-        user_id, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
-        rooms = [
-            {
-                "room_id": "room-bot",
-                "player_count": 1,
-                "players_needed": 2,
-                "server_url": "http://localhost:8711",
-            },
-        ]
-        patcher = self._mock_httpx_with_rooms(rooms)
-        try:
-            response = client.post(
-                "/api/auth/bot",
-                json={"api_key": raw_key, "room_id": "room-bot"},
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert "game_ticket" in data
-            assert "ws_url" in data
-
-            ticket = verify_game_ticket(data["game_ticket"], TEST_SECRET)
-            assert ticket is not None
-            assert ticket.username == "TestBot"
-            assert ticket.room_id == "room-bot"
-            assert ticket.user_id == user_id
-        finally:
-            patcher.stop()
+        response = client.post(
+            "/api/auth/bot",
+            json={"room_id": "room-bot"},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["room_id"] == "room-bot"
+        assert "/ws/rooms/room-bot" in data["ws_url"]
+        assert "session_id" in data
+        auth_service = client.app.state.auth_service
+        session = auth_service.validate_session(data["session_id"])
+        assert session is not None
+        assert session.username == "TestBot"
 
     def test_bot_auth_invalid_key_returns_401(self, client):
         response = client.post(
             "/api/auth/bot",
-            json={"api_key": "bogus-key", "room_id": "room-1"},
+            json={"room_id": "room-1"},
+            headers={"x-api-key": "bogus-key"},
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "Invalid API key"
 
     def test_bot_auth_missing_fields_returns_400(self, client):
+        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
         response = client.post(
             "/api/auth/bot",
-            json={"api_key": "some-key"},
+            json={},
+            headers={"x-api-key": raw_key},
         )
         assert response.status_code == 400
         assert "required" in response.json()["error"]
 
+    def test_bot_auth_room_not_found_returns_404(self, client):
+        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        response = client.post(
+            "/api/auth/bot",
+            json={"room_id": "no-such-room"},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 404
+        assert response.json()["error"] == "Room not found"
+
     def test_bot_auth_invalid_json_returns_400(self, client):
+        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
         response = client.post(
             "/api/auth/bot",
             content="not json",
-            headers={"content-type": "application/json"},
+            headers={"content-type": "application/json", "x-api-key": raw_key},
         )
         assert response.status_code == 400
         assert "Invalid JSON" in response.json()["error"]
 
     def test_bot_auth_json_array_body_returns_400(self, client):
+        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
         response = client.post(
             "/api/auth/bot",
-            json=[{"api_key": "key", "room_id": "room-1"}],
+            json=[{"room_id": "room-1"}],
+            headers={"x-api-key": raw_key},
         )
         assert response.status_code == 400
         assert "Invalid JSON" in response.json()["error"]
 
-    def test_bot_auth_non_string_api_key_returns_400(self, client):
-        response = client.post(
-            "/api/auth/bot",
-            json={"api_key": 123, "room_id": "room-1"},
-        )
-        assert response.status_code == 400
-        assert "non-empty strings" in response.json()["error"]
-
-    def test_bot_auth_non_string_room_id_returns_400(self, client):
-        response = client.post(
-            "/api/auth/bot",
-            json={"api_key": "some-key", "room_id": ["room-1"]},
-        )
-        assert response.status_code == 400
-        assert "non-empty strings" in response.json()["error"]
-
-    def test_bot_auth_room_not_found_returns_404(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
-        patcher = self._mock_httpx_with_rooms([])
-        try:
-            response = client.post(
-                "/api/auth/bot",
-                json={"api_key": raw_key, "room_id": "no-such-room"},
-            )
-            assert response.status_code == 404
-            assert response.json()["error"] == "Room not found"
-        finally:
-            patcher.stop()
-
     def test_bot_auth_rejects_human_api_key_hash(self, client):
-        """Defense-in-depth: even if a human account somehow gets an api_key_hash, reject it."""
+        """Defense-in-depth: human accounts with an api_key_hash are rejected at middleware level."""
         raw_key = "sneaky-human-key"
         _insert_human_with_key(client, "human-with-key", "SneakyHuman", raw_key)
 
         response = client.post(
             "/api/auth/bot",
-            json={"api_key": raw_key, "room_id": "room-1"},
+            json={"room_id": "room-1"},
+            headers={"x-api-key": raw_key},
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "Invalid API key"
+
+
+class TestBotCreateRoom:
+    """Test bot room creation via POST /api/rooms with X-API-Key header."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        c = _make_client(tmp_path)
+        yield c
+        c.app.state.db.close()
+
+    def test_create_room_returns_room_info(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert "room_id" in data
+        assert "session_id" in data
+        assert "/ws/rooms/" in data["ws_url"]
+        # Room actually exists in manager
+        room = client.app.state.room_manager.get_room(data["room_id"])
+        assert room is not None
+
+    def test_create_room_custom_ai_players(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={"num_ai_players": 2},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        room = client.app.state.room_manager.get_room(data["room_id"])
+        assert room is not None
+        assert room.num_ai_players == 2
+
+    def test_create_room_default_ai_players(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        room = client.app.state.room_manager.get_room(data["room_id"])
+        assert room.num_ai_players == 3
+
+    def test_create_room_invalid_ai_count(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={"num_ai_players": 5},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 400
+        assert "num_ai_players" in response.json()["error"]
+
+    def test_create_room_invalid_key_returns_401(self, client):
+        response = client.post(
+            "/api/rooms",
+            json={},
+            headers={"x-api-key": "bogus-key"},
+        )
+        assert response.status_code == 401
+
+    def test_create_room_invalid_json_returns_400(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            content="not json",
+            headers={"content-type": "application/json", "x-api-key": raw_key},
+        )
+        assert response.status_code == 400
+        assert "Invalid JSON" in response.json()["error"]
+
+    def test_create_room_human_key_rejected(self, client):
+        """Defense-in-depth: human accounts with an api_key_hash are rejected at middleware level."""
+        raw_key = "sneaky-human-key"
+        _insert_human_with_key(client, "human-room-id", "SneakyHuman", raw_key)
+        response = client.post(
+            "/api/rooms",
+            json={},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 401
 
 
 class TestApiKeyProtectedEndpoints:
@@ -512,73 +458,6 @@ class TestApiKeyProtectedEndpoints:
         c = _make_client(tmp_path)
         yield c
         c.app.state.db.close()
-
-    def _mock_httpx_for_create(self):
-        """Patch httpx so health checks pass and room creation succeeds."""
-        mock_health_response = AsyncMock()
-        mock_health_response.status_code = 200
-        mock_create_response = AsyncMock()
-        mock_create_response.status_code = 201
-
-        patcher = patch("httpx.AsyncClient")
-        mock_client = patcher.start()
-        mock_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.get.return_value = mock_health_response
-        mock_instance.post.return_value = mock_create_response
-        return patcher
-
-    def _mock_httpx_with_rooms(self, rooms):
-        mock_health_response = MagicMock()
-        mock_health_response.status_code = 200
-        mock_rooms_response = MagicMock()
-        mock_rooms_response.status_code = 200
-        mock_rooms_response.json.return_value = {"rooms": rooms}
-
-        patcher = patch("httpx.AsyncClient")
-        mock_client = patcher.start()
-        mock_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = mock_instance
-
-        def get_side_effect(url):
-            if "/health" in url:
-                return mock_health_response
-            if "/rooms" in url:
-                return mock_rooms_response
-            return mock_health_response
-
-        mock_instance.get.side_effect = get_side_effect
-        return patcher
-
-    def test_bot_can_create_room_via_api_key_header(self, client):
-        _, raw_key = _insert_bot(client, "bot-create-id", "CreateBot")
-        patcher = self._mock_httpx_for_create()
-        try:
-            response = client.post(
-                "/rooms",
-                headers={"x-api-key": raw_key},
-            )
-            assert response.status_code == 201
-            data = response.json()
-            assert "room_id" in data
-            assert "websocket_url" in data
-            assert "server_name" in data
-        finally:
-            patcher.stop()
-
-    def test_bot_can_list_rooms_via_api_key_header(self, client):
-        _, raw_key = _insert_bot(client, "bot-list-id", "ListBot")
-        rooms = [{"room_id": "room-1", "player_count": 1, "server_url": "http://localhost:8711"}]
-        patcher = self._mock_httpx_with_rooms(rooms)
-        try:
-            response = client.get(
-                "/rooms",
-                headers={"x-api-key": raw_key},
-            )
-            assert response.status_code == 200
-            assert len(response.json()["rooms"]) == 1
-        finally:
-            patcher.stop()
 
     def test_bot_can_list_servers_via_api_key_header(self, client):
         _, raw_key = _insert_bot(client, "bot-srv-id", "ServerBot")
@@ -591,7 +470,7 @@ class TestApiKeyProtectedEndpoints:
 
     def test_invalid_api_key_returns_401(self, client):
         response = client.get(
-            "/rooms",
+            "/servers",
             headers={"x-api-key": "bogus-key"},
         )
         assert response.status_code == 401
@@ -603,7 +482,7 @@ class TestApiKeyProtectedEndpoints:
         _insert_human_with_key(client, "human-api-id", "SneakyHuman", raw_key)
 
         response = client.get(
-            "/rooms",
+            "/servers",
             headers={"x-api-key": raw_key},
         )
         assert response.status_code == 401

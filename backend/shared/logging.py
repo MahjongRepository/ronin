@@ -42,10 +42,6 @@ def _serialize_enums(
     return event_dict
 
 
-# Cached after setup_logging() to avoid TOCTOU inconsistency in rotate_log_file()
-_json_mode: bool = False
-
-
 def _is_test() -> bool:
     return "pytest" in sys.modules
 
@@ -97,9 +93,7 @@ def setup_logging(
     inside that directory. Returns the log file path if created,
     None otherwise.
     """
-    global _json_mode  # noqa: PLW0603
-    _json_mode = _resolve_json_mode()
-    json_mode = _json_mode
+    json_mode = _resolve_json_mode()
 
     if level is None:
         level = _resolve_log_level()
@@ -147,32 +141,3 @@ def setup_logging(
         return file_path
 
     return None
-
-
-def rotate_log_file(log_dir: Path | str, name: str | None = None) -> Path | None:
-    """Replace the current file handler with a new log file.
-
-    Closes the old file handler and creates a fresh one in the same directory.
-    When name is provided, uses it as the filename (e.g. game_id).
-    Otherwise uses a datetime-stamped filename.
-    Returns the new log file path, or None during tests.
-    """
-    if _is_test():
-        return None
-
-    root_logger = logging.getLogger()
-    formatter = _build_stdlib_formatter(json_mode=_json_mode, colors=False)
-
-    for handler in root_logger.handlers[:]:
-        if isinstance(handler, logging.FileHandler):
-            handler.close()
-            root_logger.removeHandler(handler)
-
-    dir_path = Path(log_dir)
-    dir_path.mkdir(parents=True, exist_ok=True)
-    filename = name if name is not None else datetime.now(tz=UTC).strftime(LOG_FILE_TIMESTAMP_FORMAT)
-    file_path = dir_path / f"{filename}.log"
-    file_handler = logging.FileHandler(file_path)
-    file_handler.setFormatter(formatter)
-    root_logger.addHandler(file_handler)
-    return file_path

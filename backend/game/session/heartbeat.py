@@ -15,28 +15,27 @@ logger = structlog.get_logger()
 
 
 class _HasPlayers(Protocol):
-    """Entity with a players dict (Game or Room)."""
+    """Entity with a players dict (Game)."""
 
     @property
     def players(self) -> dict[str, Any]: ...
 
 
-# Callback that resolves an entity (game or room) by ID.
-# Returns an object with a `.players` dict or None if the entity is gone.
+# Callback that resolves a game by ID.
+# Returns an object with a `.players` dict or None if the game is gone.
 EntityResolver = Callable[[str], _HasPlayers | None]
 
 
 class HeartbeatMonitor:
     """Monitor client liveness and disconnect stale connections.
 
-    Tracks per-connection ping timestamps and runs per-game and per-room
-    background loops that disconnect connections that haven't pinged within
-    the timeout window.
+    Tracks per-connection ping timestamps and runs per-game background loops
+    that disconnect connections that haven't pinged within the timeout window.
     """
 
     def __init__(self) -> None:
         self._last_ping: dict[str, float] = {}  # connection_id -> monotonic timestamp
-        self._tasks: dict[str, asyncio.Task[None]] = {}  # "game:{id}" or "room:{id}" -> task
+        self._tasks: dict[str, asyncio.Task[None]] = {}  # "game:{id}" -> task
 
     def record_connect(self, connection_id: str) -> None:
         """Record initial ping timestamp for a new connection."""
@@ -55,17 +54,9 @@ class HeartbeatMonitor:
         """Start the heartbeat monitor for a game."""
         self._start(f"game:{game_id}", game_id, "game", get_game)
 
-    def start_for_room(self, room_id: str, get_room: EntityResolver) -> None:
-        """Start the heartbeat monitor for a room."""
-        self._start(f"room:{room_id}", room_id, "room", get_room)
-
     async def stop_for_game(self, game_id: str) -> None:
         """Stop the heartbeat monitor for a game."""
         await self._stop(f"game:{game_id}")
-
-    async def stop_for_room(self, room_id: str) -> None:
-        """Stop the heartbeat monitor for a room."""
-        await self._stop(f"room:{room_id}")
 
     def _start(self, key: str, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
         existing = self._tasks.get(key)
@@ -81,7 +72,7 @@ class HeartbeatMonitor:
                 await task
 
     async def _check_loop(self, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
-        """Periodically check for stale connections in a game or room."""
+        """Periodically check for stale connections in a game."""
         while True:
             await asyncio.sleep(HEARTBEAT_CHECK_INTERVAL)
             entity = get_entity(entity_id)

@@ -8,8 +8,10 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.types import PlayerStanding
+from game.server.types import PlayerSpec
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
+from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
 
 from .helpers import make_game_with_player
@@ -53,12 +55,13 @@ async def _create_started_game_with_collector(
     manager: SessionManager,
     game_id: str = "game1",
 ) -> list[MockConnection]:
-    """Create a started game through the room flow for replay tests."""
-    manager.create_room(game_id, num_ai_players=3)
+    """Create a started game through the pending game flow for replay tests."""
+    ticket = make_test_game_ticket("Alice", game_id, user_id="user-0")
+    specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+    manager.create_pending_game(game_id, specs, num_ai_players=3)
     conn = MockConnection()
     manager.register_connection(conn)
-    await manager.join_room(conn, game_id, "Alice")
-    await manager.set_ready(conn, ready=True)
+    await manager.join_game(conn, game_id, ticket)
     conn._outbox.clear()
     return [conn]
 
@@ -73,18 +76,6 @@ class TestSessionReplayStart:
 
         seed = game_service.get_game_seed("game1")
         collector.start_game.assert_called_once_with("game1", seed, "pcg64dxsm-v1")
-
-    def test_create_room_does_not_call_collector_start(self):
-        """Replay collector start_game is NOT called during create_room (seed not yet known)."""
-        manager, collector, _game_service = _make_manager_with_collector()
-        manager.create_room("game1", num_ai_players=3)
-        collector.start_game.assert_not_called()
-
-    def test_create_room_without_collector(self):
-        """No error when replay collector is not configured."""
-        game_service = MockGameService()
-        manager = SessionManager(game_service)
-        manager.create_room("game1")  # should not raise
 
 
 class TestSessionReplayCollect:
@@ -157,11 +148,12 @@ class TestSessionReplayCleanup:
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
-        manager.create_room("game1", num_ai_players=3)
+        ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+        manager.create_pending_game("game1", specs, num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_room(conn, "game1", "Alice")
-        await manager.set_ready(conn, ready=True)
+        await manager.join_game(conn, "game1", ticket)
 
         await manager.leave_game(conn)  # should not raise
 
