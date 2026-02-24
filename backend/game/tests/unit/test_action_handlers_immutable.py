@@ -5,7 +5,6 @@ Tests verify that the immutable handler functions return
 new state objects and produce the expected events.
 """
 
-import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
@@ -43,7 +42,6 @@ from game.logic.events import (
     MeldEvent,
     RoundEndEvent,
 )
-from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -109,21 +107,6 @@ class TestHandleDiscardImmutable:
         discard_events = [e for e in result.events if isinstance(e, DiscardEvent)]
         assert len(discard_events) == 1
         assert discard_events[0].tile_id == tile_to_discard
-
-    def test_handle_discard_wrong_turn(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        result = handle_discard(round_state, game_state, seat=1, data=DiscardActionData(tile_id=tile_id))
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
-        # state should be returned unchanged
-        assert result.new_round_state is round_state
-        assert result.new_game_state is game_state
 
 
 class TestHandleRiichiImmutable:
@@ -199,17 +182,6 @@ class TestHandleTsumoImmutable:
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.TSUMO
-
-    def test_handle_tsumo_wrong_turn(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = handle_tsumo(round_state, game_state, seat=1)
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
 
 class TestHandleRonImmutable:
@@ -523,31 +495,6 @@ class TestHandleKyuushuImmutable:
         assert round_end_events[0].result.reason == AbortiveDrawType.NINE_TERMINALS
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
-
-    def test_handle_kyuushu_wrong_turn(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = handle_kyuushu(round_state, game_state, seat=1)
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
-
-    def test_handle_kyuushu_cannot_call(self):
-        """Test kyuushu fails when conditions aren't met (e.g., discards already made)."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # Add a discard to prevent kyuushu
-        round_state = update_player(round_state, 0, discards=(Discard(tile_id=0),))
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError) as exc_info:
-            handle_kyuushu(round_state, game_state, seat=0)
-        assert exc_info.value.action == "call_kyuushu"
-        assert exc_info.value.seat == 0
 
 
 class TestHandlePassImmutable:

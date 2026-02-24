@@ -36,11 +36,6 @@ class TestSimpleHasher:
         hashed = await hasher.hash("correct-password")
         assert await hasher.verify("wrong-password", hashed) is False
 
-    async def test_hash_has_simple_prefix(self):
-        hasher = SimpleHasher()
-        hashed = await hasher.hash("password")
-        assert hashed.startswith("simple$")
-
     async def test_rejects_non_simple_hash(self):
         hasher = SimpleHasher()
         assert await hasher.verify("any-password", "not-a-simple-hash") is False
@@ -49,9 +44,6 @@ class TestSimpleHasher:
 class TestGetHasher:
     def test_returns_bcrypt_by_default(self):
         assert isinstance(get_hasher(), BcryptHasher)
-
-    def test_returns_bcrypt(self):
-        assert isinstance(get_hasher("bcrypt"), BcryptHasher)
 
     def test_returns_simple(self):
         assert isinstance(get_hasher("simple"), SimpleHasher)

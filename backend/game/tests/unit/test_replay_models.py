@@ -30,22 +30,6 @@ class TestReplayInputValidation:
                 events=(),
             )
 
-    def test_rejects_fewer_than_4_names(self):
-        with pytest.raises(ValidationError):
-            ReplayInput(
-                seed="a" * 192,
-                player_names=("Alice", "Bob", "Charlie"),
-                events=(),
-            )
-
-    def test_rejects_more_than_4_names(self):
-        with pytest.raises(ValidationError):
-            ReplayInput(
-                seed="a" * 192,
-                player_names=("A", "B", "C", "D", "E"),
-                events=(),
-            )
-
     def test_rejects_unknown_player_in_events(self):
         with pytest.raises(ValidationError, match="unknown player_name"):
             ReplayInput(
@@ -63,15 +47,13 @@ class TestReplayInputValidation:
         with pytest.raises(ValidationError, match="exactly 136 tiles"):
             ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=(1, 2, 3))
 
-    def test_rejects_wall_invalid_tile_ids(self):
-        wall = tuple(range(1, 137))
+    def test_rejects_invalid_wall(self):
+        # Shifted tile IDs (1-136 instead of 0-135)
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
-            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=wall)
-
-    def test_rejects_wall_duplicate_tile_ids(self):
-        wall = (0,) * 136
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=tuple(range(1, 137)))
+        # Duplicate tile IDs
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
-            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=wall)
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=(0,) * 136)
 
 
 class TestReplayError:

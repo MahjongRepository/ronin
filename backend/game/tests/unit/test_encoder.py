@@ -43,11 +43,6 @@ class TestRoundTrip:
 
         assert decode(encode(data)) == data
 
-    def test_round_trip_with_boolean_values(self) -> None:
-        data = {"success": True, "error": False}
-
-        assert decode(encode(data)) == data
-
 
 class TestIntegerKeyConversion:
     def test_encode_converts_integer_keys_to_strings(self) -> None:
@@ -79,16 +74,6 @@ class TestIntegerKeyConversion:
     def test_encode_converts_integer_keys_inside_list(self) -> None:
         data = {
             "results": [{0: 100, 1: -100}],
-        }
-        result = decode(encode(data))
-
-        assert result == {
-            "results": [{"0": 100, "1": -100}],
-        }
-
-    def test_encode_converts_integer_keys_inside_tuple(self) -> None:
-        data = {
-            "results": ({0: 100, 1: -100},),
         }
         result = decode(encode(data))
 

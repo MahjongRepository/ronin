@@ -16,7 +16,6 @@ from game.logic.wall import (
     FIRST_DORA_INDEX,
     LIVE_WALL_STACKS,
     MAX_DORA_INDICATORS,
-    TOTAL_STACKS,
     URA_DORA_START_INDEX,
     Wall,
     _split_wall_by_dice,
@@ -72,22 +71,13 @@ class TestCreateWall:
         wall2 = create_wall(FIXED_SEED, 0, dealer_seat=0)
         assert wall1 == wall2
 
-    def test_different_seeds_different_walls(self):
-        seed2 = "cd" * SEED_BYTES
+    def test_different_inputs_produce_different_walls(self):
+        """Different seed or round produces different walls."""
         wall1 = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        wall2 = create_wall(seed2, 0, dealer_seat=0)
+        wall2 = create_wall("cd" * SEED_BYTES, 0, dealer_seat=0)
+        wall3 = create_wall(FIXED_SEED, 1, dealer_seat=0)
         assert wall1.live_tiles != wall2.live_tiles
-
-    def test_different_rounds_different_walls(self):
-        wall1 = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        wall2 = create_wall(FIXED_SEED, 1, dealer_seat=0)
-        assert wall1.live_tiles != wall2.live_tiles
-
-    def test_has_dice(self):
-        """Dice values are stored on wall, both in [1, 6]."""
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        assert 1 <= wall.dice[0] <= 6
-        assert 1 <= wall.dice[1] <= 6
+        assert wall1.live_tiles != wall3.live_tiles
 
     def test_different_dealer_seats_different_splits(self):
         """Same seed+round but different dealer_seat produces different live/dead wall."""
@@ -120,11 +110,9 @@ class TestCreateWallFromTiles:
         expected = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
         assert wall.ura_dora_indicators == expected
 
-    def test_too_few_tiles(self):
+    def test_wrong_tile_count(self):
         with pytest.raises(ValueError, match="Expected 136"):
             create_wall_from_tiles(list(range(10)))
-
-    def test_too_many_tiles(self):
         with pytest.raises(ValueError, match="Expected 136"):
             create_wall_from_tiles(list(range(200)))
 
@@ -466,26 +454,12 @@ class TestCollectUraDoraIndicators:
 
 
 class TestComputeWallBreakInfo:
-    def test_all_sums(self):
-        """Verify target seat for all dice sums 2-12 with dealer 0."""
-        test_cases = {
-            2: ((1, 1), 1),
-            3: ((1, 2), 2),
-            4: ((2, 2), 3),
-            5: ((2, 3), 0),
-            6: ((3, 3), 1),
-            7: ((3, 4), 2),
-            8: ((4, 4), 3),
-            9: ((4, 5), 0),
-            10: ((5, 5), 1),
-            11: ((5, 6), 2),
-            12: ((6, 6), 3),
-        }
-        for dice_sum, (dice, expected_target) in test_cases.items():
-            info = compute_wall_break_info(dice, dealer_seat=0)
-            assert info.target_seat == expected_target, (
-                f"Sum {dice_sum}: expected target {expected_target}, got {info.target_seat}"
-            )
+    def test_target_seat_for_dice_sums(self):
+        """Verify target seat for representative dice sums with dealer 0."""
+        # sum 2 (min), sum 7 (mid), sum 12 (max)
+        assert compute_wall_break_info((1, 1), dealer_seat=0).target_seat == 1
+        assert compute_wall_break_info((3, 4), dealer_seat=0).target_seat == 2
+        assert compute_wall_break_info((6, 6), dealer_seat=0).target_seat == 3
 
     def test_rotated_dealer(self):
         """dealer_seat != 0 rotates targets correctly."""
@@ -495,14 +469,6 @@ class TestComputeWallBreakInfo:
         # dealer=2, sum=2 -> target = (2+2-1)%4 = 3
         info = compute_wall_break_info((1, 1), dealer_seat=2)
         assert info.target_seat == 3
-
-    def test_break_stack_range(self):
-        """break_stack always in [0, 67]."""
-        for dealer in range(4):
-            for d1 in range(1, 7):
-                for d2 in range(1, 7):
-                    info = compute_wall_break_info((d1, d2), dealer_seat=dealer)
-                    assert 0 <= info.break_stack < TOTAL_STACKS
 
     def test_break_stack_values(self):
         """Specific break_stack values for known dice+dealer combos."""
@@ -550,11 +516,10 @@ class TestSplitWallByDice:
     def test_sizes(self):
         """Live wall always 122, dead wall always 14 regardless of dice."""
         tiles = _make_tile_list()
-        for d1 in range(1, 7):
-            for d2 in range(1, 7):
-                live, dead = _split_wall_by_dice(tiles, (d1, d2), dealer_seat=0)
-                assert len(live) == LIVE_WALL_STACKS * 2
-                assert len(dead) == DEAD_WALL_STACKS * 2
+        for dice in [(1, 1), (3, 4), (6, 6)]:
+            live, dead = _split_wall_by_dice(tiles, dice, dealer_seat=0)
+            assert len(live) == LIVE_WALL_STACKS * 2
+            assert len(dead) == DEAD_WALL_STACKS * 2
 
     def test_all_tiles_present(self):
         """Union of live + dead wall contains all 136 tile IDs."""

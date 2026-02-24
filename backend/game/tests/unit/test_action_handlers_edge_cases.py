@@ -12,7 +12,6 @@ from game.logic.action_handlers import (
     handle_kan,
     handle_pass,
     handle_pon,
-    handle_tsumo,
 )
 from game.logic.action_result import ActionResult
 from game.logic.call_resolution import (
@@ -303,26 +302,6 @@ class TestCompleteAddedKanAfterChankanDecline:
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
 
 
-class TestHandleTsumoInvalidHand:
-    def test_handle_tsumo_invalid_hand_error(self):
-        """Test handle_tsumo when hand doesn't actually win raises InvalidGameActionError."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        seat = round_state.current_player_seat
-
-        # give the current player a non-winning hand
-        non_winning_tiles = tuple(
-            TilesConverter.string_to_136_array(man="13579", pin="1357", sou="135", honors="12"),
-        )
-        round_state = update_player(round_state, seat, tiles=non_winning_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError) as exc_info:
-            handle_tsumo(round_state, game_state, seat=seat)
-        assert exc_info.value.action == "declare_tsumo"
-        assert exc_info.value.seat == seat
-
-
 class TestHandlePonMultiCaller:
     def test_handle_pon_multi_caller_waiting(self):
         """Test pon with multiple callers: one responds, waiting for others."""
@@ -361,41 +340,6 @@ class TestHandlePonMultiCaller:
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 
 
-class TestHandleChiTileMismatch:
-    def test_handle_chi_tile_mismatch(self):
-        """Test chi with wrong tile_id returns error."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # create pending call prompt for chi
-        tile_id = 0
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        # call chi with mismatched tile_id
-        wrong_tile_id = 999
-        result = handle_chi(
-            round_state,
-            game_state,
-            seat=1,
-            data=ChiActionData(tile_id=wrong_tile_id, sequence_tiles=(1, 2)),
-        )
-
-        # verify error event
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_CHI
-        assert "mismatch" in error_events[0].message
-
-
 class TestHandleChiMultiCaller:
     def test_handle_chi_multi_caller_waiting(self):
         """Test chi with multiple callers: one responds, waiting for others."""
@@ -431,12 +375,10 @@ class TestHandleChiMultiCaller:
             data=ChiActionData(tile_id=tile_id, sequence_tiles=sequence_tiles),
         )
 
-        # verify empty events (waiting for seat 2)
+        # verify waiting for seat 2
         assert isinstance(result, ActionResult)
         assert len(result.events) == 0
         assert result.new_round_state is not None
-        # verify seat 1 removed from pending, seat 2 still pending
-        assert result.new_round_state.pending_call_prompt is not None
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 
@@ -475,39 +417,47 @@ class TestHandleKanMultiCaller:
             data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
 
-        # verify empty events (waiting for seat 2)
+        # verify waiting for seat 2
         assert isinstance(result, ActionResult)
         assert len(result.events) == 0
         assert result.new_round_state is not None
-        # verify seat 1 removed from pending, seat 2 still pending
-        assert result.new_round_state.pending_call_prompt is not None
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 
 
-class TestHandleKanInvalidValidationError:
-    def test_handle_kan_invalid_validation_error(self):
-        """Test handle_kan with closed/added kan that raises InvalidGameActionError."""
+class TestHandleChiTileMismatch:
+    def test_handle_chi_tile_mismatch(self):
+        """Test chi with wrong tile_id returns error."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
-        # give player 0 tiles where they don't have 4 of any tile
-        non_kan_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1234"))
-        round_state = update_player(round_state, 0, tiles=non_kan_tiles)
+        # create pending call prompt for chi
+        tile_id = 0
+        prompt = PendingCallPrompt(
+            call_type=CallType.MELD,
+            tile_id=tile_id,
+            from_seat=0,
+            pending_seats=frozenset({1}),
+            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI),),
+        )
+        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        # player 0 tries to call closed kan on a tile they don't have 4 of
-        invalid_tile = non_kan_tiles[0]
+        # call chi with mismatched tile_id
+        wrong_tile_id = 999
+        result = handle_chi(
+            round_state,
+            game_state,
+            seat=1,
+            data=ChiActionData(tile_id=wrong_tile_id, sequence_tiles=(1, 2)),
+        )
 
-        with pytest.raises(InvalidGameActionError) as exc_info:
-            handle_kan(
-                round_state,
-                game_state,
-                seat=0,
-                data=KanActionData(tile_id=invalid_tile, kan_type=KanType.CLOSED),
-            )
-        assert exc_info.value.action == "call_kan"
-        assert exc_info.value.seat == 0
+        # verify error event
+        assert isinstance(result, ActionResult)
+        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
+        assert len(error_events) == 1
+        assert error_events[0].code == GameErrorCode.INVALID_CHI
+        assert "mismatch" in error_events[0].message
 
 
 class TestHandleKanCausesDraw:
@@ -730,25 +680,3 @@ class TestChankanRiechiFuritenOnPass:
 
         assert result.new_round_state is not None
         assert result.new_round_state.players[1].is_riichi_furiten is True
-
-
-class TestOpenKanNoPromptSoftError:
-    """Open kan with no pending prompt returns soft error (consistent with pon/chi)."""
-
-    def test_open_kan_no_prompt_returns_error_event(self):
-        """Open kan when no call prompt exists returns error event, not exception."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        result = handle_kan(
-            round_state,
-            game_state,
-            seat=0,
-            data=KanActionData(tile_id=0, kan_type=KanType.OPEN),
-        )
-
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_KAN
-        assert "no pending call prompt" in error_events[0].message

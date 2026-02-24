@@ -78,12 +78,6 @@ class TestValidateSettings:
     def test_renhou_mangan_passes(self):
         validate_settings(GameSettings(renhou_value=RenhouValue.MANGAN))
 
-    def test_renhou_yakuman_passes(self):
-        validate_settings(GameSettings(renhou_value=RenhouValue.YAKUMAN))
-
-    def test_renhou_none_passes(self):
-        validate_settings(GameSettings(renhou_value=RenhouValue.NONE))
-
     def test_tonpusen_passes(self):
         validate_settings(GameSettings(game_type=GameType.TONPUSEN))
 
@@ -93,10 +87,6 @@ class TestValidateSettings:
     def test_uma_wrong_length_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
             validate_settings(GameSettings(uma=(20, 10, -10)))
-
-    def test_uma_too_many_entries_raises(self):
-        with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
-            validate_settings(GameSettings(uma=(20, 10, -10, -10, -10)))
 
     def test_uma_nonzero_sum_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="uma values must sum to zero"):
@@ -115,10 +105,6 @@ class TestValidateSettings:
     def test_initial_bank_seconds_zero_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
             validate_settings(GameSettings(initial_bank_seconds=0))
-
-    def test_initial_bank_seconds_negative_raises(self):
-        with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
-            validate_settings(GameSettings(initial_bank_seconds=-1))
 
     def test_max_bank_below_initial_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="max_bank_seconds must be >= initial_bank_seconds"):

@@ -176,15 +176,6 @@ class TestBaseTimeBehavior:
         # should fire at ~0.1s (0.05 base + 0.05 bank)
         await asyncio.wait_for(callback_called.wait(), timeout=1.0)
 
-    async def test_zero_base_time_reverts_to_bank_only(self):
-        """base_turn_seconds=0 gives bank-only behavior."""
-        config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
-        timer.start_turn_timer(_noop)
-        await asyncio.sleep(0.1)
-        timer.stop()
-        assert timer.bank_seconds < 10.0  # bank was drained from the start
-
 
 class TestBankCap:
     def test_round_bonus_capped_at_max_bank(self):

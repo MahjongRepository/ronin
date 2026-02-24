@@ -11,10 +11,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 from game.logic.wall import Wall
-from game.logic.win import (
-    _has_yaku_for_open_hand,
-    is_chankan_possible,
-)
+from game.logic.win import _has_yaku_for_open_hand, is_chankan_possible
 
 
 class TestIsChankanPossible:
@@ -257,5 +254,4 @@ class TestHasYakuForOpenHandEmptyTiles:
             round_wind=0,
             wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
-        result = _has_yaku_for_open_hand(player, round_state, GameSettings())
-        assert result is False
+        assert _has_yaku_for_open_hand(player, round_state, GameSettings()) is False

@@ -1,9 +1,8 @@
 """Unit tests for MahjongGameService lifecycle and service-level edge cases."""
 
 import pytest
-from pydantic import ValidationError
 
-from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase, RoundPhase
+from game.logic.enums import CallType, GameErrorCode, GamePhase, RoundPhase
 from game.logic.events import (
     ErrorEvent,
     EventType,
@@ -123,14 +122,6 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
         ai_player_controller = service._ai_player_controllers["game1"]
         assert len(ai_player_controller._ai_players) == 4
 
-    async def test_replace_without_ai_player_controller_is_safe(self, service):
-        """Replacing a player when AI player controller is missing does nothing."""
-        await service.start_game("game1", ["Alice"])
-
-        del service._ai_player_controllers["game1"]
-
-        service.replace_with_ai_player("game1", "Alice")
-
 
 class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
     """Tests for process_ai_player_actions_after_replacement() complex flows."""
@@ -138,12 +129,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
-
-    async def test_nonexistent_game_returns_empty(self, service):
-        """Processing AI player actions for a nonexistent game returns empty list."""
-        events = await service.process_ai_player_actions_after_replacement("nonexistent", seat=0)
-
-        assert events == []
 
     async def test_non_playing_phase_returns_empty(self, service):
         """Processing AI player actions when round is not PLAYING returns empty list."""
@@ -277,7 +262,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 class TestSeedDeterminism:
     """Verify that start_game with same seed produces deterministic results."""
 
-    async def test_same_seed_produces_deterministic_seats(self):
+    async def test_same_seed_produces_deterministic_game(self):
         service1 = MahjongGameService()
         service2 = MahjongGameService()
 
@@ -290,16 +275,6 @@ class TestSeedDeterminism:
         names1 = [p.name for p in state1.round_state.players]
         names2 = [p.name for p in state2.round_state.players]
         assert names1 == names2
-
-    async def test_same_seed_produces_deterministic_wall(self):
-        service1 = MahjongGameService()
-        service2 = MahjongGameService()
-
-        await service1.start_game("game1", ["Player"], seed="b" * 192)
-        await service2.start_game("game2", ["Player"], seed="b" * 192)
-
-        state1 = service1._games["game1"]
-        state2 = service2._games["game2"]
 
         tiles1 = [p.tiles for p in state1.round_state.players]
         tiles2 = [p.tiles for p in state2.round_state.players]
@@ -432,36 +407,6 @@ class TestMahjongGameServiceInvalidSeed:
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
-        assert "int" in events[0].data.message
-
-
-class TestDispatchActionBranches:
-    """Covers _dispatch_action routing branches for no-data actions and data=None fallback."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    @pytest.mark.parametrize(
-        "action",
-        [GameAction.DECLARE_TSUMO, GameAction.CALL_RON, GameAction.CALL_KYUUSHU],
-    )
-    async def test_dispatch_no_data_actions(self, service, action):
-        """No-data dispatch branches (TSUMO, RON, KYUUSHU) return a result."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, action)
-        assert result is not None
-
-    async def test_dispatch_data_action_with_none_data(self, service):
-        """data=None is coerced to empty dict before dispatching data actions."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        # data=None -> {} -> ValidationError on required field, proving the None->dict coercion runs
-        with pytest.raises(ValidationError):
-            service._dispatch_action(game_state, 0, GameAction.DISCARD, None)
 
 
 class TestServiceGuardClauses:
@@ -480,6 +425,18 @@ class TestServiceGuardClauses:
     async def test_get_pending_names_no_advance_pending(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         assert service.get_pending_round_advance_player_names("game1") == []
+
+    async def test_find_player_seat_nonexistent_game(self, service):
+        assert service._find_player_seat("nonexistent", "Player") is None
+
+    async def test_process_ai_actions_nonexistent_game(self, service):
+        events = await service.process_ai_player_actions_after_replacement("nonexistent", seat=0)
+        assert events == []
+
+    async def test_replace_without_ai_player_controller_is_safe(self, service):
+        await service.start_game("game1", ["Alice"], seed="a" * 192)
+        del service._ai_player_controllers["game1"]
+        service.replace_with_ai_player("game1", "Alice")
 
 
 class TestMahjongGameServiceRestoreHumanPlayer:
@@ -517,12 +474,6 @@ class TestMahjongGameServiceRestoreHumanPlayer:
         """Restoring in a nonexistent game does nothing."""
         service.restore_human_player("nonexistent", 0)
 
-    async def test_restore_without_controller_is_safe(self, service):
-        """Restoring when AI controller is missing does nothing."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        del service._ai_player_controllers["game1"]
-        service.restore_human_player("game1", 0)
-
 
 class TestMahjongGameServiceBuildReconnectionSnapshot:
     """Tests for build_reconnection_snapshot()."""
@@ -531,74 +482,33 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
     def service(self):
         return MahjongGameService()
 
-    async def test_snapshot_contains_correct_game_id(self, service):
+    async def test_snapshot_contains_full_game_state(self, service):
+        """Snapshot includes all fields needed for reconnection."""
         await service.start_game("game1", ["Alice"], seed="a" * 192)
-        player = _find_player(service._games["game1"].round_state, "Alice")
+        game_state = service._games["game1"]
+        player = _find_player(game_state.round_state, "Alice")
 
         snapshot = service.build_reconnection_snapshot("game1", player.seat)
 
         assert snapshot is not None
         assert snapshot.game_id == "game1"
-
-    async def test_snapshot_contains_player_tiles(self, service):
-        """Snapshot includes the reconnecting player's hand tiles."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
         assert snapshot.my_tiles == list(player.tiles)
-
-    async def test_snapshot_contains_all_player_states(self, service):
-        """Snapshot includes state for all 4 players."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        player = _find_player(service._games["game1"].round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
         assert len(snapshot.player_states) == 4
         assert len(snapshot.players) == 4
-
-    async def test_snapshot_round_info(self, service):
-        """Snapshot contains round wind, round number, dealer seat, and dice."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
         assert snapshot.dealer_seat == game_state.round_state.dealer_seat
         assert snapshot.dealer_dice == game_state.dealer_dice
         assert snapshot.round_number == game_state.round_number
         assert snapshot.current_player_seat == game_state.round_state.current_player_seat
-
-    async def test_snapshot_dora_and_sticks(self, service):
-        """Snapshot contains dora indicators, honba sticks, and riichi sticks."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
         assert snapshot.dora_indicators == list(game_state.round_state.wall.dora_indicators)
         assert snapshot.honba_sticks == game_state.honba_sticks
         assert snapshot.riichi_sticks == game_state.riichi_sticks
-
-    async def test_snapshot_tiles_remaining(self, service):
-        """Snapshot includes the number of tiles remaining in the wall."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
         assert snapshot.tiles_remaining == len(game_state.round_state.wall.live_tiles)
+        for ps in snapshot.player_states:
+            assert isinstance(ps.discards, list)
+            assert isinstance(ps.melds, list)
+            assert isinstance(ps.is_riichi, bool)
+            game_player = game_state.round_state.players[ps.seat]
+            assert ps.score == game_player.score
 
     async def test_snapshot_reflects_ai_status_after_restore(self, service):
         """After restore_human_player, the snapshot marks the seat as non-AI."""
@@ -618,32 +528,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
     async def test_snapshot_nonexistent_game_returns_none(self, service):
         assert service.build_reconnection_snapshot("nonexistent", 0) is None
 
-    async def test_snapshot_discards_and_melds(self, service):
-        """Snapshot contains discard and meld info for each player."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        player = _find_player(service._games["game1"].round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
-        for ps in snapshot.player_states:
-            assert isinstance(ps.discards, list)
-            assert isinstance(ps.melds, list)
-            assert isinstance(ps.is_riichi, bool)
-
-    async def test_snapshot_scores(self, service):
-        """Snapshot player_states contain correct scores."""
-        await service.start_game("game1", ["Alice"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Alice")
-
-        snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
-        assert snapshot is not None
-        for ps in snapshot.player_states:
-            game_player = game_state.round_state.players[ps.seat]
-            assert ps.score == game_player.score
-
 
 class TestMahjongGameServiceBuildDrawEventForSeat:
     """Tests for build_draw_event_for_seat()."""
@@ -653,7 +537,7 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         return MahjongGameService()
 
     async def test_returns_draw_event_for_current_player(self, service):
-        """Returns a draw event when it's the given seat's turn."""
+        """Returns a draw event targeted to the current player's seat."""
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
         game_state = service._games["game1"]
         current_seat = game_state.round_state.current_player_seat
@@ -662,6 +546,8 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
 
         assert len(events) == 1
         assert events[0].event == EventType.DRAW
+        assert isinstance(events[0].target, SeatTarget)
+        assert events[0].target.seat == current_seat
 
     async def test_returns_empty_for_non_current_player(self, service):
         """Returns empty when it's not the given seat's turn."""
@@ -671,10 +557,6 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
 
         events = service.build_draw_event_for_seat("game1", other_seat)
 
-        assert events == []
-
-    async def test_returns_empty_for_nonexistent_game(self, service):
-        events = service.build_draw_event_for_seat("nonexistent", 0)
         assert events == []
 
     async def test_returns_empty_when_player_has_no_tiles(self, service):
@@ -688,14 +570,6 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         events = service.build_draw_event_for_seat("game1", current_seat)
         assert events == []
 
-    async def test_draw_event_targets_correct_seat(self, service):
-        """The draw event is targeted to the specific seat."""
-        await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
-        game_state = service._games["game1"]
-        current_seat = game_state.round_state.current_player_seat
-
-        events = service.build_draw_event_for_seat("game1", current_seat)
-
-        assert len(events) == 1
-        assert isinstance(events[0].target, SeatTarget)
-        assert events[0].target.seat == current_seat
+    async def test_returns_empty_for_nonexistent_game(self, service):
+        events = service.build_draw_event_for_seat("nonexistent", 0)
+        assert events == []

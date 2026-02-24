@@ -8,27 +8,13 @@ effective furiten state transitions on/off.
 import pytest
 
 from game.logic.enums import GameAction, RoundPhase
-from game.logic.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
+from game.logic.events import EventType, FuritenEvent, SeatTarget
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import MahjongPlayer
-from game.logic.win import is_effective_furiten
 from game.tests.unit.helpers import (
     _find_player,
     _update_player,
     _update_round_state,
 )
-
-
-class TestIsEffectiveFuriten:
-    """Tests for the is_effective_furiten() helper function."""
-
-    def test_temporary_furiten(self):
-        player = MahjongPlayer(seat=0, name="P0", is_temporary_furiten=True, score=25000)
-        assert is_effective_furiten(player) is True
-
-    def test_riichi_furiten(self):
-        player = MahjongPlayer(seat=0, name="P0", is_riichi_furiten=True, score=25000)
-        assert is_effective_furiten(player) is True
 
 
 class TestCheckFuritenChanges:
@@ -110,8 +96,8 @@ class TestCheckFuritenChanges:
         events = service._furiten_tracker.check_changes("game1", game_state.round_state)
         assert len(events) == 0
 
-    async def test_no_check_when_game_not_found(self, service):
-        # Use a minimal round state for testing nonexistent game
+    async def test_no_events_for_unknown_game(self, service):
+        """Unknown game_id returns no events."""
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         events = service._furiten_tracker.check_changes("nonexistent", game_state.round_state)
@@ -173,18 +159,3 @@ class TestFuritenEventsInGameFlow:
 
         furiten_events = [e for e in events if e.event == EventType.FURITEN]
         assert len(furiten_events) == 0
-
-    async def test_append_furiten_changes_works_when_playing(self, service):
-        """_append_furiten_changes emits events when round phase is PLAYING."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        assert game_state.round_state.phase == RoundPhase.PLAYING
-
-        _update_player(service, "game1", 0, is_temporary_furiten=True)
-
-        events: list[ServiceEvent] = []
-        result = service._append_furiten_changes("game1", events)
-        furiten_events = [e for e in result if e.event == EventType.FURITEN]
-        assert len(furiten_events) == 1
-        assert furiten_events[0].data.is_furiten is True

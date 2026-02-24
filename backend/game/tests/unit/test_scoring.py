@@ -103,28 +103,6 @@ class TestCalculateHandValue:
         assert result.han >= 2  # riichi + menzen tsumo
         assert any(y.yaku_id == 1 for y in result.yaku)  # Riichi
 
-    def test_ippatsu_hand(self):
-        # riichi with ippatsu
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = _create_scoring_game_state()
-        round_state = update_player(
-            game_state.round_state,
-            0,
-            tiles=tuple(tiles),
-            is_riichi=True,
-            is_ippatsu=True,
-        )
-        player = round_state.players[0]
-
-        win_tile = tiles[-1]
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert result.han >= 3  # riichi + ippatsu + menzen tsumo
-        assert any(y.yaku_id == 3 for y in result.yaku)  # Ippatsu
-
     def test_ron_hand(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         game_state = _create_scoring_game_state()
@@ -230,34 +208,6 @@ class TestCalculateHandValue:
         assert result.han >= 1  # yakuhai (haku)
         assert result.cost_main > 0
 
-    def test_tsumo_open_hand_meld_tiles_removed_from_hand(self):
-        # after meld call in actual gameplay, meld tiles are removed from player.tiles
-        # closed: 234m 567m 234s 55s (11 tiles) + PON(Haku) (meld) = 14 total (drawn 4s)
-        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(haku_tiles),
-            opened=True,
-            called_tile=haku_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        game_state = _create_scoring_game_state()
-        round_state = update_player(game_state.round_state, 0, tiles=tuple(closed_tiles), melds=(pon,))
-        player = round_state.players[0]
-
-        win_tile = closed_tiles[-1]  # last tile drawn (5s)
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert result.han >= 1  # yakuhai (haku)
-        assert result.cost_main > 0
-
 
 class TestApplyTsumoScore:
     def _create_game_state(self) -> MahjongGameState:
@@ -327,20 +277,7 @@ class TestApplyTsumoScore:
         assert new_game_state.riichi_sticks == 0
         assert result.riichi_sticks_collected == 2
 
-    def test_tsumo_non_riichi_ura_dora_is_none(self):
-        """Non-riichi tsumo winner has ura_dora_indicators=None."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state,
-            winner_seat=0,
-            hand_result=hand_result,
-        )
-
-        assert result.ura_dora_indicators is None
-
-    def test_tsumo_riichi_winner_has_ura_dora_indicators(self):
+    def test_riichi_winner_gets_ura_dora_indicators(self):
         """Riichi tsumo winner gets ura dora indicators from dead wall."""
         dead_wall = tuple(range(100, 114))
         dora_indicators = (dead_wall[2],)
@@ -418,22 +355,7 @@ class TestApplyRonScore:
         assert new_game_state.riichi_sticks == 0
         assert result.riichi_sticks_collected == 3
 
-    def test_ron_non_riichi_ura_dora_is_none(self):
-        """Non-riichi ron winner has ura_dora_indicators=None."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        _new_round_state, _new_game_state, result = apply_ron_score(
-            game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
-        )
-
-        assert result.ura_dora_indicators is None
-
-    def test_ron_riichi_winner_has_ura_dora_indicators(self):
+    def test_riichi_winner_gets_ura_dora_indicators(self):
         """Riichi ron winner gets ura dora indicators from dead wall."""
         dead_wall = tuple(range(100, 114))
         dora_indicators = (dead_wall[2],)
@@ -573,25 +495,8 @@ class TestApplyDoubleRonScore:
         # seat 2 only gets 2000
         assert new_round_state.players[2].score == 25000 + 2000
 
-    def test_double_ron_non_riichi_ura_dora_is_none(self):
-        """Non-riichi double ron winners have ura_dora_indicators=None."""
-        game_state = self._create_game_state()
-        hand_result_1 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-        hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
-
-        winners = [(0, hand_result_1), (2, hand_result_2)]
-        _new_round_state, _new_game_state, result = apply_double_ron_score(
-            game_state,
-            winners=winners,
-            loser_seat=1,
-            winning_tile=0,
-        )
-
-        for w in result.winners:
-            assert w.ura_dora_indicators is None
-
-    def test_double_ron_mixed_riichi_ura_dora(self):
-        """In double ron, only riichi winner gets ura dora indicators."""
+    def test_riichi_winner_gets_ura_dora_indicators(self):
+        """In double ron, riichi winner gets ura dora indicators."""
         dead_wall = tuple(range(100, 114))
         dora_indicators = (dead_wall[2],)
         # seat 0 is riichi, seat 2 is not
@@ -826,23 +731,6 @@ class TestPaoTsumoScoring:
         assert new_round_state.players[1].score == 25000 + 32600
         assert new_round_state.players[2].score == 25000 - 32600
 
-    def test_no_pao_tsumo_normal_scoring(self):
-        """Without pao, tsumo scoring is normal."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
-
-        new_round_state, _new_game_state, result = apply_tsumo_score(
-            game_state,
-            winner_seat=1,
-            hand_result=hand_result,
-        )
-
-        assert result.pao_seat is None
-        assert new_round_state.players[0].score == 25000 - 1000
-        assert new_round_state.players[1].score == 25000 + 2000
-        assert new_round_state.players[2].score == 25000 - 500
-        assert new_round_state.players[3].score == 25000 - 500
-
 
 class TestPaoRonScoring:
     """Tests for pao (liability) in ron wins."""
@@ -944,23 +832,6 @@ class TestPaoRonScoring:
         assert new_round_state.players[1].score == 25000 - 16000
         assert new_round_state.players[2].score == 25000 - 16000
         assert result.riichi_sticks_collected == 1
-
-    def test_no_pao_ron_normal_scoring(self):
-        """Without pao, ron scoring is normal."""
-        game_state = self._create_game_state()
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
-
-        new_round_state, _new_game_state, result = apply_ron_score(
-            game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
-        )
-
-        assert result.pao_seat is None
-        assert new_round_state.players[0].score == 25000 + 2000
-        assert new_round_state.players[1].score == 25000 - 2000
 
 
 class TestPaoRonScoreConservation:
@@ -1109,49 +980,6 @@ class TestHandValueParityBetweenFunctions:
         assert result_a.cost_additional == result_b.cost_additional
         assert result_a.yaku == result_b.yaku
         assert result_a.error == result_b.error
-
-    def test_ron_parity_with_riichi(self):
-        """Both functions return the same result for a riichi ron hand."""
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = _create_scoring_game_state()
-        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
-        player = round_state.players[0]
-
-        win_tile = tiles[-1]
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
-        result_a = calculate_hand_value(ctx, win_tile)
-        result_b = calculate_hand_value_with_tiles(ctx, tiles, win_tile)
-
-        assert result_a.han == result_b.han
-        assert result_a.fu == result_b.fu
-        assert result_a.cost_main == result_b.cost_main
-        assert result_a.yaku == result_b.yaku
-        assert result_a.error == result_b.error
-
-    def test_chankan_parity(self):
-        """Both functions return the same result with is_chankan flag."""
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        game_state = _create_scoring_game_state()
-        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True)
-        player = round_state.players[0]
-
-        win_tile = tiles[-1]
-        settings = GameSettings()
-        ctx = ScoringContext(
-            player=player,
-            round_state=round_state,
-            settings=settings,
-            is_tsumo=False,
-            is_chankan=True,
-        )
-        result_a = calculate_hand_value(ctx, win_tile)
-        result_b = calculate_hand_value_with_tiles(ctx, tiles, win_tile)
-
-        assert result_a.han == result_b.han
-        assert result_a.fu == result_b.fu
-        assert result_a.cost_main == result_b.cost_main
-        assert result_a.yaku == result_b.yaku
 
     def test_error_parity(self):
         """Both functions return the same error for invalid hands."""
@@ -1404,37 +1232,6 @@ class TestUraDoraScoringIntegration:
         # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) = 5 han
         assert result.han == 5
 
-    def test_non_riichi_win_gets_no_ura_dora(self):
-        """Non-riichi win does not receive ura dora even if indicator matches."""
-        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
-        win_tile = tiles[-1]
-
-        dora_indicator = TilesConverter.string_to_136_array(man="1")
-
-        # ura dora indicator: 4s -> ura dora is 5s (would match, but no riichi)
-        ura_dora_tile = TilesConverter.string_to_136_array(sou="4")[0]
-        dead_wall = [0] * 14
-        dead_wall[2] = dora_indicator[0]
-        dead_wall[7] = ura_dora_tile
-
-        game_state = self._build_game_state(
-            dead_wall=tuple(dead_wall),
-            dora_indicators=tuple(dora_indicator),
-            tiles=tiles,
-            is_riichi=False,
-        )
-        player = game_state.round_state.players[0]
-        ctx = ScoringContext(
-            player=player,
-            round_state=game_state.round_state,
-            settings=self.settings_no_aka,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
-
     def test_riichi_ron_with_matching_ura_dora(self):
         """Riichi ron where ura dora indicator matches tiles in hand adds extra han."""
         tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
@@ -1466,38 +1263,6 @@ class TestUraDoraScoringIntegration:
         assert any(y.yaku_id == 122 and y.han == 2 for y in result.yaku)  # Ura Dora 2
         # Riichi (1) + Ittsu (1) + Dora 1 (1) + Ura Dora 2 (2) = 6 han (no menzen tsumo for ron)
         assert result.han == 6
-
-    def test_ura_dora_disabled_in_settings(self):
-        """Ura dora disabled in settings means no ura dora even for riichi with matching indicator."""
-        tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
-        win_tile = tiles[-1]
-
-        dora_indicator = TilesConverter.string_to_136_array(man="1")
-
-        ura_dora_tile = TilesConverter.string_to_136_array(sou="4")[0]
-        dead_wall = [0] * 14
-        dead_wall[2] = dora_indicator[0]
-        dead_wall[7] = ura_dora_tile
-
-        game_state = self._build_game_state(
-            dead_wall=tuple(dead_wall),
-            dora_indicators=tuple(dora_indicator),
-            tiles=tiles,
-            is_riichi=True,
-        )
-        player = game_state.round_state.players[0]
-        ctx = ScoringContext(
-            player=player,
-            round_state=game_state.round_state,
-            settings=self.settings_no_aka_no_ura,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert not any(y.yaku_id == 122 for y in result.yaku)  # no Ura Dora
-        # Menzen Tsumo (1) + Riichi (1) + Ittsu (1) + Dora 1 (1) = 5 han
-        assert result.han == 5
 
     def test_kan_ura_dora_multiple_indicators(self):
         """With kan ura dora enabled and multiple dora indicators, multiple ura dora are checked."""

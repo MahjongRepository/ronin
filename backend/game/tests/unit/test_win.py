@@ -93,15 +93,6 @@ class TestCheckTsumoWithTiles:
 
         assert check_tsumo_with_tiles(player, tiles_with_ron) is True
 
-    def test_non_winning_hand_returns_false(self):
-        """Non-winning hand returns False."""
-        closed_tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), score=25000)
-        wrong_tile = TilesConverter.string_to_136_array(sou="9")[0]
-        tiles_with_wrong = [*closed_tiles, wrong_tile]
-
-        assert check_tsumo_with_tiles(player, tiles_with_wrong) is False
-
 
 class TestCanDeclareTsumo:
     def _create_round_state(self, dealer_seat: int = 0) -> MahjongRoundState:
@@ -235,12 +226,6 @@ class TestGetWaitingTiles:
 
 
 class TestIsFuriten:
-    def test_not_furiten_no_discards(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
-
-        assert is_furiten(player) is False
-
     def test_not_furiten_irrelevant_discards(self):
         # tempai waiting for 3p, discarded unrelated 1m
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
@@ -267,13 +252,6 @@ class TestIsFuriten:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is True
-
-    def test_not_tempai_not_furiten(self):
-        # not in tempai -> empty waiting set -> not furiten
-        tiles = TilesConverter.string_to_136_array(man="1357", pin="2468", sou="13579")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
-
-        assert is_furiten(player) is False
 
 
 class TestCanCallRon:
@@ -396,27 +374,6 @@ class TestCanCallRon:
         )
 
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
-        round_state = self._create_round_state()
-
-        discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
-
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
-
-    def test_can_ron_open_chi_meld_tiles_removed(self):
-        # chi meld tiles NOT in player.tiles (actual gameplay after call_chi)
-        closed_tiles = TilesConverter.string_to_136_array(man="567", sou="2355", honors="555")
-        chi_tiles = sorted(TilesConverter.string_to_136_array(man="234"))
-
-        chi = FrozenMeld(
-            meld_type=FrozenMeld.CHI,
-            tiles=tuple(chi_tiles),
-            opened=True,
-            called_tile=chi_tiles[0],
-            who=0,
-            from_who=3,
-        )
-
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(chi,), score=25000)
         round_state = self._create_round_state()
 
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]

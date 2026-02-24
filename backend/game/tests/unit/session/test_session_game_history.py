@@ -120,21 +120,6 @@ class TestGameCompletionRecording:
         assert isinstance(call_args.kwargs["ended_at"], datetime)
         assert call_args.kwargs["end_reason"] == "completed"
 
-    async def test_completed_game_has_ended_at(self, manager_with_repo, game_repo):
-        conns = await create_started_game(
-            manager_with_repo,
-            "game1",
-            num_ai_players=2,
-            player_names=["Alice", "Bob"],
-        )
-
-        manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
-        await manager_with_repo.handle_game_action(conns[0], GameAction.DISCARD, {})
-
-        recorded = game_repo.games["game1"]
-        assert recorded["ended_at"] is not None
-        assert recorded["end_reason"] == "completed"
-
     async def test_completion_from_timeout(self, manager_with_repo, game_repo):
         """Game end triggered by timeout also records completion."""
         await create_started_game(

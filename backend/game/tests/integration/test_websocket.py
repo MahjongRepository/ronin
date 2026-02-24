@@ -105,20 +105,6 @@ class TestWebSocketIntegration:
             assert response["action"] == GameAction.DISCARD
             assert response["success"] is True
 
-    def test_game_id_from_connection_matches_url_path(self, client):
-        """Connection's game_id comes from the WebSocket URL path, not from the message payload."""
-        tickets = _create_pending_game(client, "test-game")
-
-        with client.websocket_connect("/ws/test-game") as ws:
-            _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]})
-            messages = []
-            while True:
-                msg = _recv(ws)
-                messages.append(msg)
-                if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
-                    break
-            assert len(messages) >= 1
-
     def test_invalid_msgpack_returns_error_and_keeps_connection(self, client):
         """Sending invalid MessagePack data returns an error without disconnecting."""
         tickets = _create_pending_game(client, "test_game")

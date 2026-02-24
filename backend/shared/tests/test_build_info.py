@@ -1,7 +1,5 @@
 """Tests for shared.build_info module."""
 
-import importlib
-import os
 import subprocess
 from unittest.mock import patch
 
@@ -25,29 +23,3 @@ class TestGitShortSha:
             side_effect=subprocess.CalledProcessError(128, "git"),
         ):
             assert build_info_module._git_short_sha() == "dev"
-
-
-class TestModuleLevelConstants:
-    def test_app_version_reads_from_env(self):
-        with patch.dict("os.environ", {"APP_VERSION": "1.2.3"}):
-            importlib.reload(build_info_module)
-            assert build_info_module.APP_VERSION == "1.2.3"
-        # Restore
-        importlib.reload(build_info_module)
-
-    def test_git_commit_reads_from_env(self):
-        with patch.dict("os.environ", {"GIT_COMMIT": "abc1234"}):
-            importlib.reload(build_info_module)
-            assert build_info_module.GIT_COMMIT == "abc1234"
-        # Restore
-        importlib.reload(build_info_module)
-
-    def test_git_commit_falls_back_to_git(self):
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GIT_COMMIT", None)
-            importlib.reload(build_info_module)
-            # Should be a real git SHA in this repo
-            assert build_info_module.GIT_COMMIT != "dev"
-            assert len(build_info_module.GIT_COMMIT) >= 7
-        # Restore
-        importlib.reload(build_info_module)

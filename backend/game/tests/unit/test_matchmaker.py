@@ -126,20 +126,10 @@ class TestFillSeatsValidation:
         with pytest.raises(ValueError, match="empty or whitespace"):
             fill_seats(["  "])
 
-    def test_empty_name_among_valid_raises(self):
-        """Empty name mixed with valid names raises ValueError."""
-        with pytest.raises(ValueError, match="empty or whitespace"):
-            fill_seats(["Alice", ""])
-
     def test_ai_player_name_collision_raises(self):
         """Player named 'Tsumogiri 1' with 3 AI players raises ValueError."""
         with pytest.raises(ValueError, match="AI player names"):
             fill_seats(["Tsumogiri 1"])
-
-    def test_ai_player_name_collision_two_players(self):
-        """Player named 'Tsumogiri 1' with 2 AI players raises ValueError."""
-        with pytest.raises(ValueError, match="AI player names"):
-            fill_seats(["Alice", "Tsumogiri 1"])
 
     def test_no_collision_with_four_players(self):
         """'Tsumogiri 1' with 4 players (0 AI) is valid since no AI players are generated."""

@@ -2,14 +2,12 @@
 Unit tests for MahjongGameService round progression and AI player turns.
 
 Tests service-level handle_timeout branching (meld timeout, defensive guards,
-error paths), _process_ai_player_followup edge cases (nonexistent game, missing
-controller, finished phase, pending prompt, None action), _check_and_handle_round_end
-(not-finished, finished with result, finished without result),
+error paths), _process_ai_player_followup edge cases (pending prompt, None action),
+_check_and_handle_round_end (finished with result, finished without result),
 _process_post_discard branching (round-end-immediate, player-pending, AI-player-only,
 draw-for-next-player, post-draw-round-end, AI-player-call-resolution-round-end),
-_dispatch_ai_player_call_responses (no prompt, AI player action dispatch),
-_find_caller_info assertion path, timeout forced-state tests (turn on/off,
-empty tiles), and chankan prompt resolution leading to round end.
+_find_caller_info assertion path, timeout forced-state tests (turn on/off),
+and chankan prompt resolution leading to round end.
 """
 
 from unittest.mock import patch
@@ -174,13 +172,6 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
-
-    async def test_check_round_end_returns_false_when_not_finished(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        result = await service._check_and_handle_round_end("game1", [])
-
-        assert result is False
 
     async def test_check_round_end_returns_true_and_appends_events_when_finished(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -457,22 +448,6 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         assert len(result) >= 1
 
 
-class TestMahjongGameServiceDispatchAIPlayerCallResponses:
-    """Tests for _dispatch_ai_player_call_responses edge cases."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_dispatch_ai_player_call_responses_no_pending_prompt(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events: list[ServiceEvent] = []
-        service._dispatch_ai_player_call_responses("game1", events)
-
-        assert events == []
-
-
 class TestMahjongGameServiceFindCallerInfo:
     """Tests for _find_caller_info assertion path."""
 
@@ -722,10 +697,6 @@ class TestFindTimeoutDiscardTile:
     def _make_player(self, tiles: tuple[int, ...], kuikae_tiles: tuple[int, ...] = ()) -> MahjongPlayer:
         return MahjongPlayer(seat=0, name="Test", tiles=tiles, kuikae_tiles=kuikae_tiles, score=25000)
 
-    def test_no_tiles_returns_none(self):
-        player = self._make_player(tiles=())
-        assert _find_timeout_discard_tile(player) is None
-
     def test_no_kuikae_returns_last_tile(self):
         """Without kuikae restrictions, returns the last tile (tsumogiri)."""
         player = self._make_player(tiles=(10, 20, 30))
@@ -769,10 +740,7 @@ class TestTurnTimeoutKuikaeIntegration:
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
-        # Simulate a pon call state: 11 tiles in hand, kuikae restriction active
-        # The last tile has tile_34 that matches kuikae, so timeout must skip it
         hand_tiles = list(player.tiles[:11])
-        # Make the last tile have the same tile_34 as the kuikae restriction
         last_tile = hand_tiles[-1]
         kuikae_34 = tile_to_34(last_tile)
 
@@ -787,7 +755,6 @@ class TestTurnTimeoutKuikaeIntegration:
 
         events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
 
-        # Should produce discard events (not empty due to kuikae)
         discard_events = [e for e in events if e.event == EventType.DISCARD]
         assert len(discard_events) >= 1
 
@@ -822,7 +789,6 @@ class TestAIPlayerTsumogiriFallbackKuikae:
         )
         _update_round_state(service, "game1", current_player_seat=ai_seat)
 
-        # The fallback should use _find_timeout_discard_tile and skip the kuikae-restricted tile
         result = await service._ai_player_tsumogiri_fallback("game1", ai_seat)
 
         assert result is not None
@@ -849,9 +815,6 @@ class TestServiceGuardClauses:
 
     async def test_meld_timeout_game_cleaned_up(self, service):
         assert await service._handle_meld_timeout("nonexistent", "Player", 0) == []
-
-    async def test_find_player_seat_nonexistent_game(self, service):
-        assert service._find_player_seat("nonexistent", "Player") is None
 
     async def test_process_ai_followup_no_controller(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)

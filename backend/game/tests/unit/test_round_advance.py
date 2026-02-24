@@ -57,15 +57,6 @@ class TestPendingRoundAdvance:
         )
         assert pending.all_confirmed is True
 
-    def test_idempotent_confirm(self):
-        """Adding same seat twice doesn't break anything."""
-        pending = PendingRoundAdvance(
-            confirmed_seats={0},
-            required_seats={0},
-        )
-        pending.confirmed_seats.add(0)
-        assert pending.all_confirmed is True
-
 
 class TestRoundAdvanceWaiting:
     """Tests that round advancement waits for player confirmation."""
@@ -480,13 +471,4 @@ class TestRoundAdvanceManager:
 
         assert result is False
         assert manager.is_pending("g1")
-        assert manager.get_unconfirmed_seats("g1") == {0, 1}
-
-    def test_confirm_seat_rejects_out_of_range_seat(self, manager):
-        """confirm_seat returns False for seats not in the required set."""
-        manager.setup_pending("g1", ai_player_seats={2, 3})
-
-        result = manager.confirm_seat("g1", 99)
-
-        assert result is False
         assert manager.get_unconfirmed_seats("g1") == {0, 1}

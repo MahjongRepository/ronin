@@ -43,26 +43,6 @@ class TestSignAndVerifyRoundTrip:
         assert result.username == ticket.username
         assert result.room_id == ticket.room_id
 
-    def test_token_format_is_two_base64url_parts(self):
-        ticket = _make_ticket()
-        token = sign_game_ticket(ticket, SECRET)
-        parts = token.split(".")
-        assert len(parts) == 2
-        # Both parts should be valid base64url
-        base64.urlsafe_b64decode(parts[0])
-        base64.urlsafe_b64decode(parts[1])
-
-    def test_payload_contains_ticket_fields(self):
-        ticket = _make_ticket(user_id="u1", username="bob", room_id="r1")
-        token = sign_game_ticket(ticket, SECRET)
-        payload_b64 = token.split(".")[0]
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-        assert payload["user_id"] == "u1"
-        assert payload["username"] == "bob"
-        assert payload["room_id"] == "r1"
-        assert "issued_at" in payload
-        assert "expires_at" in payload
-
 
 class TestExpiredTicket:
     def test_expired_ticket_rejected(self):

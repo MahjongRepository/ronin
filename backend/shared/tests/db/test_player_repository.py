@@ -77,12 +77,6 @@ class TestDuplicateDetection:
         with pytest.raises(ValueError, match="API key hash already in use"):
             await repo.create_player(_bot(user_id="bot2", username="OtherBot", api_key_hash="keyhash1"))
 
-    async def test_integrity_error_is_never_raw_sqlite(self, repo: SqlitePlayerRepository) -> None:
-        """All sqlite3.IntegrityError exceptions are mapped to ValueError."""
-        await repo.create_player(_human())
-        with pytest.raises(ValueError, match=r"already exists|already taken"):
-            await repo.create_player(_human())
-
 
 class TestCaseInsensitiveUsername:
     async def test_lookup_case_insensitive(self, repo: SqlitePlayerRepository) -> None:

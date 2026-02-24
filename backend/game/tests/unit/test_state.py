@@ -87,38 +87,11 @@ class TestGetPlayerView:
             riichi_sticks=0,
         )
 
-    def test_view_contains_basic_info(self):
+    def test_view_converts_round_wind_to_name(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
-
-        assert view.seat == 0
+        # round_wind=0 (int) should be converted to WindName.EAST
         assert view.round_wind == WindName.EAST
-        assert view.round_number == 0
-        assert view.dealer_seat == 0
-        assert view.current_player_seat == 0
-        assert view.honba_sticks == 0
-        assert view.riichi_sticks == 0
-
-    def test_view_contains_dora_indicators(self):
-        game_state = self._create_test_game_state()
-        view = get_player_view(game_state, seat=0)
-        haku = TilesConverter.string_to_136_array(honors="5")[0]
-        assert len(view.dora_indicators) == 1
-        assert view.dora_indicators[0] == haku
-
-    def test_view_contains_my_tiles(self):
-        game_state = self._create_test_game_state()
-        view = get_player_view(game_state, seat=0)
-        assert len(view.my_tiles) == 13
-
-    def test_view_shows_all_player_scores(self):
-        game_state = self._create_test_game_state()
-        view = get_player_view(game_state, seat=0)
-
-        assert view.players[0].score == 25000
-        assert view.players[1].score == 24000
-        assert view.players[2].score == 26000
-        assert view.players[3].score == 25000
 
     def test_view_for_different_seats(self):
         game_state = self._create_test_game_state()

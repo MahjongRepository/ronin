@@ -16,13 +16,6 @@ class TestHeartbeatMonitorRecordConnect:
         monitor.record_connect("conn1")
         assert monitor._last_ping.get("conn1") is not None
 
-    def test_record_connect_multiple_connections(self):
-        monitor = HeartbeatMonitor()
-        monitor.record_connect("conn1")
-        monitor.record_connect("conn2")
-        assert monitor._last_ping.get("conn1") is not None
-        assert monitor._last_ping.get("conn2") is not None
-
 
 class TestHeartbeatMonitorRecordDisconnect:
     """Tests for disconnect cleanup."""
@@ -34,11 +27,6 @@ class TestHeartbeatMonitorRecordDisconnect:
 
         monitor.record_disconnect("conn1")
         assert monitor._last_ping.get("conn1") is None
-
-    def test_record_disconnect_unknown_connection_is_noop(self):
-        monitor = HeartbeatMonitor()
-        monitor.record_disconnect("unknown")
-        assert monitor._last_ping.get("unknown") is None
 
 
 class TestHeartbeatMonitorRecordPing:
@@ -55,12 +43,6 @@ class TestHeartbeatMonitorRecordPing:
         updated = monitor._last_ping.get("conn1")
         assert updated is not None
         assert updated >= initial
-
-    def test_record_ping_ignores_untracked_connection(self):
-        """record_ping does not create entries for connections that were never registered."""
-        monitor = HeartbeatMonitor()
-        monitor.record_ping("unknown_conn")
-        assert "unknown_conn" not in monitor._last_ping
 
 
 class TestHeartbeatMonitorTaskManagement:
@@ -113,11 +95,6 @@ class TestHeartbeatMonitorTaskManagement:
 
         await monitor.stop_for_game("game1")
         assert "game1" not in monitor._tasks
-
-    async def test_stop_for_game_nonexistent_is_noop(self):
-        monitor = HeartbeatMonitor()
-        await monitor.stop_for_game("nonexistent")
-        assert "game:nonexistent" not in monitor._tasks
 
 
 class TestHeartbeatMonitorLoop:

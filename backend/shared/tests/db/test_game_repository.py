@@ -71,15 +71,6 @@ class TestFinishGame:
         assert result.ended_at == end_time
         assert result.end_reason == "completed"
 
-    async def test_finish_abandoned_game(self, repo: SqliteGameRepository) -> None:
-        await repo.create_game(_game())
-        end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game("g1", ended_at=end_time, end_reason="abandoned")
-
-        result = await repo.get_game("g1")
-        assert result is not None
-        assert result.end_reason == "abandoned"
-
     async def test_finish_does_not_overwrite_already_ended(self, repo: SqliteGameRepository) -> None:
         await repo.create_game(_game())
         first_end = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)

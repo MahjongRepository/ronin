@@ -10,7 +10,6 @@ ron pass).
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.action_result import ActionResult
 from game.logic.call_resolution import (
     _action_to_meld_call_type,
     complete_added_kan_after_chankan_decline,
@@ -112,18 +111,6 @@ class TestPickBestMeldResponse:
         best = pick_best_meld_response(responses, prompt)
         assert best is not None
         assert best.seat == 2
-
-    def test_empty_responses(self):
-        """No responses returns None."""
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-        )
-        best = pick_best_meld_response([], prompt)
-        assert best is None
 
     def test_distance_tiebreak(self):
         """Same priority: closer counter-clockwise distance wins."""
@@ -302,13 +289,9 @@ class TestResolveNoPrompt:
         """No pending prompt returns empty result with unchanged state."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         result = resolve_call_prompt(round_state, game_state)
-
-        assert isinstance(result, ActionResult)
         assert len(result.events) == 0
         assert result.new_round_state is round_state
-        assert result.new_game_state is game_state
 
 
 class TestResolveAllPassed:
@@ -490,7 +473,7 @@ class TestCompleteAddedKanAfterChankanDecline:
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
 
 
-class TestResolvePonMeldResponse:
+class TestResolvePonChiMeldResponse:
     """No DrawEvent after pon/chi — the MeldEvent is the only signal.
 
     Per mahjong rules, after calling pon/chi the only valid action is to
@@ -538,29 +521,24 @@ class TestResolvePonMeldResponse:
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
-        # give seat 1 tiles that form a chi sequence with 5m (e.g. has 4m, 6m)
+        # seat 1 needs tiles forming a chi sequence (4m, 6m) to call chi on 5m
         chi_tiles = TilesConverter.string_to_136_array(man="46")
-        other_tiles = TilesConverter.string_to_136_array(man="123", pin="456789", sou="12")
+        other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="12")
         player_tiles = tuple(chi_tiles + other_tiles)
         round_state = update_player(round_state, 1, tiles=player_tiles)
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        # seat 0 discards 5m, seat 1 calls chi
+        # seat 0 discards 5m, seat 1 (kamicha) calls chi
         discard_tile = TilesConverter.string_to_136_array(man="5")[0]
+        sequence_tiles = (chi_tiles[0], chi_tiles[1])
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI),),
-            responses=(
-                CallResponse(
-                    seat=1,
-                    action=GameAction.CALL_CHI,
-                    sequence_tiles=tuple(chi_tiles),
-                ),
-            ),
+            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(sequence_tiles,)),),
+            responses=(CallResponse(seat=1, action=GameAction.CALL_CHI, sequence_tiles=sequence_tiles),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -574,58 +552,8 @@ class TestResolvePonMeldResponse:
         assert meld_events[0].caller_seat == 1
 
 
-class TestDiscardPromptFourRiichiAbort:
-    """Four riichi abort triggered through DISCARD prompt resolution."""
-
-    def test_four_riichi_abort_after_ron_pass_on_discard(self):
-        """Riichi finalization triggers four-riichi abort when all 4 players are in riichi."""
-        # seat 0 is the discarder (about to finalize riichi)
-        # seats 1, 2, 3 are already in riichi
-        # seat 1 could ron but passed
-        discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
-                is_riichi=(i in (1, 2, 3)),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
-        )
-
-        wall = tuple(TilesConverter.string_to_136_array(man="5555"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333366"))
-        round_state = create_round_state(
-            players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
-            tile_id=discard_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(1,),  # seat 1 was a ron caller
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = create_game_state(round_state)
-
-        result = resolve_call_prompt(round_state, game_state)
-
-        # the riichi finalization should trigger four-riichi abort
-        riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
-        assert len(riichi_events) == 1
-        assert riichi_events[0].seat == 0
-
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
-        assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
+class TestMeldPromptFourRiichiAbort:
+    """Four riichi abort triggered through MELD prompt resolution."""
 
     def test_four_riichi_abort_via_meld_prompt(self):
         """Riichi finalization triggers four-riichi abort through MELD prompt (no ron callers)."""

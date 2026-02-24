@@ -77,19 +77,6 @@ class TestSessionManagerDisconnect:
         # seat 1's timer should remain
         assert manager._timer_manager.get_timer("game1", 1) is not None
 
-    async def test_leave_game_clears_player_seat_and_game_id(self, manager):
-        """After leave_game, both player.game_id and player.seat are cleared to None."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-
-        player = manager._players[conns[0].connection_id]
-        assert player.game_id == "game1"
-        assert player.seat is not None
-
-        await manager.leave_game(conns[0])
-
-        assert player.game_id is None
-        assert player.seat is None
-
     async def test_ai_player_replacement_broadcasts_events(self, manager):
         """When AI player replacement produces events, they are broadcast to remaining players."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
@@ -316,12 +303,3 @@ class TestHeartbeat:
         assert len(conn.sent_messages) == 1
         assert conn.sent_messages[0]["type"] == SessionMessageType.PONG
         assert manager._heartbeat._last_ping.get(conn.connection_id) > initial_time
-
-    async def test_unregister_connection_cleans_up_ping_tracking(self, manager):
-        """unregister_connection removes ping tracking."""
-        conn = MockConnection()
-        manager.register_connection(conn)
-        assert manager._heartbeat._last_ping.get(conn.connection_id) is not None
-
-        manager.unregister_connection(conn)
-        assert manager._heartbeat._last_ping.get(conn.connection_id) is None

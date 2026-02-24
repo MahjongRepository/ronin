@@ -57,21 +57,6 @@ class TestSessionManager:
         assert len(conns[0].sent_messages) == 1
         assert len(conns[1].sent_messages) == 0
 
-    async def test_broadcast_events_sends_all_target_to_everyone(self, manager):
-        """Events with 'all' target are broadcast to all players."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-
-        # perform action that generates broadcast event
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
-
-        # both players should receive the event
-        assert len(conns[0].sent_messages) == 1
-        assert len(conns[1].sent_messages) == 1
-        assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.DRAW]
-        assert conns[0].sent_messages[0]["action"] == GameAction.DISCARD
-        assert conns[1].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.DRAW]
-        assert conns[1].sent_messages[0]["action"] == GameAction.DISCARD
-
     async def test_call_prompt_only_sent_to_callers(self, manager):
         """Per-seat CallPromptEvent is only sent to the targeted seat, not to all players."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])

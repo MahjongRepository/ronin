@@ -48,28 +48,20 @@ class TestCalculateShanten:
         tiles = _hand(man="123456", pin="1", sou="234")
         assert calculate_shanten(tiles) == 0
 
-    def test_empty_hand_returns_not_tenpai(self):
+    def test_empty_hand_returns_not_tenpai(self, caplog):
+        """Empty hand returns _NOT_TENPAI without logging a warning."""
         tiles = [0] * 34
-        assert calculate_shanten(tiles) == _NOT_TENPAI
+        with caplog.at_level(logging.WARNING, logger="game.logic.shanten"):
+            assert calculate_shanten(tiles) == _NOT_TENPAI
+        assert caplog.text == ""
 
-    def test_invalid_tile_count_returns_not_tenpai(self):
-        """3n+0 tile counts are invalid for xiangting."""
-        tiles = _hand(man="123")  # 3 tiles
-        assert calculate_shanten(tiles) == _NOT_TENPAI
-
-    def test_invalid_tile_count_logs_warning(self, caplog):
-        """Non-zero 3n+0 tile counts log a warning about unexpected count."""
+    def test_invalid_tile_count(self, caplog):
+        """3n+0 tile counts return _NOT_TENPAI and log a warning."""
         tiles = _hand(man="123")  # 3 tiles
         with caplog.at_level(logging.WARNING, logger="game.logic.shanten"):
-            calculate_shanten(tiles)
+            result = calculate_shanten(tiles)
+        assert result == _NOT_TENPAI
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warning_records) == 1
         assert warning_records[0].msg["event"] == "unexpected tile count in shanten calculation"
         assert warning_records[0].msg["tile_count"] == 3
-
-    def test_empty_hand_does_not_log_warning(self, caplog):
-        """Empty hand (zero tiles) does not log a warning."""
-        tiles = [0] * 34
-        with caplog.at_level(logging.WARNING, logger="game.logic.shanten"):
-            calculate_shanten(tiles)
-        assert caplog.text == ""

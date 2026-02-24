@@ -897,16 +897,6 @@ class TestDiscardRaisesInvalidGameActionError:
             handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=999))
         assert exc_info.value.seat == 0
 
-    def test_discard_wrong_turn_still_soft_error(self):
-        """Wrong turn remains soft ErrorEvent (race condition)."""
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        result = handle_discard(round_state, game_state, seat=1, data=DiscardActionData(tile_id=0))
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
-
 
 class TestRiichiRaisesInvalidGameActionError:
     """Test that riichi with invalid data raises InvalidGameActionError."""

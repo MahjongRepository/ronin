@@ -381,9 +381,9 @@ class TestBotCreateRoom:
         assert "room_id" in data
         assert "session_id" in data
         assert "/ws/rooms/" in data["ws_url"]
-        # Room actually exists in manager
         room = client.app.state.room_manager.get_room(data["room_id"])
         assert room is not None
+        assert room.num_ai_players == 3
 
     def test_create_room_custom_ai_players(self, client):
         _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
@@ -397,18 +397,6 @@ class TestBotCreateRoom:
         room = client.app.state.room_manager.get_room(data["room_id"])
         assert room is not None
         assert room.num_ai_players == 2
-
-    def test_create_room_default_ai_players(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
-        response = client.post(
-            "/api/rooms",
-            json={},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 201
-        data = response.json()
-        room = client.app.state.room_manager.get_room(data["room_id"])
-        assert room.num_ai_players == 3
 
     def test_create_room_invalid_ai_count(self, client):
         _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")

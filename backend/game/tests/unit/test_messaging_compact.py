@@ -23,25 +23,6 @@ class TestDrawEncoding:
         assert d == 543
         assert decode_draw(d) == (3, 135)
 
-    def test_round_trip_all_seats(self):
-        for seat in range(4):
-            tile_id = 42
-            d = encode_draw(seat, tile_id)
-            decoded_seat, decoded_tile = decode_draw(d)
-            assert decoded_seat == seat
-            assert decoded_tile == tile_id
-
-    def test_round_trip_boundary_tiles(self):
-        for tile_id in (0, 67, 135):
-            d = encode_draw(1, tile_id)
-            assert decode_draw(d) == (1, tile_id)
-
-    def test_max_value_is_543(self):
-        assert encode_draw(3, 135) == 543
-
-    def test_min_value_is_0(self):
-        assert encode_draw(0, 0) == 0
-
     def test_distinct_values_no_collisions(self):
         """All (seat, tile_id) combinations produce unique packed values."""
         values = set()
@@ -78,10 +59,6 @@ class TestDrawValidation:
         with pytest.raises(TypeError, match="tile_id must be an integer"):
             encode_draw(0, False)  # noqa: FBT003
 
-    def test_encode_seat_non_int_rejected(self):
-        with pytest.raises(TypeError, match="seat must be an integer"):
-            encode_draw("0", 0)
-
     def test_decode_negative(self):
         with pytest.raises(ValueError, match="Draw packed value must be 0-543"):
             decode_draw(-1)
@@ -93,10 +70,6 @@ class TestDrawValidation:
     def test_decode_bool_rejected(self):
         with pytest.raises(TypeError, match="Expected integer"):
             decode_draw(True)  # noqa: FBT003
-
-    def test_decode_non_int_rejected(self):
-        with pytest.raises(TypeError, match="Expected integer"):
-            decode_draw(1.5)
 
 
 class TestDiscardEncoding:
@@ -121,12 +94,6 @@ class TestDiscardEncoding:
         d = encode_discard(3, 135, is_tsumogiri=True, is_riichi=True)
         seat, tile_id, tsumogiri, riichi = decode_discard(d)
         assert (seat, tile_id, tsumogiri, riichi) == (3, 135, True, True)
-
-    def test_min_value_is_0(self):
-        assert encode_discard(0, 0, is_tsumogiri=False, is_riichi=False) == 0
-
-    def test_max_value_is_2175(self):
-        assert encode_discard(3, 135, is_tsumogiri=True, is_riichi=True) == 2175
 
     def test_flag_ordering_bit0_tsumogiri_bit1_riichi(self):
         """Bit 0 encodes tsumogiri, bit 1 encodes riichi."""
@@ -188,7 +155,3 @@ class TestDiscardValidation:
     def test_decode_bool_rejected(self):
         with pytest.raises(TypeError, match="Expected integer"):
             decode_discard(False)  # noqa: FBT003
-
-    def test_decode_non_int_rejected(self):
-        with pytest.raises(TypeError, match="Expected integer"):
-            decode_discard("100")

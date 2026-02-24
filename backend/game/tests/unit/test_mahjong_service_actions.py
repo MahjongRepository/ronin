@@ -3,8 +3,8 @@ Unit tests for MahjongGameService action handling.
 
 Covers service-level entry point guards (game not found, player not in game,
 unknown action), ValidationError wrapping in _dispatch_and_process,
-_process_action_result_internal branching (round end, chankan), and
-_handle_chankan_prompt (player caller wait, AI player response, no pending prompt).
+_process_action_result_internal branching (chankan), and
+_handle_chankan_prompt (player caller wait, AI player response).
 
 Tests for individual action handler validation (wrong turn, missing tile,
 invalid tile, no prompt) live in test_action_handlers_immutable.py and
@@ -14,22 +14,19 @@ test_action_handlers_edge_cases.py.
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from game.logic.action_result import ActionResult
-from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase
+from game.logic.enums import CallType, GameAction, GameErrorCode
 from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
     EventType,
-    RoundEndEvent,
     SeatTarget,
     ServiceEvent,
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import PendingCallPrompt
-from game.logic.types import (
-    ExhaustiveDrawResult,
-)
 from game.tests.unit.helpers import (
     _find_player,
     _update_round_state,
@@ -104,34 +101,41 @@ class TestMahjongGameServiceValidationError:
         assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
 
 
+class TestDispatchActionBranches:
+    """Covers _dispatch_action routing branches for no-data actions and data=None fallback."""
+
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    @pytest.mark.parametrize(
+        "action",
+        [GameAction.DECLARE_TSUMO, GameAction.CALL_RON, GameAction.CALL_KYUUSHU],
+    )
+    async def test_dispatch_no_data_actions(self, service, action):
+        """No-data dispatch branches (TSUMO, RON, KYUUSHU) return a result."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        game_state = service._games["game1"]
+
+        result = service._dispatch_action(game_state, 0, action)
+        assert result is not None
+
+    async def test_dispatch_data_action_with_none_data(self, service):
+        """data=None is coerced to empty dict before dispatching data actions."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        game_state = service._games["game1"]
+
+        # data=None -> {} -> ValidationError on required field, proving the None->dict coercion runs
+        with pytest.raises(ValidationError):
+            service._dispatch_action(game_state, 0, GameAction.DISCARD, None)
+
+
 class TestMahjongGameServiceProcessActionResult:
     """Tests for _process_action_result_internal branching."""
 
     @pytest.fixture
     def service(self):
         return MahjongGameService()
-
-    async def test_process_action_result_round_end(self, service):
-        """Verify _process_action_result_internal returns round end events when round is finished."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
-
-        round_result = ExhaustiveDrawResult(
-            tempai_seats=[],
-            noten_seats=[0, 1, 2, 3],
-            tenpai_hands=[],
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-        result = ActionResult(
-            events=[RoundEndEvent(result=round_result, target="all")],
-            needs_post_discard=False,
-        )
-
-        events = await service._process_action_result_internal("game1", result)
-
-        assert len(events) >= 1
 
     async def test_process_action_result_chankan_prompt(self, service):
         """Verify _process_action_result_internal handles chankan prompts."""
@@ -252,7 +256,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
         assert len(result) >= 1
 
     async def test_chankan_prompt_no_pending_prompt(self, service):
-        """Verify chankan returns events immediately when no pending prompt."""
+        """Returns events immediately when no pending prompt."""
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         chankan_prompt = ServiceEvent(

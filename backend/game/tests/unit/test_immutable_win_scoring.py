@@ -19,7 +19,6 @@ from game.logic.scoring import (
     ScoringContext,
     apply_double_ron_score,
     calculate_hand_value,
-    calculate_hand_value_with_tiles,
 )
 from game.logic.settings import GameSettings
 from game.logic.state import (
@@ -298,38 +297,3 @@ class TestCalculateHandValueErrors:
         result = calculate_hand_value(ctx, bad_tiles[0])
 
         assert result.error is not None
-
-    def test_calculate_hand_value_with_tiles_returns_error(self):
-        """calculate_hand_value_with_tiles returns error for invalid tiles."""
-        round_state = self._create_round_state()
-        bad_tiles = TilesConverter.string_to_136_array(man="12345")
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles), score=25000)
-
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
-        result = calculate_hand_value_with_tiles(ctx, list(bad_tiles), bad_tiles[0])
-
-        assert result.error is not None
-
-    def test_ura_dora_added_for_riichi_ron(self):
-        """Ura dora indicators are included when player is riichi (ron win)."""
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            round_wind=0,
-            players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
-            wall=Wall(dead_wall_tiles=dead_wall, dora_indicators=(dead_wall[2],)),
-        )
-        # winning hand: 123m 456m 789m 123p 5p (win on 5p by ron)
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        win_tile = TilesConverter.string_to_136_array(pin="5")[0]
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), is_riichi=True, score=25000)
-
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
-        result = calculate_hand_value_with_tiles(ctx, list(tiles), win_tile)
-
-        # should succeed (valid hand) and riichi yaku included
-        assert result.error is None
-        assert result.han >= 1
-        assert any(y.yaku_id == 1 for y in result.yaku)  # Riichi

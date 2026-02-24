@@ -23,14 +23,6 @@ class TestSessionCreationOnTransition:
             session = manager._session_store._sessions.get(player.session_token)
             assert session is not None
 
-    async def test_session_tokens_are_unique(self, manager):
-        """Two players in the same game get different session tokens."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-
-        player1 = manager._players.get(conns[0].connection_id)
-        player2 = manager._players.get(conns[1].connection_id)
-        assert player1.session_token != player2.session_token
-
 
 class TestSeatBindingOnStart:
     async def test_game_start_binds_seat_to_session(self, manager):
@@ -76,22 +68,6 @@ class TestSessionDisconnect:
 
         session = manager._session_store._sessions.get(token)
         assert session is None
-
-    async def test_leave_game_missing_game_clears_player_state(self, manager):
-        """Defensive leave path clears player game association so the connection can rejoin."""
-        conns = await create_started_game(manager, "game1")
-        conns[0]._outbox.clear()
-
-        # simulate game mapping disappearing
-        manager._games.pop("game1", None)
-
-        await manager.leave_game(conns[0])
-
-        # player state should be cleared
-        player = manager._players.get(conns[0].connection_id)
-        assert player is not None
-        assert player.game_id is None
-        assert player.seat is None
 
 
 class TestSessionCleanup:

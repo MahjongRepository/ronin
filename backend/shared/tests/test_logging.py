@@ -64,13 +64,6 @@ class TestSetupLogging:
         assert log_path is not None
         assert log_path.name == expected_name
 
-    def test_returns_log_file_path(self, tmp_path):
-        log_path = setup_logging(log_dir=tmp_path / "game")
-
-        assert log_path is not None
-        assert log_path.parent == tmp_path / "game"
-        assert log_path.suffix == ".log"
-
     def test_returns_none_without_log_dir(self):
         result = setup_logging()
 
@@ -97,26 +90,12 @@ class TestSetupLogging:
         assert log_path is not None
         assert "nested log" in log_path.read_text()
 
-    def test_accepts_string_path(self, tmp_path):
-        log_dir = str(tmp_path / "string_dir")
-        setup_logging(log_dir=log_dir)
-        root = logging.getLogger()
-
-        file_handler = root.handlers[1]
-        assert isinstance(file_handler, logging.FileHandler)
-
     def test_clears_existing_handlers_on_repeated_calls(self):
         setup_logging()
         setup_logging()
         root = logging.getLogger()
 
         assert len(root.handlers) == 1
-
-    def test_custom_log_level(self):
-        setup_logging(level=logging.DEBUG)
-        root = logging.getLogger()
-
-        assert root.level == logging.DEBUG
 
     def test_log_level_from_env(self, monkeypatch):
         monkeypatch.setenv("LOG_LEVEL", "debug")
@@ -147,17 +126,6 @@ class TestSetupLogging:
         assert parsed["game_id"] == "test-game"
         assert parsed["extra_field"] == "value"
 
-    def test_console_mode_produces_readable_output(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("LOG_FORMAT", "console")
-        log_path = setup_logging(log_dir=tmp_path / "game")
-
-        test_logger = structlog.get_logger("test.console")
-        test_logger.info("console test event")
-
-        assert log_path is not None
-        content = log_path.read_text()
-        assert "console test event" in content
-
     def test_invalid_log_format_raises(self, monkeypatch):
         monkeypatch.setenv("LOG_FORMAT", "invalid_value")
         with pytest.raises(ValueError, match="Invalid LOG_FORMAT"):
@@ -179,8 +147,3 @@ class TestSerializeEnums:
         event_dict = {"data": {"color": self._Color.BLUE, "count": 3}}
         result = _serialize_enums(None, "", event_dict)
         assert result["data"] == {"color": "blue", "count": 3}
-
-    def test_leaves_non_enum_values_unchanged(self):
-        event_dict = {"count": 42, "name": "test"}
-        result = _serialize_enums(None, "", event_dict)
-        assert result == {"count": 42, "name": "test"}

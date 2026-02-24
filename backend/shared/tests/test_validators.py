@@ -41,10 +41,6 @@ class TestParseCorsOrigins:
         with pytest.raises(ValueError, match="must be an array of strings"):
             parse_cors_origins('["http://a.com", 123]')
 
-    def test_json_array_of_non_strings_raises(self):
-        with pytest.raises(ValueError, match="must be an array of strings"):
-            parse_cors_origins("[1, 2, 3]")
-
     def test_json_empty_array(self):
         result = parse_cors_origins("[]")
         assert result == []

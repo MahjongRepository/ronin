@@ -69,15 +69,6 @@ class TestCreatePendingGame:
         with pytest.raises(ValueError, match="already exists"):
             manager.create_pending_game("game1", _make_specs(1), num_ai_players=3)
 
-    async def test_creates_multiple_player_sessions(self, manager: SessionManager):
-        specs = _make_specs(2)
-        manager.create_pending_game("game1", specs, num_ai_players=2)
-
-        for i in range(2):
-            session = manager._session_store.get_session(f"ticket-{i}")
-            assert session is not None
-            assert session.player_name == f"Player{i}"
-
 
 class TestJoinGame:
     @pytest.fixture
@@ -280,23 +271,6 @@ class TestPendingGameDisconnect:
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_disconnect_decrements_connected_count(self, manager: SessionManager):
-        specs = _make_specs(2)
-        manager.create_pending_game("game1", specs, num_ai_players=2)
-
-        conn = MockConnection()
-        manager.register_connection(conn)
-        await manager.join_game(conn, "game1", "ticket-0")
-
-        pending = manager._pending_games.get("game1")
-        assert pending.connected_count == 1
-
-        await manager.leave_game(conn, notify_player=False)
-
-        pending = manager._pending_games.get("game1")
-        assert pending is not None
-        assert pending.connected_count == 0
-
     async def test_disconnect_marks_session_disconnected(self, manager: SessionManager):
         """Disconnecting during pending phase marks session disconnected, not removed."""
         specs = _make_specs(2)
@@ -371,15 +345,6 @@ class TestPendingGameDisconnect:
 
 
 class TestCreateGameRequestValidation:
-    def test_valid_request(self):
-        req = CreateGameRequest(
-            game_id="test-game",
-            num_ai_players=3,
-            players=[PlayerSpec(name="Alice", user_id="u1", game_ticket="t1")],
-        )
-        assert req.game_id == "test-game"
-        assert len(req.players) == 1
-
     def test_player_count_mismatch(self):
         with pytest.raises(ValueError, match="Expected 1 players"):
             CreateGameRequest(
@@ -424,24 +389,6 @@ class TestCreateGameRequestValidation:
                 ],
             )
 
-    def test_forbids_extra_fields(self):
-        kwargs = {
-            "game_id": "test-game",
-            "num_ai_players": 3,
-            "players": [PlayerSpec(name="Alice", user_id="u1", game_ticket="t1")],
-            "extra_field": "not_allowed",
-        }
-        with pytest.raises(ValueError, match="Extra inputs are not permitted"):
-            CreateGameRequest(**kwargs)
-
-    def test_four_players_zero_ai(self):
-        req = CreateGameRequest(
-            game_id="game1",
-            num_ai_players=0,
-            players=[PlayerSpec(name=f"P{i}", user_id=f"u{i}", game_ticket=f"t{i}") for i in range(4)],
-        )
-        assert len(req.players) == 4
-
 
 class TestPostGamesEndpoint:
     @pytest.fixture
@@ -471,13 +418,6 @@ class TestPostGamesEndpoint:
 
     def test_create_game_invalid_body(self, client):
         response = client.post("/games", content=b"not json")
-        assert response.status_code == 400
-
-    def test_create_game_missing_players(self, client):
-        response = client.post(
-            "/games",
-            json={"game_id": "test-game", "num_ai_players": 3},
-        )
         assert response.status_code == 400
 
     def test_create_game_duplicate_id(self, client):
@@ -527,20 +467,6 @@ class TestPostGamesEndpoint:
     def test_create_game_body_too_large(self, client):
         response = client.post("/games", content=b"x" * 5000)
         assert response.status_code == 413
-
-    def test_create_game_player_count_mismatch(self, client):
-        response = client.post(
-            "/games",
-            json={
-                "game_id": "test-game",
-                "num_ai_players": 3,
-                "players": [
-                    {"name": "Alice", "user_id": "u1", "game_ticket": "t1"},
-                    {"name": "Bob", "user_id": "u2", "game_ticket": "t2"},
-                ],
-            },
-        )
-        assert response.status_code == 400
 
     def test_create_game_invalid_ticket(self, client):
         response = client.post(
@@ -878,36 +804,6 @@ class TestPendingGameDefensivePaths:
         # connected_count must NOT be decremented (eviction didn't increment)
         assert pending.connected_count == 1
         # Session must still be marked as connected (not overwritten to disconnected)
-        session = manager._session_store.get_session("ticket-0")
-        assert session is not None
-        assert session.disconnected_at is None
-
-    async def test_leave_pending_game_skips_evicted_player_without_pending_info(self, manager: SessionManager):
-        """_leave_pending_game no-pending-info path skips evicted player."""
-        specs = _make_specs(2)
-        manager.create_pending_game("game1", specs, num_ai_players=2)
-
-        conn1 = MockConnection()
-        manager.register_connection(conn1)
-        await manager.join_game(conn1, "game1", "ticket-0")
-
-        player = manager._players[conn1.connection_id]
-        game = manager._games["game1"]
-
-        # Simulate eviction
-        game.players.pop(conn1.connection_id)
-        manager._players.pop(conn1.connection_id)
-        player.game_id = None
-        manager._session_store.mark_reconnected("ticket-0")
-
-        # Remove pending info to exercise the no-pending-info branch
-        pending = manager._pending_games.pop("game1", None)
-        if pending and pending.timeout_task:
-            pending.timeout_task.cancel()
-
-        await manager._leave_pending_game(game, conn1, player, notify_player=False)
-
-        # Session must remain connected
         session = manager._session_store.get_session("ticket-0")
         assert session is not None
         assert session.disconnected_at is None

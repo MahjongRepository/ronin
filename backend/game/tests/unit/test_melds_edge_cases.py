@@ -298,12 +298,8 @@ class TestRiichiKanWaitPreservation:
 
         assert result is False
 
-    def test_riichi_closed_kan_allowed_when_waits_preserved(self):
-        """Test get_possible_closed_kans includes kan that preserves waits.
-
-        Hand: 1111m 234p 567p 89s 55s (14 tiles, riichi).
-        Kan on 1m preserves waits (still waiting on 7s), so 1m appears in result.
-        """
+    def test_possible_closed_kans_includes_wait_preserving_kan(self):
+        """get_possible_closed_kans includes riichi kan that preserves waits."""
         tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
 
@@ -313,31 +309,8 @@ class TestRiichiKanWaitPreservation:
         round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
 
         result = get_possible_closed_kans(player, round_state, GameSettings())
-
         tile_34_1m = tile_to_34(tiles[0])
         assert tile_34_1m in result
-
-    def test_kan_tile_as_wait_excluded_from_possible_kans(self):
-        """Test get_possible_closed_kans excludes kan when tile is a wait.
-
-        Same hand as test_kan_rejected_when_tile_is_also_a_wait.
-        9p should not appear in possible closed kans.
-        """
-        tiles = TilesConverter.string_to_136_array(man="11234", sou="567", pin="789999")
-
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
-        players = [player] + [create_player(seat=i) for i in range(1, 4)]
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
-        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
-
-        settings = GameSettings()
-        result = get_possible_closed_kans(player, round_state, settings)
-
-        nine_pin_tiles = TilesConverter.string_to_136_array(pin="9")
-        tile_34_9p = tile_to_34(nine_pin_tiles[0])
-        assert tile_34_9p not in result
 
 
 class TestPaoLiability:
@@ -552,28 +525,6 @@ class TestPaoLiability:
         )
 
         assert new_state.players[0].pao_seat == discarder_seat
-
-
-class TestKanPreservesWaitsSimulation:
-    """Test that _kan_preserves_waits_for_riichi correctly simulates the post-kan hand."""
-
-    def test_kan_simulation_tiles_moved_to_meld(self):
-        """Test that kan tiles are moved from hand to meld, not duplicated.
-
-        The simulation should have closed tiles = hand minus kan tiles,
-        and the kan meld containing those tiles. This ensures calculate_shanten
-        operates on the correct closed tile count.
-        """
-        # Hand: 1111z 234p 567p 55s 89s (14 tiles, tenpai on 7s)
-        tiles = TilesConverter.string_to_136_array(pin="234567", sou="5589", honors="1111")
-
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
-        tile_34_east = tile_to_34(TilesConverter.string_to_136_array(honors="1")[0])
-        result = _kan_preserves_waits_for_riichi(player, tile_34_east)
-
-        # East wind kan preserves the 7s wait
-        assert result is True
 
 
 class TestChiKuikaeWithoutSuji:

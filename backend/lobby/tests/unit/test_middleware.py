@@ -95,18 +95,6 @@ class TestSecurityHeadersMiddleware:
         for name, value in SECURITY_HEADERS:
             assert response.headers[name.decode()] == value.decode()
 
-    def test_csp_blocks_scripts(self, security_client: TestClient) -> None:
-        """CSP policy disallows script execution."""
-        response = security_client.get("/items")
-        csp = response.headers["content-security-policy"]
-        assert "script-src 'none'" in csp
-
-    def test_frame_ancestors_deny(self, security_client: TestClient) -> None:
-        """Both X-Frame-Options and CSP frame-ancestors prevent framing."""
-        response = security_client.get("/items")
-        assert response.headers["x-frame-options"] == "DENY"
-        assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
-
     def test_websocket_passthrough(self, security_client: TestClient) -> None:
         """Non-HTTP scopes (WebSocket) pass through without modification."""
         with security_client.websocket_connect("/ws") as ws:

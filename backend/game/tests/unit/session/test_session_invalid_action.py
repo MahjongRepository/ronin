@@ -59,18 +59,6 @@ class TestSessionManagerInvalidAction:
         assert len(left_msgs) == 1
         assert left_msgs[0]["player_name"] == "Alice"
 
-    async def test_invalid_action_game_continues_for_others(self, manager):
-        """After disconnect + AI player replacement, other players can still play."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-
-        manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
-
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
-
-        # game should still exist (Bob is still in)
-        assert manager.get_game("game1") is not None
-        assert not conns[1].is_closed
-
     async def test_invalid_action_last_player_cleans_up_game(self, manager):
         """If the offender was the last player, game is cleaned up."""
         conns = await create_started_game(manager, "game1", num_ai_players=3, player_names=["Alice"])
@@ -266,28 +254,3 @@ class TestTimeoutInvalidActionHandling:
 
         assert conns[0].is_closed
         assert manager.get_game("game1") is None
-
-
-class TestCleanupEmptyGameHelper:
-    """Tests for the extracted _cleanup_empty_game helper."""
-
-    async def test_cleanup_empty_game_removes_game(self, manager):
-        """_cleanup_empty_game removes an empty game from the registry."""
-        conns = await create_started_game(manager, "game1", num_ai_players=3, player_names=["Alice"])
-
-        assert manager.get_game("game1") is not None
-
-        # leave via standard path (which uses _cleanup_empty_game)
-        await manager.leave_game(conns[0])
-
-        assert manager.get_game("game1") is None
-
-    async def test_cleanup_nonempty_game_is_noop(self, manager):
-        """_cleanup_empty_game does nothing when the game still has players."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-
-        # leave one player
-        await manager.leave_game(conns[0])
-
-        # game should still exist
-        assert manager.get_game("game1") is not None

@@ -20,13 +20,10 @@ class TestGameServerSettings:
         with pytest.raises(ValidationError, match="cors_origins"):
             GameServerSettings()
 
-    def test_max_capacity_zero_rejected(self):
+    @pytest.mark.parametrize("value", [0, -1])
+    def test_max_capacity_non_positive_rejected(self, value):
         with pytest.raises(ValidationError, match="max_capacity"):
-            GameServerSettings(max_capacity=0)
-
-    def test_max_capacity_negative_rejected(self):
-        with pytest.raises(ValidationError, match="max_capacity"):
-            GameServerSettings(max_capacity=-1)
+            GameServerSettings(max_capacity=value)
 
     def test_log_dir_empty_rejected(self):
         with pytest.raises(ValidationError, match="log_dir"):

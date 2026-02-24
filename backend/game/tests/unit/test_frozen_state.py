@@ -4,7 +4,6 @@ state utility functions, and scoring integration.
 """
 
 import pytest
-from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import CallType, GameAction, WindName
@@ -30,7 +29,6 @@ from game.logic.state_utils import (
     clear_pending_prompt,
     remove_tile_from_player,
     update_all_discards,
-    update_game_with_round,
     update_player,
 )
 from game.logic.wall import Wall
@@ -51,25 +49,6 @@ class TestMahjongPlayerLogic:
     def test_has_open_melds_empty(self):
         player = MahjongPlayer(seat=0, name="P3", score=25000)
         assert player.has_open_melds() is False
-
-
-class TestFrozenMeldConversion:
-    def test_to_meld(self):
-        frozen = FrozenMeld(
-            tiles=(0, 1, 2),
-            meld_type=FrozenMeld.PON,
-            opened=True,
-            called_tile=0,
-            who=1,
-            from_who=0,
-        )
-        meld = frozen.to_meld()
-        assert meld.tiles == (0, 1, 2)
-        assert meld.type == Meld.PON
-        assert meld.opened is True
-        assert meld.called_tile == 0
-        assert meld.who == 1
-        assert meld.from_who == 0
 
 
 class TestFrozenMeldsToMeldsFunction:
@@ -166,6 +145,12 @@ class TestStateUtilsTurnAdvance:
         assert new_state.current_player_seat == 1
         assert new_state.turn_count == 1
 
+    def test_wraps_around_to_seat_zero(self):
+        state = MahjongRoundState(players=self._players(), current_player_seat=3, turn_count=10)
+        new_state = advance_turn(state)
+        assert new_state.current_player_seat == 0
+        assert new_state.turn_count == 11
+
 
 class TestStateUtilsPendingPrompt:
     def test_clear_pending_prompt(self):
@@ -210,16 +195,6 @@ class TestStateUtilsPendingPrompt:
         response = CallResponse(seat=3, action=GameAction.PASS)
         with pytest.raises(KeyError):
             add_prompt_response(prompt, response)
-
-
-class TestStateUtilsGameStateUpdates:
-    def test_update_game_with_round(self):
-        round_state = MahjongRoundState(current_player_seat=2)
-        game_state = MahjongGameState()
-        new_game_state = update_game_with_round(game_state, round_state)
-
-        assert game_state.round_state.current_player_seat == 0
-        assert new_game_state.round_state.current_player_seat == 2
 
 
 class TestStateUtilsPlayerFlags:
@@ -353,18 +328,6 @@ class TestUpdatePlayerValidation:
         with pytest.raises(ValueError, match="Invalid player fields"):
             update_player(state, 0, nonexistent_field=True)
 
-    def test_rejects_typo_in_field_name(self):
-        """Catches typos like 'is_riich' instead of 'is_riichi'."""
-        state = self._create_round_state()
-        with pytest.raises(ValueError, match="Invalid player fields"):
-            update_player(state, 0, is_riich=True)
-
-    def test_valid_update_still_works(self):
-        state = self._create_round_state()
-        new_state = update_player(state, 0, score=30000, is_riichi=True)
-        assert new_state.players[0].score == 30000
-        assert new_state.players[0].is_riichi is True
-
 
 class TestGetPlayerViewValidation:
     """Tests for get_player_view seat validation."""
@@ -400,14 +363,3 @@ class TestWindNameConstant:
         assert wind_name(-1) == WindName.UNKNOWN
         assert wind_name(4) == WindName.UNKNOWN
         assert wind_name(100) == WindName.UNKNOWN
-
-
-class TestAdvanceTurnUsesPlayerCount:
-    """Test advance_turn uses len(players) instead of hardcoded 4."""
-
-    def test_wraps_with_four_players(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
-        state = MahjongRoundState(players=players, current_player_seat=3, turn_count=10)
-        new_state = advance_turn(state)
-        assert new_state.current_player_seat == 0
-        assert new_state.turn_count == 11

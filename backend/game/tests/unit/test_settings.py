@@ -10,15 +10,8 @@ from game.logic.settings import (
 
 
 class TestGetWindThresholds:
-    def test_hanchan_four_players(self):
+    def test_four_players(self):
         settings = GameSettings(game_type=GameType.HANCHAN)
-        east, south, west = get_wind_thresholds(settings)
-        assert east == 4
-        assert south == 8
-        assert west == 12
-
-    def test_tonpusen_four_players(self):
-        settings = GameSettings(game_type=GameType.TONPUSEN)
         east, south, west = get_wind_thresholds(settings)
         assert east == 4
         assert south == 8
@@ -46,7 +39,3 @@ class TestBuildOptionalRules:
     def test_renhou_yakuman(self):
         rules = build_optional_rules(GameSettings(renhou_value=RenhouValue.YAKUMAN))
         assert rules.renhou_as_yakuman is True
-
-    def test_renhou_none_not_yakuman(self):
-        rules = build_optional_rules(GameSettings(renhou_value=RenhouValue.NONE))
-        assert rules.renhou_as_yakuman is False

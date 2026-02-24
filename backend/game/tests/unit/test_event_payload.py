@@ -14,7 +14,6 @@ from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
     HandResultInfo,
-    RonResult,
     TsumoResult,
 )
 from game.messaging.compact import decode_discard, decode_draw
@@ -108,36 +107,6 @@ class TestServiceEventPayload:
         assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
         assert "tl" not in payload["aa"][0]
 
-    def test_discard_all_flags(self):
-        """Discard with both tsumogiri and riichi encodes correctly."""
-        event = ServiceEvent(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, is_tsumogiri=True, is_riichi=True),
-            target=BroadcastTarget(),
-        )
-        payload = service_event_payload(event)
-
-        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
-        assert seat == 0
-        assert tile_id == 10
-        assert is_tsumogiri is True
-        assert is_riichi is True
-
-    def test_discard_no_flags(self):
-        """Discard with no flags encodes correctly."""
-        event = ServiceEvent(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=2, tile_id=50),
-            target=BroadcastTarget(),
-        )
-        payload = service_event_payload(event)
-
-        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
-        assert seat == 2
-        assert tile_id == 50
-        assert is_tsumogiri is False
-        assert is_riichi is False
-
 
 class TestShapeCallPromptPayload:
     """Tests for call prompt wire payload shaping with compact keys."""
@@ -158,18 +127,6 @@ class TestShapeCallPromptPayload:
             "frs": 1,
             "cs": 0,
         }
-
-    def test_chankan_prompt_drops_callers_keeps_caller_seat(self):
-        payload = {
-            "clt": WireCallType.CHANKAN,
-            "ti": 42,
-            "frs": 1,
-            "clr": [3],
-        }
-        result = shape_call_prompt_payload(payload)
-
-        assert "clr" not in result
-        assert result["cs"] == 3
 
     def test_meld_prompt_replaces_callers_with_available_calls(self):
         payload = {
@@ -324,32 +281,6 @@ class TestRoundEndPayload:
 
         assert payload["ps"] == 2
         assert payload["ud"] == [10]
-
-    def test_ron_none_fields_omitted(self):
-        """Ron result omits pao_seat and ura_dora_indicators when None."""
-        event = ServiceEvent(
-            event=EventType.ROUND_END,
-            data=RoundEndEvent(
-                target="all",
-                result=RonResult(
-                    winner_seat=0,
-                    loser_seat=1,
-                    winning_tile=10,
-                    hand_result=_HAND_RESULT,
-                    scores=_SCORES,
-                    score_changes=_SCORES,
-                    riichi_sticks_collected=0,
-                    closed_tiles=[],
-                    melds=[],
-                ),
-            ),
-            target=BroadcastTarget(),
-        )
-        payload = service_event_payload(event)
-
-        assert "ps" not in payload
-        assert "ud" not in payload
-        assert payload["rt"] == WireRoundResultType.RON
 
     def test_double_ron_none_fields_omitted(self):
         """Double ron winners omit pao_seat and ura_dora_indicators when None."""

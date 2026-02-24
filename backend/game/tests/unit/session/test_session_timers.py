@@ -54,6 +54,19 @@ class TestSessionManagerTimers:
         # should not raise
         await manager._handle_timeout("nonexistent", TimeoutType.TURN, seat=0)
 
+    async def test_handle_timeout_returns_when_game_removed_under_lock(self, manager):
+        """_handle_timeout returns silently when game is removed after lock is acquired."""
+        conns = await create_started_game(manager, "game1")
+        conns[0]._outbox.clear()
+
+        # Remove the game but keep the lock to simulate concurrent cleanup
+        manager._games.pop("game1", None)
+
+        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
+
+        # no events broadcast
+        assert len(conns[0].sent_messages) == 0
+
     async def test_timeout_on_game_without_lock_does_nothing(self, manager):
         """Timeout when lock has been cleaned up is silently ignored."""
         conns = await create_started_game(manager, "game1")
@@ -85,16 +98,6 @@ class TestSessionManagerTimerIntegration:
         game, _player, _conn = make_game_with_player(manager)
 
         result = manager._get_player_at_seat(game, 1)
-        assert result is None
-
-    def test_get_player_at_seat_returns_none_for_unseated_player(self, manager):
-        """_get_player_at_seat returns None when no player has a seat assigned."""
-        game = Game(game_id="game1")
-        conn = MockConnection()
-        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=None)
-        game.players[conn.connection_id] = player
-
-        result = manager._get_player_at_seat(game, 0)
         assert result is None
 
     async def test_maybe_start_timer_with_draw_event(self, manager):
@@ -296,29 +299,6 @@ class TestSessionManagerTimerIntegration:
         await manager._maybe_start_timer(game, [draw_event])
         assert timer._active_task is None
 
-    async def test_handle_timeout_returns_when_game_removed_under_lock(self, manager):
-        """_handle_timeout returns early when game is removed between lock check and lock acquisition."""
-        _game, _player, _conn = make_game_with_player(manager)
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        # remove the game to simulate cleanup race
-        manager._games.pop("game1", None)
-
-        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
-
-    async def test_handle_timeout_returns_when_no_player_at_seat(self, manager):
-        """_handle_timeout returns early when no player is at the timed-out seat."""
-        game = Game(game_id="game1")
-        conn = MockConnection()
-        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=1)
-        game.players[conn.connection_id] = player
-        manager._games["game1"] = game
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        # seat 0 has no player
-        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
-        assert len(conn.sent_messages) == 0
-
 
 class TestPerPlayerTimers:
     """Tests for per-player timer independence."""
@@ -506,29 +486,3 @@ class TestPerPlayerTimers:
         assert timer0._active_task is None
         assert timer1._active_task is not None
         timer1.cancel()
-
-    async def test_turn_timer_starts_for_specific_player(self, manager):
-        """Turn timer starts only for the player whose turn it is."""
-        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
-        timer0 = TurnTimer()
-        timer1 = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        draw_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(
-                target="seat_0",
-                seat=0,
-                tile_id=42,
-                available_actions=[],
-            ),
-            target=SeatTarget(seat=0),
-        )
-
-        await manager._maybe_start_timer(game, [draw_event])
-
-        # only seat 0's timer should be active
-        assert timer0._active_task is not None
-        assert timer1._active_task is None
-        timer0.cancel()

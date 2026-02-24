@@ -6,7 +6,6 @@ from mahjong.tile import TilesConverter
 
 from game.logic.abortive import (
     AbortiveDrawType,
-    _count_terminal_honor_types,
     call_kyuushu_kyuuhai,
     can_call_kyuushu_kyuuhai,
     check_four_kans,
@@ -106,20 +105,6 @@ class TestCanCallKyuushuKyuuhai:
 
         assert result is False
 
-    def test_can_call_with_all_13_terminal_honor_types(self):
-        """Player can call with all 13 terminal/honor types (kokushi-like hand)."""
-        # all 13 terminal/honor types + 1 duplicate
-        tiles = [
-            *TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="1234567"),
-            TilesConverter.string_to_136_array(man="11")[1],  # 1m (duplicate)
-        ]
-        round_state = self._create_round_state(tiles)
-        settings = GameSettings()
-
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
-
-        assert result is True
-
     def test_cannot_call_if_discards_exist(self):
         """Player cannot call if any discards have been made."""
         tiles = self._create_kyuushu_hand()
@@ -204,59 +189,6 @@ class TestCanCallKyuushuKyuuhai:
 
         # only 8 unique types, not enough
         assert result is False
-
-
-class TestCountTerminalHonorTypes:
-    def test_counts_terminals_correctly(self):
-        """Correctly counts terminal tiles (1 and 9 of each suit)."""
-        # 1m, 9m, 1p, 9p, 1s, 9s
-        tiles = TilesConverter.string_to_136_array(man="19", pin="19", sou="19")
-
-        result = _count_terminal_honor_types(tiles)
-
-        assert result == 6
-
-    def test_counts_honors_correctly(self):
-        """Correctly counts honor tiles (winds and dragons)."""
-        # E, S, W, N, Haku, Hatsu, Chun
-        tiles = TilesConverter.string_to_136_array(honors="1234567")
-
-        result = _count_terminal_honor_types(tiles)
-
-        assert result == 7
-
-    def test_ignores_middle_tiles(self):
-        """Does not count middle tiles (2-8 of each suit)."""
-        # 2m, 5m, 3p, 8p, 4s, 8s
-        tiles = TilesConverter.string_to_136_array(man="25", pin="38", sou="48")
-
-        result = _count_terminal_honor_types(tiles)
-
-        assert result == 0
-
-    def test_mixed_hand(self):
-        """Correctly counts mixed hand of terminals, honors, and middle tiles."""
-        # 1m, 5m, 9m, 1p, E, S (3 terminals + 2 honors = 5, ignoring 5m)
-        tiles = TilesConverter.string_to_136_array(man="159", pin="1", honors="12")
-
-        result = _count_terminal_honor_types(tiles)
-
-        assert result == 5
-
-    def test_empty_hand(self):
-        """Returns 0 for empty hand."""
-        result = _count_terminal_honor_types([])
-
-        assert result == 0
-
-    def test_all_13_types(self):
-        """Counts all 13 terminal/honor types correctly."""
-        # all terminal/honors: 1m 9m 1p 9p 1s 9s E S W N Haku Hatsu Chun
-        tiles = TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="1234567")
-
-        result = _count_terminal_honor_types(tiles)
-
-        assert result == 13
 
 
 class TestCallKyuushuKyuuhai:

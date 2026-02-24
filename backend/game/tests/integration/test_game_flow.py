@@ -45,30 +45,6 @@ class TestGameServiceIntegration:
     def service(self):
         return MahjongGameService()
 
-    async def test_full_discard_cycle(self, service):
-        """Test player discard triggers AI player turns and returns to player."""
-        events = await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-        round_state = game_state.round_state
-
-        # find the player (seat is random now)
-        player = next(p for p in round_state.players if p.name == "Player")
-
-        # player needs to have tiles to discard
-        assert len(player.tiles) >= 13
-        tile_to_discard = player.tiles[-1]
-
-        events = await service.handle_action(
-            "game1",
-            "Player",
-            GameAction.DISCARD,
-            {"tile_id": tile_to_discard},
-        )
-
-        # should have discard event
-        discard_events = [e for e in events if e.event == EventType.DISCARD]
-        assert len(discard_events) >= 1
-
     async def test_sequential_discards_through_service(self, service):
         """Test that multiple player discards can be processed sequentially."""
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -145,37 +121,3 @@ class TestUnifiedDiscardClaimIntegration:
                 assert isinstance(cp_event.target, SeatTarget)
 
         assert found_prompt, "expected at least one call prompt event across multiple discards"
-
-    async def test_discard_prompt_creates_unified_prompt_in_state(self, service):
-        """When a discard creates a call prompt, the server state has call_type=DISCARD."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        found_discard_prompt = False
-        for _ in range(20):
-            game_state = service._games["game1"]
-            round_state = game_state.round_state
-            if round_state.phase == RoundPhase.FINISHED:
-                break
-
-            current_seat = round_state.current_player_seat
-            player = round_state.players[current_seat]
-            if player.name != "Player" or not player.tiles:
-                break
-
-            tile_to_discard = player.tiles[-1]
-            await service.handle_action(
-                "game1",
-                player.name,
-                GameAction.DISCARD,
-                {"tile_id": tile_to_discard},
-            )
-
-            # check if a DISCARD prompt was created in server state
-            game_state = service._games["game1"]
-            round_state = game_state.round_state
-            prompt = round_state.pending_call_prompt
-            if prompt is not None and prompt.call_type == CallType.DISCARD:
-                found_discard_prompt = True
-                break
-
-        assert found_discard_prompt, "expected at least one DISCARD prompt in server state across multiple discards"

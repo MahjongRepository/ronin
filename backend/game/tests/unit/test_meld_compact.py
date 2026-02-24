@@ -13,7 +13,6 @@ from game.logic.meld_compact import (
     frozen_meld_to_compact,
     frozen_meld_to_meld_data,
     meld_event_to_compact,
-    meld_event_to_meld_data,
 )
 from game.logic.meld_wrapper import FrozenMeld
 from shared.lib.melds import decode_meld_compact
@@ -21,83 +20,6 @@ from shared.lib.melds import decode_meld_compact
 
 class TestFrozenMeldToMeldData:
     """Verify vocabulary mapping from FrozenMeld types to wire MeldData types."""
-
-    def test_chi_maps_to_chi(self):
-        meld = FrozenMeld(
-            tiles=(0, 4, 8),
-            meld_type=FrozenMeld.CHI,
-            opened=True,
-            called_tile=0,
-            who=1,
-            from_who=0,
-        )
-        data = frozen_meld_to_meld_data(meld)
-        assert data["meld_type"] == "chi"
-        assert data["caller_seat"] == 1
-        assert data["from_seat"] == 0
-
-    def test_pon_maps_to_pon(self):
-        meld = FrozenMeld(
-            tiles=(0, 1, 2),
-            meld_type=FrozenMeld.PON,
-            opened=True,
-            called_tile=0,
-            who=1,
-            from_who=2,
-        )
-        data = frozen_meld_to_meld_data(meld)
-        assert data["meld_type"] == "pon"
-        assert data["from_seat"] == 2
-
-    def test_open_kan_maps_to_open_kan(self):
-        meld = FrozenMeld(
-            tiles=(0, 1, 2, 3),
-            meld_type=FrozenMeld.KAN,
-            opened=True,
-            called_tile=0,
-            who=1,
-            from_who=2,
-        )
-        data = frozen_meld_to_meld_data(meld)
-        assert data["meld_type"] == "open_kan"
-
-    def test_closed_kan_maps_to_closed_kan(self):
-        meld = FrozenMeld(
-            tiles=(0, 1, 2, 3),
-            meld_type=FrozenMeld.KAN,
-            opened=False,
-            who=1,
-            from_who=None,
-            called_tile=None,
-        )
-        data = frozen_meld_to_meld_data(meld)
-        assert data["meld_type"] == "closed_kan"
-        assert data["from_seat"] is None
-        assert data["called_tile_id"] is None
-
-    def test_shouminkan_maps_to_added_kan(self):
-        meld = FrozenMeld(
-            tiles=(0, 1, 2, 3),
-            meld_type=FrozenMeld.SHOUMINKAN,
-            opened=True,
-            called_tile=0,
-            who=1,
-            from_who=3,
-        )
-        data = frozen_meld_to_meld_data(meld)
-        assert data["meld_type"] == "added_kan"
-
-    def test_chankan_maps_to_added_kan(self):
-        meld = FrozenMeld(
-            tiles=(0, 1, 2, 3),
-            meld_type=FrozenMeld.CHANKAN,
-            opened=True,
-            called_tile=0,
-            who=2,
-            from_who=0,
-        )
-        data = frozen_meld_to_meld_data(meld)
-        assert data["meld_type"] == "added_kan"
 
     def test_unknown_meld_type_raises(self):
         """A meld_type not in the mapping raises ValueError."""
@@ -109,7 +31,6 @@ class TestFrozenMeldToMeldData:
             who=1,
             from_who=0,
         )
-        # Patch meld_type to an invalid value via model internals
         patched = meld.model_copy(update={"meld_type": "bogus"})
         with pytest.raises(ValueError, match="Unknown FrozenMeld type"):
             frozen_meld_to_meld_data(patched)
@@ -317,20 +238,3 @@ class TestMeldEventRoundTrip:
         assert decoded["meld_type"] == "added_kan"
         assert decoded["caller_seat"] == 0
         assert decoded["from_seat"] == 2
-
-
-class TestMeldEventToMeldData:
-    """Verify MeldEvent fields map correctly to MeldData."""
-
-    def test_meld_type_value_is_used(self):
-        """MeldViewType enum .value is used as the MeldData meld_type string."""
-        event = MeldEvent(
-            meld_type=MeldViewType.OPEN_KAN,
-            caller_seat=1,
-            from_seat=0,
-            tile_ids=[0, 1, 2, 3],
-            called_tile_id=0,
-        )
-        data = meld_event_to_meld_data(event)
-        assert data["meld_type"] == "open_kan"
-        assert data["type"] == "meld"

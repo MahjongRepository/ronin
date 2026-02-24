@@ -318,25 +318,6 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
-    async def test_excluded_broadcast_types_are_filtered(self):
-        """Excluded types are filtered even when broadcast-targeted."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        broadcast_error = ServiceEvent(
-            event=EventType.ERROR,
-            data=ErrorEvent(code=GameErrorCode.INVALID_ACTION, message="nope", target="all"),
-            target=BroadcastTarget(),
-        )
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", [broadcast_error, _make_discard_event()])
-        await collector.save_and_cleanup("game1")
-
-        lines = _parse_saved_replay(storage.saved["game1"])
-        assert len(lines) == 1
-        assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
-
     async def test_draw_event_available_actions_stripped(self):
         """DrawEvent available_actions field is stripped from replay output."""
         storage = FakeStorage()
@@ -419,8 +400,8 @@ class TestReplayCollectorFiltering:
 class TestReplayCollectorRoundStartedMerge:
     """Tests for merging per-seat RoundStartedEvent views into a single record."""
 
-    async def test_four_round_started_events_merged_into_one(self):
-        """All 4 per-seat round_started events produce a single merged record."""
+    async def test_four_round_started_events_merged_correctly(self):
+        """All 4 per-seat round_started events merge into a single record with tiles and scores."""
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -433,39 +414,17 @@ class TestReplayCollectorRoundStartedMerge:
         record = lines[0]
         assert record["t"] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
 
-    async def test_merged_record_contains_all_players_tiles(self):
-        """Merged round_started record has tiles for every player from my_tiles."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", _make_all_round_started_events())
-        await collector.save_and_cleanup("game1")
-
-        record = _parse_saved_replay(storage.saved["game1"])[0]
         players = record["p"]
         assert len(players) == 4
         for player in players:
             seat = player["s"]
             assert player["tl"] == _SEAT_TILES[seat]
+            # 25000 points / 100 = 250 in wire format
+            assert player["sc"] == 250
 
         # mt (my_tiles) and s (seat) are stripped from the merged output
         assert "mt" not in record
         assert "s" not in record
-
-    async def test_merged_record_scores_in_wire_format(self):
-        """Scores in merged round_started are in wire format (divided by 100 once)."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", _make_all_round_started_events())
-        await collector.save_and_cleanup("game1")
-
-        record = _parse_saved_replay(storage.saved["game1"])[0]
-        for player in record["p"]:
-            # 25000 points / 100 = 250 in wire format
-            assert player["sc"] == 250
 
     async def test_single_round_started_event_produces_one_record(self):
         """A single round_started event is wrapped as-is (no merge needed)."""
@@ -486,26 +445,6 @@ class TestReplayCollectorRoundStartedMerge:
         assert seat2_player["tl"] == _SEAT_TILES[2]
         # mt (my_tiles) is stripped from the merged output
         assert "mt" not in record
-
-    async def test_merged_round_started_ordered_before_draw(self):
-        """Merged round_started appears before subsequent draw events."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events(
-            "game1",
-            [
-                *_make_all_round_started_events(),
-                _make_draw_event(seat=0, tile_id=10),
-            ],
-        )
-        await collector.save_and_cleanup("game1")
-
-        lines = _parse_saved_replay(storage.saved["game1"])
-        assert len(lines) == 2
-        types = [event["t"] for event in lines]
-        assert types == [EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]]
 
     async def test_game_started_then_merged_round_started_then_draw(self):
         """Realistic startup: game_started → merged round_started → draw."""
@@ -616,23 +555,30 @@ class TestReplayCollectorErrorHandling:
 class TestReplayCollectorIsolation:
     """Tests for concurrent game isolation."""
 
-    async def test_events_isolated_by_game_id(self):
+    async def test_events_and_seeds_isolated_by_game_id(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.start_game("game2", seed="c" * 192, rng_version=RNG_VERSION)
+        collector.start_game("game1", seed="e" * 192, rng_version=RNG_VERSION)
+        collector.start_game("game2", seed="f" * 192, rng_version=RNG_VERSION)
 
-        collector.collect_events("game1", [_make_discard_event(seat=0)])
-        collector.collect_events("game2", [_make_discard_event(seat=1), _make_meld_event()])
+        collector.collect_events("game1", [_make_game_started_event("game1"), _make_discard_event(seat=0)])
+        collector.collect_events(
+            "game2",
+            [_make_game_started_event("game2"), _make_discard_event(seat=1), _make_meld_event()],
+        )
 
         await collector.save_and_cleanup("game1")
         await collector.save_and_cleanup("game2")
 
         lines1 = _parse_saved_replay(storage.saved["game1"])
         lines2 = _parse_saved_replay(storage.saved["game2"])
-        assert len(lines1) == 1
-        assert len(lines2) == 2
+        # Events are isolated
+        assert len(lines1) == 2
+        assert len(lines2) == 3
+        # Seeds are isolated
+        assert lines1[0]["sd"] == "e" * 192
+        assert lines2[0]["sd"] == "f" * 192
 
 
 class TestReplayCollectorSeedInReplay:
@@ -682,43 +628,21 @@ class TestReplayCollectorSeedInReplay:
         payload = service_event_payload(event)
         assert "sd" not in payload
 
-    async def test_seed_cleaned_up_after_save(self):
-        """Seed is removed from internal state after save_and_cleanup."""
+    async def test_seed_cleaned_up_after_save_or_cleanup(self):
+        """Seed is removed from internal state after save or cleanup."""
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
+        # After save_and_cleanup
         collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [_make_game_started_event()])
         await collector.save_and_cleanup("game1")
-
         assert "game1" not in collector._seeds
 
-    def test_seed_cleaned_up_after_cleanup(self):
-        """Seed is removed from internal state after cleanup_game."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.cleanup_game("game1")
-
-        assert "game1" not in collector._seeds
-
-    async def test_different_games_have_different_seeds(self):
-        """Each game stores its own seed independently."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        collector.start_game("game1", seed="e" * 192, rng_version=RNG_VERSION)
-        collector.start_game("game2", seed="f" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", [_make_game_started_event("game1")])
-        collector.collect_events("game2", [_make_game_started_event("game2")])
-        await collector.save_and_cleanup("game1")
-        await collector.save_and_cleanup("game2")
-
-        record1 = _parse_saved_replay(storage.saved["game1"])[0]
-        record2 = _parse_saved_replay(storage.saved["game2"])[0]
-        assert record1["sd"] == "e" * 192
-        assert record2["sd"] == "f" * 192
+        # After cleanup_game
+        collector.start_game("game2", seed="c" * 192, rng_version=RNG_VERSION)
+        collector.cleanup_game("game2")
+        assert "game2" not in collector._seeds
 
 
 class TestReplayCollectorSensitiveDataGuard:

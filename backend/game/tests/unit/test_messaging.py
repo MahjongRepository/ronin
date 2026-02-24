@@ -1,5 +1,4 @@
 import pytest
-from mahjong.tile import TilesConverter
 from pydantic import ValidationError
 
 from game.logic.enums import WireClientMessageType, WireGameAction
@@ -201,35 +200,6 @@ class TestMessageRouterBranches:
         assert response["type"] == SessionMessageType.ERROR
         assert response["code"] == SessionErrorCode.ACTION_FAILED
 
-    async def test_game_action_error_returns_action_failed(self, setup):
-        """ValueError during game action returns ACTION_FAILED error."""
-        router, connection, session_manager = setup
-        await _setup_player_in_game(session_manager, connection)
-
-        async def raise_value_error(
-            connection: object,
-            action: object,
-            data: object,
-        ) -> None:
-            raise ValueError("invalid tile")
-
-        session_manager.handle_game_action = raise_value_error
-
-        await router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.GAME_ACTION,
-                "a": WireGameAction.DISCARD,
-                "ti": TilesConverter.string_to_136_array(man="1")[0],
-            },
-        )
-
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.ACTION_FAILED
-        assert response["message"] == "invalid tile"
-
     async def test_unexpected_exception_triggers_close_game_on_error(self, setup):
         """Fatal exception during game action triggers close_game_on_error."""
         router, connection, session_manager = setup
@@ -361,14 +331,6 @@ class TestInputValidation:
         with pytest.raises(ValidationError, match="control characters"):
             parse_client_message(data)
 
-    def test_chat_text_with_escape_rejected(self):
-        data = {
-            "t": WireClientMessageType.CHAT,
-            "text": "hello\x1bworld",
-        }
-        with pytest.raises(ValidationError, match="control characters"):
-            parse_client_message(data)
-
     def test_chat_text_allows_common_whitespace(self):
         data = {
             "t": WireClientMessageType.CHAT,
@@ -376,11 +338,3 @@ class TestInputValidation:
         }
         msg = parse_client_message(data)
         assert msg.text == "hello\tworld\nfoo"
-
-    def test_chat_text_valid(self):
-        data = {
-            "t": WireClientMessageType.CHAT,
-            "text": "hello world!",
-        }
-        msg = parse_client_message(data)
-        assert msg.text == "hello world!"

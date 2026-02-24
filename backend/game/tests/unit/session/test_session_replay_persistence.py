@@ -66,6 +66,15 @@ async def _create_started_game_with_collector(
     return [conn]
 
 
+class TestReplayCollectorMerge:
+    """Tests for ReplayCollector static helper."""
+
+    def test_empty_list_returns_empty_json(self):
+        """_merge_round_started_payloads returns '{}' for empty list."""
+        result = ReplayCollector._merge_round_started_payloads([])
+        assert result == "{}"
+
+
 class TestSessionReplayStart:
     """Tests for replay collector start_game trigger when game starts."""
 
@@ -156,11 +165,3 @@ class TestSessionReplayCleanup:
         await manager.join_game(conn, "game1", ticket)
 
         await manager.leave_game(conn)  # should not raise
-
-
-class TestMergeRoundStartedPayloads:
-    """Tests for _merge_round_started_payloads edge cases."""
-
-    def test_empty_list_returns_empty_json(self):
-        result = ReplayCollector._merge_round_started_payloads([])
-        assert result == "{}"

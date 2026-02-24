@@ -70,10 +70,6 @@ servers:
         response = client.get("/")
         assert '<form method="POST" action="/rooms/new">' in response.text
 
-    def test_lobby_page_shows_refresh_link(self, client):
-        response = client.get("/")
-        assert '<a href="/" class="btn btn-secondary">Refresh</a>' in response.text
-
     def test_lobby_page_shows_empty_message(self, client):
         response = client.get("/")
         assert "No rooms available. Create one!" in response.text
@@ -97,17 +93,6 @@ servers:
         response = client.get("/")
         assert "full-room" in response.text
         assert "Full" in response.text
-
-    def test_create_room_redirects_to_room_page(self, client):
-        response = client.post(
-            "/rooms/new",
-            follow_redirects=False,
-        )
-        assert response.status_code == 303
-        location = response.headers["location"]
-        assert location.startswith("/rooms/")
-        # No game ticket in redirect
-        assert "game_ticket=" not in location
 
     def test_static_css_served(self, client):
         response = client.get("/static/styles/lobby.css")

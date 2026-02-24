@@ -217,27 +217,6 @@ class TestWebSocketReconnect:
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
 
-    def test_reconnect_uses_connection_game_id(self, client):
-        """Reconnect uses game_id from the WebSocket URL path (connection-level property)."""
-        sm = client.app.state.session_manager
-        snapshot = _make_snapshot("test_game", seat=0)
-        sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
-        ticket = _start_game_and_get_ticket(client)
-
-        with client.websocket_connect("/ws/test_game") as ws:
-            _send(
-                ws,
-                {
-                    "t": WireClientMessageType.RECONNECT,
-                    "game_ticket": ticket,
-                },
-            )
-
-            msg = _recv(ws)
-            assert msg["type"] == SessionMessageType.GAME_RECONNECTED
-            assert msg["gid"] == "test_game"
-
     def test_reconnect_then_game_action(self, client):
         """Player reconnects and can send game actions over the same WebSocket."""
         sm = client.app.state.session_manager

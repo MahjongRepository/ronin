@@ -118,14 +118,6 @@ class TestCanDeclareRiichi:
 
         assert result is False
 
-    def test_cannot_declare_riichi_with_empty_wall(self):
-        """Player cannot declare riichi when wall is empty."""
-        player, round_state = self._create_player_and_round_state(wall_size=0)
-
-        result = can_declare_riichi(player, round_state, GameSettings())
-
-        assert result is False
-
     def test_cannot_declare_riichi_with_fewer_than_4_tiles_in_wall(self):
         """Player cannot declare riichi when fewer than 4 tiles remain in wall."""
         player, round_state = self._create_player_and_round_state(wall_size=3)

@@ -246,35 +246,18 @@ def test_round_end_abortive_nine_terminals():
     assert replay.events[0].action == GameAction.CALL_KYUUSHU
 
 
-def test_round_end_abortive_other_skipped():
-    """round_end with non-nine_terminals abortive draw produces no actions."""
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.ABORTIVE_DRAW,
-            "rn": "four_riichi",
-        },
-    )
-    content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
-
-    assert len(replay.events) == 0
-
-
-def test_round_end_exhaustive_draw_skipped():
-    """round_end with exhaustive_draw produces no actions."""
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.EXHAUSTIVE_DRAW,
-            "ts": [],
-            "ns": [],
-        },
-    )
-    content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
-
-    assert len(replay.events) == 0
+def test_non_scoring_round_ends_produce_no_actions():
+    """round_end types that don't imply a player action produce no actions."""
+    cases = [
+        (WireRoundResultType.ABORTIVE_DRAW, {"rn": "four_riichi"}),
+        (WireRoundResultType.EXHAUSTIVE_DRAW, {"ts": [], "ns": []}),
+        (WireRoundResultType.NAGASHI_MANGAN, {}),
+    ]
+    for rt, extra_fields in cases:
+        round_end = json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_END], "rt": rt, **extra_fields})
+        content = _build_event_log(round_end)
+        replay = load_replay_from_string(content)
+        assert len(replay.events) == 0, f"Expected no events for round_end type {rt}"
 
 
 def test_non_action_events_skipped():
@@ -601,31 +584,28 @@ def test_error_ron_round_end_missing_winner_seat():
         load_replay_from_string(content)
 
 
-def test_error_double_ron_empty_winners():
-    """ReplayLoadError when double_ron round_end has empty winners list."""
-    round_end = json.dumps(
+def test_error_double_ron_no_valid_winners():
+    """ReplayLoadError when double_ron has no valid winners (empty or missing)."""
+    # Empty winners list
+    round_end_empty = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
             "rt": WireRoundResultType.DOUBLE_RON,
             "wn": [],
         },
     )
-    content = _build_event_log(round_end)
     with pytest.raises(ReplayLoadError, match="must have at least one winner"):
-        load_replay_from_string(content)
+        load_replay_from_string(_build_event_log(round_end_empty))
 
-
-def test_error_double_ron_missing_winners():
-    """ReplayLoadError when double_ron round_end has no wn field."""
-    round_end = json.dumps(
+    # Missing winners field
+    round_end_missing = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
             "rt": WireRoundResultType.DOUBLE_RON,
         },
     )
-    content = _build_event_log(round_end)
     with pytest.raises(ReplayLoadError, match="must have at least one winner"):
-        load_replay_from_string(content)
+        load_replay_from_string(_build_event_log(round_end_missing))
 
 
 def test_error_double_ron_winner_missing_seat():
@@ -653,27 +633,6 @@ def test_error_abortive_draw_nine_terminals_missing_seat():
     )
     content = _build_event_log(round_end)
     with pytest.raises(ReplayLoadError, match="nine_terminals abortive_draw missing or invalid field"):
-        load_replay_from_string(content)
-
-
-def test_round_end_nagashi_mangan_skipped():
-    """round_end with nagashi_mangan produces no actions."""
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.NAGASHI_MANGAN,
-        },
-    )
-    content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
-    assert len(replay.events) == 0
-
-
-def test_error_discard_negative_packed_value():
-    """ReplayLoadError when discard event has a negative packed value."""
-    discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": -1})
-    content = _build_event_log(discard)
-    with pytest.raises(ReplayLoadError, match="Invalid discard packed value"):
         load_replay_from_string(content)
 
 

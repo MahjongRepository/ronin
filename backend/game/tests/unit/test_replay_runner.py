@@ -196,35 +196,8 @@ async def test_run_replay_async_service_factory():
     assert cleanup_called
 
 
-async def test_run_replay_async_unique_game_ids():
-    """Runner-generated game_id values do not collide across runs."""
-    game_ids: set[str] = set()
-
-    class IdCapturingService(MahjongGameService):
-        async def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            settings: GameSettings | None = None,
-            wall: list[int] | None = None,
-        ) -> list[ServiceEvent]:
-            game_ids.add(game_id)
-            return await super().start_game(game_id, player_names, seed=seed)
-
-    replay = _build_replay()
-    for _ in range(5):
-        await run_replay_async(
-            replay,
-            service_factory=lambda: IdCapturingService(auto_cleanup=False),
-        )
-
-    assert len(game_ids) == 5
-
-
-async def test_run_replay_async_cleanup_on_success():
-    """Runner calls cleanup_game after successful replay."""
+async def test_run_replay_async_cleanup_always_called():
+    """Runner calls cleanup_game on both success and error."""
     cleanup_calls: list[str] = []
 
     class TrackingService(MahjongGameService):
@@ -232,6 +205,7 @@ async def test_run_replay_async_cleanup_on_success():
             cleanup_calls.append(game_id)
             super().cleanup_game(game_id)
 
+    # Success case
     replay = _build_replay()
     await run_replay_async(
         replay,
@@ -239,18 +213,9 @@ async def test_run_replay_async_cleanup_on_success():
     )
     assert len(cleanup_calls) == 1
 
-
-async def test_run_replay_async_cleanup_on_error():
-    """Runner calls cleanup_game even when an error is raised."""
-    cleanup_calls: list[str] = []
-
-    class TrackingService(MahjongGameService):
-        def cleanup_game(self, game_id: str) -> None:
-            cleanup_calls.append(game_id)
-            super().cleanup_game(game_id)
-
+    # Error case
+    cleanup_calls.clear()
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
-
     with pytest.raises(ReplayError):
         await run_replay_async(
             replay,

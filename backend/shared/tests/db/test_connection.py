@@ -178,6 +178,24 @@ class TestMigration:
             db.migrate_from_json(str(json_path))
         db.close()
 
+    def test_rollback_on_duplicate_username_in_json(self, tmp_path: Path) -> None:
+        """Duplicate usernames pass JSON validation but fail on INSERT; transaction rolls back."""
+        player_a = _human_player(user_id="u1", username="alice")
+        player_b = _human_player(user_id="u2", username="alice")
+        json_path = tmp_path / "users.json"
+        json_path.write_text(
+            json.dumps({"u1": player_a.model_dump(), "u2": player_b.model_dump()}),
+        )
+
+        db = Database(tmp_path / "test.db")
+        db.connect()
+        with pytest.raises(sqlite3.IntegrityError):
+            db.migrate_from_json(str(json_path))
+
+        row = db.connection.execute("SELECT COUNT(*) FROM players").fetchone()
+        assert row[0] == 0
+        db.close()
+
     def test_raises_on_unreadable_file(self, tmp_path: Path) -> None:
         json_path = tmp_path / "users.json"
         json_path.write_text("{}")
@@ -189,20 +207,6 @@ class TestMigration:
             db.migrate_from_json(str(json_path))
         db.close()
         json_path.chmod(0o644)
-
-    def test_insert_migrated_players_rolls_back_on_duplicate(self, tmp_path: Path) -> None:
-        """_insert_migrated_players rolls back the transaction on IntegrityError."""
-        db = Database(tmp_path / "test.db")
-        db.connect()
-        player = _human_player()
-        # Passing the same player twice triggers IntegrityError on the second INSERT,
-        # which exercises the except -> ROLLBACK -> raise path (lines 149-151).
-        with pytest.raises(sqlite3.IntegrityError):
-            Database._insert_migrated_players(db.connection, [player, player])
-
-        row = db.connection.execute("SELECT COUNT(*) FROM players").fetchone()
-        assert row[0] == 0
-        db.close()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions only")

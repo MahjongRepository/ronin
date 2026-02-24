@@ -56,18 +56,21 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
     )
 
 
-def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLAYING):
+def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLAYING, pending_call_prompt=None):
     """Override get_game_state to return a mock with round_state for reconnect turn detection."""
 
     class _MockRoundState:
-        phase = RoundPhase.PLAYING
-        pending_call_prompt = None
-        current_player_seat = current_seat
+        pass
 
-    _MockRoundState.phase = phase
+    round_state = _MockRoundState()
+    round_state.phase = phase
+    round_state.pending_call_prompt = pending_call_prompt
+    round_state.current_player_seat = current_seat
 
     class _MockGameState:
-        round_state = _MockRoundState()
+        pass
+
+    _MockGameState.round_state = round_state
 
     manager._game_service.get_game_state = lambda gid: _MockGameState()
 
@@ -383,40 +386,6 @@ class TestReconnectEdgeCases:
         assert replace_calls[0] == ("game1", "Alice")
 
     @pytest.mark.asyncio
-    async def test_reconnect_snapshot_exception_restores_ai(self, manager):
-        """If snapshot building raises, the AI player is re-added at the seat."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        def exploding_snapshot(gid, seat):
-            raise RuntimeError("snapshot boom")
-
-        manager._game_service.build_reconnection_snapshot = exploding_snapshot
-
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        replace_calls.clear()
-        with pytest.raises(RuntimeError, match="snapshot boom"):
-            await manager.reconnect(new_conn, "game1", alice_token)
-
-        # AI player was restored at the seat
-        assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", "Alice")
-
-    @pytest.mark.asyncio
     async def test_reconnect_no_seat_rejected(self, manager):
         """Reconnect with session that has no seat returns error."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
@@ -534,6 +503,77 @@ class TestReconnectEdgeCases:
         assert len(draw_msgs) == 0
 
     @pytest.mark.asyncio
+    async def test_reconnect_snapshot_exception_restores_ai(self, manager):
+        """If build_reconnection_snapshot raises, the AI player is re-added at the seat."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        alice_conn = conns[0]
+        alice_player = manager._players[alice_conn.connection_id]
+        alice_token = alice_player.session_token
+
+        def raise_error(gid, seat):
+            raise RuntimeError("snapshot failed")
+
+        manager._game_service.build_reconnection_snapshot = raise_error
+
+        replace_calls = []
+        original_replace = manager._game_service.replace_with_ai_player
+
+        def tracking_replace(game_id, player_name):
+            replace_calls.append((game_id, player_name))
+            return original_replace(game_id, player_name)
+
+        manager._game_service.replace_with_ai_player = tracking_replace
+
+        await manager.leave_game(alice_conn, notify_player=False)
+
+        new_conn = MockConnection()
+        manager.register_connection(new_conn)
+        replace_calls.clear()
+
+        with pytest.raises(RuntimeError, match="snapshot failed"):
+            await manager.reconnect(new_conn, "game1", alice_token)
+
+        assert len(replace_calls) == 1
+        assert replace_calls[0] == ("game1", "Alice")
+
+    @pytest.mark.asyncio
+    async def test_reconnect_no_draw_event_when_call_prompt_pending(self, manager):
+        """No draw event sent when a call prompt is pending during reconnect."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        alice_conn = conns[0]
+        alice_player = manager._players[alice_conn.connection_id]
+        alice_token = alice_player.session_token
+
+        snapshot = _make_snapshot("game1", seat=0)
+        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
+
+        _stub_game_state_for_reconnect(manager, current_seat=0, pending_call_prompt=object())
+        manager._game_service.is_round_advance_pending = lambda gid: False
+
+        # Mock build_draw_event_for_seat to return a draw event so the assertion
+        # would fail if the pending_call_prompt check were missing.
+        draw_event = ServiceEvent(
+            event=EventType.DRAW,
+            data=DrawEvent(
+                seat=0,
+                tile_id=42,
+                available_actions=[AvailableActionItem(action=PlayerAction.DISCARD)],
+                target="seat_0",
+            ),
+            target=SeatTarget(seat=0),
+        )
+        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
+
+        await manager.leave_game(alice_conn, notify_player=False)
+
+        new_conn = MockConnection()
+        manager.register_connection(new_conn)
+        await manager.reconnect(new_conn, "game1", alice_token)
+
+        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        assert len(draw_msgs) == 0
+
+    @pytest.mark.asyncio
     async def test_reconnect_no_draw_event_in_non_playing_phase(self, manager):
         """No draw event sent when round is not in PLAYING phase."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
@@ -546,37 +586,19 @@ class TestReconnectEdgeCases:
         _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.FINISHED)
         manager._game_service.is_round_advance_pending = lambda gid: False
 
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
-        assert len(draw_msgs) == 0
-
-    @pytest.mark.asyncio
-    async def test_reconnect_no_draw_event_when_call_prompt_pending(self, manager):
-        """No draw event sent when a call prompt is pending."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
-        # stub game state with a pending call prompt
-        class _MockRoundState:
-            phase = RoundPhase.PLAYING
-            pending_call_prompt = object()  # truthy value = prompt exists
-            current_player_seat = 0
-
-        class _MockGameState:
-            round_state = _MockRoundState()
-
-        manager._game_service.get_game_state = lambda gid: _MockGameState()
-        manager._game_service.is_round_advance_pending = lambda gid: False
+        # Mock build_draw_event_for_seat to return a draw event so the assertion
+        # would fail if the phase check were missing.
+        draw_event = ServiceEvent(
+            event=EventType.DRAW,
+            data=DrawEvent(
+                seat=0,
+                tile_id=42,
+                available_actions=[AvailableActionItem(action=PlayerAction.DISCARD)],
+                target="seat_0",
+            ),
+            target=SeatTarget(seat=0),
+        )
+        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
 
         await manager.leave_game(alice_conn, notify_player=False)
 

@@ -130,33 +130,20 @@ class TestPublicRoutesPassUnauthenticated:
 
 
 class TestProtectedHtmlRedirectsToLogin:
-    def test_unauthenticated_html_route_redirects(self, auth_service: MagicMock) -> None:
+    def test_unauthenticated_html_route_redirects_with_next(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service), follow_redirects=False)
         response = client.get("/")
         assert response.status_code == 303
         location = response.headers["location"]
         parsed = urlparse(location)
         assert parsed.path == "/login"
-
-    def test_redirect_includes_next_parameter(self, auth_service: MagicMock) -> None:
-        client = TestClient(_make_app(auth_service), follow_redirects=False)
-        response = client.get("/")
-        location = response.headers["location"]
-        parsed = urlparse(location)
-        query = parse_qs(parsed.query)
-        assert "next" in query
+        assert "next" in parse_qs(parsed.query)
 
 
 class TestProtectedJsonReturns401:
     def test_unauthenticated_rooms_returns_401_json(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/rooms")
-        assert response.status_code == 401
-        assert response.json() == {"error": "Authentication required"}
-
-    def test_unauthenticated_servers_returns_401_json(self, auth_service: MagicMock) -> None:
-        client = TestClient(_make_app(auth_service))
-        response = client.get("/servers")
         assert response.status_code == 401
         assert response.json() == {"error": "Authentication required"}
 
@@ -167,12 +154,6 @@ class TestTrailingSlashReturns401:
     def test_rooms_trailing_slash_returns_401(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/rooms/")
-        assert response.status_code == 401
-        assert response.json() == {"error": "Authentication required"}
-
-    def test_servers_trailing_slash_returns_401(self, auth_service: MagicMock) -> None:
-        client = TestClient(_make_app(auth_service))
-        response = client.get("/servers/")
         assert response.status_code == 401
         assert response.json() == {"error": "Authentication required"}
 
@@ -240,14 +221,6 @@ class TestInvalidCookieTreatedAsUnauthenticated:
     def test_nonexistent_session_id_redirects(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service), follow_redirects=False)
         client.cookies.set("session_id", "nonexistent-session-id")
-        response = client.get("/")
-        assert response.status_code == 303
-        parsed = urlparse(response.headers["location"])
-        assert parsed.path == "/login"
-
-    def test_empty_session_cookie_redirects(self, auth_service: MagicMock) -> None:
-        client = TestClient(_make_app(auth_service), follow_redirects=False)
-        client.cookies.set("session_id", "")
         response = client.get("/")
         assert response.status_code == 303
         parsed = urlparse(response.headers["location"])

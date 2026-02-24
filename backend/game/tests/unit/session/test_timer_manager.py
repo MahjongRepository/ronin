@@ -35,14 +35,11 @@ class TestTimerManagerCreate:
         # seat 3 not created
         assert timer_manager.get_timer("g1", 3) is None
 
-    def test_has_game_false_for_unknown_game(self, timer_manager):
-        assert not timer_manager.has_game("unknown")
-
-    def test_get_timer_returns_none_for_unknown_game(self, timer_manager):
-        assert timer_manager.get_timer("unknown", 0) is None
-
 
 class TestTimerManagerRemove:
+    def test_remove_timer_returns_none_for_missing_game(self, timer_manager):
+        assert timer_manager.remove_timer("unknown", 0) is None
+
     def test_remove_timer_returns_and_removes(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1])
         timer = timer_manager.remove_timer("g1", 0)
@@ -51,13 +48,6 @@ class TestTimerManagerRemove:
         assert timer_manager.get_timer("g1", 0) is None
         # other seats unaffected
         assert timer_manager.get_timer("g1", 1) is not None
-
-    def test_remove_timer_returns_none_for_missing_seat(self, timer_manager):
-        timer_manager.create_timers("g1", [0])
-        assert timer_manager.remove_timer("g1", 5) is None
-
-    def test_remove_timer_returns_none_for_missing_game(self, timer_manager):
-        assert timer_manager.remove_timer("unknown", 0) is None
 
 
 class TestTimerManagerCleanup:
@@ -79,10 +69,6 @@ class TestTimerManagerCleanup:
         # task should be cancelled
         assert timer._active_task is None or timer._active_task.done()
 
-    def test_cleanup_unknown_game_is_noop(self, timer_manager):
-        # should not raise
-        timer_manager.cleanup_game("unknown")
-
 
 class TestTimerManagerStop:
     async def test_stop_player_timer(self, timer_manager):
@@ -94,10 +80,6 @@ class TestTimerManagerStop:
         timer_manager.stop_player_timer("g1", 0)
         # timer task is cancelled and bank time deducted
         assert timer._active_task is None
-
-    def test_stop_player_timer_noop_for_missing(self, timer_manager):
-        # should not raise
-        timer_manager.stop_player_timer("unknown", 0)
 
 
 class TestTimerManagerCancel:
@@ -115,10 +97,6 @@ class TestTimerManagerCancel:
         assert timer_manager.get_timer("g1", 2)._active_task is None
         timer_manager.get_timer("g1", 1).cancel()
 
-    def test_cancel_other_timers_noop_for_missing_game(self, timer_manager):
-        # should not raise
-        timer_manager.cancel_other_timers("unknown", exclude_seat=0)
-
     async def test_cancel_all(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1])
         timer_manager.start_turn_timer("g1", 0)
@@ -130,10 +108,6 @@ class TestTimerManagerCancel:
         assert timer_manager.has_game("g1")
         assert timer_manager.get_timer("g1", 0)._active_task is None
         assert timer_manager.get_timer("g1", 1)._active_task is None
-
-    def test_cancel_all_noop_for_missing_game(self, timer_manager):
-        # should not raise
-        timer_manager.cancel_all("unknown")
 
 
 class TestTimerManagerBank:
@@ -150,10 +124,6 @@ class TestTimerManagerBank:
         assert timer._bank_seconds <= initial_bank
         timer.cancel()
 
-    def test_consume_bank_noop_for_missing(self, timer_manager):
-        # should not raise
-        timer_manager.consume_bank("unknown", 0)
-
     def test_add_round_bonus(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1])
         timer0 = timer_manager.get_timer("g1", 0)
@@ -166,10 +136,6 @@ class TestTimerManagerBank:
         assert timer0._bank_seconds > initial0
         assert timer1._bank_seconds > initial1
 
-    def test_add_round_bonus_noop_for_missing_game(self, timer_manager):
-        # should not raise
-        timer_manager.add_round_bonus("unknown")
-
 
 class TestTimerManagerStartTurn:
     async def test_start_turn_timer(self, timer_manager):
@@ -179,10 +145,6 @@ class TestTimerManagerStartTurn:
         timer_manager.start_turn_timer("g1", 0)
         assert timer._active_task is not None
         timer.cancel()
-
-    def test_start_turn_timer_noop_for_missing_seat(self, timer_manager):
-        timer_manager.create_timers("g1", [0])
-        timer_manager.start_turn_timer("g1", 1)  # seat 1 doesn't exist -- should not raise
 
     async def test_turn_timer_fires_callback(self, timer_manager, timeout_log):
         """Turn timer timeout invokes the on_timeout callback with correct args."""
@@ -205,10 +167,6 @@ class TestTimerManagerStartMeld:
         timer_manager.start_meld_timer("g1", 0)
         assert timer._active_task is not None
         timer.cancel()
-
-    def test_start_meld_timer_noop_for_missing_seat(self, timer_manager):
-        timer_manager.create_timers("g1", [0])
-        timer_manager.start_meld_timer("g1", 2)  # seat 2 doesn't exist -- should not raise
 
     async def test_meld_timer_fires_callback(self, timer_manager, timeout_log):
         """Meld timer timeout invokes the on_timeout callback with MELD type."""

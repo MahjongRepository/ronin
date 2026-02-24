@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
@@ -144,20 +144,6 @@ class TestSessionManagerCloseGameOnError:
 
         assert "game:game1" not in manager._heartbeat._tasks
         assert heartbeat_task.done()
-
-    async def test_heartbeat_loop_stops_when_game_removed(self, manager):
-        """Heartbeat loop returns when the game is no longer in the games dict."""
-        conns = await create_started_game(manager, "game1")
-
-        # remove the game from the dict
-        manager._games.pop("game1", None)
-
-        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.return_value = None
-            # should return without error when game is missing
-            await manager._heartbeat._check_loop("game1", "game", manager.get_game)
-
-        assert not conns[0].is_closed
 
 
 class TestGameEndFromAction:

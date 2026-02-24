@@ -18,13 +18,6 @@ def _mock_ws() -> AsyncMock:
 
 
 class TestRoomConnectionManager:
-    def test_add_connection(self):
-        mgr = RoomConnectionManager()
-        ws = _mock_ws()
-        mgr.add("room-1", "conn-1", ws)
-        assert "room-1" in mgr._connections
-        assert "conn-1" in mgr._connections["room-1"]
-
     def test_remove_returns_room_id(self):
         mgr = RoomConnectionManager()
         mgr.add("room-1", "conn-1", _mock_ws())

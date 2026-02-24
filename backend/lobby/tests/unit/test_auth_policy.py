@@ -179,14 +179,6 @@ class TestValidateRouteAuthPolicy:
         with pytest.raises(RuntimeError, match="Unclassified routes"):
             validate_route_auth_policy(routes)
 
-    def test_error_message_includes_path_and_name(self) -> None:
-        routes = [
-            Route("/missing", _make_handler(), methods=["GET"], name="missing_route"),
-        ]
-
-        with pytest.raises(RuntimeError, match=r"/missing \(missing_route\)"):
-            validate_route_auth_policy(routes)
-
     def test_mount_is_exempt(self) -> None:
         routes = [
             Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),

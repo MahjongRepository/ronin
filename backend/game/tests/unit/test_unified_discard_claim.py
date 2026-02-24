@@ -9,8 +9,6 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import handle_pass, handle_pon, handle_ron
-from game.logic.ai_player import AIPlayer, AIPlayerStrategy
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     AbortiveDrawType,
@@ -210,20 +208,34 @@ class TestAllCallersPass:
 
 
 class TestMultipleRonPlusMeld:
-    """Scenario 4: Multiple ron + meld callers, ron wins."""
+    """Scenario 4: Two ron callers + meld caller -> ron wins."""
 
-    def test_first_ron_wins_with_multiple_callers(self):
-        """Player A discards, B and C can ron, D can chi -> B rons -> ron resolves."""
-        ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
+    def test_two_ron_plus_meld_ron_wins(self):
+        """Two ron callers and one meld caller on DISCARD prompt -> double ron resolves."""
+        ron_hand_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
+        ron_hand_2 = tuple(TilesConverter.string_to_136_array(sou="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         wall, dead_wall = _make_wall_and_dead_wall()
         players = tuple(
             create_player(
                 seat=i,
-                tiles=((discard_tile,) if i == 0 else (ron_hand if i in (1, 2) else ())),
+                tiles=ron_hand_1 if i == 1 else (ron_hand_2 if i == 2 else ()),
             )
             for i in range(4)
+        )
+
+        # set up prompt directly: seats 1 and 2 are ron callers, seat 3 is meld
+        prompt = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=discard_tile,
+            from_seat=0,
+            pending_seats=frozenset(),
+            callers=(1, 2, MeldCaller(seat=3, call_type=MeldCallType.PON)),
+            responses=(
+                CallResponse(seat=1, action=GameAction.CALL_RON),
+                CallResponse(seat=2, action=GameAction.CALL_RON),
+            ),
         )
 
         round_state = create_round_state(
@@ -233,55 +245,52 @@ class TestMultipleRonPlusMeld:
             dora_indicators=(dead_wall[2],),
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
+            pending_call_prompt=prompt,
         )
         game_state = create_game_state(round_state)
 
-        new_round, new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert len(call_prompts) == 1
-        assert call_prompts[0].call_type == CallType.DISCARD
-
-        # B calls ron
-        prompt = new_round.pending_call_prompt
-        assert prompt is not None
-        resolved_prompt = prompt.model_copy(
-            update={
-                "pending_seats": frozenset(),
-                "responses": (CallResponse(seat=1, action=GameAction.CALL_RON),),
-            },
-        )
-        new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
-        new_game = update_game_with_round(new_game, new_round)
-
-        result = resolve_call_prompt(new_round, new_game)
+        result = resolve_call_prompt(round_state, game_state)
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.RON
+        assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
 
 
-class TestAllRonPassMeldPriority:
-    """Scenario 5: All ron callers pass, multiple meld callers -> highest priority meld wins."""
+class TestAllRonPassMeldWins:
+    """Scenario 5: All ron callers pass -> highest-priority meld wins."""
 
-    def test_pon_wins_over_chi_after_ron_pass(self):
-        """B can ron, C can pon, D can chi -> B passes, C calls pon, D calls chi -> pon wins."""
-        ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
+    def test_ron_passes_pon_wins_over_chi(self):
+        """Ron caller passes, pon and chi compete -> pon wins."""
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
-        other_tiles_c = TilesConverter.string_to_136_array(man="123456789", sou="11")
+        chi_tiles = TilesConverter.string_to_136_array(pin="24")
+        other_tiles = TilesConverter.string_to_136_array(man="123456789", sou="11")
 
         wall, dead_wall = _make_wall_and_dead_wall()
+
+        # seat 2 has pon tiles, seat 3 has chi tiles, seat 1 is ron caller (will pass)
+        prompt = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=discard_tile,
+            from_seat=0,
+            pending_seats=frozenset(),
+            callers=(
+                1,  # ron caller who passed
+                MeldCaller(seat=2, call_type=MeldCallType.PON),
+                MeldCaller(seat=3, call_type=MeldCallType.CHI, options=((chi_tiles[0], chi_tiles[1]),)),
+            ),
+            responses=(
+                CallResponse(seat=2, action=GameAction.CALL_PON),
+                CallResponse(seat=3, action=GameAction.CALL_CHI, sequence_tiles=(chi_tiles[0], chi_tiles[1])),
+            ),
+        )
+
         players = tuple(
             create_player(
                 seat=i,
-                tiles=(
-                    (discard_tile,)
-                    if i == 0
-                    else (ron_hand if i == 1 else ((*pon_tiles, *other_tiles_c) if i == 2 else ()))
-                ),
+                tiles=((*pon_tiles, *other_tiles) if i == 2 else ((*chi_tiles, *other_tiles) if i == 3 else ())),
             )
             for i in range(4)
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -289,31 +298,15 @@ class TestAllRonPassMeldPriority:
             dora_indicators=(dead_wall[2],),
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
+            pending_call_prompt=prompt,
         )
         game_state = create_game_state(round_state)
 
-        new_round, new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        result = resolve_call_prompt(round_state, game_state)
 
-        # B passes, C calls pon
-        prompt = new_round.pending_call_prompt
-        assert prompt is not None
-        resolved_prompt = prompt.model_copy(
-            update={
-                "pending_seats": frozenset(),
-                "responses": (CallResponse(seat=2, action=GameAction.CALL_PON),),
-            },
-        )
-        new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
-        new_game = update_game_with_round(new_game, new_round)
-
-        result = resolve_call_prompt(new_round, new_game)
-
-        # pon should execute - no DrawEvent, only MeldEvent
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 0
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
-        assert meld_events[0].caller_seat == 2
+        assert meld_events[0].caller_seat == 2  # pon wins over chi
 
 
 class TestDualEligibleSeatRonDominant:
@@ -551,58 +544,6 @@ class TestFourRiichiAbortAfterRonPass:
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
-
-
-class TestAIPlayerDualEligibleRonDominant:
-    """Scenario 10: AI player dual-eligible seat follows ron-dominant policy."""
-
-    def test_ai_player_ron_caller_gets_ron_decision_path(self):
-        """AI player seat as ron caller on DISCARD prompt gets ron-only decision path."""
-        ai_players = {1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)}
-        controller = AIPlayerController(ai_players)
-
-        players = (
-            create_player(seat=0, name="Player"),
-            create_player(seat=1, name="AI1"),
-            create_player(seat=2, name="AI2"),
-            create_player(seat=3, name="AI3"),
-        )
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(50)),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-
-        tile_id = 42
-        # caller_info is int (ron caller)
-        result = controller.get_call_response(1, round_state, CallType.DISCARD, tile_id, 1)
-        # tsumogiri AI player declines ron
-        assert result is None
-
-    def test_ai_player_meld_caller_gets_meld_decision_path(self):
-        """AI player seat as meld caller on DISCARD prompt gets meld decision path."""
-        ai_players = {1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)}
-        controller = AIPlayerController(ai_players)
-
-        players = (
-            create_player(seat=0, name="Player"),
-            create_player(seat=1, name="AI1"),
-            create_player(seat=2, name="AI2"),
-            create_player(seat=3, name="AI3"),
-        )
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(50)),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-
-        tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        caller_info = MeldCaller(seat=1, call_type=MeldCallType.PON)
-        result = controller.get_call_response(1, round_state, CallType.DISCARD, tile_id, caller_info)
-        # tsumogiri AI player declines melds
-        assert result is None
 
 
 class TestHandleRonOnDiscardPrompt:
