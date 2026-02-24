@@ -53,6 +53,7 @@ from game.logic.melds import (
     can_call_open_kan,
     can_call_pon,
     resolve_added_kan_tile,
+    validate_closed_kan,
 )
 from game.logic.riichi import can_declare_riichi, declare_riichi
 from game.logic.round import (
@@ -90,6 +91,7 @@ from game.logic.win import (
     can_declare_tsumo,
     get_waiting_tiles,
     is_chankan_possible,
+    is_kokushi_chankan_possible,
 )
 
 if TYPE_CHECKING:
@@ -234,7 +236,13 @@ def _find_meld_callers(
 
     Returns list of MeldCaller options sorted by priority (kan > pon > chi).
     Each entry includes: seat, call_type, and options (for chi).
+
+    Last discard restriction: when the live wall is empty, no meld calls are
+    allowed (only ron). This applies to the final discard of a hand.
     """
+    if not round_state.wall.live_tiles:
+        return []
+
     meld_calls: list[MeldCaller] = []
 
     for seat in range(NUM_PLAYERS):
@@ -763,10 +771,39 @@ def _process_closed_kan_call(
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """Handle a closed kan meld call."""
     logger.debug("closed kan called", caller_seat=caller_seat, tile_id=tile_id)
+
+    # validate the closed kan is legal before checking for kokushi chankan,
+    # so a forged payload cannot trigger a chankan window for an illegal kan
+    validate_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
+
+    # kokushi musou may rob a closed kan; check before executing
+    kokushi_seats = is_kokushi_chankan_possible(round_state, caller_seat, tile_id)
+    if kokushi_seats:
+        prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=tile_id,
+            from_seat=caller_seat,
+            pending_seats=frozenset(kokushi_seats),
+            callers=tuple(kokushi_seats),
+        )
+        new_round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+        new_game_state = game_state.model_copy(update={"round_state": new_round_state})
+        chankan_callers: list[int | MeldCaller] = list(kokushi_seats)
+        events: list[GameEvent] = [
+            CallPromptEvent(
+                call_type=CallType.CHANKAN,
+                tile_id=tile_id,
+                from_seat=caller_seat,
+                callers=chankan_callers,
+                target="all",
+            ),
+        ]
+        return new_round_state, new_game_state, events
+
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
-    events: list[GameEvent] = [
+    events = [
         MeldEvent(
             meld_type=MeldViewType.CLOSED_KAN,
             caller_seat=caller_seat,

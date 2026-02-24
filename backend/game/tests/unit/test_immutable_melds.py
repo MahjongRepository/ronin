@@ -70,6 +70,25 @@ class TestCallPonImmutable:
         assert 0 in new_state.players_with_open_hands
         assert tile_to_34(man_1m[0]) in new_state.players[0].kuikae_tiles
 
+    def test_call_pon_clears_ippatsu_for_all_players(self):
+        """Pon by any player clears ippatsu for all riichi players."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        player0_tiles = (man_1m[0], man_1m[1], *_PIN_TILES)
+        round_state = _round_state(player0_tiles, current_player_seat=3)
+        # player 3 already has ippatsu from _round_state helper
+        assert round_state.players[3].is_ippatsu is True
+
+        new_state, _meld = call_pon(
+            round_state,
+            caller_seat=0,
+            discarder_seat=3,
+            tile_id=man_1m[2],
+            settings=GameSettings(),
+        )
+
+        for p in new_state.players:
+            assert p.is_ippatsu is False
+
     def test_call_pon_raises_on_insufficient_tiles(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], *_PIN_TILES)
@@ -185,6 +204,22 @@ class TestCallClosedKanImmutable:
         assert new_state.wall.pending_dora_count == 0
         assert len(new_state.wall.dora_indicators) == original_dora_count + 1
         assert new_state.players[0].is_rinshan is True
+
+    def test_call_closed_kan_clears_ippatsu_for_all_players(self):
+        """Closed kan (ankan) keeps hand closed but still clears ippatsu for all riichi players."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        player0_tiles = (*man_1m, *_PIN_TILES)
+        round_state = _round_state(player0_tiles)
+        # player 3 already has ippatsu from _round_state helper
+        assert round_state.players[3].is_ippatsu is True
+
+        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
+
+        # hand stays closed
+        assert 0 not in new_state.players_with_open_hands
+        # but ippatsu is cleared for everyone
+        for p in new_state.players:
+            assert p.is_ippatsu is False
 
     def test_call_closed_kan_raises_on_insufficient_tiles(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")

@@ -209,6 +209,38 @@ class TestCalculateHandValue:
         assert result.cost_main > 0
 
 
+class TestIppatsuSetting:
+    """Verify has_ippatsu setting controls whether ippatsu yaku is credited."""
+
+    def test_ippatsu_credited_when_setting_enabled(self):
+        # riichi + ippatsu tsumo
+        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
+        game_state = _create_scoring_game_state()
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True, is_ippatsu=True)
+        player = round_state.players[0]
+
+        settings = GameSettings(has_ippatsu=True)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, tiles[-1])
+
+        assert result.error is None
+        assert any(y.yaku_id == 3 for y in result.yaku)  # Ippatsu
+
+    def test_ippatsu_not_credited_when_setting_disabled(self):
+        # same hand but has_ippatsu=False suppresses the yaku
+        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
+        game_state = _create_scoring_game_state()
+        round_state = update_player(game_state.round_state, 0, tiles=tuple(tiles), is_riichi=True, is_ippatsu=True)
+        player = round_state.players[0]
+
+        settings = GameSettings(has_ippatsu=False)
+        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+        result = calculate_hand_value(ctx, tiles[-1])
+
+        assert result.error is None
+        assert not any(y.yaku_id == 3 for y in result.yaku)  # No Ippatsu
+
+
 class TestApplyTsumoScore:
     def _create_game_state(self) -> MahjongGameState:
         """Create a game state with 4 players starting at 25000."""

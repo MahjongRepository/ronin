@@ -169,5 +169,5 @@ def create_app(
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
     """ASGI application factory for production use (e.g., uvicorn --factory)."""
     _settings = GameServerSettings()  # ty: ignore[missing-argument]
-    setup_logging()
+    setup_logging(log_dir=_settings.log_dir)
     return create_app(settings=_settings)

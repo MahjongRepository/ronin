@@ -254,6 +254,20 @@ class TestDrawFromDeadWall:
         with pytest.raises(InvalidActionError, match="No more rinshan"):
             draw_from_dead_wall(wall)
 
+    def test_dead_wall_size_maintained_after_all_four_kan_draws(self):
+        """Dead wall remains exactly 14 tiles after all 4 rinshan draws."""
+        dead = tuple(range(100, 114))
+        live = tuple(range(50, 70))
+        wall = Wall(live_tiles=live, dead_wall_tiles=dead)
+        current_wall = wall
+        for draw_num in range(4):
+            current_wall, _ = draw_from_dead_wall(current_wall)
+            assert len(current_wall.dead_wall_tiles) == DEAD_WALL_SIZE, (
+                f"Dead wall size wrong after draw {draw_num + 1}"
+            )
+        # live wall lost exactly 4 tiles (one per replenishment)
+        assert len(current_wall.live_tiles) == len(live) - 4
+
     def test_dora_and_ura_positions_unaffected(self):
         """Dora (indices 2-6) and ura dora (indices 7-9) remain stable after rinshan draws."""
         dead = tuple(range(100, 114))

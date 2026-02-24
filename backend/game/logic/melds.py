@@ -283,6 +283,10 @@ def get_possible_closed_kans(
 
     Returns a list of tile_34 indices representing tiles the player has 4 of.
     """
+    # after pon/chi, the player must discard — kan requires a drawn tile
+    if round_state.is_after_meld_call:
+        return []
+
     if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return []
 
@@ -298,6 +302,10 @@ def get_possible_closed_kans(
     for t34, count in tile_counts.items():
         if count >= TILES_FOR_CLOSED_KAN:
             if player.is_riichi:
+                # the drawn tile (last in hand) must be the kan tile;
+                # a riichi player cannot kan tiles already held before drawing
+                if tile_to_34(player.tiles[-1]) != t34:
+                    continue
                 if _kan_preserves_waits_for_riichi(player, t34):
                     possible.append(t34)
             else:
@@ -317,6 +325,10 @@ def get_possible_added_kans(
     Returns a list of tile_34 indices for pons that can be upgraded.
     """
     if player.is_riichi:
+        return []
+
+    # after pon/chi, the player must discard — kan requires a drawn tile
+    if round_state.is_after_meld_call:
         return []
 
     if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
@@ -669,6 +681,37 @@ def call_open_kan(
     return new_state, meld
 
 
+def validate_closed_kan(
+    round_state: MahjongRoundState,
+    seat: int,
+    tile_id: int,
+    settings: GameSettings,
+) -> None:
+    """
+    Validate that a closed kan (ankan) declaration is legal without executing it.
+
+    Checks riichi constraints, kan preconditions (wall tiles, max kans),
+    and that the player holds 4 copies of the tile type.
+    Raises InvalidMeldError on any violation.
+    """
+    player = round_state.players[seat]
+    tile_34 = tile_to_34(tile_id)
+
+    if player.is_riichi:
+        if tile_to_34(player.tiles[-1]) != tile_34:
+            raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
+        if not _kan_preserves_waits_for_riichi(player, tile_34):
+            raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
+
+    _validate_kan_preconditions(round_state, settings)
+
+    count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
+    if count < TILES_FOR_CLOSED_KAN:
+        raise InvalidMeldError(
+            f"closed kan requires {TILES_FOR_CLOSED_KAN} tiles of type {tile_34}, player {seat} has {count}",
+        )
+
+
 def call_closed_kan(
     round_state: MahjongRoundState,
     seat: int,
@@ -684,9 +727,12 @@ def call_closed_kan(
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
-    # riichi guard: closed kan must preserve waits (stricter than the generic riichi rejection)
-    if player.is_riichi and not _kan_preserves_waits_for_riichi(player, tile_34):
-        raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
+    # riichi guard: drawn tile must be the kan tile, and kan must preserve waits
+    if player.is_riichi:
+        if tile_to_34(player.tiles[-1]) != tile_34:
+            raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
+        if not _kan_preserves_waits_for_riichi(player, tile_34):
+            raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
 
     _validate_kan_preconditions(round_state, settings)
 

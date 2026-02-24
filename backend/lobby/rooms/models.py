@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 
@@ -35,6 +36,7 @@ class LobbyRoom:
     transitioning: bool = False
     created_at: float = field(default_factory=time.monotonic)
     players: dict[str, LobbyPlayer] = field(default_factory=dict)  # connection_id -> LobbyPlayer
+    join_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
     def players_needed(self) -> int:

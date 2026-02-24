@@ -123,6 +123,11 @@ def setup_logging(
     root_logger.setLevel(level)
     root_logger.handlers.clear()
 
+    # Silence noisy HTTP client internals (httpx logs every request,
+    # httpcore logs raw TCP send/receive details).
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
     stdout_formatter = _build_stdlib_formatter(json_mode=json_mode, colors=sys.stdout.isatty())
 
     stdout_handler = logging.StreamHandler(sys.stdout)

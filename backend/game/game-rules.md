@@ -1,267 +1,187 @@
-### 1. Object of the Game
+# Ronin Game Rules
 
-The goal is to complete a winning hand composed of four sets and a pair. A standard winning hand contains 14 tiles (13
-in hand plus the winning tile).
+Standard Japanese Riichi Mahjong (4-player). This document lists the specific rules and settings that define Ronin's ruleset, separated into fixed mechanics (inherent to the game) and configurable settings (adjustable per ruleset).
 
-* Tile Definitions:
-    * Simples: Suit tiles numbered 2 through 8.
-    * Terminals: Suit tiles numbered 1 and 9.
-    * Honors: Wind and Dragon tiles.
-* Sets:
-    * Sequence: Three consecutive tiles of the *same* suit. Note: Sequences cannot "wrap around" (e.g., 9-1-2 is
-      invalid).
-    * Triplet: Three identical tiles.
-    * Quad: Four identical tiles declared as a set.
-* Winning Condition: A hand must be complete and contain at least one *yaku* (scoring pattern). A hand without *yaku*
-  cannot win.
-* Exceptions: Two special hands do not follow the standard four-sets-and-a-pair structure: *Seven Pairs* and *Thirteen
-  Orphans*.
+---
 
-### 2. Game Structure
+## Basic Mechanics
 
-* Rounds: A full game consists of two rounds: the East round and the South round (*Hanchan*). A shorter version
-  consisting only of the East round is called *Tonpusen*.
-* Dealer (East): Players take turns being the dealer. The player seated at the "East" position is the dealer for that
-  hand.
-* Hand Progression: A hand ends when a win is declared, the wall is exhausted (Exhaustive Draw), or an Abortive Draw
-  occurs.
-* Dealer Rotation and Repeats (Renchan):
-    * Dealer Repeats: If the dealer wins the hand, is *tenpai* (waiting) at an exhaustive draw, or if an Abortive Draw
-      occurs, they remain the dealer for the next hand.
-    * Rotation: If the dealer does not win and is *noten* (not waiting) at an exhaustive draw, the position of the
-      dealer rotates counter-clockwise to the next player.
-* Counters (Honba):
-    * If a hand ends in a draw or a dealer win, a *honba* counter is placed on the table. Each counter increases the
-      value of the next winning hand by 300 points.
-    * These counters accumulate and are cleared only when a non-dealer wins a hand.
-* Game End Conditions:
-    * Negative Score (Tobi): The game ends immediately if a player's score drops below zero (runs out of points).
-    * Target Score: If the target score (typically 30,000) is not met by the end of the final round (South 4), the game
-      may extend into a "West Round" (Sudden Death) until a player exceeds the target or the round ends.
-    * Tie-breaking: When two or more players have the same score, the player closer to the starting dealer (起家,
-      seat 0) ranks higher.
+Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
-### 3. Turn Mechanics
+### Wall & Draws
 
-Play proceeds counter-clockwise, starting with the dealer.
+- Dead wall (wanpai): Exactly 14 tiles maintained at all times. When a player draws a rinshan (replacement) tile after a kan, the last tile of the live wall moves to the dead wall to maintain 14.
+- Exhaustive draw: Occurs when the live wall reaches 0 tiles (all non-dead-wall tiles have been drawn).
+- 1-han minimum (shibari): A winning hand must contain at least one valid yaku excluding dora. Dora alone cannot satisfy the win condition.
 
-* Draw: A turn begins by drawing a tile from the wall.
-* Discard: If the player does not declare a win or a quad, they must discard one concealed tile to end their turn.
-* Discard Restrictions:
-    * Discards are placed face-up in rows of six in front of the player. These discards act as a record for "Furiten"
-      status and defensive safety.
-    * Kuikae (Swap-calling): It is forbidden to claim a tile for a set and immediately discard the same tile (e.g.,
-      calling Pon on a 5 and discarding a 5). It is also forbidden to claim a tile for a sequence and discard the tile
-      that would complete the other end of that specific sequence (e.g., calling a 4 to make 2-3-4, then immediately
-      discarding a 1).
-* Dead Wall: A "Dead Wall" of 14 tiles is kept separate from the live wall. It provides replacement tiles for Quads and
-  holds Dora indicators.
+### Calls & Turn Order
 
-### 4. Claiming Tiles (Calling)
+- Call precedence: Ron > Pon/Kan > Chi; among same-type calls, closer counter-clockwise to discarder wins
+- Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chi, pon, or kan — only ron is allowed.
 
-Players can interrupt the flow of play to claim the most recently discarded tile.
+### Riichi
 
-* Open vs. Closed State:
-    * Closed: A hand is "Closed" if the player has not called any tiles from opponents. (Concealed Quads do not open a
-      hand).
-    * Open: Once a player claims a tile via Chii, Pon, or Daiminkan (Claimed Quad), the hand becomes "Open." An open
-      hand is limited: some *yaku* are no longer valid, and others are reduced in value.
-* Order of Precedence:
-    1. Win (Ron): Highest priority. Any player can claim a discard for a win.
-    2. Triplet/Quad (Pon/Kan): Second priority. Can be claimed from any player.
-    3. Sequence (Chii): Lowest priority. Can only be claimed from the player immediately to the left.
-* Procedure:
-    1. Clearly call the action ("Chii", "Pon", "Kan", or "Ron").
-    2. Reveal the matching tiles from the hand.
-    3. Take the discarded tile and place it with the revealed tiles. The claimed tile is rotated to indicate who
-       discarded it (left, opposite, or right).
-    4. Discard a tile (except when declaring a claimed quad or winning).
+- Riichi stick value: 1,000 points per stick
+- Minimum points for declaration: 1,000
+- Riichi bet on interrupted declaration: Not paid (void if discard is ron'd)
+- Riichi discard claimed for a meld: Riichi stands. Ippatsu is lost.
+- Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
+- Minimum wall tiles for declaration: 4
+- Concealed quad during riichi (ankan): Allowed only if it doesn't change the hand's waiting tiles or set interpretation. Applies to concealed kan only — shouminkan is blocked during riichi. The drawn tile must be the kan tile.
+- Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. Awarded to 1st place at game end if uncollected.
 
-### 5. Quads (Kan)
+### Furiten
 
-A quad is a set of four identical tiles. It must be declared to function as a set.
+- Furiten scope: Based on the player's full discard history — all tiles the player has discarded this hand, regardless of whether another player subsequently claimed them. Tiles in own kans do NOT create furiten.
+- Discard furiten: Permanent while wait includes a previously discarded tile
+- Temporary furiten: Triggered when a player passes on a winning tile (declines Ron on another player's discard). Resets on player's next discard.
+- Riichi furiten: Permanent for the rest of the hand (never clears)
+- Furiten riichi declaration: Allowed (player may declare riichi while in furiten; can only win by tsumo)
 
-* Types of Quads:
-    * Concealed Quad (Ankan): Revealing four identical concealed tiles from the hand. This set is considered "concealed"
-      for scoring purposes.
-    * Claimed Quad (Daiminkan): Calling "Kan" on an opponent's discard when holding three matching tiles.
-    * Extended Quad (Shouminkan): Adding a drawn tile to a previously melded triplet (Pon).
-* Limits: A maximum of four quads can be declared in a single hand. If four quads are declared by the *same* player,
-  play continues. If four quads are declared by *two or more different* players, the hand ends in an Abortive Draw.
+### Ippatsu
 
-#### 5a. Concealed Quad (Ankan) Flow
+- Any call (chi, pon, or kan) by any player clears Ippatsu for all riichi players.
 
-Declared during the player's own turn (after drawing), using four identical tiles from hand.
+### Kan (Quads)
 
-1. Player declares Ankan, reveals the four tiles.
-2. New Kan Dora indicator is revealed **immediately** (before discard).
-3. Player draws a replacement tile (*Rinshanpai*) from the Dead Wall.
-4. Dead Wall Adjustment: the last tile of the live wall is moved to the Dead Wall (maintains 14 tiles).
-5. Player may now:
-    * Declare **another** Concealed/Extended Quad if the replacement tile completes a set of four (repeat from step 1).
-    * Declare *Tsumo* if the replacement tile completes a winning hand (*Rinshan Kaihou*).
-    * Discard a tile to end the turn.
-6. The hand remains closed. Ippatsu is cleared for all players.
+- Minimum wall tiles for kan: 2
+- Kan after pon/chi on same turn: Not allowed (kan requires a drawn tile)
+- Consecutive concealed quads: Allowed without discarding between them (each reveals a new Dora indicator immediately)
+- Four quads by same player: Play continues (does NOT trigger abortive draw)
+- Four quads by different players (2+): Abortive draw
 
-*Note:* Consecutive Concealed Quads are allowed without discarding between them, each revealing a new Dora indicator
-immediately. The only limits are four quads per hand and at least two tiles remaining in the live wall.
+#### Kan Dora Timing
 
-#### 5b. Claimed Quad (Daiminkan) Flow
+| Quad Type             | Dora Reveal Timing                           | On Rinshan Kaihou | On Ron of Discard    |
+|-----------------------|----------------------------------------------|-------------------|----------------------|
+| Concealed (Ankan)     | Immediately after declaration                | Dora applies      | N/A (before discard) |
+| Claimed (Daiminkan)   | After replacement discard passes (not ron'd) | Dora not revealed | Dora not revealed    |
+| Extended (Shouminkan) | After replacement discard passes (not ron'd) | Dora not revealed | Dora not revealed    |
 
-Declared by claiming an opponent's discarded tile when holding three matching tiles. Opens the hand.
+Deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chi); the reveal triggers once the Ron check passes.
 
-1. Player calls Kan on the discard, reveals the three tiles from hand plus the claimed tile.
-2. Player draws a replacement tile (*Rinshanpai*) from the Dead Wall.
-3. Dead Wall Adjustment: the last tile of the live wall is moved to the Dead Wall (maintains 14 tiles).
-4. Player may now:
-    * Declare *Tsumo* if the replacement tile completes a winning hand (*Rinshan Kaihou*). The Kan Dora is
-      **not** revealed (the hand ends before the discard).
-    * Discard a tile.
-5. **After the discard passes** (is not claimed for Ron):
-    * The new Kan Dora indicator is revealed.
-    * If the discard is claimed for Ron, the Kan Dora indicator is **not** revealed.
+#### Chankan (Robbing a Quad)
 
-*Note:* The deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chi). The Dora
-indicator is revealed once the discard survives the Ron check, regardless of whether another player then calls a meld.
+- Allowed on extended quads (shouminkan). Chankan scores as Ron with 1 extra han for the Chankan yaku.
+- On concealed quads (ankan), only Kokushi Musou may rob — no other hand qualifies.
+- Ippatsu is not cleared (the quad is treated as never having occurred)
+- Kan dora indicator is NOT flipped (the kan is treated as never having occurred)
 
-#### 5c. Extended Quad (Shouminkan) Flow
+### Dora Indicators
 
-Declared during the player's own turn by adding a drawn fourth tile to an existing open triplet (Pon).
+- Indicator→dora mapping (the indicated dora is the next tile in sequence):
+  - Suited tiles: 1→2→3→4→5→6→7→8→9→1
+  - Wind tiles: East→South→West→North→East
+  - Dragon tiles: White (Haku)→Green (Hatsu)→Red (Chun)→White
+- Red fives are inherently 1 dora each, independent of indicators. If a dora indicator also points to 5, a red five counts as 2 dora (1 inherent + 1 from indicator).
+- Ura dora are revealed only when a riichi or double riichi player wins.
 
-1. Player declares Shouminkan, adds the tile to the existing Pon.
-2. **Chankan check:** opponents who are waiting on the added tile may declare Ron (*Chankan*).
-    * If Chankan succeeds: the quad is **not** completed. No Kan Dora is revealed. Ippatsu is **not** cleared (the
-      kan never happened). The Chankan winner scores with 1 extra han for the *Chankan* yaku.
-    * If all opponents decline Chankan: continue to step 3.
-3. Player draws a replacement tile (*Rinshanpai*) from the Dead Wall.
-4. Dead Wall Adjustment: the last tile of the live wall is moved to the Dead Wall (maintains 14 tiles).
-5. Player may now:
-    * Declare *Tsumo* if the replacement tile completes a winning hand (*Rinshan Kaihou*). The Kan Dora is
-      **not** revealed (the hand ends before the discard).
-    * Discard a tile.
-6. **After the discard passes** (is not claimed for Ron):
-    * The new Kan Dora indicator is revealed.
-    * If the discard is claimed for Ron, the Kan Dora indicator is **not** revealed.
+### Scoring Fundamentals
 
-#### 5d. Kan Dora Timing Summary
+- Honba (ron): +300 points per counter
+- Honba (tsumo): +100 points per counter per losing player (300 total, same as ron)
+- Payment rounding: All individual payments rounded UP to the nearest 100 points
+- Noten penalty (exhaustive draw only): 3,000 points total redistributed (split evenly among noten payers, distributed evenly to tenpai players). No noten payments on abortive draws.
+- Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
+- Goshashonyu rounding (五捨六入): ≤500 rounds toward zero, ≥600 rounds away
+- Tie-breaking: When players have equal final scores, the player closer to starting dealer (seat 0) ranks higher. Applies to final placement and to double ron riichi stick allocation (winner closest counter-clockwise to discarder receives them).
 
-| Quad Type              | Dora Reveal Timing                                  | On Rinshan Kaihou | On Ron of Discard |
-|------------------------|-----------------------------------------------------|-------------------|-------------------|
-| Concealed (Ankan)      | Immediately after declaration                       | Dora applies      | N/A (before discard) |
-| Claimed (Daiminkan)    | After the replacement discard passes (not ron'd)    | Dora not revealed | Dora not revealed |
-| Extended (Shouminkan)  | After the replacement discard passes (not ron'd)    | Dora not revealed | Dora not revealed |
+### Liability (Pao)
 
-### 6. Riichi
+- Applies to: Big Three Dragons, Big Four Winds. Does NOT apply to Suukantsu (Four Quads).
+- Trigger: Discarding the tile that completes the third dragon set or fourth wind set
+- Tsumo: Liable player pays full score
+- Ron (by third party): Liable player and discarder split 50/50
 
-A player with a concealed hand that needs only one tile to win (*tenpai*) may declare *Riichi*.
+### Dealer Rotation
 
-* Requirements:
-    * The hand must be fully concealed.
-    * The player must be *tenpai*.
-    * There must be at least four tiles remaining in the live wall.
-* Procedure:
-    1. Call "Riichi".
-    2. Discard a tile rotated sideways.
-    3. Place a 1,000-point betting stick on the table.
-* Restrictions: Once Riichi is declared, the player cannot change the composition of their hand. They must discard every
-  drawn tile unless it is a winning tile.
-    * *Concealed Quads:* A player may declare a concealed quad on a drawn tile only if the quad does not change the
-      hand's waiting tiles or the interpretation of the sets.
-* Interruption: If an opponent claims the rotated Riichi discard for a win, the Riichi declaration is void and the 1,000
-  points are not paid. If claimed for a set, the player must rotate their *next* discard to indicate the Riichi status.
+- Dealer repeats (renchan): On dealer win, dealer tenpai at exhaustive draw, or abortive draw
+- Dealer rotates: When dealer is noten at exhaustive draw
+- Honba counter: Increments by 1 on dealer repeat, exhaustive draw, and abortive draw. Resets to 0 only when the dealer is not among the winners. If dealer wins (even as one of multiple winners in double ron), honba increments (renchan).
 
-### 7. Game States
+### West Round (Sudden Death)
 
-* Tenpai: The state of waiting for one specific tile to complete the hand.
-* Noten: The state of not being ready to win.
-* Keishiki Tenpai (形式聴牌): Structural tenpai counts for noten payments at an exhaustive draw, even if all winning
-  tiles are visible elsewhere (in other players' discards, etc.). Exception: pure karaten (all 4 copies of every
-  winning tile are in the player's own hand and melds) is treated as noten.
+Applies when the game type and winning score threshold settings allow the game to extend past the primary wind rounds (e.g., Hanchan with 30,000 threshold — if no player reaches 30,000 after South round ends, the game enters West wind).
 
-### 8. Furiten
+- End condition: The game ends at the first moment any player's score reaches the winning score threshold (checked after every hand result — win, draw, or noten payments).
+- Dealer renchan in West round: If the dealer wins or is tenpai at exhaustive draw, renchan applies — but if any player (including the dealer) has reached the threshold, the game ends immediately regardless of renchan.
+- Rotation continues normally through West-1, West-2, West-3, West-4. If no player reaches the threshold by the end of West-4, the game ends and the player closest to the threshold wins (standard tie-breaking applies).
 
-Furiten (振聴) prevents a player from winning by Ron (discard) under certain conditions. A player in furiten can
-still win by Tsumo (self-draw).
+### Yaku Special Cases
 
-* Discard Furiten (permanent): A player who has discarded a tile matching any of their current waits cannot call Ron.
-  This furiten persists as long as the wait includes a previously discarded tile.
-* Temporary Furiten: A player who passes on a Ron opportunity (including Chankan Ron) cannot call Ron until their next
-  discard. This resets when the player makes their next discard.
-* Riichi Furiten: A riichi player whose winning tile passes by (for any reason, including being already in furiten or
-  explicitly passing) becomes permanently unable to call Ron for the rest of the hand. This never clears within the
-  current hand.
+- Tenhou (Blessing of Heaven): Dealer yakuman on initial 14-tile draw
+- Chiihou (Blessing of Earth): Non-dealer yakuman on first self-draw. Any call (meld) by any player interrupts.
+- Haitei Raoyue (Under the Sea): 1-han, win on last wall tile (tsumo)
+- Houtei Raoyui (Under the River): 1-han, win on last discard (ron)
+- Rinshan Kaihou: Win on replacement tile after any quad type
+- Ryuuiisou (All Green): Yakuman; green tiles only (2, 3, 4, 6, 8 sou and/or hatsu). Hatsu not required.
+- Double Riichi: Riichi on very first uninterrupted discard (2 han). Interrupted by any call (chi, pon, kan, including concealed kan) by any player before the declaration.
+- Nagashi Mangan: Treated as special draw; requires all discards are terminals/honors with none claimed. Only opponent's claiming of player's discards invalidates — player may call others' tiles and still qualify. Payment equivalent to mangan tsumo: if non-dealer achieves it, 4,000 from dealer and 2,000 from each non-dealer; if dealer achieves it, 4,000 from each non-dealer. No honba bonus is paid during settlement, but the honba counter increments by 1 for the next hand (same as exhaustive draw). Riichi sticks on the table are not collected (carry to next hand). Dealer rotation follows exhaustive draw rules (dealer keeps seat if tenpai).
 
-### 9. Liability (Pao)
+---
 
-A specific penalty rule applies to the "Big Three Dragons" and "Big Four Winds" hands.
+## Configurable Settings
 
-* Trigger: If a player discards the tile that allows an opponent to meld the third set of Dragons or the fourth set of
-  Winds (completing the necessary sets for the Yakuman), that player becomes liable.
-* Penalty:
-    * If the hand is won by self-draw (Tsumo), the liable player pays the full score.
-    * If the hand is won by discard (Ron) from another player, the liable player and the discarder split the payment
-      50/50.
+Rules that could theoretically be adjusted through game settings. Current Ronin defaults shown.
 
-### 10. Winning
+### Game Structure
 
-* Self-Draw (Tsumo): Winning on a tile drawn from the wall or dead wall.
-* Discard (Ron): Winning on a tile discarded by an opponent.
-* Robbing a Quad (Chankan): A player can win on a tile used by an opponent to declare an Extended Quad (adding to a
-  Pon). This is treated as a win by discard (Ron). Robbing a *Concealed* Quad is only allowed to complete the *Thirteen
-  Orphans* hand.
-* Simultaneous Winners: If two players declare Ron on the same discard, both wins are accepted (Double Ron) and the
-  discarder pays both winners. If all three opponents declare Ron on the same discard (Triple Ron), the hand ends in an
-  Abortive Draw with no score changes.
+- Game type: Hanchan (East + South rounds); also supports East-only (Tonpusen)
+- Number of players: 4
+- Starting score: 25,000
+- Target score: 30,000
+- Winning score threshold: 30,000 (distinct from target score; controls game-end check after primary wind completes)
+- Uma: 10-20
+- Oka: Enabled (25,000/30,000) — each player contributes (target_score - starting_score) = 5,000 points; total oka of 20,000 goes to 1st place
+- Tobi (negative score): Game ends immediately. Tobi threshold: Below 0 points (0 points does not end the game)
+- Agariyame (dealer stops in all-last while leading): Disabled
+- Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Disabled
 
-### 11. End of Hand
+### Yaku Toggles
 
-A hand ends in one of three ways:
+- Open Tanyao (Kuitan): Allowed
+- Ippatsu: Enabled
+- Atozuke (gaining yaku upon winning tile claim): Allowed
+- Renhou (Blessing of Man): 5-han (mangan level); non-dealer Ron before first draw, no calls by any player
 
-1. Win: One or more players declare a valid win.
-    * *Ura Dora:* If a Riichi player wins, they reveal the tiles underneath the Dora and Kan Dora indicators (*Ura
-      Dora*) for potential extra value.
+### Call Rules
 
-2. Exhaustive Draw (Ryuukyoku): The wall is depleted and no one has won.
-    * *Tenpai Check:* Players reveal if they are *tenpai* or *noten*. Riichi players must show their hands; others may
-      choose to show or accept *noten* status.
-    * *Penalty:* Players who are *noten* pay a penalty to those who are *tenpai* (Total 3,000 points exchanged).
+- Kuikae (swap-calling): Not allowed
+  - Same-tile restriction: Cannot discard the same tile type that was claimed
+  - Suji restriction: Cannot discard the tile at the opposite end of a chi sequence
+- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds go to the winner closest counter-clockwise to the discarder. Both winners receive the honba bonus (+300 per counter each) — the discarder pays the honba bonus to each winner separately. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks.
 
-3. Abortive Draw (Tochuu Ryuukyoku): The hand ends immediately, and a re-deal occurs (with a Renchan). Conditions
-   include:
-    * *Nine Terminal/Honors (Kyuushu Kyuuhai):* A player has 9+ unique terminal/honor tiles in their starting hand (
-      first turn) and chooses to abort. (Must be declared before any other calls are made).
-    * *Four Winds:* All four players discard the same wind tile on their first turn.
-    * *Four Riichi:* All four players declare Riichi. The hand ends after the fourth declaration succeeds (provided no
-      one wins on the discard).
-    * *Four Kans:* Four quads are declared by two or more different players.
-    * *Triple Ron:* All three opponents declare Ron on the same discard. The hand ends with no score changes.
+### Dora
 
-### 12. Special Mechanics
+- Omote dora (face-up indicators): Enabled
+- Ura Dora: Enabled (revealed on Riichi win; tiles underneath Dora and Kan Dora indicators)
+- Red dora (Akadora): 3 (one per suit, #5 tiles)
+- Kan dora: Enabled
+- Kan ura dora: Enabled
 
-* Dora: Specific tiles that add value to the hand.
-    * Red Dora (Akadora): The set contains red versions of #5 tiles (one for each suit) which act as permanent Dora.
-* Renhou (Blessing of Man): A non-dealer wins by Ron before their first draw, with no calls (including closed kans) having been made by any player. Scored as a 5-han yaku (mangan level).
-* Double Yakuman: Four hands score as double yakuman (2x the base yakuman value):
-    * Daburu Kokushi Musou (ダブル国士無双): Thirteen Orphans with a 13-sided wait (waiting on any of the 13 terminal/honor tiles).
-    * Suuankou Tanki (四暗刻単騎): Four Concealed Triplets with a pair wait.
-    * Daburu Chuuren Poutou (ダブル九蓮宝燈): Nine Gates with a 9-sided wait (1112345678999 + any tile in the suit).
-    * Daisuushii (大四喜): Big Four Winds (four wind triplets).
-    * Kazoe yakuman (13+ han from regular yaku) remains at single yakuman level.
-* Nagashi Mangan: A special condition occurring at an Exhaustive Draw.
-    * If a player's discard pile consists *only* of terminal and honor tiles, and none of their discards were claimed by opponents, they receive a special payment.
-    * This is treated as a special draw, not a win. No Riichi sticks are collected, and no Honba is added.
+### Abortive Draws
 
-### 13. Uma/Oka (End-Game Scoring)
+- Kyuushu Kyuuhai (player choice): Player may declare an abortive draw when holding 9+ unique terminal/honor tiles in their starting hand, on their first uninterrupted turn. Not automatic — the server must offer this as an action. Any call (meld) by any player before the player's turn removes eligibility.
+- Four Winds: All four players discard the same wind on first turn
+- Four Riichi: After fourth riichi succeeds (if no one wins on the discard)
+- Triple Ron: Three opponents declare Ron on the same discard (no score changes)
 
-After the game ends, raw scores are adjusted using the uma/oka system (25000点持ち/30000点返し, ウマ10-20).
+### Yakuman Options
 
-* Oka (オカ): Each player starts with 25,000 but the target is 30,000. The difference of 5,000 per player (20,000 total, or 20 points after dividing by 1,000) is awarded as a bonus to 1st place.
-* Uma (ウマ): Placement bonus/penalty applied after oka. Format 10-20 means 3rd-to-2nd pays 10, 4th-to-1st pays 20. Applied as: 1st +20, 2nd +10, 3rd -10, 4th -20.
-* Calculation:
-    1. Subtract target score (30,000) from each player's raw score.
-    2. Divide by 1,000.
-    3. Round using goshashōnyū (五捨六入): remainder of 500 or less rounds toward zero, remainder of 600 or more
-       rounds away from zero.
-    4. Add oka bonus (+20) to 1st place.
-    5. Apply uma spread.
-    6. Adjust 1st place score to ensure the sum of all final scores is zero.
+- Double Yakuman hands:
+    - Daburu Kokushi Musou (13-sided wait)
+    - Suuankou Tanki (pair wait)
+    - Daburu Chuuren Poutou (9-sided wait)
+    - Daisuushii (Big Four Winds)
+- Multiple yakuman stacking: Allowed (e.g., Daisuushii + Tsuuiisou = double yakuman)
+- Kazoe Yakuman (13+ han): Single yakuman only. Dora (including red, kan, and ura dora) count toward the 13-han threshold.
+- Yakuman hands and dora: Dora do not add han to yakuman hands. Yakuman scoring is fixed regardless of additional dora in the hand.
+- Maximum yakuman: Sextuple yakuman (6x)
+
+### Scoring Options
+
+- Double wind pair: 4 fu
+- Chiitoitsu: Fixed 25 fu, 2 han
+- Pinfu tsumo: 0 fu (no additional fu for pinfu tsumo)
+- Open pinfu: 2 fu (fu added for open pinfu hands)
+- Kiriage Mangan (rounded mangan): Enabled. 4-han/30-fu and 3-han/60-fu hands score as mangan (8,000/12,000) instead of exact values (7,700/11,600).

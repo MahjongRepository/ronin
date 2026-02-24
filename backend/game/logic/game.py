@@ -235,11 +235,11 @@ def _get_honba_and_rotation(  # noqa: PLR0911
         return honba + 1, should_rotate
 
     if result_type == RoundResultType.NAGASHI_MANGAN and isinstance(result, NagashiManganResult):
-        # Nagashi mangan is a special draw: honba is not incremented.
-        # Rotation depends on dealer tenpai status (same as exhaustive draw).
+        # Nagashi mangan follows exhaustive draw rules: honba increments by 1,
+        # dealer rotation depends on tenpai status (same as exhaustive draw).
         if settings.renchan_on_dealer_tenpai_draw:
-            return honba, dealer_seat not in result.tempai_seats
-        return honba, True
+            return honba + 1, dealer_seat not in result.tempai_seats
+        return honba + 1, True
 
     if result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):
         winner_seats = _get_winner_seats(result)

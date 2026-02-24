@@ -17,16 +17,18 @@ import pytest
 from pydantic import ValidationError
 
 from game.logic.action_result import ActionResult
-from game.logic.enums import CallType, GameAction, GameErrorCode
+from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase, RoundResultType
 from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
     EventType,
+    RoundEndEvent,
     SeatTarget,
     ServiceEvent,
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import PendingCallPrompt
+from game.logic.types import ExhaustiveDrawResult
 from game.tests.unit.helpers import (
     _find_player,
     _update_round_state,
@@ -175,6 +177,38 @@ class TestMahjongGameServiceProcessActionResult:
             events = await service._process_action_result_internal("game1", result)
 
         assert len(events) >= 1
+
+
+class TestProcessActionResultRoundEnd:
+    """Test that _process_action_result_internal returns early when round has ended."""
+
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    async def test_round_end_returns_events_immediately(self, service):
+        """Round-end result returns events without proceeding to post-discard or chankan."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+
+        scores = {i: service._games["game1"].round_state.players[i].score for i in range(4)}
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
+
+        round_end = RoundEndEvent(
+            result=ExhaustiveDrawResult(
+                type=RoundResultType.EXHAUSTIVE_DRAW,
+                tempai_seats=[],
+                noten_seats=[0, 1, 2, 3],
+                tenpai_hands=[],
+                scores=scores,
+                score_changes={},
+            ),
+            target="all",
+        )
+        result = ActionResult(events=[round_end], needs_post_discard=False)
+        events = await service._process_action_result_internal("game1", result)
+
+        round_end_events = [e for e in events if e.event == EventType.ROUND_END]
+        assert len(round_end_events) >= 1
 
 
 class TestMahjongGameServiceHandleChankanPrompt:

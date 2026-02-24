@@ -629,3 +629,155 @@ class TestHandlePassThenResolve:
         # should be resolved (turn advanced)
         assert result2.new_round_state.pending_call_prompt is None
         assert result2.new_round_state.current_player_seat != 0
+
+
+class TestLastDiscardRestriction:
+    """Last discard restriction: only ron allowed when live wall is empty.
+
+    When the live wall has 0 tiles after a player draws (last tile drawn),
+    the resulting discard cannot be called for chi, pon, or kan. Only ron
+    (Houtei Raoyui) is permitted.
+    """
+
+    def test_pon_blocked_on_last_discard(self):
+        """Pon is not offered when the live wall is empty."""
+        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        pon_tiles = TilesConverter.string_to_136_array(pin="33")
+        # tiles that do NOT form a winning hand with pin333
+        other_tiles = TilesConverter.string_to_136_array(man="1234", sou="1234567")
+
+        dead_wall = tuple(TilesConverter.string_to_136_array(sou="88889999", pin="112266"))
+        players = tuple(
+            create_player(
+                seat=i,
+                tiles=((discard_tile,) if i == 0 else ((*pon_tiles, *other_tiles) if i == 2 else ())),
+            )
+            for i in range(4)
+        )
+
+        # empty live wall: last tile was already drawn
+        round_state = create_round_state(
+            players=players,
+            wall=(),
+            dead_wall=dead_wall,
+            dora_indicators=(dead_wall[2],),
+            phase=RoundPhase.PLAYING,
+            current_player_seat=0,
+        )
+        game_state = create_game_state(round_state)
+
+        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
+
+        # no call prompt should be created (no ron callers either in this scenario)
+        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
+        assert len(call_prompts) == 0
+
+    def test_chi_blocked_on_last_discard(self):
+        """Chi is not offered when the live wall is empty."""
+        discard_tile = TilesConverter.string_to_136_array(pin="5")[0]
+        chi_tiles = TilesConverter.string_to_136_array(pin="46")
+        # tiles that do NOT form a winning hand with pin456
+        other_tiles = TilesConverter.string_to_136_array(man="1234", sou="1234567")
+
+        dead_wall = tuple(TilesConverter.string_to_136_array(sou="88889999", pin="112233"))
+        players = tuple(
+            create_player(
+                seat=i,
+                tiles=((discard_tile,) if i == 0 else ((*chi_tiles, *other_tiles) if i == 1 else ())),
+            )
+            for i in range(4)
+        )
+
+        # empty live wall
+        round_state = create_round_state(
+            players=players,
+            wall=(),
+            dead_wall=dead_wall,
+            dora_indicators=(dead_wall[2],),
+            phase=RoundPhase.PLAYING,
+            current_player_seat=0,
+        )
+        game_state = create_game_state(round_state)
+
+        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
+
+        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
+        assert len(call_prompts) == 0
+
+    def test_ron_allowed_on_last_discard(self):
+        """Ron (Houtei) is still allowed when the live wall is empty."""
+        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
+
+        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333366"))
+        players = tuple(
+            create_player(
+                seat=i,
+                tiles=((discard_tile,) if i == 0 else (ron_hand if i == 1 else ())),
+            )
+            for i in range(4)
+        )
+
+        # empty live wall
+        round_state = create_round_state(
+            players=players,
+            wall=(),
+            dead_wall=dead_wall,
+            dora_indicators=(dead_wall[2],),
+            phase=RoundPhase.PLAYING,
+            current_player_seat=0,
+        )
+        game_state = create_game_state(round_state)
+
+        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
+
+        # a call prompt should exist with only ron callers
+        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
+        assert len(call_prompts) == 1
+        prompt = call_prompts[0]
+        # all callers should be ron callers (int), not meld callers
+        for caller in prompt.callers:
+            assert isinstance(caller, int), f"expected ron caller (int), got MeldCaller: {caller}"
+
+    def test_pon_and_ron_on_last_discard_only_ron_offered(self):
+        """When both pon and ron are possible on last discard, only ron caller is in the prompt."""
+        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
+        pon_tiles = TilesConverter.string_to_136_array(pin="33")
+        # tiles that do NOT form a winning hand with pin333
+        other_tiles = TilesConverter.string_to_136_array(man="1234", sou="1234567")
+
+        dead_wall = tuple(TilesConverter.string_to_136_array(sou="88889999", pin="112266"))
+        players = tuple(
+            create_player(
+                seat=i,
+                tiles=(
+                    (discard_tile,)
+                    if i == 0
+                    else (ron_hand if i == 1 else ((*pon_tiles, *other_tiles) if i == 2 else ()))
+                ),
+            )
+            for i in range(4)
+        )
+
+        # empty live wall
+        round_state = create_round_state(
+            players=players,
+            wall=(),
+            dead_wall=dead_wall,
+            dora_indicators=(dead_wall[2],),
+            phase=RoundPhase.PLAYING,
+            current_player_seat=0,
+        )
+        game_state = create_game_state(round_state)
+
+        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
+
+        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
+        assert len(call_prompts) == 1
+        prompt = call_prompts[0]
+        # ron caller (seat 1) should be present, meld caller (seat 2) should not
+        ron_callers = [c for c in prompt.callers if isinstance(c, int)]
+        meld_callers = [c for c in prompt.callers if isinstance(c, MeldCaller)]
+        assert 1 in ron_callers
+        assert len(meld_callers) == 0

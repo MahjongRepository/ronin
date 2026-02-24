@@ -1,6 +1,4 @@
 """
-Unit tests for Phase 2 validation gaps.
-
 Tests verify that each validation gap identified in the analysis is properly
 closed with early validation. Invalid data raises InvalidGameActionError;
 race-condition timing errors remain as soft ErrorEvent.
@@ -47,6 +45,7 @@ from game.logic.melds import (
     call_chi,
     call_closed_kan,
     call_open_kan,
+    validate_closed_kan,
 )
 from game.logic.round import draw_tile
 from game.logic.settings import GameSettings
@@ -472,10 +471,12 @@ class TestKanRoutingStateChecks:
 class TestClosedKanRiichiWaitPreservation:
     """Test that closed kan in riichi must preserve waiting tiles."""
 
-    def test_closed_kan_changes_waits_raises(self):
-        """Closed kan in riichi that changes waits raises InvalidMeldError."""
-        # Create a riichi hand where kan would change the waiting tiles
-        # Hand: 1111m 234p 567s 89s - waits on 7s,9s (wait changes if we kan 1m)
+    def test_closed_kan_drawn_tile_not_kan_tile_raises(self):
+        """Closed kan in riichi rejected when drawn tile is not the kan tile.
+
+        Hand: 1111m 234p 56789s. Last tile (drawn) is 9s, not 1m.
+        Kan on 1m fails because the drawn tile must be the kan tile.
+        """
         tiles_1m = TilesConverter.string_to_136_array(man="1111")
         tiles_rest = TilesConverter.string_to_136_array(pin="234", sou="56789")
         all_tiles = tuple(tiles_1m + tiles_rest)
@@ -494,8 +495,83 @@ class TestClosedKanRiichiWaitPreservation:
         )
         settings = GameSettings()
 
-        with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
+        with pytest.raises(InvalidMeldError, match="drawn tile must be the kan tile"):
             call_closed_kan(round_state, 0, tiles_1m[0], settings)
+
+    def test_closed_kan_waits_change_raises(self):
+        """Closed kan in riichi rejected when drawn tile is the kan tile but waits change.
+
+        Hand: 111m 2345678999m + drawn 1m (last tile is 4th 1m).
+        Kan on 1m passes the drawn-tile check but changes waiting tiles.
+        """
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        man_rest = TilesConverter.string_to_136_array(man="2345678999")
+        all_tiles = tuple(list(man_1m[:3]) + list(man_rest) + [man_1m[3]])
+
+        players = [
+            create_player(seat=0, tiles=all_tiles, is_riichi=True),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        ]
+        round_state = create_round_state(
+            players=players,
+            wall=tuple(range(80, 100)),
+            dead_wall=tuple(range(50, 64)),
+            phase=RoundPhase.PLAYING,
+        )
+        settings = GameSettings()
+
+        with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
+            call_closed_kan(round_state, 0, man_1m[0], settings)
+
+
+class TestValidateClosedKanRiichi:
+    """Test that validate_closed_kan catches riichi violations before kokushi chankan check."""
+
+    def test_validate_rejects_drawn_tile_not_kan_tile(self):
+        """validate_closed_kan in riichi rejected when drawn tile is not the kan tile."""
+        tiles_1m = TilesConverter.string_to_136_array(man="1111")
+        tiles_rest = TilesConverter.string_to_136_array(pin="234", sou="56789")
+        all_tiles = tuple(tiles_1m + tiles_rest)
+
+        players = [
+            create_player(seat=0, tiles=all_tiles, is_riichi=True),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        ]
+        round_state = create_round_state(
+            players=players,
+            wall=tuple(range(80, 100)),
+            dead_wall=tuple(range(50, 64)),
+            phase=RoundPhase.PLAYING,
+        )
+
+        with pytest.raises(InvalidMeldError, match="drawn tile must be the kan tile"):
+            validate_closed_kan(round_state, 0, tiles_1m[0], GameSettings())
+
+    def test_validate_rejects_waits_change(self):
+        """validate_closed_kan in riichi rejected when kan changes waiting tiles."""
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        man_rest = TilesConverter.string_to_136_array(man="2345678999")
+        all_tiles = tuple(list(man_1m[:3]) + list(man_rest) + [man_1m[3]])
+
+        players = [
+            create_player(seat=0, tiles=all_tiles, is_riichi=True),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        ]
+        round_state = create_round_state(
+            players=players,
+            wall=tuple(range(80, 100)),
+            dead_wall=tuple(range(50, 64)),
+            phase=RoundPhase.PLAYING,
+        )
+
+        with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
+            validate_closed_kan(round_state, 0, man_1m[0], GameSettings())
 
 
 class TestAddedKanRiichiRejection:

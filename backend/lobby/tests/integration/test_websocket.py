@@ -116,6 +116,16 @@ class TestRoomWebSocket:
             assert msg["type"] == "error"
             assert msg["message"] == "room_not_found"
 
+    def test_join_full_room(self, client, app):
+        """Joining a room that became full between the pre-lock check and join_room."""
+        room = app.state.room_manager.create_room("full-room", num_ai_players=3)
+        # Pre-fill the room so it's full when the WebSocket handler calls join_room
+        app.state.room_manager.join_room("prefill-conn", "full-room", "prefill-user", "prefill")
+        with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+            assert msg["message"] == "room_full"
+
     def test_invalid_message(self, client, room_id):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
             ws.receive_json()  # room_joined
@@ -199,6 +209,26 @@ class TestMultiPlayerWebSocket:
             # Bob should receive player_left
             msg = ws_bob.receive_json()
             assert msg["type"] == "player_left"
+
+    def test_second_player_join_produces_consistent_player_list(self, app, two_user_client):
+        """player_joined broadcast contains exactly the players present at join time."""
+        room = app.state.room_manager.create_room("consistent-room", num_ai_players=2)
+        with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
+            bob_joined = ws_bob.receive_json()
+            assert bob_joined["type"] == "room_joined"
+            assert len(bob_joined["players"]) == 1
+
+            two_user_client.post("/login", data={"username": "alice", "password": "securepass123"})
+            with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
+                alice_joined = ws_alice.receive_json()
+                assert alice_joined["type"] == "room_joined"
+                assert len(alice_joined["players"]) == 2
+
+                player_joined = ws_bob.receive_json()
+                assert player_joined["type"] == "player_joined"
+                assert player_joined["player_name"] == "alice"
+                # The broadcast must reflect the state after alice joined
+                assert len(player_joined["players"]) == 2
 
     def test_disconnect_broadcasts_player_left(self, app, two_user_client):
         """When a player disconnects, remaining players get player_left broadcast."""

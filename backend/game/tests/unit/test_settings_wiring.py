@@ -1,5 +1,4 @@
-"""Tests for Phase 1: settings validation and wiring.
-
+"""
 Covers:
 - Settings validation (unsupported values fail fast)
 - Renchan behavior settings
@@ -221,7 +220,8 @@ class TestRenchanOnDealerTenpaiDraw:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         honba, should_rotate = _get_honba_and_rotation(gs, result)
-        assert honba == 1
+        # Nagashi mangan increments honba same as exhaustive draw (1 → 2)
+        assert honba == 2
         assert should_rotate is False
 
     def test_no_renchan_nagashi_mangan_dealer_tenpai_rotates(self):
@@ -235,7 +235,9 @@ class TestRenchanOnDealerTenpaiDraw:
             scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
-        _honba, should_rotate = _get_honba_and_rotation(gs, result)
+        honba, should_rotate = _get_honba_and_rotation(gs, result)
+        # Nagashi mangan increments honba same as exhaustive draw (0 → 1)
+        assert honba == 1
         assert should_rotate is True
 
 

@@ -22,6 +22,8 @@ from game.logic.tiles import NUM_TILE_TYPES, WINDS_34, hand_to_34_array, tile_to
 from game.logic.wall import is_wall_exhausted
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from game.logic.state import (
         MahjongPlayer,
         MahjongRoundState,
@@ -29,6 +31,11 @@ if TYPE_CHECKING:
 
 # maximum copies of a single tile
 MAX_TILE_COPIES = 4
+
+# the 13 terminal/honor tile types required for kokushi musou
+KOKUSHI_TILES_34 = frozenset({0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33})
+KOKUSHI_HAND_SIZE = 13
+KOKUSHI_MIN_UNIQUE_TYPES = 12
 
 
 def all_player_tiles(player: MahjongPlayer) -> list[int]:
@@ -296,14 +303,12 @@ def is_chiihou(
 
     Chiihou requirements:
     - Player is not the dealer
-    - No discards have been made by anyone
+    - Player has not yet discarded (first draw of the round)
     - No calls from any player (including closed kans)
     - Win on first draw (tsumo on first turn)
     """
     return (
-        player.seat != round_state.dealer_seat
-        and len(round_state.all_discards) == 0
-        and _no_calls_from_any_player(round_state)
+        player.seat != round_state.dealer_seat and len(player.discards) == 0 and _no_calls_from_any_player(round_state)
     )
 
 
@@ -327,14 +332,18 @@ def is_renhou(
     return len(player.discards) == 0
 
 
-def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_tile: int) -> list[int]:
-    """
-    Find seats that can ron on an added kan (chankan).
+def _find_chankan_seats(
+    round_state: MahjongRoundState,
+    caller_seat: int,
+    kan_tile: int,
+    *,
+    extra_filter: Callable[[MahjongPlayer], bool] | None = None,
+) -> list[int]:
+    """Find seats eligible for chankan (robbing a kan) on the given tile.
 
-    When a player upgrades a pon to a kan (added/shouminkan), other players
-    who are waiting on that tile can declare ron (chankan).
-
-    Returns list of seat numbers that can call chankan on this tile.
+    Iterates all seats except the caller, filtering by waiting tiles and
+    furiten status. An optional extra_filter predicate (e.g. kokushi tenpai
+    check) can restrict eligibility further.
     """
     kan_tile_34 = tile_to_34(kan_tile)
     chankan_seats = []
@@ -344,6 +353,9 @@ def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_ti
             continue
 
         player = round_state.players[seat]
+
+        if extra_filter and not extra_filter(player):
+            continue
 
         # check if player is waiting on this tile
         waiting = get_waiting_tiles(player)
@@ -362,11 +374,55 @@ def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_ti
         if is_furiten(player):
             continue
 
-        # chankan itself is always a valid yaku (1 han), so open hands
-        # don't need a separate yaku check here
         chankan_seats.append(seat)
 
     return chankan_seats
+
+
+def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_tile: int) -> list[int]:
+    """Find seats that can ron on an added kan (chankan).
+
+    When a player upgrades a pon to a kan (added/shouminkan), other players
+    who are waiting on that tile can declare ron (chankan).
+    """
+    return _find_chankan_seats(round_state, caller_seat, kan_tile)
+
+
+def is_kokushi_tenpai(player: MahjongPlayer) -> bool:
+    """Check if a player's hand is specifically kokushi musou tenpai.
+
+    Kokushi requires a closed hand (no melds) with 12 or 13 of the 13
+    terminal/honor tile types.  Tenpai forms:
+    - 12 unique types + 1 pair: waiting for the missing 13th type
+    - 13 unique types (no pair): 13-way wait for any type
+    """
+    if player.melds:
+        return False
+
+    tiles_34 = hand_to_34_array(player.tiles)
+    total = sum(tiles_34)
+    if total != KOKUSHI_HAND_SIZE:
+        return False
+
+    # every tile must be a kokushi terminal/honor type
+    for i in range(NUM_TILE_TYPES):
+        if tiles_34[i] > 0 and i not in KOKUSHI_TILES_34:
+            return False
+
+    unique_types = sum(1 for i in KOKUSHI_TILES_34 if tiles_34[i] > 0)
+    return unique_types >= KOKUSHI_MIN_UNIQUE_TYPES
+
+
+def is_kokushi_chankan_possible(
+    round_state: MahjongRoundState,
+    caller_seat: int,
+    kan_tile: int,
+) -> list[int]:
+    """Find seats that can rob a closed kan (ankan) with kokushi musou.
+
+    Only kokushi musou may rob a concealed quad; no other hand qualifies.
+    """
+    return _find_chankan_seats(round_state, caller_seat, kan_tile, extra_filter=is_kokushi_tenpai)
 
 
 def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:

@@ -446,8 +446,7 @@ class MahjongGameService(GameService):
             return events
 
         # resolved - check round end
-        if await self._check_and_handle_round_end(game_id, events):
-            return events
+        await self._check_and_handle_round_end(game_id, events)
         return events
 
     def get_player_seat(self, game_id: str, player_name: str) -> int | None:

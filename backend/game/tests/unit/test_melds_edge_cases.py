@@ -299,8 +299,16 @@ class TestRiichiKanWaitPreservation:
         assert result is False
 
     def test_possible_closed_kans_includes_wait_preserving_kan(self):
-        """get_possible_closed_kans includes riichi kan that preserves waits."""
-        tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
+        """get_possible_closed_kans includes riichi kan when drawn tile is the kan tile.
+
+        Hand: 111m 234567p 8955s + drawn 1m (last tile).
+        The drawn tile (4th 1m) completes the quad and preserves waits.
+        """
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        pin = TilesConverter.string_to_136_array(pin="234567")
+        sou = TilesConverter.string_to_136_array(sou="8955")
+        # place 4th 1m last as drawn tile
+        tiles = list(man_1m[:3]) + list(pin) + list(sou) + [man_1m[3]]
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
 
         players = [player] + [create_player(seat=i) for i in range(1, 4)]
@@ -309,8 +317,30 @@ class TestRiichiKanWaitPreservation:
         round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
 
         result = get_possible_closed_kans(player, round_state, GameSettings())
-        tile_34_1m = tile_to_34(tiles[0])
+        tile_34_1m = tile_to_34(man_1m[0])
         assert tile_34_1m in result
+
+    def test_riichi_kan_blocked_when_drawn_tile_is_not_kan_tile(self):
+        """Closed kan during riichi requires the drawn tile to be the kan tile.
+
+        Hand: 1111m 234567p 89s + drawn 5s (last tile).
+        Player has 4x 1m but drew 5s, so kan on 1m is blocked because
+        the drawn tile is not the kan tile.
+        """
+        man_1m = TilesConverter.string_to_136_array(man="1111")
+        pin = TilesConverter.string_to_136_array(pin="234567")
+        sou = TilesConverter.string_to_136_array(sou="8955")
+        # drawn tile (last) is 5s, NOT 1m
+        tiles = list(man_1m) + list(pin) + list(sou)
+        player = create_player(seat=0, tiles=tiles, is_riichi=True)
+
+        players = [player] + [create_player(seat=i) for i in range(1, 4)]
+        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
+        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
+        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
+
+        result = get_possible_closed_kans(player, round_state, GameSettings())
+        assert result == []
 
 
 class TestPaoLiability:

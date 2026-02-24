@@ -31,7 +31,8 @@ from game.logic.events import (
     RiichiDeclaredEvent,
     RoundEndEvent,
 )
-from game.logic.melds import call_added_kan
+from game.logic.meld_wrapper import FrozenMeld
+from game.logic.melds import call_added_kan, call_closed_kan
 from game.logic.riichi import declare_riichi
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state_utils import (
@@ -39,6 +40,7 @@ from game.logic.state_utils import (
     clear_pending_prompt,
     update_game_with_round,
 )
+from game.logic.tiles import tile_to_34
 from game.logic.turn import (
     _maybe_emit_dora_event,
     emit_deferred_dora_events,
@@ -235,34 +237,41 @@ def _resolve_all_passed(
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
 
-def complete_added_kan_after_chankan_decline(
+def _complete_kan_after_chankan_decline(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
     caller_seat: int,
     tile_id: int,
+    *,
+    is_closed: bool,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """
-    Complete an added kan after chankan opportunity was declined.
+    """Shared logic for completing a kan after chankan opportunity was declined.
 
-    Called when all players pass on a chankan opportunity.
-    Furiten is applied per-caller in handle_pass before resolution.
-    Returns (new_round_state, new_game_state, events).
+    Executes the kan call, emits meld/dora events, checks four kans abort,
+    and emits the dead wall draw event.
     """
     settings = game_state.settings
     old_dora_count = len(round_state.wall.dora_indicators)
-    new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, settings)
-    new_game_state = update_game_with_round(game_state, new_round_state)
-    tile_ids = list(meld.tiles)
 
-    events: list[GameEvent] = [
-        MeldEvent(
+    if is_closed:
+        new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, settings)
+        meld_event = MeldEvent(
+            meld_type=MeldViewType.CLOSED_KAN,
+            caller_seat=caller_seat,
+            tile_ids=list(meld.tiles),
+        )
+    else:
+        new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, settings)
+        meld_event = MeldEvent(
             meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,
-            tile_ids=tile_ids,
+            tile_ids=list(meld.tiles),
             called_tile_id=meld.called_tile,
             from_seat=meld.from_who,
-        ),
-    ]
+        )
+
+    new_game_state = update_game_with_round(game_state, new_round_state)
+    events: list[GameEvent] = [meld_event]
 
     _maybe_emit_dora_event(old_dora_count, new_round_state, events)
 
@@ -279,6 +288,45 @@ def complete_added_kan_after_chankan_decline(
         events.append(create_draw_event(new_round_state, new_game_state, caller_seat, tile_id=drawn_tile))
 
     return new_round_state, new_game_state, events
+
+
+def complete_added_kan_after_chankan_decline(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    caller_seat: int,
+    tile_id: int,
+) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
+    """Complete an added kan after chankan opportunity was declined.
+
+    Called when all players pass on a chankan opportunity.
+    Furiten is applied per-caller in handle_pass before resolution.
+    """
+    return _complete_kan_after_chankan_decline(
+        round_state,
+        game_state,
+        caller_seat,
+        tile_id,
+        is_closed=False,
+    )
+
+
+def complete_closed_kan_after_chankan_decline(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    caller_seat: int,
+    tile_id: int,
+) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
+    """Complete a closed kan after kokushi chankan opportunity was declined.
+
+    Called when all players pass on a kokushi chankan opportunity for ankan.
+    """
+    return _complete_kan_after_chankan_decline(
+        round_state,
+        game_state,
+        caller_seat,
+        tile_id,
+        is_closed=True,
+    )
 
 
 def _finalize_discard_post_ron_check(
@@ -335,6 +383,32 @@ def _resolve_all_passed_discard(
         events.extend(draw_events)
 
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+
+
+def _resolve_chankan_decline(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    prompt: PendingCallPrompt,
+) -> ActionResult:
+    """Complete the kan after all chankan rob attempts were declined."""
+    player = round_state.players[prompt.from_seat]
+    t34 = tile_to_34(prompt.tile_id)
+    has_pon = any(m.meld_type == FrozenMeld.PON and tile_to_34(m.tiles[0]) == t34 for m in player.melds)
+    if has_pon:
+        new_rs, new_gs, events = complete_added_kan_after_chankan_decline(
+            round_state,
+            game_state,
+            prompt.from_seat,
+            prompt.tile_id,
+        )
+    else:
+        new_rs, new_gs, events = complete_closed_kan_after_chankan_decline(
+            round_state,
+            game_state,
+            prompt.from_seat,
+            prompt.tile_id,
+        )
+    return ActionResult(events, new_round_state=new_rs, new_game_state=new_gs)
 
 
 def resolve_call_prompt(  # noqa: PLR0911
@@ -413,13 +487,7 @@ def resolve_call_prompt(  # noqa: PLR0911
     new_game_state = update_game_with_round(resolved_game, new_round_state)
 
     if prompt.call_type == CallType.CHANKAN:
-        new_round_state, new_game_state, events = complete_added_kan_after_chankan_decline(
-            new_round_state,
-            new_game_state,
-            prompt.from_seat,
-            prompt.tile_id,
-        )
-        return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
+        return _resolve_chankan_decline(new_round_state, new_game_state, prompt)
 
     # For DISCARD/MELD: dora/riichi already finalized above, just advance turn
     if prompt.call_type in (CallType.DISCARD, CallType.MELD):

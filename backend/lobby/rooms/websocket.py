@@ -68,27 +68,44 @@ async def room_websocket(websocket: WebSocket) -> None:
     await websocket.accept()
     ctx = _RoomContext(websocket)
 
-    result = ctx.room_manager.join_room(
-        ctx.connection_id,
-        ctx.room_id,
-        websocket.user.user_id,
-        ctx.username,
-    )
-    if isinstance(result, str):
-        await websocket.send_json({"type": "error", "message": result})
-        await websocket.close(code=4000, reason=result)
+    log = logger.bind(room_id=ctx.room_id, username=ctx.username)
+
+    room = ctx.room_manager.get_room(ctx.room_id)
+    if room is None:
+        log.info("join rejected", reason="room_not_found")
+        await websocket.send_json({"type": "error", "message": "room_not_found"})
+        await websocket.close(code=4000, reason="room_not_found")
         return
 
-    ctx.room_connections.add(ctx.room_id, ctx.connection_id, websocket)
-    await websocket.send_json(result)
-    await _broadcast_player_joined(ctx)
+    # Serialize the entire join flow (join → ack → register → broadcast) under
+    # a per-room lock so that concurrent connections cannot interleave their
+    # join sequences.  Without this, coroutine scheduling at any ``await``
+    # inside the block can let another player's broadcast reach a connection
+    # that hasn't received its own ``room_joined`` yet.
+    async with room.join_lock:
+        result = ctx.room_manager.join_room(
+            ctx.connection_id,
+            ctx.room_id,
+            websocket.user.user_id,
+            ctx.username,
+        )
+        if isinstance(result, str):
+            log.info("join rejected", reason=result)
+            await websocket.send_json({"type": "error", "message": result})
+            await websocket.close(code=4000, reason=result)
+            return
+
+        await websocket.send_json(result)
+        ctx.room_connections.add(ctx.room_id, ctx.connection_id, websocket)
+        log.info("player joined room", player_count=room.player_count)
+        await _broadcast_player_joined(ctx)
 
     try:
         await _message_loop(websocket, ctx)
     except WebSocketDisconnect:
         pass
     except Exception:  # pragma: no cover — defensive catch-all
-        logger.exception("unexpected error in room websocket", room_id=ctx.room_id)
+        log.exception("unexpected error in room websocket")
     finally:
         await _cleanup_connection(ctx)
 
@@ -153,6 +170,10 @@ async def _handle_set_ready(
         return False
 
     room_id_result, all_ready = result
+
+    log = logger.bind(room_id=room_id_result, username=ctx.username)
+    log.info("player ready changed", ready=message.ready, all_ready=all_ready)
+
     room = ctx.room_manager.get_room(room_id_result)
     if room is not None:
         await ctx.room_connections.broadcast(
@@ -178,6 +199,9 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
     if room is None:  # pragma: no cover — race condition guard
         return False
 
+    log = logger.bind(room_id=room_id)
+    log.info("game transition starting", player_count=room.player_count)
+
     # Sign game tickets for each player
     player_specs = []
     ticket_map: dict[str, str] = {}  # connection_id -> signed_ticket
@@ -201,7 +225,7 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
             ctx.registry,
         )
     except GameTransitionError as e:
-        logger.exception("failed to create game", room_id=room_id)
+        log.exception("failed to create game")
         ctx.room_manager.clear_transitioning(room_id)
         await ctx.room_connections.broadcast(
             room_id,
@@ -231,21 +255,20 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
             failed_count += 1
             player = room.players.get(conn_id)
             player_name = player.username if player else "unknown"
-            logger.warning(
+            log.warning(
                 "failed to deliver game_starting message",
-                room_id=room_id,
                 connection_id=conn_id,
                 player_name=player_name,
             )
 
     if failed_count > 0:
-        logger.error(
+        log.error(
             "game_starting delivery failures",
-            room_id=room_id,
             failed=failed_count,
             total=total,
         )
 
+    log.info("game transition complete", ws_url=ws_url)
     ctx.room_manager.remove_room(room_id)
     await ctx.room_connections.close_connections(room_id)
     return True
@@ -311,6 +334,7 @@ async def _cleanup_connection(ctx: _RoomContext) -> None:
     room_id = ctx.room_manager.leave_room(ctx.connection_id)
     ctx.room_connections.remove(ctx.connection_id)
     if room_id:
+        logger.info("player left room", room_id=room_id, username=username)
         room = ctx.room_manager.get_room(room_id)
         if room is not None:
             await ctx.room_connections.broadcast(

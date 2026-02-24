@@ -611,6 +611,14 @@ def _handle_self_kan(
     Executes the kan immediately via process_meld_call, then checks for
     chankan prompt or emits a draw event for the dead wall replacement tile.
     """
+    # after pon/chi, the player must discard — kan requires a drawn tile
+    if round_state.is_after_meld_call:
+        raise InvalidGameActionError(
+            action="call_kan",
+            seat=seat,
+            reason="cannot declare kan after a meld call (must discard first)",
+        )
+
     try:
         meld_call_type = data.kan_type.to_meld_call_type()
         meld_input = MeldCallInput(caller_seat=seat, call_type=meld_call_type, tile_id=data.tile_id)

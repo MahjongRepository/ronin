@@ -12,6 +12,7 @@ from mahjong.tile import TilesConverter
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
+from game.logic.state import Discard
 from game.logic.state_utils import update_player
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
@@ -23,9 +24,10 @@ def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
     """
     Create a game state for scoring tests.
 
-    Sets up a mid-game state (some discards) to avoid triggering tenhou/chiihou.
+    Sets up a mid-game state (player discards) to avoid triggering tenhou/chiihou.
     """
-    players = tuple(create_player(seat=i, score=25000) for i in range(4))
+    dummy_discard = (Discard(tile_id=0),)
+    players = tuple(create_player(seat=i, score=25000, discards=dummy_discard) for i in range(4))
     dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
     dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
     round_state = create_round_state(

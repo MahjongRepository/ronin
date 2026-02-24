@@ -145,3 +145,22 @@ class TestDeclareRiichiDaburi:
         )
 
         assert new_round_state.players[0].is_daburi is False
+
+    def test_declare_riichi_sets_ippatsu(self):
+        """Riichi declaration sets the ippatsu flag for the declaring player."""
+        round_state, game_state = self._create_game_state(
+            player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
+        )
+        assert round_state.players[0].is_ippatsu is False
+
+        new_round_state, _new_game_state = declare_riichi(
+            round_state,
+            game_state,
+            seat=0,
+            settings=GameSettings(),
+        )
+
+        assert new_round_state.players[0].is_ippatsu is True
+        # other players not affected
+        for i in range(1, 4):
+            assert new_round_state.players[i].is_ippatsu is False

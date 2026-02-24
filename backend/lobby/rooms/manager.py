@@ -39,6 +39,12 @@ class LobbyRoomManager:
         """Create a new room and return it."""
         room = LobbyRoom(room_id=room_id, num_ai_players=num_ai_players)
         self._rooms[room_id] = room
+        logger.info(
+            "room created",
+            room_id=room_id,
+            num_ai_players=num_ai_players,
+            players_needed=room.players_needed,
+        )
         return room
 
     def join_room(
