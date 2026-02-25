@@ -16,12 +16,16 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
-from game.messaging.encoder import decode, encode
 from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.session.models import Player, SessionData
-from game.tests.helpers.auth import make_test_game_ticket
+from game.tests.helpers.websocket import (
+    create_pending_game,
+    join_game_and_start,
+    recv_ws,
+    send_ws,
+)
 from game.tests.mocks import MockConnection, MockGameService
 
 
@@ -53,40 +57,6 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
     )
 
 
-def _send(ws, data: dict) -> None:
-    ws.send_bytes(encode(data))
-
-
-def _recv(ws) -> dict:
-    return decode(ws.receive_bytes())
-
-
-def _create_pending_game_and_tickets(client: TestClient, game_id: str = "test_game") -> list[str]:
-    """Create a pending game via POST /games. Return tickets."""
-    ticket = make_test_game_ticket("Player1", game_id, user_id="user-0")
-    resp = client.post(
-        "/games",
-        json={
-            "game_id": game_id,
-            "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
-        },
-    )
-    assert resp.status_code == 201
-    return [ticket]
-
-
-def _join_game_and_start(ws, ticket: str) -> list[dict]:
-    """Join a pending game and drain startup messages."""
-    _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
-    messages = []
-    while True:
-        msg = _recv(ws)
-        messages.append(msg)
-        if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
-            break
-    return messages
-
-
 def _start_game_and_get_ticket(client: TestClient) -> str:
     """Start a 1-player game over WebSocket and disconnect to get the game ticket.
 
@@ -95,12 +65,12 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
     Returns the game ticket string (which is the session token).
     """
     sm = client.app.state.session_manager
-    tickets = _create_pending_game_and_tickets(client, "test_game")
+    tickets = create_pending_game(client, "test_game")
     ticket = tickets[0]
 
     # Player1 joins and starts the game via WebSocket
     with client.websocket_connect("/ws/test_game") as ws:
-        _join_game_and_start(ws, ticket)
+        join_game_and_start(ws, ticket)
 
         # Inject a "Player2" mock connection into the game so it survives Player1 leaving
         p2_conn = MockConnection()
@@ -146,7 +116,7 @@ class TestWebSocketReconnect:
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _send(
+            send_ws(
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
@@ -154,7 +124,7 @@ class TestWebSocketReconnect:
                 },
             )
 
-            msg = _recv(ws)
+            msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.GAME_RECONNECTED
             assert msg["gid"] == "test_game"
             assert msg["s"] == 0
@@ -164,7 +134,7 @@ class TestWebSocketReconnect:
         _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _send(
+            send_ws(
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
@@ -172,19 +142,19 @@ class TestWebSocketReconnect:
                 },
             )
 
-            msg = _recv(ws)
+            msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.INVALID_TICKET
 
     def test_reconnect_game_gone_over_websocket(self, client):
         """Reconnect after game cleanup returns game_gone error."""
         sm = client.app.state.session_manager
-        tickets = _create_pending_game_and_tickets(client, "test_game")
+        tickets = create_pending_game(client, "test_game")
 
         # Start and leave via WebSocket (1 human = game gets cleaned up)
         ticket = None
         with client.websocket_connect("/ws/test_game") as ws:
-            _join_game_and_start(ws, tickets[0])
+            join_game_and_start(ws, tickets[0])
             for session in sm._session_store._sessions.values():
                 if session.player_name == "Player1" and session.game_id == "test_game":
                     ticket = session.session_token
@@ -205,7 +175,7 @@ class TestWebSocketReconnect:
         sm._session_store._sessions[ticket] = session
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _send(
+            send_ws(
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
@@ -213,7 +183,7 @@ class TestWebSocketReconnect:
                 },
             )
 
-            msg = _recv(ws)
+            msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
 
@@ -226,7 +196,7 @@ class TestWebSocketReconnect:
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _send(
+            send_ws(
                 ws,
                 {
                     "t": WireClientMessageType.RECONNECT,
@@ -234,10 +204,10 @@ class TestWebSocketReconnect:
                 },
             )
 
-            reconnect_msg = _recv(ws)
+            reconnect_msg = recv_ws(ws)
             assert reconnect_msg["type"] == SessionMessageType.GAME_RECONNECTED
 
-            _send(
+            send_ws(
                 ws,
                 {
                     "t": WireClientMessageType.GAME_ACTION,
@@ -246,7 +216,7 @@ class TestWebSocketReconnect:
                 },
             )
 
-            action_msg = _recv(ws)
+            action_msg = recv_ws(ws)
             assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert action_msg["player"] == "Player1"
             assert action_msg["success"] is True

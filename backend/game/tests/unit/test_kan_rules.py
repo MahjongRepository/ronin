@@ -364,24 +364,6 @@ class TestKanDoraTiming:
 
 
 # ---------------------------------------------------------------------------
-# Deferred dora reveal triggers once ron check passes, even if meld claimed
-# ---------------------------------------------------------------------------
-class TestDeferredDoraOnMeldClaim:
-    def test_pending_dora_cleared_on_tsumo(self):
-        """Tsumo win clears pending dora (dora not revealed for scoring)."""
-        round_state = _make_round_state(
-            player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
-            pending_dora_count=1,
-        )
-        # the tsumo flow clears pending dora before scoring
-        # (verified in process_tsumo_call: wall.pending_dora_count = 0)
-        assert round_state.wall.pending_dora_count == 1
-        new_wall = round_state.wall.model_copy(update={"pending_dora_count": 0})
-        cleared_state = round_state.model_copy(update={"wall": new_wall})
-        assert cleared_state.wall.pending_dora_count == 0
-
-
-# ---------------------------------------------------------------------------
 # Kokushi tenpai detection
 # ---------------------------------------------------------------------------
 class TestIsKokushiTenpai:

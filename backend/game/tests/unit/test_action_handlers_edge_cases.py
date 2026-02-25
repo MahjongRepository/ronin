@@ -342,18 +342,16 @@ class TestHandlePonMultiCaller:
 
 class TestHandleChiMultiCaller:
     def test_handle_chi_multi_caller_waiting(self):
-        """Test chi with multiple callers: one responds, waiting for others."""
+        """Chi with multiple callers: one responds, waiting for others."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         sequence_tiles = tuple(TilesConverter.string_to_136_array(man="23"))
 
-        # give player 1 tiles for chi
         player1_tiles = tuple(TilesConverter.string_to_136_array(man="236789", pin="2345789"))
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
-        # create prompt with 2 pending callers
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=tile_id,
@@ -367,7 +365,6 @@ class TestHandleChiMultiCaller:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        # seat 1 calls chi
         result = handle_chi(
             round_state,
             game_state,
@@ -375,27 +372,22 @@ class TestHandleChiMultiCaller:
             data=ChiActionData(tile_id=tile_id, sequence_tiles=sequence_tiles),
         )
 
-        # verify waiting for seat 2
-        assert isinstance(result, ActionResult)
         assert len(result.events) == 0
-        assert result.new_round_state is not None
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 
 
 class TestHandleKanMultiCaller:
     def test_handle_kan_multi_caller_waiting(self):
-        """Test open kan with multiple callers: one responds, waiting for others."""
+        """Open kan with multiple callers: one responds, waiting for others."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="5")[0]
 
-        # give player 1 three matching tiles for open kan
         player1_tiles = tuple(TilesConverter.string_to_136_array(man="555368", pin="2479", sou="358"))
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
-        # create prompt with 2 pending callers
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=tile_id,
@@ -409,7 +401,6 @@ class TestHandleKanMultiCaller:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        # seat 1 calls open kan
         result = handle_kan(
             round_state,
             game_state,
@@ -417,10 +408,7 @@ class TestHandleKanMultiCaller:
             data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
 
-        # verify waiting for seat 2
-        assert isinstance(result, ActionResult)
         assert len(result.events) == 0
-        assert result.new_round_state is not None
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 

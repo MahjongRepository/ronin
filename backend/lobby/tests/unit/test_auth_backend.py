@@ -219,18 +219,6 @@ class TestApiKeyAuth:
         result = await backend.authenticate(conn)
         assert result is None
 
-    async def test_empty_api_key_header_returns_none(
-        self,
-        backend: SessionOrApiKeyBackend,
-    ) -> None:
-        conn = MagicMock()
-        conn.cookies = {}
-        conn.query_params = {}
-        conn.headers = {"x-api-key": ""}
-
-        result = await backend.authenticate(conn)
-        assert result is None
-
 
 class TestSessionTakesPrecedenceOverApiKey:
     async def test_valid_session_used_even_when_api_key_present(

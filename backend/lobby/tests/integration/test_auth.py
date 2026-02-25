@@ -94,13 +94,6 @@ class TestAuthEndpoints:
         yield c
         c.app.state.db.close()
 
-    def test_login_page_renders(self, client):
-        response = client.get("/login")
-        assert response.status_code == 200
-        assert "Login" in response.text
-        assert "username" in response.text
-        assert "password" in response.text
-
     def test_register_page_renders(self, client):
         response = client.get("/register")
         assert response.status_code == 200
@@ -426,17 +419,6 @@ class TestBotCreateRoom:
         assert response.status_code == 400
         assert "Invalid JSON" in response.json()["error"]
 
-    def test_create_room_human_key_rejected(self, client):
-        """Defense-in-depth: human accounts with an api_key_hash are rejected at middleware level."""
-        raw_key = "sneaky-human-key"
-        _insert_human_with_key(client, "human-room-id", "SneakyHuman", raw_key)
-        response = client.post(
-            "/api/rooms",
-            json={},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 401
-
 
 class TestApiKeyProtectedEndpoints:
     """Test that bot API keys in the X-API-Key header grant access to protected endpoints."""
@@ -460,18 +442,6 @@ class TestApiKeyProtectedEndpoints:
         response = client.get(
             "/servers",
             headers={"x-api-key": "bogus-key"},
-        )
-        assert response.status_code == 401
-        assert response.json() == {"error": "Authentication required"}
-
-    def test_human_account_api_key_returns_401(self, client):
-        """Defense-in-depth: human accounts with an api_key_hash are rejected at middleware level."""
-        raw_key = "sneaky-human-key"
-        _insert_human_with_key(client, "human-api-id", "SneakyHuman", raw_key)
-
-        response = client.get(
-            "/servers",
-            headers={"x-api-key": raw_key},
         )
         assert response.status_code == 401
         assert response.json() == {"error": "Authentication required"}

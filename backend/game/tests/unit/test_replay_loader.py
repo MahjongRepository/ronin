@@ -475,6 +475,22 @@ def test_error_discard_invalid_packed_value():
         load_replay_from_string(content)
 
 
+def test_error_compact_meld_missing_m_field():
+    """ReplayLoadError when compact meld event has no 'm' field."""
+    meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD]})
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="Compact meld event missing 'm' field"):
+        load_replay_from_string(content)
+
+
+def test_error_compact_meld_corrupt_value():
+    """ReplayLoadError when compact meld value is out of range."""
+    meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": 999999})
+    content = _build_event_log(meld)
+    with pytest.raises(ReplayLoadError, match="Invalid compact meld value"):
+        load_replay_from_string(content)
+
+
 def test_error_discard_unknown_seat(monkeypatch: pytest.MonkeyPatch):
     """ReplayLoadError when decoded discard references a seat not in game_started."""
     monkeypatch.setattr(
@@ -485,14 +501,6 @@ def test_error_discard_unknown_seat(monkeypatch: pytest.MonkeyPatch):
     discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": 0})
     content = _build_event_log(discard)
     with pytest.raises(ReplayLoadError, match="discard event references unknown seat"):
-        load_replay_from_string(content)
-
-
-def test_error_compact_meld_missing_m_field():
-    """ReplayLoadError when compact meld event has no 'm' field."""
-    meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD]})
-    content = _build_event_log(meld)
-    with pytest.raises(ReplayLoadError, match="Compact meld event missing 'm' field"):
         load_replay_from_string(content)
 
 
@@ -527,14 +535,6 @@ def test_error_compact_meld_unknown_meld_type(monkeypatch: pytest.MonkeyPatch):
     meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": 0})
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="Unknown meld_type in decoded IMME"):
-        load_replay_from_string(content)
-
-
-def test_error_compact_meld_corrupt_value():
-    """ReplayLoadError when compact meld value is out of range."""
-    meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": 999999})
-    content = _build_event_log(meld)
-    with pytest.raises(ReplayLoadError, match="Invalid compact meld value"):
         load_replay_from_string(content)
 
 

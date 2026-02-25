@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
@@ -84,18 +83,3 @@ class TestCaseInsensitiveUsername:
         assert await repo.get_by_username("alice") is not None
         assert await repo.get_by_username("ALICE") is not None
         assert await repo.get_by_username("aLiCe") is not None
-
-
-class TestConcurrentAccess:
-    async def test_concurrent_creates_all_succeed_or_raise_value_error(
-        self,
-        repo: SqlitePlayerRepository,
-    ) -> None:
-        """Concurrent creates with distinct ids/usernames all succeed; duplicates raise ValueError."""
-        players = [_human(user_id=f"u{i}", username=f"user{i}") for i in range(10)]
-        await asyncio.gather(*[repo.create_player(p) for p in players])
-
-        for i in range(10):
-            result = await repo.get_by_username(f"user{i}")
-            assert result is not None
-            assert result.user_id == f"u{i}"

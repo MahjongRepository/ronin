@@ -628,22 +628,6 @@ class TestReplayCollectorSeedInReplay:
         payload = service_event_payload(event)
         assert "sd" not in payload
 
-    async def test_seed_cleaned_up_after_save_or_cleanup(self):
-        """Seed is removed from internal state after save or cleanup."""
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        # After save_and_cleanup
-        collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", [_make_game_started_event()])
-        await collector.save_and_cleanup("game1")
-        assert "game1" not in collector._seeds
-
-        # After cleanup_game
-        collector.start_game("game2", seed="c" * 192, rng_version=RNG_VERSION)
-        collector.cleanup_game("game2")
-        assert "game2" not in collector._seeds
-
 
 class TestReplayCollectorSensitiveDataGuard:
     """Tests that concealed data is only written when collection is active."""

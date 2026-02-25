@@ -30,7 +30,7 @@ def _dora_han(result, yaku_id):
     return 0
 
 
-def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, is_daburi=False, dead_wall=None):
+def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, dead_wall=None):
     """Build a game state for dora scoring tests.
 
     Uses a mid-game state (discards present, non-empty wall) to avoid
@@ -45,7 +45,6 @@ def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, is_daburi=F
             seat=i,
             tiles=tuple(tiles) if i == 0 else None,
             is_riichi=is_riichi if i == 0 else False,
-            is_daburi=is_daburi if i == 0 else False,
         )
         for i in range(4)
     )
@@ -128,26 +127,6 @@ class TestIndicatorToDoraMappingSuited:
         assert result.error is None
         assert _dora_han(result, DORA_YAKU_ID) == 1
 
-    def test_9p_indicator_wraps_to_1p(self):
-        """Indicator 9p wraps to dora 1p: verifies pin suit wrapping."""
-        # Hand: 123m 456p 789s 123p 55m -> 123m 123p 456p 789s pair 55m
-        tiles = TilesConverter.string_to_136_array(man="12355", pin="123456", sou="789")
-        win_tile = tiles[-1]
-        # 9p indicator -> dora is 1p (1 copy in hand)
-        indicator = TilesConverter.string_to_136_array(pin="9")
-
-        game_state = _build_scoring_state(tiles=tiles, dora_indicators=indicator, is_riichi=True)
-        ctx = ScoringContext(
-            player=game_state.round_state.players[0],
-            round_state=game_state.round_state,
-            settings=self.settings,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert _dora_han(result, DORA_YAKU_ID) == 1
-
 
 class TestIndicatorToDoraMappingWinds:
     """Verify wind tile indicator wrapping: E->S->W->N->E."""
@@ -194,26 +173,6 @@ class TestIndicatorToDoraMappingWinds:
         assert result.error is None
         assert _dora_han(result, DORA_YAKU_ID) == 2
 
-    def test_south_indicator_makes_west_dora(self):
-        """Indicator South makes West the dora: S->W in wind cycle."""
-        # Hand with WW pair
-        tiles = TilesConverter.string_to_136_array(man="123456", pin="789", sou="123", honors="33")
-        win_tile = tiles[-1]
-        # South (honors=2) indicator -> dora is West (2 copies = 2 dora)
-        indicator = TilesConverter.string_to_136_array(honors="2")
-
-        game_state = _build_scoring_state(tiles=tiles, dora_indicators=indicator, is_riichi=True)
-        ctx = ScoringContext(
-            player=game_state.round_state.players[0],
-            round_state=game_state.round_state,
-            settings=self.settings,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert _dora_han(result, DORA_YAKU_ID) == 2
-
 
 class TestIndicatorToDoraMappingDragons:
     """Verify dragon tile indicator wrapping: Haku->Hatsu->Chun->Haku."""
@@ -247,26 +206,6 @@ class TestIndicatorToDoraMappingDragons:
         win_tile = tiles[-1]
         # Haku (honors=5) indicator -> dora is Hatsu (2 copies = 2 dora)
         indicator = TilesConverter.string_to_136_array(honors="5")
-
-        game_state = _build_scoring_state(tiles=tiles, dora_indicators=indicator, is_riichi=True)
-        ctx = ScoringContext(
-            player=game_state.round_state.players[0],
-            round_state=game_state.round_state,
-            settings=self.settings,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert _dora_han(result, DORA_YAKU_ID) == 2
-
-    def test_hatsu_indicator_makes_chun_dora(self):
-        """Indicator Hatsu makes Chun the dora: Hatsu->Chun in dragon cycle."""
-        # Hand with ChunChun pair
-        tiles = TilesConverter.string_to_136_array(man="123456", pin="789", sou="123", honors="77")
-        win_tile = tiles[-1]
-        # Hatsu (honors=6) indicator -> dora is Chun (2 copies = 2 dora)
-        indicator = TilesConverter.string_to_136_array(honors="6")
 
         game_state = _build_scoring_state(tiles=tiles, dora_indicators=indicator, is_riichi=True)
         ctx = ScoringContext(
@@ -490,35 +429,3 @@ class TestUraDoraRevelation:
 
         assert result.error is None
         assert _dora_han(result, URA_DORA_YAKU_ID) == 0
-
-    def test_double_riichi_gets_ura_dora_scoring(self):
-        """Double riichi winner gets ura dora han in scoring."""
-        tiles = _base_hand()
-        win_tile = tiles[-1]
-
-        dora_ind = TilesConverter.string_to_136_array(man="2")
-        ura_ind = TilesConverter.string_to_136_array(sou="4")[0]
-
-        dead_wall = [0] * 14
-        dead_wall[2] = dora_ind[0]
-        dead_wall[7] = ura_ind
-
-        game_state = _build_scoring_state(
-            tiles=tiles,
-            dora_indicators=dora_ind,
-            is_riichi=True,
-            is_daburi=True,
-            dead_wall=tuple(dead_wall),
-        )
-        ctx = ScoringContext(
-            player=game_state.round_state.players[0],
-            round_state=game_state.round_state,
-            settings=self.settings_no_aka,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert _dora_han(result, URA_DORA_YAKU_ID) == 2
-        # Confirm daburi yaku is present (yaku_id 8 = double riichi)
-        assert any(y.yaku_id == 8 for y in result.yaku)

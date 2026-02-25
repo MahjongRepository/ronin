@@ -53,11 +53,11 @@ class TestGameServiceIntegration:
 
         # play several discards (AI players will respond automatically)
         for _ in range(10):
-            game_state = service._games["game1"]
-            round_state = game_state.round_state
-            if round_state.phase == RoundPhase.FINISHED:
+            game_state = service.get_game_state("game1")
+            if game_state is None or game_state.round_state.phase == RoundPhase.FINISHED:
                 break
 
+            round_state = game_state.round_state
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
 
@@ -92,11 +92,11 @@ class TestUnifiedDiscardClaimIntegration:
 
         found_prompt = False
         for _ in range(20):
-            game_state = service._games["game1"]
-            round_state = game_state.round_state
-            if round_state.phase == RoundPhase.FINISHED:
+            game_state = service.get_game_state("game1")
+            if game_state is None or game_state.round_state.phase == RoundPhase.FINISHED:
                 break
 
+            round_state = game_state.round_state
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
             if player.name != "Player" or not player.tiles:

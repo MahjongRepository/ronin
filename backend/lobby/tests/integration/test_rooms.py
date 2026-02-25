@@ -54,16 +54,3 @@ servers:
         assert "servers" in data
         assert len(data["servers"]) == 1
         assert data["servers"][0]["name"] == "test-server"
-
-    def test_old_rooms_endpoints_not_found(self, client):
-        """Old /rooms JSON API endpoints no longer exist."""
-        response = client.get("/rooms")
-        assert response.status_code in {404, 303}  # 303 redirect for /rooms -> room_page or 404
-
-    def test_old_games_endpoints_not_found(self, client):
-        """Old /games endpoints no longer exist."""
-        response = client.get("/games")
-        assert response.status_code == 404
-
-        response = client.post("/games")
-        assert response.status_code == 404

@@ -28,14 +28,6 @@ class TestRoundTrip:
             assert original["from_seat"] == decoded["from_seat"], f"[{i}] from_seat"
             assert original["called_tile_id"] == decoded["called_tile_id"], f"[{i}] called_tile_id"
 
-    def test_all_fixtures_produce_integer_payloads(self, all_fixtures: list) -> None:
-        """Every meld type encodes to an integer payload."""
-        for i, wire in enumerate(all_fixtures):
-            event = encode_game_event(wire)
-            assert isinstance(event["m"], int), (
-                f"[{i}] {wire['meld_type']} produced {type(event['m']).__name__}, expected int"
-            )
-
 
 class TestChiEncoding:
     """Verify chi uniqueness and edge cases not covered by fixture round-trip."""

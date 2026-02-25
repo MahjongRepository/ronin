@@ -346,7 +346,6 @@ class TestUnknownPromptTypeFailsClosed:
             pending_seats=frozenset({1}),
             callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
         )
-        # Create a fake CallType-like object with a .value attribute
         fake_call_type = type("FakeCallType", (), {"value": "unknown"})()
         mock_prompt = type(
             "FakePrompt",
@@ -853,8 +852,6 @@ class TestCallChiDefenseInDepth:
         )
         settings = GameSettings()
 
-        # Tile IDs 5 (2m) and 9 (3m) form a valid chi sequence with tile_id=0 (1m)
-        # but they are not in player 1's hand
         with pytest.raises(InvalidMeldError, match="not found in hand"):
             call_chi(round_state, 1, 0, 0, (5, 9), settings)
 

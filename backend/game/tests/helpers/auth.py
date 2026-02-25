@@ -4,7 +4,7 @@ import time
 
 from shared.auth.game_ticket import TICKET_TTL_SECONDS, GameTicket, sign_game_ticket
 
-TEST_TICKET_SECRET = "test-secret"  # noqa: S105
+TEST_TICKET_SECRET = "test-secret"
 
 
 def make_test_game_ticket(

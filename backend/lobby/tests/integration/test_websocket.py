@@ -86,29 +86,15 @@ class TestRoomWebSocket:
             assert msg["player_name"] == "wsuser"
             assert msg["text"] == "hello"
 
-    def test_set_ready(self, client, room_id):
-        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
-            ws.receive_json()  # room_joined
-            ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
-            msg = ws.receive_json()
-            assert msg["type"] == "player_ready_changed"
-            assert msg["players"][0]["ready"] is True
-
-    def test_set_ready_not_all_ready(self, client, app):
-        """set_ready broadcasts state but does not trigger game when not all players are ready."""
-        room = app.state.room_manager.create_room("partial-ready", num_ai_players=2)
+    def test_set_ready(self, client, app):
+        """set_ready broadcasts state; room still needs another player so game does not start."""
+        room = app.state.room_manager.create_room("ready-room", num_ai_players=2)
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()  # room_joined
             ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
             msg = ws.receive_json()
             assert msg["type"] == "player_ready_changed"
             assert msg["players"][0]["ready"] is True
-            # Room still needs 1 more player, no game_starting message
-
-    def test_leave_room(self, client, room_id):
-        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
-            ws.receive_json()  # room_joined
-            ws.send_text(json.dumps({"type": "leave_room"}))
 
     def test_room_not_found(self, client):
         with client.websocket_connect("/ws/rooms/nonexistent") as ws:

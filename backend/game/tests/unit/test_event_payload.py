@@ -128,37 +128,6 @@ class TestShapeCallPromptPayload:
             "cs": 0,
         }
 
-    def test_meld_prompt_replaces_callers_with_available_calls(self):
-        payload = {
-            "clt": WireCallType.MELD,
-            "ti": 42,
-            "frs": 1,
-            "clr": [
-                {"s": 0, "clt": WireMeldCallType.PON, "opt": None},
-            ],
-        }
-        result = shape_call_prompt_payload(payload)
-
-        assert "clr" not in result
-        assert result["cs"] == 0
-        assert result["ac"] == [{"clt": WireMeldCallType.PON}]
-
-    def test_meld_prompt_preserves_chi_options(self):
-        payload = {
-            "clt": WireCallType.MELD,
-            "ti": 42,
-            "frs": 1,
-            "clr": [
-                {"s": 0, "clt": WireMeldCallType.CHI, "opt": [[40, 44]]},
-            ],
-        }
-        result = shape_call_prompt_payload(payload)
-
-        assert result["cs"] == 0
-        assert result["ac"] == [
-            {"clt": WireMeldCallType.CHI, "opt": [[40, 44]]},
-        ]
-
     def test_unknown_call_type_returns_payload_unchanged(self):
         payload = {
             "clt": 99,

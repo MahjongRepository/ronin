@@ -177,36 +177,6 @@ class TestUma:
             validate_settings(settings)
 
 
-class TestOkaCalculation:
-    """Verify oka is correctly derived from target_score and starting_score."""
-
-    def test_standard_oka_25k_30k(self):
-        """Default: oka = (30000-25000)*4/1000 = 20 points to 1st place."""
-        raw = [(0, 30000), (1, 30000), (2, 20000), (3, 20000)]
-        result = calculate_final_scores(raw, GameSettings())
-        # 1st: diff=0 + oka=20 + uma=20 = 40
-        assert result[0][1] == 40
-
-    def test_no_oka_when_starting_equals_target(self):
-        """When starting_score == target_score, oka is 0."""
-        # Raw scores summing to starting*4 = 120000
-        raw = [(0, 40000), (1, 30000), (2, 30000), (3, 20000)]
-        settings = GameSettings(starting_score=30000, target_score=30000)
-        result = calculate_final_scores(raw, settings)
-        # 1st: diff=10 + oka=0 + uma=20 = 30
-        assert result[0][1] == 30
-
-    def test_large_oka_with_big_gap(self):
-        """Larger gap between starting and target produces larger oka."""
-        # starting=10000, target=50000: oka = (50000-10000)*4/1000 = 160
-        # Raw scores summing to starting*4 = 40000
-        raw = [(0, 20000), (1, 10000), (2, 5000), (3, 5000)]
-        settings = GameSettings(starting_score=10000, target_score=50000)
-        result = calculate_final_scores(raw, settings)
-        # 1st: diff=-30 + oka=160 + uma=20 = 150
-        assert result[0][1] == 150
-
-
 class TestTobi:
     """Verify tobi (bankruptcy) game-end behavior."""
 

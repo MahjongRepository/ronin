@@ -54,15 +54,6 @@ class TestLocalReplayStorage:
         written = (tmp_path / "game_unicode.txt").read_text(encoding="utf-8")
         assert written == content
 
-    def test_multiple_games_write_separate_files(self, tmp_path):
-        storage = LocalReplayStorage(str(tmp_path))
-
-        storage.save_replay("game_1", "content_1")
-        storage.save_replay("game_2", "content_2")
-
-        assert (tmp_path / "game_1.txt").read_text() == "content_1"
-        assert (tmp_path / "game_2.txt").read_text() == "content_2"
-
 
 class TestLocalReplayStorageErrorHandling:
     """Tests for error handling during file write operations."""

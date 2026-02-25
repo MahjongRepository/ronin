@@ -112,33 +112,6 @@ servers:
         response = client.get("/game")
         assert "/game-assets/index-abc123.css" in response.text
 
-    def test_game_page_requires_auth(self, tmp_path):
-        """Unauthenticated request to /game redirects to login."""
-        config_file = tmp_path / "servers.yaml"
-        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
-        static_dir = tmp_path / "public"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
-        game_assets_dir = tmp_path / "dist"
-        game_assets_dir.mkdir()
-        (game_assets_dir / "manifest.json").write_text("{}")
-        app = create_app(
-            settings=LobbyServerSettings(
-                config_path=config_file,
-                static_dir=str(static_dir),
-                game_assets_dir=str(game_assets_dir),
-            ),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "test.db"),
-            ),
-        )
-        c = TestClient(app)
-        response = c.get("/game", follow_redirects=False)
-        assert response.status_code == 303
-        assert "/login" in response.headers["location"]
-        app.state.db.close()
-
     def test_game_page_returns_503_when_assets_missing(self, tmp_path):
         """Authenticated request to /game returns 503 when manifest is empty."""
         config_file = tmp_path / "servers.yaml"

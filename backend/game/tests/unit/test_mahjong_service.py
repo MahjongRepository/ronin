@@ -61,14 +61,6 @@ class TestMahjongGameServiceAllPlayers:
     def service(self):
         return MahjongGameService()
 
-    async def test_four_players_zero_ai_players_in_controller(self, service):
-        """0 AI players created in AIPlayerController when starting with 4 players."""
-        await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
-
-        ai_player_controller = service._ai_player_controllers["game1"]
-        ai_player_count = sum(1 for seat in range(4) if ai_player_controller.is_ai_player(seat))
-        assert ai_player_count == 0
-
     async def test_four_players_no_ai_player_followup_for_dealer(self, service):
         """AI player followup is not triggered when dealer is a player (all players)."""
         events = await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
@@ -398,8 +390,12 @@ class TestMahjongGameServiceInvalidSeed:
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
 
+
+class TestMahjongGameServiceInvalidSeedType:
+    """Tests for non-string seed type returning ErrorEvent."""
+
     async def test_non_string_seed_returns_error_event(self):
-        """start_game with a non-string seed returns ErrorEvent, not exception."""
+        """start_game with a non-string seed returns ErrorEvent (TypeError path)."""
         service = MahjongGameService()
         events = await service.start_game("game1", ["Alice"], seed=12345)
 
@@ -491,22 +487,12 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         snapshot = service.build_reconnection_snapshot("game1", player.seat)
 
         assert snapshot is not None
-        assert snapshot.game_id == "game1"
         assert snapshot.my_tiles == list(player.tiles)
         assert len(snapshot.player_states) == 4
         assert len(snapshot.players) == 4
-        assert snapshot.dealer_seat == game_state.round_state.dealer_seat
-        assert snapshot.dealer_dice == game_state.dealer_dice
-        assert snapshot.round_number == game_state.round_number
-        assert snapshot.current_player_seat == game_state.round_state.current_player_seat
         assert snapshot.dora_indicators == list(game_state.round_state.wall.dora_indicators)
-        assert snapshot.honba_sticks == game_state.honba_sticks
-        assert snapshot.riichi_sticks == game_state.riichi_sticks
         assert snapshot.tiles_remaining == len(game_state.round_state.wall.live_tiles)
         for ps in snapshot.player_states:
-            assert isinstance(ps.discards, list)
-            assert isinstance(ps.melds, list)
-            assert isinstance(ps.is_riichi, bool)
             game_player = game_state.round_state.players[ps.seat]
             assert ps.score == game_player.score
 

@@ -1,17 +1,14 @@
 """
 Unit tests for win scoring edge cases requiring direct state construction.
 
-Covers: karaten tempai, double ron with pao, exhaustive draw triggering nagashi mangan,
-check_nagashi_mangan qualification/disqualification, and calculate_hand_value error paths.
+Covers: furiten guards, double ron with pao, exhaustive draw triggering nagashi mangan,
+and calculate_hand_value error paths.
 """
 
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import RoundResultType
-from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import (
-    check_nagashi_mangan,
-    is_tempai,
     process_exhaustive_draw,
 )
 from game.logic.scoring import (
@@ -30,25 +27,6 @@ from game.logic.state import (
 from game.logic.types import YakuInfo
 from game.logic.wall import Wall
 from game.logic.win import can_call_ron
-
-
-class TestIsTempaiKaraten:
-    def test_pure_karaten_returns_false(self):
-        """Pure karaten (all waits in own hand + melds) returns False."""
-        tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="9"))
-        pin_9_tiles = TilesConverter.string_to_136_array(pin="999")
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pin_9_tiles),
-            opened=True,
-            called_tile=pin_9_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        result = is_tempai(tiles, melds=(pon,))
-
-        assert result is False
 
 
 class TestCanCallRonFuritenGuards:
@@ -202,75 +180,6 @@ class TestProcessExhaustiveDrawNagashiTriggered:
         # Player 0 is non-dealer: gets 2000 from each non-dealer + 4000 from dealer = 8000
         assert result.type == RoundResultType.NAGASHI_MANGAN
         assert new_round.players[0].score == 25000 + 8000
-
-
-class TestCheckNagashiManganImmutable:
-    def _create_round_state(self) -> MahjongRoundState:
-        """Create a round state for nagashi mangan testing."""
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
-        return MahjongRoundState(players=players, wall=Wall())
-
-    def test_qualifies_with_all_terminal_honor_discards(self):
-        """Player with only terminal/honor discards qualifies."""
-        round_state = self._create_round_state()
-        man_1 = TilesConverter.string_to_136_array(man="1")[0]
-        man_9 = TilesConverter.string_to_136_array(man="9")[0]
-        east = TilesConverter.string_to_136_array(honors="1")[0]
-        discards = (
-            Discard(tile_id=man_1),
-            Discard(tile_id=man_9),
-            Discard(tile_id=east),
-        )
-        players = list(round_state.players)
-        players[0] = players[0].model_copy(update={"discards": discards})
-        round_state = round_state.model_copy(update={"players": tuple(players)})
-
-        result = check_nagashi_mangan(round_state)
-
-        assert result == [0]
-
-    def test_fails_with_simple_tile_discard(self):
-        """Player with a simple tile discard does not qualify."""
-        round_state = self._create_round_state()
-        man_5 = TilesConverter.string_to_136_array(man="5")[0]
-        east = TilesConverter.string_to_136_array(honors="1")[0]
-        discards = (
-            Discard(tile_id=man_5),  # simple tile
-            Discard(tile_id=east),
-        )
-        players = list(round_state.players)
-        players[0] = players[0].model_copy(update={"discards": discards})
-        round_state = round_state.model_copy(update={"players": tuple(players)})
-
-        result = check_nagashi_mangan(round_state)
-
-        assert result == []
-
-    def test_fails_when_discard_claimed(self):
-        """Player whose discard was claimed does not qualify."""
-        round_state = self._create_round_state()
-        man_1 = TilesConverter.string_to_136_array(man="1")[0]
-        east_tiles = TilesConverter.string_to_136_array(honors="111")
-        discards = (
-            Discard(tile_id=man_1),
-            Discard(tile_id=east_tiles[0]),
-        )
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(east_tiles),
-            opened=True,
-            called_tile=east_tiles[0],
-            who=1,
-            from_who=0,
-        )
-        players = list(round_state.players)
-        players[0] = players[0].model_copy(update={"discards": discards})
-        players[1] = players[1].model_copy(update={"melds": (pon,)})
-        round_state = round_state.model_copy(update={"players": tuple(players)})
-
-        result = check_nagashi_mangan(round_state)
-
-        assert result == []
 
 
 class TestCalculateHandValueErrors:

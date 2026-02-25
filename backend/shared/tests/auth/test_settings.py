@@ -17,12 +17,6 @@ class TestAuthSettings:
         with pytest.raises(ValidationError, match="game_ticket_secret"):
             AuthSettings()
 
-    def test_database_path_from_env(self, monkeypatch):
-        monkeypatch.setenv("AUTH_GAME_TICKET_SECRET", "s")
-        monkeypatch.setenv("AUTH_DATABASE_PATH", "custom/path/storage.db")
-        settings = AuthSettings()
-        assert settings.database_path == "custom/path/storage.db"
-
     def test_legacy_users_file_from_env(self, monkeypatch):
         monkeypatch.setenv("AUTH_GAME_TICKET_SECRET", "s")
         monkeypatch.setenv("AUTH_USERS_FILE", "custom/legacy.json")

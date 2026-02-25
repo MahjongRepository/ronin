@@ -7,7 +7,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
-from game.logic.settings import GameSettings, RenhouValue, build_optional_rules
+from game.logic.settings import GameSettings, RenhouValue
 from game.logic.state import Discard, MahjongPlayer
 from game.logic.state_utils import update_player
 from game.logic.win import can_call_ron, can_declare_tsumo, is_renhou
@@ -65,13 +65,6 @@ class TestKuitanToggle:
         round_state = _make_round_state()
         # menzen tsumo is a yaku by itself, so closed tanyao is allowed
         assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=False)) is True
-
-    def test_kuitan_wired_through_optional_rules(self):
-        """has_kuitan maps to has_open_tanyao in the mahjong library's OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(has_kuitan=True))
-        assert rules_enabled.has_open_tanyao is True
-        rules_disabled = build_optional_rules(GameSettings(has_kuitan=False))
-        assert rules_disabled.has_open_tanyao is False
 
     def test_kuitan_disabled_rejects_open_tanyao_ron(self):
         """Open tanyao ron is rejected when kuitan is disabled."""
@@ -186,16 +179,6 @@ class TestRenhouToggle:
         assert result.error is None
         assert any(y.yaku_id == 11 for y in result.yaku)
         assert result.han >= 5
-
-    def test_renhou_yakuman_setting_wired(self):
-        """renhou_value=YAKUMAN maps to renhou_as_yakuman=True in OptionalRules."""
-        rules = build_optional_rules(GameSettings(renhou_value=RenhouValue.YAKUMAN))
-        assert rules.renhou_as_yakuman is True
-
-    def test_renhou_mangan_setting_not_yakuman(self):
-        """renhou_value=MANGAN maps to renhou_as_yakuman=False in OptionalRules."""
-        rules = build_optional_rules(GameSettings(renhou_value=RenhouValue.MANGAN))
-        assert rules.renhou_as_yakuman is False
 
 
 class TestRenhouEligibility:

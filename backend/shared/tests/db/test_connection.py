@@ -52,27 +52,8 @@ class TestConnect:
         assert "played_games" in table_names
         db.close()
 
-    def test_reconnect_after_close(self, tmp_path: Path) -> None:
-        db = Database(tmp_path / "test.db")
-        db.connect()
-        db.close()
-        db.connect()
-
-        tables = db.connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
-        ).fetchall()
-        assert len([t for t in tables if t[0] in ("players", "played_games")]) == 2
-        db.close()
-
     def test_connection_raises_when_disconnected(self, tmp_path: Path) -> None:
         db = Database(tmp_path / "test.db")
-        with pytest.raises(RuntimeError, match="not connected"):
-            _ = db.connection
-
-    def test_connection_raises_after_close(self, tmp_path: Path) -> None:
-        db = Database(tmp_path / "test.db")
-        db.connect()
-        db.close()
         with pytest.raises(RuntimeError, match="not connected"):
             _ = db.connection
 

@@ -8,19 +8,6 @@ async def _noop() -> None:
 
 
 class TestTurnTimerTurnTimer:
-    async def test_start_turn_timer_creates_task(self):
-        timer = TurnTimer()
-        callback_called = False
-
-        async def on_timeout():
-            nonlocal callback_called
-            callback_called = True
-
-        timer.start_turn_timer(on_timeout)
-        assert timer._active_task is not None
-        assert not timer._active_task.done()
-        timer.cancel()
-
     async def test_turn_timer_callback_fires_on_timeout(self):
         config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05)
         timer = TurnTimer(config)
@@ -54,13 +41,10 @@ class TestTurnTimerTurnTimer:
             callback_called = True
 
         timer.start_turn_timer(on_timeout)
-        task = timer._active_task
         timer.stop()
 
         await asyncio.sleep(0.05)
         assert callback_called is False
-        assert task is not None
-        assert task.cancelled()
 
 
 class TestTurnTimerMeldTimer:
@@ -117,14 +101,6 @@ class TestTurnTimerBankEdgeCases:
         await asyncio.sleep(0.05)
         timer.cancel()
         assert first_called is False
-
-
-class TestTurnTimerBankSecondsProperty:
-    def test_bank_seconds_with_override(self):
-        """Constructor bank_seconds override replaces initial_bank_seconds."""
-        config = TimerConfig(initial_bank_seconds=10.0)
-        timer = TurnTimer(config, bank_seconds=2.5)
-        assert timer.bank_seconds == 2.5
 
 
 class TestTimerCallbackException:

@@ -138,6 +138,64 @@ class TestIsChankanPossible:
         assert 3 in chankan_seats
         assert len(chankan_seats) == 2
 
+    def test_chankan_blocked_by_riichi_furiten(self):
+        """Chankan is blocked when the waiting player has riichi furiten."""
+        tiles_p0 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
+        players = (
+            MahjongPlayer(
+                seat=0,
+                name="Player0",
+                tiles=tuple(tiles_p0),
+                is_riichi=True,
+                is_riichi_furiten=True,
+                score=25000,
+            ),
+            MahjongPlayer(seat=1, name="Player1", score=25000),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
+        )
+        round_state = MahjongRoundState(
+            dealer_seat=0,
+            current_player_seat=2,
+            round_wind=0,
+            players=players,
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
+        )
+
+        kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
+        assert 0 not in chankan_seats
+        assert chankan_seats == []
+
+    def test_chankan_blocked_by_temporary_furiten(self):
+        """Chankan is blocked when the waiting player has temporary furiten."""
+        tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
+        players = (
+            MahjongPlayer(seat=0, name="Player0", score=25000),
+            MahjongPlayer(
+                seat=1,
+                name="Player1",
+                tiles=tuple(tiles_p1),
+                is_riichi=True,
+                is_temporary_furiten=True,
+                score=25000,
+            ),
+            MahjongPlayer(seat=2, name="Player2", score=25000),
+            MahjongPlayer(seat=3, name="Player3", score=25000),
+        )
+        round_state = MahjongRoundState(
+            dealer_seat=0,
+            current_player_seat=2,
+            round_wind=0,
+            players=players,
+            wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
+        )
+
+        kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
+        assert 1 not in chankan_seats
+        assert chankan_seats == []
+
 
 class TestChankanWithOpenHand:
     def test_chankan_open_hand_with_yaku_included(self):

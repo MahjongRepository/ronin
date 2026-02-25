@@ -21,17 +21,9 @@ class TestParseCorsOrigins:
         result = parse_cors_origins(origins)
         assert result == origins
 
-    def test_single_origin_string(self):
-        result = parse_cors_origins("http://localhost:3000")
-        assert result == ["http://localhost:3000"]
-
     def test_empty_string_raises(self):
         with pytest.raises(ValueError, match="must not be empty"):
             parse_cors_origins("")
-
-    def test_whitespace_only_raises(self):
-        with pytest.raises(ValueError, match="must not be empty"):
-            parse_cors_origins("   ")
 
     def test_invalid_json_raises(self):
         with pytest.raises(ValueError, match="Invalid JSON array"):

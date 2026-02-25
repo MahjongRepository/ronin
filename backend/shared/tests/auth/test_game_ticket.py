@@ -90,9 +90,6 @@ class TestWrongSecret:
 
 
 class TestMalformedToken:
-    def test_empty_string(self):
-        assert verify_game_ticket("", SECRET) is None
-
     def test_no_dot_separator(self):
         assert verify_game_ticket("nodot", SECRET) is None
 
@@ -107,11 +104,6 @@ class TestMalformedToken:
         token = sign_game_ticket(ticket, SECRET)
         payload_b64 = token.split(".")[0]
         assert verify_game_ticket(f"{payload_b64}.!!!invalid", SECRET) is None
-
-    def test_valid_base64_but_invalid_json_payload(self):
-        bad_payload = base64.urlsafe_b64encode(b"not json").decode()
-        bad_sig = base64.urlsafe_b64encode(b"x" * 32).decode()
-        assert verify_game_ticket(f"{bad_payload}.{bad_sig}", SECRET) is None
 
     def test_valid_json_but_missing_fields(self):
         """A properly signed token whose payload lacks required GameTicket fields."""

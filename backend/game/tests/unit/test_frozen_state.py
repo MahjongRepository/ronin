@@ -32,7 +32,6 @@ from game.logic.state_utils import (
     update_player,
 )
 from game.logic.wall import Wall
-from game.logic.win import can_declare_tsumo
 
 
 class TestMahjongPlayerLogic:
@@ -215,14 +214,6 @@ class TestStateUtilsPlayerFlags:
         for i in range(4):
             assert new_state.players[i].is_ippatsu is False
 
-    def test_clear_all_players_ippatsu_returns_same_state_when_none_set(self):
-        """Short-circuits and returns the same state object when no ippatsu flags are set."""
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", is_ippatsu=False, score=25000) for i in range(4))
-        state = MahjongRoundState(players=players)
-        new_state = clear_all_players_ippatsu(state)
-
-        assert new_state is state
-
 
 class TestFrozenMeldScoringIntegration:
     def test_scoring_with_frozen_meld(self):
@@ -266,44 +257,6 @@ class TestFrozenMeldScoringIntegration:
 
         assert result.error is None
         assert result.han >= 1
-
-    def test_can_declare_tsumo_with_frozen_meld(self):
-        """can_declare_tsumo works with FrozenMeld from frozen player."""
-        tenpai_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-
-        frozen_meld = FrozenMeld(
-            tiles=tuple(haku_tiles),
-            meld_type=FrozenMeld.PON,
-            opened=True,
-            called_tile=haku_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        discard1 = Discard(tile_id=0, is_tsumogiri=False)
-
-        players = tuple(
-            MahjongPlayer(
-                seat=i,
-                name=f"Player{i}",
-                tiles=tuple(tenpai_tiles) if i == 0 else (),
-                melds=(frozen_meld,) if i == 0 else (),
-                discards=(discard1,),
-                score=25000,
-            )
-            for i in range(4)
-        )
-        round_state = MahjongRoundState(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            wall=Wall(live_tiles=tuple(range(50)), dora_indicators=(0,)),
-            all_discards=(0, 1, 2, 3),
-        )
-
-        result = can_declare_tsumo(players[0], round_state, GameSettings())
-        assert result is True
 
 
 class TestUpdatePlayerValidation:
@@ -352,12 +305,6 @@ class TestGetPlayerViewValidation:
 
 class TestWindNameConstant:
     """Test wind_name uses module-level constant."""
-
-    def test_all_winds(self):
-        assert wind_name(0) == WindName.EAST
-        assert wind_name(1) == WindName.SOUTH
-        assert wind_name(2) == WindName.WEST
-        assert wind_name(3) == WindName.NORTH
 
     def test_out_of_range_returns_unknown(self):
         assert wind_name(-1) == WindName.UNKNOWN

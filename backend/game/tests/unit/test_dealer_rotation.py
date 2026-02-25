@@ -245,47 +245,13 @@ class TestDealerRotation:
 
 
 # ============================================================================
-# Honba counter: increment/reset logic (fundamental)
+# Nagashi mangan: honba counter for this result type
 # ============================================================================
 
 
-class TestHonbaCounter:
-    """Honba increments on dealer repeat/exhaustive draw/abortive draw,
-    resets to 0 only when dealer is not among winners."""
-
-    def test_honba_increments_on_dealer_win(self):
-        gs = _game_state(honba=5)
-        honba, _ = _get_honba_and_rotation(gs, _tsumo(winner_seat=0))
-        assert honba == 6
-
-    def test_honba_resets_on_non_dealer_win(self):
-        gs = _game_state(honba=5)
-        honba, _ = _get_honba_and_rotation(gs, _tsumo(winner_seat=1))
-        assert honba == 0
-
-    def test_honba_resets_on_non_dealer_ron(self):
-        gs = _game_state(honba=3)
-        honba, _ = _get_honba_and_rotation(gs, _ron(winner_seat=2, loser_seat=0))
-        assert honba == 0
-
-    def test_honba_increments_on_exhaustive_draw(self):
-        """Honba always increments on exhaustive draw, regardless of dealer tenpai status."""
-        gs = _game_state(honba=2)
-        # Dealer noten → rotates, but honba still increments
-        result = _exhaustive_draw(tempai_seats=[1], noten_seats=[0, 2, 3])
-        honba, _ = _get_honba_and_rotation(gs, result)
-        assert honba == 3
-
-    def test_honba_increments_on_exhaustive_draw_dealer_tenpai(self):
-        gs = _game_state(honba=4)
-        result = _exhaustive_draw(tempai_seats=[0], noten_seats=[1, 2, 3])
-        honba, _ = _get_honba_and_rotation(gs, result)
-        assert honba == 5
-
-    def test_honba_increments_on_abortive_draw(self):
-        gs = _game_state(honba=0)
-        honba, _ = _get_honba_and_rotation(gs, _abortive())
-        assert honba == 1
+class TestNagashiManganHonba:
+    """Honba behaviour for NagashiManganResult (other result types covered
+    by renchan and dealer rotation tests above)."""
 
     def test_honba_increments_on_nagashi_mangan(self):
         """Nagashi mangan increments honba same as exhaustive draw."""
@@ -300,20 +266,6 @@ class TestHonbaCounter:
         result = _nagashi(tempai_seats=[1], noten_seats=[0, 2, 3])
         honba, _ = _get_honba_and_rotation(gs, result)
         assert honba == 1
-
-    def test_honba_does_not_reset_on_double_ron_with_dealer(self):
-        """When dealer is one of the double ron winners, honba increments (renchan)."""
-        gs = _game_state(honba=4)
-        result = _double_ron(winner1=0, winner2=2, loser=1)
-        honba, _ = _get_honba_and_rotation(gs, result)
-        assert honba == 5
-
-    def test_honba_resets_on_double_ron_without_dealer(self):
-        """When dealer is not among double ron winners, honba resets to 0."""
-        gs = _game_state(honba=4)
-        result = _double_ron(winner1=1, winner2=3, loser=2)
-        honba, _ = _get_honba_and_rotation(gs, result)
-        assert honba == 0
 
 
 # ============================================================================
@@ -337,13 +289,3 @@ class TestProcessRoundEndIntegration:
         new_gs = process_round_end(gs, result)
         assert new_gs.honba_sticks == 3
         assert new_gs.round_state.dealer_seat == 0
-
-    def test_consecutive_renchan_honba_accumulates(self):
-        """Multiple dealer wins accumulate honba correctly."""
-        gs = _game_state(dealer_seat=0, honba=0)
-        gs = process_round_end(gs, _tsumo(winner_seat=0))
-        assert gs.honba_sticks == 1
-        gs = process_round_end(gs, _tsumo(winner_seat=0))
-        assert gs.honba_sticks == 2
-        gs = process_round_end(gs, _tsumo(winner_seat=0))
-        assert gs.honba_sticks == 3

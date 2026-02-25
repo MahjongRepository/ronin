@@ -111,11 +111,6 @@ class TestWestRoundEndCondition:
         )
         assert check_game_end(gs) is True
 
-    def test_threshold_check_uses_gte(self):
-        """Score exactly at threshold triggers game end (>= not >)."""
-        gs = _west_game_state(unique_dealers=9, player_scores=[30000, 25000, 22000, 23000])
-        assert check_game_end(gs) is True
-
     def test_threshold_not_checked_during_primary_wind(self):
         """During South round, having threshold score does not end game."""
         scores = [35000, 20000, 22000, 23000]

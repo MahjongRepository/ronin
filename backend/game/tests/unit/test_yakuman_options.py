@@ -4,12 +4,11 @@ yakuman-dora interaction, and sextuple yakuman cap settings
 are properly configurable and correctly wired into scoring logic.
 """
 
-from mahjong.hand_calculating.hand_config import HandConfig
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
-from game.logic.settings import GameSettings, build_optional_rules
+from game.logic.settings import GameSettings
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -41,25 +40,6 @@ def _make_scoring_game_state(
 
 class TestDoubleYakumanSetting:
     """Verify has_double_yakuman setting controls double yakuman scoring."""
-
-    def test_double_yakuman_enabled_scores_26_han(self):
-        """Suuankou tanki scores 26 han when has_double_yakuman=True."""
-        tiles = TilesConverter.string_to_136_array(man="111", pin="333", sou="555777")
-        pair_tiles = TilesConverter.string_to_136_array(sou="99")
-        all_tiles = (*tuple(tiles), pair_tiles[0])
-
-        game_state = _make_scoring_game_state()
-        win_tile = pair_tiles[1]
-        final_tiles = (*all_tiles, win_tile)
-        round_state = update_player(game_state.round_state, 1, tiles=final_tiles)
-        player = round_state.players[1]
-
-        settings = GameSettings(has_double_yakuman=True)
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert result.han == 26
 
     def test_double_yakuman_disabled_scores_13_han(self):
         """Suuankou tanki scores 13 han (single yakuman) when has_double_yakuman=False."""
@@ -115,14 +95,6 @@ class TestDoubleYakumanSetting:
         assert result.han == 13
         # single yakuman non-dealer ron: 32000
         assert result.cost_main == 32000
-
-    def test_setting_wired_to_optional_rules(self):
-        """has_double_yakuman maps to the mahjong library's OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(has_double_yakuman=True))
-        assert rules_enabled.has_double_yakuman is True
-
-        rules_disabled = build_optional_rules(GameSettings(has_double_yakuman=False))
-        assert rules_disabled.has_double_yakuman is False
 
 
 class TestYakumanStacking:
@@ -284,14 +256,6 @@ class TestKazoeYakuman:
         assert result.cost_main == 12000
         assert result.cost_additional == 6000
 
-    def test_kazoe_setting_wired_to_library(self):
-        """has_kazoe_yakuman maps to kazoe_limit in the library's OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(has_kazoe_yakuman=True))
-        assert rules_enabled.kazoe_limit == HandConfig.KAZOE_LIMITED
-
-        rules_disabled = build_optional_rules(GameSettings(has_kazoe_yakuman=False))
-        assert rules_disabled.kazoe_limit == HandConfig.KAZOE_SANBAIMAN
-
     def test_dora_counts_toward_kazoe_threshold(self):
         """Dora pushes a non-yakuman hand past the kazoe threshold, changing payment level."""
         # chinitsu (6) + pinfu (1) + iipeiko (1) + tanyao (1) + riichi (1) + tsumo (1) = 11 han
@@ -420,15 +384,3 @@ class TestYakumanDoraInteraction:
         assert result.error is None
         # yaku_id 120 = dora should be present
         assert any(y.yaku_id == 120 for y in result.yaku), "Non-yakuman hand should include dora"
-
-
-class TestSextupleYakumanLimit:
-    """Verify limit_to_sextuple_yakuman setting controls maximum yakuman stacking."""
-
-    def test_setting_wired_to_optional_rules(self):
-        """limit_to_sextuple_yakuman maps to the library's OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(limit_to_sextuple_yakuman=True))
-        assert rules_enabled.limit_to_sextuple_yakuman is True
-
-        rules_disabled = build_optional_rules(GameSettings(limit_to_sextuple_yakuman=False))
-        assert rules_disabled.limit_to_sextuple_yakuman is False

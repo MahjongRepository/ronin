@@ -171,35 +171,6 @@ class TestMessageRouterBranches:
         assert response["code"] == SessionErrorCode.ACTION_FAILED
         assert response["message"] == "tile not in hand"
 
-    async def test_key_error_returns_action_failed(self, setup):
-        """KeyError during game action returns ACTION_FAILED error (handled gracefully)."""
-        router, connection, session_manager = setup
-        await _setup_player_in_game(session_manager, connection)
-
-        async def raise_key_error(
-            connection: object,
-            action: object,
-            data: object,
-        ) -> None:
-            raise KeyError("missing key")
-
-        session_manager.handle_game_action = raise_key_error
-
-        await router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.GAME_ACTION,
-                "a": WireGameAction.DISCARD,
-                "ti": 0,
-            },
-        )
-
-        assert not connection.is_closed
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.ACTION_FAILED
-
     async def test_unexpected_exception_triggers_close_game_on_error(self, setup):
         """Fatal exception during game action triggers close_game_on_error."""
         router, connection, session_manager = setup

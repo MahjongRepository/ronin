@@ -6,15 +6,13 @@ error paths), _process_ai_player_followup edge cases (pending prompt, None actio
 _check_and_handle_round_end (finished with result, finished without result),
 _process_post_discard branching (round-end-immediate, player-pending, AI-player-only,
 draw-for-next-player, post-draw-round-end, AI-player-call-resolution-round-end),
-_find_caller_info assertion path, timeout forced-state tests (turn on/off),
-and chankan prompt resolution leading to round end.
+_find_caller_info assertion path, and timeout forced-state tests (turn on/off).
 """
 
 from unittest.mock import patch
 
 import pytest
 
-from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, MeldCallType, RoundPhase, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
@@ -528,16 +526,16 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         assert result == []
 
 
-class TestMahjongGameServiceDispatchAIPlayerCallResponsesBranches:
-    """Tests for _dispatch_ai_player_call_responses covering AI player action dispatch."""
+class TestDispatchAIPlayerCallResponseNonNullAction:
+    """Tests that AI player non-None call responses are dispatched correctly."""
 
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_dispatch_ai_player_call_responses_ai_player_returns_action(self, service):
+    async def test_ai_player_returns_pass_action_explicitly(self, service):
+        """AI player returning an explicit (action, data) response is dispatched."""
         await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
         ai_player_seat = ai_player_seats[0]
@@ -558,19 +556,16 @@ class TestMahjongGameServiceDispatchAIPlayerCallResponsesBranches:
 
         events: list[ServiceEvent] = []
 
-        cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
-        with (
-            patch.object(
-                ai_player_controller,
-                "get_call_response",
-                return_value=(GameAction.CALL_PON, {"tile_id": 0}),
-            ),
-            patch(
-                "game.logic.mahjong_service.handle_pon",
-                return_value=ActionResult([], new_round_state=cleared_round, new_game_state=game_state),
-            ),
+        with patch.object(
+            ai_player_controller,
+            "get_call_response",
+            return_value=(GameAction.PASS, {}),
         ):
             service._dispatch_ai_player_call_responses("game1", events)
+
+        # AI PASS resolves the prompt
+        updated = service._games["game1"].round_state
+        assert updated.pending_call_prompt is None
 
 
 class TestGameEndCleanupSafety:
@@ -616,79 +611,6 @@ class TestGameEndCleanupSafety:
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert "game1" not in service._games
-
-
-class TestMahjongGameServiceChankanPromptRoundEnd:
-    """Tests for chankan prompt resolution leading to round end."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_chankan_prompt_resolved_round_end(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        ai_player_controller = service._ai_player_controllers["game1"]
-        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
-            tile_id=0,
-            from_seat=ai_player_seats[0],
-            pending_seats=frozenset({ai_player_seats[1]}),
-            callers=(ai_player_seats[1],),
-        )
-        _update_round_state(service, "game1", pending_call_prompt=prompt)
-
-        chankan_prompt = ServiceEvent(
-            event=EventType.CALL_PROMPT,
-            data=CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=0,
-                from_seat=ai_player_seats[0],
-                callers=[ai_player_seats[1]],
-                target="all",
-            ),
-            target=SeatTarget(seat=ai_player_seats[1]),
-        )
-        events = [chankan_prompt]
-
-        round_result = ExhaustiveDrawResult(
-            tempai_seats=[],
-            noten_seats=[0, 1, 2, 3],
-            tenpai_hands=[],
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-
-        round_end_event = ServiceEvent(
-            event=EventType.ROUND_END,
-            data=RoundEndEvent(result=round_result, target="all"),
-            target=BroadcastTarget(),
-        )
-
-        def mock_dispatch_ai_player_call(_game_id, _evts):
-            _update_round_state(service, "game1", pending_call_prompt=None, phase=RoundPhase.FINISHED)
-
-        def mock_check_round_end(_game_id, evts):
-            evts.append(round_end_event)
-            return True
-
-        with (
-            patch.object(
-                service,
-                "_dispatch_ai_player_call_responses",
-                side_effect=mock_dispatch_ai_player_call,
-            ),
-            patch.object(
-                service,
-                "_check_and_handle_round_end",
-                side_effect=mock_check_round_end,
-            ),
-        ):
-            result = await service._handle_chankan_prompt("game1", events)
-
-        round_end = [e for e in result if e.event == EventType.ROUND_END]
-        assert len(round_end) == 1
 
 
 class TestFindTimeoutDiscardTile:

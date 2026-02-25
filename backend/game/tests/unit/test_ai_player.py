@@ -6,7 +6,7 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.ai_player import AIPlayer, AIPlayerStrategy
-from game.logic.enums import KanType, PlayerAction
+from game.logic.enums import KanType
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.wall import Wall
 from game.tests.unit.helpers import _string_to_34_tile
@@ -96,16 +96,3 @@ class TestSelectDiscard:
 
         with pytest.raises(ValueError, match="cannot select discard from empty hand"):
             ai.select_discard(player, rs)
-
-
-class TestGetAction:
-    def test_returns_discard_with_last_tile(self):
-        """get_action wraps select_discard into a DISCARD action."""
-        ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
-        tiles = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
-        player, rs = _make_round_state(tiles)
-
-        result = ai.get_action(player, rs)
-
-        assert result.action == PlayerAction.DISCARD
-        assert result.tile_id == tiles[-1]

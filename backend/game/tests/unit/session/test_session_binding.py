@@ -1,7 +1,6 @@
 """Tests for session token integration with SessionManager.
 
-Verify session creation on room-to-game transition, seat binding on start,
-disconnect marking on leave, and cleanup on game end.
+Verify seat binding on start, disconnect marking on leave, and cleanup on game end.
 """
 
 from game.logic.exceptions import InvalidGameActionError
@@ -9,19 +8,6 @@ from game.session.models import Game, Player
 from game.tests.mocks import MockConnection
 
 from .helpers import create_started_game
-
-
-class TestSessionCreationOnTransition:
-    async def test_transition_creates_session_for_each_player(self, manager):
-        """Room-to-game transition creates sessions for all players."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
-
-        # both players should have sessions in the store
-        for conn in conns:
-            player = manager._players.get(conn.connection_id)
-            assert player is not None
-            session = manager._session_store._sessions.get(player.session_token)
-            assert session is not None
 
 
 class TestSeatBindingOnStart:

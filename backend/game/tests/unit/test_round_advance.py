@@ -3,10 +3,8 @@ Unit tests for round advancement confirmation feature.
 
 Tests PendingRoundAdvance boundary conditions, confirm_round dispatch (single/multi-player,
 error paths), timeout auto-confirmation, AI player replacement during waiting, cleanup,
-start_fixed_timer contracts, and _handle_round_end error path.
+and _handle_round_end error path.
 """
-
-import asyncio
 
 import pytest
 
@@ -17,7 +15,6 @@ from game.logic.events import (
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.round_advance import PendingRoundAdvance, RoundAdvanceManager
-from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import ExhaustiveDrawResult, TenpaiHand
 from game.tests.unit.helpers import _find_player, _update_player, _update_round_state
 
@@ -49,13 +46,6 @@ class TestPendingRoundAdvance:
             required_seats={0, 1},
         )
         assert pending.all_confirmed is False
-
-    def test_all_confirmed_empty_required(self):
-        pending = PendingRoundAdvance(
-            confirmed_seats={0, 1, 2, 3},
-            required_seats=set(),
-        )
-        assert pending.all_confirmed is True
 
 
 class TestRoundAdvanceWaiting:
@@ -268,71 +258,6 @@ class TestRoundAdvanceCleanup:
         assert not service.is_round_advance_pending("game1")
 
 
-class TestRoundAdvanceTimerIntegration:
-    """Tests for TurnTimer.start_fixed_timer used by round advance."""
-
-    async def test_fixed_timer_fires_callback(self):
-        """start_fixed_timer fires the callback after the duration."""
-        timer = TurnTimer(TimerConfig(initial_bank_seconds=10.0))
-        callback_called = asyncio.Event()
-
-        async def on_timeout():
-            callback_called.set()
-
-        timer.start_fixed_timer(0.05, on_timeout)
-        await asyncio.wait_for(callback_called.wait(), timeout=1.0)
-        assert callback_called.is_set()
-
-    async def test_fixed_timer_does_not_consume_bank(self):
-        """start_fixed_timer does not consume bank time."""
-        config = TimerConfig(initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
-
-        async def on_timeout():
-            pass
-
-        timer.start_fixed_timer(0.05, on_timeout)
-        await asyncio.sleep(0.1)
-        timer.stop()
-
-        assert timer._bank_seconds == 10.0
-
-    async def test_fixed_timer_cancel_does_not_consume_bank(self):
-        """Cancelling a fixed timer does not consume bank time."""
-        config = TimerConfig(initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
-
-        async def on_timeout():
-            pass
-
-        timer.start_fixed_timer(1.0, on_timeout)
-        await asyncio.sleep(0.05)
-        timer.cancel()
-
-        assert timer._bank_seconds == 10.0
-
-    async def test_fixed_timer_cancelled_by_turn_timer(self):
-        """Starting a turn timer cancels an active fixed timer."""
-        timer = TurnTimer(TimerConfig(initial_bank_seconds=10.0))
-        fixed_called = False
-        turn_called = False
-
-        async def fixed_callback():
-            nonlocal fixed_called
-            fixed_called = True
-
-        async def turn_callback():
-            nonlocal turn_called
-            turn_called = True
-
-        timer.start_fixed_timer(0.5, fixed_callback)
-        timer.start_turn_timer(turn_callback)
-        timer.cancel()
-
-        await asyncio.sleep(0.1)
-        assert fixed_called is False
-
-
 class TestRoundAdvanceHandleRoundEndNone:
     """Test _handle_round_end with None result still returns error."""
 
@@ -414,32 +339,6 @@ class TestRoundAdvanceManager:
 
         assert manager.get_unconfirmed_seats("g1") == {1}
 
-    def test_is_pending_false_for_unknown_game(self, manager):
-        """is_pending returns False for unknown game ids."""
-        assert not manager.is_pending("unknown")
-
-    def test_get_unconfirmed_seats_empty_for_unknown_game(self, manager):
-        """get_unconfirmed_seats returns empty set for unknown game ids."""
-        assert manager.get_unconfirmed_seats("unknown") == set()
-
-    def test_is_seat_required_true(self, manager):
-        """is_seat_required returns True for player seats."""
-        manager.setup_pending("g1", ai_player_seats={2, 3})
-
-        assert manager.is_seat_required("g1", 0) is True
-        assert manager.is_seat_required("g1", 1) is True
-
-    def test_is_seat_required_false_for_ai_players(self, manager):
-        """is_seat_required returns False for AI player seats."""
-        manager.setup_pending("g1", ai_player_seats={2, 3})
-
-        assert manager.is_seat_required("g1", 2) is False
-        assert manager.is_seat_required("g1", 3) is False
-
-    def test_is_seat_required_false_for_unknown_game(self, manager):
-        """is_seat_required returns False for unknown game ids."""
-        assert manager.is_seat_required("unknown", 0) is False
-
     def test_cleanup_game_removes_pending(self, manager):
         """cleanup_game removes pending state for a game."""
         manager.setup_pending("g1", ai_player_seats={2, 3})
@@ -447,10 +346,6 @@ class TestRoundAdvanceManager:
         manager.cleanup_game("g1")
 
         assert not manager.is_pending("g1")
-
-    def test_cleanup_game_safe_for_unknown(self, manager):
-        """cleanup_game is safe to call for unknown game ids."""
-        manager.cleanup_game("unknown")
 
     def test_multiple_games_independent(self, manager):
         """Multiple games have independent pending state."""

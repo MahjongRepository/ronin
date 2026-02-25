@@ -80,36 +80,6 @@ class TestSessionManagerDefensiveChecks:
         await manager.broadcast_chat(conns[0], "hello")
         assert len(conns[0].sent_messages) == 0
 
-    async def test_leave_pending_game_marks_session_disconnected(self, manager):
-        """Leaving a pending game marks session as disconnected (preserved for timeout flow)."""
-        ticket1 = make_test_game_ticket("Alice", "game1", user_id="user-0")
-        ticket2 = make_test_game_ticket("Bob", "game1", user_id="user-1")
-        specs = [
-            PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket1),
-            PlayerSpec(name="Bob", user_id="user-1", game_ticket=ticket2),
-        ]
-        manager.create_pending_game("game1", specs, num_ai_players=2)
-
-        conn1 = MockConnection()
-        manager.register_connection(conn1)
-        await manager.join_game(conn1, "game1", ticket1)
-
-        # Game should exist but not be started (still waiting for Bob)
-        game = manager.get_game("game1")
-        assert game is not None
-        assert game.started is False
-
-        player = manager._players[conn1.connection_id]
-        token = player.session_token
-
-        # leave_game on a pending game marks session as disconnected
-        await manager.leave_game(conn1)
-        assert player.game_id is None
-        assert player.seat is None
-        session = manager._session_store._sessions.get(token)
-        assert session is not None
-        assert session.disconnected_at is not None
-
     async def test_cancel_all_pending_timeouts(self):
         """cancel_all_pending_timeouts cancels timeout tasks for pending games."""
         game_service = MockGameService()

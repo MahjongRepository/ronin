@@ -62,7 +62,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"{test_*.py,conftest.py,**/tests/**/helpers.py,**/tests/**/mocks/*.py}" = [
+"{test_*.py,conftest.py,**/tests/**/helpers.py,**/tests/**/helpers/*.py,**/tests/**/mocks/*.py}" = [
     "ANN", # Missing type annotation
     "ARG", # Unused function arguments
     "PLR0913", # Too many arguments (test factories)

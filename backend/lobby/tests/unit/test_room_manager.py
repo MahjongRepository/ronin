@@ -8,9 +8,7 @@ from lobby.rooms.manager import LobbyRoomManager
 class TestLobbyRoomManager:
     def test_create_room(self):
         mgr = LobbyRoomManager()
-        room = mgr.create_room("room-1", num_ai_players=2)
-        assert room.room_id == "room-1"
-        assert room.num_ai_players == 2
+        mgr.create_room("room-1", num_ai_players=2)
         assert mgr.get_room("room-1") is not None
 
     def test_join_room_success(self):

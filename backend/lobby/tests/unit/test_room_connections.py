@@ -109,6 +109,18 @@ class TestRoomConnectionManager:
         await mgr.send_to("conn-1", {"type": "test"})
 
     @pytest.mark.asyncio
+    async def test_send_to_ws_missing_from_room(self):
+        """send_to when connection is tracked but ws was removed from _connections."""
+        mgr = RoomConnectionManager()
+        ws = _mock_ws()
+        mgr.add("room-1", "conn-1", ws)
+        # Remove ws from internal connections but keep reverse mapping
+        mgr._connections["room-1"].pop("conn-1")
+        # Should not raise
+        await mgr.send_to("conn-1", {"type": "test"})
+        ws.send_text.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_close_connections(self):
         mgr = RoomConnectionManager()
         ws1 = _mock_ws()
@@ -137,15 +149,3 @@ class TestRoomConnectionManager:
         mgr = RoomConnectionManager()
         # Should not raise
         await mgr.close_connections("nonexistent")
-
-    @pytest.mark.asyncio
-    async def test_send_to_ws_missing_from_room(self):
-        """send_to when connection is tracked but ws was removed from _connections."""
-        mgr = RoomConnectionManager()
-        ws = _mock_ws()
-        mgr.add("room-1", "conn-1", ws)
-        # Remove ws from internal connections but keep reverse mapping
-        mgr._connections["room-1"].pop("conn-1")
-        # Should not raise
-        await mgr.send_to("conn-1", {"type": "test"})
-        ws.send_text.assert_not_called()

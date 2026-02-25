@@ -103,35 +103,6 @@ class TestMahjongGameServiceValidationError:
         assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
 
 
-class TestDispatchActionBranches:
-    """Covers _dispatch_action routing branches for no-data actions and data=None fallback."""
-
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    @pytest.mark.parametrize(
-        "action",
-        [GameAction.DECLARE_TSUMO, GameAction.CALL_RON, GameAction.CALL_KYUUSHU],
-    )
-    async def test_dispatch_no_data_actions(self, service, action):
-        """No-data dispatch branches (TSUMO, RON, KYUUSHU) return a result."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        result = service._dispatch_action(game_state, 0, action)
-        assert result is not None
-
-    async def test_dispatch_data_action_with_none_data(self, service):
-        """data=None is coerced to empty dict before dispatching data actions."""
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        # data=None -> {} -> ValidationError on required field, proving the None->dict coercion runs
-        with pytest.raises(ValidationError):
-            service._dispatch_action(game_state, 0, GameAction.DISCARD, None)
-
-
 class TestMahjongGameServiceProcessActionResult:
     """Tests for _process_action_result_internal branching."""
 
@@ -309,3 +280,91 @@ class TestMahjongGameServiceHandleChankanPrompt:
         result = await service._handle_chankan_prompt("game1", events)
 
         assert result == events
+
+
+class TestNoDataActionDispatchRouting:
+    """Tests that no-data actions (TSUMO, RON, KYUUSHU) route through _dispatch_action correctly."""
+
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    @pytest.mark.parametrize(
+        "action",
+        [GameAction.DECLARE_TSUMO, GameAction.CALL_KYUUSHU],
+    )
+    async def test_turn_dependent_no_data_actions_return_not_your_turn(self, service, action):
+        """TSUMO/KYUUSHU return error when it's not the player's turn."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        player = _find_player(service._games["game1"].round_state, "Player")
+        other_seat = (player.seat + 1) % 4
+        _update_round_state(service, "game1", current_player_seat=other_seat)
+
+        events = await service.handle_action("game1", "Player", action, {})
+
+        assert len(events) >= 1
+        assert any(e.event == EventType.ERROR for e in events)
+
+    async def test_ron_returns_error_when_no_prompt(self, service):
+        """RON returns error when there is no pending call prompt."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+
+        events = await service.handle_action("game1", "Player", GameAction.CALL_RON, {})
+
+        assert len(events) >= 1
+        assert any(e.event == EventType.ERROR for e in events)
+
+
+class TestDispatchActionDataNullFallback:
+    """Tests that _dispatch_action coerces data=None to empty dict."""
+
+    async def test_dispatch_data_action_with_none_data(self):
+        """data=None is coerced to empty dict, raising ValidationError on required field."""
+        service = MahjongGameService()
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+        game_state = service._games["game1"]
+
+        with pytest.raises(ValidationError):
+            service._dispatch_action(game_state, 0, GameAction.DISCARD, None)
+
+
+class TestChankanPromptResolvedPath:
+    """Tests the chankan resolved path where AI players resolve the prompt and round continues."""
+
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    async def test_chankan_resolved_reaches_round_end_check(self, service):
+        """After AI players resolve chankan prompt, _check_and_handle_round_end is called."""
+        await service.start_game("game1", ["Player"], seed="a" * 192)
+
+        ai_player_controller = service._ai_player_controllers["game1"]
+        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
+
+        prompt = PendingCallPrompt(
+            call_type=CallType.CHANKAN,
+            tile_id=0,
+            from_seat=ai_player_seats[0],
+            pending_seats=frozenset({ai_player_seats[1]}),
+            callers=(ai_player_seats[1],),
+        )
+        _update_round_state(service, "game1", pending_call_prompt=prompt)
+
+        events: list[ServiceEvent] = []
+
+        def mock_dispatch_clearing_prompt(_game_id, _evts):
+            _update_round_state(service, "game1", pending_call_prompt=None)
+
+        with (
+            patch.object(
+                service,
+                "_dispatch_ai_player_call_responses",
+                side_effect=mock_dispatch_clearing_prompt,
+            ),
+            patch.object(service, "_check_and_handle_round_end") as mock_round_end,
+        ):
+            result = await service._handle_chankan_prompt("game1", events)
+
+        assert isinstance(result, list)
+        mock_round_end.assert_called_once_with("game1", events)

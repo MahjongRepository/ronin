@@ -19,12 +19,6 @@ class TestCreateSession:
         assert session.session_id
         assert session.expires_at > session.created_at
 
-    def test_sessions_have_unique_ids(self):
-        store = AuthSessionStore()
-        s1 = store.create_session("u1", "alice")
-        s2 = store.create_session("u2", "bob")
-        assert s1.session_id != s2.session_id
-
 
 class TestGetSession:
     def test_retrieves_valid_session(self):

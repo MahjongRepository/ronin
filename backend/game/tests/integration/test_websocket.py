@@ -11,49 +11,17 @@ from starlette.websockets import WebSocketDisconnect
 
 from game.logic.enums import GameAction, WireClientMessageType, WireGameAction
 from game.logic.events import EventType
-from game.messaging.encoder import decode, encode
 from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.server.app import create_app
 from game.tests.helpers.auth import make_test_game_ticket
+from game.tests.helpers.websocket import (
+    create_pending_game,
+    join_game_and_start,
+    recv_ws,
+    send_ws,
+)
 from game.tests.mocks import MockGameService
-
-
-def _create_pending_game(client, game_id: str, num_ai_players: int = 3) -> list[str]:
-    """Create a pending game via POST /games. Return the list of game tickets."""
-    num_humans = 4 - num_ai_players
-    players = []
-    tickets = []
-    for i in range(num_humans):
-        ticket = make_test_game_ticket(f"Player{i + 1}", game_id, user_id=f"user-{i}")
-        players.append({"name": f"Player{i + 1}", "user_id": f"user-{i}", "game_ticket": ticket})
-        tickets.append(ticket)
-    response = client.post(
-        "/games",
-        json={"game_id": game_id, "players": players, "num_ai_players": num_ai_players},
-    )
-    assert response.status_code == 201
-    return tickets
-
-
-def _send(ws, data: dict) -> None:
-    ws.send_bytes(encode(data))
-
-
-def _recv(ws) -> dict:
-    return decode(ws.receive_bytes())
-
-
-def _join_game_and_start(ws, ticket: str) -> list[dict]:
-    """Join a pending game via JOIN_GAME and drain startup messages."""
-    _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
-    messages = []
-    while True:
-        msg = _recv(ws)
-        messages.append(msg)
-        if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
-            break
-    return messages
 
 
 class TestWebSocketIntegration:
@@ -63,43 +31,35 @@ class TestWebSocketIntegration:
         return TestClient(app)
 
     def test_join_game_and_start(self, client):
-        tickets = _create_pending_game(client, "test_game")
-        ticket = tickets[0]
-
+        tickets = create_pending_game(client, "test_game")
         with client.websocket_connect("/ws/test_game") as ws:
-            _send(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
-            messages = []
-            while True:
-                msg = _recv(ws)
-                messages.append(msg)
-                if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
-                    break
-            # Should have received game events
-            assert len(messages) >= 1
+            messages = join_game_and_start(ws, tickets[0])
+            last = messages[-1]
+            assert last["t"] in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW])
 
     def test_game_chat_message(self, client):
         """Chat messages in a started game are broadcast to game players."""
-        tickets = _create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _join_game_and_start(ws, tickets[0])
+            join_game_and_start(ws, tickets[0])
 
-            _send(ws, {"t": WireClientMessageType.CHAT, "text": "Hello from game!"})
+            send_ws(ws, {"t": WireClientMessageType.CHAT, "text": "Hello from game!"})
 
-            response = _recv(ws)
+            response = recv_ws(ws)
             assert response["type"] == SessionMessageType.CHAT
             assert response["player_name"] == "Player1"
             assert response["text"] == "Hello from game!"
 
     def test_game_action(self, client):
-        tickets = _create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _join_game_and_start(ws, tickets[0])
+            join_game_and_start(ws, tickets[0])
 
-            _send(ws, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0})
+            send_ws(ws, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0})
 
-            response = _recv(ws)
+            response = recv_ws(ws)
             assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert response["player"] == "Player1"
             assert response["action"] == GameAction.DISCARD
@@ -107,36 +67,36 @@ class TestWebSocketIntegration:
 
     def test_invalid_msgpack_returns_error_and_keeps_connection(self, client):
         """Sending invalid MessagePack data returns an error without disconnecting."""
-        tickets = _create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
             # Send garbage bytes that aren't valid MessagePack
             ws.send_bytes(b"\xff\xff\xff")
 
-            response = _recv(ws)
+            response = recv_ws(ws)
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
             # Connection should still be alive - verify by sending a valid join
-            _send(
+            send_ws(
                 ws,
                 {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]},
             )
             # Should get game events (not an error about dead connection)
-            msg = _recv(ws)
+            msg = recv_ws(ws)
             assert msg.get("t") is not None or msg.get("type") is not None
 
     def test_join_game_with_invalid_ticket(self, client):
         """An invalid game ticket returns an INVALID_TICKET error."""
-        _create_pending_game(client, "test_game")
+        create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
-            _send(
+            send_ws(
                 ws,
                 {"t": WireClientMessageType.JOIN_GAME, "game_ticket": "not-a-valid-ticket"},
             )
 
-            response = _recv(ws)
+            response = recv_ws(ws)
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_TICKET
 
@@ -180,7 +140,7 @@ class TestStatusEndpoint:
         assert "commit" in data
 
     def test_status_reflects_pending_games(self, client):
-        _create_pending_game(client, "r1")
+        create_pending_game(client, "r1")
         response = client.get("/status")
         data = response.json()
         assert data["pending_games"] == 1
@@ -224,7 +184,7 @@ class TestCreateGameEndpoint:
         assert response.json() == {"error": "Invalid request body"}
 
     def test_create_game_duplicate(self, client):
-        _create_pending_game(client, "dupe")
+        create_pending_game(client, "dupe")
         ticket = make_test_game_ticket("Player1", "dupe", user_id="user-0")
         response = client.post(
             "/games",

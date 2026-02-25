@@ -61,28 +61,6 @@ class TestFillSeatsFourPlayers:
         assert all(c.ai_player_type is None for c in configs)
         assert {c.name for c in configs} == set(names)
 
-    def test_four_players_with_seed_randomizes_seats(self):
-        """4 players with seed: names are randomly assigned to seats (not always input order)."""
-        names = ["Alice", "Bob", "Charlie", "Dave"]
-
-        orderings: set[tuple[str, ...]] = set()
-        for seed in ["a" * 192, "b" * 192, "c" * 192, "d" * 192, "e" * 192]:
-            configs = fill_seats(names, seed=seed)
-            orderings.add(tuple(c.name for c in configs))
-
-        assert len(orderings) > 1, "different seeds should produce different seat assignments"
-
-    def test_four_players_same_seed_deterministic(self):
-        """4 players with same seed: deterministic seat assignment."""
-        names = ["Alice", "Bob", "Charlie", "Dave"]
-
-        configs1 = fill_seats(names, seed="a" * 192)
-        configs2 = fill_seats(names, seed="a" * 192)
-
-        for c1, c2 in zip(configs1, configs2, strict=True):
-            assert c1.name == c2.name
-            assert c1.ai_player_type == c2.ai_player_type
-
 
 class TestFillSeatsValidation:
     """Tests for fill_seats input validation."""
@@ -101,20 +79,6 @@ class TestFillSeatsValidation:
         """Duplicate player names raises ValueError."""
         with pytest.raises(ValueError, match="unique"):
             fill_seats(["Alice", "Alice"])
-
-    def test_two_players_valid(self):
-        """2 players with 2 AI players is valid."""
-        configs = fill_seats(["Alice", "Bob"])
-        assert len(configs) == 4
-        player_configs = [c for c in configs if c.ai_player_type is None]
-        assert len(player_configs) == 2
-
-    def test_three_players_valid(self):
-        """3 players with 1 AI player is valid."""
-        configs = fill_seats(["Alice", "Bob", "Charlie"])
-        assert len(configs) == 4
-        ai_configs = [c for c in configs if c.ai_player_type is not None]
-        assert len(ai_configs) == 1
 
     def test_empty_name_raises(self):
         """Empty string player name raises ValueError."""

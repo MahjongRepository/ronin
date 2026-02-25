@@ -1,8 +1,8 @@
 """
 Covers:
 - Settings validation (unsupported values fail fast)
-- Renchan behavior settings
-- game_type (tonpusen vs hanchan)
+- Renchan behavior with nagashi mangan
+- game_type (tonpusen vs hanchan) enchousen extensions
 - enchousen (none vs sudden death)
 - Kan dora timing settings
 """
@@ -10,7 +10,7 @@ Covers:
 import pytest
 
 from game.logic.call_resolution import complete_added_kan_after_chankan_decline
-from game.logic.enums import AbortiveDrawType, RoundPhase
+from game.logic.enums import RoundPhase
 from game.logic.events import DoraRevealedEvent
 from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.game import (
@@ -30,14 +30,11 @@ from game.logic.settings import (
 from game.logic.state import MahjongGameState, MahjongPlayer, MahjongRoundState
 from game.logic.turn import _process_added_kan_call, _process_closed_kan_call, _process_open_kan_call
 from game.logic.types import (
-    AbortiveDrawResult,
-    ExhaustiveDrawResult,
     HandResultInfo,
     NagashiManganResult,
     RonResult,
     SeatConfig,
     TenpaiHand,
-    TsumoResult,
     YakuInfo,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -54,14 +51,6 @@ class TestValidateSettings:
     def test_default_settings_pass_validation(self):
         validate_settings(GameSettings())
 
-    def test_num_players_not_four_raises(self):
-        with pytest.raises(UnsupportedSettingsError, match="num_players=3"):
-            validate_settings(GameSettings(num_players=3))
-
-    def test_has_agariyame_true_raises(self):
-        with pytest.raises(UnsupportedSettingsError, match="has_agariyame=True"):
-            validate_settings(GameSettings(has_agariyame=True))
-
     def test_renhou_baiman_raises(self):
         with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
             validate_settings(GameSettings(renhou_value=RenhouValue.BAIMAN))
@@ -76,20 +65,6 @@ class TestValidateSettings:
 
     def test_renhou_mangan_passes(self):
         validate_settings(GameSettings(renhou_value=RenhouValue.MANGAN))
-
-    def test_tonpusen_passes(self):
-        validate_settings(GameSettings(game_type=GameType.TONPUSEN))
-
-    def test_enchousen_none_passes(self):
-        validate_settings(GameSettings(enchousen=EnchousenType.NONE))
-
-    def test_uma_wrong_length_raises(self):
-        with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
-            validate_settings(GameSettings(uma=(20, 10, -10)))
-
-    def test_uma_nonzero_sum_raises(self):
-        with pytest.raises(UnsupportedSettingsError, match="uma values must sum to zero"):
-            validate_settings(GameSettings(uma=(20, 10, -10, -10)))
 
     def test_uma_valid_passes(self):
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))
@@ -139,78 +114,12 @@ class TestValidateSettings:
 # ============================================================================
 
 
-class TestRenchanOnAbortiveDraw:
-    def _game_state(self, *, renchan_on_abortive_draw: bool = True) -> MahjongGameState:
-        settings = GameSettings(renchan_on_abortive_draw=renchan_on_abortive_draw)
-        return create_game_state(honba_sticks=2, settings=settings)
-
-    def test_default_abortive_draw_renchan(self):
-        gs = self._game_state(renchan_on_abortive_draw=True)
-        result = AbortiveDrawResult(
-            reason=AbortiveDrawType.FOUR_WINDS,
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-        )
-        honba, should_rotate = _get_honba_and_rotation(gs, result)
-        assert honba == 3
-        assert should_rotate is False
-
-    def test_no_renchan_on_abortive_draw(self):
-        gs = self._game_state(renchan_on_abortive_draw=False)
-        result = AbortiveDrawResult(
-            reason=AbortiveDrawType.FOUR_WINDS,
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-        )
-        honba, should_rotate = _get_honba_and_rotation(gs, result)
-        assert honba == 0
-        assert should_rotate is True
-
-
-class TestRenchanOnDealerTenpaiDraw:
-    def _game_state(self, *, renchan_on_dealer_tenpai_draw: bool = True) -> MahjongGameState:
-        settings = GameSettings(renchan_on_dealer_tenpai_draw=renchan_on_dealer_tenpai_draw)
-        return create_game_state(honba_sticks=1, settings=settings)
-
-    def test_default_dealer_tenpai_no_rotation(self):
-        gs = self._game_state(renchan_on_dealer_tenpai_draw=True)
-        result = ExhaustiveDrawResult(
-            tempai_seats=[0],
-            noten_seats=[1, 2, 3],
-            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-        honba, should_rotate = _get_honba_and_rotation(gs, result)
-        assert honba == 2
-        assert should_rotate is False
-
-    def test_default_dealer_noten_rotates(self):
-        gs = self._game_state(renchan_on_dealer_tenpai_draw=True)
-        result = ExhaustiveDrawResult(
-            tempai_seats=[1],
-            noten_seats=[0, 2, 3],
-            tenpai_hands=[TenpaiHand(seat=1, closed_tiles=[], melds=[])],
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-        honba, should_rotate = _get_honba_and_rotation(gs, result)
-        assert honba == 2
-        assert should_rotate is True
-
-    def test_no_renchan_dealer_tenpai_still_rotates(self):
-        gs = self._game_state(renchan_on_dealer_tenpai_draw=False)
-        result = ExhaustiveDrawResult(
-            tempai_seats=[0],
-            noten_seats=[1, 2, 3],
-            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-        honba, should_rotate = _get_honba_and_rotation(gs, result)
-        assert honba == 2
-        assert should_rotate is True
+class TestRenchanNagashiMangan:
+    """Renchan settings with nagashi mangan (not covered by test_dealer_rotation)."""
 
     def test_renchan_nagashi_mangan_dealer_tenpai_no_rotation(self):
-        gs = self._game_state(renchan_on_dealer_tenpai_draw=True)
+        settings = GameSettings(renchan_on_dealer_tenpai_draw=True)
+        gs = create_game_state(honba_sticks=1, settings=settings)
         result = NagashiManganResult(
             qualifying_seats=[1],
             tempai_seats=[0],
@@ -241,27 +150,15 @@ class TestRenchanOnDealerTenpaiDraw:
         assert should_rotate is True
 
 
-class TestRenchanOnDealerWin:
-    def _game_state(self, *, renchan_on_dealer_win: bool = True) -> MahjongGameState:
-        settings = GameSettings(renchan_on_dealer_win=renchan_on_dealer_win)
-        return create_game_state(honba_sticks=0, settings=settings)
+class TestRenchanDealerRonDisabled:
+    """Verify renchan_on_dealer_win=False applies to ron (not just tsumo)."""
 
-    def _tsumo(self, winner_seat: int) -> TsumoResult:
-        return TsumoResult(
-            winner_seat=winner_seat,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-            riichi_sticks_collected=0,
-            closed_tiles=[0, 1, 2, 3],
-            melds=[],
-            win_tile=3,
-        )
-
-    def _ron(self, winner_seat: int, loser_seat: int) -> RonResult:
-        return RonResult(
-            winner_seat=winner_seat,
-            loser_seat=loser_seat,
+    def test_no_renchan_dealer_ron_win_rotates(self):
+        settings = GameSettings(renchan_on_dealer_win=False)
+        gs = create_game_state(honba_sticks=0, settings=settings)
+        result = RonResult(
+            winner_seat=0,
+            loser_seat=1,
             winning_tile=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
             scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
@@ -270,38 +167,24 @@ class TestRenchanOnDealerWin:
             closed_tiles=[0, 1, 2],
             melds=[],
         )
-
-    def test_default_dealer_win_renchan(self):
-        gs = self._game_state(renchan_on_dealer_win=True)
-        honba, should_rotate = _get_honba_and_rotation(gs, self._tsumo(winner_seat=0))
-        assert honba == 1
-        assert should_rotate is False
-
-    def test_no_renchan_dealer_win_rotates(self):
-        gs = self._game_state(renchan_on_dealer_win=False)
-        honba, should_rotate = _get_honba_and_rotation(gs, self._tsumo(winner_seat=0))
-        assert honba == 0
-        assert should_rotate is True
-
-    def test_no_renchan_dealer_ron_win_rotates(self):
-        gs = self._game_state(renchan_on_dealer_win=False)
-        honba, should_rotate = _get_honba_and_rotation(gs, self._ron(winner_seat=0, loser_seat=1))
-        assert honba == 0
-        assert should_rotate is True
-
-    def test_non_dealer_win_always_rotates(self):
-        gs = self._game_state(renchan_on_dealer_win=True)
-        honba, should_rotate = _get_honba_and_rotation(gs, self._tsumo(winner_seat=2))
+        honba, should_rotate = _get_honba_and_rotation(gs, result)
         assert honba == 0
         assert should_rotate is True
 
 
 # ============================================================================
-# Game Type (Tonpusen) Tests
+# Game Type Tests
 # ============================================================================
 
 
-class TestGameTypeTonpusen:
+class TestGameTypeEnchousenExtensions:
+    """Test enchousen extension and terminal conditions for tonpusen and hanchan.
+
+    Basic game-end-after-primary-wind tests are in test_game_structure.py.
+    These tests focus on enchousen extension when no one reaches target score,
+    and the hard cap of the next wind.
+    """
+
     def _game_state(
         self,
         unique_dealers: int = 1,
@@ -319,28 +202,12 @@ class TestGameTypeTonpusen:
             settings=settings,
         )
 
-    def test_tonpusen_east_not_complete_continues(self):
-        gs = self._game_state(unique_dealers=4, player_scores=[35000, 25000, 20000, 20000])
-        assert check_game_end(gs) is False
-
-    def test_tonpusen_east_complete_with_winner_ends(self):
-        gs = self._game_state(unique_dealers=5, player_scores=[35000, 25000, 20000, 20000])
-        assert check_game_end(gs) is True
-
     def test_tonpusen_east_complete_no_winner_continues_to_south(self):
         gs = self._game_state(unique_dealers=5, player_scores=[25000, 25000, 25000, 25000])
         assert check_game_end(gs) is False
 
     def test_tonpusen_south_complete_ends(self):
         gs = self._game_state(unique_dealers=9)
-        assert check_game_end(gs) is True
-
-    def test_hanchan_south_complete_with_winner_ends(self):
-        gs = self._game_state(
-            unique_dealers=9,
-            player_scores=[35000, 25000, 20000, 20000],
-            game_type=GameType.HANCHAN,
-        )
         assert check_game_end(gs) is True
 
     def test_hanchan_south_complete_no_winner_continues_to_west(self):
@@ -361,15 +228,16 @@ class TestGameTypeTonpusen:
 # ============================================================================
 
 
-class TestEnchousen:
+class TestEnchousenNone:
+    """Verify EnchousenType.NONE forces game end after primary wind."""
+
     def _game_state(
         self,
         unique_dealers: int = 1,
-        player_scores: list[int] | None = None,
-        enchousen: EnchousenType = EnchousenType.SUDDEN_DEATH,
+        enchousen: EnchousenType = EnchousenType.NONE,
         game_type: GameType = GameType.HANCHAN,
     ) -> MahjongGameState:
-        scores = player_scores or [25000, 25000, 25000, 25000]
+        scores = [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
         round_state = MahjongRoundState(players=players)
         settings = GameSettings(enchousen=enchousen, game_type=game_type)
@@ -383,22 +251,6 @@ class TestEnchousen:
         gs = self._game_state(unique_dealers=9, enchousen=EnchousenType.NONE)
         assert check_game_end(gs) is True
 
-    def test_enchousen_none_hanchan_ends_even_without_winner(self):
-        gs = self._game_state(
-            unique_dealers=9,
-            player_scores=[25000, 25000, 25000, 25000],
-            enchousen=EnchousenType.NONE,
-        )
-        assert check_game_end(gs) is True
-
-    def test_enchousen_sudden_death_hanchan_continues_without_winner(self):
-        gs = self._game_state(
-            unique_dealers=9,
-            player_scores=[25000, 25000, 25000, 25000],
-            enchousen=EnchousenType.SUDDEN_DEATH,
-        )
-        assert check_game_end(gs) is False
-
     def test_enchousen_none_tonpusen_ends_after_east(self):
         gs = self._game_state(
             unique_dealers=5,
@@ -406,15 +258,6 @@ class TestEnchousen:
             game_type=GameType.TONPUSEN,
         )
         assert check_game_end(gs) is True
-
-    def test_enchousen_sudden_death_tonpusen_continues_to_south(self):
-        gs = self._game_state(
-            unique_dealers=5,
-            player_scores=[25000, 25000, 25000, 25000],
-            enchousen=EnchousenType.SUDDEN_DEATH,
-            game_type=GameType.TONPUSEN,
-        )
-        assert check_game_end(gs) is False
 
 
 # ============================================================================
@@ -635,13 +478,6 @@ class TestClosedKanDoraEvents:
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
-    def test_no_kandora_no_dora_event(self):
-        rs, settings = _make_kan_test_round_state(has_kandora=False)
-        gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, 0, 0)
-        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
-        assert len(dora_events) == 0
-
 
 class TestOpenKanDoraEvents:
     def test_deferred_no_immediate_dora_event(self):
@@ -658,13 +494,6 @@ class TestOpenKanDoraEvents:
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
-    def test_no_kandora_no_dora_event(self):
-        rs, settings = _make_open_kan_test_round_state(has_kandora=False)
-        gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, 1, 0, 0)
-        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
-        assert len(dora_events) == 0
-
 
 class TestAddedKanDoraEvents:
     def test_deferred_no_immediate_dora_event(self):
@@ -680,13 +509,6 @@ class TestAddedKanDoraEvents:
         _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, 0, 3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
-
-    def test_no_kandora_no_dora_event(self):
-        rs, settings = _make_pon_round_state(has_kandora=False)
-        gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, 0, 3)
-        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
-        assert len(dora_events) == 0
 
 
 # ============================================================================
@@ -706,14 +528,6 @@ class TestChankanDeclineDoraEvents:
     def test_chankan_decline_deferred_no_dora_event(self):
         """When chankan is declined and dora is deferred, no DoraRevealedEvent."""
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
-        gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, 0, 3)
-        dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
-        assert len(dora_events) == 0
-
-    def test_chankan_decline_no_kandora_no_dora_event(self):
-        """When chankan is declined and has_kandora=False, no DoraRevealedEvent."""
-        rs, settings = _make_pon_round_state(has_kandora=False)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, 0, 3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]

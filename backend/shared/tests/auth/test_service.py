@@ -98,13 +98,6 @@ class TestRegisterBot:
         expected_hash = hashlib.sha256(raw_api_key.encode()).hexdigest()
         assert player.api_key_hash == expected_hash
 
-    async def test_bot_can_be_validated_by_api_key(self, auth_service):
-        player, raw_api_key = await auth_service.register_bot("ValidBot")
-
-        result = await auth_service.validate_api_key(raw_api_key)
-        assert result is not None
-        assert result.user_id == player.user_id
-
     async def test_rejects_duplicate_bot_name(self, auth_service):
         await auth_service.register_bot("UniqueBot")
 

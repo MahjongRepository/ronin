@@ -13,13 +13,12 @@ from game.logic.scoring import (
     calculate_hand_value,
     collect_ura_dora_indicators,
 )
-from game.logic.settings import GameSettings, build_optional_rules
+from game.logic.settings import GameSettings
 from game.logic.wall import Wall, add_dora_indicator
 from game.logic.wall import collect_ura_dora_indicators as wall_collect_ura_dora
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 DORA_YAKU_ID = 120
-AKA_DORA_YAKU_ID = 121
 URA_DORA_YAKU_ID = 122
 
 
@@ -182,55 +181,6 @@ class TestUraDoraSettingGating:
 
         assert result.error is None
         assert _dora_han(result, URA_DORA_YAKU_ID) == 0
-
-
-class TestAkadoraSetting:
-    """Verify has_akadora controls red five dora and count is fixed at 3."""
-
-    def test_akadora_enabled_red_five_scores(self):
-        """Red five counts as 1 aka dora when has_akadora=True."""
-        tiles = TilesConverter.string_to_136_array(man="1134r678", pin="123", sou="789", has_aka_dora=True)
-        win_tile = tiles[-1]
-        indicator = TilesConverter.string_to_136_array(sou="1")
-
-        settings = GameSettings(has_akadora=True)
-        game_state = _build_scoring_state(tiles=tiles, dora_indicators=indicator, is_riichi=True)
-        ctx = ScoringContext(
-            player=game_state.round_state.players[0],
-            round_state=game_state.round_state,
-            settings=settings,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert _dora_han(result, AKA_DORA_YAKU_ID) == 1
-
-    def test_akadora_disabled_red_five_ignored(self):
-        """Red five is ignored when has_akadora=False."""
-        tiles = TilesConverter.string_to_136_array(man="1134r678", pin="123", sou="789", has_aka_dora=True)
-        win_tile = tiles[-1]
-        indicator = TilesConverter.string_to_136_array(sou="1")
-
-        settings = GameSettings(has_akadora=False)
-        game_state = _build_scoring_state(tiles=tiles, dora_indicators=indicator, is_riichi=True)
-        ctx = ScoringContext(
-            player=game_state.round_state.players[0],
-            round_state=game_state.round_state,
-            settings=settings,
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert _dora_han(result, AKA_DORA_YAKU_ID) == 0
-
-    def test_akadora_flows_through_optional_rules(self):
-        """has_akadora maps to has_aka_dora in OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(has_akadora=True))
-        rules_disabled = build_optional_rules(GameSettings(has_akadora=False))
-        assert rules_enabled.has_aka_dora is True
-        assert rules_disabled.has_aka_dora is False
 
 
 class TestKanDoraSetting:

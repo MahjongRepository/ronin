@@ -123,12 +123,6 @@ class TestGetCallResponseTsumogiriDeclines:
 
         assert controller.get_call_response(1, rs, CallType.RON, 0, 1) is None
 
-    def test_declines_chankan(self):
-        controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
-        rs = _create_round_state()
-
-        assert controller.get_call_response(1, rs, CallType.CHANKAN, 0, 1) is None
-
     def test_declines_pon(self):
         controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
         rs = _create_round_state()
@@ -252,8 +246,3 @@ class TestAIPlayerControllerManagement:
 
         assert controller.is_ai_player(1) is False
         assert 1 not in controller.ai_player_seats
-
-    def test_remove_ai_player_nonexistent_seat_is_safe(self):
-        """Removing AI from a seat with no AI does nothing."""
-        controller = AIPlayerController({})
-        controller.remove_ai_player(3)

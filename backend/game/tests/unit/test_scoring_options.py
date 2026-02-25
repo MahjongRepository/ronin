@@ -8,7 +8,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
-from game.logic.settings import GameSettings, build_optional_rules
+from game.logic.settings import GameSettings
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
 from game.tests.conftest import create_player, create_round_state
@@ -179,21 +179,6 @@ class TestChiitoitsuFu:
         assert len(chiitoitsu_yaku) == 1
         assert chiitoitsu_yaku[0].han == 2
 
-    def test_chiitoitsu_25_fu_not_rounded_to_30(self):
-        """Chiitoitsu 25 fu is preserved (not rounded up to 30 like other hands)."""
-        tiles = TilesConverter.string_to_136_array(man="1133", pin="2277", sou="5588", honors="11")
-        round_state = _make_round_state()
-        win_tile = tiles[-1]
-        round_state = update_player(round_state, 0, tiles=tuple(tiles))
-        player = round_state.players[0]
-
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, win_tile)
-
-        assert result.error is None
-        assert result.fu == 25
-
 
 class TestPinfuTsumoFu:
     """Verify fu_for_pinfu_tsumo setting controls pinfu tsumo fu."""
@@ -239,13 +224,6 @@ class TestPinfuTsumoFu:
         assert result.error is None
         # base 20 + 2 tsumo fu = 22, rounds up to 30
         assert result.fu == 30
-
-    def test_fu_for_pinfu_tsumo_wired_through_optional_rules(self):
-        """fu_for_pinfu_tsumo maps to the mahjong library's OptionalRules."""
-        rules_disabled = build_optional_rules(GameSettings(fu_for_pinfu_tsumo=False))
-        assert rules_disabled.fu_for_pinfu_tsumo is False
-        rules_enabled = build_optional_rules(GameSettings(fu_for_pinfu_tsumo=True))
-        assert rules_enabled.fu_for_pinfu_tsumo is True
 
 
 class TestOpenPinfuFu:
@@ -297,23 +275,9 @@ class TestOpenPinfuFu:
         # Open hand ron: base 20 + 0 fu = 20
         assert result.fu == 20
 
-    def test_fu_for_open_pinfu_wired_through_optional_rules(self):
-        """fu_for_open_pinfu maps to the mahjong library's OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(fu_for_open_pinfu=True))
-        assert rules_enabled.fu_for_open_pinfu is True
-        rules_disabled = build_optional_rules(GameSettings(fu_for_open_pinfu=False))
-        assert rules_disabled.fu_for_open_pinfu is False
-
 
 class TestKiriageMangan:
     """Verify has_kiriage_mangan setting controls kiriage mangan scoring."""
-
-    def test_kiriage_wired_through_optional_rules(self):
-        """has_kiriage_mangan maps to kiriage in the mahjong library's OptionalRules."""
-        rules_enabled = build_optional_rules(GameSettings(has_kiriage_mangan=True))
-        assert rules_enabled.kiriage is True
-        rules_disabled = build_optional_rules(GameSettings(has_kiriage_mangan=False))
-        assert rules_disabled.kiriage is False
 
     def test_4_han_30_fu_scores_mangan_when_enabled(self):
         """4 han / 30 fu hand scores as mangan (8000 non-dealer ron) when kiriage is enabled."""

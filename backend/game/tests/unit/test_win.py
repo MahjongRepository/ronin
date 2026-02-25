@@ -197,6 +197,21 @@ class TestGetWaitingTiles:
 
         assert 4 in waiting  # 5m
 
+    def test_four_copy_tile_skipped(self):
+        """Tiles with 4 copies in hand are skipped in waiting calculation.
+
+        Hand: 111m 23m 456p 78s 55s (13 tiles, 4 copies of 1m).
+        Waiting on 6s and 9s. 1m is excluded because all 4 copies are held.
+        """
+        tiles = TilesConverter.string_to_136_array(man="111123", pin="456", sou="5578")
+        player = MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles), score=25000)
+
+        waiting = get_waiting_tiles(player)
+
+        assert 23 in waiting or 26 in waiting  # 6s or 9s
+        assert 0 not in waiting  # 1m excluded (4 copies held)
+        assert len(waiting) > 0
+
     def test_chiitoitsu_wait(self):
         # 6 pairs + single: 11m 22m 33m 44p 55p 66s 7s -> waiting for 7s
         tiles = TilesConverter.string_to_136_array(man="112233", pin="4455", sou="667")
@@ -659,6 +674,32 @@ class TestIsTenhou:
         )
         assert is_tenhou(players[0], round_state) is False
 
+    def test_not_tenhou_after_closed_kan(self):
+        """Dealer cannot claim tenhou if any player has a closed kan."""
+        closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
+            opened=False,
+        )
+        players = tuple(
+            MahjongPlayer(
+                seat=i,
+                name=f"Player{i}",
+                melds=(closed_kan,) if i == 0 else (),
+                score=25000,
+            )
+            for i in range(4)
+        )
+        round_state = MahjongRoundState(
+            dealer_seat=0,
+            current_player_seat=0,
+            round_wind=0,
+            players=players,
+            all_discards=(),
+            players_with_open_hands=(),
+        )
+        assert is_tenhou(players[0], round_state) is False
+
 
 class TestIsChiihou:
     def test_chiihou_non_dealer_first_draw(self):
@@ -720,40 +761,6 @@ class TestIsChiihou:
         )
         assert is_chiihou(players[1], round_state) is False
 
-
-class TestIsTenhouClosedKan:
-    """Test that closed kans invalidate tenhou."""
-
-    def test_not_tenhou_after_closed_kan(self):
-        """Dealer cannot claim tenhou if any player has a closed kan."""
-        closed_kan = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
-            opened=False,
-        )
-        players = tuple(
-            MahjongPlayer(
-                seat=i,
-                name=f"Player{i}",
-                melds=(closed_kan,) if i == 0 else (),
-                score=25000,
-            )
-            for i in range(4)
-        )
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
-            players=players,
-            all_discards=(),
-            players_with_open_hands=(),
-        )
-        assert is_tenhou(players[0], round_state) is False
-
-
-class TestIsChiihouClosedKan:
-    """Test that closed kans invalidate chiihou."""
-
     def test_not_chiihou_after_dealer_closed_kan(self):
         """Non-dealer cannot claim chiihou if dealer declared a closed kan."""
         closed_kan = FrozenMeld(
@@ -782,7 +789,7 @@ class TestIsChiihouClosedKan:
 
 
 class TestIsRenhouClosedKan:
-    """Test that closed kans invalidate renhou."""
+    """Closed kans invalidate renhou."""
 
     def test_not_renhou_after_closed_kan(self):
         """Non-dealer cannot claim renhou if any player declared a closed kan."""

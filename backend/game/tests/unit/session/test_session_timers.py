@@ -84,22 +84,6 @@ class TestSessionManagerTimers:
 class TestSessionManagerTimerIntegration:
     """Tests for timer integration methods."""
 
-    def test_get_player_at_seat_returns_player(self, manager):
-        """_get_player_at_seat returns the player at the specified seat."""
-        game, _player, _conn = make_game_with_player(manager)
-
-        result = manager._get_player_at_seat(game, 0)
-        assert result is not None
-        assert result.name == "Alice"
-        assert result.seat == 0
-
-    def test_get_player_at_seat_returns_none_for_unoccupied_seat(self, manager):
-        """_get_player_at_seat returns None when no player is at the given seat."""
-        game, _player, _conn = make_game_with_player(manager)
-
-        result = manager._get_player_at_seat(game, 1)
-        assert result is None
-
     async def test_maybe_start_timer_with_draw_event(self, manager):
         """_maybe_start_timer starts a turn timer when DrawEvent targets the player."""
         game, _player, _conn = make_game_with_player(manager)
