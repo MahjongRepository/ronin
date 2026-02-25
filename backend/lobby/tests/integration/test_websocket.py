@@ -9,6 +9,7 @@ from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
 from lobby.server.settings import LobbyServerSettings
+from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
 from shared.auth.settings import AuthSettings
 
 
@@ -36,6 +37,7 @@ servers:
         auth_settings=AuthSettings(
             game_ticket_secret="test-secret",
             database_path=str(tmp_path / "test.db"),
+            cookie_secure=False,
         ),
     )
 
@@ -50,10 +52,7 @@ class TestRoomWebSocket:
     @pytest.fixture
     def client(self, app):
         c = TestClient(app)
-        c.post(
-            "/register",
-            data={"username": "wsuser", "password": "securepass123", "confirm_password": "securepass123"},
-        )
+        register_with_csrf(c, "wsuser")
         return c
 
     @pytest.fixture
@@ -169,11 +168,10 @@ class TestMultiPlayerWebSocket:
     @pytest.fixture
     def two_user_client(self, app):
         """Client with two registered users."""
-        pw = "securepass123"
         c = TestClient(app)
-        c.post("/register", data={"username": "alice", "password": pw, "confirm_password": pw})
-        c.post("/logout")
-        c.post("/register", data={"username": "bob", "password": pw, "confirm_password": pw})
+        register_with_csrf(c, "alice")
+        logout_with_csrf(c)
+        register_with_csrf(c, "bob")
         return c
 
     def test_leave_broadcasts_player_left(self, app, two_user_client):
@@ -183,7 +181,7 @@ class TestMultiPlayerWebSocket:
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             ws_bob.receive_json()  # room_joined
             # Log in as alice and connect
-            two_user_client.post("/login", data={"username": "alice", "password": "securepass123"})
+            login_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 ws_alice.receive_json()  # room_joined
                 player_joined = ws_bob.receive_json()  # player_joined for alice
@@ -204,7 +202,7 @@ class TestMultiPlayerWebSocket:
             assert bob_joined["type"] == "room_joined"
             assert len(bob_joined["players"]) == 1
 
-            two_user_client.post("/login", data={"username": "alice", "password": "securepass123"})
+            login_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 alice_joined = ws_alice.receive_json()
                 assert alice_joined["type"] == "room_joined"
@@ -221,7 +219,7 @@ class TestMultiPlayerWebSocket:
         room = app.state.room_manager.create_room("dc-room", num_ai_players=2)
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             ws_bob.receive_json()  # room_joined
-            two_user_client.post("/login", data={"username": "alice", "password": "securepass123"})
+            login_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 ws_alice.receive_json()  # room_joined
                 ws_bob.receive_json()  # player_joined
@@ -241,9 +239,8 @@ class TestGameTransition:
 
     @pytest.fixture
     def client(self, app):
-        pw = "securepass123"
         c = TestClient(app)
-        c.post("/register", data={"username": "wsuser", "password": pw, "confirm_password": pw})
+        register_with_csrf(c, "wsuser")
         return c
 
     def _set_servers_healthy(self, app):
@@ -397,10 +394,7 @@ class TestWebSocketOriginCheck:
     @pytest.fixture
     def client_with_origin(self, app_with_origin):
         c = TestClient(app_with_origin)
-        c.post(
-            "/register",
-            data={"username": "wsuser", "password": "securepass123", "confirm_password": "securepass123"},
-        )
+        register_with_csrf(c, "wsuser")
         return c
 
     def test_allowed_origin_connects(self, client_with_origin, app_with_origin):

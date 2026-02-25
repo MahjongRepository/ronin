@@ -16,6 +16,13 @@ Game server handling real-time Mahjong gameplay via WebSocket.
 
 Connect to `ws://localhost:8711/ws/{game_id}` (game must be created first via lobby `POST /games`). The WebSocket handles only the game phase; the pre-game room phase lives on the lobby server.
 
+### Abuse Controls
+
+The WebSocket endpoint includes abuse mitigation:
+- **Rate limiting**: Token bucket algorithm (20 messages/sec sustained, burst of 30). Messages exceeding the limit receive a `rate_limited` error and are not processed. Rate limiting runs after decode so that malformed messages always increment the strike counter.
+- **Decode error strikes**: 5 consecutive decode errors disconnect the client (close code 4004). Successful messages reset the counter.
+- **Auth timeout**: Unauthenticated connections that do not send a JOIN_GAME or RECONNECT message within 10 seconds are closed (close code 4001). The timeout is cancelled on successful authentication, disconnection, or stale-connection eviction. All auth timeout tasks are cancelled on server shutdown.
+
 ### Message Format
 
 All messages use MessagePack binary format. Session messages use a string `"type"` field. Game events use an integer `"t"` field (see Game Events below). The server only accepts and sends binary WebSocket frames.
@@ -116,6 +123,7 @@ Error codes:
 - `not_in_game` - Player tried to perform a game action without being in a game
 - `game_not_started` - Player tried to perform a game action before the game started
 - `invalid_message` - Message could not be parsed
+- `rate_limited` - Too many messages sent (WebSocket rate limit exceeded)
 - `action_failed` - Game action failed
 - `join_game_not_found` - The requested game does not exist or is no longer pending
 - `join_game_already_started` - Game already started (use RECONNECT instead)
@@ -128,6 +136,19 @@ Error codes:
 - `reconnect_already_active` - Connection already in a game
 - `reconnect_snapshot_failed` - Failed to build game state snapshot
 - `invalid_ticket` - Game ticket is invalid or has a game_id mismatch
+
+## Security Requirements
+
+These practices are mandatory for all game server code. Violations must be caught in code review.
+
+- **WebSocket rate limiting**: All WebSocket endpoints must use `TokenBucket` rate limiting. Check `bucket.consume()` before processing decoded messages; send a `RATE_LIMITED` error and skip processing when the bucket is empty.
+- **Decode error disconnection**: Malformed messages must increment a consecutive decode error counter. After `_MAX_DECODE_ERRORS` strikes, close the connection (code 4004). A valid message resets the counter to zero. Rate limiting runs after decode so that malformed messages always count as strikes.
+- **Auth timeout on unauthenticated connections**: Connections must authenticate (JOIN_GAME or RECONNECT) within `_AUTH_TIMEOUT_SECONDS` or be closed (code 4001). The timeout task must be cancelled on: successful authentication, voluntary disconnection, stale-connection eviction, and server shutdown. Remove the connection from `_connections` before closing to prevent concurrent join/reconnect races.
+- **Game ticket validation**: `verify_game_ticket()` must check: HMAC-SHA256 signature, numeric/finite timestamps (reject `bool`, `inf`, `NaN`), `issued_at` not in the future (with `CLOCK_SKEW_SECONDS` tolerance), `expires_at > issued_at`, lifetime within `TICKET_TTL_SECONDS + CLOCK_SKEW_SECONDS` bounds, and expiry. All checks must pass before the ticket is accepted.
+- **Request body size limits**: REST endpoints accepting request bodies must use streaming reads (`request.stream()`) with a hard size cutoff. Do not use `await request.body()` for untrusted input. Handle `ClientDisconnect` gracefully.
+- **Game ID validation**: WebSocket path parameters must be validated against `_GAME_ID_PATTERN` and `_MAX_GAME_ID_LENGTH` before accepting the connection.
+- **Shutdown cleanup**: All async tasks (pending game timeouts, auth timeouts) must be cancelled during server shutdown via `cancel_all_pending_timeouts()` and `cancel_all_auth_timeouts()`.
+- **Sensitive data logging**: Concealed hand tiles must be logged at DEBUG, not INFO. Never log game tickets or session tokens at INFO level or above.
 
 ## Internal Architecture
 
@@ -191,7 +212,7 @@ The game service communicates through a typed event pipeline:
 
 ### Server Configuration
 
-`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `CorsEnvSettingsSource`), `replay_dir`, `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias), `database_path` (default `backend/storage.db`, read from `GAME_DATABASE_PATH` or `AUTH_DATABASE_PATH` via validation alias). Injected into the Starlette app via `create_app()`. On shutdown, the app cancels all pending game timeout tasks. When the app creates its own `SessionManager`, it also creates and owns a `Database` instance (connected to `database_path`), injects a `SqliteGameRepository` into the session manager, and closes the database on shutdown. `SessionManager` accepts an optional `GameRepository` for persisting game lifecycle events: game starts (with player IDs and timestamp), completed games (`end_reason="completed"` after replay save), and abandoned games (`end_reason="abandoned"` when a started game is cleaned up because all players left). All database calls are best-effort — failures are logged but never block gameplay or socket cleanup.
+`server/settings.py` provides `GameServerSettings`, a Pydantic-settings model with `GAME_` environment prefix. Configurable fields: `max_capacity` (default 100), `log_dir`, `cors_origins` (parsed via custom `StringListEnvSettingsSource`), `replay_dir`, `game_ticket_secret` (read from `AUTH_GAME_TICKET_SECRET` via validation alias), `database_path` (default `backend/storage.db`, read from `GAME_DATABASE_PATH` or `AUTH_DATABASE_PATH` via validation alias). Injected into the Starlette app via `create_app()`. On shutdown, the app cancels all pending game timeout tasks and all auth timeout tasks. When the app creates its own `SessionManager`, it also creates and owns a `Database` instance (connected to `database_path`), injects a `SqliteGameRepository` into the session manager, and closes the database on shutdown. `SessionManager` accepts an optional `GameRepository` for persisting game lifecycle events: game starts (with player IDs and timestamp), completed games (`end_reason="completed"` after replay save), and abandoned games (`end_reason="abandoned"` when a started game is cleaned up because all players left). All database calls are best-effort — failures are logged but never block gameplay or socket cleanup.
 
 ### Pending Game Model
 
@@ -304,7 +325,7 @@ For invalid game actions, the `InvalidGameActionError` exception carries a `seat
 
 ### Authentication & Session Identity
 
-**Game Ticket Authentication**: Players authenticate via HMAC-SHA256 signed game tickets issued by the lobby server. The `MessageRouter` verifies the ticket signature and expiry using `shared.auth.game_ticket.verify_game_ticket()` for both `JOIN_GAME` and `RECONNECT` messages. Tickets have a 24-hour TTL (matching the lobby session). The ticket contains `user_id`, `username`, `room_id` (game_id), `issued_at`, and `expires_at`. The router rejects invalid, expired, or game-mismatched tickets with `INVALID_TICKET` error. On success, the router extracts `username` and `user_id` from the verified ticket and passes them to `SessionManager.join_game()`. The ticket secret is shared between the lobby and game servers via the `AUTH_GAME_TICKET_SECRET` environment variable.
+**Game Ticket Authentication**: Players authenticate via HMAC-SHA256 signed game tickets issued by the lobby server. The `MessageRouter` verifies tickets using `shared.auth.game_ticket.verify_game_ticket()` for both `JOIN_GAME` and `RECONNECT` messages. Tickets have a 24-hour TTL (matching the lobby session). The ticket contains `user_id`, `username`, `room_id` (game_id), `issued_at`, and `expires_at`. Verification checks: HMAC-SHA256 signature, numeric/finite timestamps, `issued_at` not in the future (60s clock skew tolerance), `expires_at > issued_at`, lifetime within TTL + clock skew bounds, and expiry. The router rejects invalid, expired, or game-mismatched tickets with `INVALID_TICKET` error. On success, the router extracts `username` and `user_id` from the verified ticket and passes them to `SessionManager.join_game()`. The ticket secret is shared between the lobby and game servers via the `AUTH_GAME_TICKET_SECRET` environment variable.
 
 **Game Ticket as Session Token**: The game ticket string serves as the session identifier for the entire game lifecycle, including reconnection. When the lobby calls `POST /games`, it includes the game ticket string as the `game_ticket` in each player spec. The game server creates sessions using these ticket strings as session tokens. On reconnect, the client sends the same game ticket; the router verifies the HMAC signature, then the session manager looks up the session by the ticket string. There is no token rotation — the same ticket is used throughout.
 
@@ -383,6 +404,7 @@ ronin/
     └── game/
         ├── server/
         │   ├── app.py          # Starlette app factory
+        │   ├── rate_limit.py   # Token bucket rate limiter for WebSocket message throttling
         │   ├── settings.py     # GameServerSettings (env-based config via pydantic-settings)
         │   ├── types.py        # REST API types (PlayerSpec, CreateGameRequest)
         │   └── websocket.py    # WebSocket endpoint (game_id validation, WebSocketConnection)

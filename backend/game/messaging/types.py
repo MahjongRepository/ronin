@@ -38,6 +38,7 @@ class SessionErrorCode(StrEnum):
     JOIN_GAME_NOT_FOUND = "join_game_not_found"
     JOIN_GAME_ALREADY_STARTED = "join_game_already_started"
     JOIN_GAME_NO_SESSION = "join_game_no_session"
+    RATE_LIMITED = "rate_limited"
 
 
 _TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES, validation_alias="ti")

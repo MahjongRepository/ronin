@@ -15,7 +15,7 @@ class AuthSettings(BaseSettings):
     database_path: str = "backend/storage.db"
 
     # Cookie Secure flag -- True in production, False for local dev (HTTP)
-    cookie_secure: bool = False
+    cookie_secure: bool = True
 
     # Password hasher: "bcrypt" (production) or "simple" (tests)
     password_hasher: str = "bcrypt"  # noqa: S105

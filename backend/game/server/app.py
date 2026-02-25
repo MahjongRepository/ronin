@@ -5,6 +5,7 @@ import structlog
 from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 
@@ -69,14 +70,33 @@ def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> st
     return None
 
 
+async def _read_request_body(request: Request) -> bytes | JSONResponse:
+    """Stream-read request body with hard size cutoff.
+
+    Returns raw bytes on success, or a JSONResponse error on failure.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > _MAX_REQUEST_BODY_SIZE:
+                return JSONResponse({"error": "Request body too large"}, status_code=413)
+            chunks.append(chunk)
+    except ClientDisconnect:
+        return JSONResponse({"error": "Client disconnected"}, status_code=400)
+    return b"".join(chunks)
+
+
 async def create_game(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     settings: GameServerSettings = request.app.state.settings
 
     try:
-        raw_body = await request.body()
-        if len(raw_body) > _MAX_REQUEST_BODY_SIZE:
-            return JSONResponse({"error": "Request body too large"}, status_code=413)
+        result = await _read_request_body(request)
+        if isinstance(result, JSONResponse):
+            return result
+        raw_body = result
         body = json.loads(raw_body)
         game_request = CreateGameRequest(**body)
     except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, ValidationError):  # fmt: skip
@@ -149,6 +169,7 @@ def create_app(
 
     async def on_shutdown() -> None:
         session_manager.cancel_all_pending_timeouts()
+        session_manager.cancel_all_auth_timeouts()
         if owned_db is not None:
             owned_db.close()
 

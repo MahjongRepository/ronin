@@ -160,7 +160,7 @@ class MahjongGameService(GameService):
         self._games[game_id] = frozen_game
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
-        logger.info("starting game", player_names=player_names, hands=hands)
+        logger.debug("starting game", player_names=player_names, hands=hands)
 
         self._furiten_tracker.init_game(game_id)
 
@@ -1003,7 +1003,7 @@ class MahjongGameService(GameService):
         self._games[game_id] = frozen_game
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
-        logger.info("starting next round", hands=hands)
+        logger.debug("starting next round", hands=hands)
 
         self._furiten_tracker.init_game(game_id)
 

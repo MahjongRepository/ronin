@@ -9,41 +9,51 @@ if TYPE_CHECKING:
     from pydantic.fields import FieldInfo
 
 
-def parse_cors_origins(value: str | list[str]) -> list[str]:
-    """Parse CORS origins from environment variable or config value.
+def parse_string_list(value: str | list[str]) -> list[str]:
+    """Parse a string list from environment variable or config value.
 
     Accepts:
     - A list of strings (returned as-is)
-    - A JSON array string: '["http://a","http://b"]'
-    - A comma-separated string: 'http://a,http://b'
+    - A JSON array string: '["a","b"]'
+    - A comma-separated string: 'a,b'
 
-    Raises ValueError for malformed values.
+    Raises ValueError for empty values or malformed JSON.
     """
     if isinstance(value, list):
+        if not value:
+            raise ValueError("String list value must not be empty")
         return value
 
     stripped = value.strip()
     if not stripped:
-        raise ValueError("CORS origins value must not be empty")
+        raise ValueError("String list value must not be empty")
 
     if stripped.startswith("["):
         try:
             parsed = json.loads(stripped)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON array for CORS origins: {e}") from e
+            raise ValueError(f"Invalid JSON array: {e}") from e
         if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
-            raise ValueError("CORS origins JSON must be an array of strings")
+            raise ValueError("JSON value must be an array of strings")
+        if not parsed:
+            raise ValueError("String list value must not be empty")
         return parsed
 
-    return [origin.strip() for origin in stripped.split(",") if origin.strip()]
+    result = [origin.strip() for origin in stripped.split(",") if origin.strip()]
+    if not result:
+        raise ValueError("String list value must not be empty")
+    return result
 
 
-class CorsEnvSettingsSource(EnvSettingsSource):
-    """Env settings source that passes cors_origins as a raw string to field validators.
+_STRING_LIST_FIELDS = {"cors_origins", "allowed_hosts"}
+
+
+class StringListEnvSettingsSource(EnvSettingsSource):
+    """Env settings source that passes string-list fields as raw strings to validators.
 
     pydantic-settings tries to JSON-decode list-typed fields from env vars before
-    validators run. This subclass bypasses that for cors_origins so our custom
-    parse_cors_origins validator handles both JSON and CSV formats.
+    validators run. This subclass bypasses that for string-list fields so our custom
+    parse_string_list validator handles both JSON and CSV formats.
     """
 
     def prepare_field_value(
@@ -53,6 +63,6 @@ class CorsEnvSettingsSource(EnvSettingsSource):
         value: Any,  # noqa: ANN401
         value_is_complex: bool,  # noqa: FBT001
     ) -> Any:  # noqa: ANN401
-        if field_name == "cors_origins" and isinstance(value, str):
+        if field_name in _STRING_LIST_FIELDS and isinstance(value, str):
             return value
         return super().prepare_field_value(field_name, field, value, value_is_complex)

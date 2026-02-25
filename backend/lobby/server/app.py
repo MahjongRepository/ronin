@@ -11,12 +11,14 @@ from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
+    bot_only,
     collect_protected_api_paths,
     protected_api,
     protected_html,
@@ -155,8 +157,8 @@ def create_app(
         Route("/register", public_route(register_page), methods=["GET"], name="register_page"),
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
-        Route("/api/auth/bot", protected_api(bot_auth), methods=["POST"], name="bot_auth"),
-        Route("/api/rooms", protected_api(bot_create_room), methods=["POST"], name="bot_create_room"),
+        Route("/api/auth/bot", bot_only(bot_auth), methods=["POST"], name="bot_auth"),
+        Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
     ]
 
     if APP_VERSION == "dev":
@@ -216,6 +218,7 @@ def create_app(
         allow_headers=["Content-Type", "X-API-Key"],
     )
     app.add_middleware(SecurityHeadersMiddleware)  # type: ignore[arg-type]
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)  # type: ignore[arg-type]
 
     registry = RegistryManager(settings.config_path)
     _attach_state(

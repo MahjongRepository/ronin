@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
-from shared.validators import CorsEnvSettingsSource, parse_cors_origins
+from shared.validators import StringListEnvSettingsSource, parse_string_list
 
 if TYPE_CHECKING:
     from pydantic_settings.sources.base import PydanticBaseSettingsSource
@@ -33,7 +33,7 @@ class GameServerSettings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def validate_cors_origins(cls, v: str | list[str]) -> list[str]:
-        return parse_cors_origins(v)
+        return parse_string_list(v)
 
     @classmethod
     def settings_customise_sources(
@@ -44,4 +44,4 @@ class GameServerSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return init_settings, CorsEnvSettingsSource(settings_cls), dotenv_settings, file_secret_settings
+        return init_settings, StringListEnvSettingsSource(settings_cls), dotenv_settings, file_secret_settings

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import structlog
 
-from shared.auth.models import AuthSession
+from shared.auth.models import AccountType, AuthSession
 
 CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
 DEFAULT_SESSION_TTL_SECONDS = 86400  # 24 hours
@@ -30,6 +30,7 @@ class AuthSessionStore:
         self,
         user_id: str,
         username: str,
+        account_type: AccountType = AccountType.HUMAN,
         ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
     ) -> AuthSession:
         """Create a session for an authenticated user."""
@@ -40,6 +41,7 @@ class AuthSessionStore:
             username=username,
             created_at=now,
             expires_at=now + ttl_seconds,
+            account_type=account_type,
         )
         self._sessions[session.session_id] = session
         return session

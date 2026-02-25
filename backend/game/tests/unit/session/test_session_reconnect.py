@@ -479,6 +479,44 @@ class TestReconnectEdgeCases:
         assert any(m["code"] == SessionErrorCode.RECONNECT_NO_SESSION for m in error_msgs)
 
     @pytest.mark.asyncio
+    async def test_reconnect_rejected_when_connection_removed_before_lock(self, manager):
+        """Reconnect is rejected if the connection was removed from _connections
+        between prevalidation and lock acquisition (e.g. by auth timeout)."""
+        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        alice_conn = conns[0]
+        alice_player = manager._players[alice_conn.connection_id]
+        alice_token = alice_player.session_token
+
+        snapshot = _make_snapshot("game1", seat=0)
+        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
+
+        await manager.leave_game(alice_conn, notify_player=False)
+        _stub_game_state_for_reconnect(manager)
+
+        # Patch _validate_reconnect to simulate auth timeout removing the
+        # connection from _connections between prevalidation and lock acquisition.
+        original_validate = manager._validate_reconnect
+
+        async def patched_validate(connection, room_id, token):
+            result = await original_validate(connection, room_id, token)
+            if result is not None:
+                manager._connections.pop(connection.connection_id, None)
+            return result
+
+        manager._validate_reconnect = patched_validate
+
+        new_conn = MockConnection()
+        manager.register_connection(new_conn)
+        await manager.reconnect(new_conn, "game1", alice_token)
+
+        manager._validate_reconnect = original_validate
+
+        # Should silently return without registering or sending errors
+        reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
+        assert len(reconnect_msgs) == 0
+        assert new_conn.connection_id not in manager._players
+
+    @pytest.mark.asyncio
     async def test_reconnect_no_draw_event_when_game_state_none(self, manager):
         """No draw event sent if get_game_state returns None after reconnect."""
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])

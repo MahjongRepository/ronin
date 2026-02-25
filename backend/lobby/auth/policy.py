@@ -12,8 +12,11 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from starlette.authentication import has_required_scope, requires
-from starlette.responses import RedirectResponse, Response
+from starlette.exceptions import HTTPException
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
+
+from shared.auth.models import AccountType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -70,6 +73,37 @@ def protected_api(endpoint: Callable[..., Any]) -> Callable[..., Any]:
     return wrapped
 
 
+def bot_only(endpoint: Callable[..., Any]) -> Callable[..., Any]:
+    """Require authentication and bot account type.
+
+    Returns 401 (via HTTPException) when unauthenticated.
+    Returns 403 JSON when authenticated but not a bot account.
+    """
+    if inspect.iscoroutinefunction(endpoint):
+
+        @functools.wraps(endpoint)
+        async def async_wrapper(request: Request, **kwargs: str) -> Response:
+            if not has_required_scope(request, ["authenticated"]):
+                raise HTTPException(status_code=401)
+            if request.user.account_type != AccountType.BOT:
+                return JSONResponse({"error": "Bot account required"}, status_code=403)
+            return await endpoint(request, **kwargs)
+
+        setattr(async_wrapper, AUTH_POLICY_ATTR, "bot_only")
+        return async_wrapper
+
+    @functools.wraps(endpoint)
+    def sync_wrapper(request: Request, **kwargs: str) -> Response:
+        if not has_required_scope(request, ["authenticated"]):
+            raise HTTPException(status_code=401)
+        if request.user.account_type != AccountType.BOT:
+            return JSONResponse({"error": "Bot account required"}, status_code=403)
+        return endpoint(request, **kwargs)
+
+    setattr(sync_wrapper, AUTH_POLICY_ATTR, "bot_only")
+    return sync_wrapper
+
+
 def public_route(endpoint: Callable[..., Any]) -> Callable[..., Any]:
     """Mark endpoint as explicitly public (no auth required).
 
@@ -94,11 +128,14 @@ def public_route(endpoint: Callable[..., Any]) -> Callable[..., Any]:
     return sync_wrapper
 
 
+_API_POLICIES = {"protected_api", "bot_only"}
+
+
 def collect_protected_api_paths(routes: list[BaseRoute]) -> set[str]:
-    """Return the set of path strings for routes marked ``protected_api``."""
+    """Return the set of path strings for routes marked ``protected_api`` or ``bot_only``."""
     paths: set[str] = set()
     for route in routes:
-        if isinstance(route, Route) and getattr(route.endpoint, AUTH_POLICY_ATTR, None) == "protected_api":
+        if isinstance(route, Route) and getattr(route.endpoint, AUTH_POLICY_ATTR, None) in _API_POLICIES:
             paths.add(route.path)
     return paths
 

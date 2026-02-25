@@ -63,6 +63,9 @@ class PendingGameInfo:
 logger = structlog.get_logger()
 
 
+_AUTH_TIMEOUT_SECONDS = 10
+
+
 class SessionManager:
     def __init__(
         self,
@@ -83,6 +86,7 @@ class SessionManager:
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
         self._pending_games: dict[str, PendingGameInfo] = {}  # game_id -> PendingGameInfo
         self._heartbeat = HeartbeatMonitor()
+        self._auth_timeouts: dict[str, asyncio.Task[None]] = {}  # connection_id -> timeout task
 
     def _get_game_lock(self, game_id: str) -> asyncio.Lock | None:
         """Get the per-game lock, or None if the game has no lock (not yet started or already cleaned up)."""
@@ -91,11 +95,19 @@ class SessionManager:
     def register_connection(self, connection: ConnectionProtocol) -> None:
         self._connections[connection.connection_id] = connection
         self._heartbeat.record_connect(connection.connection_id)
+        # RuntimeError is suppressed for synchronous test contexts without
+        # a running event loop. In production, register_connection is always
+        # called from within the ASGI event loop.
+        with contextlib.suppress(RuntimeError):
+            self._auth_timeouts[connection.connection_id] = asyncio.create_task(
+                self._auth_timeout(connection),
+            )
 
     def unregister_connection(self, connection: ConnectionProtocol) -> None:
         self._connections.pop(connection.connection_id, None)
         self._players.pop(connection.connection_id, None)
         self._heartbeat.record_disconnect(connection.connection_id)
+        self._cancel_auth_timeout(connection.connection_id)
 
     def get_game(self, game_id: str) -> Game | None:
         return self._games.get(game_id)
@@ -515,6 +527,12 @@ class SessionManager:
 
         try:
             async with lock:
+                # Reject connections closed by auth timeout while we waited
+                # for the lock. The timeout removes the connection from
+                # _connections before closing, so this identity check fails.
+                if self._connections.get(connection.connection_id) is not connection:
+                    return
+
                 # Revalidate session state inside the lock to guard against a
                 # concurrent reconnect that completed while we waited for the lock.
                 current_session = self._session_store.get_session(session_token)
@@ -686,6 +704,7 @@ class SessionManager:
             stale_conn = self._connections.pop(cid, None)
             if stale_conn is not None:
                 self._heartbeat.record_disconnect(cid)
+                self._cancel_auth_timeout(cid)
                 stale_out.append(stale_conn)
 
     def _register_reconnected_player(
@@ -707,6 +726,7 @@ class SessionManager:
         )
         self._players[connection.connection_id] = player
         game.players[connection.connection_id] = player
+        self._cancel_auth_timeout(connection.connection_id)
 
         timer_config = TimerConfig.from_settings(game.settings)
         self._timer_manager.add_timer(
@@ -882,6 +902,7 @@ class SessionManager:
                 stale_conn = self._connections.pop(cid, None)
                 if stale_conn is not None:
                     self._heartbeat.record_disconnect(cid)
+                    self._cancel_auth_timeout(cid)
                 p.game_id = None
                 p.seat = None
                 evicted = True
@@ -902,6 +923,7 @@ class SessionManager:
         )
         self._players[connection.connection_id] = player
         game.players[connection.connection_id] = player
+        self._cancel_auth_timeout(connection.connection_id)
 
         self._session_store.mark_reconnected(session_token)
         # Don't increment connected_count when replacing an existing connection
@@ -990,6 +1012,43 @@ class SessionManager:
         for pending in self._pending_games.values():
             if pending.timeout_task is not None:
                 pending.timeout_task.cancel()
+
+    def cancel_all_auth_timeouts(self) -> None:
+        """Cancel all auth timeout tasks (for clean shutdown)."""
+        for task in self._auth_timeouts.values():
+            task.cancel()
+        self._auth_timeouts.clear()
+
+    def _cancel_auth_timeout(self, connection_id: str) -> None:
+        """Cancel the auth timeout for a specific connection."""
+        task = self._auth_timeouts.pop(connection_id, None)
+        if task is not None:
+            task.cancel()
+
+    async def _auth_timeout(self, connection: ConnectionProtocol) -> None:
+        """Close an unauthenticated connection after a timeout."""
+        try:
+            await asyncio.sleep(_AUTH_TIMEOUT_SECONDS)
+        except asyncio.CancelledError:
+            return
+
+        cid = connection.connection_id
+        self._auth_timeouts.pop(cid, None)
+
+        # Connection already authenticated or removed
+        if cid in self._players or cid not in self._connections:
+            return
+
+        # Remove from _connections before closing to prevent a concurrent
+        # join_game/reconnect from registering this closing connection.
+        # The identity check in join_game (and reconnect) will fail because
+        # the connection is no longer in _connections.
+        self._connections.pop(cid, None)
+        self._heartbeat.record_disconnect(cid)
+
+        logger.info("auth timeout, closing unauthenticated connection", connection_id=cid)
+        with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+            await connection.close(code=4001, reason="auth_timeout")
 
     def _is_game_alive(self, game: Game, *, allow_empty: bool = False) -> bool:
         """Check if a game is still tracked (and has connected players unless allow_empty)."""

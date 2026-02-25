@@ -6,7 +6,9 @@ import pytest
 from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
+from lobby.server.csrf import CSRF_COOKIE_NAME
 from lobby.server.settings import LobbyServerSettings
+from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 
 
@@ -42,16 +44,21 @@ servers:
             auth_settings=AuthSettings(
                 game_ticket_secret="test-secret",
                 database_path=str(tmp_path / "test.db"),
+                cookie_secure=False,
             ),
         )
         c = TestClient(app)
         # Register and login a user for authenticated view tests
-        c.post(
-            "/register",
-            data={"username": "viewuser", "password": "securepass123", "confirm_password": "securepass123"},
-        )
+        register_with_csrf(c, "viewuser")
         yield c
         app.state.db.close()
+
+    def test_lobby_page_sets_csrf_cookie_on_first_visit(self, client):
+        """Lobby page sets CSRF cookie when none exists yet."""
+        client.cookies.delete(CSRF_COOKIE_NAME)
+        response = client.get("/")
+        assert response.status_code == 200
+        assert CSRF_COOKIE_NAME in response.cookies
 
     def test_lobby_page_returns_html(self, client):
         response = client.get("/")
@@ -132,13 +139,11 @@ servers:
             auth_settings=AuthSettings(
                 game_ticket_secret="s",
                 database_path=str(tmp_path / "test.db"),
+                cookie_secure=False,
             ),
         )
         c = TestClient(app)
-        c.post(
-            "/register",
-            data={"username": "testuser", "password": "securepass123", "confirm_password": "securepass123"},
-        )
+        register_with_csrf(c, "testuser")
         response = c.get("/game")
         assert response.status_code == 503
         assert "Game client assets not available" in response.text
@@ -167,6 +172,7 @@ servers:
             auth_settings=AuthSettings(
                 game_ticket_secret="s",
                 database_path=str(tmp_path / "test.db"),
+                cookie_secure=False,
             ),
         )
         route_names = {r.name for r in app.routes}
@@ -183,11 +189,60 @@ servers:
         assert "text/html" in response.headers["content-type"]
         assert 'data-room-id="test-room-42"' in response.text
 
+    def test_room_page_sets_csrf_cookie_on_first_visit(self, tmp_path, monkeypatch):
+        """GET /rooms/{room_id} sets CSRF cookie when none exists yet."""
+        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
+        config_file = tmp_path / "cfg.yaml"
+        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+        static_dir = tmp_path / "pub"
+        (static_dir / "styles").mkdir(parents=True)
+        (static_dir / "styles" / "lobby.css").write_text("")
+        app = create_app(
+            settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+            auth_settings=AuthSettings(
+                game_ticket_secret="s",
+                database_path=str(tmp_path / "t.db"),
+                cookie_secure=False,
+            ),
+        )
+        c = TestClient(app)
+        register_with_csrf(c, "roomuser")
+        app.state.room_manager.create_room("fresh-room", num_ai_players=3)
+        # Clear the CSRF cookie to simulate a direct visit
+        c.cookies.delete(CSRF_COOKIE_NAME)
+        response = c.get("/rooms/fresh-room")
+        assert response.status_code == 200
+        assert CSRF_COOKIE_NAME in response.cookies
+        app.state.db.close()
+
     def test_room_page_redirects_when_room_not_found(self, client):
         """GET /rooms/{room_id} redirects to lobby if room does not exist."""
         response = client.get("/rooms/nonexistent-room", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/"
+
+    def test_styleguide_page_sets_csrf_cookie_on_first_visit(self, tmp_path, monkeypatch):
+        """GET /styleguide sets CSRF cookie when none exists yet."""
+        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
+        config_file = tmp_path / "cfg.yaml"
+        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+        static_dir = tmp_path / "pub"
+        (static_dir / "styles").mkdir(parents=True)
+        (static_dir / "styles" / "lobby.css").write_text("")
+        app = create_app(
+            settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+            auth_settings=AuthSettings(
+                game_ticket_secret="s",
+                database_path=str(tmp_path / "t.db"),
+                cookie_secure=False,
+            ),
+        )
+        c = TestClient(app)
+        # Don't register - visit styleguide directly (no prior CSRF cookie)
+        response = c.get("/styleguide")
+        assert response.status_code == 200
+        assert CSRF_COOKIE_NAME in response.cookies
+        app.state.db.close()
 
     def test_styleguide_page_returns_html(self, client):
         """GET /styleguide returns the style guide page without authentication."""

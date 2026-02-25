@@ -12,13 +12,16 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
 
+from lobby.auth.models import AuthenticatedPlayer
 from lobby.auth.policy import (
+    bot_only,
     collect_protected_api_paths,
     protected_api,
     protected_html,
     public_route,
     validate_route_auth_policy,
 )
+from shared.auth.models import AccountType
 
 
 async def _login_page(request: Request) -> JSONResponse:
@@ -34,6 +37,7 @@ def _make_request(
     authenticated: bool,
     path: str = "/some-page",
     query_string: bytes = b"",
+    account_type: AccountType = AccountType.HUMAN,
 ) -> Request:
     """Build a real Starlette Request with auth scopes pre-set."""
     scopes = ["authenticated"] if authenticated else []
@@ -49,6 +53,8 @@ def _make_request(
         "app": _app,
         "auth": AuthCredentials(scopes),
     }
+    if authenticated:
+        scope["user"] = AuthenticatedPlayer(user_id="test-id", username="test", account_type=account_type)
     return Request(scope)
 
 
@@ -134,6 +140,60 @@ class TestProtectedApi:
         assert result == "ok"
 
 
+class TestBotOnly:
+    async def test_unauthenticated_raises_401(self) -> None:
+        wrapped = bot_only(_dummy_handler)
+        request = _make_request(authenticated=False)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await wrapped(request)
+
+        assert exc_info.value.status_code == 401
+
+    async def test_authenticated_human_returns_403(self) -> None:
+        wrapped = bot_only(_dummy_handler)
+        request = _make_request(authenticated=True, account_type=AccountType.HUMAN)
+
+        result = await wrapped(request)
+
+        assert isinstance(result, JSONResponse)
+        assert result.status_code == 403
+
+    async def test_authenticated_bot_passes_through(self) -> None:
+        wrapped = bot_only(_dummy_handler)
+        request = _make_request(authenticated=True, account_type=AccountType.BOT)
+
+        result = await wrapped(request)
+
+        assert result == "ok"
+
+    def test_sync_unauthenticated_raises_401(self) -> None:
+        wrapped = bot_only(_sync_dummy_handler)
+        request = _make_request(authenticated=False)
+
+        with pytest.raises(HTTPException) as exc_info:
+            wrapped(request)
+
+        assert exc_info.value.status_code == 401
+
+    def test_sync_authenticated_human_returns_403(self) -> None:
+        wrapped = bot_only(_sync_dummy_handler)
+        request = _make_request(authenticated=True, account_type=AccountType.HUMAN)
+
+        result = wrapped(request)
+
+        assert isinstance(result, JSONResponse)
+        assert result.status_code == 403
+
+    def test_sync_authenticated_bot_passes_through(self) -> None:
+        wrapped = bot_only(_sync_dummy_handler)
+        request = _make_request(authenticated=True, account_type=AccountType.BOT)
+
+        result = wrapped(request)
+
+        assert result == "ok"
+
+
 class TestPublicRoute:
     async def test_does_not_block_unauthenticated(self) -> None:
         wrapped = public_route(_dummy_handler)
@@ -166,6 +226,7 @@ class TestValidateRouteAuthPolicy:
         routes = [
             Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
             Route("/b", protected_api(_make_handler()), methods=["GET"], name="b"),
+            Route("/c", bot_only(_make_handler()), methods=["POST"], name="c"),
         ]
 
         validate_route_auth_policy(routes)
@@ -199,17 +260,18 @@ class TestValidateRouteAuthPolicy:
 
 
 class TestCollectProtectedApiPaths:
-    def test_collects_only_protected_api_paths(self) -> None:
+    def test_collects_protected_api_and_bot_only_paths(self) -> None:
         routes = [
             Route("/rooms", protected_api(_make_handler()), methods=["GET"], name="rooms"),
             Route("/servers", protected_api(_make_handler()), methods=["GET"], name="servers"),
+            Route("/api/bot", bot_only(_make_handler()), methods=["POST"], name="bot"),
             Route("/", protected_html(_make_handler()), methods=["GET"], name="index"),
             Route("/health", public_route(_make_handler()), methods=["GET"], name="health"),
         ]
 
         result = collect_protected_api_paths(routes)
 
-        assert result == {"/rooms", "/servers"}
+        assert result == {"/rooms", "/servers", "/api/bot"}
 
     def test_ignores_mounts(self) -> None:
         routes = [

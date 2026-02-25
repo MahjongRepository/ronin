@@ -7,6 +7,7 @@ import json
 import time
 
 from shared.auth.game_ticket import (
+    CLOCK_SKEW_SECONDS,
     TICKET_TTL_SECONDS,
     GameTicket,
     sign_game_ticket,
@@ -129,3 +130,102 @@ class TestMalformedToken:
         payload_b64 = base64.urlsafe_b64encode(payload).decode()
         sig_b64 = base64.urlsafe_b64encode(sig).decode()
         assert verify_game_ticket(f"{payload_b64}.{sig_b64}", SECRET) is None
+
+
+def _sign_raw_payload(payload: dict) -> str:
+    """Sign an arbitrary payload dict, bypassing GameTicket dataclass validation."""
+    payload_bytes = json.dumps(payload, sort_keys=True).encode()
+    sig = hmac.new(SECRET.encode(), payload_bytes, hashlib.sha256).digest()
+    payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode()
+    sig_b64 = base64.urlsafe_b64encode(sig).decode()
+    return f"{payload_b64}.{sig_b64}"
+
+
+class TestTemporalValidation:
+    """Ticket issued_at, expires_at, and lifetime bounds."""
+
+    def test_future_issued_ticket_rejected(self):
+        """A ticket issued far in the future is rejected."""
+        future = time.time() + CLOCK_SKEW_SECONDS + 100
+        ticket = _make_ticket(issued_at=future, expires_at=future + 3600)
+        token = sign_game_ticket(ticket, SECRET)
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_expires_at_equal_to_issued_at_rejected(self):
+        """expires_at must be strictly greater than issued_at."""
+        now = time.time()
+        ticket = _make_ticket(issued_at=now, expires_at=now)
+        token = sign_game_ticket(ticket, SECRET)
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_expires_at_before_issued_at_rejected(self):
+        now = time.time()
+        ticket = _make_ticket(issued_at=now, expires_at=now - 100)
+        token = sign_game_ticket(ticket, SECRET)
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_overlong_lifetime_rejected(self):
+        """Ticket lifetime exceeding TTL + skew is rejected."""
+        now = time.time()
+        ticket = _make_ticket(
+            issued_at=now,
+            expires_at=now + TICKET_TTL_SECONDS + CLOCK_SKEW_SECONDS + 1,
+        )
+        token = sign_game_ticket(ticket, SECRET)
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_clock_skew_tolerance_accepted(self):
+        """A ticket issued slightly in the future (within skew) is accepted."""
+        now = time.time()
+        slight_future = now + CLOCK_SKEW_SECONDS - 1
+        ticket = _make_ticket(issued_at=slight_future, expires_at=slight_future + 3600)
+        token = sign_game_ticket(ticket, SECRET)
+        assert verify_game_ticket(token, SECRET) is not None
+
+    def test_non_finite_issued_at_rejected(self):
+        token = _sign_raw_payload(
+            {
+                "user_id": "u1",
+                "username": "alice",
+                "room_id": "room-1",
+                "issued_at": float("inf"),
+                "expires_at": time.time() + 3600,
+            },
+        )
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_nan_expires_at_rejected(self):
+        token = _sign_raw_payload(
+            {
+                "user_id": "u1",
+                "username": "alice",
+                "room_id": "room-1",
+                "issued_at": time.time(),
+                "expires_at": float("nan"),
+            },
+        )
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_non_numeric_issued_at_rejected(self):
+        token = _sign_raw_payload(
+            {
+                "user_id": "u1",
+                "username": "alice",
+                "room_id": "room-1",
+                "issued_at": "not-a-number",
+                "expires_at": time.time() + 3600,
+            },
+        )
+        assert verify_game_ticket(token, SECRET) is None
+
+    def test_boolean_issued_at_rejected(self):
+        token = _sign_raw_payload(
+            {
+                "user_id": "u1",
+                "username": "alice",
+                "room_id": "room-1",
+                "issued_at": True,
+                "expires_at": time.time() + 3600,
+            },
+        )
+        assert verify_game_ticket(token, SECRET) is None

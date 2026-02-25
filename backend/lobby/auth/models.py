@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from starlette.authentication import BaseUser
 
+from shared.auth.models import AccountType
+
 
 class AuthenticatedPlayer(BaseUser):
     """Authenticated user for Starlette's request.user.
@@ -11,9 +13,15 @@ class AuthenticatedPlayer(BaseUser):
     Created by the auth backend from either a session cookie or an API key.
     """
 
-    def __init__(self, user_id: str, username: str) -> None:
+    def __init__(
+        self,
+        user_id: str,
+        username: str,
+        account_type: AccountType = AccountType.HUMAN,
+    ) -> None:
         self._user_id = user_id
         self._username = username
+        self._account_type = account_type
 
     @property
     def is_authenticated(self) -> bool:  # pragma: no cover
@@ -34,3 +42,7 @@ class AuthenticatedPlayer(BaseUser):
     @property
     def user_id(self) -> str:
         return self._user_id
+
+    @property
+    def account_type(self) -> AccountType:
+        return self._account_type

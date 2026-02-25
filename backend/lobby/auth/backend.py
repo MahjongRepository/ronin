@@ -30,13 +30,16 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
         self,
         conn: HTTPConnection,
     ) -> tuple[AuthCredentials, AuthenticatedPlayer] | None:
-        # Check cookie first, then fall back to query param (used by WebSocket clients).
-        session_id = conn.cookies.get("session_id") or conn.query_params.get("session_id")
+        # Check cookie first, then fall back to query param (WebSocket only).
+        session_id = conn.cookies.get("session_id")
+        if session_id is None and conn.scope["type"] == "websocket":
+            session_id = conn.query_params.get("session_id")
         session = self._auth_service.validate_session(session_id)
         if session is not None:
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(
                 user_id=session.user_id,
                 username=session.username,
+                account_type=session.account_type,
             )
 
         api_key = conn.headers.get("x-api-key")
@@ -46,6 +49,7 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
                 return AuthCredentials(["authenticated"]), AuthenticatedPlayer(
                     user_id=player.user_id,
                     username=player.username,
+                    account_type=player.account_type,
                 )
 
         return None

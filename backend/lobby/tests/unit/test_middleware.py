@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from starlette.applications import Starlette
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.testclient import TestClient
@@ -132,3 +133,37 @@ class TestSecurityHeadersMiddleware:
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
         assert "script-src 'none'" not in csp
+
+
+def _make_trusted_host_app(allowed_hosts: list[str]) -> Starlette:
+    app = Starlette(routes=[Route("/items", _echo_path, methods=["GET"])])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+    return app
+
+
+class TestTrustedHostMiddleware:
+    def test_allowed_host_passes(self) -> None:
+        client = TestClient(_make_trusted_host_app(["testserver"]))
+        response = client.get("/items")
+        assert response.status_code == 200
+
+    def test_disallowed_host_returns_400(self) -> None:
+        client = TestClient(_make_trusted_host_app(["example.com"]))
+        response = client.get("/items")
+        assert response.status_code == 400
+
+    def test_wildcard_subdomain_matching(self) -> None:
+        client = TestClient(
+            _make_trusted_host_app(["*.local"]),
+            headers={"host": "myapp.local"},
+        )
+        response = client.get("/items")
+        assert response.status_code == 200
+
+    def test_wildcard_subdomain_rejects_non_matching(self) -> None:
+        client = TestClient(
+            _make_trusted_host_app(["*.local"]),
+        )
+        # TestClient default host is "testserver"
+        response = client.get("/items")
+        assert response.status_code == 400

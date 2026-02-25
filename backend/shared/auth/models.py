@@ -39,3 +39,4 @@ class AuthSession:
     username: str
     created_at: float  # time.time()
     expires_at: float  # time.time() + TTL
+    account_type: AccountType = AccountType.HUMAN

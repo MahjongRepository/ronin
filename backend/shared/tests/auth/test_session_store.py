@@ -6,6 +6,7 @@ import asyncio
 import time
 from unittest.mock import patch
 
+from shared.auth.models import AccountType
 from shared.auth.session_store import AuthSessionStore
 
 
@@ -18,6 +19,26 @@ class TestCreateSession:
         assert session.username == "alice"
         assert session.session_id
         assert session.expires_at > session.created_at
+
+    def test_stores_human_account_type_by_default(self):
+        store = AuthSessionStore()
+        session = store.create_session("user-1", "alice")
+
+        assert session.account_type == AccountType.HUMAN
+
+    def test_stores_bot_account_type(self):
+        store = AuthSessionStore()
+        session = store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
+
+        assert session.account_type == AccountType.BOT
+
+    def test_get_session_returns_account_type(self):
+        store = AuthSessionStore()
+        session = store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
+
+        result = store.get_session(session.session_id)
+        assert result is not None
+        assert result.account_type == AccountType.BOT
 
 
 class TestGetSession:

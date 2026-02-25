@@ -6,9 +6,10 @@ from uuid import uuid4
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from game.messaging.encoder import DecodeError
+from game.messaging.encoder import DecodeError, decode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import ErrorMessage, SessionErrorCode
+from game.server.rate_limit import TokenBucket
 
 logger = structlog.get_logger()
 
@@ -17,6 +18,13 @@ if TYPE_CHECKING:
 
 _GAME_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _MAX_GAME_ID_LENGTH = 50
+
+# Rate limit: 20 messages/sec sustained, burst of 30
+_RATE_LIMIT_RATE = 20.0
+_RATE_LIMIT_BURST = 30
+
+# Disconnect after this many consecutive decode errors
+_MAX_DECODE_ERRORS = 5
 
 
 class WebSocketConnection(ConnectionProtocol):
@@ -62,14 +70,38 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     logger.info("websocket connected", connection_id=connection.connection_id)
     await router.handle_connect(connection)
 
+    bucket = TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
+    decode_errors = 0
+
     try:
         while True:
+            raw = await connection.receive_bytes()
+
+            # Always decode to maintain the malformed-message strike counter.
+            # Decode is cheap (sub-microsecond for malformed input via the
+            # msgpack C extension); the expensive work is in handle_message.
             try:
-                data = await connection.receive_message()
+                data = decode(raw)
             except DecodeError as e:
-                logger.warning("decode error", error=str(e))
+                decode_errors += 1
+                logger.warning("decode error", error=str(e), strikes=decode_errors)
                 await connection.send_message(
                     ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
+                )
+                if decode_errors >= _MAX_DECODE_ERRORS:
+                    logger.info(
+                        "too many decode errors, disconnecting",
+                        connection_id=connection.connection_id,
+                    )
+                    await connection.close(code=4004, reason="too_many_decode_errors")
+                    return
+                continue
+
+            decode_errors = 0
+
+            if not bucket.consume():
+                await connection.send_message(
+                    ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many messages").model_dump(),
                 )
                 continue
             await router.handle_message(connection, data)

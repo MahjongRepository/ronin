@@ -23,8 +23,10 @@ Portal service for room management, authentication, and game client serving.
 - `GET /rooms/{room_id}` - Room page (Jinja2 template with embedded TypeScript for room UI)
 - `POST /rooms/{room_id}/join` - Validate room exists, redirect to `/rooms/{room_id}`
 - `GET /servers` - List available game servers with health status
-- `POST /api/auth/bot` - Create a lobby session for an authenticated bot to join a room via WebSocket
-- `POST /api/rooms` - Create a room (bot API); returns `room_id`, `session_id`, and `ws_url`
+
+### Bot-Only (bot account required)
+- `POST /api/auth/bot` - Create a lobby session for an authenticated bot to join a room via WebSocket (403 for human accounts)
+- `POST /api/rooms` - Create a room (bot API); returns `room_id`, `session_id`, and `ws_url` (403 for human accounts)
 
 ### WebSocket (auth handled inside the handler)
 - `WS /ws/rooms/{room_id}` - Room WebSocket (JSON protocol, session cookie auth, origin check)
@@ -37,7 +39,7 @@ Ronin uses a three-layer authentication model:
 2. **HMAC-Signed Game Tickets** - The lobby signs HMAC-SHA256 tickets that the game server verifies locally using a shared secret. Tickets contain player identity and room binding.
 3. **Bot API Keys** - External bots authenticate via `X-API-Key` header on protected API routes (`POST /api/auth/bot`, `POST /api/rooms`). The lobby validates the key and returns a lobby session for WebSocket access.
 
-Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room redirects to the room page (`/rooms/{room_id}`). Game tickets are signed when all players ready up and the game transitions to the game server. The `SessionOrApiKeyBackend` checks session cookies first, then the `session_id` query parameter (used by WebSocket clients), then falls back to `X-API-Key` header for bot accounts.
+Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room redirects to the room page (`/rooms/{room_id}`). Game tickets are signed when all players ready up and the game transitions to the game server. The `SessionOrApiKeyBackend` checks session cookies first, then the `session_id` query parameter (WebSocket connections only), then falls back to `X-API-Key` header for bot accounts. The backend propagates `account_type` (HUMAN or BOT) from `AuthSession` to `AuthenticatedPlayer`, enabling the `bot_only` policy decorator to distinguish account types at the route level.
 
 ### Bot Registration
 
@@ -112,18 +114,32 @@ The security headers middleware applies route-aware Content Security Policy:
 
 `run-local-server.sh` sets `LOBBY_GAME_CLIENT_URL=http://localhost:$CLIENT_PORT`, which overrides the `/game` default. The Bun dev server continues to serve the game client separately for hot reloading during development.
 
+## Security Requirements
+
+These practices are mandatory for all lobby code. Violations must be caught in code review.
+
+- **CSRF on all HTML form POST routes**: Every `<form method="POST">` must include a `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">` field. The POST handler must call `validate_csrf(request, form)` before processing any form data. GET handlers that render forms must call `get_or_create_csrf_token()` and pass the token to the template context. Set the CSRF cookie on the response when `is_new` is True. Bot API routes (JSON + API key) are exempt since they don't use cookies for authentication.
+- **Route auth policy on every route**: Every route must have exactly one policy decorator (`protected_html`, `protected_api`, `bot_only`, or `public_route`). `validate_route_auth_policy()` fails app startup if any route is missing a policy (fail-closed). Adding a route without a policy decorator is a startup error.
+- **Host header validation**: `TrustedHostMiddleware` rejects requests with unrecognized `Host` headers. New deployment hosts must be added to `LOBBY_ALLOWED_HOSTS`.
+- **Cookie security**: `AUTH_COOKIE_SECURE` defaults to `true` (production). Local development (`.env.local`) and tests must explicitly set `false`. Session cookies and CSRF cookies must use `httponly=True`, `samesite="lax"`.
+- **Session ID query param restricted to WebSocket only**: The `SessionOrApiKeyBackend` must only read `session_id` from query parameters for WebSocket connections (`scope["type"] == "websocket"`). HTTP requests must use cookies only.
+- **WebSocket origin check**: Room WebSocket connections must validate the `Origin` header against `LOBBY_WS_ALLOWED_ORIGIN`.
+- **CSP headers**: `SecurityHeadersMiddleware` applies route-aware Content Security Policy. Lobby/auth pages block all scripts (`script-src 'none'`); room and game pages allow `'self'` only. New routes must fit an existing CSP tier or have an explicit policy added.
+- **Sensitive data logging**: Never log passwords, API keys, session IDs, or game tickets at INFO level or above.
+
 ## Internal Architecture
 
-- **Server Layer** (`server/`) - Starlette REST API with CORS and auth middleware
+- **Server Layer** (`server/`) - Starlette REST API with CORS, auth, and `TrustedHostMiddleware` (host header validation)
 - **Settings** (`server/settings.py`) - `LobbyServerSettings` via pydantic-settings (`LOBBY_` env prefix)
-- **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
+- **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, `bot_only`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
+- **CSRF** (`server/csrf.py`) - Double-submit cookie pattern for state-changing HTML POST routes. `get_or_create_csrf_token()` generates tokens on first GET, `validate_csrf()` enforces matching cookie and form field on POST. Protected routes: `/login`, `/register`, `/logout`, `/rooms/new`, `/rooms/{room_id}/join`
 - **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `create_signed_ticket()` signs HMAC game tickets at game-start time; `game_page` serves the built frontend via `game.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template
 - **Registry** (`registry/`) - Game server discovery and health checks
 - **Rooms** (`rooms/`) - Room management: `LobbyRoomManager` (room state, TTL reaper), `RoomConnectionManager` (WebSocket broadcasting), WebSocket handler (auth, origin check, game transition), typed message models, room data models
 
 Dependencies on `shared/`:
 - `shared.logging.setup_logging` - Timestamped file and stdout logging
-- `shared.validators` - CORS origins parsing and custom env settings source
+- `shared.validators` - String list parsing (CORS origins, allowed hosts) and custom env settings source
 - `shared.auth` - `AuthService`, `AuthSessionStore`, `PlayerRepository` for player management; `sign_game_ticket` for HMAC-signed game tickets
 - `shared.db` - `Database`, `SqlitePlayerRepository` for SQLite-backed player storage
 
@@ -135,6 +151,7 @@ ronin/
     └── lobby/
         ├── server/
         │   ├── app.py          # Starlette app factory and route handlers
+        │   ├── csrf.py         # CSRF double-submit cookie helpers (token generation, validation)
         │   ├── middleware.py   # SecurityHeadersMiddleware (route-aware CSP), SlashNormalizationMiddleware
         │   └── settings.py     # LobbyServerSettings (pydantic-settings)
         ├── auth/
@@ -202,6 +219,7 @@ Lobby settings (prefixed with `LOBBY_`):
 - `LOBBY_CONFIG_PATH` - Override default servers.yaml file path (default: `backend/config/servers.yaml`)
 - `LOBBY_LOG_DIR` - Log file directory (default: `backend/logs/lobby`)
 - `LOBBY_CORS_ORIGINS` - Allowed CORS origins as JSON array or CSV string (default: `["http://localhost:8712"]`)
+- `LOBBY_ALLOWED_HOSTS` - Allowed hosts for Host header validation as JSON array or CSV string (default: `["localhost", "127.0.0.1", "testserver", "*.local"]`)
 - `LOBBY_STATIC_DIR` - Static files directory for CSS (default: `frontend/public`)
 - `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/game`)
 - `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
@@ -211,4 +229,4 @@ Auth settings (prefixed with `AUTH_`):
 
 - `AUTH_GAME_TICKET_SECRET` - HMAC-SHA256 secret for signing/verifying game tickets (shared between lobby and game server)
 - `AUTH_DATABASE_PATH` - Path to the SQLite database file (default: `backend/storage.db`)
-- `AUTH_COOKIE_SECURE` - Set cookie Secure flag (default: `false`, set `true` in production for HTTPS)
+- `AUTH_COOKIE_SECURE` - Set cookie Secure flag (default: `true`; set `false` for local HTTP development)

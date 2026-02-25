@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from game.messaging.encoder import decode, encode
+from game.messaging.encoder import encode
 
 
 class ConnectionProtocol(ABC):
@@ -52,10 +52,3 @@ class ConnectionProtocol(ABC):
         Send a message to the client using MessagePack encoding.
         """
         await self.send_bytes(encode(data))
-
-    async def receive_message(self) -> dict[str, Any]:
-        """
-        Receive a message from the client using MessagePack decoding.
-        """
-        raw = await self.receive_bytes()
-        return decode(raw)

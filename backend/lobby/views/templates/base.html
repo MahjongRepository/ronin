@@ -23,6 +23,7 @@
             <li class="lobby-username">{{ username }}</li>
             <li>
                 <form method="POST" action="/logout">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="outline contrast lobby-nav-btn">Logout</button>
                 </form>
             </li>

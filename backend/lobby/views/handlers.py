@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from starlette.responses import PlainTextResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
+from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
 from shared.auth.game_ticket import TICKET_TTL_SECONDS, GameTicket, sign_game_ticket
 
 if TYPE_CHECKING:
@@ -53,15 +54,21 @@ def _render_lobby_with_error(
     error: str,
 ) -> Response:
     """Render the lobby page with an error message."""
-    return templates.TemplateResponse(
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
         request,
         "lobby.html",
         {
             "rooms": rooms,
             "username": username,
             "error": error,
+            "csrf_token": csrf_token,
         },
     )
+    if is_new:  # pragma: no cover — CSRF validation guarantees cookie exists before this path
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
 
 
 async def lobby_page(request: Request) -> Response:
@@ -71,19 +78,30 @@ async def lobby_page(request: Request) -> Response:
     user = request.user
     rooms = room_manager.get_rooms_info()
 
-    return templates.TemplateResponse(
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
         request,
         "lobby.html",
         {
             "rooms": rooms,
             "username": user.username,
             "error": None,
+            "csrf_token": csrf_token,
         },
     )
+    if is_new:
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
 
 
 async def create_room_and_redirect(request: Request) -> Response:
     """POST /rooms/new - create a local room and redirect to the room page."""
+    form = await request.form()
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
     room_manager: LobbyRoomManager = request.app.state.room_manager
     room_id = str(uuid.uuid4())
     room_manager.create_room(room_id, num_ai_players=3)
@@ -92,6 +110,11 @@ async def create_room_and_redirect(request: Request) -> Response:
 
 async def join_room_and_redirect(request: Request) -> Response:
     """POST /rooms/{room_id}/join - validate room exists and redirect to room page."""
+    form = await request.form()
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
     templates: Jinja2Templates = request.app.state.templates
     room_manager: LobbyRoomManager = request.app.state.room_manager
     user = request.user
@@ -118,22 +141,37 @@ async def room_page(request: Request) -> Response:
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
 
-    return templates.TemplateResponse(
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
         request,
         "room.html",
         {
             "room_id": room_id,
             "ws_url": ws_url,
             "username": request.user.username,
+            "csrf_token": csrf_token,
         },
     )
+    if is_new:
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
 
 
 async def styleguide_page(request: Request) -> Response:
     """Render the style guide page for development."""
     templates: Jinja2Templates = request.app.state.templates
     username = request.user.username if request.user.is_authenticated else None
-    return templates.TemplateResponse(request, "styleguide.html", {"username": username})
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "styleguide.html",
+        {"username": username, "csrf_token": csrf_token},
+    )
+    if is_new:
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
 
 
 async def game_styleguide_page(request: Request) -> Response:
@@ -159,7 +197,7 @@ def load_game_assets_manifest(game_assets_dir: str) -> dict[str, str]:
 
 
 async def game_page(request: Request) -> Response:
-    """GET /game — render the game client page."""
+    """GET /game — render the game client page (own HTML, no base.html forms)."""
     templates: Jinja2Templates = request.app.state.templates
     game_assets: dict[str, str] = request.app.state.game_assets
     js_asset = game_assets.get("js")

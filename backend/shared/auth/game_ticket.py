@@ -12,6 +12,7 @@ import binascii
 import hashlib
 import hmac
 import json
+import math
 import time
 from dataclasses import asdict, dataclass
 
@@ -22,6 +23,7 @@ logger = structlog.get_logger()
 _TOKEN_PARTS = 2  # base64url(payload).base64url(signature)
 
 TICKET_TTL_SECONDS = 86400  # 24 hours
+CLOCK_SKEW_SECONDS = 60
 
 
 @dataclass
@@ -68,8 +70,49 @@ def verify_game_ticket(token: str, secret: str) -> GameTicket | None:
         logger.debug("game ticket malformed payload")
         return None
 
-    if not isinstance(ticket.expires_at, (int, float)) or time.time() > ticket.expires_at:
-        logger.debug("game ticket expired")
+    if not _validate_ticket_timestamps(ticket):
         return None
 
     return ticket
+
+
+def _is_finite_number(value: object) -> bool:
+    """Check that a value is a finite int or float (excluding bool)."""
+    if isinstance(value, bool):
+        return False
+    if not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(value)
+
+
+def _validate_ticket_timestamps(ticket: GameTicket) -> bool:
+    """Validate temporal claims on a game ticket.
+
+    Checks: both timestamps are finite numbers, issued_at is not in the future
+    (with clock skew tolerance), expires_at is after issued_at, the ticket
+    lifetime does not exceed the allowed TTL, and the ticket has not expired.
+    """
+    if not _is_finite_number(ticket.issued_at) or not _is_finite_number(ticket.expires_at):
+        logger.debug("game ticket non-finite timestamp")
+        return False
+
+    now = time.time()
+
+    if ticket.issued_at > now + CLOCK_SKEW_SECONDS:
+        logger.debug("game ticket issued in the future")
+        return False
+
+    if ticket.expires_at <= ticket.issued_at:
+        logger.debug("game ticket expires_at <= issued_at")
+        return False
+
+    lifetime = ticket.expires_at - ticket.issued_at
+    if lifetime > TICKET_TTL_SECONDS + CLOCK_SKEW_SECONDS:
+        logger.debug("game ticket lifetime too long")
+        return False
+
+    if now > ticket.expires_at:
+        logger.debug("game ticket expired")
+        return False
+
+    return True

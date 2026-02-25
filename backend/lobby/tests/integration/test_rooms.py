@@ -5,6 +5,7 @@ from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
 from lobby.server.settings import LobbyServerSettings
+from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 
 
@@ -28,14 +29,12 @@ servers:
             auth_settings=AuthSettings(
                 game_ticket_secret="test-secret",
                 database_path=str(tmp_path / "test.db"),
+                cookie_secure=False,
             ),
         )
         c = TestClient(app)
         # Register a user so authenticated endpoints can be tested
-        c.post(
-            "/register",
-            data={"username": "apiuser", "password": "securepass123", "confirm_password": "securepass123"},
-        )
+        register_with_csrf(c, "apiuser")
         yield c
         app.state.db.close()
 

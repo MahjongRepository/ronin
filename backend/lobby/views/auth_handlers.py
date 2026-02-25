@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
+from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
 from shared.auth.service import AuthError
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
 
@@ -47,9 +48,18 @@ def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSetti
 
 
 async def login_page(request: Request) -> Response:
-    """GET /login - render login form."""
+    """GET /login - render login form with CSRF token."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "login.html", {"error": None})
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "login.html",
+        {"error": None, "csrf_token": csrf_token},
+    )
+    if is_new:
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
 
 
 async def login(request: Request) -> Response:
@@ -59,25 +69,39 @@ async def login(request: Request) -> Response:
     templates = request.app.state.templates
     form = await request.form()
 
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
     username = form.get("username", "")
     password = form.get("password", "")
 
     try:
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
+        csrf_token, _ = get_or_create_csrf_token(request)
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"error": str(e)},
+            {"error": str(e), "csrf_token": csrf_token},
         )
 
     return _redirect_with_session_cookie(session, auth_settings)
 
 
 async def register_page(request: Request) -> Response:
-    """GET /register - render registration form."""
+    """GET /register - render registration form with CSRF token."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "register.html", {"error": None})
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "register.html",
+        {"error": None, "csrf_token": csrf_token},
+    )
+    if is_new:
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
 
 
 async def register(request: Request) -> Response:
@@ -87,31 +111,42 @@ async def register(request: Request) -> Response:
     templates = request.app.state.templates
     form = await request.form()
 
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
     username = form.get("username", "")
     password = form.get("password", "")
     confirm_password = form.get("confirm_password", "")
 
     if password != confirm_password:
+        csrf_token, _ = get_or_create_csrf_token(request)
         return templates.TemplateResponse(
             request,
             "register.html",
-            {"error": "Passwords do not match"},
+            {"error": "Passwords do not match", "csrf_token": csrf_token},
         )
 
     try:
         await auth_service.register(str(username), str(password))
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
+        csrf_token, _ = get_or_create_csrf_token(request)
         return templates.TemplateResponse(
             request,
             "register.html",
-            {"error": str(e)},
+            {"error": str(e), "csrf_token": csrf_token},
         )
     return _redirect_with_session_cookie(session, auth_settings)
 
 
 async def logout(request: Request) -> Response:
     """POST /logout - clear session, redirect to login."""
+    form = await request.form()
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
     auth_service = request.app.state.auth_service
     session_id = request.cookies.get("session_id")
     if session_id:
@@ -137,7 +172,11 @@ async def bot_auth(request: Request) -> Response:
         return JSONResponse({"error": "Room not found"}, status_code=404)
 
     auth_service = request.app.state.auth_service
-    session = auth_service.create_session(request.user.user_id, request.user.username)
+    session = auth_service.create_session(
+        request.user.user_id,
+        request.user.username,
+        account_type=request.user.account_type,
+    )
 
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
@@ -159,7 +198,11 @@ async def bot_create_room(request: Request) -> Response:
     room_manager.create_room(room_id, num_ai_players=num_ai_players)
 
     auth_service = request.app.state.auth_service
-    session = auth_service.create_session(request.user.user_id, request.user.username)
+    session = auth_service.create_session(
+        request.user.user_id,
+        request.user.username,
+        account_type=request.user.account_type,
+    )
 
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"

@@ -13,6 +13,7 @@
 
     <div class="lobby-grid">
         <form method="POST" action="/rooms/new" class="lobby-create-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="lobby-create-btn">
                 <span class="lobby-create-icon">+</span>
                 <span class="lobby-create-label">New Table</span>
@@ -32,6 +33,7 @@
             </div>
             {% if room.player_count < room.players_needed %}
             <form method="POST" action="/rooms/{{ room.room_id }}/join">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="outline lobby-join-btn">Join Table</button>
             </form>
             {% else %}

@@ -5,7 +5,11 @@ MessagePack encoding) using the test client. They complement the game logic
 Replay tests by ensuring the service layer works correctly.
 """
 
+from unittest.mock import patch
+
 import pytest
+from starlette.requests import ClientDisconnect
+from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -13,7 +17,8 @@ from game.logic.enums import GameAction, WireClientMessageType, WireGameAction
 from game.logic.events import EventType
 from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
-from game.server.app import create_app
+from game.server import websocket as ws_module
+from game.server.app import _read_request_body, create_app
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.helpers.websocket import (
     create_pending_game,
@@ -104,6 +109,76 @@ class TestWebSocketIntegration:
         """WebSocket connection with invalid game_id is rejected before accept."""
         with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/invalid game!"):
             pass
+
+    def test_repeated_decode_errors_disconnect(self, client):
+        """Sending too many consecutive malformed messages disconnects the client."""
+        with patch.object(ws_module, "_MAX_DECODE_ERRORS", 3), client.websocket_connect("/ws/test_game") as ws:
+            for _ in range(3):
+                ws.send_bytes(b"\xff\xff\xff")
+                recv_ws(ws)  # drain INVALID_MESSAGE error
+            # Server closed the connection after 3 decode errors
+            with pytest.raises(WebSocketDisconnect):
+                ws.receive_bytes()
+
+    def test_decode_error_counter_resets_on_valid_message(self, client):
+        """A valid message resets the decode error counter."""
+        with patch.object(ws_module, "_MAX_DECODE_ERRORS", 3), client.websocket_connect("/ws/test_game") as ws:
+            # Send 2 bad messages (below threshold)
+            for _ in range(2):
+                ws.send_bytes(b"\xff\xff\xff")
+                resp = recv_ws(ws)
+                assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
+
+            # Send a valid PING to reset the counter
+            send_ws(ws, {"t": WireClientMessageType.PING})
+            resp = recv_ws(ws)
+            assert resp["type"] == SessionMessageType.PONG
+
+            # Send 2 more bad messages - should still be under threshold
+            for _ in range(2):
+                ws.send_bytes(b"\xff\xff\xff")
+                resp = recv_ws(ws)
+                assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
+
+    def test_rate_limited_message_returns_error(self, client):
+        """Flooding valid messages produces RATE_LIMITED error responses."""
+        with (
+            patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
+            patch.object(ws_module, "_RATE_LIMIT_RATE", 1.0),
+            client.websocket_connect("/ws/test_game") as ws,
+        ):
+            # First 2 valid messages consume burst
+            for _ in range(2):
+                send_ws(ws, {"t": WireClientMessageType.PING})
+                recv_ws(ws)  # PONG responses
+
+            # Next valid message should be rate-limited
+            send_ws(ws, {"t": WireClientMessageType.PING})
+            resp = recv_ws(ws)
+            assert resp["code"] == SessionErrorCode.RATE_LIMITED
+
+    def test_malformed_messages_count_strikes_when_rate_limited(self, client):
+        """Malformed messages increment decode errors even when the bucket is drained."""
+        with (
+            patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
+            patch.object(ws_module, "_RATE_LIMIT_RATE", 1.0),
+            patch.object(ws_module, "_MAX_DECODE_ERRORS", 4),
+            client.websocket_connect("/ws/test_game") as ws,
+        ):
+            # Drain the bucket with valid messages
+            for _ in range(2):
+                send_ws(ws, {"t": WireClientMessageType.PING})
+                recv_ws(ws)
+
+            # Send malformed messages - they hit decode (not rate-limit) and
+            # accumulate strikes until disconnect
+            for _ in range(4):
+                ws.send_bytes(b"\xff\xff\xff")
+                resp = recv_ws(ws)
+                assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
+
+            with pytest.raises(WebSocketDisconnect):
+                ws.receive_bytes()
 
 
 class TestHealthEndpoint:
@@ -237,3 +312,17 @@ class TestCreateGameEndpoint:
         response = client.post("/games", content=oversized, headers={"Content-Type": "application/json"})
         assert response.status_code == 413
         assert response.json() == {"error": "Request body too large"}
+
+
+class TestReadRequestBodyClientDisconnect:
+    """Unit-level test for the _read_request_body ClientDisconnect path."""
+
+    async def test_client_disconnect_returns_400(self):
+        class DisconnectingRequest:
+            async def stream(self):
+                yield b"partial"
+                raise ClientDisconnect
+
+        result = await _read_request_body(DisconnectingRequest())
+        assert isinstance(result, JSONResponse)
+        assert result.status_code == 400
