@@ -13,7 +13,7 @@ Portal service for room management, authentication, and game client serving.
 - `POST /register` - Create account, auto-login
 - `GET /health` - Health check
 - `POST /logout` - Clear session, redirect to login
-- `/static/` - Static files (CSS) served from `frontend/public/`
+- `/static/` - Static files (CSS, JS) served from `frontend/public/`
 - `/game-assets/` - Built game client assets (content-hashed JS/CSS) served from `frontend/dist/`
 
 ### Protected (session cookie or API key required)
@@ -108,7 +108,7 @@ At startup, the backend reads this manifest and passes the filenames to the `gam
 The security headers middleware applies route-aware Content Security Policy:
 - **Lobby/auth pages** — `script-src 'none'` (no JavaScript)
 - **Room pages** (`/rooms/`) — `script-src 'self'` and `connect-src 'self'` (allows scripts and same-origin WebSocket connections)
-- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers)
+- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers). The `game.html` template loads `/static/game-redirect.js` to redirect users without a hash fragment back to the lobby; this script must remain external (not inline) to comply with `script-src 'self'`.
 
 ### Dev Mode
 
@@ -133,14 +133,14 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Settings** (`server/settings.py`) - `LobbyServerSettings` via pydantic-settings (`LOBBY_` env prefix)
 - **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, `bot_only`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
 - **CSRF** (`server/csrf.py`) - Double-submit cookie pattern for state-changing HTML POST routes. `get_or_create_csrf_token()` generates tokens on first GET, `validate_csrf()` enforces matching cookie and form field on POST. Protected routes: `/login`, `/register`, `/logout`, `/rooms/new`, `/rooms/{room_id}/join`
-- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `create_signed_ticket()` signs HMAC game tickets at game-start time; `game_page` serves the built frontend via `game.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template
+- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `game_page` serves the built frontend via `game.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template
 - **Registry** (`registry/`) - Game server discovery and health checks
 - **Rooms** (`rooms/`) - Room management: `LobbyRoomManager` (room state, TTL reaper), `RoomConnectionManager` (WebSocket broadcasting), WebSocket handler (auth, origin check, game transition), typed message models, room data models
 
 Dependencies on `shared/`:
 - `shared.logging.setup_logging` - Timestamped file and stdout logging
 - `shared.validators` - String list parsing (CORS origins, allowed hosts) and custom env settings source
-- `shared.auth` - `AuthService`, `AuthSessionStore`, `PlayerRepository` for player management; `sign_game_ticket` for HMAC-signed game tickets
+- `shared.auth` - `AuthService`, `AuthSessionStore`, `PlayerRepository` for player management; `create_signed_ticket` and `sign_game_ticket` for HMAC-signed game tickets
 - `shared.db` - `Database`, `SqlitePlayerRepository` for SQLite-backed player storage
 
 ## Project Structure

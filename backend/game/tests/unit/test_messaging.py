@@ -1,7 +1,6 @@
 import pytest
 from pydantic import ValidationError
 
-from game.logic.enums import WireClientMessageType, WireGameAction
 from game.logic.exceptions import InvalidDiscardError
 from game.messaging.router import MessageRouter
 from game.messaging.types import (
@@ -12,6 +11,7 @@ from game.messaging.types import (
     SessionMessageType,
     parse_client_message,
 )
+from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.types import PlayerSpec
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket

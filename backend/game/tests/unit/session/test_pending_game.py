@@ -9,10 +9,10 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
-from game.logic.enums import WireClientMessageType
 from game.messaging.encoder import decode, encode
 from game.messaging.router import MessageRouter
 from game.messaging.types import SessionErrorCode
+from game.messaging.wire_enums import WireClientMessageType
 from game.server.app import create_app
 from game.server.types import CreateGameRequest, PlayerSpec
 from game.session.manager import SessionManager

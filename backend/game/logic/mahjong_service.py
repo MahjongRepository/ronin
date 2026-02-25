@@ -39,7 +39,7 @@ from game.logic.events import (
     ServiceEvent,
     convert_events,
     extract_round_result,
-    parse_wire_target,
+    parse_event_target,
 )
 from game.logic.exceptions import InvalidActionError, InvalidGameActionError, UnsupportedSettingsError
 from game.logic.furiten_tracker import FuritenTracker
@@ -593,7 +593,7 @@ class MahjongGameService(GameService):
             ServiceEvent(
                 event=EventType.ERROR,
                 data=ErrorEvent(code=code, message=message, target=target),
-                target=parse_wire_target(target),
+                target=parse_event_target(target),
             ),
         ]
 

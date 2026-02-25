@@ -11,11 +11,7 @@
 </head>
 <body>
     <div id="app"></div>
-    <script>
-    if (!location.hash || location.hash === "#" || location.hash === "#/") {
-        location.replace("/");
-    }
-    </script>
+    <script src="/static/game-redirect.js"></script>
     <script type="module" src="{{ game_js_url }}"></script>
 </body>
 </html>

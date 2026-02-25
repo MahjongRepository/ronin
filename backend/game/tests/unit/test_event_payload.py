@@ -1,4 +1,4 @@
-from game.logic.enums import MeldViewType, WireCallType, WireMeldCallType, WirePlayerAction, WireRoundResultType
+from game.logic.enums import MeldViewType, WireCallType, WireMeldCallType, WirePlayerAction
 from game.logic.events import (
     BroadcastTarget,
     DiscardEvent,
@@ -22,6 +22,7 @@ from game.messaging.event_payload import (
     service_event_payload,
     shape_call_prompt_payload,
 )
+from game.wire.enums import WireRoundResultType
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
 
 

@@ -3,8 +3,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
-from game.logic.enums import KanType, WireClientMessageType, WireGameAction
+from game.logic.enums import KanType
 from game.logic.tiles import NUM_TILES
+from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 
 # ASCII control character boundaries for input validation
 _SPACE_ORD = 0x20

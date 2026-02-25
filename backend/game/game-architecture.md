@@ -236,7 +236,7 @@ The `logic/` module implements Riichi Mahjong rules:
 - **Matchmaker** - Assigns players to randomized seats and fills remaining seats with AI players; supports 1-4 players based on `num_ai_players` setting; returns `list[SeatConfig]`
 - **TurnTimer** - Server-side per-player timer with base time + bank time model; each turn gets a guaranteed base time (default 5s) that resets every action, followed by a bank time reserve (default 20s initial, capped at 60s) that only drains when base time expires; bank replenished per round (default +10s), capped at `max_bank_seconds`; async timeout callbacks for turns, meld decisions, and round-advance confirmations; each player gets an independent timer instance; accepts optional `bank_seconds` constructor parameter for restoring preserved bank time on reconnection; `stop()` cancels timer and deducts bank time (only excess beyond base time), while `consume_bank()` deducts without cancelling (for use inside timeout callbacks)
 - **AIPlayerController** - Pure decision-maker for AI players using `dict[int, AIPlayer]` seat-to-AI-player mapping; provides `is_ai_player()`, `add_ai_player()`, `remove_ai_player()`, `get_turn_action()`, and `get_call_response()` without any orchestration or game state mutation; for DISCARD prompts, dispatches to ron or meld logic based on caller type (`int` = ron, `MeldCaller` = meld); supports runtime AI player addition for disconnect replacement
-- **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `AIPlayerType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi)
+- **Enums** - String enum definitions: `GameAction` (includes `CONFIRM_ROUND`), `PlayerAction`, `MeldCallType`, `KanType`, `CallType` (RON, MELD, CHANKAN, DISCARD), `AbortiveDrawType`, `RoundResultType`, `WindName`, `MeldViewType`, `AIPlayerType`, `TimeoutType` (`TURN`, `MELD`, `ROUND_ADVANCE`); `MELD_CALL_PRIORITY` dict maps `MeldCallType` to resolution priority (kan > pon > chi); Wire IntEnum types used in Pydantic serializers (`WireCallType`, `WireMeldCallType`, `WirePlayerAction`, `WireWind`) remain here; messaging-only wire enums live in `messaging/wire_enums.py` and shared wire enums in `wire/enums.py`
 - **Types** - Pydantic models for cross-component data: `SeatConfig`, `GamePlayerInfo` (player identity for game start broadcast), round results (`TsumoResult`, `RonResult`, `DoubleRonResult`, `ExhaustiveDrawResult`, `AbortiveDrawResult`, `NagashiManganResult`), action data models, player views (`GameView`, `PlayerView` with seat and score only, `dice` field), `PlayerStanding` (seat, score, final_score), `MeldCaller` (seat and call_type only, no server-internal fields), `AIPlayerAction`, `AvailableActionItem`, reconnection models (`DiscardInfo`, `PlayerReconnectState`, `ReconnectionSnapshot`); `RoundResult` union type
 - **RNG** (`rng.py`) - Random number generation for wall shuffling; pure Python PCG64DXSM (Permuted Congruential Generator with DXSM output function); 768-bit cryptographic seed generation via `secrets.token_bytes`; hash-based per-round derivation with SHA512 domain separation; Fisher-Yates shuffle with rejection sampling; dice rolling; `RNG_VERSION` constant for replay compatibility; `generate_seed()`, `generate_shuffled_wall_and_dice()`, `create_seat_rng()`, `validate_seed_hex()`
 - **Wall** (`wall.py`) - Frozen Pydantic `Wall` model encapsulating wall state (live wall, dead wall, dora indicators, pending dora count, dice values); `WallBreakInfo` model for computed break positions; dice-based wall breaking following standard Riichi Mahjong rules (68-stack ring model); `create_wall()`, `create_wall_from_tiles()`, `deal_initial_hands()`, `draw_tile()`, `draw_from_dead_wall()`, `add_dora_indicator()`, `reveal_pending_dora()`, `increment_pending_dora()`, `is_wall_exhausted()`, `tiles_remaining()`, `collect_ura_dora_indicators()`
@@ -411,6 +411,7 @@ ronin/
         ├── messaging/
         │   ├── protocol.py     # ConnectionProtocol interface
         │   ├── types.py        # Message schemas (Pydantic)
+        │   ├── wire_enums.py   # Wire encoding enums for client-to-server messaging (WireClientMessageType, WireGameAction)
         │   ├── compact.py      # Packed integer encoding for draw/discard events
         │   ├── encoder.py      # MessagePack encoding/decoding
         │   ├── event_payload.py # Event payload shaping for wire and replay serialization
@@ -423,6 +424,9 @@ ronin/
         │   ├── replay_collector.py # Collects broadcast events and merges per-seat round_started views for post-game persistence
         │   ├── timer_manager.py # Per-player turn timer lifecycle
         │   └── heartbeat.py     # Client liveness heartbeat monitor
+        ├── wire/
+        │   ├── __init__.py
+        │   └── enums.py         # Wire encoding enums shared across messaging and replay (WireEventType, WireRoundResultType)
         ├── replay/
         │   ├── __init__.py      # Public API re-exports
         │   ├── models.py        # ReplayInput, ReplayTrace, ReplayStep, error types

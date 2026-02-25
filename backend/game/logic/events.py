@@ -48,8 +48,8 @@ class SeatTarget:
 EventTarget = BroadcastTarget | SeatTarget
 
 
-def parse_wire_target(value: str) -> EventTarget:
-    """Parse a wire-format string target into a typed EventTarget."""
+def parse_event_target(value: str) -> EventTarget:
+    """Parse a string target into a typed EventTarget."""
     if value == "all":
         return BroadcastTarget()
     if value.startswith("seat_"):
@@ -336,7 +336,7 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
                 ServiceEvent(
                     event=event.type,
                     data=event,
-                    target=parse_wire_target(event.target),
+                    target=parse_event_target(event.target),
                 ),
             )
     return result

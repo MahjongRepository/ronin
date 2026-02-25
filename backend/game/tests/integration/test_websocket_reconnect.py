@@ -9,7 +9,7 @@ import time
 import pytest
 from starlette.testclient import TestClient
 
-from game.logic.enums import WindName, WireClientMessageType, WireGameAction
+from game.logic.enums import WindName
 from game.logic.events import EventType
 from game.logic.types import (
     GamePlayerInfo,
@@ -18,6 +18,7 @@ from game.logic.types import (
 )
 from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
+from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
 from game.session.models import Player, SessionData
 from game.tests.helpers.websocket import (

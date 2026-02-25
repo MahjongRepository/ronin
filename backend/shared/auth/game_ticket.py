@@ -37,6 +37,24 @@ class GameTicket:
     expires_at: float
 
 
+def create_signed_ticket(
+    user_id: str,
+    username: str,
+    room_id: str,
+    game_ticket_secret: str,
+) -> str:
+    """Create and sign a game ticket, returning the signed token string."""
+    now = time.time()
+    ticket = GameTicket(
+        user_id=user_id,
+        username=username,
+        room_id=room_id,
+        issued_at=now,
+        expires_at=now + TICKET_TTL_SECONDS,
+    )
+    return sign_game_ticket(ticket, game_ticket_secret)
+
+
 def sign_game_ticket(ticket: GameTicket, secret: str) -> str:
     """Serialize ticket to JSON, compute HMAC-SHA256, return base64url(payload).base64url(sig)."""
     payload_bytes = json.dumps(asdict(ticket), sort_keys=True).encode()

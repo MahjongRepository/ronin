@@ -18,7 +18,7 @@ from lobby.rooms.messages import (
     LobbySetReadyMessage,
     parse_lobby_message,
 )
-from lobby.views.handlers import create_signed_ticket
+from shared.auth.game_ticket import create_signed_ticket
 
 if TYPE_CHECKING:
     from lobby.registry.manager import RegistryManager

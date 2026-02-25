@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -102,8 +104,8 @@ class TestSecurityHeadersMiddleware:
             ws.send_text("hello")
             assert ws.receive_text() == "hello"
 
-    def test_game_route_allows_scripts(self, security_client: TestClient) -> None:
-        """Game page CSP allows script execution."""
+    def test_game_route_allows_same_origin_scripts(self, security_client: TestClient) -> None:
+        """Game page CSP allows same-origin script execution (not inline)."""
         response = security_client.get("/game")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
@@ -133,6 +135,47 @@ class TestSecurityHeadersMiddleware:
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
         assert "script-src 'none'" not in csp
+
+
+# Regex matching <script> tags that lack a src attribute (inline scripts).
+_INLINE_SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc\b)[^>]*>", re.IGNORECASE)
+# Regex matching inline event-handler attributes (onclick, onerror, etc.).
+# Uses an explicit list of DOM event handler names to avoid false positives
+# on non-handler attributes that start with "on" (e.g. "one=", "online=").
+_INLINE_HANDLER_RE = re.compile(
+    r"\bon(?:abort|auxclick|blur|cancel|change|click|close|contextmenu|copy|cut|"
+    r"dblclick|drag|dragend|dragenter|dragleave|dragover|dragstart|drop|"
+    r"error|focus|focusin|focusout|input|invalid|keydown|keypress|keyup|"
+    r"load|mousedown|mouseenter|mouseleave|mousemove|mouseout|mouseover|mouseup|"
+    r"paste|pointerdown|pointerup|reset|resize|scroll|select|submit|"
+    r"touchstart|touchend|touchmove|unload|wheel)\s*=",
+    re.IGNORECASE,
+)
+
+# Templates served with script-src 'self' (game and room pages).
+# These must not contain inline scripts or event handlers.
+_TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "views" / "templates"
+_SCRIPT_SELF_TEMPLATES = ["base.html", "game.html", "room.html"]
+
+
+class TestCSPCompliance:
+    @pytest.mark.parametrize("template_name", _SCRIPT_SELF_TEMPLATES)
+    def test_no_inline_scripts_in_self_csp_templates(self, template_name: str) -> None:
+        """Templates served with script-src 'self' must not contain inline scripts."""
+        content = (_TEMPLATES_DIR / template_name).read_text()
+        matches = _INLINE_SCRIPT_RE.findall(content)
+        assert matches == [], (
+            f"{template_name} contains inline <script> tags incompatible with script-src 'self': {matches}"
+        )
+
+    @pytest.mark.parametrize("template_name", _SCRIPT_SELF_TEMPLATES)
+    def test_no_inline_event_handlers_in_self_csp_templates(self, template_name: str) -> None:
+        """Templates served with script-src 'self' must not use inline event handlers."""
+        content = (_TEMPLATES_DIR / template_name).read_text()
+        matches = _INLINE_HANDLER_RE.findall(content)
+        assert matches == [], (
+            f"{template_name} contains inline event handlers incompatible with script-src 'self': {matches}"
+        )
 
 
 def _make_trusted_host_app(allowed_hosts: list[str]) -> Starlette:

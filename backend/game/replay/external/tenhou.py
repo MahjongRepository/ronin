@@ -28,9 +28,9 @@ from typing import Any
 import structlog
 from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID
 
-from game.logic.enums import WireEventType, WireRoundResultType
 from game.logic.types import WIRE_SCORE_DIVISOR
 from game.messaging.compact import decode_discard, decode_draw
+from game.wire.enums import WireEventType, WireRoundResultType
 from shared.lib.melds.compact import decode_meld_compact
 
 logger = structlog.get_logger()

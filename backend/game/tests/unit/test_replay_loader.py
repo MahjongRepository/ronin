@@ -8,7 +8,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from game.logic.enums import GameAction, WireRoundResultType
+from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION
 from game.messaging.compact import encode_discard
@@ -21,6 +21,7 @@ from game.replay.loader import (
     load_replay_from_string,
 )
 from game.replay.models import REPLAY_VERSION
+from game.wire.enums import WireRoundResultType
 from shared.lib.melds import MeldData, encode_meld_compact
 
 # Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3

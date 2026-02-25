@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -12,7 +11,6 @@ from starlette.responses import PlainTextResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
-from shared.auth.game_ticket import TICKET_TTL_SECONDS, GameTicket, sign_game_ticket
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -26,24 +24,6 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 def create_templates() -> Jinja2Templates:
     """Create Jinja2 template engine for lobby HTML templates."""
     return Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-
-def create_signed_ticket(
-    user_id: str,
-    username: str,
-    room_id: str,
-    game_ticket_secret: str,
-) -> str:
-    """Create and sign a game ticket, returning the signed token string."""
-    now = time.time()
-    ticket = GameTicket(
-        user_id=user_id,
-        username=username,
-        room_id=room_id,
-        issued_at=now,
-        expires_at=now + TICKET_TTL_SECONDS,
-    )
-    return sign_game_ticket(ticket, game_ticket_secret)
 
 
 def _render_lobby_with_error(

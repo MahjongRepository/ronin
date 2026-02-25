@@ -15,7 +15,7 @@ from game.logic.events import (
     _split_discard_prompt_for_seat,
     convert_events,
     extract_round_result,
-    parse_wire_target,
+    parse_event_target,
 )
 from game.logic.types import (
     HandResultInfo,
@@ -37,24 +37,24 @@ class TestServiceEvent:
             )
 
 
-class TestParseWireTarget:
+class TestParseEventTarget:
     def test_broadcast_target(self) -> None:
-        result = parse_wire_target("all")
+        result = parse_event_target("all")
         assert isinstance(result, BroadcastTarget)
 
     def test_seat_targets(self) -> None:
         for seat in range(4):
-            result = parse_wire_target(f"seat_{seat}")
+            result = parse_event_target(f"seat_{seat}")
             assert isinstance(result, SeatTarget)
             assert result.seat == seat
 
     def test_invalid_target_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid target value"):
-            parse_wire_target("bogus")
+            parse_event_target("bogus")
 
     def test_negative_seat_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid seat number"):
-            parse_wire_target("seat_-1")
+            parse_event_target("seat_-1")
 
 
 class TestConvertEvents:
