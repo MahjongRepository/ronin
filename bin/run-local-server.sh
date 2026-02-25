@@ -69,12 +69,13 @@ EOF
 # Build lobby CSS and JS for server-side templates
 (cd frontend && bun run sass:lobby && mkdir -p public/scripts && bun build src/lobby/index.ts --outfile public/scripts/lobby.js)
 
-# Set lobby settings for template rendering
-export LOBBY_GAME_CLIENT_URL="/game"
-# Override the default ws_allowed_origin to match the local lobby port
-export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
-
+CLEANING_UP=false
 cleanup() {
+    if $CLEANING_UP; then
+        return
+    fi
+    CLEANING_UP=true
+    trap - EXIT INT TERM
     echo "Stopping servers..."
     if [ -n "$GAME_PID" ]; then
         kill_tree "$GAME_PID"
@@ -82,10 +83,33 @@ cleanup() {
     if [ -n "$CLIENT_PID" ]; then
         kill_tree "$CLIENT_PID"
     fi
+    if [ -n "$MANIFEST_BACKUP" ] && [ -f "$MANIFEST_BACKUP" ]; then
+        cp "$MANIFEST_BACKUP" frontend/dist/manifest.json
+        rm -f "$MANIFEST_BACKUP"
+    fi
     rm -rf "$CONFIG_DIR"
 }
 
 trap cleanup EXIT INT TERM
+
+# Remove lobby entries from production manifest so the server uses the freshly-built
+# dev assets from public/ instead of stale hashed files from dist/
+MANIFEST_BACKUP=""
+if [ -f frontend/dist/manifest.json ]; then
+    MANIFEST_BACKUP="$(mktemp)"
+    cp frontend/dist/manifest.json "$MANIFEST_BACKUP"
+    bun -e "
+      const m = JSON.parse(require('fs').readFileSync('frontend/dist/manifest.json','utf-8'));
+      delete m.lobby_css;
+      delete m.lobby_js;
+      require('fs').writeFileSync('frontend/dist/manifest.json', JSON.stringify(m));
+    "
+fi
+
+# Set lobby settings for template rendering
+export LOBBY_GAME_CLIENT_URL="/game"
+# Override the default ws_allowed_origin to match the local lobby port
+export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
 
 echo "Starting game server on port $GAME_PORT..."
 uv run uvicorn --factory game.server.app:get_app --reload --host 0.0.0.0 --port $GAME_PORT &

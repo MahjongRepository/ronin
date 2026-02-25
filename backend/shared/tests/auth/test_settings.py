@@ -16,9 +16,3 @@ class TestAuthSettings:
         monkeypatch.delenv("AUTH_GAME_TICKET_SECRET", raising=False)
         with pytest.raises(ValidationError, match="game_ticket_secret"):
             AuthSettings()
-
-    def test_legacy_users_file_from_env(self, monkeypatch):
-        monkeypatch.setenv("AUTH_GAME_TICKET_SECRET", "s")
-        monkeypatch.setenv("AUTH_USERS_FILE", "custom/legacy.json")
-        settings = AuthSettings()
-        assert settings.legacy_users_file == "custom/legacy.json"

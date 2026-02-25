@@ -1,58 +1,392 @@
-@use "variables" as *;
+// Lobby page styles
 
-.lobby {
-    h1 {
-        text-align: center;
-        font-size: 2rem;
-        margin-bottom: $spacing-lg;
+// ─── Nav ────────────────────────────────────────────────────
+
+.lobby-nav {
+    padding-block: 0;
+    border-bottom: 1px solid var(--ronin-border);
+    margin-bottom: 0.5rem;
+}
+
+.lobby-brand {
+    font-family: var(--ronin-font-display);
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+}
+
+.lobby-logo {
+    display: inline-block;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    background-color: var(--pico-primary);
+    mask-image: url("/static/logo.svg");
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    transition: filter 0.3s ease;
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--pico-primary) 30%, transparent));
+
+    .lobby-brand:hover & {
+        filter: drop-shadow(0 0 14px color-mix(in srgb, var(--pico-primary) 60%, transparent));
     }
 }
 
-.lobby-controls {
+.lobby-username {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.8rem;
+    color: var(--ronin-text-secondary);
+}
+
+.lobby-nav-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    margin-bottom: 0;
+}
+
+// ─── Alert ──────────────────────────────────────────────────
+
+.lobby-alert {
+    background: color-mix(in srgb, var(--ronin-danger) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ronin-danger) 25%, transparent);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    color: var(--ronin-danger);
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+    animation: slide-down 0.3s ease;
+}
+
+// ─── Section Header ─────────────────────────────────────────
+
+.lobby-section {
+    margin-top: 0.5rem;
+}
+
+.lobby-section-header {
     display: flex;
-    gap: $spacing-sm;
-    justify-content: center;
-    margin-bottom: $spacing-lg;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+
+    h2 {
+        margin-bottom: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
 }
 
-.lobby-status {
-    text-align: center;
-    margin-bottom: $spacing-md;
+.lobby-table-count {
+    color: var(--pico-muted-color);
+    font-family: var(--ronin-font-mono);
+    font-size: 0.75rem;
 }
 
-.games-list {
+// ─── Room Grid ──────────────────────────────────────────────
+
+.lobby-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+// ─── Create Table Card ──────────────────────────────────────
+
+.lobby-create-form {
+    margin-bottom: 0;
+}
+
+.lobby-create-btn {
+    width: 100%;
+    height: 100%;
+    min-height: 200px;
     display: flex;
     flex-direction: column;
-    gap: $spacing-sm;
-}
-
-.game-item {
-    display: flex;
     align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 2px dashed var(--ronin-border);
+    border-radius: 0.75rem;
+    color: var(--pico-muted-color);
+    cursor: pointer;
+    transition:
+        border-color 0.3s ease,
+        color 0.3s ease,
+        background 0.3s ease;
+
+    &:hover {
+        border-color: var(--pico-primary);
+        color: var(--pico-primary);
+        background: color-mix(in srgb, var(--pico-primary) 4%, transparent);
+    }
+}
+
+.lobby-create-icon {
+    font-size: 2.5rem;
+    font-weight: 300;
+    line-height: 1;
+}
+
+.lobby-create-label {
+    font-family: var(--ronin-font-display);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+// ─── Room Card ──────────────────────────────────────────────
+
+.lobby-room-card {
+    position: relative;
+    padding: 1.25rem;
+    margin-bottom: 0;
+    border-radius: 0.75rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow: hidden;
+    transition:
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
+    animation: card-in 0.4s ease both;
+    animation-delay: calc(var(--card-index, 0) * 0.06s);
+
+    // Accent line at top
+    &::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--pico-primary), transparent);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    &:hover {
+        border-color: color-mix(in srgb, var(--pico-primary) 30%, var(--ronin-border));
+        box-shadow:
+            0 4px 24px rgb(0 0 0 / 30%),
+            0 0 0 1px color-mix(in srgb, var(--pico-primary) 8%, transparent);
+
+        &::before {
+            opacity: 1;
+        }
+    }
+}
+
+.lobby-room-header {
+    display: flex;
     justify-content: space-between;
-    padding: $spacing-md;
-    background: $bg-secondary;
-    border-radius: $radius-md;
+    align-items: center;
 }
 
-.game-id {
-    font-family: $font-mono;
-    font-size: 14px;
+.lobby-room-id {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--pico-color);
+    background: var(--ronin-surface-elevated);
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.3rem;
 }
 
-.game-players {
-    color: $text-secondary;
-    font-size: 14px;
+.lobby-room-count {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.75rem;
+    color: var(--ronin-text-secondary);
 }
 
-.game-full {
-    color: $text-muted;
-    font-size: 12px;
+// ─── Table Visualization (Diamond Seat Layout) ──────────────
+
+.lobby-table-vis {
+    display: grid;
+    grid-template:
+        ". a ." 16px
+        "d t b" 16px
+        ". c ." 16px / 16px 28px 16px;
+    gap: 3px;
+    justify-content: center;
+    padding: 0.5rem 0;
+
+    // Center table piece
+    &::after {
+        content: "";
+        grid-area: t;
+        background: var(--ronin-surface-elevated);
+        border: 1px solid var(--ronin-border-subtle);
+        border-radius: 3px;
+    }
 }
 
-.app-footer {
+.lobby-seat {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    place-self: center;
+    border: 1.5px solid var(--ronin-border);
+    background: transparent;
+    transition: all 0.3s ease;
+
+    &.filled {
+        background: var(--pico-primary);
+        border-color: var(--pico-primary);
+        box-shadow: 0 0 8px color-mix(in srgb, var(--pico-primary) 40%, transparent);
+    }
+}
+
+// Position seats around the table in N-E-S-W order
+.lobby-table-vis .lobby-seat:nth-child(1) {
+    grid-area: a;
+}
+
+.lobby-table-vis .lobby-seat:nth-child(2) {
+    grid-area: b;
+}
+
+.lobby-table-vis .lobby-seat:nth-child(3) {
+    grid-area: c;
+}
+
+.lobby-table-vis .lobby-seat:nth-child(4) {
+    grid-area: d;
+}
+
+// ─── Join Button ────────────────────────────────────────────
+
+.lobby-join-btn {
+    width: 100%;
+    margin-bottom: 0;
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.01em;
+}
+
+// ─── Full Badge ─────────────────────────────────────────────
+
+.lobby-full-badge {
+    display: block;
     text-align: center;
-    color: $text-muted;
-    font-size: 12px;
-    padding: $spacing-lg 0 $spacing-md;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--pico-muted-color);
+    padding: 0.45rem;
+    border: 1px solid var(--ronin-border);
+    border-radius: var(--pico-border-radius);
+}
+
+// ─── Empty State ────────────────────────────────────────────
+
+.lobby-empty {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--pico-muted-color);
+
+    p {
+        margin-bottom: 0.25rem;
+    }
+}
+
+// ─── Auth Pages (Login / Register) ──────────────────────────
+
+.auth-card {
+    max-width: 400px;
+    margin: 2rem auto;
+
+    hgroup {
+        text-align: center;
+        margin-bottom: 2rem;
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+
+        p {
+            color: var(--ronin-text-secondary);
+        }
+    }
+}
+
+.auth-link {
+    text-align: center;
+}
+
+// ─── Footer ─────────────────────────────────────────────────
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--ronin-border);
+}
+
+.footer-meta {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.7rem;
+    color: var(--pico-muted-color);
+}
+
+.footer-dev-links {
+    display: flex;
+    gap: 1rem;
+
+    a {
+        font-family: var(--ronin-font-mono);
+        font-size: 0.7rem;
+        color: var(--pico-muted-color);
+        text-decoration: none;
+
+        &:hover {
+            color: var(--pico-primary);
+        }
+    }
+}
+
+// ─── Error Text (legacy) ────────────────────────────────────
+
+.error-text {
+    color: var(--ronin-danger);
+}
+
+// ─── Animations ─────────────────────────────────────────────
+
+@keyframes card-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

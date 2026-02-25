@@ -309,7 +309,7 @@ function renderGameView(gameId: string): TemplateResult {
     return html`
         <div class="game">
             <div class="game-header">
-                <button class="btn btn-secondary" @click=${handleLeaveGame}>Back to Lobby</button>
+                <button class="secondary" @click=${handleLeaveGame}>Back to Lobby</button>
                 <h2>Game: ${gameId}</h2>
                 <span class="connection-status" id="connection-status">${connectionStatus}</span>
             </div>

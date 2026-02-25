@@ -45,7 +45,7 @@ Register a bot account using the CLI tool:
 
     uv run python bin/register-bot.py <bot_name>
 
-The API key is printed once and never stored. Set `AUTH_DATABASE_PATH` to control the SQLite database location (default: `backend/storage.db`). If a legacy `AUTH_USERS_FILE` JSON file exists, it is migrated into SQLite on first startup.
+The API key is printed once and never stored. Set `AUTH_DATABASE_PATH` to control the SQLite database location (default: `backend/storage.db`).
 
 ### Running Locally
 
@@ -211,5 +211,4 @@ Auth settings (prefixed with `AUTH_`):
 
 - `AUTH_GAME_TICKET_SECRET` - HMAC-SHA256 secret for signing/verifying game tickets (shared between lobby and game server)
 - `AUTH_DATABASE_PATH` - Path to the SQLite database file (default: `backend/storage.db`)
-- `AUTH_USERS_FILE` - Path to a legacy JSON user file for one-time migration into SQLite (optional)
 - `AUTH_COOKIE_SECURE` - Set cookie Secure flag (default: `false`, set `true` in production for HTTPS)

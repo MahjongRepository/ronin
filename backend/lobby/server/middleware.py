@@ -8,11 +8,12 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Headers added to every HTTP response to mitigate common web vulnerabilities.
+_FONTS_STYLE_SRC = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+_FONTS_FONT_SRC = "font-src 'self' https://fonts.gstatic.com; "
+
 _LOBBY_CSP = (
     "default-src 'self'; "
-    "script-src 'none'; "
-    "style-src 'self' 'unsafe-inline'; "
-    "frame-ancestors 'none'; "
+    "script-src 'none'; " + _FONTS_STYLE_SRC + _FONTS_FONT_SRC + "frame-ancestors 'none'; "
     "form-action 'self'; "
     "base-uri 'self'"
 )
@@ -20,9 +21,7 @@ _LOBBY_CSP = (
 # Room pages need scripts and same-origin WebSocket connections.
 _ROOM_CSP = (
     "default-src 'self'; "
-    "script-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
-    "connect-src 'self'; "
+    "script-src 'self'; " + _FONTS_STYLE_SRC + _FONTS_FONT_SRC + "connect-src 'self'; "
     "frame-ancestors 'none'; "
     "form-action 'self'; "
     "base-uri 'self'"
@@ -31,9 +30,7 @@ _ROOM_CSP = (
 # Game pages need scripts and WebSocket connections to external game servers.
 _GAME_CSP = (
     "default-src 'self'; "
-    "script-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
-    "connect-src 'self' ws: wss:; "
+    "script-src 'self'; " + _FONTS_STYLE_SRC + _FONTS_FONT_SRC + "connect-src 'self' ws: wss:; "
     "frame-ancestors 'none'; "
     "form-action 'self'; "
     "base-uri 'self'"

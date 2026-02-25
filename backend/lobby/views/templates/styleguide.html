@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Style Guide - Ronin Mahjong{% endblock %}
+
+{% block content %}
+<h1>Style Guide</h1>
+
+<!-- Typography -->
+<section>
+    <h2>Typography</h2>
+    <h1>Heading 1 - Ronin Mahjong</h1>
+    <h2>Heading 2 - Section Title</h2>
+    <h3>Heading 3 - Subsection</h3>
+    <p>Body text - The quick brown fox jumps over the lazy dog.</p>
+    <p><small>Small/muted text - Used for timestamps and hints.</small></p>
+    <p><code>Monospace text - Used for room IDs and player names.</code></p>
+    <p><a href="#">Accent link - Navigational text</a></p>
+</section>
+
+<!-- Buttons -->
+<section>
+    <h2>Buttons</h2>
+    <div role="group">
+        <button>Primary Button</button>
+        <button class="secondary">Secondary Button</button>
+        <button class="outline">Outline Button</button>
+    </div>
+</section>
+
+<!-- Form Elements -->
+<section>
+    <h2>Form Elements</h2>
+    <article>
+        <form>
+            <label for="sg-username">Username
+                <input type="text" id="sg-username" placeholder="Enter username">
+            </label>
+            <label for="sg-password">Password
+                <input type="password" id="sg-password" placeholder="Enter password">
+            </label>
+            <button type="button">Submit</button>
+        </form>
+        <p><small>Helper text with <a href="#">a link</a></small></p>
+    </article>
+</section>
+
+<!-- Status Messages -->
+<section>
+    <h2>Status Messages</h2>
+    <p class="error-text">This is an error message</p>
+    <div class="lobby-alert" role="alert">This is an alert banner</div>
+    <p>This is an empty state message</p>
+</section>
+
+<!-- Room Cards -->
+<section>
+    <h2>Room Cards</h2>
+    <div class="lobby-grid">
+        <div class="lobby-create-form">
+            <button type="button" class="lobby-create-btn">
+                <span class="lobby-create-icon">+</span>
+                <span class="lobby-create-label">New Table</span>
+            </button>
+        </div>
+
+        <article class="lobby-room-card" style="--card-index: 0">
+            <div class="lobby-room-header">
+                <code class="lobby-room-id">room-abc123</code>
+                <span class="lobby-room-count">1/4</span>
+            </div>
+            <div class="lobby-table-vis">
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat"></span>
+                <span class="lobby-seat"></span>
+                <span class="lobby-seat"></span>
+            </div>
+            <button type="button" class="outline lobby-join-btn">Join Table</button>
+        </article>
+
+        <article class="lobby-room-card" style="--card-index: 1">
+            <div class="lobby-room-header">
+                <code class="lobby-room-id">room-def456</code>
+                <span class="lobby-room-count">3/4</span>
+            </div>
+            <div class="lobby-table-vis">
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat"></span>
+                <span class="lobby-seat filled"></span>
+            </div>
+            <button type="button" class="outline lobby-join-btn">Join Table</button>
+        </article>
+
+        <article class="lobby-room-card" style="--card-index: 2">
+            <div class="lobby-room-header">
+                <code class="lobby-room-id">room-xyz789</code>
+                <span class="lobby-room-count">4/4</span>
+            </div>
+            <div class="lobby-table-vis">
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat filled"></span>
+            </div>
+            <span class="lobby-full-badge">Full</span>
+        </article>
+    </div>
+</section>
+
+<!-- Empty State -->
+<section>
+    <h2>Empty State</h2>
+    <div class="lobby-empty">
+        <p>No tables yet</p>
+        <p><small>Create one to start playing</small></p>
+    </div>
+</section>
+{% endblock %}

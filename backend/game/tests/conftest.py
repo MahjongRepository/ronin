@@ -83,7 +83,7 @@ def create_round_state(
 ) -> MahjongRoundState:
     """Create a MahjongRoundState with sensible defaults for testing.
 
-    Accepts legacy wall/dead_wall/dora_indicators/pending_dora_count kwargs
+    Accepts wall/dead_wall/dora_indicators/pending_dora_count kwargs
     and builds a Wall object from them. If wall_obj is provided, it takes
     precedence over the individual fields.
     """

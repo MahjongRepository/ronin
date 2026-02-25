@@ -10,7 +10,6 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from shared.auth.service import AuthError
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
-from shared.build_info import APP_VERSION
 
 MAX_AI_PLAYERS = 3
 
@@ -50,7 +49,7 @@ def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSetti
 async def login_page(request: Request) -> Response:
     """GET /login - render login form."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "login.html", {"error": None, "app_version": APP_VERSION})
+    return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
 async def login(request: Request) -> Response:
@@ -69,7 +68,7 @@ async def login(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"error": str(e), "app_version": APP_VERSION},
+            {"error": str(e)},
         )
 
     return _redirect_with_session_cookie(session, auth_settings)
@@ -78,7 +77,7 @@ async def login(request: Request) -> Response:
 async def register_page(request: Request) -> Response:
     """GET /register - render registration form."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "register.html", {"error": None, "app_version": APP_VERSION})
+    return templates.TemplateResponse(request, "register.html", {"error": None})
 
 
 async def register(request: Request) -> Response:
@@ -96,7 +95,7 @@ async def register(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "register.html",
-            {"error": "Passwords do not match", "app_version": APP_VERSION},
+            {"error": "Passwords do not match"},
         )
 
     try:
@@ -106,7 +105,7 @@ async def register(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "register.html",
-            {"error": str(e), "app_version": APP_VERSION},
+            {"error": str(e)},
         )
     return _redirect_with_session_cookie(session, auth_settings)
 

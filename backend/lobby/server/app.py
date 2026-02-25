@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -33,10 +34,12 @@ from lobby.views.handlers import (
     create_room_and_redirect,
     create_templates,
     game_page,
+    game_styleguide_page,
     join_room_and_redirect,
     load_game_assets_manifest,
     lobby_page,
     room_page,
+    styleguide_page,
 )
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
@@ -156,6 +159,19 @@ def create_app(
         Route("/api/rooms", protected_api(bot_create_room), methods=["POST"], name="bot_create_room"),
     ]
 
+    if APP_VERSION == "dev":
+        routes.extend(
+            [
+                Route("/styleguide", public_route(styleguide_page), methods=["GET"], name="styleguide_page"),
+                Route(
+                    "/game/styleguide",
+                    public_route(game_styleguide_page),
+                    methods=["GET"],
+                    name="game_styleguide_page",
+                ),
+            ],
+        )
+
     if static_dir.is_dir():
         routes.append(Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"))
 
@@ -172,7 +188,6 @@ def create_app(
     # Initialize database and auth components
     db = Database(auth_settings.database_path)
     db.connect()
-    db.migrate_from_json(auth_settings.legacy_users_file)
     player_repo = SqlitePlayerRepository(db)
     session_store = AuthSessionStore()
     hasher = get_hasher(auth_settings.password_hasher)
@@ -240,6 +255,12 @@ def _attach_state(  # noqa: PLR0913
     templates.env.globals["lobby_css_url"] = f"/game-assets/{lobby_css}" if lobby_css else "/static/styles/lobby.css"
     lobby_js = game_assets.get("lobby_js")
     templates.env.globals["lobby_js_url"] = f"/game-assets/{lobby_js}" if lobby_js else "/static/scripts/lobby.js"
+    game_css = game_assets.get("css")
+    templates.env.globals["game_css_url"] = f"/game-assets/{game_css}" if game_css else "/static/styles/game.css"
+    templates.env.globals["app_version"] = APP_VERSION
+    templates.env.globals["git_commit"] = GIT_COMMIT
+    templates.env.globals["current_year"] = datetime.now(tz=UTC).year
+    templates.env.globals["dev_mode"] = APP_VERSION == "dev"
     app.state.templates = templates
     app.state.game_assets = game_assets
     app.state.auth_service = auth_service

@@ -12,7 +12,8 @@ from shared.auth.settings import AuthSettings
 
 class TestLobbyViews:
     @pytest.fixture
-    def client(self, tmp_path):
+    def client(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "servers.yaml"
         config_file.write_text("""
 servers:
@@ -56,7 +57,7 @@ servers:
         response = client.get("/")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert "Ronin Mahjong" in response.text
+        assert "Ronin" in response.text
 
     def test_lobby_page_includes_css_link(self, client):
         response = client.get("/")
@@ -68,11 +69,11 @@ servers:
 
     def test_lobby_page_shows_create_room_form(self, client):
         response = client.get("/")
-        assert '<form method="POST" action="/rooms/new">' in response.text
+        assert 'action="/rooms/new"' in response.text
 
     def test_lobby_page_shows_empty_message(self, client):
         response = client.get("/")
-        assert "No rooms available. Create one!" in response.text
+        assert "No tables yet" in response.text
 
     def test_lobby_page_shows_rooms(self, client):
         room_manager = client.app.state.room_manager
@@ -81,7 +82,7 @@ servers:
 
         response = client.get("/")
         assert "abc123" in response.text
-        assert "1/2 players" in response.text
+        assert "1/2" in response.text
         assert "Join" in response.text
 
     def test_lobby_page_shows_full_room(self, client):
@@ -187,3 +188,23 @@ servers:
         response = client.get("/rooms/nonexistent-room", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/"
+
+    def test_styleguide_page_returns_html(self, client):
+        """GET /styleguide returns the style guide page without authentication."""
+        response = client.get("/styleguide")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "Style Guide" in response.text
+        assert "Typography" in response.text
+        assert "Buttons" in response.text
+        assert "Form Elements" in response.text
+
+    def test_game_styleguide_page_returns_html(self, client):
+        """GET /game/styleguide returns the game style guide page without authentication."""
+        response = client.get("/game/styleguide")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "Game Style Guide" in response.text
+        assert "Connection Status" in response.text
+        assert "Log Panel" in response.text
+        assert "/game-assets/index-abc123.css" in response.text

@@ -370,7 +370,7 @@ ronin/
     │   │   └── game_repository.py    # Abstract GameRepository interface
     │   ├── db/
     │   │   ├── __init__.py           # Public API: Database, SqlitePlayerRepository, SqliteGameRepository
-    │   │   ├── connection.py         # Database wrapper (SQLite connection, schema, migration)
+    │   │   ├── connection.py         # Database wrapper (SQLite connection, schema)
     │   │   ├── player_repository.py  # SQLite PlayerRepository implementation
     │   │   └── game_repository.py    # SQLite GameRepository implementation
     │   └── lib/

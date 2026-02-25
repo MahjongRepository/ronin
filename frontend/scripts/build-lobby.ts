@@ -12,7 +12,7 @@ const tmpFile = "dist/_lobby.css";
 
 // Compile sass to a temporary file
 const sass = Bun.spawnSync(
-    ["bunx", "sass", "src/styles/lobby-app.scss", tmpFile, "--no-source-map", "--style=compressed"],
+    ["bunx", "sass", "--load-path=node_modules", "src/styles/lobby-app.scss", tmpFile, "--no-source-map", "--style=compressed"],
     { stderr: "inherit" },
 );
 

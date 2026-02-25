@@ -49,7 +49,7 @@ EventTarget = BroadcastTarget | SeatTarget
 
 
 def parse_wire_target(value: str) -> EventTarget:
-    """Parse a legacy string target into a typed EventTarget."""
+    """Parse a wire-format string target into a typed EventTarget."""
     if value == "all":
         return BroadcastTarget()
     if value.startswith("seat_"):

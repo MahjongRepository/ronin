@@ -23,14 +23,12 @@ async def main() -> None:
         sys.exit(1)
 
     bot_name = sys.argv[1]
-    # Only database_path and legacy_users_file are needed; supply a
-    # placeholder for game_ticket_secret so the script works without
-    # AUTH_GAME_TICKET_SECRET being set.
+    # Only database_path is needed; supply a placeholder for
+    # game_ticket_secret so the script works without AUTH_GAME_TICKET_SECRET being set.
     auth_settings = AuthSettings(game_ticket_secret="unused")  # type: ignore[call-arg]
 
     db = Database(auth_settings.database_path)
     db.connect()
-    db.migrate_from_json(auth_settings.legacy_users_file)
 
     try:
         player_repo = SqlitePlayerRepository(db)

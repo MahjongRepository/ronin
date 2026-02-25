@@ -11,6 +11,6 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-bunx sass --watch src/styles/lobby-app.scss:public/styles/lobby.css --no-source-map &
-bunx sass --watch src/styles/game-app.scss:public/styles/game.css --no-source-map &
+bunx sass --load-path=node_modules --watch src/styles/lobby-app.scss:public/styles/lobby.css --no-source-map &
+bunx sass --load-path=node_modules --watch src/styles/game-app.scss:public/styles/game.css --no-source-map &
 bun ./index.html --port "${PORT:-8712}"

@@ -1,10 +1,10 @@
-@use "variables" as *;
+// Room page styles (JS-rendered via lit-html)
 
 .room-header {
     display: flex;
     align-items: center;
-    gap: $spacing-md;
-    margin-bottom: $spacing-lg;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 
     h2 {
         flex: 1;
@@ -12,32 +12,61 @@
     }
 }
 
+.connection-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-family: var(--ronin-font-mono);
+    color: var(--ronin-text-secondary);
+
+    &::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+
+    &.status-connected::before {
+        background: var(--ronin-success);
+        box-shadow: 0 0 6px color-mix(in srgb, var(--ronin-success) 50%, transparent);
+    }
+
+    &.status-disconnected::before {
+        background: var(--pico-muted-color);
+    }
+
+    &.status-error::before {
+        background: var(--ronin-danger);
+    }
+}
+
 .room-content {
     display: grid;
     grid-template-columns: 1fr 2fr;
-    gap: $spacing-lg;
+    gap: 1.5rem;
+
+    @media (width <= 768px) {
+        grid-template-columns: 1fr;
+    }
 }
 
-.room-players-panel {
-    background: $bg-secondary;
-    border-radius: $radius-md;
-    padding: $spacing-md;
-
-    h3 {
-        color: $text-primary;
-        margin-bottom: $spacing-md;
-        font-size: 1rem;
-    }
+.room-players-panel,
+.room-chat-panel {
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    padding: 1rem;
 }
 
 .room-player-item {
     display: flex;
     align-items: center;
-    gap: $spacing-sm;
-    padding: $spacing-sm;
-    border-radius: $radius-sm;
-    background: rgb(0 0 0 / 20%);
-    margin-bottom: $spacing-xs;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    background: rgb(0 0 0 / 15%);
+    margin-bottom: 0.25rem;
 }
 
 .room-player-status {
@@ -46,89 +75,74 @@
     text-align: center;
 
     &.ready {
-        color: $success;
+        color: var(--ronin-success);
     }
 
     &.not-ready {
-        color: $text-muted;
+        color: var(--pico-muted-color);
     }
 }
 
 .room-player-name {
-    font-family: $font-mono;
+    font-family: var(--ronin-font-mono);
     font-size: 14px;
-    color: $text-primary;
 }
 
 .room-ready-btn {
-    margin-top: $spacing-md;
+    margin-top: 1rem;
     width: 100%;
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
 }
 
 .room-chat-panel {
-    background: $bg-secondary;
-    border-radius: $radius-md;
-    padding: $spacing-md;
     display: flex;
     flex-direction: column;
-
-    h3 {
-        color: $text-primary;
-        margin-bottom: $spacing-md;
-        font-size: 1rem;
-    }
 }
 
 .room-chat-messages {
     flex: 1;
     max-height: 50vh;
     overflow-y: auto;
-    margin-bottom: $spacing-sm;
+    margin-bottom: 0.5rem;
 }
 
 .room-chat-entry {
     font-size: 12px;
-    padding: $spacing-xs 0;
+    padding: 0.25rem 0;
     display: flex;
-    gap: $spacing-xs;
+    gap: 0.25rem;
 
     &.system {
-        color: $text-muted;
+        color: var(--pico-muted-color);
         font-style: italic;
     }
 }
 
 .room-chat-time {
-    color: $text-muted;
-    font-family: $font-mono;
+    color: var(--pico-muted-color);
+    font-family: var(--ronin-font-mono);
     white-space: nowrap;
 }
 
 .room-chat-sender {
-    color: $accent;
+    color: var(--pico-primary);
     font-weight: 600;
     white-space: nowrap;
 }
 
 .room-chat-text {
-    color: $text-secondary;
+    color: var(--ronin-text-secondary);
 }
 
 .room-chat-input {
     display: flex;
-    gap: $spacing-sm;
+    gap: 0.5rem;
 
     input {
         flex: 1;
-        padding: $spacing-sm;
-        background: $bg-primary;
-        border: 1px solid $bg-panel;
-        border-radius: $radius-sm;
-        color: $text-primary;
+        padding: 0.5rem;
+        background: var(--pico-background-color);
         font-size: 14px;
-
-        &::placeholder {
-            color: $text-muted;
-        }
     }
 }

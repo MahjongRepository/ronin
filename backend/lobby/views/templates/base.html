@@ -1,20 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="app-version" content="{{ app_version | default('dev') }}">
     <meta name="git-commit" content="{{ git_commit | default('dev') }}">
     <title>{% block title %}Ronin - Mahjong{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     {% block styles %}
     <link rel="stylesheet" href="{{ lobby_css_url }}">
     {% endblock %}
 </head>
 <body>
-    <div id="app">
+    <nav class="container lobby-nav">
+        <ul>
+            <li><a href="/" class="lobby-brand"><span class="lobby-logo" role="img" aria-label="Ronin logo"></span>Ronin</a></li>
+        </ul>
+        {% if username %}
+        <ul>
+            <li class="lobby-username">{{ username }}</li>
+            <li>
+                <form method="POST" action="/logout">
+                    <button type="submit" class="outline contrast lobby-nav-btn">Logout</button>
+                </form>
+            </li>
+        </ul>
+        {% endif %}
+    </nav>
+    <main class="container">
         {% block content %}{% endblock %}
-    </div>
-    <footer class="app-footer">v{{ app_version | default('dev') }}</footer>
+    </main>
+    <footer class="container">
+        <div class="footer-content">
+            <small class="footer-meta">&copy; {{ current_year }} Ronin &middot; v{{ app_version | default('dev') }}</small>
+            {% if dev_mode %}
+            <nav class="footer-dev-links">
+                <a href="/styleguide">Lobby Styleguide</a>
+                <a href="/game/styleguide">Game Styleguide</a>
+            </nav>
+            {% endif %}
+        </div>
+    </footer>
     {% block scripts %}{% endblock %}
 </body>
 </html>

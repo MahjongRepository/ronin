@@ -1,45 +1,51 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="lobby">
-    <h1>Ronin Mahjong</h1>
-    <div class="lobby-header">
-        <span class="username">{{ username }}</span>
-        <form method="POST" action="/logout" style="display:inline">
-            <button type="submit" class="btn btn-small">Logout</button>
-        </form>
-    </div>
-    <div class="lobby-controls">
-        <form method="POST" action="/rooms/new">
-            <button type="submit" class="btn btn-primary">Create Room</button>
-        </form>
-        <a href="/" class="btn btn-secondary">Refresh</a>
+{% if error %}
+<div class="lobby-alert" role="alert">{{ error }}</div>
+{% endif %}
+
+<section class="lobby-section">
+    <div class="lobby-section-header">
+        <h2>Open Tables</h2>
+        <small class="lobby-table-count">{{ rooms|length }} active</small>
     </div>
 
-    {% if error %}
-    <div class="lobby-status">
-        <p class="error-message">{{ error }}</p>
+    <div class="lobby-grid">
+        <form method="POST" action="/rooms/new" class="lobby-create-form">
+            <button type="submit" class="lobby-create-btn">
+                <span class="lobby-create-icon">+</span>
+                <span class="lobby-create-label">New Table</span>
+            </button>
+        </form>
+
+        {% for room in rooms %}
+        <article class="lobby-room-card" style="--card-index: {{ loop.index0 }}">
+            <div class="lobby-room-header">
+                <code class="lobby-room-id">{{ room.room_id }}</code>
+                <span class="lobby-room-count">{{ room.player_count }}/{{ room.players_needed }}</span>
+            </div>
+            <div class="lobby-table-vis">
+                {% for i in range(room.players_needed) %}
+                <span class="lobby-seat {{ 'filled' if i < room.player_count else '' }}"></span>
+                {% endfor %}
+            </div>
+            {% if room.player_count < room.players_needed %}
+            <form method="POST" action="/rooms/{{ room.room_id }}/join">
+                <button type="submit" class="outline lobby-join-btn">Join Table</button>
+            </form>
+            {% else %}
+            <span class="lobby-full-badge">Full</span>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+
+    {% if not rooms %}
+    <div class="lobby-empty">
+        <p>No tables yet</p>
+        <p><small>Create one to start playing</small></p>
     </div>
     {% endif %}
-
-    <div class="games-list">
-        {% if rooms %}
-            {% for room in rooms %}
-            <div class="game-item">
-                <span class="game-id">{{ room.room_id }}</span>
-                <span class="game-players">{{ room.player_count }}/{{ room.players_needed }} players</span>
-                {% if room.player_count < room.players_needed %}
-                <form method="POST" action="/rooms/{{ room.room_id }}/join" style="display:inline">
-                    <button type="submit" class="btn btn-small">Join</button>
-                </form>
-                {% else %}
-                <span class="game-full">Full</span>
-                {% endif %}
-            </div>
-            {% endfor %}
-        {% else %}
-            <p class="empty-message">No rooms available. Create one!</p>
-        {% endif %}
-    </div>
-</div>
+</section>
 {% endblock %}

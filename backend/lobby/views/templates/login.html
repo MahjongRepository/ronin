@@ -3,29 +3,25 @@
 {% block title %}Login - Ronin Mahjong{% endblock %}
 
 {% block content %}
-<div class="lobby">
-    <h1>Ronin Mahjong</h1>
-    <div class="auth-form">
-        <h2>Login</h2>
+<article class="auth-card">
+    <hgroup>
+        <h1>Login</h1>
+        <p>Sign in to play</p>
+    </hgroup>
 
-        {% if error %}
-        <div class="lobby-status">
-            <p class="error-message">{{ error }}</p>
-        </div>
-        {% endif %}
+    {% if error %}
+    <div class="lobby-alert" role="alert">{{ error }}</div>
+    {% endif %}
 
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required minlength="3" maxlength="30">
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required minlength="8">
-            </div>
-            <button type="submit" class="btn btn-primary">Login</button>
-        </form>
-        <p class="auth-link">Don't have an account? <a href="/register">Register</a></p>
-    </div>
-</div>
+    <form method="POST" action="/login">
+        <label for="username">Username
+            <input type="text" id="username" name="username" required minlength="3" maxlength="30" autocomplete="username">
+        </label>
+        <label for="password">Password
+            <input type="password" id="password" name="password" required minlength="8" autocomplete="current-password">
+        </label>
+        <button type="submit">Login</button>
+    </form>
+    <p class="auth-link"><small>Don't have an account? <a href="/register">Register</a></small></p>
+</article>
 {% endblock %}

@@ -1,0 +1,85 @@
+// Ronin Mahjong - "Parlor at Night" dark theme
+// Warm blacks with bamboo green accent, refined Japanese aesthetic
+[data-theme="dark"] {
+    // Warm dark background layers (charcoal with warm brown undertone)
+    --pico-background-color: #0e0f13;
+    --pico-card-background-color: #161821;
+    --pico-card-sectioning-background-color: #1c1e2a;
+
+    // Text hierarchy (warm off-whites for readability)
+    --pico-color: #e8e4df;
+    --pico-muted-color: #7a7670;
+    --pico-muted-border-color: #2a2621;
+    --ronin-text-secondary: #a09a92;
+
+    // Primary (matcha/bamboo green)
+    --pico-primary: #7bb88a;
+    --pico-primary-hover: #6aaa79;
+    --pico-primary-background: #4a8a58;
+    --pico-primary-border: var(--pico-primary-background);
+    --pico-primary-hover-background: #3d7a4b;
+    --pico-primary-hover-border: var(--pico-primary-hover-background);
+    --pico-primary-inverse: #e8e4df;
+
+    // Form elements
+    --pico-form-element-background-color: #131419;
+    --pico-form-element-border-color: #2a2621;
+    --pico-form-element-focus-color: #7bb88a;
+
+    // Danger/error
+    --pico-del-color: #d45454;
+}
+
+// Project-specific tokens
+:root {
+    --ronin-gold: #c9a84c;
+    --ronin-success: #7bb88a;
+    --ronin-danger: #d45454;
+    --ronin-warning: #d4a04c;
+
+    // Warm surfaces
+    --ronin-surface: #161821;
+    --ronin-surface-elevated: #1c1e2a;
+    --ronin-surface-overlay: #222433;
+    --ronin-border: #28261f;
+    --ronin-border-subtle: #1e1c17;
+
+    // Typography
+    --ronin-font-display: "Space Grotesk", sans-serif;
+    --ronin-font-body: "DM Sans", sans-serif;
+    --ronin-font-mono: "JetBrains Mono", "SF Mono", monospace;
+}
+
+// Sticky footer layout
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 0%, rgb(123 184 138 / 3%) 0%, transparent 50%),
+        var(--pico-background-color);
+}
+
+main {
+    flex: 1;
+}
+
+// Apply fonts globally
+html {
+    font-family: var(--ronin-font-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--ronin-font-display);
+}
+
+code,
+kbd,
+pre {
+    font-family: var(--ronin-font-mono);
+}

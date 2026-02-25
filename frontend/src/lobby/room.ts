@@ -170,7 +170,7 @@ function handleToggleReady(): void {
     const btn = document.getElementById("ready-btn");
     if (btn) {
         btn.textContent = isReady ? "Not Ready" : "Ready";
-        btn.className = `btn room-ready-btn ${isReady ? "btn-secondary" : "btn-primary"}`;
+        btn.className = `room-ready-btn ${isReady ? "secondary" : ""}`;
     }
 }
 
@@ -206,7 +206,7 @@ function renderRoomUI(container: HTMLElement, roomId: string): void {
         html`
         <div class="room">
             <div class="room-header">
-                <button class="btn btn-secondary" @click=${handleLeaveRoom}>Leave Room</button>
+                <button class="secondary" @click=${handleLeaveRoom}>Leave Room</button>
                 <h2>Room: ${roomId}</h2>
                 <span class="connection-status" id="connection-status">${connectionStatus}</span>
             </div>
@@ -214,7 +214,7 @@ function renderRoomUI(container: HTMLElement, roomId: string): void {
                 <div class="room-players-panel">
                     <h3>Players</h3>
                     <div id="room-players"></div>
-                    <button class="btn btn-primary room-ready-btn" id="ready-btn" @click=${handleToggleReady}>
+                    <button class="room-ready-btn" id="ready-btn" @click=${handleToggleReady}>
                         Ready
                     </button>
                 </div>
@@ -223,7 +223,7 @@ function renderRoomUI(container: HTMLElement, roomId: string): void {
                     <div class="room-chat-messages" id="room-chat-messages"></div>
                     <div class="room-chat-input">
                         <input type="text" id="chat-input" placeholder="Type a message..." @keydown=${handleChatKeydown} />
-                        <button class="btn btn-small" @click=${handleSendChat}>Send</button>
+                        <button class="outline" @click=${handleSendChat}>Send</button>
                     </div>
                 </div>
             </div>

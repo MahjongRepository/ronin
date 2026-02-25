@@ -14,9 +14,6 @@ class AuthSettings(BaseSettings):
     # SQLite database file path
     database_path: str = "backend/storage.db"
 
-    # Legacy JSON users file for migration input
-    legacy_users_file: str = Field(default="data/users.json", validation_alias="AUTH_USERS_FILE")
-
     # Cookie Secure flag -- True in production, False for local dev (HTTP)
     cookie_secure: bool = False
 

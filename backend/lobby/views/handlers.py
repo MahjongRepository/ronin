@@ -12,7 +12,6 @@ from starlette.responses import PlainTextResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from shared.auth.game_ticket import TICKET_TTL_SECONDS, GameTicket, sign_game_ticket
-from shared.build_info import APP_VERSION, GIT_COMMIT
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -61,8 +60,6 @@ def _render_lobby_with_error(
             "rooms": rooms,
             "username": username,
             "error": error,
-            "app_version": APP_VERSION,
-            "git_commit": GIT_COMMIT,
         },
     )
 
@@ -81,8 +78,6 @@ async def lobby_page(request: Request) -> Response:
             "rooms": rooms,
             "username": user.username,
             "error": None,
-            "app_version": APP_VERSION,
-            "git_commit": GIT_COMMIT,
         },
     )
 
@@ -129,10 +124,22 @@ async def room_page(request: Request) -> Response:
         {
             "room_id": room_id,
             "ws_url": ws_url,
-            "app_version": APP_VERSION,
-            "git_commit": GIT_COMMIT,
+            "username": request.user.username,
         },
     )
+
+
+async def styleguide_page(request: Request) -> Response:
+    """Render the style guide page for development."""
+    templates: Jinja2Templates = request.app.state.templates
+    username = request.user.username if request.user.is_authenticated else None
+    return templates.TemplateResponse(request, "styleguide.html", {"username": username})
+
+
+async def game_styleguide_page(request: Request) -> Response:
+    """Render the game style guide page for development."""
+    templates: Jinja2Templates = request.app.state.templates
+    return templates.TemplateResponse(request, "game-styleguide.html")
 
 
 def load_game_assets_manifest(game_assets_dir: str) -> dict[str, str]:
@@ -155,10 +162,11 @@ async def game_page(request: Request) -> Response:
     """GET /game — render the game client page."""
     templates: Jinja2Templates = request.app.state.templates
     game_assets: dict[str, str] = request.app.state.game_assets
-    if not game_assets.get("js") or not game_assets.get("css"):
+    js_asset = game_assets.get("js")
+    if not js_asset:
         return PlainTextResponse("Game client assets not available", status_code=503)
     return templates.TemplateResponse(
         request,
         "game.html",
-        {"game_assets": game_assets},
+        {"game_js_url": f"/game-assets/{js_asset}"},
     )
