@@ -16,7 +16,7 @@ COPY frontend/ ./
 
 ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown
-ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT}
+ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
 
 RUN bun run build
 
@@ -92,6 +92,8 @@ COPY backend/ backend/
 # Copy built frontend assets from the frontend-builder stage.
 # All production assets (game client + lobby CSS) are content-hashed in dist/.
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+# Static files served at /static (game-redirect.js, env.js, logo, etc.)
+COPY frontend/public /app/frontend/public
 
 # Create directories for runtime data
 RUN mkdir -p /app/data/logs /app/data/replays /app/data/db && \

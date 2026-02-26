@@ -3,9 +3,17 @@ user: root
 targets:
   dev:
     hosts:
-      - {host: "159.69.156.252", name: "dev-server"}
+      - {host: "46.224.129.132", name: "dev-server"}
 
 tasks:
+  - name: setup-ssh
+    commands:
+      - name: disable password authentication
+        script: |
+          sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+          sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config
+          systemctl reload ssh
+
   - name: setup-docker
     commands:
       - name: install base packages
@@ -17,7 +25,15 @@ tasks:
             echo "Docker already running: $(docker --version)"
             exit 0
           fi
-          curl -fsSL https://get.docker.com | sh
+          apt-get update
+          apt-get install -y ca-certificates curl gnupg
+          install -m 0755 -d /etc/apt/keyrings
+          . /etc/os-release
+          curl -fsSL "https://download.docker.com/linux/${ID}/gpg" -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
+          apt-get update
+          apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
       - name: verify docker
         wait: {cmd: "docker info >/dev/null 2>&1", timeout: "15s", interval: "3s"}
@@ -26,6 +42,7 @@ tasks:
     commands:
       - name: configure ufw
         script: |
+          apt-get install -y ufw
           ufw default deny incoming
           ufw default allow outgoing
           ufw allow ssh
@@ -36,16 +53,29 @@ tasks:
       - name: restrict docker external access
         script: |
           # Docker bypasses UFW by manipulating iptables directly.
-          # The DOCKER-USER chain is processed before Docker's own rules,
-          # blocking external traffic from reaching published container ports.
+          # The DOCKER-USER chain is processed before Docker's own rules.
+          # Allow HTTP/HTTPS to Traefik container, block everything else.
+          # Detect the default interface from the routing table.
+          # Extract the value after "dev" regardless of field position
+          # (output format varies with/without gateway hop).
+          IFACE=$(ip -o route get 8.8.8.8 | sed -n 's/.*dev \([^ ]*\).*/\1/p')
+          if [ -z "$IFACE" ]; then
+            echo "ERROR: could not detect default network interface"
+            exit 1
+          fi
+          echo "Detected default interface: $IFACE"
           # Flush and rebuild for idempotency.
           iptables -F DOCKER-USER
-          iptables -A DOCKER-USER -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-          iptables -A DOCKER-USER -i eth0 -j DROP
+          iptables -A DOCKER-USER -i "$IFACE" -p tcp --dport 80 -j ACCEPT
+          iptables -A DOCKER-USER -i "$IFACE" -p tcp --dport 443 -j ACCEPT
+          iptables -A DOCKER-USER -i "$IFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          iptables -A DOCKER-USER -i "$IFACE" -j DROP
           iptables -A DOCKER-USER -j RETURN
           ip6tables -F DOCKER-USER
-          ip6tables -A DOCKER-USER -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-          ip6tables -A DOCKER-USER -i eth0 -j DROP
+          ip6tables -A DOCKER-USER -i "$IFACE" -p tcp --dport 80 -j ACCEPT
+          ip6tables -A DOCKER-USER -i "$IFACE" -p tcp --dport 443 -j ACCEPT
+          ip6tables -A DOCKER-USER -i "$IFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          ip6tables -A DOCKER-USER -i "$IFACE" -j DROP
           ip6tables -A DOCKER-USER -j RETURN
 
       - name: persist docker firewall rules
@@ -53,43 +83,16 @@ tasks:
           DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
           netfilter-persistent save
 
-  - name: setup-caddy
-    commands:
-      - name: verify dns
-        script: "dig +short $DOMAIN | grep -q '{SPOT_REMOTE_ADDR}'"
-
-      - name: install caddy
-        script: |
-          apt-get update
-          apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
-          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor | tee /usr/share/keyrings/caddy-stable-archive-keyring.gpg > /dev/null
-          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-          apt-get update
-          apt-get install -y caddy
-
-      - name: upload caddyfile
-        copy: {src: "config/Caddyfile", dst: "/etc/caddy/Caddyfile"}
-
-      - name: upload caddy systemd override
-        copy: {src: "config/caddy-env.conf", dst: "/etc/systemd/system/caddy.service.d/env.conf", mkdir: true}
-
-      - name: write caddy env
-        script: |
-          echo "DOMAIN=$DOMAIN" > /etc/caddy/env
-          systemctl daemon-reload
-
-      - name: restart caddy
-        script: |
-          systemctl enable caddy
-          systemctl restart caddy
-
-      - name: verify caddy is running
-        wait: {cmd: "systemctl is-active caddy", timeout: "15s", interval: "3s"}
-
   - name: setup-app
     commands:
       - name: create app directory
-        script: mkdir -p /opt/ronin/config /opt/ronin/www
+        script: |
+          mkdir -p /opt/ronin/config /opt/ronin/www
+          mkdir -p /opt/ronin/data/db/lobby /opt/ronin/data/db/game
+          mkdir -p /opt/ronin/data/logs/lobby /opt/ronin/data/logs/game
+          mkdir -p /opt/ronin/data/replays /opt/ronin/data/traefik
+          # UID 1000 matches the 'app' user in deploy/Dockerfile
+          chown -R 1000:1000 /opt/ronin/data
 
       - name: init env file
         copy: {src: ".env.example", dst: "/tmp/ronin-env-template"}
@@ -102,6 +105,7 @@ tasks:
             cp /tmp/ronin-env-template /opt/ronin/.env
           fi
           rm -f /tmp/ronin-env-template
+          [ -f /opt/ronin/.env ] && chmod 600 /opt/ronin/.env
 
   - name: deploy
     commands:
@@ -109,30 +113,40 @@ tasks:
         copy: {src: "docker-compose.yml", dst: "/opt/ronin/docker-compose.yml"}
 
       - name: upload server config
-        copy: {src: "config/servers.yaml", dst: "/opt/ronin/config/servers.yaml"}
+        copy: {src: "config/servers.yaml", dst: "/tmp/ronin-servers.yaml"}
 
-      - name: render server config
-        script: sed -i "s|%%DOMAIN%%|$DOMAIN|g" /opt/ronin/config/servers.yaml
+      - name: upload traefik config
+        copy: {src: "config/traefik-dynamic.yml", dst: "/tmp/ronin-traefik-dynamic.yml"}
+
+      - name: render templates
+        script: |
+          if [ -z "$DOMAIN" ]; then
+            echo "ERROR: DOMAIN variable is empty or unset"
+            exit 1
+          fi
+          sed -i "s|%%DOMAIN%%|$DOMAIN|g" /opt/ronin/docker-compose.yml
+          # Render bind-mounted configs via > to preserve inodes.
+          # sed -i would create new inodes, breaking container bind mounts.
+          sed "s|%%DOMAIN%%|$DOMAIN|g" /tmp/ronin-servers.yaml > /opt/ronin/config/servers.yaml
+          sed "s|%%DOMAIN%%|$DOMAIN|g" /tmp/ronin-traefik-dynamic.yml > /opt/ronin/config/traefik-dynamic.yml
+          rm -f /tmp/ronin-servers.yaml /tmp/ronin-traefik-dynamic.yml
+          # Fail if any placeholders remain after rendering
+          if grep -rq '%%DOMAIN%%' /opt/ronin/docker-compose.yml /opt/ronin/config/; then
+            echo "ERROR: unrendered %%DOMAIN%% placeholders found"
+            exit 1
+          fi
 
       - name: pull image
         script: cd /opt/ronin && docker compose pull
 
-      - name: extract static files
-        script: |
-          id=$(docker create ghcr.io/mahjongrepository/ronin:latest)
-          rm -rf /opt/ronin/www/game-assets
-          mkdir -p /opt/ronin/www/game-assets
-          docker cp "$id:/app/frontend/dist/." /opt/ronin/www/game-assets/
-          docker rm "$id"
-
-      - name: reload caddy
-        script: systemctl reload caddy
-
       - name: start services
-        script: cd /opt/ronin && docker compose up -d
+        script: cd /opt/ronin && docker compose up -d --remove-orphans
 
       - name: verify lobby is healthy
         wait: {cmd: "curl -sf http://localhost:8710/health", timeout: "30s", interval: "5s"}
 
       - name: verify game is healthy
         wait: {cmd: "curl -sf http://localhost:8711/health", timeout: "30s", interval: "5s"}
+
+      - name: verify traefik is running
+        wait: {cmd: "cd /opt/ronin && docker compose ps traefik --format json | grep -q running", timeout: "30s", interval: "5s"}

@@ -112,7 +112,7 @@ async def room_websocket(websocket: WebSocket) -> None:
 
 def _check_origin(websocket: WebSocket) -> bool:
     settings: LobbyServerSettings = websocket.app.state.settings
-    ws_allowed_origin = getattr(settings, "ws_allowed_origin", None)
+    ws_allowed_origin = settings.ws_allowed_origin
     if not ws_allowed_origin:
         return True
     origin = websocket.headers.get("origin", "")

@@ -37,6 +37,9 @@ const tsResult = await Bun.build({
     outdir: "dist",
     naming: "lobby-[hash].[ext]",
     minify: true,
+    define: {
+        "process.env.NODE_ENV": JSON.stringify("production"),
+    },
 });
 
 if (!tsResult.success) {

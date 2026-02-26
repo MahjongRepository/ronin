@@ -1,0 +1,100 @@
+http:
+  routers:
+    # Rate-limited auth endpoints (login, register) — highest priority
+    lobby-auth:
+      rule: "Host(`%%DOMAIN%%`) && (Path(`/login`) || Path(`/register`)) && Method(`POST`)"
+      entryPoints: ["websecure"]
+      service: lobby
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers", "auth-ratelimit"]
+      priority: 20
+
+    # Rate-limited bot API endpoints
+    lobby-bot-api:
+      rule: "Host(`%%DOMAIN%%`) && (Path(`/api/auth/bot`) || Path(`/api/rooms`)) && Method(`POST`)"
+      entryPoints: ["websecure"]
+      service: lobby
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers", "bot-ratelimit"]
+      priority: 20
+
+    # Lobby WebSocket — /ws/rooms/ routes to lobby, not game
+    lobby-ws:
+      rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/ws/rooms/`)"
+      entryPoints: ["websecure"]
+      service: lobby
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers"]
+      priority: 15
+
+    # Game WebSocket — all other /ws/ paths go to game server
+    game-ws:
+      rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/ws/`)"
+      entryPoints: ["websecure"]
+      service: game
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers"]
+      priority: 10
+
+    # Game assets — aggressive caching headers + HSTS
+    game-assets:
+      rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/game-assets/`)"
+      entryPoints: ["websecure"]
+      service: lobby
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers", "game-assets-cache"]
+      priority: 15
+
+    # Lobby catch-all (all other paths) — lowest priority
+    lobby:
+      rule: "Host(`%%DOMAIN%%`)"
+      entryPoints: ["websecure"]
+      service: lobby
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers"]
+      priority: 1
+
+  services:
+    lobby:
+      loadBalancer:
+        servers:
+          - url: "http://lobby:8710"
+    game:
+      loadBalancer:
+        servers:
+          - url: "http://game:8711"
+
+  middlewares:
+    # Only HSTS is set here. X-Content-Type-Options and X-Frame-Options are
+    # already set by the lobby's SecurityHeadersMiddleware (with path-dependent
+    # CSP). Duplicating them in Traefik would risk divergence.
+    security-headers:
+      headers:
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+
+    auth-ratelimit:
+      rateLimit:
+        average: 5
+        period: 10s
+        burst: 5
+
+    bot-ratelimit:
+      rateLimit:
+        average: 10
+        period: 10s
+        burst: 10
+
+    # Starlette's StaticFiles does not set Cache-Control by default.
+    # This header is set at the proxy layer for content-hashed game assets.
+    game-assets-cache:
+      headers:
+        customResponseHeaders:
+          Cache-Control: "public, max-age=31536000, immutable"

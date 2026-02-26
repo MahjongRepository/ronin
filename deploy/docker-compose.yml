@@ -1,10 +1,38 @@
 services:
+  traefik:
+    image: traefik:v3.4
+    restart: unless-stopped
+    depends_on:
+      lobby:
+        condition: service_started
+      game:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./data/traefik:/letsencrypt
+    command:
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?Set ACME_EMAIL in .env}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=false"
+      - "--log.level=INFO"
+      - "--log.format=json"
+
   lobby:
     image: ghcr.io/mahjongrepository/ronin:latest
     command: >
       uvicorn --factory lobby.server.app:get_app
       --host 0.0.0.0 --port 8710
-      --proxy-headers
+      --proxy-headers --forwarded-allow-ips=*
       --log-level info
     ports:
       - "127.0.0.1:8710:8710"
@@ -16,13 +44,15 @@ services:
       LOBBY_STATIC_DIR: /app/frontend/public
       LOBBY_GAME_ASSETS_DIR: /app/frontend/dist
       LOBBY_GAME_CLIENT_URL: /game
+      LOBBY_ALLOWED_HOSTS: %%DOMAIN%%,localhost
+      LOBBY_WS_ALLOWED_ORIGIN: https://%%DOMAIN%%
       LOBBY_LOG_DIR: /app/data/logs/lobby
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./config/servers.yaml:/app/config/servers.yaml:ro
-      - lobby-db:/app/data/db
-      - logs:/app/data/logs
+      - ./data/db/lobby:/app/data/db
+      - ./data/logs/lobby:/app/data/logs/lobby
     depends_on:
       game:
         condition: service_started
@@ -39,7 +69,7 @@ services:
     command: >
       uvicorn --factory game.server.app:get_app
       --host 0.0.0.0 --port 8711
-      --proxy-headers
+      --proxy-headers --forwarded-allow-ips=*
       --log-level info
     ports:
       - "127.0.0.1:8711:8711"
@@ -51,9 +81,9 @@ services:
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - game-db:/app/data/db
-      - logs:/app/data/logs
-      - replays:/app/data/replays
+      - ./data/db/game:/app/data/db
+      - ./data/logs/game:/app/data/logs/game
+      - ./data/replays:/app/data/replays
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8711/health')"]
@@ -61,9 +91,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  lobby-db:
-  game-db:
-  logs:
-  replays:
