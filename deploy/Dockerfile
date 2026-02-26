@@ -92,7 +92,7 @@ COPY backend/ backend/
 # Copy built frontend assets from the frontend-builder stage.
 # All production assets (game client + lobby CSS) are content-hashed in dist/.
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
-# Static files served at /static (game-redirect.js, env.js, logo, etc.)
+# Static files served at /static/ (currently empty — logo.svg is content-hashed in dist/assets/)
 COPY frontend/public /app/frontend/public
 
 # Create directories for runtime data

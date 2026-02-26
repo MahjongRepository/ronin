@@ -95,24 +95,28 @@ The backend serves the game client directly via a Jinja2 template at `/game`, el
 
 ### Asset Discovery
 
-The frontend build (`bun run build:game`) produces content-hashed files (e.g., `index-hqf7q5nj.js`) in `frontend/dist/`. A post-build script (`frontend/scripts/generate-manifest.ts`) scans the output and writes `dist/manifest.json`:
+Vite produces content-hashed files in `frontend/dist/assets/` and writes `dist/.vite/manifest.json` mapping source entry points to their hashed outputs:
 
 ```json
-{"js": "index-hqf7q5nj.js", "css": "game-app-k3m9x2.css"}
+{
+  "src/index.ts": {"file": "assets/game-abc123.js", "css": ["assets/game-def456.css"]},
+  "src/lobby/index.ts": {"file": "assets/lobby-ghi789.js", "css": ["assets/lobby-jkl012.css"]}
+}
 ```
 
-At startup, the backend reads this manifest and passes the filenames to the `game.html` Jinja2 template, which renders the correct `<script>` and `<link>` tags.
+At startup, the backend reads the Vite manifest via `load_vite_manifest()` and `resolve_vite_asset_urls()`, then sets Jinja2 template globals (`game_js_url`, `game_css_url`, `lobby_js_url`, `lobby_css_url`) with `/game-assets/`-prefixed paths.
 
 ### CSP Policy
 
-The security headers middleware applies route-aware Content Security Policy:
-- **Lobby/auth pages** — `script-src 'none'` (no JavaScript)
-- **Room pages** (`/rooms/`) — `script-src 'self'` and `connect-src 'self'` (allows scripts and same-origin WebSocket connections)
-- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers). The `game.html` template loads `/static/game-redirect.js` to redirect users without a hash fragment back to the lobby; this script must remain external (not inline) to comply with `script-src 'self'`.
+The security headers middleware applies route-aware Content Security Policy (2 tiers):
+- **Lobby pages** (all non-game pages, including rooms) — `script-src 'self'` and `connect-src 'self'` (allows scripts and same-origin connections). Lobby JS loads on all pages.
+- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers).
+
+When `LOBBY_VITE_DEV_URL` is set, both tiers also allow scripts and WebSocket from the Vite dev server origin.
 
 ### Dev Mode
 
-`run-local-server.sh` sets `LOBBY_GAME_CLIENT_URL=http://localhost:$CLIENT_PORT`, which overrides the `/game` default. The Bun dev server continues to serve the game client separately for hot reloading during development.
+`run-local-server.sh` sets `LOBBY_VITE_DEV_URL=http://localhost:5173`, which enables Vite dev mode in the lobby backend. Template globals point to the Vite dev server for HMR. The game client is served at `/game` via the lobby (same origin).
 
 ## Security Requirements
 
@@ -124,7 +128,7 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Cookie security**: `AUTH_COOKIE_SECURE` defaults to `true` (production). Local development (`.env.local`) and tests must explicitly set `false`. Session cookies and CSRF cookies must use `httponly=True`, `samesite="lax"`.
 - **Session ID query param restricted to WebSocket only**: The `SessionOrApiKeyBackend` must only read `session_id` from query parameters for WebSocket connections (`scope["type"] == "websocket"`). HTTP requests must use cookies only.
 - **WebSocket origin check**: Room WebSocket connections must validate the `Origin` header against `LOBBY_WS_ALLOWED_ORIGIN`.
-- **CSP headers**: `SecurityHeadersMiddleware` applies route-aware Content Security Policy. Lobby/auth pages block all scripts (`script-src 'none'`); room and game pages allow `'self'` only. New routes must fit an existing CSP tier or have an explicit policy added.
+- **CSP headers**: `SecurityHeadersMiddleware` applies route-aware Content Security Policy (2 tiers). Lobby pages allow `script-src 'self'`; game pages add `ws: wss:` to `connect-src`. New routes must fit an existing CSP tier or have an explicit policy added.
 - **Sensitive data logging**: Never log passwords, API keys, session IDs, or game tickets at INFO level or above.
 
 ## Internal Architecture
@@ -218,12 +222,13 @@ Lobby settings (prefixed with `LOBBY_`):
 
 - `LOBBY_CONFIG_PATH` - Override default servers.yaml file path (default: `backend/config/servers.yaml`)
 - `LOBBY_LOG_DIR` - Log file directory (default: `backend/logs/lobby`)
-- `LOBBY_CORS_ORIGINS` - Allowed CORS origins as JSON array or CSV string (default: `["http://localhost:8712"]`)
+- `LOBBY_CORS_ORIGINS` - Allowed CORS origins as JSON array or CSV string (default: `[]`)
 - `LOBBY_ALLOWED_HOSTS` - Allowed hosts for Host header validation as JSON array or CSV string (default: `["localhost", "127.0.0.1", "testserver", "*.local"]`)
 - `LOBBY_STATIC_DIR` - Static files directory for CSS (default: `frontend/public`)
 - `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/game`)
 - `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
-- `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `manifest.json` (default: `frontend/dist`)
+- `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `.vite/manifest.json` (default: `frontend/dist`)
+- `LOBBY_VITE_DEV_URL` - Vite dev server URL for HMR in development (default: empty; set to `http://localhost:5173` when running Vite dev server)
 
 Auth settings (prefixed with `AUTH_`):
 

@@ -38,8 +38,9 @@ from lobby.views.handlers import (
     game_page,
     game_styleguide_page,
     join_room_and_redirect,
-    load_game_assets_manifest,
+    load_vite_manifest,
     lobby_page,
+    resolve_vite_asset_urls,
     room_page,
     styleguide_page,
 )
@@ -217,7 +218,7 @@ def create_app(
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "X-API-Key"],
     )
-    app.add_middleware(SecurityHeadersMiddleware)  # type: ignore[arg-type]
+    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)  # type: ignore[arg-type]
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)  # type: ignore[arg-type]
 
     registry = RegistryManager(settings.config_path)
@@ -253,19 +254,38 @@ def _attach_state(  # noqa: PLR0913
     app.state.registry = registry
 
     templates = create_templates()
-    game_assets = load_game_assets_manifest(settings.game_assets_dir)
-    lobby_css = game_assets.get("lobby_css")
-    templates.env.globals["lobby_css_url"] = f"/game-assets/{lobby_css}" if lobby_css else "/static/styles/lobby.css"
-    lobby_js = game_assets.get("lobby_js")
-    templates.env.globals["lobby_js_url"] = f"/game-assets/{lobby_js}" if lobby_js else "/static/scripts/lobby.js"
-    game_css = game_assets.get("css")
-    templates.env.globals["game_css_url"] = f"/game-assets/{game_css}" if game_css else "/static/styles/game.css"
+    dev_mode = APP_VERSION == "dev"
+    vite_dev_url = settings.vite_dev_url
+
+    if vite_dev_url:
+        # Vite dev server: templates load assets from Vite for HMR.
+        # CSS URLs point to SCSS source files — Vite compiles and serves them as CSS.
+        # JS URLs point to TS entry points — Vite serves them as ES modules.
+        templates.env.globals["vite_dev"] = True
+        templates.env.globals["vite_dev_url"] = vite_dev_url
+        templates.env.globals["lobby_css_url"] = f"{vite_dev_url}/src/styles/lobby-app.scss"
+        templates.env.globals["lobby_js_url"] = f"{vite_dev_url}/src/lobby/index.ts"
+        templates.env.globals["game_css_url"] = f"{vite_dev_url}/src/styles/game-app.scss"
+        templates.env.globals["game_js_url"] = f"{vite_dev_url}/src/index.ts"
+        game_assets_available = True
+    else:
+        # Production (or standalone dev without Vite): read Vite manifest
+        templates.env.globals["vite_dev"] = False
+        templates.env.globals["vite_dev_url"] = ""
+        manifest = load_vite_manifest(settings.game_assets_dir)
+        urls = resolve_vite_asset_urls(manifest)
+        templates.env.globals["lobby_css_url"] = urls.get("lobby_css", "")
+        templates.env.globals["lobby_js_url"] = urls.get("lobby_js", "")
+        templates.env.globals["game_css_url"] = urls.get("game_css", "")
+        templates.env.globals["game_js_url"] = urls.get("game_js", "")
+        game_assets_available = bool(urls.get("game_js"))
+
     templates.env.globals["app_version"] = APP_VERSION
     templates.env.globals["git_commit"] = GIT_COMMIT
     templates.env.globals["current_year"] = datetime.now(tz=UTC).year
-    templates.env.globals["dev_mode"] = APP_VERSION == "dev"
+    templates.env.globals["dev_mode"] = dev_mode
     app.state.templates = templates
-    app.state.game_assets = game_assets
+    app.state.game_assets_available = game_assets_available
     app.state.auth_service = auth_service
     app.state.room_manager = room_manager
     app.state.room_connections = room_connections

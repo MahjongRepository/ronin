@@ -3,91 +3,103 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-# Headers added to every HTTP response to mitigate common web vulnerabilities.
-_FONTS_STYLE_SRC = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
 _FONTS_FONT_SRC = "font-src 'self' https://fonts.gstatic.com; "
-
-_LOBBY_CSP = (
-    "default-src 'self'; "
-    "script-src 'none'; " + _FONTS_STYLE_SRC + _FONTS_FONT_SRC + "frame-ancestors 'none'; "
-    "form-action 'self'; "
-    "base-uri 'self'"
-)
-
-# Room pages need scripts and same-origin WebSocket connections.
-_ROOM_CSP = (
-    "default-src 'self'; "
-    "script-src 'self'; " + _FONTS_STYLE_SRC + _FONTS_FONT_SRC + "connect-src 'self'; "
-    "frame-ancestors 'none'; "
-    "form-action 'self'; "
-    "base-uri 'self'"
-)
-
-# Game pages need scripts and WebSocket connections to external game servers.
-_GAME_CSP = (
-    "default-src 'self'; "
-    "script-src 'self'; " + _FONTS_STYLE_SRC + _FONTS_FONT_SRC + "connect-src 'self' ws: wss:; "
-    "frame-ancestors 'none'; "
-    "form-action 'self'; "
-    "base-uri 'self'"
-)
 
 _COMMON_HEADERS: list[tuple[bytes, bytes]] = [
     (b"x-content-type-options", b"nosniff"),
     (b"x-frame-options", b"DENY"),
 ]
 
-SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
-    *_COMMON_HEADERS,
-    (b"content-security-policy", _LOBBY_CSP.encode()),
-]
 
-ROOM_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
-    *_COMMON_HEADERS,
-    (b"content-security-policy", _ROOM_CSP.encode()),
-]
+def _build_csp_headers(
+    vite_dev_url: str,
+) -> tuple[
+    list[tuple[bytes, bytes]],  # lobby (default — all non-game pages)
+    list[tuple[bytes, bytes]],  # game
+]:
+    """Build path-specific CSP header sets.
 
-GAME_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
-    *_COMMON_HEADERS,
-    (b"content-security-policy", _GAME_CSP.encode()),
-]
+    Two tiers:
+    - Lobby (all non-game pages, including rooms): scripts + same-origin connect
+    - Game: scripts + external WebSocket connect
 
-
-def _get_csp_headers(path: str) -> list[tuple[bytes, bytes]]:
-    """Select the appropriate CSP headers based on the request path.
-
-    Trailing slashes are stripped before comparison so that the CSP selection
-    is consistent regardless of whether ``SlashNormalizationMiddleware`` has
-    already run.
+    When vite_dev_url is set, both tiers also allow scripts and WebSocket from that origin.
     """
-    normalized = path.rstrip("/") or "/"
-    if normalized == "/game" or path.startswith("/game-assets/"):
-        return GAME_SECURITY_HEADERS
-    if normalized.startswith("/rooms/"):
-        return ROOM_SECURITY_HEADERS
-    return SECURITY_HEADERS
+    vite_script = ""
+    vite_connect = ""
+    vite_style = ""
+    vite_img = ""
+    if vite_dev_url:
+        parsed = urlparse(vite_dev_url)
+        ws_scheme = "wss" if parsed.scheme == "https" else "ws"
+        ws_origin = f"{ws_scheme}://{parsed.netloc}"
+        vite_script = f" {vite_dev_url}"
+        vite_connect = f" {vite_dev_url} {ws_origin}"
+        vite_style = f" {vite_dev_url}"
+        vite_img = f"img-src 'self' {vite_dev_url}; "
+
+    fonts_style_src = f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com{vite_style}; "
+
+    # Lobby pages (including rooms): scripts + same-origin WS
+    lobby_csp = (
+        "default-src 'self'; "
+        f"script-src 'self'{vite_script}; "
+        + fonts_style_src
+        + _FONTS_FONT_SRC
+        + vite_img
+        + f"connect-src 'self'{vite_connect}; "
+        + "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
+    )
+
+    # Game pages: scripts + external WS
+    game_csp = (
+        "default-src 'self'; "
+        f"script-src 'self'{vite_script}; "
+        + fonts_style_src
+        + _FONTS_FONT_SRC
+        + vite_img
+        + f"connect-src 'self' ws: wss:{vite_connect}; "
+        + "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
+    )
+
+    return (
+        [*_COMMON_HEADERS, (b"content-security-policy", lobby_csp.encode())],
+        [*_COMMON_HEADERS, (b"content-security-policy", game_csp.encode())],
+    )
+
+
+# Module-level default for backward compatibility with tests
+SECURITY_HEADERS = _build_csp_headers("")[0]
 
 
 class SecurityHeadersMiddleware:
     """Inject standard security headers into every HTTP response.
 
-    Game paths (/game, /game-assets/) get a permissive CSP that allows scripts
-    and WebSocket connections. All other paths block scripts entirely.
+    Game paths (/game, /game-assets/) get a CSP that allows scripts and external WebSocket.
+    All other paths (lobby, rooms, auth) get a CSP that allows scripts and same-origin WebSocket.
     """
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, *, vite_dev_url: str = "") -> None:
         self.app = app
+        self._lobby_headers, self._game_headers = _build_csp_headers(vite_dev_url)
+
+    def _get_csp_headers(self, path: str) -> list[tuple[bytes, bytes]]:
+        normalized = path.rstrip("/") or "/"
+        if normalized == "/game" or path.startswith("/game-assets/"):
+            return self._game_headers
+        return self._lobby_headers
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        extra_headers = _get_csp_headers(scope["path"])
+        extra_headers = self._get_csp_headers(scope["path"])
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":

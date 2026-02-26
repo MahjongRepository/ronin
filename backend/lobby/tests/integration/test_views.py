@@ -12,6 +12,35 @@ from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 
 
+def _create_vite_manifest(game_assets_dir):
+    """Create a Vite-format manifest with both entry points."""
+    assets_dir = game_assets_dir / "assets"
+    assets_dir.mkdir()
+    (assets_dir / "game-abc123.js").write_text("console.log('game');")
+    (assets_dir / "game-abc123.css").write_text("body{}")
+    (assets_dir / "lobby-test.js").write_text("console.log('lobby');")
+    (assets_dir / "lobby-test.css").write_text("body { color: red; }")
+
+    vite_dir = game_assets_dir / ".vite"
+    vite_dir.mkdir()
+    (vite_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "src/index.ts": {
+                    "file": "assets/game-abc123.js",
+                    "css": ["assets/game-abc123.css"],
+                    "isEntry": True,
+                },
+                "src/lobby/index.ts": {
+                    "file": "assets/lobby-test.js",
+                    "css": ["assets/lobby-test.css"],
+                    "isEntry": True,
+                },
+            },
+        ),
+    )
+
+
 class TestLobbyViews:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
@@ -28,12 +57,7 @@ servers:
 
         game_assets_dir = tmp_path / "dist"
         game_assets_dir.mkdir()
-        (game_assets_dir / "index-abc123.js").write_text("console.log('game');")
-        (game_assets_dir / "index-abc123.css").write_text("body{}")
-        (game_assets_dir / "lobby-test.css").write_text("body { color: red; }")
-        (game_assets_dir / "manifest.json").write_text(
-            json.dumps({"js": "index-abc123.js", "css": "index-abc123.css", "lobby_css": "lobby-test.css"}),
-        )
+        _create_vite_manifest(game_assets_dir)
 
         app = create_app(
             settings=LobbyServerSettings(
@@ -68,11 +92,13 @@ servers:
 
     def test_lobby_page_includes_css_link(self, client):
         response = client.get("/")
-        assert "/game-assets/lobby-test.css" in response.text
+        assert "/game-assets/assets/lobby-test.css" in response.text
 
-    def test_lobby_page_has_no_script_tags(self, client):
+    def test_lobby_page_includes_script_tag(self, client):
+        """Lobby pages include lobby JS script tag."""
         response = client.get("/")
-        assert "<script" not in response.text
+        assert "/game-assets/assets/lobby-test.js" in response.text
+        assert '<script type="module"' in response.text
 
     def test_lobby_page_shows_create_room_form(self, client):
         response = client.get("/")
@@ -114,11 +140,11 @@ servers:
 
     def test_game_page_includes_hashed_script(self, client):
         response = client.get("/game")
-        assert "/game-assets/index-abc123.js" in response.text
+        assert "/game-assets/assets/game-abc123.js" in response.text
 
     def test_game_page_includes_hashed_css(self, client):
         response = client.get("/game")
-        assert "/game-assets/index-abc123.css" in response.text
+        assert "/game-assets/assets/game-abc123.css" in response.text
 
     def test_game_page_returns_503_when_assets_missing(self, tmp_path):
         """Authenticated request to /game returns 503 when manifest is empty."""
@@ -129,7 +155,9 @@ servers:
         (static_dir / "styles" / "lobby.css").write_text("")
         game_assets_dir = tmp_path / "dist"
         game_assets_dir.mkdir()
-        (game_assets_dir / "manifest.json").write_text("{}")
+        vite_dir = game_assets_dir / ".vite"
+        vite_dir.mkdir()
+        (vite_dir / "manifest.json").write_text("{}")
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -150,7 +178,7 @@ servers:
         app.state.db.close()
 
     def test_game_assets_served(self, client):
-        response = client.get("/game-assets/index-abc123.js")
+        response = client.get("/game-assets/assets/game-abc123.js")
         assert response.status_code == 200
         assert "javascript" in response.headers["content-type"]
         assert "console.log('game')" in response.text
@@ -262,4 +290,48 @@ servers:
         assert "Game Style Guide" in response.text
         assert "Connection Status" in response.text
         assert "Log Panel" in response.text
-        assert "/game-assets/index-abc123.css" in response.text
+        assert "/game-assets/assets/game-abc123.css" in response.text
+
+
+class TestViteDevMode:
+    """Test app state initialization when vite_dev_url is set."""
+
+    @pytest.fixture
+    def client(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
+        config_file = tmp_path / "servers.yaml"
+        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+        static_dir = tmp_path / "pub"
+        static_dir.mkdir()
+
+        app = create_app(
+            settings=LobbyServerSettings(
+                config_path=config_file,
+                static_dir=str(static_dir),
+                vite_dev_url="http://localhost:5173",
+            ),
+            auth_settings=AuthSettings(
+                game_ticket_secret="s",
+                database_path=str(tmp_path / "t.db"),
+                cookie_secure=False,
+            ),
+        )
+        c = TestClient(app)
+        register_with_csrf(c, "viteuser")
+        yield c
+        app.state.db.close()
+
+    def test_lobby_page_uses_vite_dev_urls(self, client):
+        """Lobby page renders with Vite dev server URLs when vite_dev_url is set."""
+        response = client.get("/")
+        assert "http://localhost:5173/src/styles/lobby-app.scss" in response.text
+        assert "http://localhost:5173/src/lobby/index.ts" in response.text
+        assert "http://localhost:5173/@vite/client" in response.text
+
+    def test_game_page_uses_vite_dev_urls(self, client):
+        """Game page renders with Vite dev server URLs when vite_dev_url is set."""
+        response = client.get("/game")
+        assert response.status_code == 200
+        assert "http://localhost:5173/src/styles/game-app.scss" in response.text
+        assert "http://localhost:5173/src/index.ts" in response.text
+        assert "http://localhost:5173/@vite/client" in response.text

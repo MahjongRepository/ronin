@@ -43,16 +43,17 @@ def _make_slash_app() -> Starlette:
     return app
 
 
-def _make_security_headers_app() -> Starlette:
+def _make_security_headers_app(vite_dev_url: str = "") -> Starlette:
     app = Starlette(
         routes=[
             Route("/items", _echo_path, methods=["GET"]),
             Route("/game", _echo_path, methods=["GET"]),
             Route("/game-assets/test.js", _echo_path, methods=["GET"]),
+            Route("/rooms/test-room", _echo_path, methods=["GET"]),
             WebSocketRoute("/ws", _ws_echo),
         ],
     )
-    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=vite_dev_url)
     return app
 
 
@@ -123,11 +124,17 @@ class TestSecurityHeadersMiddleware:
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
 
-    def test_non_game_route_blocks_scripts(self, security_client: TestClient) -> None:
-        """Non-game routes still block script execution."""
+    def test_lobby_allows_scripts(self, security_client: TestClient) -> None:
+        """Lobby pages allow scripts (lobby JS loads on all pages)."""
         response = security_client.get("/items")
         csp = response.headers["content-security-policy"]
-        assert "script-src 'none'" in csp
+        assert "script-src 'self'" in csp
+
+    def test_room_same_csp_as_lobby(self, security_client: TestClient) -> None:
+        """Room pages get the same CSP as lobby pages."""
+        lobby_csp = security_client.get("/items").headers["content-security-policy"]
+        room_csp = security_client.get("/rooms/test-room").headers["content-security-policy"]
+        assert lobby_csp == room_csp
 
     def test_game_route_trailing_slash_allows_scripts(self, security_client: TestClient) -> None:
         """Game page with trailing slash still gets the game CSP."""
@@ -135,6 +142,51 @@ class TestSecurityHeadersMiddleware:
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
         assert "script-src 'none'" not in csp
+
+
+class TestSecurityHeadersMiddlewareViteDev:
+    @pytest.fixture
+    def vite_client(self) -> TestClient:
+        return TestClient(_make_security_headers_app(vite_dev_url="http://localhost:5173"))
+
+    def test_lobby_allows_vite_scripts_in_dev(self, vite_client: TestClient) -> None:
+        response = vite_client.get("/items")
+        csp = response.headers["content-security-policy"]
+        assert "http://localhost:5173" in csp
+        assert "script-src 'self' http://localhost:5173" in csp
+
+    def test_lobby_allows_vite_ws_in_dev(self, vite_client: TestClient) -> None:
+        response = vite_client.get("/items")
+        csp = response.headers["content-security-policy"]
+        assert "ws://localhost:5173" in csp
+
+    def test_lobby_allows_vite_styles_in_dev(self, vite_client: TestClient) -> None:
+        response = vite_client.get("/items")
+        csp = response.headers["content-security-policy"]
+        assert "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://localhost:5173" in csp
+
+    def test_lobby_allows_vite_images_in_dev(self, vite_client: TestClient) -> None:
+        response = vite_client.get("/items")
+        csp = response.headers["content-security-policy"]
+        assert "img-src 'self' http://localhost:5173" in csp
+
+    def test_game_allows_vite_scripts_in_dev(self, vite_client: TestClient) -> None:
+        response = vite_client.get("/game")
+        csp = response.headers["content-security-policy"]
+        assert "http://localhost:5173" in csp
+
+    def test_game_allows_vite_ws_in_dev(self, vite_client: TestClient) -> None:
+        response = vite_client.get("/game")
+        csp = response.headers["content-security-policy"]
+        assert "ws://localhost:5173" in csp
+
+    def test_https_vite_dev_url_uses_wss(self) -> None:
+        """HTTPS Vite dev URL produces wss:// WebSocket origin in CSP."""
+        client = TestClient(_make_security_headers_app(vite_dev_url="https://localhost:5173"))
+        response = client.get("/items")
+        csp = response.headers["content-security-policy"]
+        assert "wss://localhost:5173" in csp
+        assert "ws://localhost:5173" not in csp
 
 
 # Regex matching <script> tags that lack a src attribute (inline scripts).
@@ -155,7 +207,7 @@ _INLINE_HANDLER_RE = re.compile(
 # Templates served with script-src 'self' (game and room pages).
 # These must not contain inline scripts or event handlers.
 _TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "views" / "templates"
-_SCRIPT_SELF_TEMPLATES = ["base.html", "game.html", "room.html"]
+_SCRIPT_SELF_TEMPLATES = ["base.html", "game.html", "game-styleguide.html", "room.html"]
 
 
 class TestCSPCompliance:

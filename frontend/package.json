@@ -3,13 +3,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bash scripts/dev.sh",
-    "sass:game": "bunx sass --load-path=node_modules --quiet-deps src/styles/game-app.scss public/styles/game.css --no-source-map",
-    "sass:lobby": "bunx sass --load-path=node_modules --quiet-deps src/styles/lobby-app.scss public/styles/lobby.css --no-source-map",
-    "sass:lobby:watch": "bunx sass --load-path=node_modules --quiet-deps src/styles/lobby-app.scss public/styles/lobby.css --no-source-map --watch",
-    "build:lobby": "bun run scripts/build-lobby.ts",
-    "build:game": "mkdir -p public/styles && echo '' > public/env.js && bun run sass:game && bun run scripts/build-game.ts",
-    "build": "bun run build:game && bun run build:lobby",
+    "dev": "vite",
+    "build": "vite build",
     "typecheck": "bunx tsc --noEmit",
     "lint": "oxlint --deny-warnings src && stylelint 'src/**/*.scss'",
     "lint:fix": "oxlint --fix src && stylelint --fix 'src/**/*.scss'",
@@ -17,13 +12,13 @@
     "fmt:check": "oxfmt --check src"
   },
   "devDependencies": {
-    "bun-types": "^1.3.8",
     "oxfmt": "^0.27.0",
     "oxlint": "^1.42.0",
     "sass": "^1.97.3",
     "stylelint": "^17.1.0",
     "stylelint-config-standard-scss": "^17.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^6"
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.3",

@@ -160,9 +160,12 @@ async def game_styleguide_page(request: Request) -> Response:
     return templates.TemplateResponse(request, "game-styleguide.html")
 
 
-def load_game_assets_manifest(game_assets_dir: str) -> dict[str, str]:
-    """Load the asset manifest mapping logical names to content-hashed filenames."""
-    manifest_path = Path(game_assets_dir).resolve() / "manifest.json"
+def load_vite_manifest(game_assets_dir: str) -> dict[str, dict]:
+    """Load the Vite manifest mapping source paths to build outputs.
+
+    Vite 6.x stores the manifest at <outDir>/.vite/manifest.json.
+    """
+    manifest_path = Path(game_assets_dir).resolve() / ".vite" / "manifest.json"
     if not manifest_path.exists():
         return {}
     try:
@@ -176,15 +179,53 @@ def load_game_assets_manifest(game_assets_dir: str) -> dict[str, str]:
     return data
 
 
+def _resolve_css_url(entry: dict, base_path: str) -> str | None:
+    """Extract CSS URL from a Vite manifest entry.
+
+    Vite extracts CSS into the `css` array when building from a JS entry point
+    that imports SCSS/CSS files.
+    """
+    css_files = entry.get("css", [])
+    if css_files:
+        return f"{base_path}/{css_files[0]}"
+    return None
+
+
+def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/game-assets") -> dict[str, str]:
+    """Extract asset URLs from Vite manifest entries.
+
+    Two entry points:
+    - src/index.ts -> game_js + game_css
+    - src/lobby/index.ts -> lobby_js + lobby_css
+
+    Return a flat dict with keys: game_js, game_css, lobby_js, lobby_css.
+    All dict access uses .get() to gracefully handle partial manifests.
+    """
+    base_path = base_path.rstrip("/")
+    urls: dict[str, str] = {}
+
+    game_entry = manifest.get("src/index.ts", {})
+    game_js = game_entry.get("file")
+    if game_js:
+        urls["game_js"] = f"{base_path}/{game_js}"
+    game_css = _resolve_css_url(game_entry, base_path)
+    if game_css:
+        urls["game_css"] = game_css
+
+    lobby_entry = manifest.get("src/lobby/index.ts", {})
+    lobby_js = lobby_entry.get("file")
+    if lobby_js:
+        urls["lobby_js"] = f"{base_path}/{lobby_js}"
+    lobby_css = _resolve_css_url(lobby_entry, base_path)
+    if lobby_css:
+        urls["lobby_css"] = lobby_css
+
+    return urls
+
+
 async def game_page(request: Request) -> Response:
-    """GET /game — render the game client page (own HTML, no base.html forms)."""
+    """GET /game — render the game client page."""
     templates: Jinja2Templates = request.app.state.templates
-    game_assets: dict[str, str] = request.app.state.game_assets
-    js_asset = game_assets.get("js")
-    if not js_asset:
+    if not request.app.state.game_assets_available:
         return PlainTextResponse("Game client assets not available", status_code=503)
-    return templates.TemplateResponse(
-        request,
-        "game.html",
-        {"game_js_url": f"/game-assets/{js_asset}"},
-    )
+    return templates.TemplateResponse(request, "game.html")

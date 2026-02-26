@@ -15,7 +15,7 @@ class TestLobbyServerSettings:
         monkeypatch.delenv("LOBBY_GAME_ASSETS_DIR", raising=False)
         settings = LobbyServerSettings()
         assert settings.log_dir == "backend/logs/lobby"
-        assert settings.cors_origins == ["http://localhost:8712"]
+        assert settings.cors_origins == []
         assert settings.config_path is None
         assert settings.game_client_url == "/game"
         assert settings.game_assets_dir == "frontend/dist"
@@ -44,3 +44,13 @@ class TestLobbyServerSettings:
         monkeypatch.setenv("LOBBY_CORS_ORIGINS", "")
         with pytest.raises(ValidationError, match="cors_origins"):
             LobbyServerSettings()
+
+    def test_vite_dev_url_default_empty(self, monkeypatch):
+        monkeypatch.delenv("LOBBY_VITE_DEV_URL", raising=False)
+        settings = LobbyServerSettings()
+        assert settings.vite_dev_url == ""
+
+    def test_vite_dev_url_override(self, monkeypatch):
+        monkeypatch.setenv("LOBBY_VITE_DEV_URL", "http://localhost:5173")
+        settings = LobbyServerSettings()
+        assert settings.vite_dev_url == "http://localhost:5173"

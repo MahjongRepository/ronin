@@ -1,3 +1,4 @@
+import "./styles/game-app.scss";
 import { cleanupGameView, gameView } from "./views/game";
 import { initRouter } from "./router";
 

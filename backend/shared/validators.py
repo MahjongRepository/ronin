@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from pydantic.fields import FieldInfo
 
 
-def parse_string_list(value: str | list[str]) -> list[str]:
+def parse_string_list(value: str | list[str], *, allow_empty: bool = False) -> list[str]:
     """Parse a string list from environment variable or config value.
 
     Accepts:
@@ -17,10 +17,11 @@ def parse_string_list(value: str | list[str]) -> list[str]:
     - A JSON array string: '["a","b"]'
     - A comma-separated string: 'a,b'
 
-    Raises ValueError for empty values or malformed JSON.
+    Raises ValueError for empty string values or malformed JSON.
+    When allow_empty is False (default), also rejects empty lists.
     """
     if isinstance(value, list):
-        if not value:
+        if not allow_empty and not value:
             raise ValueError("String list value must not be empty")
         return value
 
@@ -35,12 +36,12 @@ def parse_string_list(value: str | list[str]) -> list[str]:
             raise ValueError(f"Invalid JSON array: {e}") from e
         if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
             raise ValueError("JSON value must be an array of strings")
-        if not parsed:
+        if not allow_empty and not parsed:
             raise ValueError("String list value must not be empty")
         return parsed
 
     result = [origin.strip() for origin in stripped.split(",") if origin.strip()]
-    if not result:
+    if not allow_empty and not result:
         raise ValueError("String list value must not be empty")
     return result
 

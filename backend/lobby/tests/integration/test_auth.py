@@ -1,6 +1,7 @@
 """Integration tests for lobby auth endpoints and full login flow."""
 
 import hashlib
+import json
 import secrets
 from urllib.parse import parse_qs, urlparse
 
@@ -32,9 +33,26 @@ servers:
 
     game_assets_dir = tmp_path / "dist"
     game_assets_dir.mkdir()
-    (game_assets_dir / "manifest.json").write_text('{"js": "index-test.js", "css": "index-test.css"}')
-    (game_assets_dir / "index-test.js").write_text("console.log('test');")
-    (game_assets_dir / "index-test.css").write_text("body{}")
+    assets_dir = game_assets_dir / "assets"
+    assets_dir.mkdir()
+    (assets_dir / "game-test.js").write_text("console.log('test');")
+    (assets_dir / "game-test.css").write_text("body{}")
+    (assets_dir / "lobby-test.js").write_text("console.log('lobby');")
+    (assets_dir / "lobby-test.css").write_text("body{}")
+    vite_dir = game_assets_dir / ".vite"
+    vite_dir.mkdir()
+    (vite_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "src/index.ts": {"file": "assets/game-test.js", "css": ["assets/game-test.css"], "isEntry": True},
+                "src/lobby/index.ts": {
+                    "file": "assets/lobby-test.js",
+                    "css": ["assets/lobby-test.css"],
+                    "isEntry": True,
+                },
+            },
+        ),
+    )
 
     app = create_app(
         settings=LobbyServerSettings(

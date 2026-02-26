@@ -52,3 +52,17 @@ class TestParseStringList:
     def test_multiple_commas_only_raises(self):
         with pytest.raises(ValueError, match="must not be empty"):
             parse_string_list(",,,,")
+
+    def test_allow_empty_list(self):
+        assert parse_string_list([], allow_empty=True) == []
+
+    def test_allow_empty_json_array(self):
+        assert parse_string_list("[]", allow_empty=True) == []
+
+    def test_allow_empty_csv_commas_only(self):
+        assert parse_string_list(",", allow_empty=True) == []
+
+    def test_allow_empty_string_still_raises(self):
+        """Empty string is always rejected regardless of allow_empty (catches misconfiguration)."""
+        with pytest.raises(ValueError, match="must not be empty"):
+            parse_string_list("", allow_empty=True)

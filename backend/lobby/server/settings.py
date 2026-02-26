@@ -16,17 +16,23 @@ class LobbyServerSettings(BaseSettings):
     model_config = {"env_prefix": "LOBBY_"}
 
     log_dir: str = "backend/logs/lobby"
-    cors_origins: list[str] = ["http://localhost:8712"]
+    cors_origins: list[str] = []
     allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver", "*.local"]
     config_path: Path | None = None
     static_dir: str = "frontend/public"
     game_client_url: str = "/game"
     game_assets_dir: str = "frontend/dist"
+    vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server
     ws_allowed_origin: str | None = "http://localhost:8710"
 
-    @field_validator("cors_origins", "allowed_hosts", mode="before")
+    @field_validator("cors_origins", mode="before")
     @classmethod
-    def validate_string_list(cls, v: str | list[str]) -> list[str]:
+    def validate_cors_origins(cls, v: str | list[str]) -> list[str]:
+        return parse_string_list(v, allow_empty=True)
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def validate_allowed_hosts(cls, v: str | list[str]) -> list[str]:
         return parse_string_list(v)
 
     @classmethod

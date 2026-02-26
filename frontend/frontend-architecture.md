@@ -2,7 +2,7 @@
 
 Two distinct frontend applications — a server-rendered lobby and a standalone game client SPA — sharing a common design system and build toolchain.
 
-**Stack**: TypeScript, lit-html, Pico CSS v2, Sass, Bun
+**Stack**: TypeScript, lit-html, Pico CSS v2, Sass, Vite, Bun
 
 ## Applications
 
@@ -17,7 +17,7 @@ Server-rendered HTML pages via Jinja2 templates (served by the lobby backend at 
 - `/rooms/{room_id}` — Room page with WebSocket-powered player list and chat (authenticated)
 - `/styleguide` — Lobby component showcase (public, dev only)
 
-The room page (`/rooms/{room_id}`) is the only lobby page with client-side JavaScript. It loads `lobby/index.ts` which reads `data-room-id` and `data-ws-url` attributes from the DOM and initializes a WebSocket connection for real-time room interactions (player list, chat, ready state).
+Lobby JavaScript (`lobby/index.ts`) loads on all lobby pages via `base.html`. On the room page (`/rooms/{room_id}`), it reads `data-room-id` and `data-ws-url` attributes from the DOM and initializes a WebSocket connection for real-time room interactions (player list, chat, ready state). On other pages, it acts as a no-op since no `#room-app` element exists.
 
 **Templates** (in `backend/lobby/views/templates/`):
 - `base.html` — Base layout with Google Fonts, nav block, main container, sticky footer
@@ -29,7 +29,7 @@ The room page (`/rooms/{room_id}`) is the only lobby page with client-side JavaS
 
 Standalone SPA served at `/game` via a Jinja2 template that injects content-hashed asset URLs. Uses hash-based routing (`#/game/{gameId}`) and communicates with the game server via MessagePack over WebSocket.
 
-**Entry point**: `index.html` → `src/index.ts` → hash router → game view
+**Entry point**: `src/index.ts` (Vite entry) → hash router → game view
 
 **Connection flow**:
 1. Lobby room page stores game session data (WebSocket URL, game ticket) in `sessionStorage` when all players ready up
@@ -123,15 +123,15 @@ Renders a development log panel showing raw game events. Handles the join → pl
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
 
 ### Environment (`env.ts`)
-Reads runtime configuration:
-- `__LOBBY_URL__` from `env.js` (injected at runtime for dev mode)
-- `APP_VERSION` and `GIT_COMMIT` injected at build time via Bun's `define` option
+Reads configuration:
+- `VITE_LOBBY_URL` from `import.meta.env` (build-time via `.env.development`), falls back to `"/"` in production (same origin)
 
 ## Build System
 
 ### Toolchain
-- **Bun** — Package manager, TypeScript bundler, script runner
-- **Sass** (Dart Sass 1.97) — SCSS compilation with `--load-path=node_modules` for Pico CSS imports
+- **Vite** 6.x — Build tool with HMR dev server, content hashing, and manifest generation
+- **Bun** — Package manager and script runner
+- **Sass** (Dart Sass 1.97) — SCSS preprocessing (Vite peer dependency)
 - **TypeScript** 5.9 — Strict mode, ES2022 target
 - **oxlint** — JavaScript/TypeScript linter
 - **stylelint** — SCSS linter (standard-scss config)
@@ -139,55 +139,52 @@ Reads runtime configuration:
 
 ### Build Targets
 
-**Lobby** (`bun run build:lobby` → `scripts/build-lobby.ts`):
-1. Compiles `lobby-app.scss` → compressed CSS
-2. Content-hashes CSS → `dist/lobby-{hash}.css`
-3. Bundles `lobby/index.ts` → minified JS → `dist/lobby-{hash}.js`
-4. Updates `dist/manifest.json` with `lobby_css` and `lobby_js` entries
+Two Vite entry points configured in `vite.config.ts`:
 
-**Game** (`bun run build:game` → `scripts/build-game.ts`):
-1. Compiles `game-app.scss` → `public/styles/game.css`
-2. Bundles `index.html` entry point with minification and version defines
-3. Content-hashes output → `dist/index-{hash}.js`, `dist/game-app-{hash}.css`
-4. Writes `dist/manifest.json` with `js` and `css` entries
+**Game** (`src/index.ts`):
+- Imports `./styles/game-app.scss`
+- Produces content-hashed JS and extracted CSS in `dist/assets/`
 
-**Dev mode** (`bun run dev` → `scripts/dev.sh`):
-- Bun dev server with hot reloading for the game client
-- Sass watch mode for lobby CSS (`bun run sass:lobby:watch`)
-- Lobby backend serves static CSS from `frontend/public/`
+**Lobby** (`src/lobby/index.ts`):
+- Imports `../styles/lobby-app.scss`
+- Produces content-hashed JS and extracted CSS in `dist/assets/`
+
+`bun run build` runs `vite build`, which produces `dist/.vite/manifest.json` mapping source entry points to their hashed output files. CSS is extracted into separate files (no CSS-in-JS at runtime).
+
+**Dev mode** (`bun run dev`):
+- Vite dev server on port 5173 with HMR for TypeScript and SCSS
+- Lobby backend connects to Vite when `LOBBY_VITE_DEV_URL` is set
 
 ### Asset Serving
 
-The lobby backend discovers built assets via `dist/manifest.json` and injects content-hashed URLs as Jinja2 template globals (`lobby_css_url`, `lobby_js_url`, `game_css_url`). In dev mode without a production build, it falls back to un-hashed paths from `frontend/public/`.
+Production: the lobby backend reads `dist/.vite/manifest.json` and injects content-hashed URLs as Jinja2 template globals (`lobby_css_url`, `lobby_js_url`, `game_css_url`, `game_js_url`). Built assets are served at `/game-assets/` with Vite's `base: "/game-assets/"` ensuring correct CSS `url()` resolution.
+
+Dev mode: when `LOBBY_VITE_DEV_URL` is set, template globals point to the Vite dev server (e.g., `http://localhost:5173/src/index.ts`). CSS URLs point to SCSS source files, which Vite compiles on the fly.
 
 ## Project Structure
 
 ```
 frontend/
-├── index.html              # Game client HTML entry point (dev + build input)
-├── logo.svg                # Project logo
+├── vite.config.ts          # Vite build configuration (2 entry points, base path)
+├── .env.development        # Dev-mode env vars (VITE_LOBBY_URL)
 ├── package.json            # Dependencies, scripts
-├── tsconfig.json           # TypeScript config (strict, ES2022)
-├── dist/                   # Build output (content-hashed assets + manifest)
-│   └── manifest.json       # Maps logical names to hashed filenames
-├── public/                 # Static files served by lobby backend in dev mode
-│   ├── styles/
-│   │   ├── lobby.css       # Compiled lobby styles (dev, un-hashed)
-│   │   └── game.css        # Compiled game styles (dev, un-hashed)
-│   └── env.js              # Runtime environment config (__LOBBY_URL__)
-├── scripts/
-│   ├── build-lobby.ts      # Lobby build script (Sass + Bun bundle + manifest)
-│   ├── build-game.ts       # Game build script (Bun bundle + manifest)
-│   └── dev.sh              # Dev server launcher
+├── tsconfig.json           # TypeScript config (strict, ES2022, vite/client types)
+├── dist/                   # Build output (content-hashed assets)
+│   ├── assets/             # Hashed JS, CSS, SVG files
+│   └── .vite/
+│       └── manifest.json   # Vite manifest mapping source to hashed outputs
+├── public/                 # Static files served by lobby backend at /static/
 └── src/
-    ├── index.ts             # Game client entry point (router setup)
+    ├── index.ts             # Game client entry point (imports game-app.scss)
     ├── router.ts            # Hash-based SPA router
-    ├── env.ts               # Runtime environment helpers
+    ├── env.ts               # Environment helpers (import.meta.env, build-time defines)
     ├── protocol.ts          # Wire protocol enums (message types, events, actions)
     ├── websocket.ts         # GameSocket (MessagePack, auto-reconnect)
     ├── session-storage.ts   # Game session persistence in sessionStorage
+    ├── assets/
+    │   └── logo.svg         # Project logo (content-hashed by Vite)
     ├── lobby/
-    │   ├── index.ts         # Room page initialization (reads DOM data attributes)
+    │   ├── index.ts         # Lobby entry point (imports lobby-app.scss)
     │   ├── room.ts          # Room state and lit-html rendering
     │   └── lobby-socket.ts  # Lobby WebSocket wrapper (JSON frames)
     ├── views/
@@ -210,9 +207,9 @@ frontend/
 - `@picocss/pico` (2.1) — Classless CSS framework with dark theme support
 
 ### Development
-- `bun-types` — Bun API type definitions
-- `sass` (1.97) — Dart Sass SCSS compiler
-- `typescript` (5.9) — TypeScript compiler (type checking only; Bun handles bundling)
+- `vite` (6.x) — Build tool and HMR dev server
+- `sass` (1.97) — Dart Sass SCSS compiler (Vite peer dependency)
+- `typescript` (5.9) — TypeScript compiler (type checking only; Vite handles bundling)
 - `oxlint` — Fast JavaScript/TypeScript linter
 - `oxfmt` — Code formatter
 - `stylelint` + `stylelint-config-standard-scss` — SCSS linter

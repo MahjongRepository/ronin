@@ -9,8 +9,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {% if vite_dev %}
+    <script type="module" src="{{ vite_dev_url }}/@vite/client"></script>
+    {% endif %}
     {% block styles %}
+    {% if lobby_css_url %}
     <link rel="stylesheet" href="{{ lobby_css_url }}">
+    {% endif %}
     {% endblock %}
 </head>
 <body>
@@ -44,6 +49,10 @@
             {% endif %}
         </div>
     </footer>
-    {% block scripts %}{% endblock %}
+    {% block scripts %}
+    {% if lobby_js_url %}
+    <script type="module" src="{{ lobby_js_url }}"></script>
+    {% endif %}
+    {% endblock %}
 </body>
 </html>

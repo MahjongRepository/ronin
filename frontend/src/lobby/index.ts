@@ -1,3 +1,4 @@
+import "../styles/lobby-app.scss";
 import { initRoomPage } from "./room";
 
 const roomContainer = document.getElementById("room-app");
