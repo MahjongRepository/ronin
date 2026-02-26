@@ -35,16 +35,11 @@ class LobbyRoomManager:
         self._on_room_expired = on_room_expired
         self._reaper_task: asyncio.Task[None] | None = None
 
-    def create_room(self, room_id: str, num_ai_players: int = 3) -> LobbyRoom:
-        """Create a new room and return it."""
-        room = LobbyRoom(room_id=room_id, num_ai_players=num_ai_players)
+    def create_room(self, room_id: str) -> LobbyRoom:
+        """Create a new room with 4 bot seats."""
+        room = LobbyRoom(room_id=room_id)
         self._rooms[room_id] = room
-        logger.info(
-            "room created",
-            room_id=room_id,
-            num_ai_players=num_ai_players,
-            players_needed=room.players_needed,
-        )
+        logger.info("room created", room_id=room_id)
         return room
 
     def join_room(
@@ -54,7 +49,10 @@ class LobbyRoomManager:
         user_id: str,
         username: str,
     ) -> dict | str:
-        """Join a room. Returns room state dict on success, or error string on failure."""
+        """Join a room, taking the first available bot seat.
+
+        Returns room state dict on success, or error string on failure.
+        """
         room = self._rooms.get(room_id)
         if room is None:
             return "room_not_found"
@@ -65,11 +63,16 @@ class LobbyRoomManager:
         if room.has_user(user_id):
             return "already_in_room"
 
+        seat = room.first_open_seat()
+        if seat is None:  # pragma: no cover — guarded by is_full above
+            return "room_full"
+
         player = LobbyPlayer(
             connection_id=connection_id,
             user_id=user_id,
             username=username,
         )
+        room.seats[seat] = connection_id
         room.players[connection_id] = player
         self._player_rooms[connection_id] = room_id
 
@@ -80,12 +83,13 @@ class LobbyRoomManager:
             "type": "room_joined",
             "room_id": room_id,
             "player_name": username,
+            "is_owner": room.host_connection_id == connection_id,
+            "can_start": room.can_start,
             "players": [p.model_dump() for p in room.get_player_info()],
-            "num_ai_players": room.num_ai_players,
         }
 
     def leave_room(self, connection_id: str) -> str | None:
-        """Remove a player from their room. Returns room_id or None."""
+        """Remove a player from their room, restoring their seat to a bot."""
         room_id = self._player_rooms.pop(connection_id, None)
         if room_id is None:
             return None
@@ -93,8 +97,13 @@ class LobbyRoomManager:
         if room is None:
             return room_id
 
+        # Clear the specific seat this player occupied
+        seat = room.seat_of(connection_id)
+        if seat is not None:
+            room.seats[seat] = None
         room.players.pop(connection_id, None)
 
+        # Host transfer
         if room.host_connection_id == connection_id:
             if room.players:
                 room.host_connection_id = next(iter(room.players))
@@ -107,7 +116,10 @@ class LobbyRoomManager:
         return room_id
 
     def set_ready(self, connection_id: str, *, ready: bool) -> tuple[str, bool] | str:
-        """Set ready state. Returns (room_id, all_ready) or error string."""
+        """Set ready state. Returns (room_id, can_start) or error string.
+
+        Owner cannot set ready — they use start_game instead.
+        """
         room_id = self._player_rooms.get(connection_id)
         if room_id is None:
             return "not_in_room"
@@ -121,12 +133,33 @@ class LobbyRoomManager:
         if player is None:
             return "not_in_room"
 
+        if connection_id == room.host_connection_id:
+            return "owner_cannot_ready"
+
         player.ready = ready
+        return (room_id, room.can_start)
 
-        if room.all_ready:
-            room.transitioning = True
+    def start_game(self, connection_id: str) -> str | None:
+        """Owner starts the game. Returns None on success, or error string.
 
-        return (room_id, room.all_ready)
+        On success, sets room.transitioning = True. The caller reads
+        room.num_ai_players from the room object.
+        """
+        room_id = self._player_rooms.get(connection_id)
+        if room_id is None:
+            return "not_in_room"
+        room = self._rooms.get(room_id)
+        if room is None:
+            return "not_in_room"
+        if room.transitioning:
+            return "room_transitioning"
+        if connection_id != room.host_connection_id:
+            return "not_owner"
+        if not room.can_start:
+            return "not_all_ready"
+
+        room.transitioning = True
+        return None
 
     def clear_transitioning(self, room_id: str) -> None:
         """Reset transitioning flag and all ready states on POST /games failure."""
@@ -146,9 +179,8 @@ class LobbyRoomManager:
             {
                 "room_id": room.room_id,
                 "player_count": room.player_count,
-                "players_needed": room.players_needed,
                 "num_ai_players": room.num_ai_players,
-                "players": room.player_names,
+                "players": [p.model_dump() for p in room.get_player_info()],
             }
             for room in self._rooms.values()
             if not room.transitioning

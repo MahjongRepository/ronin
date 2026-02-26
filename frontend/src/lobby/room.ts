@@ -10,6 +10,8 @@ interface RoomConfig {
 interface PlayerInfo {
     name: string;
     ready: boolean;
+    is_bot: boolean;
+    is_owner: boolean;
 }
 
 interface ChatEntry {
@@ -24,7 +26,9 @@ let socket: LobbySocket | null = null;
 let players: PlayerInfo[] = [];
 let chatMessages: ChatEntry[] = [];
 let connectionStatus: "connected" | "disconnected" | "error" = "disconnected";
-let isReady = false;
+let isOwner = false;
+let canStart = false;
+let currentPlayerName = "";
 
 type MessageHandlerMap = Record<string, (msg: Record<string, unknown>) => void>;
 let messageHandlers: MessageHandlerMap = {};
@@ -38,31 +42,53 @@ function appendChat(sender: string, text: string): void {
     updateChatPanel();
 }
 
-function onRoomJoined(message: Record<string, unknown>): void {
-    players = (message.players as PlayerInfo[]) ?? [];
+function getMyReadyState(): boolean {
+    const me = players.find((player) => player.name === currentPlayerName && !player.is_bot);
+    return me?.ready ?? false;
+}
+
+function updateFromServerState(message: Record<string, unknown>): void {
+    players = (message.players as PlayerInfo[]) ?? players;
+    canStart = (message.can_start as boolean) ?? false;
+    // Derive isOwner from the authoritative player list as a fallback,
+    // so ownership is corrected even if the owner_changed message was missed.
+    const self = players.find((player) => player.name === currentPlayerName && !player.is_bot);
+    if (self) {
+        isOwner = self.is_owner;
+    }
     updatePlayerList();
+    updateActionButton();
+}
+
+function onRoomJoined(message: Record<string, unknown>): void {
+    currentPlayerName = (message.player_name as string) ?? "";
+    isOwner = (message.is_owner as boolean) ?? false;
+    updateFromServerState(message);
     appendChat(LOG_TYPE_SYSTEM, "Joined room");
 }
 
 function onPlayerJoined(message: Record<string, unknown>): void {
-    players = (message.players as PlayerInfo[]) ?? players;
+    updateFromServerState(message);
     if (message.player_name) {
         appendChat(LOG_TYPE_SYSTEM, `${message.player_name} joined`);
     }
-    updatePlayerList();
 }
 
 function onPlayerLeft(message: Record<string, unknown>): void {
-    players = (message.players as PlayerInfo[]) ?? players;
+    updateFromServerState(message);
     if (message.player_name) {
         appendChat(LOG_TYPE_SYSTEM, `${message.player_name} left`);
     }
-    updatePlayerList();
 }
 
 function onPlayerReadyChanged(message: Record<string, unknown>): void {
-    players = (message.players as PlayerInfo[]) ?? players;
-    updatePlayerList();
+    updateFromServerState(message);
+}
+
+function onOwnerChanged(message: Record<string, unknown>): void {
+    isOwner = (message.is_owner as boolean) ?? false;
+    updateFromServerState(message);
+    appendChat(LOG_TYPE_SYSTEM, "You are now the host");
 }
 
 function disconnectSocket(): void {
@@ -92,6 +118,7 @@ function buildMessageHandlers(): MessageHandlerMap {
         chat: (msg) => appendChat(msg.player_name as string, msg.text as string),
         error: (msg) => appendChat(LOG_TYPE_SYSTEM, `Error: ${msg.message}`),
         game_starting: onGameStarting,
+        owner_changed: onOwnerChanged,
         player_joined: onPlayerJoined,
         player_left: onPlayerLeft,
         player_ready_changed: onPlayerReadyChanged,
@@ -107,6 +134,16 @@ function handleMessage(message: Record<string, unknown>): void {
     }
 }
 
+function seatStatusIcon(player: PlayerInfo): string {
+    if (player.is_bot) {
+        return "\u{1F916}";
+    }
+    if (player.ready) {
+        return "\u2713";
+    }
+    return "\u25CB";
+}
+
 function updatePlayerList(): void {
     const container = document.getElementById("room-players");
     if (!container) {
@@ -117,15 +154,70 @@ function updatePlayerList(): void {
         html`
         ${players.map(
             (player) => html`
-            <div class="room-player-item">
-                <span class="room-player-status ${player.ready ? "ready" : "not-ready"}">${player.ready ? "\u2713" : "\u25CB"}</span>
+            <div class="room-player-item ${player.is_bot ? "bot" : ""} ${player.is_owner ? "owner" : ""}">
+                <span class="room-player-status ${player.ready ? "ready" : "not-ready"}">
+                    ${seatStatusIcon(player)}
+                </span>
                 <span class="room-player-name">${player.name}</span>
+                ${
+                    player.is_owner
+                        ? html`
+                              <span class="room-player-badge">Host</span>
+                          `
+                        : null
+                }
             </div>
         `,
         )}
     `,
         container,
     );
+}
+
+function updateActionButton(): void {
+    const container = document.getElementById("room-action");
+    if (!container) {
+        return;
+    }
+
+    if (isOwner) {
+        render(
+            html`
+            <button class="room-start-btn"
+                    ?disabled=${!canStart}
+                    @click=${handleStartGame}>
+                Start Game
+            </button>
+        `,
+            container,
+        );
+    } else {
+        const myReady = getMyReadyState();
+        render(
+            html`
+            <button class="room-ready-btn ${myReady ? "secondary" : ""}"
+                    @click=${handleToggleReady}>
+                ${myReady ? "Not Ready" : "Ready"}
+            </button>
+        `,
+            container,
+        );
+    }
+}
+
+function handleToggleReady(): void {
+    if (!socket) {
+        return;
+    }
+    const myReady = getMyReadyState();
+    socket.send({ ready: !myReady, type: "set_ready" });
+}
+
+function handleStartGame(): void {
+    if (!socket || !canStart) {
+        return;
+    }
+    socket.send({ type: "start_game" });
 }
 
 function updateChatPanel(): void {
@@ -157,20 +249,6 @@ function updateStatusDisplay(): void {
     if (el) {
         el.textContent = connectionStatus;
         el.className = `connection-status status-${connectionStatus}`;
-    }
-}
-
-function handleToggleReady(): void {
-    if (!socket) {
-        return;
-    }
-    isReady = !isReady;
-    socket.send({ ready: isReady, type: "set_ready" });
-
-    const btn = document.getElementById("ready-btn");
-    if (btn) {
-        btn.textContent = isReady ? "Not Ready" : "Ready";
-        btn.className = `room-ready-btn ${isReady ? "secondary" : ""}`;
     }
 }
 
@@ -214,9 +292,7 @@ function renderRoomUI(container: HTMLElement, roomId: string): void {
                 <div class="room-players-panel">
                     <h3>Players</h3>
                     <div id="room-players"></div>
-                    <button class="room-ready-btn" id="ready-btn" @click=${handleToggleReady}>
-                        Ready
-                    </button>
+                    <div id="room-action"></div>
                 </div>
                 <div class="room-chat-panel">
                     <h3>Chat</h3>
@@ -237,7 +313,9 @@ function resetRoomState(): void {
     players = [];
     chatMessages = [];
     connectionStatus = "disconnected";
-    isReady = false;
+    isOwner = false;
+    canStart = false;
+    currentPlayerName = "";
     messageHandlers = buildMessageHandlers();
 }
 

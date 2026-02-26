@@ -110,22 +110,22 @@ servers:
 
     def test_lobby_page_shows_rooms(self, client):
         room_manager = client.app.state.room_manager
-        room_manager.create_room("abc123", num_ai_players=2)
-        room_manager.join_room("conn-1", "abc123", "user-1", "Alice")
+        room_manager.create_room("abc12345-long-id")
+        room_manager.join_room("conn-1", "abc12345-long-id", "user-1", "Alice")
 
         response = client.get("/")
-        assert "abc123" in response.text
-        assert "1/2" in response.text
+        assert "abc12345" in response.text
+        assert "1/4" in response.text
         assert "Join" in response.text
 
     def test_lobby_page_shows_full_room(self, client):
         room_manager = client.app.state.room_manager
-        room_manager.create_room("full-room", num_ai_players=2)
-        room_manager.join_room("conn-full-1", "full-room", "user-full-1", "Player1")
-        room_manager.join_room("conn-full-2", "full-room", "user-full-2", "Player2")
+        room_manager.create_room("full-room")
+        for i in range(4):
+            room_manager.join_room(f"conn-full-{i}", "full-room", f"user-full-{i}", f"Player{i}")
 
         response = client.get("/")
-        assert "full-room" in response.text
+        assert "full-roo" in response.text
         assert "Full" in response.text
 
     def test_static_css_served(self, client):
@@ -210,7 +210,7 @@ servers:
     def test_room_page_returns_template(self, client):
         """GET /rooms/{room_id} returns room page template when room exists."""
         room_manager = client.app.state.room_manager
-        room_manager.create_room("test-room-42", num_ai_players=3)
+        room_manager.create_room("test-room-42")
 
         response = client.get("/rooms/test-room-42")
         assert response.status_code == 200
@@ -235,7 +235,7 @@ servers:
         )
         c = TestClient(app)
         register_with_csrf(c, "roomuser")
-        app.state.room_manager.create_room("fresh-room", num_ai_players=3)
+        app.state.room_manager.create_room("fresh-room")
         # Clear the CSRF cookie to simulate a direct visit
         c.cookies.delete(CSRF_COOKIE_NAME)
         response = c.get("/rooms/fresh-room")

@@ -8,6 +8,7 @@ from lobby.rooms.messages import (
     LobbyLeaveRoomMessage,
     LobbyPingMessage,
     LobbySetReadyMessage,
+    LobbyStartGameMessage,
     parse_lobby_message,
 )
 
@@ -30,6 +31,10 @@ class TestParseLobbyMessage:
     def test_parse_ping(self):
         msg = parse_lobby_message('{"type": "ping"}')
         assert isinstance(msg, LobbyPingMessage)
+
+    def test_parse_start_game(self):
+        msg = parse_lobby_message('{"type": "start_game"}')
+        assert isinstance(msg, LobbyStartGameMessage)
 
     def test_reject_unknown_type(self):
         with pytest.raises(ValidationError, match="type"):

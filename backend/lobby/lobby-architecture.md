@@ -39,7 +39,7 @@ Ronin uses a three-layer authentication model:
 2. **HMAC-Signed Game Tickets** - The lobby signs HMAC-SHA256 tickets that the game server verifies locally using a shared secret. Tickets contain player identity and room binding.
 3. **Bot API Keys** - External bots authenticate via `X-API-Key` header on protected API routes (`POST /api/auth/bot`, `POST /api/rooms`). The lobby validates the key and returns a lobby session for WebSocket access.
 
-Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room redirects to the room page (`/rooms/{room_id}`). Game tickets are signed when all players ready up and the game transitions to the game server. The `SessionOrApiKeyBackend` checks session cookies first, then the `session_id` query parameter (WebSocket connections only), then falls back to `X-API-Key` header for bot accounts. The backend propagates `account_type` (HUMAN or BOT) from `AuthSession` to `AuthenticatedPlayer`, enabling the `bot_only` policy decorator to distinguish account types at the route level.
+Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room redirects to the room page (`/rooms/{room_id}`). Game tickets are signed when the room owner starts the game and the lobby transitions to the game server. The `SessionOrApiKeyBackend` checks session cookies first, then the `session_id` query parameter (WebSocket connections only), then falls back to `X-API-Key` header for bot accounts. The backend propagates `account_type` (HUMAN or BOT) from `AuthSession` to `AuthenticatedPlayer`, enabling the `bot_only` policy decorator to distinguish account types at the route level.
 
 ### Bot Registration
 
@@ -55,17 +55,27 @@ The `run-local-server.sh` script sets `AUTH_GAME_TICKET_SECRET` automatically an
 
 ### Room WebSocket Protocol
 
-The lobby room WebSocket uses JSON text frames. Client-to-server messages:
-- `{"type": "set_ready", "ready": true}` - Toggle ready state
+The lobby room WebSocket uses JSON text frames. Each room has a fixed 4-seat table. Creating a room fills all seats with tsumogiri bots; joining replaces the first available bot seat. The room owner (creator) starts the game explicitly via `start_game` — there is no automatic transition when all players are ready.
+
+Player info objects in all messages use this shape:
+```json
+{"name": "Alice", "ready": true, "is_bot": false, "is_owner": true}
+```
+All `players` arrays contain exactly 4 entries (one per seat, in fixed seat order). Bot seats have `is_bot: true` and are always ready.
+
+Client-to-server messages:
+- `{"type": "set_ready", "ready": true}` - Toggle ready state (non-owner players only; owner uses `start_game`)
+- `{"type": "start_game"}` - Owner starts the game (enabled when all non-owner humans are ready)
 - `{"type": "chat", "text": "Hello!"}` - Send chat message
 - `{"type": "leave_room"}` - Leave the room
 - `{"type": "ping"}` - Heartbeat keep-alive
 
 Server-to-client messages:
-- `{"type": "room_joined", "room_id": "...", "player_name": "...", "players": [...], "num_ai_players": N}` - Sent on join
-- `{"type": "player_joined", "player_name": "...", "players": [...]}` - Player joined broadcast
-- `{"type": "player_left", "player_name": "...", "players": [...]}` - Player left broadcast
-- `{"type": "player_ready_changed", "player_name": "...", "ready": true, "players": [...]}` - Ready state broadcast
+- `{"type": "room_joined", "room_id": "...", "player_name": "...", "is_owner": true, "can_start": false, "players": [...]}` - Sent on join
+- `{"type": "player_joined", "player_name": "...", "players": [...], "can_start": false}` - Player joined broadcast
+- `{"type": "player_left", "player_name": "...", "players": [...], "can_start": false}` - Player left broadcast
+- `{"type": "player_ready_changed", "players": [...], "can_start": true}` - Ready state broadcast
+- `{"type": "owner_changed", "is_owner": true, "can_start": false, "players": [...]}` - Sent to new owner on host transfer
 - `{"type": "chat", "player_name": "...", "text": "..."}` - Chat broadcast
 - `{"type": "game_starting", "ws_url": "...", "game_ticket": "...", "game_id": "...", "game_client_url": "/game"}` - Game transition
 - `{"type": "error", "message": "..."}` - Error message
@@ -192,17 +202,28 @@ ronin/
 ### Browser Flow (POST /rooms/new)
 1. Authenticated user submits the HTML form
 2. Lobby generates a UUID room_id
-3. Lobby creates the room locally via `room_manager.create_room(room_id)`
+3. Lobby creates the room locally via `room_manager.create_room(room_id)` (4 bot seats)
 4. Lobby redirects (303) to `/rooms/{room_id}`
 5. Room page loads and connects to lobby WebSocket at `/ws/rooms/{room_id}`
-6. Server auto-joins the player to the room
+6. Server auto-joins the player to the room, placing them in the first open seat (seat 0)
 
-### Game Transition Flow (all players ready)
-1. All players set ready via WebSocket
-2. Lobby signs HMAC game tickets for each player
-3. Lobby calls `POST /games` on a game server with player specs
-4. On success, lobby sends `game_starting` to each player with their ticket and WS URL
-5. Players navigate to game client and connect via `JOIN_GAME`
+### Bot API Flow (POST /api/rooms)
+1. Bot authenticates via `X-API-Key` header
+2. Lobby creates a room with 4 bot seats (the `num_ai_players` parameter is no longer accepted; sending it returns 400)
+3. Returns `room_id`, `session_id`, and `ws_url` for WebSocket connection
+4. Bot connects to the room WebSocket using the `session_id` query parameter
+5. Bot is auto-joined as room owner (seat 0); since all other seats are bots, `can_start` is `true`
+6. Bot sends `{"type": "start_game"}` to trigger the game transition
+
+### Game Transition Flow (owner starts game)
+1. Non-owner players set ready via `set_ready` WebSocket message
+2. Owner sees `can_start: true` when all non-owner humans are ready
+3. Owner sends `start_game` via WebSocket
+4. Lobby acquires the room's join lock, sets `transitioning=True`, then releases the lock
+5. Lobby signs HMAC game tickets for each human player
+6. Lobby calls `POST /games` on a game server with player specs (including `num_ai_players` from seat occupancy)
+7. On success, lobby sends `game_starting` to each player with their ticket and WS URL
+8. Players navigate to game client and connect via `JOIN_GAME`
 
 ## Room Listing Flow
 

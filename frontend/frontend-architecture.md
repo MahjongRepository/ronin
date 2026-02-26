@@ -32,7 +32,7 @@ Standalone SPA served at `/game` via a Jinja2 template that injects content-hash
 **Entry point**: `src/index.ts` (Vite entry) → hash router → game view
 
 **Connection flow**:
-1. Lobby room page stores game session data (WebSocket URL, game ticket) in `sessionStorage` when all players ready up
+1. Lobby room page stores game session data (WebSocket URL, game ticket) in `sessionStorage` when the room owner starts the game
 2. Browser navigates to `/game#/game/{gameId}`
 3. Game client reads session from `sessionStorage`, connects to game server WebSocket
 4. Client sends `JOIN_GAME` with HMAC-signed game ticket
@@ -84,7 +84,7 @@ Card displaying room info with a diamond seat visualization. Shows room ID (mono
 Dashed-border card with a "+" icon and "New Table" label. On hover, border and text transition to jade with a subtle background tint.
 
 ### Diamond Seat Visualization (`lobby-table-vis`)
-CSS Grid layout with named areas (`a`, `b`, `c`, `d` for N/E/S/W seats, `t` for center table). The center table is rendered as a `::after` pseudo-element. Each seat is a 10px circle positioned via `nth-child` grid-area assignments.
+CSS Grid layout with named areas (`a`, `b`, `c`, `d` for N/E/S/W seats, `t` for center table). The center table is rendered as a `::after` pseudo-element. Each seat is a 10px circle positioned via `nth-child` grid-area assignments. Human seats glow jade with solid borders; bot seats use dashed borders and transparent backgrounds.
 
 ### Footer (`footer-content`)
 Sticky footer (pushed to bottom via flexbox `min-height: 100vh` on body). Shows copyright year and version on the left. In dev mode (`APP_VERSION == "dev"`), shows links to lobby and game styleguides on the right. Wraps on mobile via `flex-wrap`.
@@ -92,7 +92,9 @@ Sticky footer (pushed to bottom via flexbox `min-height: 100vh` on body). Shows 
 ## Lobby TypeScript
 
 ### Room Module (`lobby/room.ts`)
-Manages room page state and rendering. Uses lit-html to render player list, chat messages, and ready button. Handles WebSocket messages for player join/leave, ready state changes, chat, and game transitions.
+Manages room page state and rendering. Uses lit-html to render a fixed 4-seat player list (humans and bot placeholders), chat messages, and action buttons. Ready state is server-authoritative — the UI derives the current player's ready state from the server's `players` array rather than maintaining a local toggle.
+
+The room owner (creator) sees a "Start Game" button that enables when all non-owner humans are ready (`can_start` from server). Non-owner players see a "Ready" / "Not Ready" toggle. Handles WebSocket messages: `room_joined` (with `is_owner`, `can_start`), `player_joined`, `player_left`, `player_ready_changed`, `owner_changed` (host transfer), `start_game` (client-to-server), chat, and game transitions.
 
 ### Lobby Socket (`lobby/lobby-socket.ts`)
 Lightweight WebSocket wrapper for the lobby room protocol (JSON text frames). Provides connect/disconnect, message sending, and status callbacks. Sends periodic ping heartbeats (10s interval).

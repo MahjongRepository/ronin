@@ -12,8 +12,6 @@ from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie, validat
 from shared.auth.service import AuthError
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
 
-MAX_AI_PLAYERS = 3
-
 if TYPE_CHECKING:
     from starlette.requests import Request
 
@@ -184,18 +182,20 @@ async def bot_auth(request: Request) -> Response:
 
 
 async def bot_create_room(request: Request) -> Response:
-    """POST /api/rooms {num_ai_players?} - create a room (bot API key auth via header)."""
+    """POST /api/rooms - create a room (bot API key auth via header)."""
     body = await _parse_json_body(request)
     if body is None:
         return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
 
-    num_ai_players = body.get("num_ai_players", MAX_AI_PLAYERS)
-    if not isinstance(num_ai_players, int) or not 0 <= num_ai_players <= MAX_AI_PLAYERS:
-        return JSONResponse({"error": "num_ai_players must be an integer 0-3"}, status_code=400)
+    if "num_ai_players" in body:
+        return JSONResponse(
+            {"error": "num_ai_players is no longer supported; rooms always start with 4 bot seats"},
+            status_code=400,
+        )
 
     room_manager = request.app.state.room_manager
     room_id = str(uuid.uuid4())
-    room_manager.create_room(room_id, num_ai_players=num_ai_players)
+    room_manager.create_room(room_id)
 
     auth_service = request.app.state.auth_service
     session = auth_service.create_session(

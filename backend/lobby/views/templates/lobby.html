@@ -23,15 +23,15 @@
         {% for room in rooms %}
         <article class="lobby-room-card" style="--card-index: {{ loop.index0 }}">
             <div class="lobby-room-header">
-                <code class="lobby-room-id">{{ room.room_id }}</code>
-                <span class="lobby-room-count">{{ room.player_count }}/{{ room.players_needed }}</span>
+                <code class="lobby-room-id">{{ room.room_id[:8] }}</code>
+                <span class="lobby-room-count">{{ room.player_count }}/4</span>
             </div>
             <div class="lobby-table-vis">
-                {% for i in range(room.players_needed) %}
-                <span class="lobby-seat {{ 'filled' if i < room.player_count else '' }}"></span>
+                {% for player in room.players %}
+                <span class="lobby-seat {{ 'bot' if player.is_bot else 'filled' }}"></span>
                 {% endfor %}
             </div>
-            {% if room.player_count < room.players_needed %}
+            {% if room.player_count < 4 %}
             <form method="POST" action="/rooms/{{ room.room_id }}/join">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="outline lobby-join-btn">Join Table</button>

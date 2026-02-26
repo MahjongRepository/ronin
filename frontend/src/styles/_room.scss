@@ -86,6 +86,20 @@
 .room-player-name {
     font-family: var(--ronin-font-mono);
     font-size: 14px;
+    flex: 1;
+}
+
+.room-player-item.bot {
+    opacity: 0.6;
+    border-style: dashed;
+}
+
+.room-player-badge {
+    font-size: 10px;
+    font-family: var(--ronin-font-mono);
+    color: var(--ronin-gold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .room-ready-btn {
@@ -93,6 +107,18 @@
     width: 100%;
     font-family: var(--ronin-font-display);
     font-weight: 600;
+}
+
+.room-start-btn {
+    margin-top: 1rem;
+    width: 100%;
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 }
 
 .room-chat-panel {

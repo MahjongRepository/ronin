@@ -37,15 +37,21 @@ class LobbyPingMessage(BaseModel):
     type: Literal["ping"]
 
 
+class LobbyStartGameMessage(BaseModel):
+    type: Literal["start_game"]
+
+
 LobbyClientMessage = Annotated[
-    LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage,
+    LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage | LobbyStartGameMessage,
     Field(discriminator="type"),
 ]
 
 _lobby_message_adapter: TypeAdapter[LobbyClientMessage] = TypeAdapter(LobbyClientMessage)
 
 
-def parse_lobby_message(raw: str) -> LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage:
+def parse_lobby_message(
+    raw: str,
+) -> LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage | LobbyStartGameMessage:
     """Parse and validate a raw JSON string into a typed lobby message."""
     byte_len = len(raw.encode("utf-8"))
     if byte_len > _MAX_WS_MESSAGE_SIZE:

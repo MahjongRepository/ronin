@@ -84,7 +84,7 @@ async def create_room_and_redirect(request: Request) -> Response:
 
     room_manager: LobbyRoomManager = request.app.state.room_manager
     room_id = str(uuid.uuid4())
-    room_manager.create_room(room_id, num_ai_players=3)
+    room_manager.create_room(room_id)
     return RedirectResponse(f"/rooms/{room_id}", status_code=303)
 
 

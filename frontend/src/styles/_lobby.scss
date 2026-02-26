@@ -242,6 +242,12 @@
         border-color: var(--pico-primary);
         box-shadow: 0 0 8px color-mix(in srgb, var(--pico-primary) 40%, transparent);
     }
+
+    &.bot {
+        border-style: dashed;
+        border-color: var(--ronin-text-muted);
+        background: transparent;
+    }
 }
 
 // Position seats around the table in N-E-S-W order

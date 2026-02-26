@@ -58,7 +58,7 @@ class TestRoomWebSocket:
     @pytest.fixture
     def room_id(self, app):
         """Create a room and return its ID."""
-        room = app.state.room_manager.create_room("test-room", num_ai_players=3)
+        room = app.state.room_manager.create_room("test-room")
         return room.room_id
 
     def test_join_room_via_websocket(self, client, room_id):
@@ -67,7 +67,8 @@ class TestRoomWebSocket:
             assert msg["type"] == "room_joined"
             assert msg["room_id"] == room_id
             assert msg["player_name"] == "wsuser"
-            assert len(msg["players"]) == 1
+            assert msg["is_owner"] is True
+            assert len(msg["players"]) == 4  # always 4 seats
 
     def test_ping_pong(self, client, room_id):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
@@ -85,15 +86,35 @@ class TestRoomWebSocket:
             assert msg["player_name"] == "wsuser"
             assert msg["text"] == "hello"
 
-    def test_set_ready(self, client, app):
-        """set_ready broadcasts state; room still needs another player so game does not start."""
-        room = app.state.room_manager.create_room("ready-room", num_ai_players=2)
-        with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
+    def test_set_ready_by_non_owner(self, app, tmp_path):
+        """Non-owner can set_ready; broadcasts player_ready_changed with can_start."""
+        room = app.state.room_manager.create_room("ready-room")
+        c = TestClient(app)
+        register_with_csrf(c, "owner")
+        # Owner joins first
+        with c.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_owner:
+            ws_owner.receive_json()  # room_joined
+
+            # Non-owner joins
+            logout_with_csrf(c)
+            register_with_csrf(c, "player2")
+            with c.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_p2:
+                ws_p2.receive_json()  # room_joined
+                ws_owner.receive_json()  # player_joined broadcast
+
+                ws_p2.send_text(json.dumps({"type": "set_ready", "ready": True}))
+                msg = ws_p2.receive_json()
+                assert msg["type"] == "player_ready_changed"
+                assert msg["can_start"] is True
+
+    def test_owner_cannot_set_ready(self, client, room_id):
+        """Owner gets an error when trying to set_ready (must use start_game instead)."""
+        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
             ws.receive_json()  # room_joined
             ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
             msg = ws.receive_json()
-            assert msg["type"] == "player_ready_changed"
-            assert msg["players"][0]["ready"] is True
+            assert msg["type"] == "error"
+            assert msg["message"] == "owner_cannot_ready"
 
     def test_room_not_found(self, client):
         with client.websocket_connect("/ws/rooms/nonexistent") as ws:
@@ -102,10 +123,11 @@ class TestRoomWebSocket:
             assert msg["message"] == "room_not_found"
 
     def test_join_full_room(self, client, app):
-        """Joining a room that became full between the pre-lock check and join_room."""
-        room = app.state.room_manager.create_room("full-room", num_ai_players=3)
-        # Pre-fill the room so it's full when the WebSocket handler calls join_room
-        app.state.room_manager.join_room("prefill-conn", "full-room", "prefill-user", "prefill")
+        """Joining a room that is full (all 4 seats taken by other humans)."""
+        room = app.state.room_manager.create_room("full-room")
+        # Pre-fill all 4 seats
+        for i in range(4):
+            app.state.room_manager.join_room(f"prefill-{i}", "full-room", f"user-{i}", f"P{i}")
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             msg = ws.receive_json()
             assert msg["type"] == "error"
@@ -153,7 +175,135 @@ class TestRoomWebSocket:
             ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
             msg = ws.receive_json()
             assert msg["type"] == "error"
+
+    def test_start_game_room_removed(self, client, app, room_id):
+        """start_game when room was removed returns error."""
+        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
+            ws.receive_json()  # room_joined
+            # Remove room externally (simulates race condition)
+            app.state.room_manager._rooms.pop(room_id, None)
+            ws.send_text(json.dumps({"type": "start_game"}))
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+            assert msg["message"] == "not_in_room"
+
+    def test_start_game_while_transitioning(self, client, app, room_id):
+        """start_game returns error when room is already transitioning."""
+        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
+            ws.receive_json()  # room_joined
+            room = app.state.room_manager.get_room(room_id)
+            room.transitioning = True
+            ws.send_text(json.dumps({"type": "start_game"}))
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
             assert msg["message"] == "room_transitioning"
+
+
+class TestStartGameErrors:
+    """Tests for start_game error cases via WebSocket."""
+
+    @pytest.fixture
+    def app(self, tmp_path):
+        app = _make_app(tmp_path)
+        yield app
+        app.state.db.close()
+
+    @pytest.fixture
+    def two_user_client(self, app):
+        c = TestClient(app)
+        register_with_csrf(c, "owner")
+        logout_with_csrf(c)
+        register_with_csrf(c, "player2")
+        return c
+
+    def test_non_owner_start_game_fails(self, app, two_user_client):
+        """Non-owner sending start_game gets 'not_owner' error."""
+        room = app.state.room_manager.create_room("nostart-room")
+        # Log in as owner and connect
+        login_with_csrf(two_user_client, "owner")
+        with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_owner:
+            ws_owner.receive_json()  # room_joined
+
+            # Log in as player2 (non-owner) and connect
+            logout_with_csrf(two_user_client)
+            login_with_csrf(two_user_client, "player2")
+            with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_p2:
+                ws_p2.receive_json()  # room_joined
+                ws_owner.receive_json()  # player_joined broadcast
+
+                # Non-owner tries start_game
+                ws_p2.send_text(json.dumps({"type": "start_game"}))
+                msg = ws_p2.receive_json()
+                assert msg["type"] == "error"
+                assert msg["message"] == "not_owner"
+
+    def test_start_game_not_all_ready_fails(self, app, two_user_client):
+        """Owner cannot start_game when non-owner humans are not ready."""
+        room = app.state.room_manager.create_room("notready-room")
+        # Log in as owner and connect
+        login_with_csrf(two_user_client, "owner")
+        with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_owner:
+            ws_owner.receive_json()  # room_joined
+
+            # Log in as player2 (non-owner) and connect
+            logout_with_csrf(two_user_client)
+            login_with_csrf(two_user_client, "player2")
+            with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_p2:
+                ws_p2.receive_json()  # room_joined
+                ws_owner.receive_json()  # player_joined broadcast
+
+                # Owner tries start_game before player2 is ready
+                ws_owner.send_text(json.dumps({"type": "start_game"}))
+                msg = ws_owner.receive_json()
+                assert msg["type"] == "error"
+                assert msg["message"] == "not_all_ready"
+
+
+class TestOwnerChanged:
+    """Tests for owner_changed message on host transfer."""
+
+    @pytest.fixture
+    def app(self, tmp_path):
+        app = _make_app(tmp_path)
+        yield app
+        app.state.db.close()
+
+    @pytest.fixture
+    def two_user_client(self, app):
+        c = TestClient(app)
+        register_with_csrf(c, "alice")
+        logout_with_csrf(c)
+        register_with_csrf(c, "bob")
+        return c
+
+    def test_owner_disconnect_sends_owner_changed(self, app, two_user_client):
+        """When the owner disconnects, the new owner receives owner_changed."""
+        room = app.state.room_manager.create_room("transfer-room")
+        # Alice connects first (becomes owner)
+        login_with_csrf(two_user_client, "alice")
+        with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
+            ws_alice.receive_json()  # room_joined
+
+            # Bob connects (non-owner)
+            logout_with_csrf(two_user_client)
+            login_with_csrf(two_user_client, "bob")
+            with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
+                ws_bob.receive_json()  # room_joined
+                ws_alice.receive_json()  # player_joined broadcast
+
+                # Alice (owner) leaves via leave_room
+                ws_alice.send_text(json.dumps({"type": "leave_room"}))
+
+                # Bob should receive owner_changed then player_left
+                msg1 = ws_bob.receive_json()
+                assert msg1["type"] == "owner_changed"
+                assert msg1["is_owner"] is True
+                assert "can_start" in msg1
+                assert len(msg1["players"]) == 4
+
+                msg2 = ws_bob.receive_json()
+                assert msg2["type"] == "player_left"
+                assert msg2["player_name"] == "alice"
 
 
 class TestMultiPlayerWebSocket:
@@ -176,7 +326,7 @@ class TestMultiPlayerWebSocket:
 
     def test_leave_broadcasts_player_left(self, app, two_user_client):
         """When a player leaves, remaining players get player_left broadcast."""
-        room = app.state.room_manager.create_room("multi-room", num_ai_players=2)
+        room = app.state.room_manager.create_room("multi-room")
         # Bob connects first (currently logged in)
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             ws_bob.receive_json()  # room_joined
@@ -196,27 +346,28 @@ class TestMultiPlayerWebSocket:
 
     def test_second_player_join_produces_consistent_player_list(self, app, two_user_client):
         """player_joined broadcast contains exactly the players present at join time."""
-        room = app.state.room_manager.create_room("consistent-room", num_ai_players=2)
+        room = app.state.room_manager.create_room("consistent-room")
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             bob_joined = ws_bob.receive_json()
             assert bob_joined["type"] == "room_joined"
-            assert len(bob_joined["players"]) == 1
+            # Always 4 seats (1 human + 3 bots)
+            assert len(bob_joined["players"]) == 4
 
             login_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 alice_joined = ws_alice.receive_json()
                 assert alice_joined["type"] == "room_joined"
-                assert len(alice_joined["players"]) == 2
+                # Still 4 seats (2 humans + 2 bots)
+                assert len(alice_joined["players"]) == 4
 
                 player_joined = ws_bob.receive_json()
                 assert player_joined["type"] == "player_joined"
                 assert player_joined["player_name"] == "alice"
-                # The broadcast must reflect the state after alice joined
-                assert len(player_joined["players"]) == 2
+                assert len(player_joined["players"]) == 4
 
     def test_disconnect_broadcasts_player_left(self, app, two_user_client):
         """When a player disconnects, remaining players get player_left broadcast."""
-        room = app.state.room_manager.create_room("dc-room", num_ai_players=2)
+        room = app.state.room_manager.create_room("dc-room")
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             ws_bob.receive_json()  # room_joined
             login_with_csrf(two_user_client, "alice")
@@ -229,7 +380,7 @@ class TestMultiPlayerWebSocket:
 
 
 class TestGameTransition:
-    """Tests for the all-ready game transition flow."""
+    """Tests for the start_game game transition flow."""
 
     @pytest.fixture
     def app(self, tmp_path):
@@ -247,9 +398,9 @@ class TestGameTransition:
         for server in app.state.registry._servers:
             server.healthy = True
 
-    def test_all_ready_triggers_game_starting(self, client, app):
-        """When all players ready, game_starting is sent with ws_url and ticket."""
-        room = app.state.room_manager.create_room("game-room", num_ai_players=3)
+    def test_start_game_triggers_game_starting(self, client, app):
+        """Owner sends start_game, game_starting is sent with ws_url and ticket."""
+        room = app.state.room_manager.create_room("game-room")
         self._set_servers_healthy(app)
 
         mock_response = AsyncMock(spec=httpx.Response)
@@ -268,8 +419,8 @@ class TestGameTransition:
 
             with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
                 ws.receive_json()  # room_joined
-                ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
-                ws.receive_json()  # player_ready_changed
+                # Owner alone with 3 bots — can_start is True
+                ws.send_text(json.dumps({"type": "start_game"}))
                 msg = ws.receive_json()  # game_starting
                 assert msg["type"] == "game_starting"
                 assert "ws_url" in msg
@@ -281,7 +432,7 @@ class TestGameTransition:
 
     def test_game_starting_delivery_failure_is_logged(self, client, app, caplog):
         """When game_starting delivery fails for a player, it is logged."""
-        room = app.state.room_manager.create_room("deliver-fail", num_ai_players=3)
+        room = app.state.room_manager.create_room("deliver-fail")
         self._set_servers_healthy(app)
 
         mock_response = AsyncMock(spec=httpx.Response)
@@ -309,14 +460,13 @@ class TestGameTransition:
 
             with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
                 ws.receive_json()  # room_joined
-                ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
-                ws.receive_json()  # player_ready_changed
+                ws.send_text(json.dumps({"type": "start_game"}))
 
         assert "failed to deliver game_starting message" in caplog.text
 
     def test_game_transition_failure(self, client, app):
         """When game server returns error, players get error and room resets."""
-        room = app.state.room_manager.create_room("fail-room", num_ai_players=3)
+        room = app.state.room_manager.create_room("fail-room")
         self._set_servers_healthy(app)
 
         mock_response = AsyncMock(spec=httpx.Response)
@@ -335,8 +485,11 @@ class TestGameTransition:
 
             with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
                 ws.receive_json()  # room_joined
-                ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
-                ws.receive_json()  # player_ready_changed
+                ws.send_text(json.dumps({"type": "start_game"}))
+                resync = ws.receive_json()  # state resync after failure
+                assert resync["type"] == "player_ready_changed"
+                assert "players" in resync
+                assert "can_start" in resync
                 msg = ws.receive_json()  # error
                 assert msg["type"] == "error"
                 assert "Failed to start game" in msg["message"]
@@ -347,7 +500,7 @@ class TestGameTransition:
 
     def test_game_transition_connection_error(self, client, app):
         """When game server is unreachable, players get error."""
-        room = app.state.room_manager.create_room("conn-err-room", num_ai_players=3)
+        room = app.state.room_manager.create_room("conn-err-room")
         self._set_servers_healthy(app)
 
         with (
@@ -362,23 +515,29 @@ class TestGameTransition:
 
             with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
                 ws.receive_json()  # room_joined
-                ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
-                ws.receive_json()  # player_ready_changed
+                ws.send_text(json.dumps({"type": "start_game"}))
+                resync = ws.receive_json()  # state resync after failure
+                assert resync["type"] == "player_ready_changed"
+                assert "players" in resync
+                assert "can_start" in resync
                 msg = ws.receive_json()  # error
                 assert msg["type"] == "error"
                 assert "Failed to start game" in msg["message"]
 
     def test_game_transition_no_healthy_servers(self, client, app):
         """When no healthy servers, players get error."""
-        room = app.state.room_manager.create_room("no-servers-room", num_ai_players=3)
+        room = app.state.room_manager.create_room("no-servers-room")
 
         with (
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
             client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
         ):
             ws.receive_json()  # room_joined
-            ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
-            ws.receive_json()  # player_ready_changed
+            ws.send_text(json.dumps({"type": "start_game"}))
+            resync = ws.receive_json()  # state resync after failure
+            assert resync["type"] == "player_ready_changed"
+            assert "players" in resync
+            assert "can_start" in resync
             msg = ws.receive_json()  # error
             assert msg["type"] == "error"
             assert "Failed to start game" in msg["message"]
@@ -398,7 +557,7 @@ class TestWebSocketOriginCheck:
         return c
 
     def test_allowed_origin_connects(self, client_with_origin, app_with_origin):
-        room = app_with_origin.state.room_manager.create_room("origin-test", num_ai_players=3)
+        room = app_with_origin.state.room_manager.create_room("origin-test")
         with client_with_origin.websocket_connect(
             f"/ws/rooms/{room.room_id}",
             headers={"origin": "http://localhost:3000"},
@@ -407,7 +566,7 @@ class TestWebSocketOriginCheck:
             assert msg["type"] == "room_joined"
 
     def test_forbidden_origin_rejected(self, client_with_origin, app_with_origin):
-        room = app_with_origin.state.room_manager.create_room("bad-origin", num_ai_players=3)
+        room = app_with_origin.state.room_manager.create_room("bad-origin")
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
             client_with_origin.websocket_connect(
@@ -418,7 +577,7 @@ class TestWebSocketOriginCheck:
             ws.receive_json()
 
     def test_no_origin_header_rejected(self, client_with_origin, app_with_origin):
-        room = app_with_origin.state.room_manager.create_room("no-origin", num_ai_players=3)
+        room = app_with_origin.state.room_manager.create_room("no-origin")
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
             client_with_origin.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
@@ -430,7 +589,7 @@ class TestWebSocketUnauthenticated:
     @pytest.fixture
     def unauthenticated_client(self, tmp_path):
         app = _make_app(tmp_path)
-        app.state.room_manager.create_room("auth-test", num_ai_players=3)
+        app.state.room_manager.create_room("auth-test")
         c = TestClient(app)
         yield c
         app.state.db.close()

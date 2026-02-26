@@ -291,7 +291,8 @@ class TestCreateRoomRedirect:
         room_id = location.split("/rooms/")[1]
         room = client.app.state.room_manager.get_room(room_id)
         assert room is not None
-        assert room.num_ai_players == 3
+        # Empty room: no humans joined yet, all 4 seats are bots
+        assert room.num_ai_players == 4
 
 
 class TestJoinRoomRedirect:
@@ -306,7 +307,7 @@ class TestJoinRoomRedirect:
 
     def test_join_room_redirects_to_room_page(self, client):
         room_manager = client.app.state.room_manager
-        room_manager.create_room("test-room-123", num_ai_players=3)
+        room_manager.create_room("test-room-123")
 
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
         response = client.post(
@@ -336,7 +337,7 @@ class TestBotAuth:
     def test_bot_auth_returns_room_info(self, client):
         _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
         room_manager = client.app.state.room_manager
-        room_manager.create_room("room-bot", num_ai_players=3)
+        room_manager.create_room("room-bot")
 
         response = client.post(
             "/api/auth/bot",
@@ -437,26 +438,15 @@ class TestBotCreateRoom:
         assert "/ws/rooms/" in data["ws_url"]
         room = client.app.state.room_manager.get_room(data["room_id"])
         assert room is not None
-        assert room.num_ai_players == 3
+        # Empty room: no humans joined yet, all 4 seats are bots
+        assert room.num_ai_players == 4
 
-    def test_create_room_custom_ai_players(self, client):
+    def test_create_room_rejects_num_ai_players(self, client):
+        """Sending num_ai_players returns 400 — the parameter is no longer supported."""
         _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
         response = client.post(
             "/api/rooms",
             json={"num_ai_players": 2},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 201
-        data = response.json()
-        room = client.app.state.room_manager.get_room(data["room_id"])
-        assert room is not None
-        assert room.num_ai_players == 2
-
-    def test_create_room_invalid_ai_count(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
-        response = client.post(
-            "/api/rooms",
-            json={"num_ai_players": 5},
             headers={"x-api-key": raw_key},
         )
         assert response.status_code == 400
@@ -494,7 +484,7 @@ class TestBotOnlyRoutes:
         """Human sessions are rejected with 403 on /api/auth/bot."""
         _register_user(client, "humanuser")
         room_manager = client.app.state.room_manager
-        room_manager.create_room("room-test", num_ai_players=3)
+        room_manager.create_room("room-test")
 
         response = client.post("/api/auth/bot", json={"room_id": "room-test"})
         assert response.status_code == 403
@@ -512,7 +502,7 @@ class TestBotOnlyRoutes:
         """Bot sessions created via API key still have access to bot-only routes."""
         _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
         room_manager = client.app.state.room_manager
-        room_manager.create_room("room-bot", num_ai_players=3)
+        room_manager.create_room("room-bot")
 
         response = client.post(
             "/api/auth/bot",
