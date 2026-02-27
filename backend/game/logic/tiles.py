@@ -84,7 +84,10 @@ def hand_to_34_array(tiles: list[int] | tuple[int, ...]) -> list[int]:
     The 34-array has 34 elements, where each index represents a tile type
     and the value is the count of that tile type in the hand.
     """
+    if tiles and (min(tiles) < TILE_ID_MIN or max(tiles) > TILE_ID_MAX):
+        bad = next(t for t in tiles if not (TILE_ID_MIN <= t <= TILE_ID_MAX))
+        raise ValueError(f"tile_id must be in [{TILE_ID_MIN}, {TILE_ID_MAX}], got {bad}")
     tiles_34 = [0] * NUM_TILE_TYPES
     for tile_id in tiles:
-        tiles_34[tile_to_34(tile_id)] += 1
+        tiles_34[tile_id // 4] += 1
     return tiles_34

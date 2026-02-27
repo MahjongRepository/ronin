@@ -214,13 +214,23 @@ def is_tempai(
     tiles_list = list(tiles)
 
     if len(tiles_list) == HAND_SIZE_AFTER_DRAW:
-        # after drawing, check if any discard leaves us in tenpai (excluding pure karaten)
+        # Compute the 34-array once, then modify in-place for each discard check.
+        # Deduplicate by tile type: discarding two tiles of the same type yields
+        # the same 34-array, so only one shanten check is needed per type.
+        tiles_34 = hand_to_34_array(tiles_list)
+        checked: set[int] = set()
         for i in range(len(tiles_list)):
-            remaining = tiles_list[:i] + tiles_list[i + 1 :]
-            tiles_34 = hand_to_34_array(remaining)
-            # check if in tenpai and not pure karaten
-            if calculate_shanten(tiles_34) == 0 and not _is_pure_karaten(remaining, melds):
-                return True
+            t34 = tiles_list[i] // 4
+            if t34 in checked:
+                continue
+            checked.add(t34)
+            tiles_34[t34] -= 1
+            is_tenpai = calculate_shanten(tiles_34) == 0
+            tiles_34[t34] += 1
+            if is_tenpai:
+                remaining = tiles_list[:i] + tiles_list[i + 1 :]
+                if not _is_pure_karaten(remaining, melds):
+                    return True
         return False
 
     tiles_34 = hand_to_34_array(tiles_list)
