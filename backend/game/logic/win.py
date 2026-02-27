@@ -125,7 +125,10 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     Uses shanten calculator to identify which tiles would bring shanten to -1 (agari).
     Returns a set of tile_34 values (0-33) that complete the hand.
     """
-    # shanten operates on closed hand tiles only
+    # shanten operates on closed hand tiles only.
+    # Tile count can be invalid for calculate_replacement_number: empty hands
+    # (0 tiles from chankan checks) or 3n+0 counts like 12 tiles (after melds).
+    # calculate_shanten guards against these with sum().
     closed_tiles_34 = hand_to_34_array(player.tiles)
     current_shanten = calculate_shanten(closed_tiles_34)
 

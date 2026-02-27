@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import structlog
 from mahjong.agari import Agari
+from xiangting import PlayerCount, calculate_replacement_number
 
 from game.logic import wall as wall_ops
 from game.logic.exceptions import InvalidDiscardError
@@ -224,15 +225,20 @@ def is_tempai(
         # Compute the 34-array once, then modify in-place for each discard check.
         # Deduplicate by tile type: discarding two tiles of the same type yields
         # the same 34-array, so only one shanten check is needed per type.
+        #
+        # Call calculate_replacement_number directly instead of calculate_shanten
+        # to skip the per-call sum(tiles_34) guard. After removing one tile from
+        # a 14-tile hand the count is always 13 (3*4+1), so the guard always passes.
         tiles_34 = hand_to_34_array(tiles_list)
         checked: set[int] = set()
+        four = PlayerCount.FOUR
         for i in range(len(tiles_list)):
             t34 = tiles_list[i] // 4
             if t34 in checked:
                 continue
             checked.add(t34)
             tiles_34[t34] -= 1
-            is_tenpai = calculate_shanten(tiles_34) == 0
+            is_tenpai = calculate_replacement_number(tiles_34, four) == 1
             tiles_34[t34] += 1
             if is_tenpai:
                 remaining = tiles_list[:i] + tiles_list[i + 1 :]
@@ -240,6 +246,9 @@ def is_tempai(
                     return True
         return False
 
+    # Unlike the 14-tile loop above, tile count here can be invalid for
+    # calculate_replacement_number: empty hands (0 tiles) or 3n+0 counts
+    # like 15 tiles. calculate_shanten guards against these with sum().
     tiles_34 = hand_to_34_array(tiles_list)
     if calculate_shanten(tiles_34) != 0:
         return False
