@@ -41,4 +41,4 @@ generate-replays:
 	PYTHONPATH=backend uv run python -m game.replay.external.tenhou
 
 profile:
-	PYTHONPATH=backend uv run python bin/profile_replay.py
+	uv run python bin/profile_replay.py
