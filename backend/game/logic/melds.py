@@ -44,15 +44,19 @@ _WIND_TILES = frozenset(WINDS_34)
 # pao-eligible meld types (pon, open kan, added kan)
 _PAO_MELD_TYPES = (FrozenMeld.PON, FrozenMeld.KAN, FrozenMeld.SHOUMINKAN)
 
+_KAN_MELD_TYPES = frozenset({FrozenMeld.KAN, FrozenMeld.SHOUMINKAN})
+
 
 def _count_total_kans(round_state: MahjongRoundState) -> int:
     """
     Count total kans declared across all players in the round.
     """
-    total = 0
+    count = 0
     for player in round_state.players:
-        total += sum(1 for m in player.melds if m.type in (FrozenMeld.KAN, FrozenMeld.SHOUMINKAN))
-    return total
+        for m in player.melds:
+            if m.type in _KAN_MELD_TYPES:
+                count += 1
+    return count
 
 
 def get_kuikae_tiles(
@@ -99,10 +103,14 @@ def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
     if player.is_riichi:
         return False
 
-    discarded_34 = tile_to_34(discarded_tile)
-    matching_count = sum(1 for t in player.tiles if tile_to_34(t) == discarded_34)
-
-    return matching_count >= TILES_FOR_PON
+    discarded_34 = discarded_tile // 4
+    count = 0
+    for t in player.tiles:
+        if t // 4 == discarded_34:
+            count += 1
+            if count >= TILES_FOR_PON:
+                return True
+    return False
 
 
 def can_call_chi(
@@ -212,16 +220,22 @@ def can_call_open_kan(
     if player.is_riichi:
         return False
 
+    # Check matching tiles first — having 3 of a kind is rare, so this
+    # short-circuits before the more expensive wall/kan-count checks.
+    discarded_34 = discarded_tile // 4
+    count = 0
+    for t in player.tiles:
+        if t // 4 == discarded_34:
+            count += 1
+            if count >= TILES_FOR_OPEN_KAN:
+                break
+    else:
+        return False
+
     if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return False
 
-    if _count_total_kans(round_state) >= settings.max_kans_per_round:
-        return False
-
-    discarded_34 = tile_to_34(discarded_tile)
-    matching_count = sum(1 for t in player.tiles if tile_to_34(t) == discarded_34)
-
-    return matching_count >= TILES_FOR_OPEN_KAN
+    return _count_total_kans(round_state) < settings.max_kans_per_round
 
 
 def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool:
@@ -273,6 +287,31 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     return new_waits == original_waits
 
 
+def _find_closed_kan_candidates(
+    player: MahjongPlayer,
+    tile_counts: dict[int, int],
+) -> list[int]:
+    """Find tile_34 values where the player holds 4 copies (closed kan candidates).
+
+    For riichi players, additional constraints apply: the drawn tile must be
+    the kan tile, and the kan must preserve the waiting tiles.
+    """
+    possible = []
+    for t34, count in tile_counts.items():
+        if count < TILES_FOR_CLOSED_KAN:
+            continue
+        if player.is_riichi:
+            # the drawn tile (last in hand) must be the kan tile;
+            # a riichi player cannot kan tiles already held before drawing
+            if player.tiles[-1] // 4 != t34:
+                continue
+            if _kan_preserves_waits_for_riichi(player, t34):
+                possible.append(t34)
+        else:
+            possible.append(t34)
+    return possible
+
+
 def get_possible_closed_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
@@ -290,26 +329,19 @@ def get_possible_closed_kans(
     if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return []
 
-    if _count_total_kans(round_state) >= settings.max_kans_per_round:
-        return []
-
     tile_counts: dict[int, int] = {}
     for t in player.tiles:
-        t34 = tile_to_34(t)
+        t34 = t // 4
         tile_counts[t34] = tile_counts.get(t34, 0) + 1
 
-    possible = []
-    for t34, count in tile_counts.items():
-        if count >= TILES_FOR_CLOSED_KAN:
-            if player.is_riichi:
-                # the drawn tile (last in hand) must be the kan tile;
-                # a riichi player cannot kan tiles already held before drawing
-                if tile_to_34(player.tiles[-1]) != t34:
-                    continue
-                if _kan_preserves_waits_for_riichi(player, t34):
-                    possible.append(t34)
-            else:
-                possible.append(t34)
+    # Find 4-of-a-kind candidates before the expensive kan count check.
+    # Having 4 of a kind is very rare, so this almost always exits early.
+    possible = _find_closed_kan_candidates(player, tile_counts)
+    if not possible:
+        return []
+
+    if _count_total_kans(round_state) >= settings.max_kans_per_round:
+        return []
 
     return possible
 
@@ -334,15 +366,20 @@ def get_possible_added_kans(
     if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         return []
 
-    if _count_total_kans(round_state) >= settings.max_kans_per_round:
-        return []
-
+    # Find upgradeable pons before the expensive kan count check.
+    # Most players have no pon melds, so this exits early.
     possible = []
     for meld in player.melds:
         if meld.type == FrozenMeld.PON:
-            meld_tile_34 = tile_to_34(meld.tiles[0])
-            if any(tile_to_34(t) == meld_tile_34 for t in player.tiles):
+            meld_tile_34 = meld.tiles[0] // 4
+            if any(t // 4 == meld_tile_34 for t in player.tiles):
                 possible.append(meld_tile_34)
+
+    if not possible:
+        return []
+
+    if _count_total_kans(round_state) >= settings.max_kans_per_round:
+        return []
 
     return possible
 

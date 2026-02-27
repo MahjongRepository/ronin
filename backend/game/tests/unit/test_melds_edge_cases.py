@@ -61,6 +61,17 @@ class TestKuikaeEdgeCases:
 class TestKanLimits:
     """Test 4-kan limit restrictions."""
 
+    def test_open_kan_blocked_by_insufficient_wall(self):
+        """Open kan requires min_wall_for_kan tiles in the wall even when player has 3 matching."""
+        pin_5p = TilesConverter.string_to_136_array(pin="555")
+        player = create_player(seat=1, tiles=pin_5p)
+        round_state = create_round_state(
+            players=[create_player(seat=0), player, create_player(seat=2), create_player(seat=3)],
+            wall=(1,),  # only 1 tile; min_wall_for_kan defaults to 2
+        )
+        discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
+        assert can_call_open_kan(player, discarded_tile, round_state, GameSettings()) is False
+
     def test_four_kan_limit_blocks_open_kan(self):
         """Test that 4 existing kans blocks new open kan."""
         # Create players with 4 total kans
