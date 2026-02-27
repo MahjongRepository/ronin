@@ -70,16 +70,6 @@ def all_tiles_from_hand_and_melds(
     return all_tiles
 
 
-def _hand_with_melds_to_34_array(player: MahjongPlayer) -> list[int]:
-    """
-    Build a 34-format tile count array from closed hand tiles and meld tiles.
-
-    The Agari library expects tiles_34 to contain ALL tiles (closed + open melds),
-    because it subtracts open sets internally during the agari check.
-    """
-    return hand_to_34_array(all_player_tiles(player))
-
-
 def check_tsumo(player: MahjongPlayer) -> bool:
     """
     Check if the player's hand is a winning hand (agari).
@@ -87,9 +77,18 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     Uses the mahjong library's Agari class to determine if the hand
     can form 4 melds + 1 pair (or special hands like kokushi/chiitoitsu).
     """
-    tiles_34 = _hand_with_melds_to_34_array(player)
+    # Build tiles_34 directly from closed hand + meld tiles, avoiding
+    # intermediate list creation and redundant hand_to_34_array validation.
+    tiles_34 = [0] * NUM_TILE_TYPES
+    for t in player.tiles:
+        tiles_34[t // 4] += 1
+    if player.melds:
+        hand_ids = set(player.tiles)
+        for meld in player.melds:
+            for t in meld.tiles:
+                if t not in hand_ids:
+                    tiles_34[t // 4] += 1
 
-    # convert open melds to 34-format for the agari check
     open_sets_34 = _melds_to_34_sets(player.melds)
 
     return Agari.is_agari(tiles_34, open_sets_34)
@@ -440,8 +439,17 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
     Uses a local tile list instead of mutating player.tiles.
     Used for ron/tsumo checks.
     """
-    all_tiles = all_tiles_from_hand_and_melds(tiles, player.melds)
-    tiles_34 = hand_to_34_array(all_tiles)
+    # Build tiles_34 directly from tiles (closed hand + win tile) + meld tiles,
+    # avoiding intermediate list creation and redundant hand_to_34_array validation.
+    tiles_34 = [0] * NUM_TILE_TYPES
+    for t in tiles:
+        tiles_34[t // 4] += 1
+    if player.melds:
+        hand_ids = set(tiles)
+        for meld in player.melds:
+            for t in meld.tiles:
+                if t not in hand_ids:
+                    tiles_34[t // 4] += 1
 
     open_sets_34 = _melds_to_34_sets(player.melds)
     return Agari.is_agari(tiles_34, open_sets_34)
