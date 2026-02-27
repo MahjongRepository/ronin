@@ -1,0 +1,39 @@
+// Lobby footer
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--ronin-border);
+}
+
+.footer-meta {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.7rem;
+    color: var(--pico-muted-color);
+}
+
+.footer-dev-links {
+    display: flex;
+    gap: 1rem;
+
+    a {
+        font-family: var(--ronin-font-mono);
+        font-size: 0.7rem;
+        color: var(--pico-muted-color);
+        text-decoration: none;
+
+        &:hover {
+            color: var(--pico-primary);
+        }
+    }
+}
+
+// ─── Error Text (legacy) ────────────────────────────────────
+
+.error-text {
+    color: var(--ronin-danger);
+}

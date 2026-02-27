@@ -5,12 +5,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from lobby.views.handlers import (
-    _format_duration,
-    _prepare_history_for_display,
-    load_vite_manifest,
-    resolve_vite_asset_urls,
-)
+from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
+from lobby.views.history_handlers import _format_duration, _prepare_history_for_display
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
 

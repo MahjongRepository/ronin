@@ -1,0 +1,241 @@
+// Games list (history page)
+
+.games-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+
+    @media (width <= 380px) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.games-card {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+    border-radius: 0.75rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    overflow: hidden;
+    animation: card-in 0.4s ease both;
+    animation-delay: calc(var(--card-index, 0) * 0.06s);
+    transition:
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
+
+    &:hover {
+        border-color: color-mix(in srgb, var(--pico-primary) 25%, var(--ronin-border));
+        box-shadow:
+            0 8px 32px rgb(0 0 0 / 35%),
+            0 0 0 1px color-mix(in srgb, var(--pico-primary) 6%, transparent);
+    }
+}
+
+// Card header: wind label + timestamp
+.games-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    background: var(--ronin-surface-elevated);
+    border-bottom: 1px solid var(--ronin-border-subtle);
+}
+
+.games-card-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.games-badge {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.55rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.25rem;
+    line-height: 1.2;
+
+    &--active {
+        color: var(--ronin-gold);
+        background: color-mix(in srgb, var(--ronin-gold) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--ronin-gold) 18%, transparent);
+    }
+}
+
+.games-wind {
+    font-family: var(--ronin-font-display);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ronin-text-secondary);
+    letter-spacing: 0.04em;
+}
+
+.games-time {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.7rem;
+    color: var(--ronin-text-muted);
+}
+
+// Player standings (card body)
+.games-standings {
+    display: flex;
+    flex-direction: column;
+    padding: 0.375rem 0;
+}
+
+.games-standing {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 1rem;
+    border-left: 3px solid transparent;
+    transition: background 0.2s ease;
+
+    &--winner {
+        border-left-color: var(--ronin-gold);
+        background: color-mix(in srgb, var(--ronin-gold) 5%, transparent);
+
+        .games-rank {
+            color: var(--ronin-gold);
+            font-weight: 600;
+        }
+
+        .games-name {
+            color: var(--pico-color);
+            font-weight: 600;
+        }
+
+        .games-pts {
+            font-weight: 600;
+        }
+    }
+
+    &--me:not(&--winner) {
+        .games-name {
+            color: var(--pico-color);
+            font-weight: 500;
+        }
+    }
+}
+
+.games-rank {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.7rem;
+    color: var(--ronin-text-muted);
+    width: 1rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.games-name {
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.games-score {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.75rem;
+    color: var(--ronin-text-muted);
+    text-align: right;
+    min-width: 3rem;
+}
+
+.games-pts {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--ronin-text-secondary);
+    text-align: right;
+    min-width: 3rem;
+
+    &--positive {
+        color: var(--ronin-score-positive);
+    }
+
+    &--negative {
+        color: var(--ronin-score-negative);
+    }
+}
+
+// Card footer: meta tags + copy button
+.games-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--ronin-border-subtle);
+    background: var(--ronin-surface-elevated);
+}
+
+.games-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.games-meta-tag {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.65rem;
+    color: var(--ronin-text-muted);
+    letter-spacing: 0.02em;
+
+    & + & {
+        &::before {
+            content: "·";
+            margin-right: 0.75rem;
+            opacity: 0.4;
+        }
+    }
+}
+
+// Copy game ID button
+.games-copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.3rem;
+    color: var(--ronin-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        color 0.2s,
+        border-color 0.2s,
+        background 0.2s;
+
+    &:hover {
+        color: var(--pico-primary);
+        border-color: color-mix(in srgb, var(--pico-primary) 40%, var(--ronin-border));
+        background: color-mix(in srgb, var(--pico-primary) 5%, transparent);
+    }
+
+    .games-check-icon {
+        display: none;
+    }
+
+    &.copied {
+        color: var(--ronin-success);
+        border-color: color-mix(in srgb, var(--ronin-success) 40%, var(--ronin-border));
+
+        .games-copy-icon {
+            display: none;
+        }
+
+        .games-check-icon {
+            display: block;
+        }
+    }
+}

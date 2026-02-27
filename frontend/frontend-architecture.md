@@ -66,7 +66,15 @@ src/styles/
 ├── game-app.scss      # Game entry point (imports all game styles)
 ├── _pico.scss         # Pico CSS v2 configuration (theme, modules)
 ├── _theme.scss        # Design tokens, global font application, sticky footer layout
-├── _lobby.scss        # Lobby page styles (nav, room cards, seats, auth, footer, animations)
+├── lobby/             # Lobby page styles (split into component partials)
+│   ├── _index.scss    # Barrel file (@forward all partials)
+│   ├── _nav.scss      # Nav bar, brand, logo, nav links
+│   ├── _alert.scss    # Alert banner
+│   ├── _rooms.scss    # Room grid, cards, seat visualization, create form
+│   ├── _auth.scss     # Auth card, auth links
+│   ├── _footer.scss   # Footer content, dev links, error text
+│   ├── _games.scss    # Game history cards, standings, badges
+│   └── _animations.scss # card-in, slide-down keyframes
 ├── _room.scss         # Room page styles (player list, chat, connection status)
 └── _game.scss         # Game client styles (log panel, status badges)
 ```
@@ -91,8 +99,15 @@ Sticky footer (pushed to bottom via flexbox `min-height: 100vh` on body). Shows 
 
 ## Lobby TypeScript
 
-### Room Module (`lobby/room.ts`)
-Manages room page state and rendering. Uses lit-html to render a fixed 4-seat player list (humans and bot placeholders), chat messages, and action buttons. Ready state is server-authoritative — the UI derives the current player's ready state from the server's `players` array rather than maintaining a local toggle.
+### Room Module (`lobby/room/`)
+Manages room page state and rendering, split into four files by responsibility:
+
+- **`state.ts`** — `RoomState` interface and `createRoomState()` factory. Encapsulates player list, chat messages, connection status, ownership, and socket reference. Pure state queries (`getMyReadyState`).
+- **`handlers.ts`** — All functions that read or write to the socket: inbound WebSocket message handlers (`onRoomJoined`, `onPlayerJoined`, `onPlayerLeft`, `onPlayerReadyChanged`, `onOwnerChanged`, `onGameStarting`) and outbound user action callbacks (`handleToggleReady`, `handleStartGame`, `handleSendChat`, `handleLeaveRoom`). Each function receives `RoomState` as its first argument.
+- **`ui.ts`** — Pure lit-html templates and render functions. Receives state for reading and action callbacks for event bindings. Never touches `state.socket` directly.
+- **`index.ts`** — Public API (`initRoomPage`). Wires state, handlers, and UI together.
+
+Uses lit-html to render a fixed 4-seat player list (humans and bot placeholders), chat messages, and action buttons. Ready state is server-authoritative — the UI derives the current player's ready state from the server's `players` array rather than maintaining a local toggle.
 
 The room owner (creator) sees a "Start Game" button that enables when all non-owner humans are ready (`can_start` from server). Non-owner players see a "Ready" / "Not Ready" toggle. Handles WebSocket messages: `room_joined` (with `is_owner`, `can_start`), `player_joined`, `player_left`, `player_ready_changed`, `owner_changed` (host transfer), `start_game` (client-to-server), chat, and game transitions.
 
@@ -187,8 +202,12 @@ frontend/
     │   └── logo.svg         # Project logo (content-hashed by Vite)
     ├── lobby/
     │   ├── index.ts         # Lobby entry point (imports lobby-app.scss)
-    │   ├── room.ts          # Room state and lit-html rendering
-    │   └── lobby-socket.ts  # Lobby WebSocket wrapper (JSON frames)
+    │   ├── lobby-socket.ts  # Lobby WebSocket wrapper (JSON frames)
+    │   └── room/
+    │       ├── index.ts     # Public API (initRoomPage), wires state/handlers/UI
+    │       ├── state.ts     # RoomState interface and factory
+    │       ├── handlers.ts  # WebSocket message handlers and user action callbacks
+    │       └── ui.ts        # lit-html templates and render functions
     ├── views/
     │   └── game.ts          # Game view (log panel, join/reconnect lifecycle)
     └── styles/
@@ -196,7 +215,15 @@ frontend/
         ├── game-app.scss    # Game CSS entry point
         ├── _pico.scss       # Pico CSS v2 config (jade theme, selective modules)
         ├── _theme.scss      # Design tokens, fonts, sticky footer
-        ├── _lobby.scss      # Lobby styles (nav, cards, seats, auth, footer)
+        ├── lobby/           # Lobby styles (split into component partials)
+        │   ├── _index.scss  # Barrel (@forward all partials)
+        │   ├── _nav.scss    # Nav bar, brand, logo
+        │   ├── _alert.scss  # Alert banner
+        │   ├── _rooms.scss  # Room grid, cards, seats
+        │   ├── _auth.scss   # Auth card, auth links
+        │   ├── _footer.scss # Footer, dev links
+        │   ├── _games.scss  # Game history cards
+        │   └── _animations.scss # Keyframe animations
         ├── _room.scss       # Room page styles (players, chat)
         └── _game.scss       # Game client styles (log panel, status badges)
 ```

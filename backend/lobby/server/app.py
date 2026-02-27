@@ -31,8 +31,7 @@ from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import room_websocket
 from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
 from lobby.server.settings import LobbyServerSettings
-from lobby.views.auth_handlers import bot_auth, bot_create_room, login, login_page, logout, register, register_page
-from lobby.views.handlers import (
+from lobby.views import (
     create_room_and_redirect,
     create_templates,
     history_page,
@@ -45,6 +44,7 @@ from lobby.views.handlers import (
     room_page,
     styleguide_page,
 )
+from lobby.views.auth_handlers import bot_auth, bot_create_room, login, login_page, logout, register, register_page
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings

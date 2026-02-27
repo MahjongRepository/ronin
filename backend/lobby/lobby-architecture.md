@@ -148,7 +148,13 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Settings** (`server/settings.py`) - `LobbyServerSettings` via pydantic-settings (`LOBBY_` env prefix)
 - **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, `bot_only`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
 - **CSRF** (`server/csrf.py`) - Double-submit cookie pattern for state-changing HTML POST routes. `get_or_create_csrf_token()` generates tokens on first GET, `validate_csrf()` enforces matching cookie and form field on POST. Protected routes: `/login`, `/register`, `/logout`, `/rooms/new`, `/rooms/{room_id}/join`
-- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `play_page` serves the built frontend via `play.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template; `history_page` renders the history page with recent played games via `history.html` template
+- **Views** (`views/`) - Jinja2 templates and view handlers split by domain:
+  - `handlers.py` — Lobby and room page handlers (`lobby_page`, `room_page`, `create_room_and_redirect`, `join_room_and_redirect`)
+  - `history_handlers.py` — History page handler and game data transformation (`history_page`, `_format_duration`, `_prepare_history_for_display`)
+  - `game_handlers.py` — Game client and dev page handlers (`play_page`, `styleguide_page`, `play_styleguide_page`)
+  - `assets.py` — Vite manifest utilities and Jinja2 template factory (`create_templates`, `load_vite_manifest`, `resolve_vite_asset_urls`)
+  - `auth_handlers.py` — Auth handlers (login, register, logout, bot_auth, bot_create_room)
+  - `__init__.py` — Barrel re-exports for stable imports from `lobby.views`
 - **Registry** (`registry/`) - Game server discovery and health checks
 - **Rooms** (`rooms/`) - Room management: `LobbyRoomManager` (room state, TTL reaper), `RoomConnectionManager` (WebSocket broadcasting), WebSocket handler (auth, origin check, game transition), typed message models, room data models
 
@@ -174,7 +180,11 @@ ronin/
         │   ├── models.py       # AuthenticatedPlayer (Starlette BaseUser)
         │   └── policy.py       # Route auth policy decorators and startup validation
         ├── views/
-        │   ├── handlers.py     # View handlers (lobby_page, room_page, play_page, history_page, room creation/join)
+        │   ├── __init__.py      # Barrel re-exports (stable import surface for app.py)
+        │   ├── handlers.py      # Lobby and room page handlers (lobby_page, room_page, create/join)
+        │   ├── assets.py        # Vite manifest utilities, Jinja2 template factory
+        │   ├── game_handlers.py # Game client and dev page handlers (play_page, styleguides)
+        │   ├── history_handlers.py # History page handler and data transformation
         │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth, bot_create_room)
         │   └── templates/
         │       ├── base.html   # Base template with CSS block and scripts block

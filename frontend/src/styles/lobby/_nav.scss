@@ -1,0 +1,65 @@
+// Lobby navigation bar
+
+.lobby-nav {
+    padding-block: 0;
+    border-bottom: 1px solid var(--ronin-border);
+    margin-bottom: 0.5rem;
+
+    @media (width <= 576px) {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        padding-block: 0.25rem;
+    }
+}
+
+.lobby-brand {
+    font-family: var(--ronin-font-display);
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+}
+
+.lobby-logo {
+    display: inline-block;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    background-color: var(--pico-primary);
+    mask-image: url("../assets/logo.svg");
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    transition: filter 0.3s ease;
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--pico-primary) 30%, transparent));
+
+    .lobby-brand:hover & {
+        filter: drop-shadow(0 0 14px color-mix(in srgb, var(--pico-primary) 60%, transparent));
+    }
+}
+
+.lobby-username {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.8rem;
+    color: var(--ronin-text-secondary);
+}
+
+.lobby-nav-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    margin-bottom: 0;
+}
+
+.lobby-nav-link {
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+    text-decoration: none;
+
+    &:hover {
+        color: var(--pico-primary);
+    }
+}
