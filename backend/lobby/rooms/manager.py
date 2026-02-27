@@ -35,11 +35,11 @@ class LobbyRoomManager:
         self._on_room_expired = on_room_expired
         self._reaper_task: asyncio.Task[None] | None = None
 
-    def create_room(self, room_id: str) -> LobbyRoom:
+    def create_room(self, room_id: str, *, min_human_players: int = 1) -> LobbyRoom:
         """Create a new room with 4 bot seats."""
-        room = LobbyRoom(room_id=room_id)
+        room = LobbyRoom(room_id=room_id, min_human_players=min_human_players)
         self._rooms[room_id] = room
-        logger.info("room created", room_id=room_id)
+        logger.info("room created", room_id=room_id, min_human_players=min_human_players)
         return room
 
     def join_room(

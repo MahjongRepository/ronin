@@ -460,6 +460,49 @@ class TestBotCreateRoom:
         )
         assert response.status_code == 401
 
+    def test_create_room_with_min_human_players(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={"min_human_players": 4},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        room = client.app.state.room_manager.get_room(data["room_id"])
+        assert room is not None
+        assert room.min_human_players == 4
+
+    def test_create_room_rejects_invalid_min_human_players(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={"min_human_players": 5},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 400
+        assert "min_human_players" in response.json()["error"]
+
+    def test_create_room_rejects_non_int_min_human_players(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={"min_human_players": "four"},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 400
+        assert "min_human_players" in response.json()["error"]
+
+    def test_create_room_rejects_boolean_min_human_players(self, client):
+        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        response = client.post(
+            "/api/rooms",
+            json={"min_human_players": True},
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 400
+        assert "min_human_players" in response.json()["error"]
+
     def test_create_room_invalid_json_returns_400(self, client):
         _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
         response = client.post(

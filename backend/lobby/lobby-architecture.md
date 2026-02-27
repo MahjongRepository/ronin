@@ -27,7 +27,7 @@ Portal service for room management, authentication, and game client serving.
 
 ### Bot-Only (bot account required)
 - `POST /api/auth/bot` - Create a lobby session for an authenticated bot to join a room via WebSocket (403 for human accounts)
-- `POST /api/rooms` - Create a room (bot API); returns `room_id`, `session_id`, and `ws_url` (403 for human accounts)
+- `POST /api/rooms` - Create a room (bot API); accepts optional `min_human_players` (integer 1-4, default 1) to require multiple humans before game start; returns `room_id`, `session_id`, and `ws_url` (403 for human accounts)
 
 ### WebSocket (auth handled inside the handler)
 - `WS /ws/rooms/{room_id}` - Room WebSocket (JSON protocol, session cookie auth, origin check)
@@ -211,15 +211,15 @@ ronin/
 
 ### Bot API Flow (POST /api/rooms)
 1. Bot authenticates via `X-API-Key` header
-2. Lobby creates a room with 4 bot seats (the `num_ai_players` parameter is no longer accepted; sending it returns 400)
+2. Lobby creates a room with 4 bot seats. Accepts optional `min_human_players` (1-4, default 1) to require a minimum number of human players before the game can start (the `num_ai_players` parameter is no longer accepted; sending it returns 400)
 3. Returns `room_id`, `session_id`, and `ws_url` for WebSocket connection
 4. Bot connects to the room WebSocket using the `session_id` query parameter
-5. Bot is auto-joined as room owner (seat 0); since all other seats are bots, `can_start` is `true`
+5. Bot is auto-joined as room owner (seat 0); with the default `min_human_players=1`, `can_start` is `true` immediately since all other seats are bots
 6. Bot sends `{"type": "start_game"}` to trigger the game transition
 
 ### Game Transition Flow (owner starts game)
 1. Non-owner players set ready via `set_ready` WebSocket message
-2. Owner sees `can_start: true` when all non-owner humans are ready
+2. Owner sees `can_start: true` when at least `min_human_players` humans have joined and all non-owner humans are ready
 3. Owner sends `start_game` via WebSocket
 4. Lobby acquires the room's join lock, sets `transitioning=True`, then releases the lock
 5. Lobby signs HMAC game tickets for each human player

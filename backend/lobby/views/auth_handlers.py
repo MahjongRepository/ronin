@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
+from lobby.rooms.models import TOTAL_SEATS
 from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
 from shared.auth.service import AuthError
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
@@ -193,9 +194,20 @@ async def bot_create_room(request: Request) -> Response:
             status_code=400,
         )
 
+    min_human_players = body.get("min_human_players", 1)
+    if (
+        isinstance(min_human_players, bool)
+        or not isinstance(min_human_players, int)
+        or not (1 <= min_human_players <= TOTAL_SEATS)
+    ):
+        return JSONResponse(
+            {"error": "min_human_players must be an integer between 1 and 4"},
+            status_code=400,
+        )
+
     room_manager = request.app.state.room_manager
     room_id = str(uuid.uuid4())
-    room_manager.create_room(room_id)
+    room_manager.create_room(room_id, min_human_players=min_human_players)
 
     auth_service = request.app.state.auth_service
     session = auth_service.create_session(

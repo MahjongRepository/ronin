@@ -45,6 +45,7 @@ class LobbyRoom:
     room_id: str
     host_connection_id: str | None = None
     transitioning: bool = False
+    min_human_players: int = 1
     created_at: float = field(default_factory=time.monotonic)
     seats: list[str | None] = field(default_factory=lambda: [None] * TOTAL_SEATS)
     players: dict[str, LobbyPlayer] = field(default_factory=dict)  # connection_id -> LobbyPlayer
@@ -69,12 +70,16 @@ class LobbyRoom:
 
     @property
     def can_start(self) -> bool:
-        """Owner can start when all non-owner humans are ready.
+        """Owner can start when enough humans have joined and all non-owner humans are ready.
 
-        If only the owner is in the room (playing with 3 bots), returns True.
+        Requires at least min_human_players humans in the room (default 1).
+        If only the owner is in the room and min_human_players is 1
+        (playing with 3 bots), returns True.
         Returns False if the room has no players.
         """
         if not self.players:
+            return False
+        if self.player_count < self.min_human_players:
             return False
         return all(p.ready for conn_id, p in self.players.items() if conn_id != self.host_connection_id)
 

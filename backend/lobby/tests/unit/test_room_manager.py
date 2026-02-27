@@ -89,8 +89,54 @@ class TestJoinRoom:
         mgr.create_room("room-1")
         result = mgr.join_room("conn-1", "room-1", "user-1", "Alice")
         assert isinstance(result, dict)
-        # Owner alone — can_start is True
+        # Owner alone with default min_human_players=1 — can_start is True
         assert result["can_start"] is True
+
+    def test_join_response_can_start_false_when_min_human_players_not_met(self):
+        mgr = LobbyRoomManager()
+        mgr.create_room("room-1", min_human_players=4)
+        result = mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        assert isinstance(result, dict)
+        # Only 1 of 4 required humans — can_start is False
+        assert result["can_start"] is False
+
+
+class TestMinHumanPlayers:
+    def test_can_start_requires_min_human_players(self):
+        mgr = LobbyRoomManager()
+        mgr.create_room("room-1", min_human_players=4)
+
+        # Join 3 players — can_start stays False
+        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.set_ready("conn-2", ready=True)
+        mgr.join_room("conn-3", "room-1", "user-3", "Carol")
+        mgr.set_ready("conn-3", ready=True)
+
+        room = mgr.get_room("room-1")
+        assert room.can_start is False
+
+        # 4th player joins and readies — can_start becomes True
+        mgr.join_room("conn-4", "room-1", "user-4", "Dave")
+        mgr.set_ready("conn-4", ready=True)
+        assert room.can_start is True
+
+    def test_can_start_with_min_human_players_and_not_all_ready(self):
+        mgr = LobbyRoomManager()
+        mgr.create_room("room-1", min_human_players=2)
+        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        # Bob is not ready
+        room = mgr.get_room("room-1")
+        assert room.can_start is False
+
+    def test_owner_start_blocked_by_min_human_players(self):
+        mgr = LobbyRoomManager()
+        mgr.create_room("room-1", min_human_players=2)
+        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
+        # Only 1 of 2 required humans
+        result = mgr.start_game("conn-1")
+        assert result == "not_all_ready"
 
 
 class TestLeaveRoom:
@@ -227,7 +273,7 @@ class TestStartGame:
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
         mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        # Owner alone with 3 bots — can_start is True
+        # Owner alone with default min_human_players=1 — can_start is True
         result = mgr.start_game("conn-1")
         assert result is None
 

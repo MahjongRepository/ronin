@@ -185,6 +185,20 @@ class TestConvertEvents:
             assert se.data.call_type == CallType.RON
 
 
+class TestConvertEventsTargetValidation:
+    def test_negative_seat_target_raises(self) -> None:
+        """convert_events rejects negative seat numbers in event targets."""
+        event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_-1")
+        with pytest.raises(ValueError, match="invalid seat number"):
+            convert_events([event])
+
+    def test_invalid_target_string_raises(self) -> None:
+        """convert_events rejects target strings that are neither 'all' nor 'seat_N'."""
+        event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="bogus")
+        with pytest.raises(ValueError, match="invalid target value"):
+            convert_events([event])
+
+
 class TestSplitDiscardPromptEmptyCallersGuard:
     def test_raises_for_seat_with_no_entries(self) -> None:
         """_split_discard_prompt_for_seat raises ValueError if seat has no ron or meld entries."""

@@ -343,7 +343,15 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
             # Inline parse_event_target to avoid function call and string
             # splitting overhead. Most events target "all" (broadcast).
             target_str = event.target
-            target = _BROADCAST if target_str == "all" else SeatTarget(seat=int(target_str[5:]))
+            if target_str == "all":
+                target = _BROADCAST
+            elif target_str.startswith("seat_"):
+                seat = int(target_str[5:])
+                if seat < 0:
+                    raise ValueError(f"invalid seat number in target: {target_str}")
+                target = SeatTarget(seat=seat)
+            else:
+                raise ValueError(f"invalid target value: {target_str}")
             result.append(
                 _construct(event=event.type, data=event, target=target),
             )
