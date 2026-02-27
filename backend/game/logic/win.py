@@ -133,8 +133,17 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     if current_shanten != 0:
         return set()
 
-    # agari requires all tiles (closed + melds) because it subtracts open sets internally
-    tiles_34 = _hand_with_melds_to_34_array(player)
+    # Build full tiles_34 (closed + melds) by adding meld tile counts to
+    # the existing closed_tiles_34, avoiding a second hand_to_34_array call.
+    tiles_34 = list(closed_tiles_34)
+    hand_ids = set(player.tiles)
+    for meld in player.melds:
+        for t in meld.tiles:
+            if t not in hand_ids:
+                tiles_34[t // 4] += 1
+
+    # compute open sets once — the result is the same for every tile check
+    open_sets = _melds_to_34_sets(player.melds)
 
     waiting = set()
 
@@ -146,7 +155,6 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
 
         # add tile and check if hand becomes agari
         tiles_34[tile_34] += 1
-        open_sets = _melds_to_34_sets(player.melds)
         if Agari.is_agari(tiles_34, open_sets):
             waiting.add(tile_34)
         tiles_34[tile_34] -= 1

@@ -18,16 +18,23 @@ class FuritenTracker:
     passes the current round state and the tracker compares effective furiten
     against the last known value, emitting FuritenEvent for any changes.
 
+    Skip recomputation for players whose object identity hasn't changed
+    since the last check. Pydantic model_copy preserves object identity
+    for unchanged players, so same id() means same tiles, discards, and
+    furiten flags — the result is guaranteed identical.
+
     Follow the same pattern as RoundAdvanceManager: pure state tracking,
     no side effects, narrow API, cleanup_game() for teardown.
     """
 
     def __init__(self) -> None:
         self._state: dict[str, dict[int, bool]] = {}
+        self._player_ids: dict[str, dict[int, int]] = {}
 
     def init_game(self, game_id: str) -> None:
         """Initialize furiten tracking for a new game or round."""
         self._state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
+        self._player_ids[game_id] = {}
 
     def check_changes(
         self,
@@ -36,7 +43,8 @@ class FuritenTracker:
     ) -> list[ServiceEvent]:
         """Check all seats for furiten state changes and return events.
 
-        Only check when the round is in PLAYING phase.
+        Only check when the round is in PLAYING phase. Skip seats where
+        the player object is unchanged (same id()) since the last call.
         """
         if round_state.phase != RoundPhase.PLAYING:
             return []
@@ -45,10 +53,17 @@ class FuritenTracker:
             return []
 
         furiten_state = self._state[game_id]
+        player_ids = self._player_ids[game_id]
         events: list[ServiceEvent] = []
 
         for seat in range(NUM_PLAYERS):
             player = round_state.players[seat]
+            pid = id(player)
+
+            if pid == player_ids.get(seat):
+                continue
+
+            player_ids[seat] = pid
             current = is_effective_furiten(player)
             previous = furiten_state.get(seat, False)
 
@@ -65,9 +80,9 @@ class FuritenTracker:
                     ),
                 )
 
-        self._state[game_id] = furiten_state
         return events
 
     def cleanup_game(self, game_id: str) -> None:
         """Remove furiten state for a game."""
         self._state.pop(game_id, None)
+        self._player_ids.pop(game_id, None)
