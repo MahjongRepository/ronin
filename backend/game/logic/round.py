@@ -19,10 +19,7 @@ from game.logic.state import (
     MahjongRoundState,
 )
 from game.logic.state_utils import (
-    add_discard_to_player,
     add_tile_to_player,
-    remove_tile_from_player,
-    update_all_discards,
     update_player,
 )
 from game.logic.tiles import NUM_TILE_TYPES, hand_to_34_array, is_terminal_or_honor, tile_to_34
@@ -119,22 +116,32 @@ def discard_tile(
         is_riichi_discard=is_riichi,
     )
 
-    # build new state
-    new_state = remove_tile_from_player(round_state, seat, tile_id)
-    new_state = add_discard_to_player(new_state, seat, discard)
-    new_state = update_all_discards(new_state, tile_id)
-
-    # clear player and round flags
-    new_state = update_player(
-        new_state,
-        seat,
-        is_ippatsu=False,
-        is_temporary_furiten=False,
-        is_rinshan=False,
-        kuikae_tiles=(),
+    # Batch all player field changes into a single model_copy to avoid
+    # repeated round-state reconstruction (removes tile, appends discard,
+    # clears per-turn flags).
+    tiles = list(player.tiles)
+    tiles.remove(tile_id)
+    new_player = player.model_copy(
+        update={
+            "tiles": tuple(tiles),
+            "discards": (*player.discards, discard),
+            "is_ippatsu": False,
+            "is_temporary_furiten": False,
+            "is_rinshan": False,
+            "kuikae_tiles": (),
+        },
     )
+
+    # Batch all round-state changes into a single model_copy.
+    players = list(round_state.players)
+    players[seat] = new_player
+    round_updates: dict[str, object] = {
+        "players": tuple(players),
+        "all_discards": (*round_state.all_discards, tile_id),
+    }
     if round_state.is_after_meld_call:
-        new_state = new_state.model_copy(update={"is_after_meld_call": False})
+        round_updates["is_after_meld_call"] = False
+    new_state = round_state.model_copy(update=round_updates)
 
     return new_state, discard
 
