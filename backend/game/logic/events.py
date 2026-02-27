@@ -47,6 +47,9 @@ class SeatTarget:
 
 EventTarget = BroadcastTarget | SeatTarget
 
+# Reusable singleton — BroadcastTarget is frozen and stateless.
+_BROADCAST = BroadcastTarget()
+
 
 def parse_event_target(value: str) -> EventTarget:
     """Parse a string target into a typed EventTarget."""
@@ -314,6 +317,10 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
     DISCARD prompts are split per-seat with the appropriate call_type
     for each seat (RON for ron callers, MELD for meld callers).
     """
+    # Use model_construct to skip redundant Pydantic validation on every
+    # ServiceEvent. The event/data.type consistency is guaranteed by
+    # construction (event=event.type always matches data.type).
+    _construct = ServiceEvent.model_construct
     result: list[ServiceEvent] = []
     for event in raw_events:
         if isinstance(event, CallPromptEvent):
@@ -321,7 +328,7 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
                 for seat in _get_unique_caller_seats(event.callers):
                     per_seat_event = _split_discard_prompt_for_seat(event, seat)
                     result.append(
-                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
+                        _construct(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
                     )
             else:
                 for seat in _get_unique_caller_seats(event.callers):
@@ -330,15 +337,15 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
                         update={"callers": per_seat_callers, "target": f"seat_{seat}"},
                     )
                     result.append(
-                        ServiceEvent(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
+                        _construct(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
                     )
         else:
+            # Inline parse_event_target to avoid function call and string
+            # splitting overhead. Most events target "all" (broadcast).
+            target_str = event.target
+            target = _BROADCAST if target_str == "all" else SeatTarget(seat=int(target_str[5:]))
             result.append(
-                ServiceEvent(
-                    event=event.type,
-                    data=event,
-                    target=parse_event_target(event.target),
-                ),
+                _construct(event=event.type, data=event, target=target),
             )
     return result
 

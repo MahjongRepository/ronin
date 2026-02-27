@@ -70,7 +70,7 @@ class FuritenTracker:
             if current != previous:
                 furiten_state[seat] = current
                 events.append(
-                    ServiceEvent(
+                    ServiceEvent.model_construct(
                         event=EventType.FURITEN,
                         data=FuritenEvent(
                             is_furiten=current,
