@@ -37,7 +37,7 @@ from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
 from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerManager
-from shared.dal.models import PlayedGame
+from shared.dal.models import PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
@@ -129,30 +129,87 @@ class SessionManager:
                 rng_version = game_state.rng_version if game_state is not None else ""
                 self._replay_collector.start_game(game_id, seed, rng_version)
 
-    async def _record_game_start(self, game: Game) -> None:
+    async def _record_game_start(
+        self,
+        game: Game,
+        user_ids_by_name: dict[str, str] | None = None,
+    ) -> None:
         """Best-effort persist game start to the game repository."""
         if self._game_repository is None:
             return
-        player_ids = [p.user_id for p in game.players.values() if p.user_id]
+        game_state = self._game_service.get_game_state(game.game_id)
+        if game_state is None:
+            return
+
+        # Map names to user_ids: use override for pending games (includes never-connected
+        # humans), fall back to connected players only (normal start flow).
+        name_to_uid = user_ids_by_name or {p.name: p.user_id for p in game.players.values() if p.user_id}
+
+        standings = [
+            PlayedGameStanding(
+                name=p.name,
+                seat=p.seat,
+                user_id=name_to_uid.get(p.name, ""),
+            )
+            for p in game_state.round_state.players
+        ]
+
         played_game = PlayedGame(
             game_id=game.game_id,
             started_at=datetime.now(UTC),
-            player_ids=player_ids,
+            game_type=game_state.settings.game_type,
+            standings=standings,
         )
         try:
             await self._game_repository.create_game(played_game)
         except Exception:
             logger.exception("failed to persist game start")
 
-    async def _record_game_finish(self, game_id: str, end_reason: str) -> None:
+    async def _record_game_finish(
+        self,
+        game_id: str,
+        end_reason: str,
+        game_ended_event: GameEndedEvent | None = None,
+    ) -> None:
         """Best-effort persist game end to the game repository."""
         if self._game_repository is None:
             return
+
+        standings = None
+        num_rounds_played = None
+
+        if game_ended_event is not None:
+            num_rounds_played = game_ended_event.num_rounds if game_ended_event.num_rounds > 0 else None
+            try:
+                # Read existing game record to preserve user_ids and names from game start
+                # (game state is unavailable here -- auto_cleanup runs before events are returned)
+                existing = await self._game_repository.get_game(game_id)
+                uid_by_seat = {s.seat: s.user_id for s in existing.standings} if existing else {}
+                names_by_seat = {s.seat: s.name for s in existing.standings} if existing else {}
+            except Exception:
+                logger.exception("failed to read existing game for standings enrichment", game_id=game_id)
+                uid_by_seat = {}
+                names_by_seat = {}
+            # Preserve the game logic's placement order (handles tiebreaking by seat
+            # proximity to dealer) -- do NOT re-sort by final_score.
+            standings = [
+                PlayedGameStanding(
+                    name=names_by_seat.get(s.seat, ""),
+                    seat=s.seat,
+                    user_id=uid_by_seat.get(s.seat, ""),
+                    score=s.score,
+                    final_score=s.final_score,
+                )
+                for s in game_ended_event.standings
+            ]
+
         try:
             await self._game_repository.finish_game(
                 game_id,
                 ended_at=datetime.now(UTC),
                 end_reason=end_reason,
+                num_rounds_played=num_rounds_played,
+                standings=standings,
             )
         except Exception:
             logger.exception("failed to persist game end")
@@ -960,7 +1017,12 @@ class SessionManager:
 
         # Use all expected human names for game start (including never-connected players)
         all_human_names = [spec.name for spec in pending.player_specs]
-        await self._start_mahjong_game(game, player_names_override=all_human_names)
+        user_ids_by_name = {spec.name: spec.user_id for spec in pending.player_specs}
+        await self._start_mahjong_game(
+            game,
+            player_names_override=all_human_names,
+            user_ids_by_name=user_ids_by_name,
+        )
 
         # After game start, bind seats and mark disconnected for never-connected players
         # so they can reclaim their seat via RECONNECT
@@ -1060,6 +1122,7 @@ class SessionManager:
         self,
         game: Game,
         player_names_override: list[str] | None = None,
+        user_ids_by_name: dict[str, str] | None = None,
     ) -> None:
         """Start the mahjong game.
 
@@ -1095,7 +1158,7 @@ class SessionManager:
             return
 
         self._start_replay_collection(game.game_id)
-        await self._record_game_start(game)
+        await self._record_game_start(game, user_ids_by_name=user_ids_by_name)
 
         # Third liveness check: if all players disconnected during the
         # _record_game_start await, _cleanup_empty_game already removed
@@ -1269,7 +1332,17 @@ class SessionManager:
         game.ended = True
         if self._replay_collector:
             await self._replay_collector.save_and_cleanup(game.game_id)
-        await self._record_game_finish(game.game_id, "completed")
+
+        # Extract standings from GameEndedEvent
+        game_ended_event = next(
+            (e.data for e in events if isinstance(e.data, GameEndedEvent)),
+            None,
+        )
+        await self._record_game_finish(
+            game.game_id,
+            "completed",
+            game_ended_event=game_ended_event,
+        )
         for player in list(game.players.values()):
             with contextlib.suppress(RuntimeError, OSError):
                 await player.connection.close(code=1000, reason="game_ended")

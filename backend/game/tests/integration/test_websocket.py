@@ -20,6 +20,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server import websocket as ws_module
 from game.server.app import _read_request_body, create_app
+from game.session.manager import SessionManager
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.helpers.websocket import (
     create_pending_game,
@@ -33,8 +34,10 @@ from game.tests.mocks import MockGameService
 class TestWebSocketIntegration:
     @pytest.fixture
     def client(self):
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+        game_service = MockGameService()
+        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        with TestClient(app) as client:
+            yield client
 
     def test_join_game_and_start(self, client):
         tickets = create_pending_game(client, "test_game")
@@ -185,8 +188,10 @@ class TestWebSocketIntegration:
 class TestHealthEndpoint:
     @pytest.fixture
     def client(self):
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+        game_service = MockGameService()
+        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        with TestClient(app) as client:
+            yield client
 
     def test_health_returns_ok(self, client):
         response = client.get("/health")
@@ -200,8 +205,10 @@ class TestHealthEndpoint:
 class TestStatusEndpoint:
     @pytest.fixture
     def client(self):
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+        game_service = MockGameService()
+        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        with TestClient(app) as client:
+            yield client
 
     def test_status_returns_game_info(self, client):
         response = client.get("/status")
@@ -227,8 +234,10 @@ class TestStatusEndpoint:
 class TestCreateGameEndpoint:
     @pytest.fixture
     def client(self):
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+        game_service = MockGameService()
+        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        with TestClient(app) as client:
+            yield client
 
     def test_create_game_success(self, client):
         ticket = make_test_game_ticket("Player1", "test-game", user_id="user-0")

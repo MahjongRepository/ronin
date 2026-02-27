@@ -81,7 +81,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Set lobby settings for template rendering
-export LOBBY_GAME_CLIENT_URL="/game"
+export LOBBY_GAME_CLIENT_URL="/play"
 # Override the default ws_allowed_origin to match the local lobby port
 export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
 

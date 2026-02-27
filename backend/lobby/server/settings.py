@@ -20,7 +20,7 @@ class LobbyServerSettings(BaseSettings):
     allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver", "*.local"]
     config_path: Path | None = None
     static_dir: str = "frontend/public"
-    game_client_url: str = "/game"
+    game_client_url: str = "/play"
     game_assets_dir: str = "frontend/dist"
     vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server
     ws_allowed_origin: str | None = "http://localhost:8710"

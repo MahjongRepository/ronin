@@ -393,8 +393,11 @@ class TestCreateGameRequestValidation:
 class TestPostGamesEndpoint:
     @pytest.fixture
     def client(self):
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+        game_service = MockGameService()
+        session_manager = SessionManager(game_service)
+        app = create_app(game_service=game_service, session_manager=session_manager)
+        with TestClient(app) as client:
+            yield client
 
     @staticmethod
     def _signed_player(name: str, user_id: str, game_id: str) -> dict:
@@ -565,8 +568,11 @@ class TestJoinGameViaWebSocket:
 
     @pytest.fixture
     def client(self):
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+        game_service = MockGameService()
+        session_manager = SessionManager(game_service)
+        app = create_app(game_service=game_service, session_manager=session_manager)
+        with TestClient(app) as client:
+            yield client
 
     def test_join_game_uses_connection_game_id(self, client):
         game_id = "ws-game"

@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS played_games (
     end_reason TEXT,
     data TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_played_games_started_at
+    ON played_games (started_at DESC);
 """
 
 

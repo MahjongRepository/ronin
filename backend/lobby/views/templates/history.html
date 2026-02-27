@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Games - Ronin Mahjong{% endblock %}
+
+{% block content %}
+<section class="lobby-section">
+    <div class="lobby-section-header">
+        <h2>Recent Games</h2>
+        <small class="lobby-table-count">{{ games|length }} shown</small>
+    </div>
+
+    {% if games %}
+    <div class="games-list">
+        {% for entry in games %}
+        <article class="games-card" style="--card-index: {{ loop.index0 }}">
+            <header class="games-card-header">
+                <div class="games-card-label">
+                    {% if entry.status == 'active' %}
+                    <span class="games-badge games-badge--active">live</span>
+                    {% endif %}
+                    {% if entry.game_type_label %}
+                    <span class="games-wind">{{ entry.game_type_label }}</span>
+                    {% endif %}
+                </div>
+                <time class="games-time" datetime="{{ entry.game.started_at.isoformat() }}">
+                    {{ entry.game.started_at.strftime('%b %d, %H:%M') }} UTC
+                </time>
+            </header>
+
+            <div class="games-standings">
+                {% for player in entry.players %}
+                <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if player.name == username else '' }}">
+                    {% if entry.status == 'completed' %}
+                    <span class="games-rank">{{ loop.index }}</span>
+                    {% endif %}
+                    <span class="games-name">{{ player.name }}</span>
+                    {% if player.score is not none %}
+                    <span class="games-score">{{ player.score }}</span>
+                    {% endif %}
+                    {% if player.final_score is not none %}
+                    <span class="games-pts {{ 'games-pts--positive' if player.final_score > 0 else 'games-pts--negative' if player.final_score < 0 else '' }}">
+                        {{ ('+' ~ player.final_score) if player.final_score > 0 else player.final_score }}
+                    </span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <footer class="games-card-footer">
+                <div class="games-meta">
+                    {% if entry.duration_label %}
+                    <span class="games-meta-tag">{{ entry.duration_label }}</span>
+                    {% endif %}
+                    {% if entry.game.num_rounds_played %}
+                    <span class="games-meta-tag">{{ entry.game.num_rounds_played }} rounds</span>
+                    {% endif %}
+                </div>
+                <button class="games-copy-btn"
+                        data-game-id="{{ entry.game.game_id }}"
+                        title="Copy game ID"
+                        aria-label="Copy game ID"
+                        type="button">
+                    <svg class="games-copy-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M11 1.5H3A1.5 1.5 0 0 0 1.5 3v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <svg class="games-check-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M2.5 8.5l4 4 7-9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </footer>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="lobby-empty">
+        <p>No games played yet</p>
+        <p><small>Start a game from the lobby to see results here</small></p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

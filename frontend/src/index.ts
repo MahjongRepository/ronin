@@ -8,7 +8,7 @@ if (app) {
         {
             cleanup: cleanupGameView,
             handler: (params) => gameView(params.gameId),
-            pattern: /^\/game\/(?<gameId>[^/]+)$/,
+            pattern: /^\/play\/(?<gameId>[^/]+)$/,
         },
     ]);
 }

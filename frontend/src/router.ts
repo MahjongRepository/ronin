@@ -14,20 +14,21 @@ let activeRoute: Route | null = null;
 export function initRouter(el: HTMLElement, routeDefs: Route[]): void {
     container = el;
     routes = routeDefs;
-    window.addEventListener("hashchange", () => resolve());
+    window.addEventListener("popstate", () => resolve());
     resolve();
 }
 
-export function navigate(hash: string): void {
-    window.location.hash = hash;
+export function navigate(path: string): void {
+    history.pushState(null, "", path);
+    resolve();
 }
 
 function resolve(): void {
     if (!container) {
         return;
     }
-    const hash = window.location.hash.slice(1) || "/";
-    const matched = findMatchingRoute(hash);
+    const path = window.location.pathname;
+    const matched = findMatchingRoute(path);
     runRouteCleanup();
     if (matched) {
         activeRoute = matched.route;

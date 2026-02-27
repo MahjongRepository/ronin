@@ -19,9 +19,11 @@ if TYPE_CHECKING:
 _GAME_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _MAX_GAME_ID_LENGTH = 50
 
-# Rate limit: 20 messages/sec sustained, burst of 30
-_RATE_LIMIT_RATE = 20.0
-_RATE_LIMIT_BURST = 30
+# Rate limit: 50 messages/sec sustained, burst of 80.
+# In bot games (1 human + 3 AI), AI turns resolve instantly on the server,
+# so a fast client can send ~30 msg/sec (discards + pass on each AI discard).
+_RATE_LIMIT_RATE = 50.0
+_RATE_LIMIT_BURST = 80
 
 # Disconnect after this many consecutive decode errors
 _MAX_DECODE_ERRORS = 5

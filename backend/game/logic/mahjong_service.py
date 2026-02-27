@@ -783,6 +783,7 @@ class MahjongGameService(GameService):
                     data=GameEndedEvent(
                         winner_seat=game_result.winner_seat,
                         standings=game_result.standings,
+                        num_rounds=frozen_game.round_number,
                         target="all",
                     ),
                     target=BroadcastTarget(),

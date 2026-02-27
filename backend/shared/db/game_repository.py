@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from shared.dal.game_repository import GameRepository
-from shared.dal.models import PlayedGame
+from shared.dal.models import PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -53,18 +53,45 @@ class SqliteGameRepository(GameRepository):
         game_id: str,
         ended_at: datetime,
         end_reason: str = "completed",
+        num_rounds_played: int | None = None,
+        standings: list[PlayedGameStanding] | None = None,
     ) -> None:
-        """Update a game's end state. Only updates games that have not already ended."""
+        """Update a game's end state. Only updates games that have not already ended.
+
+        When standings is None (abandoned games), preserves existing standings
+        from game start (player names, seats, user_ids without scores).
+        """
         async with self._lock:
             ended_at_iso = ended_at.isoformat()
-            cursor = self._db.connection.execute(
-                "UPDATE played_games SET "
-                "ended_at = ?, "
-                "end_reason = ?, "
-                "data = json_set(data, '$.ended_at', ?, '$.end_reason', ?) "
-                "WHERE id = ? AND ended_at IS NULL",
-                (ended_at_iso, end_reason, ended_at_iso, end_reason, game_id),
-            )
+            if standings is not None:
+                standings_json = json.dumps([s.model_dump() for s in standings])
+                cursor = self._db.connection.execute(
+                    "UPDATE played_games SET "
+                    "ended_at = ?, "
+                    "end_reason = ?, "
+                    "data = json_set(data, "
+                    "  '$.ended_at', ?, "
+                    "  '$.end_reason', ?, "
+                    "  '$.num_rounds_played', ?, "
+                    "  '$.standings', json(?) "
+                    ") "
+                    "WHERE id = ? AND ended_at IS NULL",
+                    (ended_at_iso, end_reason, ended_at_iso, end_reason, num_rounds_played, standings_json, game_id),
+                )
+            else:
+                # Abandoned: do NOT overwrite standings -- preserve start-time player data
+                cursor = self._db.connection.execute(
+                    "UPDATE played_games SET "
+                    "ended_at = ?, "
+                    "end_reason = ?, "
+                    "data = json_set(data, "
+                    "  '$.ended_at', ?, "
+                    "  '$.end_reason', ?, "
+                    "  '$.num_rounds_played', ? "
+                    ") "
+                    "WHERE id = ? AND ended_at IS NULL",
+                    (ended_at_iso, end_reason, ended_at_iso, end_reason, num_rounds_played, game_id),
+                )
             self._db.connection.commit()
             if cursor.rowcount == 0:
                 logger.warning("finish_game had no effect (not found or already ended)", game_id=game_id)
@@ -79,12 +106,10 @@ class SqliteGameRepository(GameRepository):
             return None
         return PlayedGame.model_validate(json.loads(row[0]))
 
-    async def get_games_by_player(self, player_id: str) -> list[PlayedGame]:
-        """Retrieve all games a player participated in, ordered by started_at descending."""
+    async def get_recent_games(self, limit: int = 20) -> list[PlayedGame]:
+        """Retrieve the most recent games, ordered by started_at descending."""
         rows = self._db.connection.execute(
-            "SELECT pg.data FROM played_games pg, json_each(pg.data, '$.player_ids') je "
-            "WHERE je.value = ? "
-            "ORDER BY pg.started_at DESC",
-            (player_id,),
+            "SELECT data FROM played_games ORDER BY started_at DESC LIMIT ?",
+            (limit,),
         ).fetchall()
         return [PlayedGame.model_validate(json.loads(row[0])) for row in rows]

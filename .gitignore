@@ -17,6 +17,7 @@ backend/storage.db*
 backend/backend/
 
 backend/debug.py
+backend/profiles/
 
 deploy/assets/
 deploy/spot-llm.txt

@@ -47,7 +47,7 @@ def _make_security_headers_app(vite_dev_url: str = "") -> Starlette:
     app = Starlette(
         routes=[
             Route("/items", _echo_path, methods=["GET"]),
-            Route("/game", _echo_path, methods=["GET"]),
+            Route("/play/{game_id}", _echo_path, methods=["GET"]),
             Route("/game-assets/test.js", _echo_path, methods=["GET"]),
             Route("/rooms/test-room", _echo_path, methods=["GET"]),
             WebSocketRoute("/ws", _ws_echo),
@@ -107,14 +107,14 @@ class TestSecurityHeadersMiddleware:
 
     def test_game_route_allows_same_origin_scripts(self, security_client: TestClient) -> None:
         """Game page CSP allows same-origin script execution (not inline)."""
-        response = security_client.get("/game")
+        response = security_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
         assert "script-src 'none'" not in csp
 
     def test_game_route_allows_websocket(self, security_client: TestClient) -> None:
         """Game page CSP allows WebSocket connections."""
-        response = security_client.get("/game")
+        response = security_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "connect-src 'self' ws: wss:" in csp
 
@@ -138,7 +138,7 @@ class TestSecurityHeadersMiddleware:
 
     def test_game_route_trailing_slash_allows_scripts(self, security_client: TestClient) -> None:
         """Game page with trailing slash still gets the game CSP."""
-        response = security_client.get("/game/")
+        response = security_client.get("/play/test-game/")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
         assert "script-src 'none'" not in csp
@@ -171,12 +171,12 @@ class TestSecurityHeadersMiddlewareViteDev:
         assert "img-src 'self' http://localhost:5173" in csp
 
     def test_game_allows_vite_scripts_in_dev(self, vite_client: TestClient) -> None:
-        response = vite_client.get("/game")
+        response = vite_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "http://localhost:5173" in csp
 
     def test_game_allows_vite_ws_in_dev(self, vite_client: TestClient) -> None:
-        response = vite_client.get("/game")
+        response = vite_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "ws://localhost:5173" in csp
 
@@ -207,7 +207,7 @@ _INLINE_HANDLER_RE = re.compile(
 # Templates served with script-src 'self' (game and room pages).
 # These must not contain inline scripts or event handlers.
 _TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "views" / "templates"
-_SCRIPT_SELF_TEMPLATES = ["base.html", "game.html", "game-styleguide.html", "room.html"]
+_SCRIPT_SELF_TEMPLATES = ["base.html", "play.html", "play-styleguide.html", "room.html"]
 
 
 class TestCSPCompliance:

@@ -18,7 +18,8 @@ Portal service for room management, authentication, and game client serving.
 
 ### Protected (session cookie or API key required)
 - `GET /` - Lobby HTML page (server-rendered, lists rooms from local room manager)
-- `GET /game` - Game client HTML page (Jinja2 template serving the built frontend with content-hashed JS/CSS)
+- `GET /history` - History page (server-rendered, shows 20 most recent played games with player names, scores, and winner info)
+- `GET /play/{game_id}` - Game client HTML page (Jinja2 template serving the built frontend with content-hashed JS/CSS)
 - `POST /rooms/new` - Create a local room, 303 redirect to `/rooms/{room_id}`
 - `GET /rooms/{room_id}` - Room page (Jinja2 template with embedded TypeScript for room UI)
 - `POST /rooms/{room_id}/join` - Validate room exists, redirect to `/rooms/{room_id}`
@@ -77,7 +78,7 @@ Server-to-client messages:
 - `{"type": "player_ready_changed", "players": [...], "can_start": true}` - Ready state broadcast
 - `{"type": "owner_changed", "is_owner": true, "can_start": false, "players": [...]}` - Sent to new owner on host transfer
 - `{"type": "chat", "player_name": "...", "text": "..."}` - Chat broadcast
-- `{"type": "game_starting", "ws_url": "...", "game_ticket": "...", "game_id": "...", "game_client_url": "/game"}` - Game transition
+- `{"type": "game_starting", "ws_url": "...", "game_ticket": "...", "game_id": "...", "game_client_url": "/play"}` - Game transition
 - `{"type": "error", "message": "..."}` - Error message
 - `{"type": "pong"}` - Heartbeat response
 
@@ -101,7 +102,7 @@ CORS middleware is configured with origins from `LOBBY_CORS_ORIGINS`, allowing a
 
 ## Game Client Serving
 
-The backend serves the game client directly via a Jinja2 template at `/game`, eliminating the need for a separate static file server. Content-hashed frontend assets (JS, CSS) are served from `/game-assets/`.
+The backend serves the game client directly via a Jinja2 template at `/play/{game_id}`, eliminating the need for a separate static file server. Content-hashed frontend assets (JS, CSS) are served from `/game-assets/`.
 
 ### Asset Discovery
 
@@ -120,13 +121,13 @@ At startup, the backend reads the Vite manifest via `load_vite_manifest()` and `
 
 The security headers middleware applies route-aware Content Security Policy (2 tiers):
 - **Lobby pages** (all non-game pages, including rooms) — `script-src 'self'` and `connect-src 'self'` (allows scripts and same-origin connections). Lobby JS loads on all pages.
-- **Game pages** (`/game`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers).
+- **Game pages** (`/play/{game_id}`, `/game-assets/`) — `script-src 'self'` and `connect-src 'self' ws: wss:` (allows scripts and cross-origin WebSocket connections to game servers).
 
 When `LOBBY_VITE_DEV_URL` is set, both tiers also allow scripts and WebSocket from the Vite dev server origin.
 
 ### Dev Mode
 
-`run-local-server.sh` sets `LOBBY_VITE_DEV_URL=http://localhost:5173`, which enables Vite dev mode in the lobby backend. Template globals point to the Vite dev server for HMR. The game client is served at `/game` via the lobby (same origin).
+`run-local-server.sh` sets `LOBBY_VITE_DEV_URL=http://localhost:5173`, which enables Vite dev mode in the lobby backend. Template globals point to the Vite dev server for HMR. The game client is served at `/play` via the lobby (same origin).
 
 ## Security Requirements
 
@@ -147,7 +148,7 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Settings** (`server/settings.py`) - `LobbyServerSettings` via pydantic-settings (`LOBBY_` env prefix)
 - **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, `bot_only`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
 - **CSRF** (`server/csrf.py`) - Double-submit cookie pattern for state-changing HTML POST routes. `get_or_create_csrf_token()` generates tokens on first GET, `validate_csrf()` enforces matching cookie and form field on POST. Protected routes: `/login`, `/register`, `/logout`, `/rooms/new`, `/rooms/{room_id}/join`
-- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `game_page` serves the built frontend via `game.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template
+- **Views** (`views/`) - Jinja2 templates and view handlers for HTML pages and auth forms; `play_page` serves the built frontend via `play.html` template with manifest-driven asset URLs; `room_page` serves the room UI via `room.html` template; `history_page` renders the history page with recent played games via `history.html` template
 - **Registry** (`registry/`) - Game server discovery and health checks
 - **Rooms** (`rooms/`) - Room management: `LobbyRoomManager` (room state, TTL reaper), `RoomConnectionManager` (WebSocket broadcasting), WebSocket handler (auth, origin check, game transition), typed message models, room data models
 
@@ -155,7 +156,7 @@ Dependencies on `shared/`:
 - `shared.logging.setup_logging` - Timestamped file and stdout logging
 - `shared.validators` - String list parsing (CORS origins, allowed hosts) and custom env settings source
 - `shared.auth` - `AuthService`, `AuthSessionStore`, `PlayerRepository` for player management; `create_signed_ticket` and `sign_game_ticket` for HMAC-signed game tickets
-- `shared.db` - `Database`, `SqlitePlayerRepository` for SQLite-backed player storage
+- `shared.db` - `Database`, `SqlitePlayerRepository` for SQLite-backed player storage, `SqliteGameRepository` for played game queries
 
 ## Project Structure
 
@@ -173,13 +174,14 @@ ronin/
         │   ├── models.py       # AuthenticatedPlayer (Starlette BaseUser)
         │   └── policy.py       # Route auth policy decorators and startup validation
         ├── views/
-        │   ├── handlers.py     # View handlers (lobby_page, room_page, game_page, room creation/join)
+        │   ├── handlers.py     # View handlers (lobby_page, room_page, play_page, history_page, room creation/join)
         │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth, bot_create_room)
         │   └── templates/
         │       ├── base.html   # Base template with CSS block and scripts block
         │       ├── lobby.html  # Lobby page template
         │       ├── room.html   # Room page template (WebSocket-based room UI)
-        │       ├── game.html   # Game client template (manifest-driven asset URLs)
+        │       ├── history.html # History page template (recent played games)
+        │       ├── play.html   # Game client template (manifest-driven asset URLs)
         │       ├── login.html  # Login form template
         │       └── register.html # Registration form template
         ├── registry/
@@ -246,7 +248,7 @@ Lobby settings (prefixed with `LOBBY_`):
 - `LOBBY_CORS_ORIGINS` - Allowed CORS origins as JSON array or CSV string (default: `[]`)
 - `LOBBY_ALLOWED_HOSTS` - Allowed hosts for Host header validation as JSON array or CSV string (default: `["localhost", "127.0.0.1", "testserver", "*.local"]`)
 - `LOBBY_STATIC_DIR` - Static files directory for CSS (default: `frontend/public`)
-- `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/game`)
+- `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/play`)
 - `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
 - `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `.vite/manifest.json` (default: `frontend/dist`)
 - `LOBBY_VITE_DEV_URL` - Vite dev server URL for HMR in development (default: empty; set to `http://localhost:5173` when running Vite dev server)

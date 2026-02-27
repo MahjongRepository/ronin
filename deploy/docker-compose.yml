@@ -43,7 +43,7 @@ services:
       LOBBY_CONFIG_PATH: /app/config/servers.yaml
       LOBBY_STATIC_DIR: /app/frontend/public
       LOBBY_GAME_ASSETS_DIR: /app/frontend/dist
-      LOBBY_GAME_CLIENT_URL: /game
+      LOBBY_GAME_CLIENT_URL: /play
       LOBBY_ALLOWED_HOSTS: %%DOMAIN%%,localhost
       LOBBY_WS_ALLOWED_ORIGIN: https://%%DOMAIN%%
       LOBBY_LOG_DIR: /app/data/logs/lobby

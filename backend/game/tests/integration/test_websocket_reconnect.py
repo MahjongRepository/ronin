@@ -20,6 +20,7 @@ from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
+from game.session.manager import SessionManager
 from game.session.models import Player, SessionData
 from game.tests.helpers.websocket import (
     create_pending_game,
@@ -103,10 +104,11 @@ class TestWebSocketReconnect:
     """Integration tests for reconnection over WebSocket transport."""
 
     @pytest.fixture
-    def client(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GAME_DATABASE_PATH", str(tmp_path / "test.db"))
-        app = create_app(game_service=MockGameService())
-        return TestClient(app)
+    def client(self):
+        game_service = MockGameService()
+        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        with TestClient(app) as client:
+            yield client
 
     def test_reconnect_full_flow(self, client):
         """Full reconnect flow over WebSocket: receive game_reconnected with game state."""

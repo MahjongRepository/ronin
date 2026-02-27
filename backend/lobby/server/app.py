@@ -35,11 +35,12 @@ from lobby.views.auth_handlers import bot_auth, bot_create_room, login, login_pa
 from lobby.views.handlers import (
     create_room_and_redirect,
     create_templates,
-    game_page,
-    game_styleguide_page,
+    history_page,
     join_room_and_redirect,
     load_vite_manifest,
     lobby_page,
+    play_page,
+    play_styleguide_page,
     resolve_vite_asset_urls,
     room_page,
     styleguide_page,
@@ -48,7 +49,7 @@ from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings
 from shared.build_info import APP_VERSION, GIT_COMMIT
-from shared.db import Database, SqlitePlayerRepository
+from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository
 from shared.logging import setup_logging
 
 logger = structlog.get_logger()
@@ -128,7 +129,8 @@ def create_app(
     routes = [
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
-        Route("/game", protected_html(game_page), methods=["GET"], name="game_page"),
+        Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
+        Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
         Route(
             "/rooms/new",
             protected_html(create_room_and_redirect),
@@ -163,16 +165,17 @@ def create_app(
     ]
 
     if APP_VERSION == "dev":
-        routes.extend(
-            [
-                Route("/styleguide", public_route(styleguide_page), methods=["GET"], name="styleguide_page"),
-                Route(
-                    "/game/styleguide",
-                    public_route(game_styleguide_page),
-                    methods=["GET"],
-                    name="game_styleguide_page",
-                ),
-            ],
+        routes.insert(
+            0,
+            Route(
+                "/play/styleguide",
+                public_route(play_styleguide_page),
+                methods=["GET"],
+                name="play_styleguide_page",
+            ),
+        )
+        routes.append(
+            Route("/styleguide", public_route(styleguide_page), methods=["GET"], name="styleguide_page"),
         )
 
     if static_dir.is_dir():
@@ -192,6 +195,7 @@ def create_app(
     db = Database(auth_settings.database_path)
     db.connect()
     player_repo = SqlitePlayerRepository(db)
+    game_repo = SqliteGameRepository(db)
     session_store = AuthSessionStore()
     hasher = get_hasher(auth_settings.password_hasher)
     auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
@@ -228,6 +232,7 @@ def create_app(
         auth_settings=auth_settings,
         registry=registry,
         db=db,
+        game_repo=game_repo,
         auth_service=auth_service,
         room_manager=room_manager,
         room_connections=room_connections,
@@ -244,11 +249,13 @@ def _attach_state(  # noqa: PLR0913
     auth_settings: AuthSettings,
     registry: RegistryManager,
     db: Database,
+    game_repo: SqliteGameRepository,
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
     room_connections: RoomConnectionManager,
 ) -> None:
     app.state.db = db
+    app.state.game_repo = game_repo
     app.state.settings = settings
     app.state.auth_settings = auth_settings
     app.state.registry = registry

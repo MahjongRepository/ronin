@@ -80,7 +80,7 @@ SECURITY_HEADERS = _build_csp_headers("")[0]
 class SecurityHeadersMiddleware:
     """Inject standard security headers into every HTTP response.
 
-    Game paths (/game, /game-assets/) get a CSP that allows scripts and external WebSocket.
+    Game paths (/play/*, /game-assets/) get a CSP that allows scripts and external WebSocket.
     All other paths (lobby, rooms, auth) get a CSP that allows scripts and same-origin WebSocket.
     """
 
@@ -89,8 +89,7 @@ class SecurityHeadersMiddleware:
         self._lobby_headers, self._game_headers = _build_csp_headers(vite_dev_url)
 
     def _get_csp_headers(self, path: str) -> list[tuple[bytes, bytes]]:
-        normalized = path.rstrip("/") or "/"
-        if normalized == "/game" or path.startswith("/game-assets/"):
+        if path.startswith(("/play/", "/game-assets/")):
             return self._game_headers
         return self._lobby_headers
 

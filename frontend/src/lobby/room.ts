@@ -102,7 +102,7 @@ function onGameStarting(message: Record<string, unknown>): void {
     const gameId = message.game_id as string;
     const wsUrl = message.ws_url as string;
     const gameTicket = message.game_ticket as string;
-    const gameClientUrl = (message.game_client_url as string) || "/game";
+    const gameClientUrl = (message.game_client_url as string) || "/play";
 
     if (gameId && wsUrl && gameTicket) {
         storeGameSession(gameId, wsUrl, gameTicket);
@@ -110,7 +110,7 @@ function onGameStarting(message: Record<string, unknown>): void {
 
     appendChat(LOG_TYPE_SYSTEM, "Game starting!");
     disconnectSocket();
-    window.location.href = `${gameClientUrl}#/game/${gameId}`;
+    window.location.href = `${gameClientUrl}/${gameId}`;
 }
 
 function buildMessageHandlers(): MessageHandlerMap {

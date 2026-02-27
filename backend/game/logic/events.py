@@ -202,6 +202,7 @@ class GameEndedEvent(GameEvent):
     type: Literal[EventType.GAME_END] = EventType.GAME_END
     winner_seat: int = Field(serialization_alias="ws")
     standings: list[PlayerStanding] = Field(serialization_alias="st")
+    num_rounds: int = Field(default=0, serialization_alias="nr")
 
 
 class FuritenEvent(GameEvent):

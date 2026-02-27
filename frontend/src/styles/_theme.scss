@@ -10,7 +10,8 @@
     --pico-color: #e8e4df;
     --pico-muted-color: #7a7670;
     --pico-muted-border-color: #2a2621;
-    --ronin-text-secondary: #a09a92;
+    --ronin-text-secondary: #b0aaa2;
+    --ronin-text-muted: #8a857d;
 
     // Primary (matcha/bamboo green)
     --pico-primary: #7bb88a;
@@ -43,6 +44,10 @@
     --ronin-surface-overlay: #222433;
     --ronin-border: #28261f;
     --ronin-border-subtle: #1e1c17;
+
+    // Score colors
+    --ronin-score-positive: #7bb88a;
+    --ronin-score-negative: #d4726a;
 
     // Typography
     --ronin-font-display: "Space Grotesk", sans-serif;

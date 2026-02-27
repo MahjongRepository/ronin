@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from shared.dal.models import PlayedGame
+from shared.dal.models import PlayedGame, PlayedGameStanding
 from shared.db.connection import Database
 from shared.db.game_repository import SqliteGameRepository
 
@@ -17,13 +17,11 @@ if TYPE_CHECKING:
 
 def _game(
     game_id: str = "g1",
-    player_ids: list[str] | None = None,
     started_at: datetime | None = None,
 ) -> PlayedGame:
     return PlayedGame(
         game_id=game_id,
         started_at=started_at or datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC),
-        player_ids=player_ids or ["p1", "p2", "p3", "p4"],
     )
 
 
@@ -43,7 +41,6 @@ class TestCreateAndGet:
         result = await repo.get_game("g1")
         assert result is not None
         assert result.game_id == "g1"
-        assert result.player_ids == ["p1", "p2", "p3", "p4"]
         assert result.ended_at is None
         assert result.end_reason is None
 
@@ -85,48 +82,65 @@ class TestFinishGame:
         assert result.ended_at == first_end
         assert result.end_reason == "completed"
 
+    async def test_finish_with_standings_persists_scores(self, repo: SqliteGameRepository) -> None:
+        standings = [
+            PlayedGameStanding(name="Alice", seat=0, user_id="u1", score=35000, final_score=30),
+            PlayedGameStanding(name="Bob", seat=1, user_id="u2", score=25000, final_score=0),
+        ]
+        await repo.create_game(_game())
+        end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
+        await repo.finish_game("g1", ended_at=end_time, num_rounds_played=8, standings=standings)
+
+        result = await repo.get_game("g1")
+        assert result is not None
+        assert result.num_rounds_played == 8
+        assert len(result.standings) == 2
+        assert result.standings[0].name == "Alice"
+        assert result.standings[0].final_score == 30
+        assert result.standings[1].name == "Bob"
+
+    async def test_finish_abandoned_preserves_start_standings(self, repo: SqliteGameRepository) -> None:
+        """Abandoned games (standings=None) keep the start-time player data."""
+        game = PlayedGame(
+            game_id="g1",
+            started_at=datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC),
+            standings=[PlayedGameStanding(name="Alice", seat=0, user_id="u1")],
+        )
+        await repo.create_game(game)
+        end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
+        await repo.finish_game("g1", ended_at=end_time, end_reason="abandoned")
+
+        result = await repo.get_game("g1")
+        assert result is not None
+        assert result.end_reason == "abandoned"
+        # Start-time standings preserved (not overwritten with empty list)
+        assert len(result.standings) == 1
+        assert result.standings[0].name == "Alice"
+        assert result.standings[0].score is None  # no scores for abandoned games
+
     async def test_finish_nonexistent_game_is_noop(self, repo: SqliteGameRepository) -> None:
         # Should log a warning but not raise
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
         await repo.finish_game("nonexistent", ended_at=end_time)
 
 
-class TestGetByPlayer:
-    async def test_returns_games_for_player(self, repo: SqliteGameRepository) -> None:
-        await repo.create_game(_game("g1", player_ids=["p1", "p2"]))
-        await repo.create_game(_game("g2", player_ids=["p1", "p3"]))
-        await repo.create_game(_game("g3", player_ids=["p2", "p3"]))
+class TestGetRecentGames:
+    async def test_empty_returns_empty_list(self, repo: SqliteGameRepository) -> None:
+        result = await repo.get_recent_games()
+        assert result == []
 
-        games = await repo.get_games_by_player("p1")
-        game_ids = [g.game_id for g in games]
-        assert set(game_ids) == {"g1", "g2"}
+    async def test_returns_games_ordered_by_started_at_desc(self, repo: SqliteGameRepository) -> None:
+        await repo.create_game(_game("g1", datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC)))
+        await repo.create_game(_game("g2", datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)))
+        await repo.create_game(_game("g3", datetime(2025, 1, 15, 11, 0, 0, tzinfo=UTC)))
 
-    async def test_returns_empty_for_unknown_player(self, repo: SqliteGameRepository) -> None:
-        await repo.create_game(_game())
-        assert await repo.get_games_by_player("unknown") == []
+        result = await repo.get_recent_games()
+        assert [g.game_id for g in result] == ["g2", "g3", "g1"]
 
-    async def test_ordered_by_started_at_descending(self, repo: SqliteGameRepository) -> None:
-        await repo.create_game(
-            _game(
-                "g_old",
-                player_ids=["p1"],
-                started_at=datetime(2025, 1, 1, tzinfo=UTC),
-            ),
-        )
-        await repo.create_game(
-            _game(
-                "g_new",
-                player_ids=["p1"],
-                started_at=datetime(2025, 6, 1, tzinfo=UTC),
-            ),
-        )
-        await repo.create_game(
-            _game(
-                "g_mid",
-                player_ids=["p1"],
-                started_at=datetime(2025, 3, 1, tzinfo=UTC),
-            ),
-        )
+    async def test_respects_limit(self, repo: SqliteGameRepository) -> None:
+        for i in range(5):
+            await repo.create_game(_game(f"g{i}", datetime(2025, 1, 15, i, 0, 0, tzinfo=UTC)))
 
-        games = await repo.get_games_by_player("p1")
-        assert [g.game_id for g in games] == ["g_new", "g_mid", "g_old"]
+        result = await repo.get_recent_games(limit=3)
+        assert len(result) == 3
+        assert result[0].game_id == "g4"
