@@ -419,7 +419,6 @@ def process_discard_phase(
         riichi_pending = True
 
     new_round_state, discard = discard_tile(round_state, current_seat, tile_id, is_riichi=is_riichi)
-    new_game_state = game_state.model_copy(update={"round_state": new_round_state})
 
     events.append(
         DiscardEvent(
@@ -434,15 +433,14 @@ def process_discard_phase(
 
     # check for four winds abortive draw
     if settings.has_suufon_renda and check_four_winds(new_round_state, settings):
-        return _check_abortive_draw(new_round_state, new_game_state, AbortiveDrawType.FOUR_WINDS, events)
+        return _check_abortive_draw(new_round_state, game_state, AbortiveDrawType.FOUR_WINDS, events)
 
     # find ron callers and apply riichi furiten
     ron_callers = _find_ron_callers(new_round_state, tile_id, current_seat, settings)
     new_round_state = _check_riichi_furiten(new_round_state, tile_id, current_seat, ron_callers)
-    new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
 
     if settings.has_triple_ron_abort and check_triple_ron(ron_callers, settings.triple_ron_count):
-        return _check_abortive_draw(new_round_state, new_game_state, AbortiveDrawType.TRIPLE_RON, events)
+        return _check_abortive_draw(new_round_state, game_state, AbortiveDrawType.TRIPLE_RON, events)
 
     # find meld callers (ron-dominant: seats with ron don't get meld options)
     ron_caller_set = set(ron_callers)
@@ -452,7 +450,7 @@ def process_discard_phase(
     if ron_callers or meld_calls:
         new_round, new_game, prompt_events = _build_discard_prompt(
             new_round_state,
-            new_game_state,
+            game_state,
             tile_id,
             ron_callers,
             meld_calls,
@@ -461,7 +459,7 @@ def process_discard_phase(
 
     return _finalize_no_callers(
         new_round_state,
-        new_game_state,
+        game_state,
         current_seat,
         riichi_pending=riichi_pending,
         events=events,
