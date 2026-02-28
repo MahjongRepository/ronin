@@ -1,13 +1,13 @@
-import { buildActionCallbacks, buildMessageHandlers, handleMessage } from "./handlers";
+import { buildActionCallbacks, buildMessageHandlers, handleMessage } from "@/lobby/room/handlers";
 import {
     renderRoomUI,
     updateActionButton,
     updateChatPanel,
     updatePlayerList,
     updateStatusDisplay,
-} from "./ui";
-import { LobbySocket } from "../lobby-socket";
-import { createRoomState } from "./state";
+} from "@/lobby/room/ui";
+import { LobbySocket } from "@/lobby/lobby-socket";
+import { createRoomState } from "@/lobby/room/state";
 
 interface RoomConfig {
     roomId: string;

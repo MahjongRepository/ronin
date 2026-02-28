@@ -1,4 +1,4 @@
-"""Game client and development styleguide page handlers."""
+"""Game client and development page handlers."""
 
 from __future__ import annotations
 
@@ -22,23 +22,17 @@ async def play_page(request: Request) -> Response:
     return templates.TemplateResponse(request, "play.html")
 
 
-async def styleguide_page(request: Request) -> Response:
-    """Render the style guide page for development."""
+async def storybook_page(request: Request) -> Response:
+    """Render the lobby storybook page for development."""
     templates: Jinja2Templates = request.app.state.templates
     username = request.user.username if request.user.is_authenticated else None
     csrf_token, is_new = get_or_create_csrf_token(request)
     response = templates.TemplateResponse(
         request,
-        "styleguide.html",
+        "storybook.html",
         {"username": username, "csrf_token": csrf_token},
     )
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
     return response
-
-
-async def play_styleguide_page(request: Request) -> Response:
-    """Render the game style guide page for development."""
-    templates: Jinja2Templates = request.app.state.templates
-    return templates.TemplateResponse(request, "play-styleguide.html")

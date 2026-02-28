@@ -12,28 +12,30 @@
     gap: 2.5rem;
 }
 
-h1 {
-    font-family: var(--ronin-font-display);
-    font-size: 2.2rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    margin-bottom: 0.5rem;
-    color: var(--pico-color);
-}
-
 section {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
 }
 
-h2 {
-    font-family: var(--ronin-font-display);
-    font-size: 1.3rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--pico-color);
-    margin-bottom: 0;
+// ─── Tiles ──────────────────────────────────────────────────
+
+.tile {
+    background: #fff;
+    border-radius: 6px;
+    padding: 4px 3px;
+
+    svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+.tile-back,
+.tile-back-color {
+    padding: 0;
+    border-radius: 6px;
 }
 
 // ─── Game Header ─────────────────────────────────────────────

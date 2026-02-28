@@ -156,7 +156,7 @@ These practices are mandatory for all lobby code. Violations must be caught in c
   - `handlers.py` — Lobby and room page handlers (`lobby_page`, `room_page`, `create_room_and_redirect`, `join_room_and_redirect`)
   - `history_handlers.py` — History page handler and game data transformation (`history_page`, `_format_duration`, `_prepare_history_for_display`)
   - `replay_handlers.py` — Replay API handler (`replay_content`); reads gzip-compressed replay files with path traversal protection and file size limits
-  - `game_handlers.py` — Game client and dev page handlers (`play_page`, `styleguide_page`, `play_styleguide_page`)
+  - `game_handlers.py` — Game client and dev page handlers (`play_page`, `styleguide_page`)
   - `assets.py` — Vite manifest utilities and Jinja2 template factory (`create_templates`, `load_vite_manifest`, `resolve_vite_asset_urls`)
   - `auth_handlers.py` — Auth handlers (login, register, logout, bot_auth, bot_create_room)
   - `__init__.py` — Barrel re-exports for stable imports from `lobby.views`

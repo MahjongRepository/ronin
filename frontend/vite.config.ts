@@ -5,6 +5,11 @@ export default defineConfig(({ command }) => ({
     // Production: assets served at /game-assets/ by Starlette StaticFiles.
     // Dev: Vite serves from its own root.
     base: command === "build" ? "/game-assets/" : "/",
+    resolve: {
+        alias: {
+            "@": resolve(__dirname, "src"),
+        },
+    },
     publicDir: false, // Python backend serves frontend/public/ at /static/ separately
     build: {
         manifest: true,

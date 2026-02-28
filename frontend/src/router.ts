@@ -1,5 +1,5 @@
 import { type TemplateResult, render } from "lit-html";
-import { getLobbyUrl } from "./env";
+import { getLobbyUrl } from "@/env";
 
 interface Route {
     pattern: RegExp;

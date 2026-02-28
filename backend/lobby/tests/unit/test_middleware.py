@@ -207,7 +207,7 @@ _INLINE_HANDLER_RE = re.compile(
 # Templates served with script-src 'self' (game and room pages).
 # These must not contain inline scripts or event handlers.
 _TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "views" / "templates"
-_SCRIPT_SELF_TEMPLATES = ["base.html", "play.html", "play-styleguide.html", "room.html"]
+_SCRIPT_SELF_TEMPLATES = ["base.html", "play.html", "room.html"]
 
 
 class TestCSPCompliance:

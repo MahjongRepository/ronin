@@ -4,5 +4,6 @@
   "printWidth": 100,
   "useTabs": false,
   "semi": true,
-  "singleQuote": false
+  "singleQuote": false,
+  "sortImports": {}
 }

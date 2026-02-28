@@ -252,8 +252,8 @@ servers:
         assert response.status_code == 303
         assert response.headers["location"] == "/"
 
-    def test_styleguide_page_sets_csrf_cookie_on_first_visit(self, tmp_path, monkeypatch):
-        """GET /styleguide sets CSRF cookie when none exists yet."""
+    def test_storybook_page_sets_csrf_cookie_on_first_visit(self, tmp_path, monkeypatch):
+        """GET /storybook sets CSRF cookie when none exists yet."""
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "cfg.yaml"
         config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
@@ -269,31 +269,21 @@ servers:
             ),
         )
         c = TestClient(app)
-        # Don't register - visit styleguide directly (no prior CSRF cookie)
-        response = c.get("/styleguide")
+        # Don't register - visit storybook directly (no prior CSRF cookie)
+        response = c.get("/storybook")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
         app.state.db.close()
 
-    def test_styleguide_page_returns_html(self, client):
-        """GET /styleguide returns the style guide page without authentication."""
-        response = client.get("/styleguide")
+    def test_storybook_page_returns_html(self, client):
+        """GET /storybook returns the style guide page without authentication."""
+        response = client.get("/storybook")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "Style Guide" in response.text
         assert "Typography" in response.text
         assert "Buttons" in response.text
         assert "Form Elements" in response.text
-
-    def test_play_styleguide_page_returns_html(self, client):
-        """GET /play/styleguide returns the game style guide page without authentication."""
-        response = client.get("/play/styleguide")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "Game Style Guide" in response.text
-        assert "Connection Status" in response.text
-        assert "Log Panel" in response.text
-        assert "/game-assets/assets/game-abc123.css" in response.text
 
 
 class TestViteDevMode:

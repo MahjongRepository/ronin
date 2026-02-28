@@ -1,0 +1,21 @@
+.storybook {
+    padding: 1rem;
+
+    section {
+        margin-block: 2rem;
+    }
+}
+
+.storybook-tile-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.storybook-tile-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}

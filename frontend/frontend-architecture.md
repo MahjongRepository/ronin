@@ -4,6 +4,8 @@ Two distinct frontend applications — a server-rendered lobby and a standalone 
 
 **Stack**: TypeScript, lit-html, Pico CSS v2, Sass, Vite, Bun
 
+**Import alias**: All imports use `@/` mapped to `src/` (configured in `tsconfig.json` paths and `vite.config.ts` resolve alias). Use `@/protocol` instead of `../protocol`, etc.
+
 ## Applications
 
 ### Lobby App
@@ -77,7 +79,8 @@ src/styles/
 │   ├── _games.scss    # Game history cards, standings, badges
 │   └── _animations.scss # card-in, slide-down keyframes
 ├── _room.scss         # Room page styles (player list, chat, connection status)
-└── _game.scss         # Game client styles (log panel, status badges)
+├── _game.scss         # Game client styles (log panel, status badges)
+└── _storybook.scss    # Storybook layout (tile rows, cells)
 ```
 
 Both apps share `_pico.scss` and `_theme.scss` for consistent theming. Custom properties are defined in two layers:
@@ -119,6 +122,7 @@ Lightweight WebSocket wrapper for the lobby room protocol (JSON text frames). Pr
 
 ### Router (`router.ts`)
 Pathname-based SPA router. Routes:
+- `/play/storybook` — Component storybook for visual testing (no WebSocket, dev-only)
 - `/play/history/{gameId}` — Replay view (fetches and displays completed game events via HTTP)
 - `/play/{gameId}` — Live game view (WebSocket connection to game server)
 
@@ -141,6 +145,22 @@ Enum definitions matching the game server's wire protocol:
 ### Game View (`views/game.ts`)
 Renders a development log panel showing raw game events. Handles the join → play → reconnect lifecycle. Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors).
 
+### Storybook View (`views/storybook.ts`)
+Developer-facing component showcase at `/play/storybook`. Renders all 37 tile faces organized by suit, back tile at multiple sizes, and wire ID conversion demo (`tile136toString`). Also shows connection status indicator variants. Used for visual testing of game UI components.
+
+### Tile Config (`tile-config.ts`)
+Single source of truth for the active tile set and dimensions. Exports `TILE_FACES_SET` (face sprite folder name, e.g. `"fluffy-stuff"`), `TILE_BACK` (object with `image` for the back SVG stem and `color` for the hex color), and `TILE_WIDTH`/`TILE_HEIGHT` (60×80 px). Used by the sprite build script, tile rendering, and storybook display.
+
+### Tile Utilities (`tile-utils.ts`)
+Pure utility module for the 136-format tile ID system. Provides `tile136toString(tileId)` to convert server wire IDs to display names (with red five aka-dora detection) and constants (`TILE_FACES`, `FIVE_RED_MAN/PIN/SOU`, `RED_FIVES`).
+
+### Tile Component (`tiles.ts`)
+Rendering layer for mahjong tiles. All tile types (face, back, back-color) are wrapped in a `<span class="tile">` container. Tile dimensions are defined once in `tile-config.ts` (`TILE_WIDTH=60`, `TILE_HEIGHT=80`) — rendering functions take no size parameters. `Tile(name)` renders face tiles via SVG sprite `<use>` references inside the span wrapper, and back tiles from a separate SVG. `injectSprite()` handles one-time injection of the tile sprite into the DOM. Both sprite and back SVG are loaded via Vite `?raw` static imports.
+
+Tile backs have two rendering modes configured via `TILE_BACK` in `tile-config.ts` (`image` for SVG path, `color` for hex color):
+- `TileBack()` — Full back SVG image for wall tiles (face-down stacks)
+- `TileBackColor()` — Solid color rectangle for other players' hand tiles (peek strip)
+
 ### Replay View (`views/replay.ts`)
 Displays completed game replay events fetched via HTTP from `/api/replays/{gameId}`. Uses the same log panel UI as the game view but without WebSocket connection. Fetches replay NDJSON via `fetch()` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), renders event type and raw JSON in the log panel. Shows "Replay" status badge and "Back to History" navigation. Uses the `viewGeneration` pattern to handle stale renders during navigation.
 
@@ -157,7 +177,8 @@ Reads configuration:
 - **Vite** 6.x — Build tool with HMR dev server, content hashing, and manifest generation
 - **Bun** — Package manager and script runner
 - **Sass** (Dart Sass 1.97) — SCSS preprocessing (Vite peer dependency)
-- **TypeScript** 5.9 — Strict mode, ES2022 target
+- **TypeScript** 5.9 — Strict mode, ES2023 target
+- **SVGO** 4.x — SVG optimizer for tile sprite generation
 - **oxlint** — JavaScript/TypeScript linter
 - **stylelint** — SCSS linter (standard-scss config)
 - **oxfmt** — Code formatter
@@ -176,6 +197,13 @@ Two Vite entry points configured in `vite.config.ts`:
 
 `bun run build` runs `vite build`, which produces `dist/.vite/manifest.json` mapping source entry points to their hashed output files. CSS is extracted into separate files (no CSS-in-JS at runtime).
 
+**Tile Sprite** (`bun run sprite [name]`):
+- Runs `scripts/build-tile-sprite.ts`
+- Accepts optional CLI arg for tile set name; defaults to `TILE_FACES_SET` from `tile-config.ts`
+- Reads individual SVGs from `src/assets/tiles/faces/{name}/`
+- Optimizes with SVGO and combines into `src/assets/tiles/sprites/{name}.svg`
+- Generated file is committed to git; run only when tile SVGs change
+
 **Dev mode** (`bun run dev`):
 - Vite dev server on port 5173 with HMR for TypeScript and SCSS
 - Lobby backend connects to Vite when `LOBBY_VITE_DEV_URL` is set
@@ -191,9 +219,12 @@ Dev mode: when `LOBBY_VITE_DEV_URL` is set, template globals point to the Vite d
 ```
 frontend/
 ├── vite.config.ts          # Vite build configuration (2 entry points, base path)
+├── svgo.config.js          # SVGO optimization config (strip Inkscape metadata)
 ├── .env.development        # Dev-mode env vars (VITE_LOBBY_URL)
 ├── package.json            # Dependencies, scripts
-├── tsconfig.json           # TypeScript config (strict, ES2022, vite/client types)
+├── tsconfig.json           # TypeScript config (strict, ES2023, vite/client types)
+├── scripts/
+│   └── build-tile-sprite.ts # Sprite generation (combines 37 SVGs into one)
 ├── dist/                   # Build output (content-hashed assets)
 │   ├── assets/             # Hashed JS, CSS, SVG files
 │   └── .vite/
@@ -206,8 +237,18 @@ frontend/
     ├── protocol.ts          # Wire protocol enums (message types, events, actions)
     ├── websocket.ts         # GameSocket (MessagePack, auto-reconnect)
     ├── session-storage.ts   # Game session persistence in sessionStorage
+    ├── tile-config.ts       # Active tile set config (face set name, back name)
+    ├── tile-utils.ts        # Tile ID conversion (136-format wire IDs to names)
+    ├── tiles.ts             # Tile rendering component (SVG sprite + back)
     ├── assets/
-    │   └── logo.svg         # Project logo (content-hashed by Vite)
+    │   ├── logo.svg         # Project logo (content-hashed by Vite)
+    │   └── tiles/
+    │       ├── faces/
+    │       │   └── fluffy-stuff/    # Source tile SVGs (37 individual files)
+    │       ├── backs/
+    │       │   └── classic-yellow.svg  # Tile back SVG
+    │       └── sprites/
+    │           └── fluffy-stuff.svg    # Combined SVG sprite (37 symbols, generated)
     ├── lobby/
     │   ├── index.ts         # Lobby entry point (imports lobby-app.scss)
     │   ├── games-history.ts # History page interactions (card click navigation, copy replay link)
@@ -219,7 +260,8 @@ frontend/
     │       └── ui.ts        # lit-html templates and render functions
     ├── views/
     │   ├── game.ts          # Game view (log panel, join/reconnect lifecycle)
-    │   └── replay.ts        # Replay view (HTTP fetch, log panel, no WebSocket)
+    │   ├── replay.ts        # Replay view (HTTP fetch, log panel, no WebSocket)
+    │   └── storybook.ts     # Component storybook (tile gallery, UI demos)
     └── styles/
         ├── lobby-app.scss   # Lobby CSS entry point
         ├── game-app.scss    # Game CSS entry point
@@ -249,6 +291,7 @@ frontend/
 - `vite` (6.x) — Build tool and HMR dev server
 - `sass` (1.97) — Dart Sass SCSS compiler (Vite peer dependency)
 - `typescript` (5.9) — TypeScript compiler (type checking only; Vite handles bundling)
+- `svgo` (4.x) — SVG optimizer for tile sprite generation
 - `oxlint` — Fast JavaScript/TypeScript linter
 - `oxfmt` — Code formatter
 - `stylelint` + `stylelint-config-standard-scss` — SCSS linter

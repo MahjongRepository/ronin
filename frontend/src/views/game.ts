@@ -6,11 +6,11 @@ import {
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
     SessionMessageType,
-} from "../protocol";
+} from "@/protocol";
 import { type TemplateResult, html, render } from "lit-html";
-import { clearGameSession, clearSessionData, getGameSession } from "../session-storage";
-import { GameSocket } from "../websocket";
-import { getLobbyUrl } from "../env";
+import { clearGameSession, clearSessionData, getGameSession } from "@/session-storage";
+import { GameSocket } from "@/websocket";
+import { getLobbyUrl } from "@/env";
 
 interface LogEntry {
     raw: string;

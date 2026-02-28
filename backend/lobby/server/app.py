@@ -39,11 +39,10 @@ from lobby.views import (
     load_vite_manifest,
     lobby_page,
     play_page,
-    play_styleguide_page,
     replay_content,
     resolve_vite_asset_urls,
     room_page,
-    styleguide_page,
+    storybook_page,
 )
 from lobby.views.auth_handlers import bot_auth, bot_create_room, login, login_page, logout, register, register_page
 from shared.auth import AuthService, AuthSessionStore
@@ -132,6 +131,7 @@ def create_app(
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
         Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
         Route("/play/history/{game_id}", public_route(play_page), methods=["GET"], name="replay_page"),
+        Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
         Route(
             "/rooms/new",
@@ -168,17 +168,8 @@ def create_app(
     ]
 
     if APP_VERSION == "dev":
-        routes.insert(
-            0,
-            Route(
-                "/play/styleguide",
-                public_route(play_styleguide_page),
-                methods=["GET"],
-                name="play_styleguide_page",
-            ),
-        )
         routes.append(
-            Route("/styleguide", public_route(styleguide_page), methods=["GET"], name="styleguide_page"),
+            Route("/storybook", public_route(storybook_page), methods=["GET"], name="storybook_page"),
         )
 
     if static_dir.is_dir():

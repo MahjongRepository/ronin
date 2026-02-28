@@ -1,4 +1,4 @@
-import { ClientMessageType, ConnectionStatus, InternalMessageType } from "./protocol";
+import { ClientMessageType, ConnectionStatus, InternalMessageType } from "@/protocol";
 import { decode, encode } from "@msgpack/msgpack";
 
 export type MessageHandler = (message: Record<string, unknown>) => void;

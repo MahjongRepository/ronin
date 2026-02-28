@@ -12,8 +12,17 @@ The server is a WebSocket app: Python + Starlette.
 
 The client is planned to be a TypeScript app (not React).
 
-# Third-party mahjong libraries
+# Third-party libraries credits
+
+## Mahjong libraries
 
 Below are third-party libraries related to mahjong that were used in Ronin:
+
 - [mahjong](https://github.com/MahjongRepository/mahjong) for hand yaku calculations and scoring
 - [xiangting-py](https://github.com/Apricot-S/xiangting-py) for fast shanten calculations
+
+## Assets
+
+Tiles sets:
+
+- https://github.com/FluffyStuff/riichi-mahjong-tiles

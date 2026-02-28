@@ -9,7 +9,9 @@
     "lint": "oxlint --deny-warnings src && stylelint 'src/**/*.scss'",
     "lint:fix": "oxlint --fix src && stylelint --fix 'src/**/*.scss'",
     "fmt": "oxfmt src",
-    "fmt:check": "oxfmt --check src"
+    "fmt:check": "oxfmt --check src",
+    "sprite": "bun run scripts/build-tile-sprite.ts",
+    "optimize:back": "bunx svgo src/assets/tiles/backs/classic-yellow.svg"
   },
   "devDependencies": {
     "oxfmt": "^0.27.0",
@@ -17,6 +19,7 @@
     "sass": "^1.97.3",
     "stylelint": "^17.1.0",
     "stylelint-config-standard-scss": "^17.0.0",
+    "svgo": "^4.0.0",
     "typescript": "^5.9.3",
     "vite": "^6"
   },

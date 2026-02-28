@@ -1,5 +1,5 @@
 import { type TemplateResult, html, render } from "lit-html";
-import { LOG_TYPE_UNKNOWN } from "../protocol";
+import { LOG_TYPE_UNKNOWN } from "@/protocol";
 
 interface LogEntry {
     raw: string;

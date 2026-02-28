@@ -1,5 +1,10 @@
-import { LOG_TYPE_SYSTEM, type PlayerInfo, type RoomState, getMyReadyState } from "./state";
-import { storeGameSession } from "../../session-storage";
+import {
+    LOG_TYPE_SYSTEM,
+    type PlayerInfo,
+    type RoomState,
+    getMyReadyState,
+} from "@/lobby/room/state";
+import { storeGameSession } from "@/session-storage";
 
 interface UpdateUICallbacks {
     updateActionButton: () => void;
