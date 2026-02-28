@@ -32,19 +32,14 @@ Create `spot-env.<target>.yml` with the domain for this environment:
 DOMAIN: ronin.example.com
 ```
 
-### 3. Run setup
+### 3. Bootstrap the server
 
 ```
 cd deploy
-make spot-setup TARGET=<target>
+make spot-bootstrap TARGET=<target>
 ```
 
-This runs four tasks in order:
-
-1. **setup-ssh** -- disables SSH password authentication, key-only access
-2. **setup-docker** -- installs Docker from the official apt repository (skips if already installed)
-3. **setup-firewall** -- configures UFW, restricts Docker to HTTP/HTTPS only via iptables DOCKER-USER chain
-4. **setup-app** -- creates `/opt/ronin/` directory structure, copies `.env.example` as `.env`
+Installs base packages (`micro`, `kitty-terminfo`), creates the `/opt/ronin/` directory structure, and copies `.env.example` as `.env` and `.env.system.example` as `.env.system`.
 
 ### 4. Configure secrets
 
@@ -54,6 +49,21 @@ SSH into the server and edit `/opt/ronin/.env`:
 AUTH_GAME_TICKET_SECRET=<generate a random secret>
 ACME_EMAIL=<your email for Let's Encrypt>
 ```
+
+Edit `/opt/ronin/.env.system`:
+
+```
+RESTIC_PASSWORD=<generate a random password for restic backups>
+```
+
+### 5. Provision the server
+
+```
+cd deploy
+make spot-provision TARGET=<target>
+```
+
+Disables SSH password authentication, installs Docker, configures the firewall (UFW + iptables DOCKER-USER chain), and sets up restic backups with a daily timer.
 
 ## Deploying changes
 
@@ -70,14 +80,54 @@ Health checks verify lobby (:8710), game (:8711), and traefik are running.
 
 If a deploy changes service names or port bindings, run `docker compose down` on the server manually first.
 
-## Running individual tasks
+## Backups
+
+Restic backs up SQLite databases and game replays to a local repository at `/opt/ronin/backups`.
+
+SQLite databases are safely snapshotted using `sqlite3 .backup` before each backup run.
+
+A daily systemd timer runs at 04:00 (with 10min jitter). Retention policy: 7 daily, 4 weekly, 3 monthly.
+
+### Manual backup
 
 ```
-cd deploy
-make spot-run TASK=<task-name> TARGET=<target>
+make spot-backup TARGET=<target>
 ```
 
-Available tasks: `setup-ssh`, `setup-docker`, `setup-firewall`, `setup-app`, `deploy`.
+### List snapshots
+
+```
+make spot-backup-list TARGET=<target>
+```
+
+### Restore from latest snapshot
+
+```
+make spot-restore TARGET=<target>
+```
+
+### Restore a specific snapshot
+
+```
+make spot-restore TARGET=<target> SNAPSHOT=<snapshot-id>
+```
+
+Restore stops the lobby and game containers, copies data from the snapshot, removes WAL/SHM files, fixes file ownership, and restarts services. Let's Encrypt certs are not backed up — Traefik re-obtains them automatically.
+
+## Commands
+
+All commands run from `deploy/` and require `TARGET=<target>`.
+
+```
+make spot-bootstrap TARGET=<target>        # base packages, dirs, env templates
+make spot-provision TARGET=<target>        # SSH hardening, Docker, firewall, backups
+make spot-deploy TARGET=<target>           # pull image, restart services
+make spot-backup TARGET=<target>           # run a manual backup
+make spot-backup-list TARGET=<target>      # list backup snapshots
+make spot-restore TARGET=<target>          # restore from latest snapshot
+make spot-restore TARGET=<target> SNAPSHOT=<id>  # restore specific snapshot
+make spot-run TASK=<task> TARGET=<target>  # run any spot task by name
+```
 
 ## SSH authentication
 

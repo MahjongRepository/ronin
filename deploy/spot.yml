@@ -16,9 +16,6 @@ tasks:
 
   - name: setup-docker
     commands:
-      - name: install base packages
-        script: apt-get update && apt-get install -y kitty-terminfo micro
-
       - name: install docker
         script: |
           if docker info >/dev/null 2>&1; then
@@ -83,8 +80,11 @@ tasks:
           DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
           netfilter-persistent save
 
-  - name: setup-app
+  - name: bootstrap
     commands:
+      - name: install base packages
+        script: apt-get update && apt-get install -y kitty-terminfo micro
+
       - name: create app directory
         script: |
           mkdir -p /opt/ronin/config /opt/ronin/www
@@ -106,6 +106,20 @@ tasks:
           fi
           rm -f /tmp/ronin-env-template
           [ -f /opt/ronin/.env ] && chmod 600 /opt/ronin/.env
+
+      - name: init system env file
+        copy: {src: ".env.system.example", dst: "/tmp/ronin-env-system-template"}
+
+      - name: apply system env template
+        script: |
+          if [ -f /opt/ronin/.env.system ]; then
+            echo ".env.system already exists, skipping"
+          else
+            cp /tmp/ronin-env-system-template /opt/ronin/.env.system
+          fi
+          rm -f /tmp/ronin-env-system-template
+          [ -f /opt/ronin/.env.system ] && chmod 600 /opt/ronin/.env.system
+
 
   - name: deploy
     commands:
@@ -150,3 +164,116 @@ tasks:
 
       - name: verify traefik is running
         wait: {cmd: "cd /opt/ronin && docker compose ps traefik --format json | grep -q running", timeout: "30s", interval: "5s"}
+
+  - name: setup-restic
+    commands:
+      - name: install restic and sqlite3
+        script: apt-get update && apt-get install -y restic sqlite3
+
+      - name: create backup directory
+        script: mkdir -p /opt/ronin/backups
+
+      - name: init restic repo
+        script: |
+          if [ -d /opt/ronin/backups/keys ]; then
+            echo "Restic repo already initialized, skipping"
+            exit 0
+          fi
+          set -a
+          . /opt/ronin/.env.system
+          set +a
+          export RESTIC_REPOSITORY=/opt/ronin/backups
+          restic init
+
+      - name: upload backup script
+        copy: {src: "scripts/backup.sh", dst: "/tmp/ronin-backup.sh"}
+
+      - name: install backup script
+        script: |
+          mkdir -p /opt/ronin/scripts
+          cp /tmp/ronin-backup.sh /opt/ronin/scripts/backup.sh
+          chmod +x /opt/ronin/scripts/backup.sh
+          rm -f /tmp/ronin-backup.sh
+
+      - name: upload restore script
+        copy: {src: "scripts/restore.sh", dst: "/tmp/ronin-restore.sh"}
+
+      - name: install restore script
+        script: |
+          cp /tmp/ronin-restore.sh /opt/ronin/scripts/restore.sh
+          chmod +x /opt/ronin/scripts/restore.sh
+          rm -f /tmp/ronin-restore.sh
+
+      - name: upload systemd service
+        copy: {src: "scripts/systemd/ronin-backup.service", dst: "/etc/systemd/system/ronin-backup.service"}
+
+      - name: upload systemd timer
+        copy: {src: "scripts/systemd/ronin-backup.timer", dst: "/etc/systemd/system/ronin-backup.timer"}
+
+      - name: enable backup timer
+        script: systemctl daemon-reload && systemctl enable --now ronin-backup.timer
+
+  - name: backup
+    commands:
+      - name: run backup
+        script: /opt/ronin/scripts/backup.sh
+
+  - name: restore
+    commands:
+      - name: list snapshots
+        script: |
+          set -a
+          . /opt/ronin/.env.system
+          set +a
+          export RESTIC_REPOSITORY=/opt/ronin/backups
+          restic snapshots
+
+      - name: restore snapshot
+        script: /opt/ronin/scripts/restore.sh ${SNAPSHOT:-latest}
+
+  - name: backup-download
+    commands:
+      - name: stage backup for download
+        script: |
+          set -eu
+          STAGING="/opt/ronin/data/backup-staging"
+          rm -rf "${STAGING}"
+          mkdir -p "${STAGING}/db/lobby" "${STAGING}/db/game"
+
+          LOBBY_DB="/opt/ronin/data/db/lobby/lobby.db"
+          GAME_DB="/opt/ronin/data/db/game/game.db"
+
+          if [ -f "${LOBBY_DB}" ]; then
+            sqlite3 "${LOBBY_DB}" ".backup '${STAGING}/db/lobby/lobby.db'"
+            echo "Staged lobby DB"
+          fi
+
+          if [ -f "${GAME_DB}" ]; then
+            sqlite3 "${GAME_DB}" ".backup '${STAGING}/db/game/game.db'"
+            echo "Staged game DB"
+          fi
+
+          # Ensure replays dir exists for tar (may be empty)
+          mkdir -p /opt/ronin/data/replays
+
+          tar czf "${STAGING}/backup.tar.gz" \
+            -C "${STAGING}" db \
+            -C /opt/ronin/data replays
+
+          echo "Backup staged for download"
+
+      - name: download backup archive
+        copy: {src: "/opt/ronin/data/backup-staging/backup.tar.gz", dst: "/tmp/ronin-backup.tar.gz", direction: "pull"}
+
+      - name: cleanup staging
+        script: rm -rf /opt/ronin/data/backup-staging
+
+  - name: backup-list
+    commands:
+      - name: list snapshots
+        script: |
+          set -a
+          . /opt/ronin/.env.system
+          set +a
+          export RESTIC_REPOSITORY=/opt/ronin/backups
+          restic snapshots

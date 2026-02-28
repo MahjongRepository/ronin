@@ -1,0 +1,6 @@
+[Unit]
+Description=Ronin backup (SQLite databases, replays)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ronin/scripts/backup.sh

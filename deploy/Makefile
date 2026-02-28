@@ -11,19 +11,44 @@ else
 endif
 SPOT = $(SPOT_SSH_ENV) spot -p spot.yml -E spot-env.$(TARGET).yml $(SPOT_SSH)
 
-.PHONY: spot-run spot-setup spot-deploy
+.PHONY: spot-run spot-bootstrap spot-provision spot-deploy spot-backup spot-restore spot-backup-list spot-download-backup
 
-# Run arbitrary spot task: make spot-run TASK=setup-firewall TARGET=dev
+# Run arbitrary spot task: make spot-run TASK=<task> TARGET=dev
 spot-run:
 	$(SPOT) -t $(TARGET) -n $(TASK)
 
-# One-time server provisioning (Docker + Traefik): make spot-setup TARGET=dev
-spot-setup:
+# Bootstrap: base packages, dirs, env templates
+spot-bootstrap:
+	$(SPOT) -t $(TARGET) -n bootstrap
+
+# Provision: SSH hardening, Docker, firewall, backups
+spot-provision:
 	$(SPOT) -t $(TARGET) -n setup-ssh
 	$(SPOT) -t $(TARGET) -n setup-docker
 	$(SPOT) -t $(TARGET) -n setup-firewall
-	$(SPOT) -t $(TARGET) -n setup-app
+	$(SPOT) -t $(TARGET) -n setup-restic
 
-# Deploy app: make spot-deploy TARGET=dev
+# Deploy: pull image, restart services
 spot-deploy:
 	$(SPOT) -t $(TARGET) -n deploy
+
+# Backup: run a manual backup
+spot-backup:
+	$(SPOT) -t $(TARGET) -n backup
+
+# Restore: restore from a snapshot (use SNAPSHOT=<id> for a specific snapshot)
+spot-restore:
+ifdef SNAPSHOT
+	$(SPOT) -t $(TARGET) -n restore -e SNAPSHOT:$(SNAPSHOT)
+else
+	$(SPOT) -t $(TARGET) -n restore
+endif
+
+# Download backup from server and restore locally (replaces local DB and replays)
+spot-download-backup:
+	$(SPOT) -t $(TARGET) -n backup-download
+	@bash scripts/restore-local.sh
+
+# List backup snapshots
+spot-backup-list:
+	$(SPOT) -t $(TARGET) -n backup-list
