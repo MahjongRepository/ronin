@@ -40,6 +40,16 @@ http:
       middlewares: ["security-headers"]
       priority: 10
 
+    # Replay API — rate-limited public endpoint
+    replay-api:
+      rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/api/replays/`)"
+      entryPoints: ["websecure"]
+      service: lobby
+      tls:
+        certResolver: letsencrypt
+      middlewares: ["security-headers", "replay-ratelimit"]
+      priority: 15
+
     # Game assets — aggressive caching headers + HSTS
     game-assets:
       rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/game-assets/`)"
@@ -89,6 +99,12 @@ http:
     bot-ratelimit:
       rateLimit:
         average: 10
+        period: 10s
+        burst: 10
+
+    replay-ratelimit:
+      rateLimit:
+        average: 30
         period: 10s
         burst: 10
 

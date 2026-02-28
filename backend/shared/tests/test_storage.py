@@ -1,5 +1,6 @@
 """Tests for replay storage abstraction."""
 
+import gzip
 import os
 import stat
 from unittest.mock import patch
@@ -17,16 +18,18 @@ class TestLocalReplayStorage:
         storage.save_replay("game_1", "line1\nline2\n")
 
         assert replay_dir.is_dir()
-        assert (replay_dir / "game_1.txt").exists()
+        assert (replay_dir / "game_1.txt.gz").exists()
 
-    def test_writes_correct_content(self, tmp_path):
+    def test_writes_gzip_compressed_content(self, tmp_path):
         storage = LocalReplayStorage(str(tmp_path))
         content = '{"type":"discard","target":"all"}\n{"type":"draw","target":"all"}\n'
 
         storage.save_replay("game_abc", content)
 
-        written = (tmp_path / "game_abc.txt").read_text(encoding="utf-8")
-        assert written == content
+        compressed_path = tmp_path / "game_abc.txt.gz"
+        assert compressed_path.exists()
+        decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
+        assert decompressed == content
 
     def test_overwrites_existing_file(self, tmp_path):
         storage = LocalReplayStorage(str(tmp_path))
@@ -34,8 +37,8 @@ class TestLocalReplayStorage:
         storage.save_replay("game_1", "original content")
         storage.save_replay("game_1", "updated content")
 
-        written = (tmp_path / "game_1.txt").read_text(encoding="utf-8")
-        assert written == "updated content"
+        decompressed = gzip.decompress((tmp_path / "game_1.txt.gz").read_bytes()).decode("utf-8")
+        assert decompressed == "updated content"
 
     def test_rejects_path_traversal(self, tmp_path):
         storage = LocalReplayStorage(str(tmp_path))
@@ -51,8 +54,8 @@ class TestLocalReplayStorage:
 
         storage.save_replay("game_unicode", content)
 
-        written = (tmp_path / "game_unicode.txt").read_text(encoding="utf-8")
-        assert written == content
+        decompressed = gzip.decompress((tmp_path / "game_unicode.txt.gz").read_bytes()).decode("utf-8")
+        assert decompressed == content
 
 
 class TestLocalReplayStorageErrorHandling:
@@ -70,7 +73,7 @@ class TestLocalReplayStorageErrorHandling:
             storage.save_replay("game_fail", "content")
 
         # No target file or leftover temp files
-        assert not (tmp_path / "game_fail.txt").exists()
+        assert not (tmp_path / "game_fail.txt.gz").exists()
         remaining = list(tmp_path.glob(".replay_*.tmp"))
         assert remaining == []
         # fd was properly closed
@@ -87,7 +90,7 @@ class TestLocalReplayStorageErrorHandling:
         ):
             storage.save_replay("game_fail", "content")
 
-        assert not (tmp_path / "game_fail.txt").exists()
+        assert not (tmp_path / "game_fail.txt.gz").exists()
         remaining = list(tmp_path.glob(".replay_*.tmp"))
         assert remaining == []
 
@@ -125,6 +128,6 @@ class TestLocalReplayStoragePermissions:
 
         storage.save_replay("game_1", "content")
 
-        file_path = replay_dir / "game_1.txt"
+        file_path = replay_dir / "game_1.txt.gz"
         file_mode = stat.S_IMODE(file_path.stat().st_mode)
         assert file_mode == 0o600

@@ -40,6 +40,7 @@ from lobby.views import (
     lobby_page,
     play_page,
     play_styleguide_page,
+    replay_content,
     resolve_vite_asset_urls,
     room_page,
     styleguide_page,
@@ -130,6 +131,7 @@ def create_app(
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
         Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
+        Route("/play/history/{game_id}", public_route(play_page), methods=["GET"], name="replay_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
         Route(
             "/rooms/new",
@@ -162,6 +164,7 @@ def create_app(
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/api/auth/bot", bot_only(bot_auth), methods=["POST"], name="bot_auth"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
+        Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
     ]
 
     if APP_VERSION == "dev":

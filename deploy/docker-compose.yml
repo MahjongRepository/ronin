@@ -46,6 +46,7 @@ services:
       LOBBY_GAME_CLIENT_URL: /play
       LOBBY_ALLOWED_HOSTS: %%DOMAIN%%,localhost
       LOBBY_WS_ALLOWED_ORIGIN: https://%%DOMAIN%%
+      LOBBY_REPLAY_DIR: /app/data/replays
       LOBBY_LOG_DIR: /app/data/logs/lobby
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -53,6 +54,7 @@ services:
       - ./config/servers.yaml:/app/config/servers.yaml:ro
       - ./data/db/lobby:/app/data/db
       - ./data/logs/lobby:/app/data/logs/lobby
+      - ./data/replays:/app/data/replays:ro
     depends_on:
       game:
         condition: service_started

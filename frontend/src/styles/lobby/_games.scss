@@ -24,6 +24,10 @@
         border-color 0.3s ease,
         box-shadow 0.3s ease;
 
+    &[data-replay-url] {
+        cursor: pointer;
+    }
+
     &:hover {
         border-color: color-mix(in srgb, var(--pico-primary) 25%, var(--ronin-border));
         box-shadow:
@@ -196,7 +200,7 @@
     }
 }
 
-// Copy game ID button
+// Copy replay link button
 .games-copy-btn {
     display: flex;
     align-items: center;

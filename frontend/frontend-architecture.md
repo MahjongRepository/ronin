@@ -14,6 +14,7 @@ Server-rendered HTML pages via Jinja2 templates (served by the lobby backend at 
 - `/login` — Login form (public)
 - `/register` — Registration form (public)
 - `/` — Room listing with create/join actions (authenticated)
+- `/history` — Completed game history with replay links (authenticated)
 - `/rooms/{room_id}` — Room page with WebSocket-powered player list and chat (authenticated)
 - `/styleguide` — Lobby component showcase (public, dev only)
 
@@ -27,9 +28,9 @@ Lobby JavaScript (`lobby/index.ts`) loads on all lobby pages via `base.html`. On
 
 ### Game Client App
 
-Standalone SPA served at `/game` via a Jinja2 template that injects content-hashed asset URLs. Uses hash-based routing (`#/game/{gameId}`) and communicates with the game server via MessagePack over WebSocket.
+Standalone SPA served at `/play/{gameId}` via a Jinja2 template that injects content-hashed asset URLs. Uses pathname-based routing and communicates with the game server via MessagePack over WebSocket. Also serves replay viewing at `/play/history/{gameId}` (HTTP fetch, no WebSocket).
 
-**Entry point**: `src/index.ts` (Vite entry) → hash router → game view
+**Entry point**: `src/index.ts` (Vite entry) → pathname router → game view or replay view
 
 **Connection flow**:
 1. Lobby room page stores game session data (WebSocket URL, game ticket) in `sessionStorage` when the room owner starts the game
@@ -117,7 +118,11 @@ Lightweight WebSocket wrapper for the lobby room protocol (JSON text frames). Pr
 ## Game Client TypeScript
 
 ### Router (`router.ts`)
-Hash-based SPA router. Matches `#/game/{gameId}` routes. Runs cleanup callbacks on route changes. Falls back to lobby URL redirect for unmatched routes.
+Pathname-based SPA router. Routes:
+- `/play/history/{gameId}` — Replay view (fetches and displays completed game events via HTTP)
+- `/play/{gameId}` — Live game view (WebSocket connection to game server)
+
+Runs cleanup callbacks on route changes. Falls back to lobby URL redirect for unmatched routes.
 
 ### Game Socket (`websocket.ts`)
 WebSocket client for the game server (MessagePack binary frames). Features:
@@ -135,6 +140,9 @@ Enum definitions matching the game server's wire protocol:
 
 ### Game View (`views/game.ts`)
 Renders a development log panel showing raw game events. Handles the join → play → reconnect lifecycle. Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors).
+
+### Replay View (`views/replay.ts`)
+Displays completed game replay events fetched via HTTP from `/api/replays/{gameId}`. Uses the same log panel UI as the game view but without WebSocket connection. Fetches replay NDJSON via `fetch()` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), renders event type and raw JSON in the log panel. Shows "Replay" status badge and "Back to History" navigation. Uses the `viewGeneration` pattern to handle stale renders during navigation.
 
 ### Session Storage (`session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
@@ -202,6 +210,7 @@ frontend/
     │   └── logo.svg         # Project logo (content-hashed by Vite)
     ├── lobby/
     │   ├── index.ts         # Lobby entry point (imports lobby-app.scss)
+    │   ├── games-history.ts # History page interactions (card click navigation, copy replay link)
     │   ├── lobby-socket.ts  # Lobby WebSocket wrapper (JSON frames)
     │   └── room/
     │       ├── index.ts     # Public API (initRoomPage), wires state/handlers/UI
@@ -209,7 +218,8 @@ frontend/
     │       ├── handlers.ts  # WebSocket message handlers and user action callbacks
     │       └── ui.ts        # lit-html templates and render functions
     ├── views/
-    │   └── game.ts          # Game view (log panel, join/reconnect lifecycle)
+    │   ├── game.ts          # Game view (log panel, join/reconnect lifecycle)
+    │   └── replay.ts        # Replay view (HTTP fetch, log panel, no WebSocket)
     └── styles/
         ├── lobby-app.scss   # Lobby CSS entry point
         ├── game-app.scss    # Game CSS entry point

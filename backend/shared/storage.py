@@ -1,12 +1,13 @@
 """Storage abstraction for replay persistence.
 
-Replay files contain concealed game data (player hands, draw tiles, dora
-indicators, winner details) and are treated as sensitive artifacts. Files
-are written with owner-only permissions (0o600) inside an owner-only
-directory (0o700) to prevent unintended access.
+Replay files are gzip-compressed NDJSON containing full game event logs.
+Replays are public and served to any user via the lobby replay API.
+Files are written with owner-only permissions (0o600) inside an
+owner-only directory (0o700) as a filesystem hygiene measure.
 """
 
 import contextlib
+import gzip
 import os
 import tempfile
 from pathlib import Path
@@ -30,37 +31,38 @@ class ReplayStorage(Protocol):
 
 
 class LocalReplayStorage:
-    """Writes replay files to the local filesystem with restricted permissions.
+    """Writes gzip-compressed replay files to the local filesystem.
 
-    Replay data contains concealed game information (initial hands, draw tiles,
-    dora indicators, winner hand details). Files are created with owner-only
-    read/write (0o600) inside an owner-only directory (0o700).
+    Files are created with owner-only read/write (0o600) inside an
+    owner-only directory (0o700) as a filesystem hygiene measure.
     """
 
     def __init__(self, replay_dir: str) -> None:
         self._replay_dir = Path(replay_dir).resolve()
 
     def save_replay(self, game_id: str, content: str) -> None:
-        """Save replay content as a text file under the configured directory.
+        """Save gzip-compressed replay content under the configured directory.
 
         Creates the directory lazily on first write with owner-only permissions
         (0o700). Writes replay files atomically via temp-file-then-rename with
         owner-only permissions (0o600). Rejects path traversal attempts that
         would place the file outside the replay root.
         """
-        target = (self._replay_dir / f"{game_id}.txt").resolve()
+        target = (self._replay_dir / f"{game_id}.txt.gz").resolve()
         if not target.is_relative_to(self._replay_dir):
             raise ValueError(f"Path traversal rejected: '{game_id}' resolves outside replay directory")
 
         self._replay_dir.mkdir(mode=_REPLAY_DIR_MODE, parents=True, exist_ok=True)
         self._replay_dir.chmod(_REPLAY_DIR_MODE)
 
+        compressed = gzip.compress(content.encode("utf-8"))
+
         fd, tmp_path = tempfile.mkstemp(dir=str(self._replay_dir), suffix=".tmp", prefix=".replay_")
         fd_owned = True
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
+            with os.fdopen(fd, "wb") as f:
                 fd_owned = False  # os.fdopen took ownership; it will close fd
-                f.write(content)
+                f.write(compressed)
                 f.flush()
                 os.fsync(f.fileno())
             os.chmod(tmp_path, _REPLAY_FILE_MODE)  # noqa: PTH101

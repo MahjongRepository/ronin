@@ -1,5 +1,5 @@
 import "../styles/lobby-app.scss";
-import { initGamesCopyButtons } from "./games-history";
+import { initGamesCopyLinkButtons } from "./games-history";
 import { initRoomPage } from "./room";
 
 const roomContainer = document.getElementById("room-app");
@@ -12,4 +12,4 @@ if (roomContainer) {
     }
 }
 
-initGamesCopyButtons();
+initGamesCopyLinkButtons();

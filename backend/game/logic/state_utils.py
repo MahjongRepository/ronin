@@ -8,7 +8,6 @@ always return new state objects with the requested changes applied.
 
 from game.logic.state import (
     CallResponse,
-    Discard,
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
@@ -68,57 +67,6 @@ def add_tile_to_player(
     player = round_state.players[seat]
     new_tiles = (*player.tiles, tile_id)
     return update_player(round_state, seat, tiles=new_tiles)
-
-
-def remove_tile_from_player(
-    round_state: MahjongRoundState,
-    seat: int,
-    tile_id: int,
-) -> MahjongRoundState:
-    """
-    Return new state with tile removed from player's hand.
-
-    Args:
-        round_state: Current round state
-        seat: Player seat
-        tile_id: Tile ID to remove
-
-    Returns:
-        New MahjongRoundState with tile removed from player's hand
-
-    Raises:
-        ValueError: If tile is not in player's hand
-
-    """
-    player = round_state.players[seat]
-    tiles = list(player.tiles)
-    try:
-        tiles.remove(tile_id)
-    except ValueError:
-        raise ValueError(f"Tile {tile_id} not in hand of player at seat {seat}") from None
-    return update_player(round_state, seat, tiles=tuple(tiles))
-
-
-def add_discard_to_player(
-    round_state: MahjongRoundState,
-    seat: int,
-    discard: Discard,
-) -> MahjongRoundState:
-    """
-    Return new state with discard added to player's history.
-
-    Args:
-        round_state: Current round state
-        seat: Player seat
-        discard: Discard record to add
-
-    Returns:
-        New MahjongRoundState with discard added
-
-    """
-    player = round_state.players[seat]
-    new_discards = (*player.discards, discard)
-    return update_player(round_state, seat, discards=new_discards)
 
 
 def advance_turn(
@@ -200,25 +148,6 @@ def update_game_with_round(
 
     """
     return game_state.model_copy(update={"round_state": round_state})
-
-
-def update_all_discards(
-    round_state: MahjongRoundState,
-    tile_id: int,
-) -> MahjongRoundState:
-    """
-    Return new round state with tile added to all_discards tracking.
-
-    Args:
-        round_state: Current round state
-        tile_id: Tile ID to add to all_discards
-
-    Returns:
-        New MahjongRoundState with tile added to all_discards
-
-    """
-    new_all_discards = (*round_state.all_discards, tile_id)
-    return round_state.model_copy(update={"all_discards": new_all_discards})
 
 
 def clear_all_players_ippatsu(

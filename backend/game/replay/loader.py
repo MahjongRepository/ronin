@@ -11,7 +11,9 @@ events rather than silently dropping them.
 
 from __future__ import annotations
 
+import gzip
 import json
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -131,11 +133,18 @@ def load_replay_from_string(content: str) -> ReplayInput:
 
 
 def load_replay_from_file(path: str | Path) -> ReplayInput:
-    """Load a replay from a file path."""
+    """Load a replay from a file path.
+
+    Supports both plain text and gzip-compressed (.gz) replay files.
+    """
     path = Path(path)
     try:
-        content = path.read_text(encoding="utf-8")
-    except OSError as exc:
+        if path.name.endswith(".gz"):
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                content = f.read()
+        else:
+            content = path.read_text(encoding="utf-8")
+    except (OSError, EOFError, zlib.error) as exc:
         raise ReplayLoadError(f"Cannot read replay file {path}: {exc}") from exc
     return load_replay_from_string(content)
 

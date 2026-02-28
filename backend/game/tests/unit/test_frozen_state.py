@@ -21,14 +21,11 @@ from game.logic.state import (
     wind_name,
 )
 from game.logic.state_utils import (
-    add_discard_to_player,
     add_prompt_response,
     add_tile_to_player,
     advance_turn,
     clear_all_players_ippatsu,
     clear_pending_prompt,
-    remove_tile_from_player,
-    update_all_discards,
     update_player,
 )
 from game.logic.wall import Wall
@@ -95,40 +92,6 @@ class TestStateUtilsTileOperations:
         assert len(state.players[0].tiles) == 9
         assert len(new_state.players[0].tiles) == 10
         assert new_state.players[0].tiles[-1] == new_tile
-
-    def test_remove_tile_from_player(self):
-        state = self._create_round_state_with_tiles()
-        tile_to_remove = state.players[0].tiles[0]
-        new_state = remove_tile_from_player(state, 0, tile_to_remove)
-
-        assert len(state.players[0].tiles) == 9
-        assert len(new_state.players[0].tiles) == 8
-        assert tile_to_remove not in new_state.players[0].tiles
-
-    def test_remove_tile_not_in_hand_raises(self):
-        state = self._create_round_state_with_tiles()
-        with pytest.raises(ValueError, match="Tile 999 not in hand of player at seat 0"):
-            remove_tile_from_player(state, 0, 999)
-
-
-class TestStateUtilsDiscardOperations:
-    def test_add_discard_to_player(self):
-        player = MahjongPlayer(seat=0, name="Player0", score=25000)
-        state = MahjongRoundState(players=(player,))
-
-        discard = Discard(tile_id=0, is_tsumogiri=True)
-        new_state = add_discard_to_player(state, 0, discard)
-
-        assert len(state.players[0].discards) == 0
-        assert len(new_state.players[0].discards) == 1
-        assert new_state.players[0].discards[0] == discard
-
-    def test_update_all_discards(self):
-        state = MahjongRoundState(all_discards=(1, 2, 3))
-        new_state = update_all_discards(state, 4)
-
-        assert state.all_discards == (1, 2, 3)
-        assert new_state.all_discards == (1, 2, 3, 4)
 
 
 class TestStateUtilsTurnAdvance:

@@ -16,9 +16,13 @@ Portal service for room management, authentication, and game client serving.
 - `/static/` - Static files (CSS, JS) served from `frontend/public/`
 - `/game-assets/` - Built game client assets (content-hashed JS/CSS) served from `frontend/dist/`
 
+### Public (replay access)
+- `GET /play/history/{game_id}` - Game client HTML page for replay viewing (serves same play.html template, no auth required)
+- `GET /api/replays/{game_id}` - Replay API endpoint returning gzip-compressed NDJSON replay content (`Content-Encoding: gzip`, `Cache-Control: immutable`). Returns 404 for invalid/nonexistent game IDs. Rate-limited via Traefik in production
+
 ### Protected (session cookie or API key required)
 - `GET /` - Lobby HTML page (server-rendered, lists rooms from local room manager)
-- `GET /history` - History page (server-rendered, shows 20 most recent played games with player names, scores, and winner info)
+- `GET /history` - History page (server-rendered, shows 20 most recent completed games with player names, scores, winner info, and replay links)
 - `GET /play/{game_id}` - Game client HTML page (Jinja2 template serving the built frontend with content-hashed JS/CSS)
 - `POST /rooms/new` - Create a local room, 303 redirect to `/rooms/{room_id}`
 - `GET /rooms/{room_id}` - Room page (Jinja2 template with embedded TypeScript for room UI)
@@ -151,6 +155,7 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Views** (`views/`) - Jinja2 templates and view handlers split by domain:
   - `handlers.py` — Lobby and room page handlers (`lobby_page`, `room_page`, `create_room_and_redirect`, `join_room_and_redirect`)
   - `history_handlers.py` — History page handler and game data transformation (`history_page`, `_format_duration`, `_prepare_history_for_display`)
+  - `replay_handlers.py` — Replay API handler (`replay_content`); reads gzip-compressed replay files with path traversal protection and file size limits
   - `game_handlers.py` — Game client and dev page handlers (`play_page`, `styleguide_page`, `play_styleguide_page`)
   - `assets.py` — Vite manifest utilities and Jinja2 template factory (`create_templates`, `load_vite_manifest`, `resolve_vite_asset_urls`)
   - `auth_handlers.py` — Auth handlers (login, register, logout, bot_auth, bot_create_room)
@@ -185,6 +190,7 @@ ronin/
         │   ├── assets.py        # Vite manifest utilities, Jinja2 template factory
         │   ├── game_handlers.py # Game client and dev page handlers (play_page, styleguides)
         │   ├── history_handlers.py # History page handler and data transformation
+        │   ├── replay_handlers.py # Replay API handler (gzip replay file serving)
         │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth, bot_create_room)
         │   └── templates/
         │       ├── base.html   # Base template with CSS block and scripts block
@@ -261,6 +267,7 @@ Lobby settings (prefixed with `LOBBY_`):
 - `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/play`)
 - `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
 - `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `.vite/manifest.json` (default: `frontend/dist`)
+- `LOBBY_REPLAY_DIR` - Directory containing gzip-compressed replay files (default: `backend/data/replays`)
 - `LOBBY_VITE_DEV_URL` - Vite dev server URL for HMR in development (default: empty; set to `http://localhost:5173` when running Vite dev server)
 
 Auth settings (prefixed with `AUTH_`):

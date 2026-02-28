@@ -138,6 +138,16 @@ h2 {
             box-shadow: 0 0 8px color-mix(in srgb, var(--ronin-danger) 70%, transparent);
         }
     }
+
+    &.status-replay {
+        background: color-mix(in srgb, var(--ronin-gold) 12%, transparent);
+        color: var(--ronin-gold);
+        border: 1px solid color-mix(in srgb, var(--ronin-gold) 30%, transparent);
+
+        &::before {
+            background: var(--ronin-gold);
+        }
+    }
 }
 
 // ─── Log Panel ───────────────────────────────────────────────

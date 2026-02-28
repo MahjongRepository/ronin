@@ -21,6 +21,7 @@ Replay files use the compact wire format with integer event types and short fiel
 - GAME_END (t=10): final standings with scores and placement deltas
 """
 
+import gzip
 import json
 from pathlib import Path
 from typing import Any
@@ -568,8 +569,12 @@ class TenhouConverter:
 
 
 def convert_replay(filepath: Path) -> str:
-    with filepath.open() as f:
-        content = f.read().strip()
+    if filepath.name.endswith(".gz"):
+        with gzip.open(filepath, "rt", encoding="utf-8") as f:
+            content = f.read().strip()
+    else:
+        with filepath.open() as f:
+            content = f.read().strip()
     events = [json.loads(line) for line in content.split("\n") if line]
     converter = TenhouConverter(events)
     return converter.convert()
@@ -582,7 +587,7 @@ def main() -> None:
             old_file.unlink()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    replay_files = sorted(REPLAYS_DIR.glob("*.txt"))
+    replay_files = sorted(REPLAYS_DIR.glob("*.txt.gz"))
     if not replay_files:
         logger.info("No replay files found in %s", REPLAYS_DIR)
         return
@@ -590,7 +595,7 @@ def main() -> None:
     for filepath in replay_files:
         logger.info("Converting %s...", filepath.name)
         tenhou_xml = convert_replay(filepath)
-        output_path = OUTPUT_DIR / filepath.name
+        output_path = OUTPUT_DIR / filepath.name.removesuffix(".gz")
         output_path.write_text(tenhou_xml)
         logger.info("  -> %s", output_path)
 

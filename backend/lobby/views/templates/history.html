@@ -12,7 +12,7 @@
     {% if games %}
     <div class="games-list">
         {% for entry in games %}
-        <article class="games-card" style="--card-index: {{ loop.index0 }}">
+        <article class="games-card" style="--card-index: {{ loop.index0 }}" data-replay-url="/play/history/{{ entry.game.game_id }}">
             <header class="games-card-header">
                 <div class="games-card-label">
                     {% if entry.status == 'active' %}
@@ -56,9 +56,9 @@
                     {% endif %}
                 </div>
                 <button class="games-copy-btn"
-                        data-game-id="{{ entry.game.game_id }}"
-                        title="Copy game ID"
-                        aria-label="Copy game ID"
+                        data-replay-url="/play/history/{{ entry.game.game_id }}"
+                        title="Copy replay link"
+                        aria-label="Copy replay link"
                         type="button">
                     <svg class="games-copy-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>

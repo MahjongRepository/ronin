@@ -1,5 +1,6 @@
 """Tests for replay loader: event-log parsing, action extraction, error handling."""
 
+import gzip
 import json
 from typing import TYPE_CHECKING
 
@@ -427,10 +428,36 @@ def test_load_replay_from_file(tmp_path: Path):
     assert len(replay.events) == 1
 
 
+def test_load_replay_from_gzip_file(tmp_path: Path):
+    """load_replay_from_file reads gzip-compressed replay files."""
+    discard = json.dumps(
+        {
+            "t": EVENT_TYPE_INT[EventType.DISCARD],
+            "d": encode_discard(0, 118, is_tsumogiri=False, is_riichi=False),
+        },
+    )
+    content = _build_event_log(discard)
+    file_path = tmp_path / "test.txt.gz"
+    file_path.write_bytes(gzip.compress(content.encode("utf-8")))
+
+    replay = load_replay_from_file(file_path)
+    assert replay.seed == _TEST_SEED
+    assert len(replay.events) == 1
+
+
 def test_load_replay_from_file_io_error():
     """ReplayLoadError for missing file."""
     with pytest.raises(ReplayLoadError, match="Cannot read replay file"):
         load_replay_from_file("/nonexistent/path/replay.txt")
+
+
+def test_load_replay_from_corrupted_gzip_file(tmp_path: Path):
+    """ReplayLoadError for a .gz file containing invalid gzip data."""
+    file_path = tmp_path / "corrupted.txt.gz"
+    file_path.write_bytes(b"not valid gzip data at all")
+
+    with pytest.raises(ReplayLoadError, match="Cannot read replay file"):
+        load_replay_from_file(file_path)
 
 
 def test_error_missing_players():

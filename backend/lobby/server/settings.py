@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 from shared.validators import StringListEnvSettingsSource, parse_string_list
@@ -23,6 +23,7 @@ class LobbyServerSettings(BaseSettings):
     game_client_url: str = "/play"
     game_assets_dir: str = "frontend/dist"
     vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server
+    replay_dir: str = Field(default="backend/data/replays", min_length=1)
     ws_allowed_origin: str | None = "http://localhost:8710"
 
     @field_validator("cors_origins", mode="before")
