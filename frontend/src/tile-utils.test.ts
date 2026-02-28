@@ -1,5 +1,5 @@
 import { FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU, tile136toString } from "@/tile-utils";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 describe("tile136toString", () => {
     describe("suit boundaries", () => {

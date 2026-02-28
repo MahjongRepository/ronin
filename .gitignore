@@ -23,6 +23,8 @@ backend/profiles/
 deploy/assets/
 deploy/spot-llm.txt
 
+frontend/coverage
+
 # ---
 
 # AI stuff

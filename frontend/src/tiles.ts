@@ -1,6 +1,6 @@
 import { TILE_BACK, TILE_HEIGHT, TILE_WIDTH } from "@/tile-config";
 import { html, svg } from "lit-html";
-import type { TileName } from "@/tile-utils";
+import { type TileName } from "@/tile-utils";
 import backSvgRaw from "@/assets/tiles/backs/classic-yellow.svg?raw";
 import sprite from "@/assets/tiles/sprites/fluffy-stuff.svg?raw";
 

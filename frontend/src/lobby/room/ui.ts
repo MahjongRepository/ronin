@@ -5,7 +5,7 @@ import {
     getMyReadyState,
 } from "@/lobby/room/state";
 import { html, render } from "lit-html";
-import type { ActionCallbacks } from "@/lobby/room/handlers";
+import { type ActionCallbacks } from "@/lobby/room/handlers";
 
 function seatStatusIcon(player: PlayerInfo): string {
     if (player.is_bot) {

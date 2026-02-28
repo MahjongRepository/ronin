@@ -16,7 +16,7 @@
     "import/no-namespace": "off",
     "import/group-exports": "off",
     "import/exports-last": "off",
-    "import/consistent-type-specifier-style": "off",
+    "import/consistent-type-specifier-style": ["warn", "prefer-inline"],
     "func-style": ["error", "declaration"],
     "new-cap": ["warn", { "capIsNewExceptions": ["Tile", "TileBack", "TileBackColor"] }],
     "capitalized-comments": "off",
@@ -24,7 +24,7 @@
     "no-ternary": "off",
     "unicorn/no-null": "off",
     "unicorn/prefer-global-this": "off",
-    "unicorn/prefer-add-event-listener": "off",
+    "unicorn/prefer-add-event-listener": "warn",
     "sort-imports": ["warn", { "ignoreDeclarationSort": true }],
     "id-length": ["warn", { "exceptions": ["t", "a", "s"] }]
   },

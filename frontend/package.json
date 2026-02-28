@@ -11,9 +11,13 @@
     "fmt": "oxfmt src",
     "fmt:check": "oxfmt --check src",
     "sprite": "bun run scripts/build-tile-sprite.ts",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
     "optimize:back": "bunx svgo src/assets/tiles/backs/classic-yellow.svg"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
+    "happy-dom": "^20.7.0",
     "oxfmt": "^0.27.0",
     "oxlint": "^1.42.0",
     "sass": "^1.97.3",
@@ -21,7 +25,8 @@
     "stylelint-config-standard-scss": "^17.0.0",
     "svgo": "^4.0.0",
     "typescript": "^5.9.3",
-    "vite": "^6"
+    "vite": "^6",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.3",

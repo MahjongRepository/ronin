@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
-.PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend run-all-checks run-games deadcode generate-replays profile
+.PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
 
 test:
 	uv run pytest -v
@@ -27,6 +27,9 @@ format-frontend:
 
 lint-frontend:
 	cd frontend && bun run lint
+
+test-frontend:
+	cd frontend && bun run test
 
 run-debug:
 	PYTHONPATH=backend uv run python backend/debug.py

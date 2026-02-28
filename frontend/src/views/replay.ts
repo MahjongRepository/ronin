@@ -10,7 +10,7 @@ let logs: LogEntry[] = [];
 let viewGeneration = 0;
 let abortController: AbortController | null = null;
 
-function isVersionTag(line: string): boolean {
+export function isVersionTag(line: string): boolean {
     try {
         return Boolean(JSON.parse(line).version);
     } catch {
@@ -18,7 +18,7 @@ function isVersionTag(line: string): boolean {
     }
 }
 
-function extractEventType(line: string): string {
+export function extractEventType(line: string): string {
     try {
         const parsed = JSON.parse(line);
         return parsed.t !== undefined ? String(parsed.t) : LOG_TYPE_UNKNOWN;
@@ -27,7 +27,7 @@ function extractEventType(line: string): string {
     }
 }
 
-function parseReplayLines(text: string): LogEntry[] {
+export function parseReplayLines(text: string): LogEntry[] {
     return text
         .split("\n")
         .filter((line, index) => {
@@ -40,7 +40,7 @@ function parseReplayLines(text: string): LogEntry[] {
         });
 }
 
-function isAbortError(error: unknown): boolean {
+export function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === "AbortError";
 }
 

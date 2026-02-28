@@ -1,4 +1,4 @@
-import type { LobbySocket } from "@/lobby/lobby-socket";
+import { type LobbySocket } from "@/lobby/lobby-socket";
 
 interface PlayerInfo {
     name: string;
