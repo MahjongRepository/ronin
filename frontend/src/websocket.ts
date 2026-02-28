@@ -1,4 +1,9 @@
-import { ClientMessageType, ConnectionStatus, InternalMessageType } from "@/protocol";
+import {
+    CLIENT_MESSAGE_TYPE,
+    CONNECTION_STATUS,
+    type ConnectionStatus,
+    INTERNAL_MESSAGE_TYPE,
+} from "@/shared/protocol";
 import { decode, encode } from "@msgpack/msgpack";
 
 export type MessageHandler = (message: Record<string, unknown>) => void;
@@ -26,7 +31,7 @@ export class GameSocket {
 
     connect(websocketUrl: string): void {
         this.disconnectExisting();
-        this.onStatusChange(ConnectionStatus.CONNECTING);
+        this.onStatusChange(CONNECTION_STATUS.CONNECTING);
         const ws = new WebSocket(websocketUrl);
         this.ws = ws;
         ws.binaryType = "arraybuffer";
@@ -36,9 +41,9 @@ export class GameSocket {
                 return;
             }
             this.reconnectAttempts = 0;
-            this.onStatusChange(ConnectionStatus.CONNECTED);
+            this.onStatusChange(CONNECTION_STATUS.CONNECTED);
             this.pingInterval = setInterval(() => {
-                this.send({ t: ClientMessageType.PING });
+                this.send({ t: CLIENT_MESSAGE_TYPE.PING });
             }, 10_000);
         };
 
@@ -54,7 +59,7 @@ export class GameSocket {
                 } catch {
                     this.onMessage({
                         error: "failed to decode MessagePack frame",
-                        type: InternalMessageType.DECODE_ERROR,
+                        type: INTERNAL_MESSAGE_TYPE.DECODE_ERROR,
                     });
                 }
             }
@@ -66,7 +71,7 @@ export class GameSocket {
             }
             this.clearPingInterval();
             this.ws = null;
-            this.onStatusChange(ConnectionStatus.DISCONNECTED);
+            this.onStatusChange(CONNECTION_STATUS.DISCONNECTED);
             this.scheduleReconnect();
         };
 
@@ -74,7 +79,7 @@ export class GameSocket {
             if (this.ws !== ws) {
                 return;
             }
-            this.onStatusChange(ConnectionStatus.ERROR);
+            this.onStatusChange(CONNECTION_STATUS.ERROR);
         };
     }
 

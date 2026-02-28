@@ -1,3 +1,4 @@
+import "@/zod-setup";
 import "@/styles/game-app.scss";
 import { cleanupGameView, gameView } from "@/views/game";
 import { cleanupReplayView, replayView } from "@/views/replay";

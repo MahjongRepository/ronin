@@ -4,7 +4,7 @@ Two distinct frontend applications — a server-rendered lobby and a standalone 
 
 **Stack**: TypeScript, lit-html, Pico CSS v2, Sass, Vite, Bun
 
-**Import alias**: All imports use `@/` mapped to `src/` (configured in `tsconfig.json` paths and `vite.config.ts` resolve alias). Use `@/protocol` instead of `../protocol`, etc.
+**Import alias**: All imports use `@/` mapped to `src/` (configured in `tsconfig.json` paths and `vite.config.ts` resolve alias). Use `@/shared/protocol` instead of relative protocol imports, etc.
 
 ## Applications
 
@@ -134,16 +134,17 @@ WebSocket client for the game server (MessagePack binary frames). Features:
 - Periodic ping heartbeats (10s interval)
 - Connection state tracking (connecting, connected, disconnected, error)
 
-### Protocol (`protocol.ts`)
-Enum definitions matching the game server's wire protocol:
-- `ClientMessageType` — integer-keyed client→server messages (JOIN_GAME=7, RECONNECT=6, GAME_ACTION=3, CHAT=4, PING=5)
-- `EventType` — integer-keyed server→client game events (DRAW=1, DISCARD=2, ROUND_END=4, etc.)
-- `GameAction` — integer-keyed player actions (DISCARD=0, DECLARE_RIICHI=1, CALL_RON=3, etc.)
-- `SessionMessageType` — string-keyed session messages (game_reconnected, session_error, etc.)
-- `ConnectionStatus` — client-side connection states
+### Protocol (`shared/protocol/`)
+Self-contained wire protocol module using Zod schemas and const objects (replacing legacy TypeScript enums). Provides:
+- **Constants** (`constants.ts`) — all wire protocol values as `as const` objects with derived union types (EVENT_TYPE, CLIENT_MESSAGE_TYPE, GAME_ACTION, SESSION_MESSAGE_TYPE, PLAYER_ACTION, CALL_TYPE, ROUND_RESULT_TYPE, WIND, KAN_TYPE, MELD_TYPE, CONNECTION_STATUS, etc.)
+- **Decoders** (`decoders/`) — pure functions decoding compact wire integers: `decodeDraw` (packed seat+tile), `decodeDiscard` (packed seat+tile+flags), `decodeMeldCompact` (IMME 15-bit meld encoding)
+- **Schemas** (`schemas/`) — Zod schemas parsing all 19 server message types (12 game events + 7 session messages) from wire-format aliases to typed camelCase objects
+- **Message parser** (`schemas/message.ts`) — `parseServerMessage()` entry point returning Result tuple `[Error, null] | [null, ParsedServerMessage]`, routes by discriminator (string `type` for session, integer `t` for game events)
+- **Builders** (`builders/client-messages.ts`) — 14 type-safe factory functions for client-to-server messages
+- **Types** (`types.ts`) — Zod-inferred TypeScript types for all parsed messages
 
 ### Game View (`views/game.ts`)
-Renders a development log panel showing raw game events. Handles the join → play → reconnect lifecycle. Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors).
+Renders a development log panel showing parsed game events (camelCase objects via `parseServerMessage()`). Handles the join → play → reconnect lifecycle using protocol builder functions (`buildJoinGameMessage`, `buildReconnectMessage`, `buildConfirmRoundAction`). Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors). Falls back to raw JSON logging when parsing fails.
 
 ### Storybook View (`views/storybook.ts`)
 Developer-facing component showcase at `/play/storybook`. Renders all 37 tile faces organized by suit, back tile at multiple sizes, and wire ID conversion demo (`tile136toString`). Also shows connection status indicator variants. Used for visual testing of game UI components.
@@ -162,7 +163,7 @@ Tile backs have two rendering modes configured via `TILE_BACK` in `tile-config.t
 - `TileBackColor()` — Solid color rectangle for other players' hand tiles (peek strip)
 
 ### Replay View (`views/replay.ts`)
-Displays completed game replay events fetched via HTTP from `/api/replays/{gameId}`. Uses the same log panel UI as the game view but without WebSocket connection. Fetches replay NDJSON via `fetch()` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), renders event type and raw JSON in the log panel. Shows "Replay" status badge and "Back to History" navigation. Uses the `viewGeneration` pattern to handle stale renders during navigation.
+Displays completed game replay events fetched via HTTP from `/api/replays/{gameId}`. Uses the same log panel UI as the game view but without WebSocket connection. Fetches replay NDJSON via `fetch()` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), runs each through `parseServerMessage()` to produce typed camelCase objects, renders parsed event type and formatted JSON in the log panel. Falls back to raw line display on parse failure. Shows "Replay" status badge and "Back to History" navigation.
 
 ### Session Storage (`session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
@@ -234,7 +235,25 @@ frontend/
     ├── index.ts             # Game client entry point (imports game-app.scss)
     ├── router.ts            # Hash-based SPA router
     ├── env.ts               # Environment helpers (import.meta.env, build-time defines)
-    ├── protocol.ts          # Wire protocol enums (message types, events, actions)
+    ├── shared/
+    │   └── protocol/
+    │       ├── index.ts              # Public API (re-exports)
+    │       ├── constants.ts          # Wire protocol const objects & union types
+    │       ├── types.ts              # Zod-inferred type re-exports
+    │       ├── schemas/
+    │       │   ├── common.ts         # Shared schema helpers (tileId, seat, wireScore, playerInfo)
+    │       │   ├── events.ts         # 10 game event Zod schemas
+    │       │   ├── session.ts        # 6 session message schemas
+    │       │   ├── reconnect.ts      # Reconnection snapshot schema
+    │       │   ├── round-results.ts  # 6 round end result variant schemas
+    │       │   ├── call-prompt.ts    # 3 call prompt variant schemas
+    │       │   └── message.ts        # Top-level parseServerMessage() router
+    │       ├── decoders/
+    │       │   ├── draw.ts           # Packed draw integer decoder
+    │       │   ├── discard.ts        # Packed discard integer decoder
+    │       │   └── meld.ts           # IMME meld compact decoder
+    │       └── builders/
+    │           └── client-messages.ts # Client-to-server message builders
     ├── websocket.ts         # GameSocket (MessagePack, auto-reconnect)
     ├── session-storage.ts   # Game session persistence in sessionStorage
     ├── tile-config.ts       # Active tile set config (face set name, back name)
@@ -286,6 +305,7 @@ frontend/
 - `lit-html` (3.3) — Lightweight HTML template rendering (no virtual DOM)
 - `@msgpack/msgpack` (3.1) — MessagePack encode/decode for game server communication
 - `@picocss/pico` (2.1) — Classless CSS framework with dark theme support
+- `zod` — Runtime schema validation for wire protocol message parsing
 
 ### Development
 - `vite` (6.x) — Build tool and HMR dev server

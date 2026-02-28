@@ -26,7 +26,7 @@
     "unicorn/prefer-global-this": "off",
     "unicorn/prefer-add-event-listener": "warn",
     "sort-imports": ["warn", { "ignoreDeclarationSort": true }],
-    "id-length": ["warn", { "exceptions": ["t", "a", "s"] }]
+    "id-length": ["warn", { "exceptions": ["t", "a", "s", "d", "m", "p", "f", "w", "n", "h", "r", "z"] }]
   },
   "ignorePatterns": ["public/**"]
 }

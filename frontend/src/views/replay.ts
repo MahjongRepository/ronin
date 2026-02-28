@@ -1,29 +1,28 @@
 import { type TemplateResult, html, render } from "lit-html";
-import { LOG_TYPE_UNKNOWN } from "@/protocol";
+import { LOG_TYPE_UNKNOWN, parseServerMessage } from "@/shared/protocol";
 
 interface LogEntry {
     raw: string;
     type: string;
 }
 
-let logs: LogEntry[] = [];
-let viewGeneration = 0;
-let abortController: AbortController | null = null;
+interface ReplayViewState {
+    abortController: AbortController | null;
+    logs: LogEntry[];
+    viewGeneration: number;
+}
+
+let state: ReplayViewState = {
+    abortController: null,
+    logs: [],
+    viewGeneration: 0,
+};
 
 export function isVersionTag(line: string): boolean {
     try {
         return Boolean(JSON.parse(line).version);
     } catch {
         return false;
-    }
-}
-
-export function extractEventType(line: string): string {
-    try {
-        const parsed = JSON.parse(line);
-        return parsed.t !== undefined ? String(parsed.t) : LOG_TYPE_UNKNOWN;
-    } catch {
-        return LOG_TYPE_UNKNOWN;
     }
 }
 
@@ -36,7 +35,27 @@ export function parseReplayLines(text: string): LogEntry[] {
         })
         .map((line) => {
             const trimmed = line.trim();
-            return { raw: trimmed, type: extractEventType(trimmed) };
+            try {
+                const raw = JSON.parse(trimmed) as Record<string, unknown>;
+                const [error, parsed] = parseServerMessage(raw);
+                if (error) {
+                    return {
+                        raw: `${trimmed}\n[Parse error: ${error.message}]`,
+                        type: LOG_TYPE_UNKNOWN,
+                    };
+                }
+                return {
+                    raw: JSON.stringify(parsed, null, 2),
+                    type: parsed.type,
+                };
+            } catch (parseError) {
+                const detail =
+                    parseError instanceof Error ? parseError.message : String(parseError);
+                return {
+                    raw: `${trimmed}\n[JSON parse error: ${detail}]`,
+                    type: LOG_TYPE_UNKNOWN,
+                };
+            }
         });
 }
 
@@ -58,25 +77,25 @@ async function processResponse(response: Response, generation: number): Promise<
         return;
     }
     const text = await response.text();
-    if (viewGeneration !== generation) {
+    if (state.viewGeneration !== generation) {
         return;
     }
-    logs = parseReplayLines(text);
+    state.logs = parseReplayLines(text);
     updateLogPanel();
 }
 
 async function fetchReplay(gameId: string, generation: number): Promise<void> {
-    abortController = new AbortController();
+    state.abortController = new AbortController();
     try {
         const response = await fetch(`/api/replays/${gameId}`, {
-            signal: abortController.signal,
+            signal: state.abortController.signal,
         });
-        if (viewGeneration !== generation) {
+        if (state.viewGeneration !== generation) {
             return;
         }
         await processResponse(response, generation);
     } catch (error: unknown) {
-        if (isAbortError(error) || viewGeneration !== generation) {
+        if (isAbortError(error) || state.viewGeneration !== generation) {
             return;
         }
         renderSystemMessage("Failed to load replay");
@@ -101,7 +120,7 @@ function updateLogPanel(): void {
     }
     render(
         html`
-        ${logs.map(
+        ${state.logs.map(
             (entry) => html`
             <div class="log-entry log-${entry.type}">
                 <span class="log-type">${entry.type}</span>
@@ -115,11 +134,11 @@ function updateLogPanel(): void {
 }
 
 export function replayView(gameId: string): TemplateResult {
-    logs = [];
-    const generation = ++viewGeneration;
+    const generation = state.viewGeneration + 1;
+    state = { abortController: null, logs: [], viewGeneration: generation };
 
     setTimeout(() => {
-        if (viewGeneration !== generation) {
+        if (state.viewGeneration !== generation) {
             return;
         }
         renderSystemMessage("Loading replay...");
@@ -141,10 +160,14 @@ export function replayView(gameId: string): TemplateResult {
 }
 
 export function cleanupReplayView(): void {
-    viewGeneration++;
+    const { abortController } = state;
+    state = {
+        ...state,
+        abortController: null,
+        logs: [],
+        viewGeneration: state.viewGeneration + 1,
+    };
     if (abortController) {
         abortController.abort();
-        abortController = null;
     }
-    logs = [];
 }
