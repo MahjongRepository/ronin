@@ -15,24 +15,16 @@ export RESTIC_REPOSITORY="${REPO}"
 cleanup() { rm -rf "${STAGING}"; }
 trap cleanup EXIT
 
-# Stage SQLite databases via .backup for crash-safe snapshots
-mkdir -p "${STAGING}/db/lobby" "${STAGING}/db/game"
+# Stage SQLite database via .backup for a crash-safe snapshot
+mkdir -p "${STAGING}/db"
 
-LOBBY_DB="${RONIN_DIR}/data/db/lobby/lobby.db"
-GAME_DB="${RONIN_DIR}/data/db/game/game.db"
+RONIN_DB="${RONIN_DIR}/data/db/ronin.db"
 
-if [ -f "${LOBBY_DB}" ]; then
-  sqlite3 "${LOBBY_DB}" ".backup '${STAGING}/db/lobby/lobby.db'"
-  echo "Staged lobby DB"
-fi
-
-if [ -f "${GAME_DB}" ]; then
-  sqlite3 "${GAME_DB}" ".backup '${STAGING}/db/game/game.db'"
-  echo "Staged game DB"
-fi
-
-if [ ! -f "${STAGING}/db/lobby/lobby.db" ] && [ ! -f "${STAGING}/db/game/game.db" ]; then
-  echo "ERROR: No databases found to back up"
+if [ -f "${RONIN_DB}" ]; then
+  sqlite3 "${RONIN_DB}" ".backup '${STAGING}/db/ronin.db'"
+  echo "Staged ronin DB"
+else
+  echo "ERROR: No database found to back up"
   exit 1
 fi
 

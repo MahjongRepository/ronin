@@ -27,18 +27,12 @@ echo "Stopped lobby and game containers"
 mkdir -p "${STAGING}"
 restic restore "${SNAPSHOT}" --target "${STAGING}"
 
-# Restore databases (remove WAL/SHM to avoid stale state)
+# Restore database (remove WAL/SHM to avoid stale state)
 STAGED_DB="${STAGING}/opt/ronin/data/backup-staging/db"
-if [ -d "${STAGED_DB}/lobby" ]; then
-  rm -f "${RONIN_DIR}/data/db/lobby/lobby.db-wal" "${RONIN_DIR}/data/db/lobby/lobby.db-shm"
-  cp "${STAGED_DB}/lobby/lobby.db" "${RONIN_DIR}/data/db/lobby/lobby.db"
-  echo "Restored lobby DB"
-fi
-
-if [ -d "${STAGED_DB}/game" ]; then
-  rm -f "${RONIN_DIR}/data/db/game/game.db-wal" "${RONIN_DIR}/data/db/game/game.db-shm"
-  cp "${STAGED_DB}/game/game.db" "${RONIN_DIR}/data/db/game/game.db"
-  echo "Restored game DB"
+if [ -f "${STAGED_DB}/ronin.db" ]; then
+  rm -f "${RONIN_DIR}/data/db/ronin.db-wal" "${RONIN_DIR}/data/db/ronin.db-shm"
+  cp "${STAGED_DB}/ronin.db" "${RONIN_DIR}/data/db/ronin.db"
+  echo "Restored ronin DB"
 fi
 
 # Restore replays (clear first to remove files not in the snapshot)

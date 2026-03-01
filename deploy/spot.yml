@@ -84,7 +84,7 @@ tasks:
       - name: create app directory
         script: |
           mkdir -p /opt/ronin/config /opt/ronin/www
-          mkdir -p /opt/ronin/data/db/lobby /opt/ronin/data/db/game
+          mkdir -p /opt/ronin/data/db
           mkdir -p /opt/ronin/data/replays /opt/ronin/data/traefik
           # UID 1000 matches the 'app' user in deploy/Dockerfile
           chown -R 1000:1000 /opt/ronin/data
@@ -304,19 +304,15 @@ tasks:
           set -eu
           STAGING="/opt/ronin/data/backup-staging"
           rm -rf "${STAGING}"
-          mkdir -p "${STAGING}/db/lobby" "${STAGING}/db/game"
+          mkdir -p "${STAGING}/db"
 
-          LOBBY_DB="/opt/ronin/data/db/lobby/lobby.db"
-          GAME_DB="/opt/ronin/data/db/game/game.db"
-
-          if [ -f "${LOBBY_DB}" ]; then
-            sqlite3 "${LOBBY_DB}" ".backup '${STAGING}/db/lobby/lobby.db'"
-            echo "Staged lobby DB"
-          fi
-
-          if [ -f "${GAME_DB}" ]; then
-            sqlite3 "${GAME_DB}" ".backup '${STAGING}/db/game/game.db'"
-            echo "Staged game DB"
+          RONIN_DB="/opt/ronin/data/db/ronin.db"
+          if [ -f "${RONIN_DB}" ]; then
+            sqlite3 "${RONIN_DB}" ".backup '${STAGING}/db/ronin.db'"
+            echo "Staged ronin DB"
+          else
+            echo "ERROR: No database found at ${RONIN_DB}"
+            exit 1
           fi
 
           # Ensure replays dir exists for tar (may be empty)

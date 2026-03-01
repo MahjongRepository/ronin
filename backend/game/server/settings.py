@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 from shared.validators import StringListEnvSettingsSource, parse_string_list
@@ -19,10 +19,10 @@ class GameServerSettings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:8712"]
     replay_dir: str = Field(default="backend/data/replays", min_length=1)
 
-    # SQLite database file path. Reads GAME_DATABASE_PATH or AUTH_DATABASE_PATH.
+    # SQLite database file path shared with the lobby service.
     database_path: str = Field(
         default="backend/storage.db",
-        validation_alias=AliasChoices("GAME_DATABASE_PATH", "AUTH_DATABASE_PATH"),
+        validation_alias="AUTH_DATABASE_PATH",
     )
 
     # Read from AUTH_GAME_TICKET_SECRET (not GAME_GAME_TICKET_SECRET).

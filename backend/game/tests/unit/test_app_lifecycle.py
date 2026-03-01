@@ -10,7 +10,7 @@ from game.tests.mocks import MockGameService
 class TestOwnedDbShutdown:
     def test_shutdown_closes_owned_db(self, tmp_path, monkeypatch):
         """When the app creates its own SessionManager, shutdown closes the owned DB."""
-        monkeypatch.setenv("GAME_DATABASE_PATH", str(tmp_path / "test.db"))
+        monkeypatch.setenv("AUTH_DATABASE_PATH", str(tmp_path / "test.db"))
         settings = GameServerSettings()
         app = create_app(settings=settings, game_service=MockGameService())
 

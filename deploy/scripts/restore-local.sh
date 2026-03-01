@@ -20,22 +20,21 @@ trap cleanup EXIT
 mkdir -p "$STAGING"
 tar xzf "$ARCHIVE" -C "$STAGING"
 
-# Restore DB: lobby DB becomes the local dev DB (backend/storage.db)
+# Restore DB: ronin DB becomes the local dev DB (backend/storage.db)
 LOCAL_DB="$PROJECT_DIR/backend/storage.db"
-LOBBY_DB="$STAGING/db/lobby/lobby.db"
+RONIN_DB="$STAGING/db/ronin.db"
 
 if [ -f "$LOCAL_DB" ]; then
   cp "$LOCAL_DB" "${LOCAL_DB}.bak"
   echo "Backed up existing DB to storage.db.bak"
 fi
 
-if [ -f "$LOBBY_DB" ]; then
-  cp "$LOBBY_DB" "$LOCAL_DB"
-  # Remove WAL/SHM files that don't belong to this snapshot
+if [ -f "$RONIN_DB" ]; then
+  cp "$RONIN_DB" "$LOCAL_DB"
   rm -f "${LOCAL_DB}-wal" "${LOCAL_DB}-shm"
-  echo "Restored lobby DB → backend/storage.db"
+  echo "Restored ronin DB -> backend/storage.db"
 else
-  echo "WARNING: No lobby DB found in backup"
+  echo "WARNING: No ronin DB found in backup"
 fi
 
 # Restore replays (clear first to remove files not in the snapshot)
