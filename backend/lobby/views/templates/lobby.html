@@ -20,6 +20,11 @@
             </button>
         </form>
 
+        <a href="/matchmaking" class="lobby-matchmaking-btn">
+            <span class="lobby-matchmaking-icon">&#x25C8;</span>
+            <span class="lobby-matchmaking-label">Find Match</span>
+        </a>
+
         {% for room in rooms %}
         <article class="lobby-room-card" style="--card-index: {{ loop.index0 }}">
             <div class="lobby-room-header">

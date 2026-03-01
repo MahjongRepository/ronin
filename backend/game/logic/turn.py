@@ -379,7 +379,7 @@ def _finalize_no_callers(
         new_round, new_game = declare_riichi(new_round, new_game, current_seat, settings)
         events.append(RiichiDeclaredEvent(seat=current_seat, target="all"))
 
-        if settings.has_suucha_riichi and check_four_riichi(new_round, settings):
+        if settings.has_suucha_riichi and check_four_riichi(new_round):
             return _check_abortive_draw(new_round, new_game, AbortiveDrawType.FOUR_RIICHI, events)
 
     new_round = advance_turn(new_round)

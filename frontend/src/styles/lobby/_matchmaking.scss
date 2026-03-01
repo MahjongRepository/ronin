@@ -1,0 +1,70 @@
+// Matchmaking waiting page and lobby button
+
+// ─── Lobby Grid Button ─────────────────────────────────────
+
+.lobby-matchmaking-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 200px;
+    background: transparent;
+    border: 2px dashed var(--ronin-border);
+    border-radius: 0.75rem;
+    color: var(--pico-muted-color);
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+        border-color 0.3s ease,
+        color 0.3s ease,
+        background 0.3s ease;
+
+    &:hover {
+        border-color: var(--pico-primary);
+        color: var(--pico-primary);
+        background: color-mix(in srgb, var(--pico-primary) 4%, transparent);
+    }
+}
+
+.lobby-matchmaking-icon {
+    font-size: 2.5rem;
+    line-height: 1;
+}
+
+.lobby-matchmaking-label {
+    font-family: var(--ronin-font-display);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+// ─── Matchmaking Waiting Page ──────────────────────────────
+
+.matchmaking-app {
+    text-align: center;
+    padding: 3rem 2rem;
+
+    h2 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 1rem;
+    }
+}
+
+.matchmaking-status {
+    color: var(--ronin-text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.matchmaking-queue-count {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.85rem;
+    color: var(--pico-primary);
+    margin-bottom: 1.5rem;
+
+    &:empty {
+        display: none;
+    }
+}

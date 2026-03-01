@@ -12,7 +12,7 @@ http:
 
     # Rate-limited bot API endpoints
     lobby-bot-api:
-      rule: "Host(`%%DOMAIN%%`) && (Path(`/api/auth/bot`) || Path(`/api/rooms`)) && Method(`POST`)"
+      rule: "Host(`%%DOMAIN%%`) && (Path(`/api/auth/bot`) || Path(`/api/rooms`) || Path(`/api/matchmaking/join`)) && Method(`POST`)"
       entryPoints: ["websecure"]
       service: lobby
       tls:
@@ -20,9 +20,9 @@ http:
       middlewares: ["security-headers", "bot-ratelimit"]
       priority: 20
 
-    # Lobby WebSocket — /ws/rooms/ routes to lobby, not game
+    # Lobby WebSocket — /ws/rooms/ and /ws/matchmaking route to lobby, not game
     lobby-ws:
-      rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/ws/rooms/`)"
+      rule: "Host(`%%DOMAIN%%`) && (PathPrefix(`/ws/rooms/`) || Path(`/ws/matchmaking`))"
       entryPoints: ["websecure"]
       service: lobby
       tls:

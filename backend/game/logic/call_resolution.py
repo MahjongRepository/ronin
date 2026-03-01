@@ -459,7 +459,7 @@ def resolve_call_prompt(  # noqa: PLR0911
 
         # four riichi check only when this resolution finalized riichi
         settings = resolved_game.settings
-        if riichi_finalized and settings.has_suucha_riichi and check_four_riichi(resolved_round, settings):
+        if riichi_finalized and settings.has_suucha_riichi and check_four_riichi(resolved_round):
             result = process_abortive_draw(resolved_game, AbortiveDrawType.FOUR_RIICHI)
             new_round_state = clear_pending_prompt(resolved_round)
             new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})

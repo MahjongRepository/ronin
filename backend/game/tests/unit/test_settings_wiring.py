@@ -60,8 +60,8 @@ class TestValidateSettings:
             validate_settings(GameSettings(tie_break_by_seat_order=False))
 
     def test_multiple_unsupported_values_reports_all(self):
-        with pytest.raises(UnsupportedSettingsError, match=r"num_players=3.*has_agariyame"):
-            validate_settings(GameSettings(num_players=3, has_agariyame=True))
+        with pytest.raises(UnsupportedSettingsError, match=r"has_agariyame.*renhou_value=BAIMAN"):
+            validate_settings(GameSettings(has_agariyame=True, renhou_value=RenhouValue.BAIMAN))
 
     def test_renhou_mangan_passes(self):
         validate_settings(GameSettings(renhou_value=RenhouValue.MANGAN))

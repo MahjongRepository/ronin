@@ -6,11 +6,11 @@ from game.logic.enums import GamePhase, RoundPhase, RoundResultType
 from game.logic.rng import RNG_VERSION, determine_first_dealer
 from game.logic.settings import (
     NUM_PLAYERS,
+    WIND_THRESHOLDS,
     EnchousenType,
     GameSettings,
     GameType,
     LeftoverRiichiBets,
-    get_wind_thresholds,
     validate_settings,
 )
 from game.logic.state import (
@@ -261,9 +261,9 @@ def _get_winner_seats(result: RoundResult) -> list[int]:
     raise AssertionError(f"unexpected result type in _get_winner_seats: {type(result)}")  # pragma: no cover
 
 
-def _get_wind_for_unique_dealers(unique_dealers: int, settings: GameSettings) -> int:
+def _get_wind_for_unique_dealers(unique_dealers: int) -> int:
     """Determine round wind based on unique dealers count."""
-    east_max, south_max, _west_max = get_wind_thresholds(settings)
+    east_max, south_max, _west_max = WIND_THRESHOLDS
     if unique_dealers <= east_max:
         return 0  # East
     if unique_dealers <= south_max:
@@ -293,7 +293,7 @@ def process_round_end(
     if should_rotate:
         new_dealer_seat = (dealer_seat + 1) % NUM_PLAYERS
         new_unique_dealers += 1
-        new_round_wind = _get_wind_for_unique_dealers(new_unique_dealers, game_state.settings)
+        new_round_wind = _get_wind_for_unique_dealers(new_unique_dealers)
 
     # Create new round state with updated dealer and round wind
     new_round_state = round_state.model_copy(
@@ -332,7 +332,7 @@ def check_game_end(game_state: MahjongGameState) -> bool:
     if settings.tobi_enabled and any(player.score < settings.tobi_threshold for player in round_state.players):
         return True
 
-    east_max, south_max, west_max = get_wind_thresholds(settings)
+    east_max, south_max, west_max = WIND_THRESHOLDS
     has_winner = any(player.score >= settings.winning_score_threshold for player in round_state.players)
 
     if settings.game_type == GameType.TONPUSEN:

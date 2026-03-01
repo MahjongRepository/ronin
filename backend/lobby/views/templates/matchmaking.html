@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="lobby-section">
+    <div class="matchmaking-app" id="matchmaking-app"
+         data-ws-url="{{ ws_url }}">
+        <h2>Finding Match...</h2>
+        <p class="matchmaking-status">Connecting...</p>
+        <p class="matchmaking-queue-count"></p>
+        <a href="/" class="outline">Cancel</a>
+    </div>
+</section>
+{% endblock %}

@@ -240,18 +240,16 @@ class TestCheckFourRiichi:
     def test_four_riichi_returns_true(self):
         """Returns True when all 4 players have declared riichi."""
         round_state = self._create_round_state(riichi_seats=(0, 1, 2, 3))
-        settings = GameSettings()
 
-        result = check_four_riichi(round_state, settings)
+        result = check_four_riichi(round_state)
 
         assert result is True
 
     def test_three_riichi_returns_false(self):
         """Returns False when only 3 players have declared riichi."""
         round_state = self._create_round_state(riichi_seats=(0, 1, 2))
-        settings = GameSettings()
 
-        result = check_four_riichi(round_state, settings)
+        result = check_four_riichi(round_state)
 
         assert result is False
 

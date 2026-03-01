@@ -70,15 +70,6 @@ class TestGameType:
         assert check_game_end(game_state) is False
 
 
-class TestNumPlayers:
-    """Verify num_players setting exists and is validated."""
-
-    def test_validate_rejects_non_4_num_players(self):
-        settings = GameSettings(num_players=3)
-        with pytest.raises(UnsupportedSettingsError, match="num_players=3 is not supported"):
-            validate_settings(settings)
-
-
 class TestStartingScore:
     """Verify starting_score setting is used from settings, not hardcoded."""
 

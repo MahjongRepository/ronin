@@ -23,6 +23,9 @@ from lobby.views.handlers import (
     lobby_page as lobby_page,
 )
 from lobby.views.handlers import (
+    matchmaking_page as matchmaking_page,
+)
+from lobby.views.handlers import (
     room_page as room_page,
 )
 from lobby.views.history_handlers import history_page as history_page

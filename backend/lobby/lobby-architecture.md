@@ -23,6 +23,7 @@ Portal service for room management, authentication, and game client serving.
 ### Protected (session cookie or API key required)
 - `GET /` - Lobby HTML page (server-rendered, lists rooms from local room manager)
 - `GET /history` - History page (server-rendered, shows 20 most recent completed games with player names, scores, winner info, and replay links)
+- `GET /matchmaking` - Matchmaking waiting page (Jinja2 template with WebSocket-based queue UI)
 - `GET /play/{game_id}` - Game client HTML page (Jinja2 template serving the built frontend with content-hashed JS/CSS)
 - `POST /rooms/new` - Create a local room, 303 redirect to `/rooms/{room_id}`
 - `GET /rooms/{room_id}` - Room page (Jinja2 template with embedded TypeScript for room UI)
@@ -32,9 +33,11 @@ Portal service for room management, authentication, and game client serving.
 ### Bot-Only (bot account required)
 - `POST /api/auth/bot` - Create a lobby session for an authenticated bot to join a room via WebSocket (403 for human accounts)
 - `POST /api/rooms` - Create a room (bot API); accepts optional `min_human_players` (integer 1-4, default 1) to require multiple humans before game start; returns `room_id`, `session_id`, and `ws_url` (403 for human accounts)
+- `POST /api/matchmaking/join` - Create a lobby session for a bot to join matchmaking via WebSocket; returns `session_id` and `ws_url` (403 for human accounts)
 
 ### WebSocket (auth handled inside the handler)
 - `WS /ws/rooms/{room_id}` - Room WebSocket (JSON protocol, session cookie auth, origin check)
+- `WS /ws/matchmaking` - Matchmaking WebSocket (JSON protocol, session cookie auth, origin check)
 
 ## Authentication
 
@@ -42,7 +45,7 @@ Ronin uses a three-layer authentication model:
 
 1. **Player Accounts** - Username/password registration and login via the lobby web interface. Passwords are hashed with bcrypt.
 2. **HMAC-Signed Game Tickets** - The lobby signs HMAC-SHA256 tickets that the game server verifies locally using a shared secret. Tickets contain player identity and room binding.
-3. **Bot API Keys** - External bots authenticate via `X-API-Key` header on protected API routes (`POST /api/auth/bot`, `POST /api/rooms`). The lobby validates the key and returns a lobby session for WebSocket access.
+3. **Bot API Keys** - External bots authenticate via `X-API-Key` header on protected API routes (`POST /api/auth/bot`, `POST /api/rooms`, `POST /api/matchmaking/join`). The lobby validates the key and returns a lobby session for WebSocket access.
 
 Human users register and log in through the lobby at `/register` and `/login`. After authentication, creating or joining a room redirects to the room page (`/rooms/{room_id}`). Game tickets are signed when the room owner starts the game and the lobby transitions to the game server. The `SessionOrApiKeyBackend` checks session cookies first, then the `session_id` query parameter (WebSocket connections only), then falls back to `X-API-Key` header for bot accounts. The backend propagates `account_type` (HUMAN or BOT) from `AuthSession` to `AuthenticatedPlayer`, enabling the `bot_only` policy decorator to distinguish account types at the route level.
 
@@ -83,6 +86,22 @@ Server-to-client messages:
 - `{"type": "owner_changed", "is_owner": true, "can_start": false, "players": [...]}` - Sent to new owner on host transfer
 - `{"type": "chat", "player_name": "...", "text": "..."}` - Chat broadcast
 - `{"type": "game_starting", "ws_url": "...", "game_ticket": "...", "game_id": "...", "game_client_url": "/play"}` - Game transition
+- `{"type": "error", "message": "..."}` - Error message
+- `{"type": "pong"}` - Heartbeat response
+
+### Matchmaking WebSocket Protocol
+
+The lobby matchmaking WebSocket uses JSON text frames. Players connect to `/ws/matchmaking` and are added to a FIFO queue. When 4 players are queued, the server automatically creates a game with 0 AI players and sends game transition messages to all matched players.
+
+Cross-system guard: a user already in a room cannot join matchmaking (rejected with `already_in_room`). Duplicate connections from the same user are rejected with `already_in_queue`.
+
+Client-to-server messages:
+- `{"type": "ping"}` - Heartbeat keep-alive
+
+Server-to-client messages:
+- `{"type": "queue_joined", "position": int, "queue_size": int}` - Sent on successful queue join
+- `{"type": "queue_update", "queue_size": int}` - Broadcast when queue size changes
+- `{"type": "game_starting", "ws_url": "...", "game_ticket": "...", "game_id": "...", "game_client_url": "/play"}` - Game transition (same shape as room game_starting)
 - `{"type": "error", "message": "..."}` - Error message
 - `{"type": "pong"}` - Heartbeat response
 
@@ -142,7 +161,7 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Host header validation**: `TrustedHostMiddleware` rejects requests with unrecognized `Host` headers. New deployment hosts must be added to `LOBBY_ALLOWED_HOSTS`.
 - **Cookie security**: `AUTH_COOKIE_SECURE` defaults to `true` (production). Local development (`.env.local`) and tests must explicitly set `false`. Session cookies and CSRF cookies must use `httponly=True`, `samesite="lax"`.
 - **Session ID query param restricted to WebSocket only**: The `SessionOrApiKeyBackend` must only read `session_id` from query parameters for WebSocket connections (`scope["type"] == "websocket"`). HTTP requests must use cookies only.
-- **WebSocket origin check**: Room WebSocket connections must validate the `Origin` header against `LOBBY_WS_ALLOWED_ORIGIN`.
+- **WebSocket origin check**: Room and matchmaking WebSocket connections must validate the `Origin` header against `LOBBY_WS_ALLOWED_ORIGIN`.
 - **CSP headers**: `SecurityHeadersMiddleware` applies route-aware Content Security Policy (2 tiers). Lobby pages allow `script-src 'self'`; game pages add `ws: wss:` to `connect-src`. New routes must fit an existing CSP tier or have an explicit policy added.
 - **Sensitive data logging**: Never log passwords, API keys, session IDs, or game tickets at INFO level or above.
 
@@ -153,15 +172,18 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Auth** (`auth/`) - Starlette `AuthenticationMiddleware` with `SessionOrApiKeyBackend` for cookie/query-param session or `X-API-Key` header authentication; route authorization via `protected_html`, `protected_api`, `bot_only`, and `public_route` policy decorators with startup validation (fail-closed); JSON API routes (`/servers`, `/api/*`) return 401 instead of redirect when unauthenticated
 - **CSRF** (`server/csrf.py`) - Double-submit cookie pattern for state-changing HTML POST routes. `get_or_create_csrf_token()` generates tokens on first GET, `validate_csrf()` enforces matching cookie and form field on POST. Protected routes: `/login`, `/register`, `/logout`, `/rooms/new`, `/rooms/{room_id}/join`
 - **Views** (`views/`) - Jinja2 templates and view handlers split by domain:
-  - `handlers.py` — Lobby and room page handlers (`lobby_page`, `room_page`, `create_room_and_redirect`, `join_room_and_redirect`)
+  - `handlers.py` — Lobby, room, and matchmaking page handlers (`lobby_page`, `room_page`, `matchmaking_page`, `create_room_and_redirect`, `join_room_and_redirect`)
   - `history_handlers.py` — History page handler and game data transformation (`history_page`, `_format_duration`, `_prepare_history_for_display`)
   - `replay_handlers.py` — Replay API handler (`replay_content`); reads gzip-compressed replay files with path traversal protection and file size limits
   - `game_handlers.py` — Game client and dev page handlers (`play_page`, `styleguide_page`)
   - `assets.py` — Vite manifest utilities and Jinja2 template factory (`create_templates`, `load_vite_manifest`, `resolve_vite_asset_urls`)
-  - `auth_handlers.py` — Auth handlers (login, register, logout, bot_auth, bot_create_room)
+  - `auth_handlers.py` — Auth handlers (login, register, logout, bot_auth, bot_create_room, bot_matchmaking_auth)
   - `__init__.py` — Barrel re-exports for stable imports from `lobby.views`
 - **Registry** (`registry/`) - Game server discovery and health checks
 - **Rooms** (`rooms/`) - Room management: `LobbyRoomManager` (room state, TTL reaper), `RoomConnectionManager` (WebSocket broadcasting), WebSocket handler (auth, origin check, game transition), typed message models, room data models
+- **Matchmaking** (`matchmaking/`) - Matchmaking queue: `MatchmakingManager` (queue state, asyncio.Lock for concurrency), WebSocket handler (auth, origin check, queue join, match trigger, game transition), typed message models, queue entry model
+- **Game Transition** (`game_transition.py`) - Shared game creation logic (`create_game_on_server`, `sign_player_tickets`, `GameTransitionError`) used by both rooms and matchmaking
+- **WebSocket Utilities** (`websocket_utils.py`) - Shared WebSocket helpers (`check_origin`) used by both room and matchmaking handlers
 
 Dependencies on `shared/`:
 - `shared.logging.setup_logging` - Timestamped file and stdout logging
@@ -186,15 +208,16 @@ ronin/
         │   └── policy.py       # Route auth policy decorators and startup validation
         ├── views/
         │   ├── __init__.py      # Barrel re-exports (stable import surface for app.py)
-        │   ├── handlers.py      # Lobby and room page handlers (lobby_page, room_page, create/join)
+        │   ├── handlers.py      # Lobby, room, and matchmaking page handlers
         │   ├── assets.py        # Vite manifest utilities, Jinja2 template factory
         │   ├── game_handlers.py # Game client and dev page handlers (play_page, styleguides)
         │   ├── history_handlers.py # History page handler and data transformation
         │   ├── replay_handlers.py # Replay API handler (gzip replay file serving)
-        │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth, bot_create_room)
+        │   ├── auth_handlers.py # Auth handlers (login, register, logout, bot_auth, bot_create_room, bot_matchmaking_auth)
         │   └── templates/
         │       ├── base.html   # Base template with CSS block and scripts block
         │       ├── lobby.html  # Lobby page template
+        │       ├── matchmaking.html # Matchmaking waiting page template
         │       ├── room.html   # Room page template (WebSocket-based room UI)
         │       ├── history.html # History page template (recent played games)
         │       ├── play.html   # Game client template (manifest-driven asset URLs)
@@ -210,6 +233,14 @@ ronin/
         │   ├── messages.py     # Typed client->server lobby message models
         │   ├── models.py       # LobbyRoom, LobbyPlayer, LobbyPlayerInfo
         │   └── websocket.py    # Room WebSocket handler (auth, origin check, game transition)
+        ├── matchmaking/
+        │   ├── __init__.py
+        │   ├── manager.py      # MatchmakingManager (queue state, asyncio.Lock)
+        │   ├── messages.py     # Typed client->server matchmaking message models
+        │   ├── models.py       # QueueEntry, MATCHMAKING_SEATS constant
+        │   └── websocket.py    # Matchmaking WebSocket handler
+        ├── game_transition.py  # Shared game creation logic (create_game_on_server, sign_player_tickets)
+        ├── websocket_utils.py  # Shared WebSocket utilities (check_origin)
         └── tests/
             ├── unit/
             └── integration/
@@ -233,6 +264,14 @@ ronin/
 5. Bot is auto-joined as room owner (seat 0); with the default `min_human_players=1`, `can_start` is `true` immediately since all other seats are bots
 6. Bot sends `{"type": "start_game"}` to trigger the game transition
 
+### Bot Matchmaking Flow (POST /api/matchmaking/join)
+1. Bot authenticates via `X-API-Key` header
+2. Lobby creates a session and returns `session_id` and `ws_url` for matchmaking WebSocket
+3. Bot connects to `/ws/matchmaking` using the `session_id` query parameter
+4. Bot waits in the queue until 4 players are matched
+5. Server sends `game_starting` with game ticket and WebSocket URL
+6. Bot connects to the game server WebSocket
+
 ### Game Transition Flow (owner starts game)
 1. Non-owner players set ready via `set_ready` WebSocket message
 2. Owner sees `can_start: true` when at least `min_human_players` humans have joined and all non-owner humans are ready
@@ -251,7 +290,7 @@ ronin/
 
 ## Key Implementation Details
 
-- **Application state injection**: Services (`RegistryManager`, `LobbyRoomManager`, `RoomConnectionManager`, `LobbyServerSettings`) are stored on `app.state` at creation time and accessed in handlers via `request.app.state`.
+- **Application state injection**: Services (`RegistryManager`, `LobbyRoomManager`, `RoomConnectionManager`, `MatchmakingManager`, `LobbyServerSettings`) are stored on `app.state` at creation time and accessed in handlers via `request.app.state`.
 - **Module-level instantiation**: Importing `lobby.server.app` triggers settings creation, logging setup, and app creation. The `create_app()` factory exists for testing with custom settings.
 - **Room data is strongly typed**: Room state is managed via `LobbyRoom` dataclass and `LobbyPlayerInfo` Pydantic model.
 

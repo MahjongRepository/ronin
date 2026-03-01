@@ -189,9 +189,8 @@ class TestWestRoundRotation:
 
     def test_wind_is_west_for_unique_dealers_9_to_12(self):
         """unique_dealers 9-12 all map to wind 2 (West)."""
-        settings = GameSettings()
         for ud in range(9, 13):
-            assert _get_wind_for_unique_dealers(ud, settings) == 2
+            assert _get_wind_for_unique_dealers(ud) == 2
 
     def test_west_1_non_dealer_win_advances_to_west_2(self):
         """Non-dealer win at West-1 rotates to West-2."""

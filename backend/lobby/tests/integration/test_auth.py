@@ -657,3 +657,61 @@ class TestCsrfProtection:
             data={"username": "a", "password": "b", "csrf_token": "forged-token"},
         )
         assert response.status_code == 403
+
+
+class TestBotMatchmakingAuth:
+    """Test bot matchmaking auth via POST /api/matchmaking/join with X-API-Key header."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        c = _make_client(tmp_path)
+        yield c
+        c.app.state.db.close()
+
+    def test_bot_matchmaking_auth_returns_session_and_ws_url(self, client):
+        _, raw_key = _insert_bot(client, "bot-mm-id", "MatchBot")
+        response = client.post(
+            "/api/matchmaking/join",
+            headers={"x-api-key": raw_key},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "session_id" in data
+        assert "/ws/matchmaking" in data["ws_url"]
+
+        # Verify the session is valid and preserves bot identity
+        auth_service = client.app.state.auth_service
+        session = auth_service.validate_session(data["session_id"])
+        assert session is not None
+        assert session.username == "MatchBot"
+        assert session.account_type == AccountType.BOT
+
+    def test_bot_matchmaking_auth_invalid_key_returns_401(self, client):
+        response = client.post(
+            "/api/matchmaking/join",
+            headers={"x-api-key": "bogus-key"},
+        )
+        assert response.status_code == 401
+
+    def test_human_session_gets_403_on_matchmaking_join(self, client):
+        _register_user(client, "humanuser")
+        response = client.post("/api/matchmaking/join")
+        assert response.status_code == 403
+        assert "Bot account required" in response.json()["error"]
+
+    def test_bot_session_can_be_used_for_ws_auth(self, client):
+        """Bot session from /api/matchmaking/join is valid for WebSocket authentication."""
+        _, raw_key = _insert_bot(client, "bot-ws-id", "WSBot")
+        response = client.post(
+            "/api/matchmaking/join",
+            headers={"x-api-key": raw_key},
+        )
+        data = response.json()
+
+        # Verify the session_id from the endpoint can be validated by the auth service
+        # (the same validation the WebSocket auth backend uses for session_id query param)
+        auth_service = client.app.state.auth_service
+        session = auth_service.validate_session(data["session_id"])
+        assert session is not None
+        assert session.user_id == "bot-ws-id"
+        assert session.account_type == AccountType.BOT

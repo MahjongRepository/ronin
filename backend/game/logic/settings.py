@@ -50,7 +50,6 @@ class GameSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     # --- Game Structure ---
-    num_players: int = 4
     game_type: GameType = GameType.HANCHAN
     starting_score: int = 25000
     target_score: int = 30000
@@ -145,6 +144,11 @@ class GameSettings(BaseModel):
 NUM_PLAYERS = 4
 MAX_AI_PLAYERS = NUM_PLAYERS - 1
 
+# (east_max, south_max, west_max) dealer thresholds — raw boundaries based on
+# NUM_PLAYERS.  The caller (check_game_end) selects which threshold is the
+# primary wind boundary based on game_type.
+WIND_THRESHOLDS: tuple[int, int, int] = (NUM_PLAYERS, NUM_PLAYERS * 2, NUM_PLAYERS * 3)
+
 
 def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
     """Validate timer-related settings are within acceptable ranges."""
@@ -172,9 +176,6 @@ def validate_settings(settings: GameSettings) -> None:
     """
     errors: list[str] = []
 
-    if settings.num_players != NUM_PLAYERS:
-        errors.append(f"num_players={settings.num_players} is not supported (only {NUM_PLAYERS}-player games)")
-
     if settings.has_agariyame:
         errors.append("has_agariyame=True is not supported (agariyame not yet implemented)")
 
@@ -184,8 +185,8 @@ def validate_settings(settings: GameSettings) -> None:
     if not settings.tie_break_by_seat_order:
         errors.append("tie_break_by_seat_order=False is not supported (no alternative tie-break strategy)")
 
-    if len(settings.uma) != settings.num_players:
-        errors.append(f"uma must have {settings.num_players} entries, got {len(settings.uma)}")
+    if len(settings.uma) != NUM_PLAYERS:
+        errors.append(f"uma must have {NUM_PLAYERS} entries, got {len(settings.uma)}")
 
     if sum(settings.uma) != 0:
         errors.append(f"uma values must sum to zero, got {sum(settings.uma)}")
@@ -194,16 +195,6 @@ def validate_settings(settings: GameSettings) -> None:
 
     if errors:
         raise UnsupportedSettingsError("; ".join(errors))
-
-
-def get_wind_thresholds(settings: GameSettings) -> tuple[int, int, int]:
-    """Compute (east_max, south_max, west_max) dealer thresholds.
-
-    Returns raw boundaries based on num_players. The caller (check_game_end)
-    selects which threshold is the primary wind boundary based on game_type.
-    """
-    n = settings.num_players
-    return (n, n * 2, n * 3)
 
 
 def build_optional_rules(settings: GameSettings) -> OptionalRules:

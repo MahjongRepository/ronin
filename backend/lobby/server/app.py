@@ -25,6 +25,8 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
+from lobby.matchmaking.manager import MatchmakingManager
+from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.registry.manager import RegistryManager
 from lobby.rooms.connections import RoomConnectionManager
 from lobby.rooms.manager import LobbyRoomManager
@@ -38,13 +40,23 @@ from lobby.views import (
     join_room_and_redirect,
     load_vite_manifest,
     lobby_page,
+    matchmaking_page,
     play_page,
     replay_content,
     resolve_vite_asset_urls,
     room_page,
     storybook_page,
 )
-from lobby.views.auth_handlers import bot_auth, bot_create_room, login, login_page, logout, register, register_page
+from lobby.views.auth_handlers import (
+    bot_auth,
+    bot_create_room,
+    bot_matchmaking_auth,
+    login,
+    login_page,
+    logout,
+    register,
+    register_page,
+)
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings
@@ -116,6 +128,7 @@ def create_app(
     static_dir = Path(settings.static_dir).resolve()
     game_assets_dir = Path(settings.game_assets_dir).resolve()
 
+    matchmaking_manager = MatchmakingManager()
     room_connections = RoomConnectionManager()
     room_manager = LobbyRoomManager(
         room_ttl_seconds=300,
@@ -151,10 +164,12 @@ def create_app(
             methods=["POST"],
             name="join_room_and_redirect",
         ),
+        Route("/matchmaking", protected_html(matchmaking_page), methods=["GET"], name="matchmaking_page"),
         # Protected JSON routes (return 401 JSON when unauthenticated)
         Route("/servers", protected_api(list_servers), methods=["GET"], name="list_servers"),
-        # WebSocket route (auth handled inside the handler)
+        # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
+        WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
         # Public routes
         Route("/health", public_route(health), methods=["GET"], name="health"),
         Route("/login", public_route(login_page), methods=["GET"], name="login_page"),
@@ -164,6 +179,12 @@ def create_app(
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/api/auth/bot", bot_only(bot_auth), methods=["POST"], name="bot_auth"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
+        Route(
+            "/api/matchmaking/join",
+            bot_only(bot_matchmaking_auth),
+            methods=["POST"],
+            name="bot_matchmaking_auth",
+        ),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
     ]
 
@@ -230,6 +251,7 @@ def create_app(
         auth_service=auth_service,
         room_manager=room_manager,
         room_connections=room_connections,
+        matchmaking_manager=matchmaking_manager,
     )
 
     logger.info("lobby server ready")
@@ -247,6 +269,7 @@ def _attach_state(  # noqa: PLR0913
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
     room_connections: RoomConnectionManager,
+    matchmaking_manager: MatchmakingManager,
 ) -> None:
     app.state.db = db
     app.state.game_repo = game_repo
@@ -290,6 +313,7 @@ def _attach_state(  # noqa: PLR0913
     app.state.auth_service = auth_service
     app.state.room_manager = room_manager
     app.state.room_connections = room_connections
+    app.state.matchmaking_manager = matchmaking_manager
 
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore

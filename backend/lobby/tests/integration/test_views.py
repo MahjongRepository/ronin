@@ -210,6 +210,21 @@ servers:
         assert "game_assets" not in route_names
         app.state.db.close()
 
+    def test_matchmaking_page_returns_html(self, client):
+        """GET /matchmaking returns the matchmaking page."""
+        response = client.get("/matchmaking")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "matchmaking-app" in response.text
+        assert "ws://" in response.text
+
+    def test_matchmaking_page_sets_csrf_cookie_on_first_visit(self, client):
+        """Matchmaking page sets CSRF cookie when none exists yet."""
+        client.cookies.delete(CSRF_COOKIE_NAME)
+        response = client.get("/matchmaking")
+        assert response.status_code == 200
+        assert CSRF_COOKIE_NAME in response.cookies
+
     def test_room_page_returns_template(self, client):
         """GET /rooms/{room_id} returns room page template when room exists."""
         room_manager = client.app.state.room_manager

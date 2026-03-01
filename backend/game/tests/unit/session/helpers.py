@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from game.logic.enums import WindName
+from game.logic.settings import NUM_PLAYERS
 from game.logic.types import GameView, PlayerView
 from game.messaging.types import SessionMessageType
 from game.server.types import PlayerSpec
@@ -23,7 +24,7 @@ async def create_started_game(
     Creates a pending game, joins players via JOIN_GAME, and waits for the
     game to start automatically when all expected players connect.
     """
-    num_players = 4 - num_ai_players
+    num_players = NUM_PLAYERS - num_ai_players
     if player_names is None:
         player_names = [f"Player{i}" for i in range(num_players)]
     if len(player_names) != num_players:

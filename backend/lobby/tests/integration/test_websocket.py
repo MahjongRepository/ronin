@@ -410,7 +410,7 @@ class TestGameTransition:
 
         with (
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
-            patch("lobby.rooms.websocket.httpx.AsyncClient") as mock_client_cls,
+            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_response)
@@ -450,7 +450,7 @@ class TestGameTransition:
 
         with (
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
-            patch("lobby.rooms.websocket.httpx.AsyncClient") as mock_client_cls,
+            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
             patch.object(app.state.room_connections, "send_to", side_effect=failing_send_to),
         ):
             mock_client = AsyncMock()
@@ -476,7 +476,7 @@ class TestGameTransition:
 
         with (
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
-            patch("lobby.rooms.websocket.httpx.AsyncClient") as mock_client_cls,
+            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_response)
@@ -506,7 +506,7 @@ class TestGameTransition:
 
         with (
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
-            patch("lobby.rooms.websocket.httpx.AsyncClient") as mock_client_cls,
+            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))

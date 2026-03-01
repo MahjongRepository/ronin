@@ -186,6 +186,10 @@ class LobbyRoomManager:
             if not room.transitioning
         ]
 
+    def has_user_in_any_room(self, user_id: str) -> bool:
+        """Check if a user is in any active room."""
+        return any(room.has_user(user_id) for room in self._rooms.values())
+
     def remove_room(self, room_id: str) -> None:
         """Remove a room after game starts successfully."""
         room = self._rooms.pop(room_id, None)

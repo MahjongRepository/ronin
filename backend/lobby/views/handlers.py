@@ -99,6 +99,28 @@ async def join_room_and_redirect(request: Request) -> Response:
     return RedirectResponse(f"/rooms/{room_id}", status_code=303)
 
 
+async def matchmaking_page(request: Request) -> Response:
+    """GET /matchmaking - render matchmaking waiting page."""
+    templates: Jinja2Templates = request.app.state.templates
+    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
+    ws_url = f"{ws_scheme}://{request.url.netloc}/ws/matchmaking"
+
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(
+        request,
+        "matchmaking.html",
+        {
+            "ws_url": ws_url,
+            "username": request.user.username,
+            "csrf_token": csrf_token,
+        },
+    )
+    if is_new:
+        auth_settings = request.app.state.auth_settings
+        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+    return response
+
+
 async def room_page(request: Request) -> Response:
     """GET /rooms/{room_id} - render the room page."""
     templates: Jinja2Templates = request.app.state.templates

@@ -366,7 +366,7 @@ class TestMahjongGameServiceUnsupportedSettings:
 
     async def test_unsupported_settings_returns_error_event(self):
         """start_game with unsupported settings returns ErrorEvent, not exception."""
-        settings = GameSettings(num_players=3)
+        settings = GameSettings(has_agariyame=True)
         service = MahjongGameService(settings=settings)
         events = await service.start_game("game1", ["Alice"])
 
@@ -374,7 +374,7 @@ class TestMahjongGameServiceUnsupportedSettings:
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
-        assert "num_players=3" in events[0].data.message
+        assert "has_agariyame" in events[0].data.message
 
 
 class TestMahjongGameServiceInvalidSeed:

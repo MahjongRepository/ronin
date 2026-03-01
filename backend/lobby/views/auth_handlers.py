@@ -182,6 +182,20 @@ async def bot_auth(request: Request) -> Response:
     return JSONResponse({"session_id": session.session_id, "room_id": room_id, "ws_url": ws_url})
 
 
+async def bot_matchmaking_auth(request: Request) -> Response:
+    """POST /api/matchmaking/join - create lobby session for bot to join matchmaking via WS."""
+    auth_service = request.app.state.auth_service
+    session = auth_service.create_session(
+        request.user.user_id,
+        request.user.username,
+        account_type=request.user.account_type,
+    )
+
+    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
+    ws_url = f"{ws_scheme}://{request.url.netloc}/ws/matchmaking"
+    return JSONResponse({"session_id": session.session_id, "ws_url": ws_url})
+
+
 async def bot_create_room(request: Request) -> Response:
     """POST /api/rooms - create a room (bot API key auth via header)."""
     body = await _parse_json_body(request)

@@ -1,28 +1,19 @@
 from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.settings import (
+    WIND_THRESHOLDS,
     GameSettings,
-    GameType,
     RenhouValue,
     build_optional_rules,
-    get_wind_thresholds,
 )
 
 
-class TestGetWindThresholds:
+class TestWindThresholds:
     def test_four_players(self):
-        settings = GameSettings(game_type=GameType.HANCHAN)
-        east, south, west = get_wind_thresholds(settings)
+        east, south, west = WIND_THRESHOLDS
         assert east == 4
         assert south == 8
         assert west == 12
-
-    def test_thresholds_scale_with_player_count(self):
-        settings = GameSettings(num_players=3)
-        east, south, west = get_wind_thresholds(settings)
-        assert east == 3
-        assert south == 6
-        assert west == 9
 
 
 class TestBuildOptionalRules:

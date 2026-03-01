@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from game.logic.enums import AbortiveDrawType
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import WINDS_34, is_terminal_or_honor, tile_to_34
 from game.logic.types import AbortiveDrawResult
 
@@ -80,12 +81,12 @@ def call_kyuushu_kyuuhai(
     return round_state, result
 
 
-def check_four_riichi(round_state: MahjongRoundState, settings: GameSettings) -> bool:
+def check_four_riichi(round_state: MahjongRoundState) -> bool:
     """
     Check if all players have declared riichi (abortive draw condition).
     """
     riichi_count = sum(1 for p in round_state.players if p.is_riichi)
-    return riichi_count == settings.num_players
+    return riichi_count == NUM_PLAYERS
 
 
 def check_triple_ron(ron_callers: list[int], triple_ron_count: int) -> bool:

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import uuid
-from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import httpx
 import structlog
 from pydantic import ValidationError
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from lobby.game_transition import GameTransitionError, create_game_on_server, sign_player_tickets
 from lobby.rooms.messages import (
     LobbyChatMessage,
     LobbyLeaveRoomMessage,
@@ -19,7 +19,7 @@ from lobby.rooms.messages import (
     LobbyStartGameMessage,
     parse_lobby_message,
 )
-from shared.auth.game_ticket import create_signed_ticket
+from lobby.websocket_utils import check_origin
 
 if TYPE_CHECKING:
     from lobby.registry.manager import RegistryManager
@@ -58,7 +58,7 @@ class _RoomContext:
 
 async def room_websocket(websocket: WebSocket) -> None:
     """Handle a WebSocket connection for a lobby room."""
-    if not _check_origin(websocket):
+    if not check_origin(websocket):
         await websocket.close(code=4003, reason="forbidden_origin")
         return
 
@@ -111,15 +111,6 @@ async def room_websocket(websocket: WebSocket) -> None:
         await _cleanup_connection(ctx)
 
 
-def _check_origin(websocket: WebSocket) -> bool:
-    settings: LobbyServerSettings = websocket.app.state.settings
-    ws_allowed_origin = settings.ws_allowed_origin
-    if not ws_allowed_origin:
-        return True
-    origin = websocket.headers.get("origin", "")
-    return origin == ws_allowed_origin
-
-
 async def _broadcast_player_joined(ctx: _RoomContext) -> None:
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is not None:
@@ -140,6 +131,9 @@ async def _message_loop(websocket: WebSocket, ctx: _RoomContext) -> None:
         raw = await websocket.receive_text()
         try:
             message = parse_lobby_message(raw)
+        except json.JSONDecodeError:
+            await websocket.send_json({"type": "error", "message": "Invalid JSON"})
+            continue
         except (ValueError, ValidationError) as e:
             await websocket.send_json({"type": "error", "message": str(e)})
             continue
@@ -223,22 +217,15 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
     log.info("game transition starting", player_count=room.player_count)
 
     # Sign game tickets for each player
-    player_specs = []
-    ticket_map: dict[str, str] = {}  # connection_id -> signed_ticket
-    for conn_id, player in room.players.items():
-        signed_ticket = create_signed_ticket(
-            player.user_id,
-            player.username,
-            room_id,
-            ctx.auth_settings.game_ticket_secret,
-        )
-        player_specs.append(
-            {"name": player.username, "user_id": player.user_id, "game_ticket": signed_ticket},
-        )
-        ticket_map[conn_id] = signed_ticket
+    players_for_tickets = [(player.user_id, player.username, conn_id) for conn_id, player in room.players.items()]
+    player_specs, ticket_map = sign_player_tickets(
+        players_for_tickets,
+        room_id,
+        ctx.auth_settings.game_ticket_secret,
+    )
 
     try:
-        ws_url = await _create_game_on_server(
+        ws_url = await create_game_on_server(
             room_id,
             player_specs,
             room.num_ai_players,
@@ -304,47 +291,6 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
     ctx.room_manager.remove_room(room_id)
     await ctx.room_connections.close_connections(room_id)
     return True
-
-
-class GameTransitionError(Exception):
-    pass
-
-
-_HTTP_CREATED = HTTPStatus.CREATED
-
-
-async def _create_game_on_server(
-    game_id: str,
-    players: list[dict],
-    num_ai_players: int,
-    registry: RegistryManager,
-) -> str:
-    """Call POST /games on a game server. Return the game server WebSocket URL."""
-    await registry.check_health()
-    healthy_servers = registry.get_healthy_servers()
-    if not healthy_servers:
-        raise GameTransitionError("No healthy game servers available")
-
-    server = healthy_servers[0]
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            response = await client.post(
-                f"{server.url}/games",
-                json={
-                    "game_id": game_id,
-                    "players": players,
-                    "num_ai_players": num_ai_players,
-                },
-            )
-            if response.status_code != _HTTP_CREATED:
-                raise GameTransitionError(
-                    f"Game server returned {response.status_code}: {response.text}",
-                )
-        except httpx.RequestError as e:
-            raise GameTransitionError(f"Failed to connect to game server: {e}") from e
-
-    ws_url = server.client_url.replace("http://", "ws://").replace("https://", "wss://")
-    return f"{ws_url}/ws/{game_id}"
 
 
 async def _handle_chat(ctx: _RoomContext, message: LobbyChatMessage) -> None:
