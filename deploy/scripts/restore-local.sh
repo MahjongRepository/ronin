@@ -38,11 +38,12 @@ else
   echo "WARNING: No lobby DB found in backup"
 fi
 
-# Restore replays
+# Restore replays (clear first to remove files not in the snapshot)
 REPLAY_SRC="$STAGING/replays"
 REPLAY_DST="$PROJECT_DIR/backend/data/replays"
 
 if [ -d "$REPLAY_SRC" ]; then
+  rm -rf "$REPLAY_DST"
   mkdir -p "$REPLAY_DST"
   cp -a "$REPLAY_SRC/." "$REPLAY_DST/"
   echo "Restored replays → backend/data/replays/"

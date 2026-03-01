@@ -1,0 +1,33 @@
+# Server-side Makefile for manual service control.
+# Deployed to /opt/ronin/Makefile by the deploy task.
+
+.PHONY: update stop restart down status logs shell
+
+# Pull latest images and restart changed services
+update:
+	docker compose pull
+	docker compose up -d --remove-orphans
+
+# Stop all services (containers preserved)
+stop:
+	docker compose stop
+
+# Restart all services
+restart:
+	docker compose restart
+
+# Stop and remove all containers
+down:
+	docker compose down
+
+# Show service status
+status:
+	docker compose ps
+
+# Follow service logs
+logs:
+	docker compose logs -f --tail=100
+
+# Open a shell inside the lobby container (has access to lobby DB for admin scripts)
+shell:
+	docker compose exec lobby sh

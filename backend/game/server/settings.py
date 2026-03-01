@@ -15,7 +15,7 @@ class GameServerSettings(BaseSettings):
     model_config = {"env_prefix": "GAME_"}
 
     max_capacity: int = Field(default=100, ge=1)
-    log_dir: str = Field(default="backend/logs/game", min_length=1)
+    log_dir: str = ""
     cors_origins: list[str] = ["http://localhost:8712"]
     replay_dir: str = Field(default="backend/data/replays", min_length=1)
 

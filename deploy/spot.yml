@@ -47,49 +47,44 @@ tasks:
           ufw allow https
           ufw --force enable
 
-      - name: restrict docker external access
+      - name: upload docker firewall script
+        copy: {src: "scripts/docker-firewall.sh", dst: "/tmp/ronin-docker-firewall.sh"}
+
+      - name: install docker firewall script
         script: |
-          # Docker bypasses UFW by manipulating iptables directly.
-          # The DOCKER-USER chain is processed before Docker's own rules.
-          # Allow HTTP/HTTPS to Traefik container, block everything else.
-          # Detect the default interface from the routing table.
-          # Extract the value after "dev" regardless of field position
-          # (output format varies with/without gateway hop).
-          IFACE=$(ip -o route get 8.8.8.8 | sed -n 's/.*dev \([^ ]*\).*/\1/p')
-          if [ -z "$IFACE" ]; then
-            echo "ERROR: could not detect default network interface"
-            exit 1
-          fi
-          echo "Detected default interface: $IFACE"
-          # Flush and rebuild for idempotency.
-          iptables -F DOCKER-USER
-          iptables -A DOCKER-USER -i "$IFACE" -p tcp --dport 80 -j ACCEPT
-          iptables -A DOCKER-USER -i "$IFACE" -p tcp --dport 443 -j ACCEPT
-          iptables -A DOCKER-USER -i "$IFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-          iptables -A DOCKER-USER -i "$IFACE" -j DROP
-          iptables -A DOCKER-USER -j RETURN
-          ip6tables -F DOCKER-USER
-          ip6tables -A DOCKER-USER -i "$IFACE" -p tcp --dport 80 -j ACCEPT
-          ip6tables -A DOCKER-USER -i "$IFACE" -p tcp --dport 443 -j ACCEPT
-          ip6tables -A DOCKER-USER -i "$IFACE" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-          ip6tables -A DOCKER-USER -i "$IFACE" -j DROP
-          ip6tables -A DOCKER-USER -j RETURN
+          mkdir -p /opt/ronin/scripts
+          cp /tmp/ronin-docker-firewall.sh /opt/ronin/scripts/docker-firewall.sh
+          chmod +x /opt/ronin/scripts/docker-firewall.sh
+          rm -f /tmp/ronin-docker-firewall.sh
+
+      - name: restrict docker external access
+        script: /opt/ronin/scripts/docker-firewall.sh
 
       - name: persist docker firewall rules
         script: |
           DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
           netfilter-persistent save
 
+      - name: install docker firewall systemd service
+        copy: {src: "scripts/systemd/ronin-docker-firewall.service", dst: "/etc/systemd/system/ronin-docker-firewall.service"}
+
+      - name: enable docker firewall service
+        script: systemctl daemon-reload && systemctl enable ronin-docker-firewall.service
+
   - name: bootstrap
     commands:
       - name: install base packages
-        script: apt-get update && apt-get install -y kitty-terminfo micro
+        script: apt-get update && apt-get install -y kitty-terminfo micro make sqlite3
+
+      - name: set login directory
+        script: |
+          grep -q 'cd /opt/ronin' /root/.bashrc 2>/dev/null && exit 0
+          echo 'cd /opt/ronin' >> /root/.bashrc
 
       - name: create app directory
         script: |
           mkdir -p /opt/ronin/config /opt/ronin/www
           mkdir -p /opt/ronin/data/db/lobby /opt/ronin/data/db/game
-          mkdir -p /opt/ronin/data/logs/lobby /opt/ronin/data/logs/game
           mkdir -p /opt/ronin/data/replays /opt/ronin/data/traefik
           # UID 1000 matches the 'app' user in deploy/Dockerfile
           chown -R 1000:1000 /opt/ronin/data
@@ -123,6 +118,9 @@ tasks:
 
   - name: deploy
     commands:
+      - name: upload server makefile
+        copy: {src: "Makefile.server", dst: "/opt/ronin/Makefile"}
+
       - name: upload docker-compose
         copy: {src: "docker-compose.yml", dst: "/opt/ronin/docker-compose.yml"}
 
@@ -165,10 +163,62 @@ tasks:
       - name: verify traefik is running
         wait: {cmd: "cd /opt/ronin && docker compose ps traefik --format json | grep -q running", timeout: "30s", interval: "5s"}
 
+  - name: update
+    commands:
+      - name: pull and restart services
+        script: cd /opt/ronin && make update
+
+  - name: stop
+    commands:
+      - name: stop services
+        script: cd /opt/ronin && make stop
+
+  - name: restart
+    commands:
+      - name: restart services
+        script: cd /opt/ronin && make restart
+
+  - name: down
+    commands:
+      - name: stop and remove services
+        script: cd /opt/ronin && make down
+
+  - name: status
+    commands:
+      - name: show service status
+        script: cd /opt/ronin && make status
+
+  - name: check-logs-errors
+    commands:
+      - name: show errors from logs
+        script: |
+          SINCE="${SINCE:-1 day ago}"
+          echo "Checking ronin logs since: $SINCE"
+          echo ""
+          # Syslog-level errors (OOM kills, crashes, stderr output)
+          SYSLOG_ERRORS=$(journalctl CONTAINER_TAG=ronin --since "$SINCE" -p err --no-pager 2>/dev/null || true)
+          if [ -n "$SYSLOG_ERRORS" ]; then
+            echo "=== System-level errors ==="
+            echo "$SYSLOG_ERRORS"
+            echo ""
+          fi
+          # App-level errors (structured JSON logs with error/critical level)
+          journalctl CONTAINER_TAG=ronin --since "$SINCE" --no-pager -o cat 2>/dev/null \
+            | grep -E '"log_level":\s*"(error|critical)"' || echo "No application errors found."
+
   - name: setup-restic
     commands:
-      - name: install restic and sqlite3
-        script: apt-get update && apt-get install -y restic sqlite3
+      - name: install restic
+        script: |
+          RESTIC_VERSION=0.18.1
+          if restic version 2>/dev/null | grep -q "$RESTIC_VERSION"; then
+            echo "restic $RESTIC_VERSION already installed"
+          else
+            apt-get update && apt-get install -y bzip2
+            curl -fsSL "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2" \
+              | bunzip2 > /usr/local/bin/restic
+            chmod +x /usr/local/bin/restic
+          fi
 
       - name: create backup directory
         script: mkdir -p /opt/ronin/backups
@@ -212,6 +262,22 @@ tasks:
 
       - name: enable backup timer
         script: systemctl daemon-reload && systemctl enable --now ronin-backup.timer
+
+  - name: setup-journald
+    commands:
+      - name: configure journald retention
+        script: |
+          mkdir -p /etc/systemd/journald.conf.d
+          cat > /etc/systemd/journald.conf.d/ronin.conf << 'CONF'
+          [Journal]
+          Storage=persistent
+          SystemMaxUse=500M
+          MaxRetentionSec=30day
+          Compress=yes
+          CONF
+          mkdir -p /var/log/journal
+          systemd-tmpfiles --create --prefix /var/log/journal
+          systemctl restart systemd-journald
 
   - name: backup
     commands:
@@ -277,3 +343,5 @@ tasks:
           set +a
           export RESTIC_REPOSITORY=/opt/ronin/backups
           restic snapshots
+          echo ""
+          restic stats --mode raw-data

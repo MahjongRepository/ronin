@@ -26,6 +26,13 @@ services:
       - "--api.dashboard=false"
       - "--log.level=INFO"
       - "--log.format=json"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--accesslog.fields.headers.defaultmode=drop"
+    logging:
+      driver: journald
+      options:
+        tag: "ronin"
 
   lobby:
     image: ghcr.io/mahjongrepository/ronin:latest
@@ -47,13 +54,11 @@ services:
       LOBBY_ALLOWED_HOSTS: %%DOMAIN%%,localhost
       LOBBY_WS_ALLOWED_ORIGIN: https://%%DOMAIN%%
       LOBBY_REPLAY_DIR: /app/data/replays
-      LOBBY_LOG_DIR: /app/data/logs/lobby
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./config/servers.yaml:/app/config/servers.yaml:ro
       - ./data/db/lobby:/app/data/db
-      - ./data/logs/lobby:/app/data/logs/lobby
       - ./data/replays:/app/data/replays:ro
     depends_on:
       game:
@@ -65,6 +70,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    logging:
+      driver: journald
+      options:
+        tag: "ronin"
 
   game:
     image: ghcr.io/mahjongrepository/ronin:latest
@@ -78,13 +87,11 @@ services:
     environment:
       AUTH_GAME_TICKET_SECRET: ${AUTH_GAME_TICKET_SECRET:?Set AUTH_GAME_TICKET_SECRET}
       GAME_DATABASE_PATH: /app/data/db/game.db
-      GAME_LOG_DIR: /app/data/logs/game
       GAME_REPLAY_DIR: /app/data/replays
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./data/db/game:/app/data/db
-      - ./data/logs/game:/app/data/logs/game
       - ./data/replays:/app/data/replays
     restart: unless-stopped
     healthcheck:
@@ -93,3 +100,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    logging:
+      driver: journald
+      options:
+        tag: "ronin"

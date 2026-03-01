@@ -14,7 +14,7 @@ class TestLobbyServerSettings:
         monkeypatch.delenv("LOBBY_GAME_CLIENT_URL", raising=False)
         monkeypatch.delenv("LOBBY_GAME_ASSETS_DIR", raising=False)
         settings = LobbyServerSettings()
-        assert settings.log_dir == "backend/logs/lobby"
+        assert settings.log_dir == ""
         assert settings.cors_origins == []
         assert settings.config_path is None
         assert settings.game_client_url == "/play"

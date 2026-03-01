@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class LobbyServerSettings(BaseSettings):
     model_config = {"env_prefix": "LOBBY_"}
 
-    log_dir: str = "backend/logs/lobby"
+    log_dir: str = ""
     cors_origins: list[str] = []
     allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver", "*.local"]
     config_path: Path | None = None

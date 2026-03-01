@@ -34,6 +34,7 @@ class TestSetupLogging:
         test_logger.info("hello from test")
 
         assert log_path is not None
+        assert log_path.name == "app.log"
         content = log_path.read_text()
         assert "hello from test" in content
 
@@ -46,7 +47,16 @@ class TestSetupLogging:
 
         assert log_dir.exists()
         assert log_path is not None
+        assert log_path.name == "app.log"
         assert "nested log" in log_path.read_text()
+
+    def test_empty_log_dir_skips_file_handler(self, tmp_path):
+        log_path = setup_logging(log_dir="")
+        root = logging.getLogger()
+
+        assert log_path is None
+        assert len(root.handlers) == 1  # stdout only
+        assert not any(isinstance(h, logging.handlers.WatchedFileHandler) for h in root.handlers)
 
     def test_clears_existing_handlers_on_repeated_calls(self):
         setup_logging()

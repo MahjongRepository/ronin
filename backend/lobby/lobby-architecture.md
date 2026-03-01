@@ -260,7 +260,7 @@ ronin/
 Lobby settings (prefixed with `LOBBY_`):
 
 - `LOBBY_CONFIG_PATH` - Override default servers.yaml file path (default: `backend/config/servers.yaml`)
-- `LOBBY_LOG_DIR` - Log file directory (default: `backend/logs/lobby`)
+- `LOBBY_LOG_DIR` - Log file directory for local dev file logging (default: empty, disabled)
 - `LOBBY_CORS_ORIGINS` - Allowed CORS origins as JSON array or CSV string (default: `[]`)
 - `LOBBY_ALLOWED_HOSTS` - Allowed hosts for Host header validation as JSON array or CSV string (default: `["localhost", "127.0.0.1", "testserver", "*.local"]`)
 - `LOBBY_STATIC_DIR` - Static files directory for CSS (default: `frontend/public`)

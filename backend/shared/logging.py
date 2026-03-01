@@ -9,9 +9,9 @@ Environment variables:
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import os
 import sys
-from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,8 +21,6 @@ import structlog
 if TYPE_CHECKING:
     from collections.abc import MutableMapping
     from typing import Any
-
-LOG_FILE_TIMESTAMP_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
 _VALID_LOG_FORMATS = {"json", "console", ""}
 _VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
@@ -89,9 +87,9 @@ def setup_logging(
     """Configure structlog with stdout and optional file output.
 
     Log level is resolved from the LOG_LEVEL env var (default: INFO).
-    When log_dir is provided, creates a datetime-stamped log file
-    inside that directory. Returns the log file path if created,
-    None otherwise.
+    When log_dir is provided, writes to a fixed ``app.log`` file inside
+    that directory using WatchedFileHandler (compatible with logrotate).
+    Returns the log file path if created, None otherwise.
     """
     json_mode = _resolve_json_mode()
 
@@ -134,13 +132,12 @@ def setup_logging(
     stdout_handler.setFormatter(stdout_formatter)
     root_logger.addHandler(stdout_handler)
 
-    if log_dir is not None and not _is_test():
+    if log_dir and not _is_test():
         dir_path = Path(log_dir)
         dir_path.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(tz=UTC).strftime(LOG_FILE_TIMESTAMP_FORMAT)
-        file_path = dir_path / f"{timestamp}.log"
+        file_path = dir_path / "app.log"
         file_formatter = _build_stdlib_formatter(json_mode=json_mode, colors=False)
-        file_handler = logging.FileHandler(file_path)
+        file_handler = logging.handlers.WatchedFileHandler(file_path)
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
         return file_path

@@ -31,6 +31,11 @@ if [ -f "${GAME_DB}" ]; then
   echo "Staged game DB"
 fi
 
+if [ ! -f "${STAGING}/db/lobby/lobby.db" ] && [ ! -f "${STAGING}/db/game/game.db" ]; then
+  echo "ERROR: No databases found to back up"
+  exit 1
+fi
+
 # Run restic backup: staged DBs + replays
 restic backup \
   "${STAGING}/db" \

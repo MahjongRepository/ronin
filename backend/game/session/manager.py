@@ -70,13 +70,11 @@ class SessionManager:
     def __init__(
         self,
         game_service: GameService,
-        log_dir: str | None = None,
         replay_collector: ReplayCollector | None = None,
         game_repository: GameRepository | None = None,
     ) -> None:
         self._game_service = game_service
         self._game_repository = game_repository
-        self._log_dir = log_dir
         self._replay_collector = replay_collector
         self._connections: dict[str, ConnectionProtocol] = {}
         self._players: dict[str, Player] = {}  # connection_id -> Player

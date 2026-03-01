@@ -1,0 +1,11 @@
+[Unit]
+Description=Re-apply DOCKER-USER iptables rules
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ronin/scripts/docker-firewall.sh
+
+[Install]
+WantedBy=docker.service

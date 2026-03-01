@@ -63,7 +63,7 @@ cd deploy
 make spot-provision TARGET=<target>
 ```
 
-Disables SSH password authentication, installs Docker, configures the firewall (UFW + iptables DOCKER-USER chain), and sets up restic backups with a daily timer.
+Disables SSH password authentication, installs Docker, configures the firewall (UFW + iptables DOCKER-USER chain), sets up restic backups with a daily timer, and configures journald for persistent log storage.
 
 ## Deploying changes
 
@@ -120,14 +120,71 @@ All commands run from `deploy/` and require `TARGET=<target>`.
 
 ```
 make spot-bootstrap TARGET=<target>        # base packages, dirs, env templates
-make spot-provision TARGET=<target>        # SSH hardening, Docker, firewall, backups
+make spot-provision TARGET=<target>        # SSH hardening, Docker, firewall, backups, journald
 make spot-deploy TARGET=<target>           # pull image, restart services
+make spot-update TARGET=<target>           # pull latest images, restart changed services
+make spot-stop TARGET=<target>             # stop all services (containers preserved)
+make spot-restart TARGET=<target>          # restart all services
+make spot-down TARGET=<target>             # stop and remove all containers
+make spot-status TARGET=<target>           # show service status
 make spot-backup TARGET=<target>           # run a manual backup
 make spot-backup-list TARGET=<target>      # list backup snapshots
 make spot-restore TARGET=<target>          # restore from latest snapshot
 make spot-restore TARGET=<target> SNAPSHOT=<id>  # restore specific snapshot
 make spot-run TASK=<task> TARGET=<target>  # run any spot task by name
 ```
+
+## Manual server control
+
+A `Makefile` is deployed to `/opt/ronin/` for direct use when SSH'd into the server:
+
+```
+cd /opt/ronin
+make update    # pull latest images, restart changed services
+make stop      # stop all services (containers preserved)
+make restart   # restart all services
+make down      # stop and remove all containers
+make status    # show service status
+make logs      # follow service logs
+```
+
+The spot tasks (`spot-update`, `spot-stop`, etc.) call the same server Makefile targets remotely.
+
+## Logging
+
+All container logs (app output + crash traces + OOM kills) go to journald via Docker's `journald` logging driver. journald provides persistent storage, time-based querying, and automatic rotation (500MB max, 30-day retention).
+
+### Querying logs
+
+```bash
+# Follow all ronin logs
+journalctl CONTAINER_TAG=ronin -f
+
+# Lobby logs from last 24 hours
+journalctl CONTAINER_NAME=ronin-lobby-1 --since "1 day ago"
+
+# Errors only from last day
+journalctl CONTAINER_NAME=ronin-lobby-1 --since "1 day ago" -p err
+
+# Game server logs for a specific date range
+journalctl CONTAINER_NAME=ronin-game-1 --since "2026-03-01" --until "2026-03-02"
+
+# Export as JSON
+journalctl CONTAINER_TAG=ronin --since "1 day ago" -o json --no-pager
+```
+
+`docker compose logs` and `make logs` still work as before.
+
+### Local development
+
+For file-based logs during local development, set environment variables:
+
+```bash
+export LOBBY_LOG_DIR=backend/logs/lobby
+export GAME_LOG_DIR=backend/logs/game
+```
+
+When these are unset (or empty), app-level file logging is disabled and logs go to stdout only.
 
 ## SSH authentication
 

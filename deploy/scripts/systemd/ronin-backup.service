@@ -3,4 +3,5 @@ Description=Ronin backup (SQLite databases, replays)
 
 [Service]
 Type=oneshot
+Environment=HOME=/root
 ExecStart=/opt/ronin/scripts/backup.sh

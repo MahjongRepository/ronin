@@ -149,7 +149,6 @@ def create_app(
         replay_collector = ReplayCollector(storage)
         session_manager = SessionManager(
             game_service,
-            log_dir=settings.log_dir,
             replay_collector=replay_collector,
             game_repository=game_repository,
         )

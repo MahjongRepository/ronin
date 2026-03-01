@@ -25,10 +25,6 @@ class TestGameServerSettings:
         with pytest.raises(ValidationError, match="max_capacity"):
             GameServerSettings(max_capacity=value)
 
-    def test_log_dir_empty_rejected(self):
-        with pytest.raises(ValidationError, match="log_dir"):
-            GameServerSettings(log_dir="")
-
     def test_replay_dir_empty_rejected(self):
         with pytest.raises(ValidationError, match="replay_dir"):
             GameServerSettings(replay_dir="")

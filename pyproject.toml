@@ -74,6 +74,7 @@ ignore = [
     "SLF001", # Private member accessed
 ]
 # Base class methods define the interface contract; parameters are unused in the default implementation
+"backend/scripts/*.py" = ["T201", "PLR2004", "S106"]
 "backend/game/logic/ai_player.py" = ["ARG002"]
 "backend/game/logic/shanten.py" = ["TID251"]
 
@@ -128,7 +129,7 @@ unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
 source = ["backend"]
-omit = ["**/tests/*", "**/test_*", "backend/game/logic/ai_player.py", "backend/game/logic/ai_player_controller.py", "backend/debug.py", "backend/shared/logging.py", "backend/game/replay/external/tenhou.py"]
+omit = ["**/tests/*", "**/test_*", "backend/scripts/*", "backend/game/logic/ai_player.py", "backend/game/logic/ai_player_controller.py", "backend/debug.py", "backend/shared/logging.py", "backend/game/replay/external/tenhou.py"]
 
 [tool.coverage.report]
 show_missing = true

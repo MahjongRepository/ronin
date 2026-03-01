@@ -41,9 +41,11 @@ if [ -d "${STAGED_DB}/game" ]; then
   echo "Restored game DB"
 fi
 
-# Restore replays
+# Restore replays (clear first to remove files not in the snapshot)
 STAGED_REPLAYS="${STAGING}/opt/ronin/data/replays"
 if [ -d "${STAGED_REPLAYS}" ]; then
+  rm -rf "${RONIN_DIR}/data/replays"
+  mkdir -p "${RONIN_DIR}/data/replays"
   cp -a "${STAGED_REPLAYS}/." "${RONIN_DIR}/data/replays/"
   echo "Restored replays"
 fi
