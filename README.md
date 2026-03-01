@@ -2,7 +2,7 @@
 
 It is an open Riichi Mahjong game server and client that you can run on your infrastructure.
 
-Ronin is in an early stage of development, the server is still cooking, and a client doesn't exist at all.
+Ronin is in an early stage of development, the first version of the server is ready and tested well, while client is in early prototyping stage.
 
 ## Backend
 
