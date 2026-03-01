@@ -1,4 +1,4 @@
-import { NUM_DISCARD_FLAGS, NUM_TILES, SEAT_TILE_SPACE } from "../constants";
+import { NUM_DISCARD_FLAGS, NUM_TILES, SEAT_TILE_SPACE } from "@/shared/protocol/constants";
 
 const MAX_DISCARD = NUM_DISCARD_FLAGS * SEAT_TILE_SPACE - 1; // 2175
 

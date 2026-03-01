@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EVENT_TYPE } from "../constants";
+
+import { EVENT_TYPE } from "@/shared/protocol/constants";
 import {
     discardSchema,
     doraRevealedSchema,
@@ -11,7 +12,7 @@ import {
     meldSchema,
     riichiDeclaredSchema,
     roundStartedSchema,
-} from "../schemas/events";
+} from "@/shared/protocol/schemas/events";
 
 describe("gameStartedSchema", () => {
     it("parses realistic wire payload with 4 players", () => {

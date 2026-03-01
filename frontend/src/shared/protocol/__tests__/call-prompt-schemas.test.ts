@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "../constants";
-import { parseCallPrompt } from "../schemas/call-prompt";
+
+import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
+import { parseCallPrompt } from "@/shared/protocol/schemas/call-prompt";
 
 describe("parseCallPrompt", () => {
     describe("ron prompt (clt=0)", () => {

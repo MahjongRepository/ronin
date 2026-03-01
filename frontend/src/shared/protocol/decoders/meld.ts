@@ -1,4 +1,4 @@
-import { type MeldType } from "../constants";
+import { type MeldType } from "@/shared/protocol/constants";
 
 export interface DecodedMeld {
     calledTileId: number | null;

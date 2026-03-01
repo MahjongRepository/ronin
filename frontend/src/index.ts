@@ -1,8 +1,8 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
+import { initRouter } from "@/router";
 import { cleanupGameView, gameView } from "@/views/game";
 import { cleanupReplayView, replayView } from "@/views/replay";
-import { initRouter } from "@/router";
 import { storybookView } from "@/views/storybook";
 
 const app = document.getElementById("app");

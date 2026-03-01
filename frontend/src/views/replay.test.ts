@@ -1,5 +1,6 @@
-import { isAbortError, isVersionTag, parseReplayLines } from "@/views/replay";
 import { describe, expect, test } from "vitest";
+
+import { isAbortError, isVersionTag, parseReplayLines } from "@/views/replay";
 
 describe("isVersionTag", () => {
     test("detects version field", () => {

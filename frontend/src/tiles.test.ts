@@ -1,6 +1,7 @@
-import { Tile, TileBack, TileBackColor, injectSprite } from "@/tiles";
 import { type TemplateResult, render } from "lit-html";
 import { afterEach, describe, expect, test } from "vitest";
+
+import { Tile, TileBack, TileBackColor, injectSprite } from "@/tiles";
 
 function renderTo(template: TemplateResult): HTMLElement {
     const el = document.createElement("div");

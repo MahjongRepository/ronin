@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { SESSION_MESSAGE_TYPE } from "../constants";
-import { gameReconnectedSchema } from "../schemas/reconnect";
+import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+import { gameReconnectedSchema } from "@/shared/protocol/schemas/reconnect";
 
 // Realistic reconnection payload matching the wire format from
 // backend/game/session/manager.py:642-644 (ReconnectionSnapshot with aliases + injected type).

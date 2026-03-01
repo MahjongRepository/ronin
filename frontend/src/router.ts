@@ -1,4 +1,5 @@
 import { type TemplateResult, render } from "lit-html";
+
 import { getLobbyUrl } from "@/env";
 
 interface Route {

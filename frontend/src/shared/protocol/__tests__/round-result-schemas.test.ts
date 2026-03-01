@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ABORTIVE_DRAW_TYPE, EVENT_TYPE, ROUND_RESULT_TYPE } from "../constants";
-import { parseRoundEnd } from "../schemas/round-results";
+
+import { ABORTIVE_DRAW_TYPE, EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
+import { parseRoundEnd } from "@/shared/protocol/schemas/round-results";
 
 describe("parseRoundEnd", () => {
     describe("tsumo (rt=0)", () => {

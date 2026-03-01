@@ -5,7 +5,8 @@
 
 import { z } from "zod";
 
-import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "../constants";
+import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
+
 import { seatSchema, tileIdSchema } from "./common";
 
 // --- Available call option (inside meld prompt `ac` array) ---

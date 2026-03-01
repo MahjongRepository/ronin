@@ -1,11 +1,12 @@
+import { html, render } from "lit-html";
+
+import { type ActionCallbacks } from "@/lobby/room/handlers";
 import {
     LOG_TYPE_SYSTEM,
     type PlayerInfo,
     type RoomState,
     getMyReadyState,
 } from "@/lobby/room/state";
-import { html, render } from "lit-html";
-import { type ActionCallbacks } from "@/lobby/room/handlers";
 
 function seatStatusIcon(player: PlayerInfo): string {
     if (player.is_bot) {

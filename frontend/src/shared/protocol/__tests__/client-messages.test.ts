@@ -15,8 +15,8 @@ import {
     buildRiichiAction,
     buildRonAction,
     buildTsumoAction,
-} from "../builders/client-messages";
-import { CLIENT_MESSAGE_TYPE, GAME_ACTION, KAN_TYPE } from "../constants";
+} from "@/shared/protocol/builders/client-messages";
+import { CLIENT_MESSAGE_TYPE, GAME_ACTION, KAN_TYPE } from "@/shared/protocol/constants";
 
 describe("client message builders", () => {
     describe("session messages", () => {

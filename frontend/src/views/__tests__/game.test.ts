@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
 import { CLIENT_MESSAGE_TYPE, GAME_ACTION } from "@/shared/protocol";
 
 // --- Mocks ---

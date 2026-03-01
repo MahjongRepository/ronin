@@ -5,7 +5,8 @@
 
 import { type z } from "zod";
 
-import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "../constants";
+import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+
 import { type CallPromptEvent, parseCallPrompt } from "./call-prompt";
 import {
     discardSchema,

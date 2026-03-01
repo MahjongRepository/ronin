@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { SESSION_MESSAGE_TYPE } from "../constants";
-import { parseSessionMessage } from "../schemas/session";
+import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+import { parseSessionMessage } from "@/shared/protocol/schemas/session";
 
 describe("parseSessionMessage", () => {
     describe("session_error", () => {

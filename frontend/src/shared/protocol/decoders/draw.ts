@@ -1,4 +1,4 @@
-import { NUM_TILES, SEAT_TILE_SPACE } from "../constants";
+import { NUM_TILES, SEAT_TILE_SPACE } from "@/shared/protocol/constants";
 
 export interface DecodedDraw {
     seat: number;

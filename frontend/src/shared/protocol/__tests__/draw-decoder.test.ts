@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeDraw } from "../decoders/draw";
+
+import { decodeDraw } from "@/shared/protocol/decoders/draw";
 
 describe("decodeDraw", () => {
     it("decodes seat 0 tile 0", () => {

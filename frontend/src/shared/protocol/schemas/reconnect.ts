@@ -4,7 +4,8 @@
 
 import { z } from "zod";
 
-import { SESSION_MESSAGE_TYPE, WIRE_SCORE_DIVISOR } from "../constants";
+import { SESSION_MESSAGE_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+
 import { gamePlayerInfoSchema, seatSchema, tileIdSchema } from "./common";
 
 // --- Discard info (inside player state `dsc` array) ---

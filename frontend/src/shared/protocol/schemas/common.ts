@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { WIRE_SCORE_DIVISOR } from "../constants";
+import { WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
 export const tileIdSchema = z.number().int().min(0).max(135);

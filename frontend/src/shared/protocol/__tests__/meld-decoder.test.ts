@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeMeldCompact } from "../decoders/meld";
+
+import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
 describe("decodeMeldCompact", () => {
     describe("chi", () => {

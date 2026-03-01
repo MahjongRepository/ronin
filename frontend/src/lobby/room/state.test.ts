@@ -1,5 +1,6 @@
-import { createRoomState, getMyReadyState } from "@/lobby/room/state";
 import { describe, expect, test } from "vitest";
+
+import { createRoomState, getMyReadyState } from "@/lobby/room/state";
 
 describe("getMyReadyState", () => {
     test("returns true when the player is ready", () => {

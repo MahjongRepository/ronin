@@ -1,6 +1,7 @@
-import { TILE_FACES, type TileFace } from "@/tile-utils";
-import { TILE_FACES_SET } from "@/tile-config";
 import { type TemplateResult, html } from "lit-html";
+
+import { TILE_FACES_SET } from "@/tile-config";
+import { TILE_FACES, type TileFace } from "@/tile-utils";
 import { Tile, TileBackColor } from "@/tiles";
 
 function storybookView(): TemplateResult {

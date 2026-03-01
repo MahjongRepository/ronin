@@ -5,7 +5,7 @@ ARG ALPINE_VERSION=3.23
 # =============================================================================
 # Stage 1: Build frontend assets
 # =============================================================================
-FROM oven/bun:1.3.8-alpine AS frontend-builder
+FROM oven/bun:1.3.9-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 

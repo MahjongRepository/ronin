@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 
-import { SESSION_MESSAGE_TYPE } from "../constants";
+import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 
 // --- Session Error ---
 

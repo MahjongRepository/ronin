@@ -1,7 +1,7 @@
 // Type-safe factory functions for constructing client-to-server messages.
 // Each function returns a correctly shaped object ready for MessagePack encoding.
 
-import { CLIENT_MESSAGE_TYPE, GAME_ACTION, type KanType } from "../constants";
+import { CLIENT_MESSAGE_TYPE, GAME_ACTION, type KanType } from "@/shared/protocol/constants";
 
 // --- Session messages ---
 

@@ -1,8 +1,9 @@
-import { TILE_BACK, TILE_HEIGHT, TILE_WIDTH } from "@/tile-config";
 import { html, svg } from "lit-html";
-import { type TileName } from "@/tile-utils";
+
 import backSvgRaw from "@/assets/tiles/backs/classic-yellow.svg?raw";
 import sprite from "@/assets/tiles/sprites/fluffy-stuff.svg?raw";
+import { TILE_BACK, TILE_HEIGHT, TILE_WIDTH } from "@/tile-config";
+import { type TileName } from "@/tile-utils";
 
 // Strip fixed width/height so the SVG scales to its container via viewBox.
 const backSvg = backSvgRaw.replace(/ width="\d+"/, "").replace(/ height="\d+"/, "");

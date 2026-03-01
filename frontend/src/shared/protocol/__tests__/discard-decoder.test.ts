@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeDiscard } from "../decoders/discard";
+
+import { decodeDiscard } from "@/shared/protocol/decoders/discard";
 
 describe("decodeDiscard", () => {
     it("decodes plain discard (no flags) - seat 0 tile 0", () => {

@@ -1,3 +1,5 @@
+import { afterEach, describe, expect, test } from "vitest";
+
 import {
     clearGameSession,
     clearSessionData,
@@ -6,7 +8,6 @@ import {
     setGameTicket,
     storeGameSession,
 } from "@/session-storage";
-import { afterEach, describe, expect, test } from "vitest";
 
 afterEach(() => {
     sessionStorage.clear();

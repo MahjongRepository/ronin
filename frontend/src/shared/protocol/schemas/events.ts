@@ -4,10 +4,11 @@
 
 import { z } from "zod";
 
-import { EVENT_TYPE, WIRE_SCORE_DIVISOR } from "../constants";
-import { decodeDiscard } from "../decoders/discard";
-import { decodeDraw } from "../decoders/draw";
-import { decodeMeldCompact } from "../decoders/meld";
+import { EVENT_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import { decodeDiscard } from "@/shared/protocol/decoders/discard";
+import { decodeDraw } from "@/shared/protocol/decoders/draw";
+import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
+
 import { gamePlayerInfoSchema, seatSchema, tileIdSchema } from "./common";
 
 // --- Available action item (inside draw event `aa` array) ---

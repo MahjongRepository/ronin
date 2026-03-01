@@ -6,7 +6,8 @@
 
 import { z } from "zod";
 
-import { EVENT_TYPE, ROUND_RESULT_TYPE } from "../constants";
+import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
+
 import { seatSchema, tileIdSchema, wireScoreMapSchema } from "./common";
 import { handResultSchema } from "./events";
 

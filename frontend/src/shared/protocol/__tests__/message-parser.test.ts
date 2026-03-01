@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "../constants";
-import { parseServerMessage } from "../schemas/message";
+import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+import { parseServerMessage } from "@/shared/protocol/schemas/message";
 
 describe("parseServerMessage", () => {
     describe("session messages (string type field)", () => {

@@ -1,4 +1,5 @@
 import { type TemplateResult, html, render } from "lit-html";
+
 import { LOG_TYPE_UNKNOWN, parseServerMessage } from "@/shared/protocol";
 
 interface LogEntry {

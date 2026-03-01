@@ -1,10 +1,11 @@
+import { decode, encode } from "@msgpack/msgpack";
+
 import {
     CLIENT_MESSAGE_TYPE,
     CONNECTION_STATUS,
     type ConnectionStatus,
     INTERNAL_MESSAGE_TYPE,
 } from "@/shared/protocol";
-import { decode, encode } from "@msgpack/msgpack";
 
 export type MessageHandler = (message: Record<string, unknown>) => void;
 export type StatusHandler = (status: ConnectionStatus) => void;
