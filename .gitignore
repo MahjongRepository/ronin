@@ -41,3 +41,6 @@ bin/run-bots-games.sh
 Makefile.bots
 data/*
 backend/data/*
+
+# release skill temp file
+release-tmp.md
