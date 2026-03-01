@@ -195,16 +195,32 @@ tasks:
           SINCE="${SINCE:-1 day ago}"
           echo "Checking ronin logs since: $SINCE"
           echo ""
-          # Syslog-level errors (OOM kills, crashes, stderr output)
-          SYSLOG_ERRORS=$(journalctl CONTAINER_TAG=ronin --since "$SINCE" -p err --no-pager 2>/dev/null || true)
-          if [ -n "$SYSLOG_ERRORS" ]; then
-            echo "=== System-level errors ==="
-            echo "$SYSLOG_ERRORS"
-            echo ""
+          # App errors: match JSON structured logs ("level": "error"),
+          # plain-text Uvicorn logs (ERROR: / CRITICAL:), and Python
+          # tracebacks / unhandled exceptions.
+          # Syslog priority (-p err) is unreliable because Uvicorn writes
+          # all output to stderr, which journald maps to err priority
+          # regardless of the actual log level.
+          APP_ERRORS=$(journalctl CONTAINER_TAG=ronin --since "$SINCE" --no-pager -o json 2>/dev/null \
+            | python3 -c "
+          import json, sys, re
+          pat = re.compile(r'\"level\":\s*\"(error|critical)\"|ERROR:|CRITICAL:|Traceback |\w+Error:|\w+Exception:')
+          for line in sys.stdin:
+              try:
+                  e = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              msg = e.get('MESSAGE', '')
+              if pat.search(msg):
+                  ts = e.get('SYSLOG_TIMESTAMP', '')[:19]
+                  cn = e.get('CONTAINER_NAME', '')
+                  print(f'{ts} [{cn}] {msg}')
+          " || true)
+          if [ -n "$APP_ERRORS" ]; then
+            echo "$APP_ERRORS"
+          else
+            echo "No application errors found."
           fi
-          # App-level errors (structured JSON logs with error/critical level)
-          journalctl CONTAINER_TAG=ronin --since "$SINCE" --no-pager -o cat 2>/dev/null \
-            | grep -E '"log_level":\s*"(error|critical)"' || echo "No application errors found."
 
   - name: setup-restic
     commands:

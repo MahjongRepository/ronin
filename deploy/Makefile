@@ -57,16 +57,21 @@ spot-down:
 spot-status:
 	$(SPOT) -t $(TARGET) -n status
 
-# Errors: show errors from logs (system-level + app-level)
+# Errors: show errors from logs (app-level errors, exceptions, tracebacks)
 #   make spot-check-logs-errors                          # last 24 hours (default)
 #   make spot-check-logs-errors SINCE="2 hours ago"      # last 2 hours
 #   make spot-check-logs-errors SINCE="2026-03-01"       # since a specific date
+LOGS_FILE := /tmp/ronin-errors.log
 spot-check-logs-errors:
 ifdef SINCE
-	$(SPOT) -t $(TARGET) -n check-logs-errors -e SINCE:"$(SINCE)"
+	$(SPOT) -t $(TARGET) -n check-logs-errors -e SINCE:"$(SINCE)" | tee $(LOGS_FILE) | grep '> '
 else
-	$(SPOT) -t $(TARGET) -n check-logs-errors
+	$(SPOT) -t $(TARGET) -n check-logs-errors | tee $(LOGS_FILE) | grep '> '
 endif
+	@grep '^\[.*\] *> ' $(LOGS_FILE) | sed 's/^\[.*\] *> *//' | grep -v '^\(/bin/sh\|Checking ronin\|^$$\)' > $(LOGS_FILE).tmp && mv $(LOGS_FILE).tmp $(LOGS_FILE)
+	@echo ""
+	cat $(LOGS_FILE)
+	@echo "Saved to $(LOGS_FILE)"
 
 # Backup: run a manual backup
 spot-backup:
