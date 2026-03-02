@@ -1,13 +1,12 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { TILE_FACES_SET } from "@/tile-config";
-import { TILE_FACES, type TileFace } from "@/tile-utils";
-import { Tile, TileBackColor } from "@/tiles";
+import { TILE_FACES, TILE_FACES_SET, Tile, type TileFace } from "@/entities/tile";
+import { storybookNav } from "@/views/storybook-nav";
 
 function storybookView(): TemplateResult {
     return html`
         <div class="storybook">
-            <h1>Game Storybook</h1>
+            ${storybookNav("/play/storybook")}
 
             <!-- Tile faces -->
             <section>
@@ -16,7 +15,7 @@ function storybookView(): TemplateResult {
                     ${TILE_FACES.map(
                         (id) => html`
                             <div class="storybook-tile-cell">
-                                ${Tile(id as TileFace)}
+                                ${Tile(id as TileFace, "face")}
                                 <small>${id}</small>
                             </div>
                         `,
@@ -30,12 +29,8 @@ function storybookView(): TemplateResult {
                 <h3>Classic Yellow</h3>
                 <div class="storybook-tile-row">
                     <div class="storybook-tile-cell">
-                        ${Tile("back")}
+                        ${Tile("1m", "back")}
                         <small>image</small>
-                    </div>
-                    <div class="storybook-tile-cell">
-                        ${TileBackColor()}
-                        <small>color</small>
                     </div>
                 </div>
             </section>

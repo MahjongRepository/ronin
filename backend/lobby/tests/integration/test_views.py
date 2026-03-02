@@ -149,6 +149,24 @@ servers:
         response = client.get("/play/test-game")
         assert "/game-assets/assets/game-abc123.css" in response.text
 
+    def test_storybook_melds_page_returns_html(self, client):
+        """GET /play/storybook/melds returns the game shell page."""
+        response = client.get("/play/storybook/melds")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_storybook_hand_page_returns_html(self, client):
+        """GET /play/storybook/hand returns the game shell page."""
+        response = client.get("/play/storybook/hand")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_storybook_discards_page_returns_html(self, client):
+        """GET /play/storybook/discards returns the game shell page."""
+        response = client.get("/play/storybook/discards")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
     def test_play_page_returns_503_when_assets_missing(self, tmp_path):
         """Authenticated request to /play returns 503 when manifest is empty."""
         config_file = tmp_path / "servers.yaml"

@@ -78,6 +78,9 @@ src/styles/
 │   ├── _footer.scss   # Footer content, dev links, error text
 │   ├── _games.scss    # Game history cards, standings, badges
 │   └── _animations.scss # card-in, slide-down keyframes
+├── _melds.scss        # Meld component styles (upright, sideways, stacked tiles)
+├── _hand.scss         # Hand component styles (tile row, drawn tile gap)
+├── _discards.scss     # Discard component styles (rows, grayed, sideways riichi)
 ├── _room.scss         # Room page styles (player list, chat, connection status)
 ├── _game.scss         # Game client styles (log panel, status badges)
 └── _storybook.scss    # Storybook layout (tile rows, cells)
@@ -122,13 +125,16 @@ Lightweight WebSocket wrapper for the lobby room protocol (JSON text frames). Pr
 
 ### Router (`router.ts`)
 Pathname-based SPA router. Routes:
-- `/play/storybook` — Component storybook for visual testing (no WebSocket, dev-only)
+- `/play/storybook` — Component storybook index page (no WebSocket, dev-only)
+- `/play/storybook/discards` — Storybook discard pile showcase (no WebSocket, dev-only)
+- `/play/storybook/hand` — Storybook hand variants showcase (no WebSocket, dev-only)
+- `/play/storybook/melds` — Storybook meld types showcase (no WebSocket, dev-only)
 - `/play/history/{gameId}` — Replay view (fetches and displays completed game events via HTTP)
 - `/play/{gameId}` — Live game view (WebSocket connection to game server)
 
 Runs cleanup callbacks on route changes. Falls back to lobby URL redirect for unmatched routes.
 
-### Game Socket (`websocket.ts`)
+### Game Socket (`shared/websocket/websocket.ts`)
 WebSocket client for the game server (MessagePack binary frames). Features:
 - Auto-reconnect with exponential backoff (up to 10 attempts, max 30s delay)
 - Periodic ping heartbeats (10s interval)
@@ -146,29 +152,31 @@ Self-contained wire protocol module using Zod schemas and const objects (replaci
 ### Game View (`views/game.ts`)
 Renders a development log panel showing parsed game events (camelCase objects via `parseServerMessage()`). Handles the join → play → reconnect lifecycle using protocol builder functions (`buildJoinGameMessage`, `buildReconnectMessage`, `buildConfirmRoundAction`). Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors). Falls back to raw JSON logging when parsing fails.
 
-### Storybook View (`views/storybook.ts`)
-Developer-facing component showcase at `/play/storybook`. Renders all 37 tile faces organized by suit, back tile at multiple sizes, and wire ID conversion demo (`tile136toString`). Also shows connection status indicator variants. Used for visual testing of game UI components.
+### Storybook Views (`views/storybook.ts`, `views/storybook-melds.ts`, `views/storybook-hand.ts`, `views/storybook-discards.ts`)
+Developer-facing component showcase with a multi-page structure. The main page at `/play/storybook` renders all 37 tile faces organized by suit, back tile display, wire ID conversion demo (`tile136toString`), and links to sub-pages. Sub-pages: `/play/storybook/discards` showcases discard pile variants (basic rows, overflow, grayed-out claimed tiles, sideways riichi tiles, mixed); `/play/storybook/hand` showcases hand variants (face up, face down, with/without drawn tile, small hand); `/play/storybook/melds` showcases all meld types (chi, pon, open/closed kan, added kan) with examples. Navigation is shared via `storybook-nav.ts` (4 pages: Index, Discards, Hand, Melds). Used for visual testing of game UI components.
 
-### Tile Config (`tile-config.ts`)
-Single source of truth for the active tile set and dimensions. Exports `TILE_FACES_SET` (face sprite folder name, e.g. `"fluffy-stuff"`), `TILE_BACK` (object with `image` for the back SVG stem and `color` for the hex color), and `TILE_WIDTH`/`TILE_HEIGHT` (60×80 px). Used by the sprite build script, tile rendering, and storybook display.
+### Tile Config (`entities/tile/lib/tile-config.ts`)
+Single source of truth for the active tile set and dimensions. Exports `TILE_FACES_SET` (face sprite folder name, e.g. `"fluffy-stuff"`) and `TILE_WIDTH`/`TILE_HEIGHT` (60×80 px). Used by the sprite build script, tile rendering, and storybook display.
 
-### Tile Utilities (`tile-utils.ts`)
+### Tile Utilities (`entities/tile/lib/tile-utils.ts`)
 Pure utility module for the 136-format tile ID system. Provides `tile136toString(tileId)` to convert server wire IDs to display names (with red five aka-dora detection) and constants (`TILE_FACES`, `FIVE_RED_MAN/PIN/SOU`, `RED_FIVES`).
 
-### Tile Component (`tiles.ts`)
-Rendering layer for mahjong tiles. All tile types (face, back, back-color) are wrapped in a `<span class="tile">` container. Tile dimensions are defined once in `tile-config.ts` (`TILE_WIDTH=60`, `TILE_HEIGHT=80`) — rendering functions take no size parameters. `Tile(name)` renders face tiles via SVG sprite `<use>` references inside the span wrapper, and back tiles from a separate SVG. `injectSprite()` handles one-time injection of the tile sprite into the DOM. Both sprite and back SVG are loaded via Vite `?raw` static imports.
+### Tile Component (`entities/tile/ui/tile.ts`)
+Rendering layer for mahjong tiles. Every tile carries a face identity (`TileFace`) and the caller chooses the display mode. `Tile(face, show)` renders either the face sprite (`show: "face"`) or the back SVG image (`show: "back"`) — the face identity is preserved in both modes but only visible when showing the face. All tiles are wrapped in a `<span class="tile">` container. Tile dimensions are defined once in `tile-config.ts` (`TILE_WIDTH=60`, `TILE_HEIGHT=80`). Face tiles use SVG sprite `<use>` references; back tiles render the full back SVG. `injectSprite()` handles one-time injection of the tile sprite into the DOM. Both sprite and back SVG are loaded via Vite `?raw` static imports.
 
-Tile backs have two rendering modes configured via `TILE_BACK` in `tile-config.ts` (`image` for SVG path, `color` for hex color):
-- `TileBack()` — Full back SVG image for wall tiles (face-down stacks)
-- `TileBackColor()` — Solid color rectangle for other players' hand tiles (peek strip)
+### Hand Component (`entities/tile/ui/hand.ts`)
+Renders a horizontal row of 1–14 mahjong tiles with an optional drawn tile separated by a visible gap. `Hand(tiles, drawnTile?)` takes an array of `HandTile` objects (each with `face: TileFace` and `show: "face" | "back"`) and an optional drawn tile. Tiles render inside a `<span class="hand">` container using `inline-flex` with `1px` gap (matching the Meld layout pattern). Each tile is wrapped in `<span class="hand-tile">`. The drawn tile gets an additional `hand-drawn-gap` class with `8px` left margin to visually separate it from the main hand. Styles live in `_hand.scss`.
+
+### Discards Component (`entities/tile/ui/discards.ts`)
+Renders a player's discard pile as rows of face-up tiles. `Discards(tiles)` takes an array of `DiscardTile` objects (each with `face: TileFace` and optional `grayed`/`riichi` booleans) and returns a `TemplateResult`. Tiles are arranged in a `<span class="discards">` flex-column container with up to 3 `<span class="discard-row">` rows (inline-flex, 1px gap, `align-items: flex-end`). Row splitting: tiles 0–5 go to row 1, 6–11 to row 2, 12+ to row 3 (row 3 has no max). Empty rows are not rendered. Each tile is wrapped in `<span class="discard-tile">` with optional `.discard-tile-grayed` (opacity 0.35, indicates tile was claimed by another player) and `.discard-tile-riichi` (sideways 90deg rotation using the same absolute-position technique as meld sideways tiles, indicates riichi declaration). Styles live in `_discards.scss`.
 
 ### Replay View (`views/replay.ts`)
 Displays completed game replay events fetched via HTTP from `/api/replays/{gameId}`. Uses the same log panel UI as the game view but without WebSocket connection. Fetches replay NDJSON via `fetch()` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), runs each through `parseServerMessage()` to produce typed camelCase objects, renders parsed event type and formatted JSON in the log panel. Falls back to raw line display on parse failure. Shows "Replay" status badge and "Back to History" navigation.
 
-### Session Storage (`session-storage.ts`)
+### Session Storage (`shared/session/session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
 
-### Environment (`env.ts`)
+### Environment (`shared/config/env.ts`)
 Reads configuration:
 - `VITE_LOBBY_URL` from `import.meta.env` (build-time via `.env.development`), falls back to `"/"` in production (same origin)
 
@@ -233,9 +241,29 @@ frontend/
 ├── public/                 # Static files served by lobby backend at /static/
 └── src/
     ├── index.ts             # Game client entry point (imports game-app.scss)
-    ├── router.ts            # Hash-based SPA router
-    ├── env.ts               # Environment helpers (import.meta.env, build-time defines)
+    ├── router.ts            # Pathname-based SPA router
+    ├── zod-setup.ts         # Global Zod configuration
+    ├── entities/
+    │   └── tile/
+    │       ├── index.ts              # Public API barrel
+    │       ├── ui/
+    │       │   ├── tile.ts           # Tile rendering (SVG sprite + back)
+    │       │   ├── hand.ts           # Hand component (horizontal tile row)
+    │       │   ├── meld.ts           # Meld component (upright, sideways, stacked)
+    │       │   └── discards.ts       # Discards component (discard pile rows)
+    │       └── lib/
+    │           ├── tile-config.ts    # Active tile set config (face set, dimensions)
+    │           └── tile-utils.ts     # Tile ID conversion (136-format to names)
     ├── shared/
+    │   ├── config/
+    │   │   ├── index.ts              # Public API barrel
+    │   │   └── env.ts                # Environment helpers (lobby URL)
+    │   ├── session/
+    │   │   ├── index.ts              # Public API barrel
+    │   │   └── session-storage.ts    # Game session persistence in sessionStorage
+    │   ├── websocket/
+    │   │   ├── index.ts              # Public API barrel
+    │   │   └── websocket.ts          # GameSocket (MessagePack, auto-reconnect)
     │   └── protocol/
     │       ├── index.ts              # Public API (re-exports)
     │       ├── constants.ts          # Wire protocol const objects & union types
@@ -254,11 +282,6 @@ frontend/
     │       │   └── meld.ts           # IMME meld compact decoder
     │       └── builders/
     │           └── client-messages.ts # Client-to-server message builders
-    ├── websocket.ts         # GameSocket (MessagePack, auto-reconnect)
-    ├── session-storage.ts   # Game session persistence in sessionStorage
-    ├── tile-config.ts       # Active tile set config (face set name, back name)
-    ├── tile-utils.ts        # Tile ID conversion (136-format wire IDs to names)
-    ├── tiles.ts             # Tile rendering component (SVG sprite + back)
     ├── assets/
     │   ├── logo.svg         # Project logo (content-hashed by Vite)
     │   └── tiles/
@@ -280,7 +303,11 @@ frontend/
     ├── views/
     │   ├── game.ts          # Game view (log panel, join/reconnect lifecycle)
     │   ├── replay.ts        # Replay view (HTTP fetch, log panel, no WebSocket)
-    │   └── storybook.ts     # Component storybook (tile gallery, UI demos)
+    │   ├── storybook.ts     # Component storybook (tile gallery, UI demos)
+    │   ├── storybook-melds.ts # Storybook meld showcase page
+    │   ├── storybook-hand.ts  # Storybook hand showcase page
+    │   ├── storybook-discards.ts # Storybook discards showcase page
+    │   └── storybook-nav.ts   # Shared storybook navigation component
     └── styles/
         ├── lobby-app.scss   # Lobby CSS entry point
         ├── game-app.scss    # Game CSS entry point
@@ -295,6 +322,9 @@ frontend/
         │   ├── _footer.scss # Footer, dev links
         │   ├── _games.scss  # Game history cards
         │   └── _animations.scss # Keyframe animations
+        ├── _melds.scss      # Meld component styles (upright, sideways, stacked)
+        ├── _hand.scss       # Hand component styles (tile row, drawn tile gap)
+        ├── _discards.scss   # Discard component styles (rows, grayed, sideways riichi)
         ├── _room.scss       # Room page styles (players, chat)
         └── _game.scss       # Game client styles (log panel, status badges)
 ```

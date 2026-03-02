@@ -1,7 +1,6 @@
 import { type TemplateResult, html, render } from "lit-html";
 
-import { getLobbyUrl } from "@/env";
-import { clearGameSession, clearSessionData, getGameSession } from "@/session-storage";
+import { getLobbyUrl } from "@/shared/config";
 import {
     CONNECTION_STATUS,
     type ConnectionStatus,
@@ -15,7 +14,8 @@ import {
     buildReconnectMessage,
     parseServerMessage,
 } from "@/shared/protocol";
-import { GameSocket } from "@/websocket";
+import { clearGameSession, clearSessionData, getGameSession } from "@/shared/session";
+import { GameSocket } from "@/shared/websocket";
 
 interface LogEntry {
     raw: string;

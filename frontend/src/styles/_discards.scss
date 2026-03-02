@@ -1,0 +1,41 @@
+$tile-width: 60px;
+$tile-height: 80px;
+$sideways-width: $tile-height; // 80px
+$sideways-height: $tile-width; // 60px
+
+.discards {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.discard-row {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.discard-tile {
+    display: inline-block;
+    line-height: 0;
+}
+
+.discard-tile-grayed {
+    opacity: 0.35;
+}
+
+.discard-tile-riichi {
+    display: inline-block;
+    width: $sideways-width;
+    height: $sideways-height;
+    position: relative;
+    overflow: hidden;
+
+    > .tile {
+        position: absolute;
+        left: calc(($sideways-width - $tile-width) / 2);
+        top: calc(($sideways-height - $tile-height) / 2);
+        transform: rotate(90deg);
+        transform-origin: center;
+    }
+}

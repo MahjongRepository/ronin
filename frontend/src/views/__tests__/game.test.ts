@@ -14,7 +14,7 @@ const mockDisableReconnect = vi.fn();
 const mockDisconnect = vi.fn();
 
 // Use a class mock so `new GameSocket(...)` works correctly
-vi.mock("@/websocket", () => ({
+vi.mock("@/shared/websocket", () => ({
     GameSocket: class MockGameSocket {
         constructor(
             onMessage: (msg: Record<string, unknown>) => void,
@@ -33,13 +33,13 @@ vi.mock("@/websocket", () => ({
     },
 }));
 
-vi.mock("@/session-storage", () => ({
+vi.mock("@/shared/session", () => ({
     clearGameSession: vi.fn(),
     clearSessionData: vi.fn(),
     getGameSession: vi.fn().mockReturnValue({ gameTicket: "ticket-123", wsUrl: "ws://test" }),
 }));
 
-vi.mock("@/env", () => ({
+vi.mock("@/shared/config", () => ({
     getLobbyUrl: vi.fn().mockReturnValue("/lobby"),
 }));
 

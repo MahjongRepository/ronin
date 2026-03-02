@@ -1,6 +1,6 @@
 import { type TemplateResult, render } from "lit-html";
 
-import { getLobbyUrl } from "@/env";
+import { getLobbyUrl } from "@/shared/config";
 
 interface Route {
     pattern: RegExp;

@@ -1,5 +1,5 @@
 import { LobbySocket } from "@/lobby/lobby-socket";
-import { storeGameSession } from "@/session-storage";
+import { storeGameSession } from "@/shared/session";
 
 interface MatchmakingElements {
     queueCount: HTMLElement;

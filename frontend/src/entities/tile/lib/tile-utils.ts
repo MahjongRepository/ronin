@@ -46,7 +46,6 @@ const TILE_FACES = [
 ] as const;
 
 type TileFace = (typeof TILE_FACES)[number];
-type TileName = TileFace | "back";
 
 // Red five constants (136-format IDs)
 const FIVE_RED_MAN = 16;
@@ -91,4 +90,4 @@ function tile136toString(tileId: number): TileFace {
 }
 
 export { tile136toString, TILE_FACES, FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU, RED_FIVES };
-export type { TileFace, TileName };
+export type { TileFace };

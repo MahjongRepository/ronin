@@ -1,8 +1,41 @@
 .storybook {
+    width: 960px;
     padding: 1rem;
 
     section {
         margin-block: 2rem;
+    }
+}
+
+.storybook-nav {
+    justify-content: flex-start;
+    gap: 0.5rem;
+    margin-block-end: 1.5rem;
+}
+
+.storybook-badge {
+    display: inline-block;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--ronin-border);
+    border-radius: 2rem;
+    color: var(--ronin-text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s,
+        color 0.15s;
+
+    &:hover {
+        border-color: var(--pico-primary);
+        color: var(--pico-primary);
+    }
+
+    &.active {
+        background-color: var(--pico-primary-background);
+        border-color: var(--pico-primary-background);
+        color: var(--pico-primary-inverse);
     }
 }
 
@@ -18,4 +51,11 @@
     flex-direction: column;
     align-items: center;
     gap: 0.25rem;
+}
+
+.storybook-meld-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    align-items: flex-end;
 }

@@ -4,7 +4,7 @@ import {
     type RoomState,
     getMyReadyState,
 } from "@/lobby/room/state";
-import { storeGameSession } from "@/session-storage";
+import { storeGameSession } from "@/shared/session";
 
 interface UpdateUICallbacks {
     updateActionButton: () => void;

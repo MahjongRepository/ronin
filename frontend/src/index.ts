@@ -4,6 +4,9 @@ import { initRouter } from "@/router";
 import { cleanupGameView, gameView } from "@/views/game";
 import { cleanupReplayView, replayView } from "@/views/replay";
 import { storybookView } from "@/views/storybook";
+import { storybookDiscardsView } from "@/views/storybook-discards";
+import { storybookHandView } from "@/views/storybook-hand";
+import { storybookMeldsView } from "@/views/storybook-melds";
 
 const app = document.getElementById("app");
 if (app) {
@@ -12,6 +15,18 @@ if (app) {
             cleanup: cleanupReplayView,
             handler: (params) => replayView(params.gameId),
             pattern: /^\/play\/history\/(?<gameId>[^/]+)$/,
+        },
+        {
+            handler: () => storybookDiscardsView(),
+            pattern: /^\/play\/storybook\/discards$/,
+        },
+        {
+            handler: () => storybookHandView(),
+            pattern: /^\/play\/storybook\/hand$/,
+        },
+        {
+            handler: () => storybookMeldsView(),
+            pattern: /^\/play\/storybook\/melds$/,
         },
         {
             handler: () => storybookView(),

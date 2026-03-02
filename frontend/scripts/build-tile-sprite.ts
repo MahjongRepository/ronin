@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { optimize, loadConfig } from "svgo";
-import { TILE_FACES_SET } from "../src/tile-config";
+import { TILE_FACES_SET } from "../src/entities/tile/lib/tile-config";
 
 const name = process.argv[2] ?? TILE_FACES_SET;
 const TILES_DIR = new URL(`../src/assets/tiles/faces/${name}/`, import.meta.url);

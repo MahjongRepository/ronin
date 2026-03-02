@@ -1,0 +1,13 @@
+.hand {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.hand-tile {
+    display: inline-block;
+}
+
+.hand-drawn-gap {
+    margin-left: 8px;
+}

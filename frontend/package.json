@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "bunx tsc --noEmit",
-    "lint": "oxlint --deny-warnings src && stylelint 'src/**/*.scss'",
+    "lint": "oxlint --deny-warnings src && stylelint 'src/**/*.scss' && sass --fatal-deprecation slash-div --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/game-app.scss:/dev/null src/styles/lobby-app.scss:/dev/null",
     "lint:fix": "oxlint --fix src && stylelint --fix 'src/**/*.scss'",
     "fmt": "oxfmt src",
     "fmt:check": "oxfmt --check src",

@@ -1,0 +1,52 @@
+$tile-width: 60px;
+$tile-height: 80px;
+$sideways-width: $tile-height; // 80px
+$sideways-height: $tile-width; // 60px
+
+.meld {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.meld-tile {
+    display: inline-block;
+    line-height: 0;
+}
+
+.meld-tile-sideways {
+    display: inline-block;
+    width: $sideways-width;
+    height: $sideways-height;
+    position: relative;
+    overflow: hidden;
+
+    > .tile {
+        position: absolute;
+        left: calc(($sideways-width - $tile-width) / 2);
+        top: calc(($sideways-height - $tile-height) / 2);
+        transform: rotate(90deg);
+        transform-origin: center;
+    }
+}
+
+$stacked-gap: 2px;
+
+.meld-tile-stacked {
+    display: inline-block;
+    position: relative;
+    width: $sideways-width;
+    height: $sideways-height * 2 + $stacked-gap;
+}
+
+.meld-tile-stacked .meld-tile-stacked-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+}
+
+.meld-tile-stacked .meld-tile-stacked-top {
+    position: absolute;
+    bottom: $sideways-height + $stacked-gap;
+    left: 0;
+}

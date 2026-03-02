@@ -7,7 +7,7 @@ import {
     getGameTicket,
     setGameTicket,
     storeGameSession,
-} from "@/session-storage";
+} from "@/shared/session";
 
 afterEach(() => {
     sessionStorage.clear();
