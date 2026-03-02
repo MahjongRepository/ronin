@@ -83,6 +83,7 @@ src/styles/
 ├── _discards.scss     # Discard component styles (rows, grayed, sideways riichi)
 ├── _room.scss         # Room page styles (player list, chat, connection status)
 ├── _game.scss         # Game client styles (log panel, status badges)
+├── _replay-state.scss # Replay state display (nav, player panels, table info)
 └── _storybook.scss    # Storybook layout (tile rows, cells)
 ```
 
@@ -170,8 +171,40 @@ Renders a horizontal row of 1–14 mahjong tiles with an optional drawn tile sep
 ### Discards Component (`entities/tile/ui/discards.ts`)
 Renders a player's discard pile as rows of face-up tiles. `Discards(tiles)` takes an array of `DiscardTile` objects (each with `face: TileFace` and optional `grayed`/`riichi` booleans) and returns a `TemplateResult`. Tiles are arranged in a `<span class="discards">` flex-column container with up to 3 `<span class="discard-row">` rows (inline-flex, 1px gap, `align-items: flex-end`). Row splitting: tiles 0–5 go to row 1, 6–11 to row 2, 12+ to row 3 (row 3 has no max). Empty rows are not rendered. Each tile is wrapped in `<span class="discard-tile">` with optional `.discard-tile-grayed` (opacity 0.35, indicates tile was claimed by another player) and `.discard-tile-riichi` (sideways 90deg rotation using the same absolute-position technique as meld sideways tiles, indicates riichi declaration). Styles live in `_discards.scss`.
 
+### Table Entity (`entities/table/`)
+Deterministic game state model for replay playback. Tracks table and player state by applying replay events in sequence. All state transitions are pure functions returning new objects (no mutation).
+
+**State Model** (`model/types.ts`):
+- `TableState` — game-level state: `gameId`, `players: PlayerState[]`, `dealerSeat`, round-level fields (`roundWind`, `roundNumber`, `honbaSticks`, `riichiSticks`, `doraIndicators`, `currentPlayerSeat`), meta fields (`phase: GamePhase`, `lastEventDescription`)
+- `PlayerState` — per-player state: `seat`, `name`, `isAiPlayer`, `score`, `tiles: number[]`, `drawnTileId: number | null`, `discards: DiscardRecord[]`, `melds: MeldRecord[]`, `isRiichi`
+- `DiscardRecord` — `{ tileId, isTsumogiri, isRiichi, claimed? }` where `claimed` marks tiles taken by meld calls
+- `MeldRecord` — extends `DecodedMeld` from `@/shared/protocol` with an optional `addedTileId` field (set on added_kan melds to track which tile was added from hand)
+- `GamePhase` — `'pre_game' | 'in_round' | 'round_ended' | 'game_ended'`
+- `ReplayEvent` — narrow union of the 9 event types that appear in replays (excludes `call_prompt`, `error`, `furiten`)
+
+**Event Application** (`model/apply-event.ts`, `model/handlers/meld.ts`):
+- `applyEvent(state, event)` — top-level dispatcher switching on `event.type`, delegates to specific handlers. Uses exhaustive dispatch with `assertNever` for compile-time safety
+- Handlers for all 9 replay events: `game_started` (initializes 4 players), `round_started` (resets per-round state, populates tiles), `draw` (adds tile to hand, sets `drawnTileId`), `discard` (removes tile, appends to discards), `meld` (5-way switch for chi/pon/open_kan/closed_kan/added_kan), `riichi_declared`, `dora_revealed`, `round_end` (6 result type variants: tsumo, ron, double_ron, exhaustive_draw, abortive_draw, nagashi_mangan), `game_end`
+- Each handler generates a human-readable `lastEventDescription`
+
+**Timeline Builder** (`model/timeline.ts`):
+- `buildTimeline(events: ReplayEvent[]): TableState[]` — pre-computes all states from the event array. Returns array where `states[0]` is the initial state before any events, `states[i+1]` is the state after applying `events[i]`. Length = `events.length + 1`. Enables O(1) navigation in both directions
+
+**Meld Display Conversion** (`lib/meld-display.ts`):
+- `meldToDisplay(meld: MeldRecord): MeldTileDisplay[]` — converts state-layer meld records to UI-layer display format for the existing `Meld` component. Handles sideways tile positioning based on relative seat positions (`(fromSeat - callerSeat + 4) % 4`), face-down tiles for closed kan, and stacked tiles for added kan
+
+**Wind Helper** (`lib/wind-name.ts`):
+- `windName(wind: number): string` — converts wire wind integers (0=East, 1=South, 2=West, 3=North) to display strings
+
+**UI Components** (`ui/`):
+- `TableInfo(state)` — horizontal bar showing round wind, dealer, dora indicators, honba/riichi sticks
+- `PlayerPanel(player, isDealer, isCurrent)` — player name, score, dealer/riichi/turn badges, hand tiles (via `Hand()`), melds (via `Meld()` with `meldToDisplay()`), discards (via `Discards()`)
+- `StateDisplay(state)` — composes `TableInfo` + 4 `PlayerPanel` components in a vertical stack
+
+**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `meldToDisplay`, `StateDisplay`
+
 ### Replay View (`views/replay.ts`)
-Displays completed game replay events fetched via HTTP from `/api/replays/{gameId}`. Uses the same log panel UI as the game view but without WebSocket connection. Fetches replay NDJSON via `fetch()` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), runs each through `parseServerMessage()` to produce typed camelCase objects, renders parsed event type and formatted JSON in the log panel. Falls back to raw line display on parse failure. Shows "Replay" status badge and "Back to History" navigation.
+Displays completed game replays with a visual state display and step-by-step navigation. Fetches NDJSON replay data via HTTP from `/api/replays/{gameId}` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), filters through `isReplayEvent()` type guard to extract the 9 replay event types, and builds a pre-computed state timeline via `buildTimeline()`. Non-replay event types and parse failures are collected as `parseErrors` and surfaced as a warning. The state display renders `TableInfo` (round info bar), 4 `PlayerPanel` components (hand, melds, discards, score), and Prev/Next navigation buttons for stepping through events. Navigation is O(1) via integer index into the pre-computed timeline array. Shows "Replay" status badge and "Back to History" navigation.
 
 ### Session Storage (`shared/session/session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
@@ -244,16 +277,33 @@ frontend/
     ├── router.ts            # Pathname-based SPA router
     ├── zod-setup.ts         # Global Zod configuration
     ├── entities/
-    │   └── tile/
+    │   ├── tile/
+    │   │   ├── index.ts              # Public API barrel
+    │   │   ├── ui/
+    │   │   │   ├── tile.ts           # Tile rendering (SVG sprite + back)
+    │   │   │   ├── hand.ts           # Hand component (horizontal tile row)
+    │   │   │   ├── meld.ts           # Meld component (upright, sideways, stacked)
+    │   │   │   └── discards.ts       # Discards component (discard pile rows)
+    │   │   └── lib/
+    │   │       ├── tile-config.ts    # Active tile set config (face set, dimensions)
+    │   │       └── tile-utils.ts     # Tile ID conversion (136-format to names)
+    │   └── table/
     │       ├── index.ts              # Public API barrel
-    │       ├── ui/
-    │       │   ├── tile.ts           # Tile rendering (SVG sprite + back)
-    │       │   ├── hand.ts           # Hand component (horizontal tile row)
-    │       │   ├── meld.ts           # Meld component (upright, sideways, stacked)
-    │       │   └── discards.ts       # Discards component (discard pile rows)
-    │       └── lib/
-    │           ├── tile-config.ts    # Active tile set config (face set, dimensions)
-    │           └── tile-utils.ts     # Tile ID conversion (136-format to names)
+    │       ├── model/
+    │       │   ├── types.ts          # State types (TableState, PlayerState, ReplayEvent)
+    │       │   ├── initial-state.ts  # Factory functions for initial state
+    │       │   ├── apply-event.ts    # Event dispatcher and handlers
+    │       │   ├── helpers.ts        # Player state update helper
+    │       │   ├── timeline.ts       # Pre-compute all states from events
+    │       │   └── handlers/
+    │       │       └── meld.ts       # 5-way meld handler (chi/pon/kan variants)
+    │       ├── lib/
+    │       │   ├── wind-name.ts      # Wind integer to display string
+    │       │   └── meld-display.ts   # MeldRecord to MeldTileDisplay[] conversion
+    │       └── ui/
+    │           ├── state-display.ts  # Composed state view (TableInfo + 4 PlayerPanels)
+    │           ├── table-info.ts     # Round info bar (wind, dora, sticks)
+    │           └── player-panel.ts   # Player hand, melds, discards, score
     ├── shared/
     │   ├── config/
     │   │   ├── index.ts              # Public API barrel
@@ -326,7 +376,9 @@ frontend/
         ├── _hand.scss       # Hand component styles (tile row, drawn tile gap)
         ├── _discards.scss   # Discard component styles (rows, grayed, sideways riichi)
         ├── _room.scss       # Room page styles (players, chat)
-        └── _game.scss       # Game client styles (log panel, status badges)
+        ├── _game.scss       # Game client styles (log panel, status badges)
+        ├── _replay-state.scss # Replay state display (nav, player panels, table info)
+        └── _storybook.scss  # Storybook layout (tile rows, cells)
 ```
 
 ## Dependencies

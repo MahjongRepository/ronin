@@ -1,0 +1,204 @@
+// Replay state display styles - navigation, player panels, and table info layout
+
+// ─── Replay State Container ─────────────────────────────────
+
+.replay-state {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+// ─── System Messages ────────────────────────────────────────
+
+.replay-state__message {
+    padding: 1.25rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    color: var(--ronin-text-secondary);
+    font-family: var(--ronin-font-mono);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+// ─── Parse Warning ──────────────────────────────────────────
+
+.replay-state__warning {
+    padding: 0.6rem 1rem;
+    background: color-mix(in srgb, var(--ronin-warning) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ronin-warning) 30%, transparent);
+    border-radius: 0.5rem;
+    color: var(--ronin-warning);
+    font-size: 0.8rem;
+    font-family: var(--ronin-font-mono);
+}
+
+// ─── Navigation Controls ────────────────────────────────────
+
+.replay-state__nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+}
+
+.replay-state__nav-btn {
+    flex-shrink: 0;
+    margin-bottom: 0;
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+    font-family: var(--ronin-font-mono);
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+}
+
+.replay-state__counter {
+    flex: 1;
+    text-align: center;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+    letter-spacing: 0.02em;
+}
+
+// ─── Event Description ──────────────────────────────────────
+
+.replay-state__description {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    font-family: var(--ronin-font-body);
+    color: var(--pico-color);
+    min-height: 1.5em;
+}
+
+// ─── State Display ──────────────────────────────────────────
+
+.state-display {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.state-display__players {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+// ─── Table Info Bar ─────────────────────────────────────────
+
+.table-info {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.75rem 1rem;
+    background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.8rem;
+    color: var(--ronin-text-secondary);
+    flex-wrap: wrap;
+}
+
+.table-info__round {
+    font-weight: 600;
+    color: var(--pico-color);
+}
+
+.table-info__dora {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    .tile {
+        width: 24px;
+        height: 32px;
+    }
+}
+
+.table-info__sticks {
+    display: flex;
+    gap: 0.75rem;
+}
+
+// ─── Player Panel ───────────────────────────────────────────
+
+.player-panel {
+    padding: 0.75rem 1rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: border-color 0.2s ease;
+
+    &--current {
+        border-color: color-mix(in srgb, var(--pico-primary) 40%, var(--ronin-border));
+    }
+}
+
+.player-panel__header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.player-panel__name {
+    font-weight: 600;
+    color: var(--pico-color);
+    font-family: var(--ronin-font-body);
+}
+
+.player-panel__score {
+    font-family: var(--ronin-font-mono);
+    color: var(--ronin-text-secondary);
+    font-size: 0.8rem;
+}
+
+.player-panel__badge {
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: var(--ronin-font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+
+    &--dealer {
+        background: color-mix(in srgb, var(--ronin-gold) 15%, transparent);
+        color: var(--ronin-gold);
+        border: 1px solid color-mix(in srgb, var(--ronin-gold) 30%, transparent);
+    }
+
+    &--riichi {
+        background: color-mix(in srgb, var(--ronin-danger) 15%, transparent);
+        color: var(--ronin-danger);
+        border: 1px solid color-mix(in srgb, var(--ronin-danger) 30%, transparent);
+    }
+
+    &--turn {
+        background: color-mix(in srgb, var(--pico-primary) 15%, transparent);
+        color: var(--pico-primary);
+        border: 1px solid color-mix(in srgb, var(--pico-primary) 30%, transparent);
+    }
+}
+
+.player-panel__hand,
+.player-panel__melds,
+.player-panel__discards {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
