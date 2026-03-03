@@ -7,6 +7,7 @@ interface StorybookPage {
 
 const STORYBOOK_PAGES: StorybookPage[] = [
     { path: "/play/storybook", title: "Index" },
+    { path: "/play/storybook/board", title: "Board" },
     { path: "/play/storybook/discards", title: "Discards" },
     { path: "/play/storybook/hand", title: "Hand" },
     { path: "/play/storybook/melds", title: "Melds" },

@@ -1,0 +1,8 @@
+// Base tile dimensions — default size for standalone use (storybook, overlays).
+// The game board overrides these via .game-board .tile { width/height } with scaled values.
+
+.tile {
+    display: inline-block;
+    width: 60px;
+    height: 80px;
+}

@@ -6,7 +6,9 @@ $sideways-height: $tile-width; // 60px
 .discards {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 2px;
+    overflow: visible;
 }
 
 .discard-row {

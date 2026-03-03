@@ -1,10 +1,7 @@
 import { type TemplateResult, html } from "lit-html";
 
+import { formatScore } from "@/entities/table/lib/board-mapper";
 import { type GameEndResult, type PlayerState } from "@/entities/table/model/types";
-
-function formatScore(score: number): string {
-    return score.toLocaleString("en-US");
-}
 
 function formatFinalScore(finalScore: number): string {
     if (finalScore > 0) {

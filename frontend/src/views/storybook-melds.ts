@@ -1,68 +1,61 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { Meld, type MeldTileDisplay, type TileFace } from "@/entities/tile";
+import { Meld, type MeldInput } from "@/entities/tile";
 import { storybookNav } from "@/views/storybook-nav";
 
 type Direction = "left" | "across" | "right";
 
-function directionToIndex(from: Direction, rightIdx = 2): number {
-    if (from === "left") {
-        return 0;
-    }
-    if (from === "across") {
-        return 1;
-    }
-    return rightIdx;
+const FROM_SEAT_MAP: Record<Direction, number> = { across: 2, left: 1, right: 3 };
+
+function chiMeld(): MeldInput {
+    return {
+        calledTileId: 4,
+        callerSeat: 0,
+        fromSeat: 3,
+        meldType: "chi",
+        tileIds: [4, 8, 12],
+    };
 }
 
-function chiTiles(): MeldTileDisplay[] {
-    return [
-        { face: "2m", kind: "sideways" },
-        { face: "3m", kind: "upright" },
-        { face: "4m", kind: "upright" },
-    ];
+function ponMeld(from: Direction): MeldInput {
+    return {
+        calledTileId: 54,
+        callerSeat: 0,
+        fromSeat: FROM_SEAT_MAP[from],
+        meldType: "pon",
+        tileIds: [52, 53, 54],
+    };
 }
 
-function ponTiles(from: Direction): MeldTileDisplay[] {
-    const faces: TileFace[] = ["0p", "5p", "5p"];
-    const sidewaysIdx = directionToIndex(from);
-    return faces.map((face, i) =>
-        i === sidewaysIdx
-            ? { face, kind: "sideways" as const }
-            : { face, kind: "upright" as const },
-    );
+function openKanMeld(from: Direction): MeldInput {
+    return {
+        calledTileId: 133,
+        callerSeat: 0,
+        fromSeat: FROM_SEAT_MAP[from],
+        meldType: "open_kan",
+        tileIds: [132, 133, 134, 135],
+    };
 }
 
-function openKanTiles(from: Direction): MeldTileDisplay[] {
-    const faces: TileFace[] = ["7z", "7z", "7z", "7z"];
-    const sidewaysIdx = directionToIndex(from, 3);
-    return faces.map((face, i) =>
-        i === sidewaysIdx
-            ? { face, kind: "sideways" as const }
-            : { face, kind: "upright" as const },
-    );
+function closedKanMeld(): MeldInput {
+    return {
+        calledTileId: null,
+        callerSeat: 0,
+        fromSeat: null,
+        meldType: "closed_kan",
+        tileIds: [108, 109, 110, 111],
+    };
 }
 
-function closedKanTiles(): MeldTileDisplay[] {
-    return [
-        { face: "1z", kind: "facedown" },
-        { face: "1z", kind: "upright" },
-        { face: "1z", kind: "upright" },
-        { face: "1z", kind: "facedown" },
-    ];
-}
-
-function addedKanTiles(from: Direction): MeldTileDisplay[] {
-    const stackedIdx = directionToIndex(from);
-    const tiles: MeldTileDisplay[] = [];
-    for (let i = 0; i < 3; i++) {
-        if (i === stackedIdx) {
-            tiles.push({ bottom: "6s", kind: "stacked", top: "6s" });
-        } else {
-            tiles.push({ face: "6s", kind: "upright" });
-        }
-    }
-    return tiles;
+function addedKanMeld(from: Direction): MeldInput {
+    return {
+        addedTileId: 87,
+        calledTileId: 86,
+        callerSeat: 0,
+        fromSeat: FROM_SEAT_MAP[from],
+        meldType: "added_kan",
+        tileIds: [84, 85, 86, 87],
+    };
 }
 
 function storybookMeldsView(): TemplateResult {
@@ -73,41 +66,41 @@ function storybookMeldsView(): TemplateResult {
             <section>
                 <h2>Chi (チー)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(chiTiles())}
+                    ${Meld(chiMeld())}
                 </div>
             </section>
 
             <section>
                 <h2>Pon (ポン)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(ponTiles("left"))}
-                    ${Meld(ponTiles("across"))}
-                    ${Meld(ponTiles("right"))}
+                    ${Meld(ponMeld("left"))}
+                    ${Meld(ponMeld("across"))}
+                    ${Meld(ponMeld("right"))}
                 </div>
             </section>
 
             <section>
                 <h2>Open Kan (大明槓)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(openKanTiles("left"))}
-                    ${Meld(openKanTiles("across"))}
-                    ${Meld(openKanTiles("right"))}
+                    ${Meld(openKanMeld("left"))}
+                    ${Meld(openKanMeld("across"))}
+                    ${Meld(openKanMeld("right"))}
                 </div>
             </section>
 
             <section>
                 <h2>Closed Kan (暗槓)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(closedKanTiles())}
+                    ${Meld(closedKanMeld())}
                 </div>
             </section>
 
             <section>
                 <h2>Added Kan (加槓)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(addedKanTiles("left"))}
-                    ${Meld(addedKanTiles("across"))}
-                    ${Meld(addedKanTiles("right"))}
+                    ${Meld(addedKanMeld("left"))}
+                    ${Meld(addedKanMeld("across"))}
+                    ${Meld(addedKanMeld("right"))}
                 </div>
             </section>
         </div>

@@ -2,7 +2,6 @@ import { html, svg } from "lit-html";
 
 import backSvgRaw from "@/assets/tiles/backs/classic-yellow.svg?raw";
 import sprite from "@/assets/tiles/sprites/fluffy-stuff.svg?raw";
-import { TILE_HEIGHT, TILE_WIDTH } from "@/entities/tile/lib/tile-config";
 import { type TileFace } from "@/entities/tile/lib/tile-utils";
 
 // Strip fixed width/height so the SVG scales to its container via viewBox.
@@ -37,11 +36,10 @@ function injectSprite(): void {
 function Tile(face: TileFace, show: "face" | "back") {
     if (show === "back") {
         return html`<span class="tile tile-back" aria-label="back"
-          style="display:inline-block;width:${TILE_WIDTH}px;height:${TILE_HEIGHT}px"
           .innerHTML=${backSvg}></span>`;
     }
     injectSprite();
-    return html`<span class="tile" style="display:inline-block;width:${TILE_WIDTH}px;height:${TILE_HEIGHT}px">${svg`<svg width="${TILE_WIDTH}" height="${TILE_HEIGHT}" viewBox="0 0 300 400" aria-label="${face}"><use href="#tile-${face}"/></svg>`}</span>`;
+    return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}"><use href="#tile-${face}"/></svg>`}</span>`;
 }
 
 export { Tile, injectSprite };

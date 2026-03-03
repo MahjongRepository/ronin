@@ -1,12 +1,4 @@
-// Replay state display styles - navigation, player panels, and table info layout
-
-// ─── Replay State Container ─────────────────────────────────
-
-.replay-state {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
+// Replay state display styles - navigation, result panels, and board layout
 
 // ─── System Messages ────────────────────────────────────────
 
@@ -34,16 +26,6 @@
 }
 
 // ─── Navigation Controls ────────────────────────────────────
-
-.replay-state__nav {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    background: var(--ronin-surface-elevated);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
-}
 
 .replay-state__nav-btn {
     flex-shrink: 0;
@@ -128,138 +110,53 @@
     }
 }
 
-// ─── Event Description ──────────────────────────────────────
+// ─── Replay Board Mode ─────────────────────────────────────
 
-.replay-state__description {
-    padding: 0.6rem 1rem;
-    font-size: 0.85rem;
-    font-family: var(--ronin-font-body);
-    color: var(--pico-color);
-    min-height: 1.5em;
-}
+// The #app:has() override for .replay-board-mode is in _game-board.scss
+// (combined selector: #app:has(.board-storybook, .replay-board-mode))
 
-// ─── State Display ──────────────────────────────────────────
-
-.state-display {
+.replay-board-mode {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    height: 100vh;
+    overflow: hidden;
 }
 
-.state-display__players {
+.replay-board-mode .game-header {
+    flex-shrink: 0;
+}
+
+.replay-board-layout {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-}
-
-// ─── Table Info Bar ─────────────────────────────────────────
-
-.table-info {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-    padding: 0.75rem 1rem;
-    background: var(--ronin-surface-elevated);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
-    font-family: var(--ronin-font-mono);
-    font-size: 0.8rem;
-    color: var(--ronin-text-secondary);
-    flex-wrap: wrap;
-}
-
-.table-info__round {
-    font-weight: 600;
-    color: var(--pico-color);
-}
-
-.table-info__dora {
-    display: flex;
-    align-items: center;
+    flex: 1;
+    min-height: 0;
     gap: 0.25rem;
-
-    .tile {
-        width: 24px;
-        height: 32px;
-    }
 }
 
-.table-info__sticks {
-    display: flex;
-    gap: 0.75rem;
-}
-
-// ─── Player Panel ───────────────────────────────────────────
-
-.player-panel {
-    padding: 0.75rem 1rem;
-    background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    transition: border-color 0.2s ease;
-
-    &--current {
-        border-color: color-mix(in srgb, var(--pico-primary) 40%, var(--ronin-border));
-    }
-}
-
-.player-panel__header {
+.replay-board-layout__nav {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--ronin-surface-elevated);
+    border-bottom: 1px solid var(--ronin-border);
+    flex-shrink: 0;
+}
+
+.replay-board-layout__description {
+    padding: 0.4rem 1rem;
     font-size: 0.85rem;
-}
-
-.player-panel__name {
-    font-weight: 600;
-    color: var(--pico-color);
     font-family: var(--ronin-font-body);
+    color: var(--pico-color);
+    min-height: 1.25em;
+    flex-shrink: 0;
 }
 
-.player-panel__score {
-    font-family: var(--ronin-font-mono);
-    color: var(--ronin-text-secondary);
-    font-size: 0.8rem;
-}
-
-.player-panel__badge {
-    padding: 0.15rem 0.4rem;
-    border-radius: 0.25rem;
-    font-size: 0.65rem;
-    font-weight: 700;
-    font-family: var(--ronin-font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-
-    &--dealer {
-        background: color-mix(in srgb, var(--ronin-gold) 15%, transparent);
-        color: var(--ronin-gold);
-        border: 1px solid color-mix(in srgb, var(--ronin-gold) 30%, transparent);
-    }
-
-    &--riichi {
-        background: color-mix(in srgb, var(--ronin-danger) 15%, transparent);
-        color: var(--ronin-danger);
-        border: 1px solid color-mix(in srgb, var(--ronin-danger) 30%, transparent);
-    }
-
-    &--turn {
-        background: color-mix(in srgb, var(--pico-primary) 15%, transparent);
-        color: var(--pico-primary);
-        border: 1px solid color-mix(in srgb, var(--pico-primary) 30%, transparent);
-    }
-}
-
-.player-panel__hand,
-.player-panel__melds,
-.player-panel__discards {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
+.replay-board-layout__board {
+    flex: 1;
+    min-height: 0;
+    padding: 4px;
 }
 
 // ─── Round-End Result Panel ─────────────────────────────────

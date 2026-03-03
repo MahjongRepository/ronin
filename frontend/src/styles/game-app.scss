@@ -1,8 +1,10 @@
 @use "pico";
 @use "theme";
 @use "game";
+@use "tile";
 @use "discards";
 @use "melds";
 @use "hand";
 @use "storybook";
+@use "game-board";
 @use "replay-state";

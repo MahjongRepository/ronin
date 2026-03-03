@@ -1,34 +1,22 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { meldToDisplay } from "@/entities/table/lib/meld-display";
 import { windName } from "@/entities/table/lib/wind-name";
 import { yakuName } from "@/entities/table/lib/yaku-names";
 import {
-    type MeldRecord,
     type PlayerState,
     type RoundEndResult,
     type WinnerResult,
 } from "@/entities/table/model/types";
 import { Hand, type HandTile, Meld, tile136toString } from "@/entities/tile";
-import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
+import { type DecodedMeld, decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
 function toHandTile(tileId: number): HandTile {
     return { face: tile136toString(tileId), show: "face" };
 }
 
-/**
- * Convert an IMME-encoded meld integer to a MeldRecord suitable for meldToDisplay.
- * For added_kan melds, override to open_kan since decodeMeldCompact returns DecodedMeld
- * which lacks addedTileId — rendering as open_kan avoids ambiguous tile derivation.
- * Returns null for invalid IMME values (e.g. corrupt replay data) so callers can skip them.
- */
-function immeToMeldRecord(immeValue: number): MeldRecord | null {
+function safeDecodeMeld(immeValue: number): DecodedMeld | null {
     try {
-        const decoded = decodeMeldCompact(immeValue);
-        if (decoded.meldType === "added_kan") {
-            return { ...decoded, meldType: "open_kan" };
-        }
-        return decoded;
+        return decodeMeldCompact(immeValue);
     } catch {
         return null;
     }
@@ -73,13 +61,13 @@ function WinnerSection(
     const closedHandTiles = winner.closedTiles.map(toHandTile);
     const drawnTile = toHandTile(winner.winningTile);
 
-    const melds = winner.melds.map(immeToMeldRecord).filter((m): m is MeldRecord => m !== null);
+    const melds = winner.melds.map(safeDecodeMeld).filter((m): m is DecodedMeld => m !== null);
 
     return html`<div class="round-end-result__winner">
         <div class="round-end-result__winner-name">${name} (${wind})</div>
         <div class="round-end-result__hand">
             ${Hand(closedHandTiles, drawnTile)}
-            ${melds.map((m) => Meld(meldToDisplay(m)))}
+            ${melds.map((m) => Meld(m))}
         </div>
         <div class="round-end-result__yaku-list">
             ${winner.handResult.yaku.map(

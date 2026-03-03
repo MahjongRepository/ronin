@@ -83,7 +83,8 @@ src/styles/
 ├── _discards.scss     # Discard component styles (rows, grayed, sideways riichi)
 ├── _room.scss         # Room page styles (player list, chat, connection status)
 ├── _game.scss         # Game client styles (log panel, status badges)
-├── _replay-state.scss # Replay state display (nav, player panels, table info)
+├── _game-board.scss   # Game board layout (CSS Grid, center info, overlays, debug, storybook)
+├── _replay-state.scss # Replay state display (navigation controls, result panels, board integration)
 └── _storybook.scss    # Storybook layout (tile rows, cells)
 ```
 
@@ -127,6 +128,7 @@ Lightweight WebSocket wrapper for the lobby room protocol (JSON text frames). Pr
 ### Router (`router.ts`)
 Pathname-based SPA router. Routes:
 - `/play/storybook` — Component storybook index page (no WebSocket, dev-only)
+- `/play/storybook/board` — Storybook game board showcase (no WebSocket, dev-only)
 - `/play/storybook/discards` — Storybook discard pile showcase (no WebSocket, dev-only)
 - `/play/storybook/hand` — Storybook hand variants showcase (no WebSocket, dev-only)
 - `/play/storybook/melds` — Storybook meld types showcase (no WebSocket, dev-only)
@@ -153,8 +155,8 @@ Self-contained wire protocol module using Zod schemas and const objects (replaci
 ### Game View (`views/game.ts`)
 Renders a development log panel showing parsed game events (camelCase objects via `parseServerMessage()`). Handles the join → play → reconnect lifecycle using protocol builder functions (`buildJoinGameMessage`, `buildReconnectMessage`, `buildConfirmRoundAction`). Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors). Falls back to raw JSON logging when parsing fails.
 
-### Storybook Views (`views/storybook.ts`, `views/storybook-melds.ts`, `views/storybook-hand.ts`, `views/storybook-discards.ts`)
-Developer-facing component showcase with a multi-page structure. The main page at `/play/storybook` renders all 37 tile faces organized by suit, back tile display, wire ID conversion demo (`tile136toString`), and links to sub-pages. Sub-pages: `/play/storybook/discards` showcases discard pile variants (basic rows, overflow, grayed-out claimed tiles, sideways riichi tiles, mixed); `/play/storybook/hand` showcases hand variants (face up, face down, with/without drawn tile, small hand); `/play/storybook/melds` showcases all meld types (chi, pon, open/closed kan, added kan) with examples. Navigation is shared via `storybook-nav.ts` (4 pages: Index, Discards, Hand, Melds). Used for visual testing of game UI components.
+### Storybook Views (`views/storybook.ts`, `views/storybook-board.ts`, `views/storybook-melds.ts`, `views/storybook-hand.ts`, `views/storybook-discards.ts`)
+Developer-facing component showcase with a multi-page structure. The main page at `/play/storybook` renders all 37 tile faces organized by suit, back tile display, wire ID conversion demo (`tile136toString`), and links to sub-pages. Sub-pages: `/play/storybook/board` showcases the full game board layout with mock tile data for all 4 players, debug mode toggle, and overlay selector (no overlay / round end / game end); `/play/storybook/discards` showcases discard pile variants (basic rows, overflow, grayed-out claimed tiles, sideways riichi tiles, mixed); `/play/storybook/hand` showcases hand variants (face up, face down, with/without drawn tile, small hand); `/play/storybook/melds` showcases all meld types (chi, pon, open/closed kan, added kan) with examples. Navigation is shared via `storybook-nav.ts` (5 pages: Index, Board, Discards, Hand, Melds). Used for visual testing of game UI components.
 
 ### Tile Config (`entities/tile/lib/tile-config.ts`)
 Single source of truth for the active tile set and dimensions. Exports `TILE_FACES_SET` (face sprite folder name, e.g. `"fluffy-stuff"`) and `TILE_WIDTH`/`TILE_HEIGHT` (60×80 px). Used by the sprite build script, tile rendering, and storybook display.
@@ -217,17 +219,19 @@ Deterministic game state model for replay playback. Tracks table and player stat
 **Yaku Name Mapping** (`lib/yaku-names.ts`):
 - `yakuName(yakuId: number): string` — maps numeric yaku IDs from the Python `mahjong` library to English display names. Covers situational yaku (0-11), hand pattern yaku (12-39), yakuman (100-119), and dora types (120-122). Returns `"Unknown yaku"` for unrecognized IDs
 
+**Board Mapper** (`lib/board-mapper.ts`):
+- `tableStateToDisplayState(state)` — converts `TableState` to `BoardDisplayState`, mapping players by seat to position (bottom=0, right=1, top=2, left=3). Bottom player gets face-up tiles; others get face-down. Handles drawn tile separation, meld conversion, and discard flag mapping
+- `formatScore(score)` — formats numbers with locale separators (e.g., `25000` → `"25,000"`)
+
 **UI Components** (`ui/`):
-- `TableInfo(state)` — horizontal bar showing round wind, dealer, dora indicators, honba/riichi sticks
-- `PlayerPanel(player, isDealer, isCurrent)` — player name, score, dealer/riichi/turn badges, hand tiles (via `Hand()`), melds (via `Meld()` with `meldToDisplay()`), discards (via `Discards()`)
-- `StateDisplay(state)` — composes `TableInfo` + optional result panel + 4 `PlayerPanel` components in a vertical stack. Conditionally renders `RoundEndDisplay` when `phase === "round_ended"` with win results, or `GameEndDisplay` when `phase === "game_ended"`
+- `GameBoard(props)` — CSS Grid-based game board layout with 4 player zones (bottom/right/top/left) and a center info area. Each player zone has 3 separate grid areas (hand, melds, discards) rendered as direct children. Non-bottom players are CSS-rotated (90/180/270 degrees). Accepts `BoardDisplayState` (or null for empty debug board), an optional overlay `TemplateResult`, and a debug toggle. Center area shows scores in compass layout, round wind, dora indicators, and stick counts. Debug mode adds red borders and area labels
 - `RoundEndDisplay(result, players)` — renders round-end win results: for each winner shows hand tiles (closed + melds + winning tile with gap), yaku list with han values, han/fu totals (with yakuman/double yakuman labels), and score changes for all players with sign-prefixed deltas. Handles double ron (two winner sections). Decodes IMME melds via `decodeMeldCompact()`, with `added_kan` rendered as `open_kan` (fallback for missing `addedTileId`)
 - `GameEndDisplay(result, players)` — renders game-end final standings table: rank (from array index), player name, raw score (comma-formatted), final score (uma/oka-adjusted, with sign prefix and one decimal). Preserves backend placement order
 - `DropdownSelect(props)` — shared stateless dropdown component for jump-to navigation. Props: `triggerLabel`, `items: DropdownItem[]`, `isOpen`, `onToggle`, `onSelect`. Renders a trigger button and an absolute-positioned panel of selectable items. Items have `label`, `stepIndex`, and `isCurrent` (for highlighting). The caller manages open/closed state and click-outside dismissal
 - `RoundSelector(props)` — thin wrapper mapping `RoundInfo[]` to `DropdownItem[]` and delegating to `DropdownSelect`. Labels format as "East 2, 0 honba — Tsumo by Alice". Trigger shows current round name or "Rounds"
 - `TurnSelector(props)` — thin wrapper mapping `TurnInfo[]` to `DropdownItem[]` and delegating to `DropdownSelect`. Labels format as "Turn 1 — Alice". Highlights the nearest turn to the current step. Trigger shows "Turn N" or "Turns"
 
-**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `WinnerResult`, `RoundEndResult`, `GameEndResult`, `GamePhase`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `ActionStep`, `buildActionSteps`, `RoundInfo`, `TurnInfo`, `NavigationIndex`, `buildNavigationIndex`, `roundForStep`, `turnsForStep`, `meldToDisplay`, `windName`, `yakuName`, `StateDisplay`, `RoundEndDisplay`, `GameEndDisplay`, `DropdownItem`, `DropdownSelectProps`, `DropdownSelect`, `RoundSelectorProps`, `RoundSelector`, `TurnSelectorProps`, `TurnSelector`
+**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `WinnerResult`, `RoundEndResult`, `GameEndResult`, `GamePhase`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `ActionStep`, `buildActionSteps`, `RoundInfo`, `TurnInfo`, `NavigationIndex`, `buildNavigationIndex`, `roundForStep`, `turnsForStep`, `meldToDisplay`, `windName`, `yakuName`, `SEAT_POSITIONS`, `BoardCenterInfo`, `BoardDisplayState`, `BoardPlayerDisplay`, `BoardPlayerScore`, `SeatPosition`, `tableStateToDisplayState`, `GameBoard`, `GameBoardProps`, `RoundEndDisplay`, `GameEndDisplay`, `DropdownItem`, `DropdownSelectProps`, `DropdownSelect`, `RoundSelectorProps`, `RoundSelector`, `TurnSelectorProps`, `TurnSelector`
 
 ### Replay View (`views/replay.ts`)
 Displays completed game replays with visual state display and action-step navigation. Fetches NDJSON replay data via HTTP from `/api/replays/{gameId}` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), filters through `isReplayEvent()` type guard to extract the 9 replay event types, then builds a pre-computed state timeline via `buildTimeline()`, action steps via `buildActionSteps()`, and a navigation index via `buildNavigationIndex()`. Non-replay event types and parse failures are collected as `parseErrors` and surfaced as a warning.
@@ -238,7 +242,7 @@ Displays completed game replays with visual state display and action-step naviga
 
 **Counter display**: `formatStepCounter()` shows contextual position — "East 2, 1 honba — Step 5 / 42" during rounds, "Step 1 / N" before any round, "Game ended — Step N / N" after game end. Uses `roundForStep()` from the navigation index.
 
-The state display renders `TableInfo` (round info bar), 4 `PlayerPanel` components (hand, melds, discards, score), round/turn selector dropdowns, and the step counter. Shows "Replay" status badge and "Back to History" navigation.
+The state display renders `GameBoard` via `tableStateToDisplayState()` conversion, with `buildOverlay()` providing `RoundEndDisplay` or `GameEndDisplay` overlays based on the game phase. The full-viewport layout uses `.replay-board-mode` with `#app:has()` constraint removal. Nav bar includes round/turn selector dropdowns and step counter. Shows "Replay" status badge and "Back to History" navigation.
 
 ### Session Storage (`shared/session/session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
@@ -271,16 +275,14 @@ Two Vite entry points configured in `vite.config.ts`:
 - Imports `../styles/lobby-app.scss`
 - Produces content-hashed JS and extracted CSS in `dist/assets/`
 
-`bun run build` runs `vite build`, which produces `dist/.vite/manifest.json` mapping source entry points to their hashed output files. CSS is extracted into separate files (no CSS-in-JS at runtime).
-
-**Tile Sprite** (`bun run sprite [name]`):
+**Tile Sprite**:
 - Runs `scripts/build-tile-sprite.ts`
 - Accepts optional CLI arg for tile set name; defaults to `TILE_FACES_SET` from `tile-config.ts`
 - Reads individual SVGs from `src/assets/tiles/faces/{name}/`
 - Optimizes with SVGO and combines into `src/assets/tiles/sprites/{name}.svg`
 - Generated file is committed to git; run only when tile SVGs change
 
-**Dev mode** (`bun run dev`):
+**Dev mode**:
 - Vite dev server on port 5173 with HMR for TypeScript and SCSS
 - Lobby backend connects to Vite when `LOBBY_VITE_DEV_URL` is set
 
@@ -325,6 +327,7 @@ frontend/
     │       ├── index.ts              # Public API barrel
     │       ├── model/
     │       │   ├── types.ts          # State types (TableState, PlayerState, ReplayEvent)
+    │       │   ├── board-types.ts    # Board display types (BoardDisplayState, BoardPlayerDisplay, etc.)
     │       │   ├── initial-state.ts  # Factory functions for initial state
     │       │   ├── apply-event.ts    # Event dispatcher and handlers
     │       │   ├── helpers.ts        # Player state update helper
@@ -336,11 +339,10 @@ frontend/
     │       ├── lib/
     │       │   ├── wind-name.ts      # Wind integer to display string
     │       │   ├── meld-display.ts   # MeldRecord to MeldTileDisplay[] conversion
+    │       │   ├── board-mapper.ts   # TableState to BoardDisplayState conversion
     │       │   └── yaku-names.ts     # Yaku ID to English name mapping
     │       └── ui/
-    │           ├── state-display.ts  # Composed state view (TableInfo + result panels + 4 PlayerPanels)
-    │           ├── table-info.ts     # Round info bar (wind, dora, sticks)
-    │           ├── player-panel.ts   # Player hand, melds, discards, score
+    │           ├── game-board.ts     # Game board component (CSS Grid layout with 4 player zones + center)
     │           ├── round-end-display.ts  # Round-end result panel (winning hand, yakus, scores)
     │           ├── game-end-display.ts   # Game-end standings table
     │           ├── dropdown-select.ts    # Shared stateless dropdown component
@@ -396,6 +398,7 @@ frontend/
     │   ├── game.ts          # Game view (log panel, join/reconnect lifecycle)
     │   ├── replay.ts        # Replay view (HTTP fetch, log panel, no WebSocket)
     │   ├── storybook.ts     # Component storybook (tile gallery, UI demos)
+    │   ├── storybook-board.ts # Storybook board showcase page
     │   ├── storybook-melds.ts # Storybook meld showcase page
     │   ├── storybook-hand.ts  # Storybook hand showcase page
     │   ├── storybook-discards.ts # Storybook discards showcase page
@@ -419,7 +422,8 @@ frontend/
         ├── _discards.scss   # Discard component styles (rows, grayed, sideways riichi)
         ├── _room.scss       # Room page styles (players, chat)
         ├── _game.scss       # Game client styles (log panel, status badges)
-        ├── _replay-state.scss # Replay state display (nav, player panels, table info)
+        ├── _game-board.scss # Game board layout (CSS Grid, center info, overlays, debug, storybook)
+        ├── _replay-state.scss # Replay state display (navigation controls, result panels, board integration)
         └── _storybook.scss  # Storybook layout (tile rows, cells)
 ```
 

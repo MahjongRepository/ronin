@@ -8,17 +8,20 @@ vi.mock("lit-html", () => ({
 }));
 
 vi.mock("@/entities/table", () => ({
+    GameBoard: vi.fn(() => ({ _brand: "template" })),
+    GameEndDisplay: vi.fn(() => ({ _brand: "template" })),
+    RoundEndDisplay: vi.fn(() => ({ _brand: "template" })),
     RoundSelector: vi.fn((props: { onToggle: () => void }) => {
         capturedOnToggle = props.onToggle;
         return { _brand: "template" };
     }),
-    StateDisplay: vi.fn(() => ({ _brand: "template" })),
     TurnSelector: vi.fn(() => ({ _brand: "template" })),
     buildActionSteps: vi.fn().mockReturnValue([]),
     buildNavigationIndex: vi.fn().mockReturnValue({ rounds: [] }),
     buildTimeline: vi.fn().mockReturnValue([]),
     formatRoundName: vi.fn().mockReturnValue("East 1"),
     roundForStep: vi.fn().mockReturnValue(undefined),
+    tableStateToDisplayState: vi.fn(() => null),
     turnsForStep: vi.fn().mockReturnValue([]),
 }));
 

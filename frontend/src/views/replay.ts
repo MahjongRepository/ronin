@@ -2,11 +2,13 @@ import { type TemplateResult, html, render } from "lit-html";
 
 import {
     type ActionStep,
+    GameBoard,
+    GameEndDisplay,
     type GamePhase,
     type NavigationIndex,
     type ReplayEvent,
+    RoundEndDisplay,
     RoundSelector,
-    StateDisplay,
     type TableState,
     TurnSelector,
     buildActionSteps,
@@ -14,6 +16,7 @@ import {
     buildTimeline,
     formatRoundName,
     roundForStep,
+    tableStateToDisplayState,
     turnsForStep,
 } from "@/entities/table";
 import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
@@ -278,6 +281,20 @@ export function formatStepCounter(params: StepCounterParams): string {
     return prefix ? `${prefix} \u2014 ${stepLabel}` : stepLabel;
 }
 
+function buildOverlay(tableState: TableState): TemplateResult | undefined {
+    if (tableState.phase === "round_ended" && tableState.roundEndResult) {
+        return RoundEndDisplay(
+            tableState.roundEndResult,
+            tableState.players,
+            tableState.dealerSeat,
+        );
+    }
+    if (tableState.phase === "game_ended" && tableState.gameEndResult) {
+        return GameEndDisplay(tableState.gameEndResult, tableState.players);
+    }
+    return undefined;
+}
+
 function updateStateDisplay(): void {
     const container = document.getElementById("replay-state-container");
     if (!container) {
@@ -304,7 +321,7 @@ function updateStateDisplay(): void {
                 </div>`
                     : ""
             }
-            <div class="replay-state__nav">
+            <div class="replay-board-layout__nav">
                 <button
                     class="replay-state__nav-btn"
                     @click=${handlePrev}
@@ -342,10 +359,20 @@ function updateStateDisplay(): void {
                     ?disabled=${state.currentStep >= totalSteps - 1}
                 >Next</button>
             </div>
-            <div class="replay-state__description">
+            <div class="replay-board-layout__description">
                 ${descriptionState?.lastEventDescription ?? ""}
             </div>
-            ${displayState ? StateDisplay(displayState) : ""}
+            <div class="replay-board-layout__board">
+                ${
+                    displayState
+                        ? GameBoard({
+                              debug: false,
+                              overlay: buildOverlay(displayState),
+                              state: tableStateToDisplayState(displayState),
+                          })
+                        : ""
+                }
+            </div>
         `,
         container,
     );
@@ -357,7 +384,7 @@ function attachWheelListener(container: HTMLElement): void {
     if (wheelNavElement) {
         return;
     }
-    const navEl = container.querySelector<HTMLElement>(".replay-state__nav");
+    const navEl = container.querySelector<HTMLElement>(".replay-board-layout__nav");
     if (navEl) {
         navEl.addEventListener("wheel", handleWheel, { passive: false });
         wheelNavElement = navEl;
@@ -395,13 +422,13 @@ export function replayView(gameId: string): TemplateResult {
     document.addEventListener("click", handleClickOutside);
 
     return html`
-        <div class="game">
+        <div class="replay-board-mode">
             <div class="game-header">
                 <a href="/history" class="secondary" role="button">Back to History</a>
                 <h2>Game: ${gameId}</h2>
                 <span class="connection-status status-replay">Replay</span>
             </div>
-            <div class="replay-state" id="replay-state-container"></div>
+            <div class="replay-board-layout" id="replay-state-container"></div>
         </div>
     `;
 }
