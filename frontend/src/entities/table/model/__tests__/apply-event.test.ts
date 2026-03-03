@@ -286,6 +286,22 @@ function makeDiscardEvent(overrides?: Partial<DiscardEvent>): DiscardEvent {
     };
 }
 
+describe("applyEvent - draw throws for invalid seat", () => {
+    test("throws when no player matches the draw seat", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeDrawEvent({ seat: 99, tileId: 52 });
+        expect(() => applyEvent(state, event)).toThrow("No player found for seat 99");
+    });
+});
+
+describe("applyEvent - discard throws for invalid seat", () => {
+    test("throws when no player matches the discard seat", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeDiscardEvent({ seat: 99, tileId: 52 });
+        expect(() => applyEvent(state, event)).toThrow("No player found for seat 99");
+    });
+});
+
 describe("applyEvent - draw", () => {
     test("adds tile to player's hand and sets drawnTileId", () => {
         const state = stateAfterRoundStarted();
@@ -799,6 +815,197 @@ describe("applyEvent - round_end", () => {
 
         expect(state.players.map((p) => p.score)).toEqual(originalScores);
         expect(state.phase).toBe("in_round");
+    });
+});
+
+describe("applyEvent - round_end result data", () => {
+    test("tsumo populates single winner with correct hand data", () => {
+        const state = stateAfterRoundStarted();
+        const next = applyEvent(
+            state,
+            makeTsumoRoundEnd({ melds: [12345], winnerSeat: 0, winningTile: 52 }),
+        );
+
+        expect(next.roundEndResult).not.toBeNull();
+        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.TSUMO);
+        expect(next.roundEndResult!.winners).toHaveLength(1);
+
+        const [winner] = next.roundEndResult!.winners;
+        expect(winner.seat).toBe(0);
+        expect(winner.melds).toEqual([12345]);
+        expect(winner.winningTile).toBe(52);
+    });
+
+    test("tsumo populates yaku list and han/fu totals", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeTsumoRoundEnd({
+            handResult: {
+                fu: 30,
+                han: 4,
+                yaku: [
+                    { han: 1, yakuId: 0 },
+                    { han: 1, yakuId: 1 },
+                    { han: 1, yakuId: 12 },
+                    { han: 1, yakuId: 120 },
+                ],
+            },
+        });
+        const next = applyEvent(state, event);
+        const [winner] = next.roundEndResult!.winners;
+
+        expect(winner.handResult.han).toBe(4);
+        expect(winner.handResult.fu).toBe(30);
+        expect(winner.handResult.yaku).toHaveLength(4);
+    });
+
+    test("tsumo populates scoreChanges", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeTsumoRoundEnd({
+            scoreChanges: { "0": 10000, "1": -3000, "2": -3000, "3": -4000 },
+        });
+        const next = applyEvent(state, event);
+
+        expect(next.roundEndResult!.scoreChanges).toEqual({
+            "0": 10000,
+            "1": -3000,
+            "2": -3000,
+            "3": -4000,
+        });
+    });
+
+    test("ron populates winner and loserSeat", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeRonRoundEnd({
+            closedTiles: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            loserSeat: 3,
+            winnerSeat: 1,
+            winningTile: 60,
+        });
+        const next = applyEvent(state, event);
+
+        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.RON);
+        expect(next.roundEndResult!.loserSeat).toBe(3);
+        expect(next.roundEndResult!.winners).toHaveLength(1);
+
+        const [winner] = next.roundEndResult!.winners;
+        expect(winner.seat).toBe(1);
+        expect(winner.winningTile).toBe(60);
+    });
+
+    test("double ron populates two winners with loserSeat", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeDoubleRonRoundEnd();
+        const next = applyEvent(state, event);
+
+        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.DOUBLE_RON);
+        expect(next.roundEndResult!.loserSeat).toBe(1);
+        expect(next.roundEndResult!.winners).toHaveLength(2);
+
+        const [w1, w2] = next.roundEndResult!.winners;
+        expect(w1.seat).toBe(0);
+        expect(w2.seat).toBe(2);
+    });
+
+    test("double ron winners share the same winning tile", () => {
+        const state = stateAfterRoundStarted();
+        const next = applyEvent(state, makeDoubleRonRoundEnd());
+
+        const [w1, w2] = next.roundEndResult!.winners;
+        expect(w1.winningTile).toBe(52);
+        expect(w2.winningTile).toBe(52);
+        expect(w1.closedTiles).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        expect(w2.closedTiles).toEqual([26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
+    });
+
+    test("exhaustive draw has empty winners array", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeExhaustiveDrawRoundEnd();
+        const next = applyEvent(state, event);
+
+        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW);
+        expect(next.roundEndResult!.winners).toEqual([]);
+        expect(next.roundEndResult!.scoreChanges).toEqual({
+            "0": 1500,
+            "1": -1500,
+            "2": 1500,
+            "3": -1500,
+        });
+    });
+
+    test("abortive draw has empty winners array", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeAbortiveDrawRoundEnd();
+        const next = applyEvent(state, event);
+
+        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.ABORTIVE_DRAW);
+        expect(next.roundEndResult!.winners).toEqual([]);
+    });
+
+    test("nagashi mangan has empty winners array", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeNagashiManganRoundEnd();
+        const next = applyEvent(state, event);
+
+        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.NAGASHI_MANGAN);
+        expect(next.roundEndResult!.winners).toEqual([]);
+    });
+});
+
+describe("applyEvent - game_end result data", () => {
+    test("populates gameEndResult with standings and finalScore", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeGameEndEvent({
+            standings: [
+                { finalScore: 45.0, score: 35000, seat: 0 },
+                { finalScore: 12.0, score: 22000, seat: 1 },
+                { finalScore: -8.0, score: 18000, seat: 2 },
+                { finalScore: -49.0, score: 25000, seat: 3 },
+            ],
+            winnerSeat: 0,
+        });
+        const next = applyEvent(state, event);
+
+        expect(next.gameEndResult).not.toBeNull();
+        expect(next.gameEndResult!.winnerSeat).toBe(0);
+        expect(next.gameEndResult!.standings).toEqual([
+            { finalScore: 45.0, score: 35000, seat: 0 },
+            { finalScore: 12.0, score: 22000, seat: 1 },
+            { finalScore: -8.0, score: 18000, seat: 2 },
+            { finalScore: -49.0, score: 25000, seat: 3 },
+        ]);
+    });
+});
+
+describe("applyEvent - result clearing", () => {
+    test("round_started clears roundEndResult", () => {
+        const state = stateAfterRoundStarted();
+        const roundEndState = applyEvent(state, makeTsumoRoundEnd());
+        expect(roundEndState.roundEndResult).not.toBeNull();
+
+        const nextRoundState = applyEvent(roundEndState, makeRoundStartedEvent());
+        expect(nextRoundState.roundEndResult).toBeNull();
+    });
+
+    test("game_end clears stale roundEndResult", () => {
+        const state = stateAfterRoundStarted();
+        const roundEndState = applyEvent(state, makeTsumoRoundEnd());
+        expect(roundEndState.roundEndResult).not.toBeNull();
+
+        const gameEndState = applyEvent(roundEndState, makeGameEndEvent());
+        expect(gameEndState.roundEndResult).toBeNull();
+        expect(gameEndState.gameEndResult).not.toBeNull();
+    });
+
+    test("game_started clears both roundEndResult and gameEndResult", () => {
+        const state = stateAfterRoundStarted();
+        const roundEndState = applyEvent(state, makeTsumoRoundEnd());
+        const gameEndState = applyEvent(roundEndState, makeGameEndEvent());
+        expect(gameEndState.roundEndResult).toBeNull();
+        expect(gameEndState.gameEndResult).not.toBeNull();
+
+        const newGameState = applyEvent(gameEndState, makeGameStartedEvent());
+        expect(newGameState.roundEndResult).toBeNull();
+        expect(newGameState.gameEndResult).toBeNull();
     });
 });
 

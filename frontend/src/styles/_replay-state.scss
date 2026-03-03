@@ -69,6 +69,65 @@
     letter-spacing: 0.02em;
 }
 
+// ─── Dropdown Select ────────────────────────────────────────
+
+.dropdown-select {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.dropdown-select__trigger {
+    margin-bottom: 0;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    font-family: var(--ronin-font-mono);
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.dropdown-select__panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 10;
+    min-width: 100%;
+    max-height: 16rem;
+    overflow-y: auto;
+    margin-top: 0.25rem;
+    padding: 0.25rem 0;
+    background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+}
+
+.dropdown-select__item {
+    display: block;
+    width: 100%;
+    margin-bottom: 0;
+    padding: 0.4rem 0.75rem;
+    background: none;
+    border: none;
+    border-radius: 0;
+    font-size: 0.75rem;
+    font-family: var(--ronin-font-mono);
+    color: var(--ronin-text-secondary);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+        background: color-mix(in srgb, var(--pico-primary) 10%, transparent);
+        color: var(--pico-color);
+    }
+
+    &--current {
+        color: var(--pico-primary);
+        font-weight: 600;
+    }
+}
+
 // ─── Event Description ──────────────────────────────────────
 
 .replay-state__description {
@@ -201,4 +260,134 @@
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+}
+
+// ─── Round-End Result Panel ─────────────────────────────────
+
+.round-end-result {
+    padding: 1rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.round-end-result__winner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.round-end-result__winner-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--pico-color);
+    font-family: var(--ronin-font-body);
+}
+
+.round-end-result__hand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.round-end-result__yaku-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.8rem;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__yaku-item {
+    padding: 0.1rem 0;
+}
+
+.round-end-result__totals {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--pico-color);
+}
+
+.round-end-result__scores {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--ronin-border);
+}
+
+.round-end-result__score-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    font-family: var(--ronin-font-mono);
+}
+
+.round-end-result__score-name {
+    min-width: 6rem;
+    color: var(--pico-color);
+}
+
+.round-end-result__score-delta {
+    color: var(--ronin-text-secondary);
+}
+
+// ─── Game-End Result Panel ─────────────────────────────────
+
+.game-end-result {
+    padding: 1rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.game-end-result__title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--pico-color);
+    font-family: var(--ronin-font-body);
+    padding-bottom: 0.25rem;
+}
+
+.game-end-result__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    font-family: var(--ronin-font-mono);
+    padding: 0.2rem 0;
+}
+
+.game-end-result__rank {
+    min-width: 1.5rem;
+    font-weight: 600;
+    color: var(--pico-color);
+}
+
+.game-end-result__name {
+    min-width: 6rem;
+    color: var(--pico-color);
+    font-family: var(--ronin-font-body);
+}
+
+.game-end-result__score {
+    min-width: 5rem;
+    text-align: right;
+    color: var(--ronin-text-secondary);
+}
+
+.game-end-result__final-score {
+    min-width: 4rem;
+    text-align: right;
+    color: var(--ronin-text-secondary);
 }

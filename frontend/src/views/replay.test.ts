@@ -1,7 +1,16 @@
 import { describe, expect, test } from "vitest";
 
+import { type NavigationIndex } from "@/entities/table";
 import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
-import { isAbortError, isReplayEvent, isVersionTag, parseReplayLines } from "@/views/replay";
+import {
+    formatStepCounter,
+    handleKeydown,
+    handleWheel,
+    isAbortError,
+    isReplayEvent,
+    isVersionTag,
+    parseReplayLines,
+} from "@/views/replay";
 
 describe("isVersionTag", () => {
     test("detects version field", () => {
@@ -177,5 +186,150 @@ describe("isAbortError", () => {
     test("false for non-error values", () => {
         expect(isAbortError(null)).toBe(false);
         expect(isAbortError("AbortError")).toBe(false);
+    });
+});
+
+describe("handleKeydown", () => {
+    test("no-op when actionSteps is empty (replay not loaded)", () => {
+        // Module state starts with empty actionSteps. ArrowLeft/ArrowRight
+        // should not throw or cause side effects.
+        const left = new KeyboardEvent("keydown", { key: "ArrowLeft" });
+        const right = new KeyboardEvent("keydown", { key: "ArrowRight" });
+        expect(() => handleKeydown(left)).not.toThrow();
+        expect(() => handleKeydown(right)).not.toThrow();
+    });
+
+    test("ignores keypresses when input element is focused", () => {
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        input.focus();
+        const event = new KeyboardEvent("keydown", {
+            bubbles: true,
+            key: "ArrowLeft",
+        });
+        Object.defineProperty(event, "target", { value: input });
+        expect(() => handleKeydown(event)).not.toThrow();
+        document.body.removeChild(input);
+    });
+
+    test("ignores keypresses when textarea is focused", () => {
+        const textarea = document.createElement("textarea");
+        document.body.appendChild(textarea);
+        textarea.focus();
+        const event = new KeyboardEvent("keydown", {
+            bubbles: true,
+            key: "ArrowRight",
+        });
+        Object.defineProperty(event, "target", { value: textarea });
+        expect(() => handleKeydown(event)).not.toThrow();
+        document.body.removeChild(textarea);
+    });
+});
+
+describe("handleWheel", () => {
+    test("no-op when actionSteps is empty (replay not loaded)", () => {
+        const scrollDown = new WheelEvent("wheel", { deltaY: 100 });
+        const scrollUp = new WheelEvent("wheel", { deltaY: -100 });
+        expect(() => handleWheel(scrollDown)).not.toThrow();
+        expect(() => handleWheel(scrollUp)).not.toThrow();
+    });
+
+    test("skips navigation when target is inside dropdown panel", () => {
+        const panel = document.createElement("div");
+        panel.className = "dropdown-select__panel";
+        const inner = document.createElement("span");
+        panel.appendChild(inner);
+        document.body.appendChild(panel);
+
+        const event = new WheelEvent("wheel", { deltaY: 100 });
+        Object.defineProperty(event, "target", { value: inner });
+        expect(() => handleWheel(event)).not.toThrow();
+
+        document.body.removeChild(panel);
+    });
+});
+
+function makeNavIndex(overrides?: Partial<NavigationIndex>): NavigationIndex {
+    return {
+        rounds: [],
+        stepToRoundIndex: [-1],
+        turnsByRound: [],
+        ...overrides,
+    };
+}
+
+describe("formatStepCounter", () => {
+    test("pre-game step with no round shows plain step label", () => {
+        const navIndex = makeNavIndex({ stepToRoundIndex: [-1, -1, -1] });
+        expect(
+            formatStepCounter({ currentStep: 0, navIndex, phase: "pre_game", totalSteps: 3 }),
+        ).toBe("Step 1 / 3");
+    });
+
+    test("in-round step shows round context with wind and number", () => {
+        const navIndex = makeNavIndex({
+            rounds: [
+                {
+                    actionStepIndex: 1,
+                    honba: 0,
+                    resultDescription: "Tsumo by Alice",
+                    roundNumber: 2,
+                    wind: 0,
+                },
+            ],
+            stepToRoundIndex: [-1, 0, 0, 0],
+        });
+        expect(
+            formatStepCounter({ currentStep: 2, navIndex, phase: "in_round", totalSteps: 4 }),
+        ).toBe("East 2 \u2014 Step 3 / 4");
+    });
+
+    test("in-round step with honba shows honba in label", () => {
+        const navIndex = makeNavIndex({
+            rounds: [
+                {
+                    actionStepIndex: 1,
+                    honba: 3,
+                    resultDescription: "",
+                    roundNumber: 1,
+                    wind: 1,
+                },
+            ],
+            stepToRoundIndex: [-1, 0, 0],
+        });
+        expect(
+            formatStepCounter({ currentStep: 1, navIndex, phase: "in_round", totalSteps: 3 }),
+        ).toBe("South 1, 3 honba \u2014 Step 2 / 3");
+    });
+
+    test("round-ended phase still shows round context", () => {
+        const navIndex = makeNavIndex({
+            rounds: [
+                {
+                    actionStepIndex: 1,
+                    honba: 0,
+                    resultDescription: "Tsumo by Alice",
+                    roundNumber: 1,
+                    wind: 0,
+                },
+            ],
+            stepToRoundIndex: [-1, 0, 0, 0],
+        });
+        expect(
+            formatStepCounter({ currentStep: 3, navIndex, phase: "round_ended", totalSteps: 4 }),
+        ).toBe("East 1 \u2014 Step 4 / 4");
+    });
+
+    test("game-ended phase shows game ended prefix", () => {
+        const navIndex = makeNavIndex({ stepToRoundIndex: [-1, 0, 0, -1] });
+        expect(
+            formatStepCounter({ currentStep: 3, navIndex, phase: "game_ended", totalSteps: 4 }),
+        ).toBe("Game ended \u2014 Step 4 / 4");
+    });
+
+    test("null navigation index returns plain step label", () => {
+        expect(
+            formatStepCounter({ currentStep: 0, navIndex: null, phase: "pre_game", totalSteps: 5 }),
+        ).toBe("Step 1 / 5");
     });
 });

@@ -35,6 +35,30 @@ export interface PlayerState {
     isRiichi: boolean;
 }
 
+export interface WinnerResult {
+    seat: number;
+    closedTiles: number[];
+    melds: number[];
+    winningTile: number;
+    handResult: {
+        han: number;
+        fu: number;
+        yaku: { yakuId: number; han: number }[];
+    };
+}
+
+export interface RoundEndResult {
+    resultType: RoundEndEvent["resultType"];
+    winners: WinnerResult[];
+    scoreChanges: Record<string, number>;
+    loserSeat?: number;
+}
+
+export interface GameEndResult {
+    winnerSeat: number;
+    standings: { seat: number; score: number; finalScore: number }[];
+}
+
 export type GamePhase = "pre_game" | "in_round" | "round_ended" | "game_ended";
 
 export interface TableState {
@@ -49,6 +73,8 @@ export interface TableState {
     currentPlayerSeat: number;
     phase: GamePhase;
     lastEventDescription: string;
+    roundEndResult: RoundEndResult | null;
+    gameEndResult: GameEndResult | null;
 }
 
 export type ReplayEvent =

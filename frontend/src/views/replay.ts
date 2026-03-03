@@ -1,6 +1,21 @@
 import { type TemplateResult, html, render } from "lit-html";
 
-import { type ReplayEvent, StateDisplay, type TableState, buildTimeline } from "@/entities/table";
+import {
+    type ActionStep,
+    type GamePhase,
+    type NavigationIndex,
+    type ReplayEvent,
+    RoundSelector,
+    StateDisplay,
+    type TableState,
+    TurnSelector,
+    buildActionSteps,
+    buildNavigationIndex,
+    buildTimeline,
+    formatRoundName,
+    roundForStep,
+    turnsForStep,
+} from "@/entities/table";
 import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
 
 const REPLAY_EVENT_TYPES: Record<ReplayEvent["type"], true> = {
@@ -26,8 +41,11 @@ interface ParsedReplay {
 
 interface ReplayViewState {
     abortController: AbortController | null;
-    currentIndex: number;
+    actionSteps: ActionStep[];
+    currentStep: number;
     events: ReplayEvent[];
+    navigationIndex: NavigationIndex | null;
+    openDropdown: "round" | "turn" | null;
     parseErrors: string[];
     states: TableState[];
     viewGeneration: number;
@@ -35,8 +53,11 @@ interface ReplayViewState {
 
 let state: ReplayViewState = {
     abortController: null,
-    currentIndex: 0,
+    actionSteps: [],
+    currentStep: 0,
     events: [],
+    navigationIndex: null,
+    openDropdown: null,
     parseErrors: [],
     states: [],
     viewGeneration: 0,
@@ -101,10 +122,12 @@ function handleResponseError(response: Response): void {
 }
 
 function applyParsedReplay(parsed: ParsedReplay): void {
-    state.currentIndex = 0;
+    state.currentStep = 0;
     state.events = parsed.events;
     state.parseErrors = parsed.errors;
     state.states = buildTimeline(parsed.events);
+    state.actionSteps = buildActionSteps(parsed.events);
+    state.navigationIndex = buildNavigationIndex(parsed.events, state.actionSteps, state.states);
 }
 
 async function processResponse(response: Response, generation: number): Promise<void> {
@@ -123,7 +146,7 @@ async function processResponse(response: Response, generation: number): Promise<
 async function fetchReplay(gameId: string, generation: number): Promise<void> {
     state.abortController = new AbortController();
     try {
-        const response = await fetch(`/api/replays/${gameId}`, {
+        const response = await fetch(`/api/replays/${encodeURIComponent(gameId)}`, {
             signal: state.abortController.signal,
         });
         if (state.viewGeneration !== generation) {
@@ -147,17 +170,112 @@ function renderSystemMessage(message: string): void {
 }
 
 function handlePrev(): void {
-    if (state.currentIndex > 0) {
-        state.currentIndex--;
+    if (state.currentStep > 0) {
+        state.currentStep--;
         updateStateDisplay();
     }
 }
 
 function handleNext(): void {
-    if (state.currentIndex < state.events.length) {
-        state.currentIndex++;
+    if (state.currentStep < state.actionSteps.length - 1) {
+        state.currentStep++;
         updateStateDisplay();
     }
+}
+
+function handleJumpToStep(stepIndex: number): void {
+    if (stepIndex < 0 || stepIndex >= state.actionSteps.length) {
+        return;
+    }
+    state.currentStep = stepIndex;
+    state.openDropdown = null;
+    updateStateDisplay();
+}
+
+function handleToggleDropdown(which: "round" | "turn"): void {
+    state.openDropdown = state.openDropdown === which ? null : which;
+    updateStateDisplay();
+}
+
+export function handleClickOutside(event: MouseEvent): void {
+    if (state.openDropdown === null) {
+        return;
+    }
+    const target = event.target as Element | null;
+    if (target?.closest(".dropdown-select")) {
+        return;
+    }
+    state.openDropdown = null;
+    updateStateDisplay();
+}
+
+let wheelNavElement: HTMLElement | null = null;
+
+const IGNORED_KEY_TARGETS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+
+export function handleKeydown(event: KeyboardEvent): void {
+    const target = event.target as Element | null;
+    if (target && IGNORED_KEY_TARGETS.has(target.tagName)) {
+        return;
+    }
+    if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handlePrev();
+    } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handleNext();
+    }
+}
+
+export function handleWheel(event: WheelEvent): void {
+    const target = event.target as Element | null;
+    if (target?.closest(".dropdown-select__panel")) {
+        return;
+    }
+    if (event.deltaY > 0) {
+        event.preventDefault();
+        handleNext();
+    } else if (event.deltaY < 0) {
+        event.preventDefault();
+        handlePrev();
+    }
+}
+
+interface StepCounterParams {
+    currentStep: number;
+    navIndex: NavigationIndex | null;
+    phase: GamePhase;
+    totalSteps: number;
+}
+
+function stepPrefix(
+    navIndex: NavigationIndex | null,
+    currentStep: number,
+    phase: GamePhase,
+): string {
+    if (!navIndex) {
+        return "";
+    }
+    if (phase === "game_ended") {
+        return "Game ended";
+    }
+    const round = roundForStep(navIndex, currentStep);
+    if (!round) {
+        return "";
+    }
+    return formatRoundName(round.wind, round.roundNumber, round.honba);
+}
+
+/**
+ * Formats the step counter with game context.
+ * Shows round info (wind, number, honba) when inside a round,
+ * "Game ended" after the game ends, or just the step when pre-game.
+ */
+export function formatStepCounter(params: StepCounterParams): string {
+    const { currentStep, navIndex, phase, totalSteps } = params;
+    const stepLabel = `Step ${currentStep + 1} / ${totalSteps}`;
+    const prefix = stepPrefix(navIndex, currentStep, phase);
+    return prefix ? `${prefix} \u2014 ${stepLabel}` : stepLabel;
 }
 
 function updateStateDisplay(): void {
@@ -166,8 +284,16 @@ function updateStateDisplay(): void {
         return;
     }
 
-    const currentState = state.states[state.currentIndex];
-    const total = state.events.length;
+    const step = state.actionSteps[state.currentStep];
+    const displayState = step ? state.states[step.stateIndex] : undefined;
+    const descriptionState = step ? state.states[step.descriptionStateIndex] : undefined;
+    const totalSteps = state.actionSteps.length;
+    const counterText = formatStepCounter({
+        currentStep: state.currentStep,
+        navIndex: state.navigationIndex,
+        phase: displayState?.phase ?? "pre_game",
+        totalSteps,
+    });
 
     render(
         html`
@@ -182,31 +308,70 @@ function updateStateDisplay(): void {
                 <button
                     class="replay-state__nav-btn"
                     @click=${handlePrev}
-                    ?disabled=${state.currentIndex === 0}
+                    ?disabled=${state.currentStep === 0}
                 >Prev</button>
+                ${
+                    state.navigationIndex
+                        ? RoundSelector({
+                              currentRound: roundForStep(state.navigationIndex, state.currentStep),
+                              isOpen: state.openDropdown === "round",
+                              onSelect: handleJumpToStep,
+                              onToggle: () => handleToggleDropdown("round"),
+                              rounds: state.navigationIndex.rounds,
+                          })
+                        : ""
+                }
+                ${
+                    state.navigationIndex &&
+                    (displayState?.phase === "in_round" || displayState?.phase === "round_ended")
+                        ? TurnSelector({
+                              currentStep: state.currentStep,
+                              isOpen: state.openDropdown === "turn",
+                              onSelect: handleJumpToStep,
+                              onToggle: () => handleToggleDropdown("turn"),
+                              turns: turnsForStep(state.navigationIndex, state.currentStep),
+                          })
+                        : ""
+                }
                 <span class="replay-state__counter">
-                    Event ${state.currentIndex} / ${total}
+                    ${counterText}
                 </span>
                 <button
                     class="replay-state__nav-btn"
                     @click=${handleNext}
-                    ?disabled=${state.currentIndex >= total}
+                    ?disabled=${state.currentStep >= totalSteps - 1}
                 >Next</button>
             </div>
             <div class="replay-state__description">
-                ${currentState?.lastEventDescription ?? ""}
+                ${descriptionState?.lastEventDescription ?? ""}
             </div>
-            ${currentState ? StateDisplay(currentState) : ""}
+            ${displayState ? StateDisplay(displayState) : ""}
         `,
         container,
     );
+
+    attachWheelListener(container);
+}
+
+function attachWheelListener(container: HTMLElement): void {
+    if (wheelNavElement) {
+        return;
+    }
+    const navEl = container.querySelector<HTMLElement>(".replay-state__nav");
+    if (navEl) {
+        navEl.addEventListener("wheel", handleWheel, { passive: false });
+        wheelNavElement = navEl;
+    }
 }
 
 function createEmptyState(generation: number): ReplayViewState {
     return {
         abortController: null,
-        currentIndex: 0,
+        actionSteps: [],
+        currentStep: 0,
         events: [],
+        navigationIndex: null,
+        openDropdown: null,
         parseErrors: [],
         states: [],
         viewGeneration: generation,
@@ -216,6 +381,7 @@ function createEmptyState(generation: number): ReplayViewState {
 export function replayView(gameId: string): TemplateResult {
     const generation = state.viewGeneration + 1;
     state = createEmptyState(generation);
+    wheelNavElement = null;
 
     setTimeout(() => {
         if (state.viewGeneration !== generation) {
@@ -224,6 +390,9 @@ export function replayView(gameId: string): TemplateResult {
         renderSystemMessage("Loading replay...");
         fetchReplay(gameId, generation);
     }, 0);
+
+    document.addEventListener("keydown", handleKeydown);
+    document.addEventListener("click", handleClickOutside);
 
     return html`
         <div class="game">
@@ -238,6 +407,12 @@ export function replayView(gameId: string): TemplateResult {
 }
 
 export function cleanupReplayView(): void {
+    document.removeEventListener("keydown", handleKeydown);
+    document.removeEventListener("click", handleClickOutside);
+    if (wheelNavElement) {
+        wheelNavElement.removeEventListener("wheel", handleWheel);
+        wheelNavElement = null;
+    }
     const { abortController } = state;
     state = createEmptyState(state.viewGeneration + 1);
     abortController?.abort();

@@ -19,7 +19,14 @@ import {
 import { applyMeld } from "./handlers/meld";
 import { updatePlayer } from "./helpers";
 import { createInitialPlayerState } from "./initial-state";
-import { type GamePhase, type PlayerState, type ReplayEvent, type TableState } from "./types";
+import {
+    type GamePhase,
+    type PlayerState,
+    type ReplayEvent,
+    type RoundEndResult,
+    type TableState,
+    type WinnerResult,
+} from "./types";
 
 function assertNever(value: never): never {
     throw new Error(`Unhandled replay event type: ${(value as { type: string }).type}`);
@@ -37,10 +44,12 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
     return {
         ...state,
         dealerSeat: event.dealerSeat,
+        gameEndResult: null,
         gameId: event.gameId,
         lastEventDescription: "Game started",
         phase: "pre_game" as GamePhase,
         players,
+        roundEndResult: null,
     };
 }
 
@@ -67,6 +76,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         phase: "in_round" as GamePhase,
         players,
         riichiSticks: event.riichiSticks,
+        roundEndResult: null,
         roundNumber: event.roundNumber,
         roundWind: event.wind,
     };
@@ -74,32 +84,38 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
 
 function applyDraw(state: TableState, event: DrawEvent): TableState {
     const player = state.players.find((p) => p.seat === event.seat);
+    if (!player) {
+        throw new Error(`No player found for seat ${event.seat}`);
+    }
     const tileName = tile136toString(event.tileId);
     return {
         ...state,
         currentPlayerSeat: event.seat,
-        lastEventDescription: `${player?.name ?? `Seat ${event.seat}`} drew ${tileName}`,
+        lastEventDescription: `${player.name} drew ${tileName}`,
         players: updatePlayer(state.players, event.seat, {
             drawnTileId: event.tileId,
-            tiles: [...(player?.tiles ?? []), event.tileId],
+            tiles: [...player.tiles, event.tileId],
         }),
     };
 }
 
 function applyDiscard(state: TableState, event: DiscardEvent): TableState {
     const player = state.players.find((p) => p.seat === event.seat);
+    if (!player) {
+        throw new Error(`No player found for seat ${event.seat}`);
+    }
     const tileName = tile136toString(event.tileId);
-    const updatedTiles = player?.tiles.slice() ?? [];
+    const updatedTiles = player.tiles.slice();
     const idx = updatedTiles.indexOf(event.tileId);
     if (idx !== -1) {
         updatedTiles.splice(idx, 1);
     }
     return {
         ...state,
-        lastEventDescription: `${player?.name ?? `Seat ${event.seat}`} discarded ${tileName}`,
+        lastEventDescription: `${player.name} discarded ${tileName}`,
         players: updatePlayer(state.players, event.seat, {
             discards: [
-                ...(player?.discards ?? []),
+                ...player.discards,
                 {
                     isRiichi: event.isRiichi,
                     isTsumogiri: event.isTsumogiri,
@@ -140,9 +156,18 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
     });
     return {
         ...state,
+        gameEndResult: {
+            standings: event.standings.map((s) => ({
+                finalScore: s.finalScore,
+                score: s.score,
+                seat: s.seat,
+            })),
+            winnerSeat: event.winnerSeat,
+        },
         lastEventDescription: `Game over - Winner: ${winner?.name ?? `Seat ${event.winnerSeat}`}`,
         phase: "game_ended" as GamePhase,
         players,
+        roundEndResult: null,
     };
 }
 
@@ -203,12 +228,66 @@ function roundEndDescription(state: TableState, event: RoundEndEvent): string {
     }
 }
 
+function extractWinnerFromSingle(event: TsumoRoundEnd | RonRoundEnd): WinnerResult {
+    return {
+        closedTiles: event.closedTiles,
+        handResult: event.handResult,
+        melds: event.melds,
+        seat: event.winnerSeat,
+        winningTile: event.winningTile,
+    };
+}
+
+function extractRoundEndResult(event: RoundEndEvent): RoundEndResult {
+    switch (event.resultType) {
+        case ROUND_RESULT_TYPE.TSUMO:
+            return {
+                resultType: event.resultType,
+                scoreChanges: event.scoreChanges,
+                winners: [extractWinnerFromSingle(event)],
+            };
+        case ROUND_RESULT_TYPE.RON:
+            return {
+                loserSeat: event.loserSeat,
+                resultType: event.resultType,
+                scoreChanges: event.scoreChanges,
+                winners: [extractWinnerFromSingle(event)],
+            };
+        case ROUND_RESULT_TYPE.DOUBLE_RON:
+            return {
+                loserSeat: event.loserSeat,
+                resultType: event.resultType,
+                scoreChanges: event.scoreChanges,
+                winners: event.winners.map((w) => ({
+                    closedTiles: w.closedTiles,
+                    handResult: w.handResult,
+                    melds: w.melds,
+                    seat: w.winnerSeat,
+                    winningTile: event.winningTile,
+                })),
+            };
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
+        case ROUND_RESULT_TYPE.ABORTIVE_DRAW:
+        case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
+            return {
+                resultType: event.resultType,
+                scoreChanges: event.scoreChanges,
+                winners: [],
+            };
+        default: {
+            const _exhaustive: never = event;
+            return _exhaustive;
+        }
+    }
+}
+
 function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     return {
         ...state,
         lastEventDescription: roundEndDescription(state, event),
         phase: "round_ended" as GamePhase,
         players: updateScoresFromMap(state.players, event.scores),
+        roundEndResult: extractRoundEndResult(event),
     };
 }
 

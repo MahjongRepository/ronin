@@ -18,7 +18,7 @@
     "import/exports-last": "off",
     "import/consistent-type-specifier-style": ["warn", "prefer-inline"],
     "func-style": ["error", "declaration"],
-    "new-cap": ["warn", { "capIsNewExceptions": ["Tile", "Meld", "Hand", "Discards", "StateDisplay", "TableInfo", "PlayerPanel"] }],
+    "new-cap": ["warn", { "capIsNewExceptions": ["Tile", "Meld", "Hand", "Discards", "StateDisplay", "TableInfo", "PlayerPanel", "RoundEndDisplay", "GameEndDisplay", "WinnerSection", "DropdownSelect", "RoundSelector", "TurnSelector"] }],
     "capitalized-comments": "off",
     "no-magic-numbers": "off",
     "no-ternary": "off",

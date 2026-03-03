@@ -175,10 +175,13 @@ Renders a player's discard pile as rows of face-up tiles. `Discards(tiles)` take
 Deterministic game state model for replay playback. Tracks table and player state by applying replay events in sequence. All state transitions are pure functions returning new objects (no mutation).
 
 **State Model** (`model/types.ts`):
-- `TableState` — game-level state: `gameId`, `players: PlayerState[]`, `dealerSeat`, round-level fields (`roundWind`, `roundNumber`, `honbaSticks`, `riichiSticks`, `doraIndicators`, `currentPlayerSeat`), meta fields (`phase: GamePhase`, `lastEventDescription`)
+- `TableState` — game-level state: `gameId`, `players: PlayerState[]`, `dealerSeat`, round-level fields (`roundWind`, `roundNumber`, `honbaSticks`, `riichiSticks`, `doraIndicators`, `currentPlayerSeat`), meta fields (`phase: GamePhase`, `lastEventDescription`), result fields (`roundEndResult: RoundEndResult | null`, `gameEndResult: GameEndResult | null`)
 - `PlayerState` — per-player state: `seat`, `name`, `isAiPlayer`, `score`, `tiles: number[]`, `drawnTileId: number | null`, `discards: DiscardRecord[]`, `melds: MeldRecord[]`, `isRiichi`
 - `DiscardRecord` — `{ tileId, isTsumogiri, isRiichi, claimed? }` where `claimed` marks tiles taken by meld calls
 - `MeldRecord` — extends `DecodedMeld` from `@/shared/protocol` with an optional `addedTileId` field (set on added_kan melds to track which tile was added from hand)
+- `WinnerResult` — per-winner data for round-end display: `seat`, `closedTiles: number[]`, `melds: number[]` (IMME-encoded), `winningTile: number`, `handResult: { han, fu, yaku: { yakuId, han }[] }`
+- `RoundEndResult` — round-end result container: `resultType` (discriminated literal), `winners: WinnerResult[]` (empty for draws), `scoreChanges: Record<string, number>`, optional `loserSeat`
+- `GameEndResult` — game-end standings: `winnerSeat`, `standings: { seat, score, finalScore }[]` (array order = placement order from backend)
 - `GamePhase` — `'pre_game' | 'in_round' | 'round_ended' | 'game_ended'`
 - `ReplayEvent` — narrow union of the 9 event types that appear in replays (excludes `call_prompt`, `error`, `furiten`)
 
@@ -186,9 +189,24 @@ Deterministic game state model for replay playback. Tracks table and player stat
 - `applyEvent(state, event)` — top-level dispatcher switching on `event.type`, delegates to specific handlers. Uses exhaustive dispatch with `assertNever` for compile-time safety
 - Handlers for all 9 replay events: `game_started` (initializes 4 players), `round_started` (resets per-round state, populates tiles), `draw` (adds tile to hand, sets `drawnTileId`), `discard` (removes tile, appends to discards), `meld` (5-way switch for chi/pon/open_kan/closed_kan/added_kan), `riichi_declared`, `dora_revealed`, `round_end` (6 result type variants: tsumo, ron, double_ron, exhaustive_draw, abortive_draw, nagashi_mangan), `game_end`
 - Each handler generates a human-readable `lastEventDescription`
+- `round_end` handler also populates `roundEndResult` via `extractRoundEndResult()` — extracts winner hand data for win results (tsumo/ron/double_ron), empty winners for draws
+- `game_end` handler populates `gameEndResult` with standings and final scores
+- `round_started` clears `roundEndResult`; `game_started` clears both result fields
 
 **Timeline Builder** (`model/timeline.ts`):
 - `buildTimeline(events: ReplayEvent[]): TableState[]` — pre-computes all states from the event array. Returns array where `states[0]` is the initial state before any events, `states[i+1]` is the state after applying `events[i]`. Length = `events.length + 1`. Enables O(1) navigation in both directions
+
+**Action-Step Grouping** (`model/action-steps.ts`):
+- `ActionStep` — interface with `stateIndex` (timeline state to display, includes trailing non-stopping events) and `descriptionStateIndex` (timeline state of the primary stopping event, used for `lastEventDescription`)
+- `buildActionSteps(events: ReplayEvent[]): ActionStep[]` — maps raw events to action steps, grouping bookkeeping events (e.g., `dora_revealed`) with the preceding meaningful action. Stopping events: all replay event types except `dora_revealed`. Non-stopping events are batched so `stateIndex` points after all trailing non-stopping events while `descriptionStateIndex` points to the stopping event's state. Always includes an initial step at index 0
+
+**Navigation Index** (`model/navigation-index.ts`):
+- `NavigationIndex` — contains `rounds: RoundInfo[]` (all rounds in the game), `stepToRoundIndex: number[]` (maps each action step to its round index, -1 for pre-game), and `turnsByRound: TurnInfo[][]` (draw-based turns within each round)
+- `RoundInfo` — `actionStepIndex`, `wind`, `roundNumber`, `honba`, `resultDescription` (from round_end's `lastEventDescription`)
+- `TurnInfo` — `actionStepIndex`, `turnNumber` (1-based within round), `playerName`
+- `buildNavigationIndex(events, actionSteps, states): NavigationIndex` — scans events for round boundaries and draw-based turns, cross-referenced with action step indices
+- `roundForStep(navIndex, step): RoundInfo | undefined` — O(1) lookup of the current round for a given action step
+- `turnsForStep(navIndex, step): TurnInfo[]` — O(1) lookup of turns within the current round for a given action step
 
 **Meld Display Conversion** (`lib/meld-display.ts`):
 - `meldToDisplay(meld: MeldRecord): MeldTileDisplay[]` — converts state-layer meld records to UI-layer display format for the existing `Meld` component. Handles sideways tile positioning based on relative seat positions (`(fromSeat - callerSeat + 4) % 4`), face-down tiles for closed kan, and stacked tiles for added kan
@@ -196,15 +214,31 @@ Deterministic game state model for replay playback. Tracks table and player stat
 **Wind Helper** (`lib/wind-name.ts`):
 - `windName(wind: number): string` — converts wire wind integers (0=East, 1=South, 2=West, 3=North) to display strings
 
+**Yaku Name Mapping** (`lib/yaku-names.ts`):
+- `yakuName(yakuId: number): string` — maps numeric yaku IDs from the Python `mahjong` library to English display names. Covers situational yaku (0-11), hand pattern yaku (12-39), yakuman (100-119), and dora types (120-122). Returns `"Unknown yaku"` for unrecognized IDs
+
 **UI Components** (`ui/`):
 - `TableInfo(state)` — horizontal bar showing round wind, dealer, dora indicators, honba/riichi sticks
 - `PlayerPanel(player, isDealer, isCurrent)` — player name, score, dealer/riichi/turn badges, hand tiles (via `Hand()`), melds (via `Meld()` with `meldToDisplay()`), discards (via `Discards()`)
-- `StateDisplay(state)` — composes `TableInfo` + 4 `PlayerPanel` components in a vertical stack
+- `StateDisplay(state)` — composes `TableInfo` + optional result panel + 4 `PlayerPanel` components in a vertical stack. Conditionally renders `RoundEndDisplay` when `phase === "round_ended"` with win results, or `GameEndDisplay` when `phase === "game_ended"`
+- `RoundEndDisplay(result, players)` — renders round-end win results: for each winner shows hand tiles (closed + melds + winning tile with gap), yaku list with han values, han/fu totals (with yakuman/double yakuman labels), and score changes for all players with sign-prefixed deltas. Handles double ron (two winner sections). Decodes IMME melds via `decodeMeldCompact()`, with `added_kan` rendered as `open_kan` (fallback for missing `addedTileId`)
+- `GameEndDisplay(result, players)` — renders game-end final standings table: rank (from array index), player name, raw score (comma-formatted), final score (uma/oka-adjusted, with sign prefix and one decimal). Preserves backend placement order
+- `DropdownSelect(props)` — shared stateless dropdown component for jump-to navigation. Props: `triggerLabel`, `items: DropdownItem[]`, `isOpen`, `onToggle`, `onSelect`. Renders a trigger button and an absolute-positioned panel of selectable items. Items have `label`, `stepIndex`, and `isCurrent` (for highlighting). The caller manages open/closed state and click-outside dismissal
+- `RoundSelector(props)` — thin wrapper mapping `RoundInfo[]` to `DropdownItem[]` and delegating to `DropdownSelect`. Labels format as "East 2, 0 honba — Tsumo by Alice". Trigger shows current round name or "Rounds"
+- `TurnSelector(props)` — thin wrapper mapping `TurnInfo[]` to `DropdownItem[]` and delegating to `DropdownSelect`. Labels format as "Turn 1 — Alice". Highlights the nearest turn to the current step. Trigger shows "Turn N" or "Turns"
 
-**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `meldToDisplay`, `StateDisplay`
+**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `WinnerResult`, `RoundEndResult`, `GameEndResult`, `GamePhase`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `ActionStep`, `buildActionSteps`, `RoundInfo`, `TurnInfo`, `NavigationIndex`, `buildNavigationIndex`, `roundForStep`, `turnsForStep`, `meldToDisplay`, `windName`, `yakuName`, `StateDisplay`, `RoundEndDisplay`, `GameEndDisplay`, `DropdownItem`, `DropdownSelectProps`, `DropdownSelect`, `RoundSelectorProps`, `RoundSelector`, `TurnSelectorProps`, `TurnSelector`
 
 ### Replay View (`views/replay.ts`)
-Displays completed game replays with a visual state display and step-by-step navigation. Fetches NDJSON replay data via HTTP from `/api/replays/{gameId}` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), filters through `isReplayEvent()` type guard to extract the 9 replay event types, and builds a pre-computed state timeline via `buildTimeline()`. Non-replay event types and parse failures are collected as `parseErrors` and surfaced as a warning. The state display renders `TableInfo` (round info bar), 4 `PlayerPanel` components (hand, melds, discards, score), and Prev/Next navigation buttons for stepping through events. Navigation is O(1) via integer index into the pre-computed timeline array. Shows "Replay" status badge and "Back to History" navigation.
+Displays completed game replays with visual state display and action-step navigation. Fetches NDJSON replay data via HTTP from `/api/replays/{gameId}` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), filters through `isReplayEvent()` type guard to extract the 9 replay event types, then builds a pre-computed state timeline via `buildTimeline()`, action steps via `buildActionSteps()`, and a navigation index via `buildNavigationIndex()`. Non-replay event types and parse failures are collected as `parseErrors` and surfaced as a warning.
+
+**Navigation**: Uses action-step indices (`currentStep`) instead of raw event indices — bookkeeping events like `dora_revealed` are batched with their preceding meaningful action. Three input methods: Prev/Next buttons, Left/Right arrow keys (`handleKeydown`, ignores text input focus), and mouse wheel on the nav bar (`handleWheel`, skips events inside `.dropdown-select__panel` for dropdown scrolling). All listeners are registered in `replayView()` and cleaned up in `cleanupReplayView()`.
+
+**Jump selectors**: `RoundSelector` and `TurnSelector` dropdown components in the nav bar allow jumping to any round or turn. The view manages `openDropdown: "round" | "turn" | null` state with a document click-outside listener for dismissal. `handleJumpToStep(stepIndex)` sets `currentStep` and closes any open dropdown.
+
+**Counter display**: `formatStepCounter()` shows contextual position — "East 2, 1 honba — Step 5 / 42" during rounds, "Step 1 / N" before any round, "Game ended — Step N / N" after game end. Uses `roundForStep()` from the navigation index.
+
+The state display renders `TableInfo` (round info bar), 4 `PlayerPanel` components (hand, melds, discards, score), round/turn selector dropdowns, and the step counter. Shows "Replay" status badge and "Back to History" navigation.
 
 ### Session Storage (`shared/session/session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
@@ -295,15 +329,23 @@ frontend/
     │       │   ├── apply-event.ts    # Event dispatcher and handlers
     │       │   ├── helpers.ts        # Player state update helper
     │       │   ├── timeline.ts       # Pre-compute all states from events
+    │       │   ├── action-steps.ts   # Action-step grouping (skip bookkeeping events)
+    │       │   ├── navigation-index.ts # Round/turn navigation index
     │       │   └── handlers/
     │       │       └── meld.ts       # 5-way meld handler (chi/pon/kan variants)
     │       ├── lib/
     │       │   ├── wind-name.ts      # Wind integer to display string
-    │       │   └── meld-display.ts   # MeldRecord to MeldTileDisplay[] conversion
+    │       │   ├── meld-display.ts   # MeldRecord to MeldTileDisplay[] conversion
+    │       │   └── yaku-names.ts     # Yaku ID to English name mapping
     │       └── ui/
-    │           ├── state-display.ts  # Composed state view (TableInfo + 4 PlayerPanels)
+    │           ├── state-display.ts  # Composed state view (TableInfo + result panels + 4 PlayerPanels)
     │           ├── table-info.ts     # Round info bar (wind, dora, sticks)
-    │           └── player-panel.ts   # Player hand, melds, discards, score
+    │           ├── player-panel.ts   # Player hand, melds, discards, score
+    │           ├── round-end-display.ts  # Round-end result panel (winning hand, yakus, scores)
+    │           ├── game-end-display.ts   # Game-end standings table
+    │           ├── dropdown-select.ts    # Shared stateless dropdown component
+    │           ├── round-selector.ts     # Round jump selector (wraps DropdownSelect)
+    │           └── turn-selector.ts      # Turn jump selector (wraps DropdownSelect)
     ├── shared/
     │   ├── config/
     │   │   ├── index.ts              # Public API barrel
