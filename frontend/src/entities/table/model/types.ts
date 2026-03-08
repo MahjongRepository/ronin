@@ -51,6 +51,8 @@ export interface RoundEndResult {
     resultType: RoundEndEvent["resultType"];
     winners: WinnerResult[];
     scoreChanges: Record<string, number>;
+    doraIndicators: number[];
+    uraDoraIndicators: number[];
     loserSeat?: number;
 }
 
@@ -71,6 +73,7 @@ export interface TableState {
     riichiSticks: number;
     doraIndicators: number[];
     currentPlayerSeat: number;
+    tilesRemaining: number;
     phase: GamePhase;
     lastEventDescription: string;
     roundEndResult: RoundEndResult | null;

@@ -2,8 +2,13 @@
 
 // ─── System Messages ────────────────────────────────────────
 
+// Centered loading/error message when no board is displayed
 .replay-state__message {
-    padding: 1.25rem;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 1.25rem 2rem;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
@@ -30,8 +35,8 @@
 .replay-state__nav-btn {
     flex-shrink: 0;
     margin-bottom: 0;
-    padding: 0.4rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
     font-family: var(--ronin-font-mono);
     font-weight: 600;
     cursor: pointer;
@@ -40,15 +45,6 @@
         opacity: 0.4;
         cursor: not-allowed;
     }
-}
-
-.replay-state__counter {
-    flex: 1;
-    text-align: center;
-    font-family: var(--ronin-font-mono);
-    font-size: 0.85rem;
-    color: var(--ronin-text-secondary);
-    letter-spacing: 0.02em;
 }
 
 // ─── Dropdown Select ────────────────────────────────────────
@@ -66,17 +62,22 @@
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
 }
 
 .dropdown-select__panel {
     position: absolute;
-    top: 100%;
+    bottom: 100%;
     left: 0;
     z-index: 10;
     min-width: 100%;
     max-height: 16rem;
     overflow-y: auto;
-    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
     padding: 0.25rem 0;
     background: var(--ronin-surface-elevated);
     border: 1px solid var(--ronin-border);
@@ -112,76 +113,178 @@
 
 // ─── Replay Board Mode ─────────────────────────────────────
 
-// The #app:has() override for .replay-board-mode is in _game-board.scss
+// The #app:has() override for .replay-board-mode is in game-board/_pages.scss
 // (combined selector: #app:has(.board-storybook, .replay-board-mode))
 
 .replay-board-mode {
-    display: flex;
-    flex-direction: column;
+    position: relative;
+    width: 100vw;
     height: 100vh;
     overflow: hidden;
 }
 
-.replay-board-mode .game-header {
-    flex-shrink: 0;
+.replay-board-layout__board {
+    width: 100%;
+    height: 100%;
 }
 
-.replay-board-layout {
+// ─── Replay Controls Overlay ───────────────────────────────
+
+.replay-controls {
+    position: absolute;
+    bottom: 4rem;
+    right: 1rem;
+    z-index: 30;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    gap: 0.25rem;
+    gap: 0.4rem;
+    padding: 0.6rem 0.75rem;
+    background: color-mix(in srgb, var(--ronin-surface-elevated) 90%, transparent);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
 }
 
-.replay-board-layout__nav {
+.replay-controls__nav {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 1rem;
-    background: var(--ronin-surface-elevated);
-    border-bottom: 1px solid var(--ronin-border);
-    flex-shrink: 0;
+    gap: 0.4rem;
 }
 
-.replay-board-layout__description {
-    padding: 0.4rem 1rem;
-    font-size: 0.85rem;
-    font-family: var(--ronin-font-body);
-    color: var(--pico-color);
-    min-height: 1.25em;
-    flex-shrink: 0;
-}
+// ─── Game-Start Result Panel ──────────────────────────────────
 
-.replay-board-layout__board {
-    flex: 1;
-    min-height: 0;
-    padding: 4px;
-}
-
-// ─── Round-End Result Panel ─────────────────────────────────
-
-.round-end-result {
+.game-start-result {
     padding: 1rem;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-}
-
-.round-end-result__winner {
-    display: flex;
-    flex-direction: column;
     gap: 0.5rem;
 }
 
-.round-end-result__winner-name {
+.game-start-result__title {
     font-weight: 600;
     font-size: 0.9rem;
     color: var(--pico-color);
     font-family: var(--ronin-font-body);
+    padding-bottom: 0.25rem;
+}
+
+.game-start-result__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    font-family: var(--ronin-font-mono);
+    padding: 0.2rem 0;
+}
+
+.game-start-result__wind {
+    min-width: 3rem;
+    font-weight: 600;
+    color: var(--pico-color);
+}
+
+.game-start-result__name {
+    color: var(--pico-color);
+    font-family: var(--ronin-font-body);
+}
+
+// ─── Round-End Result Panel ─────────────────────────────────
+
+.round-end-result {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+// Header: result type label + total points
+.round-end-result__header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 0 0.6rem;
+}
+
+.round-end-result__result-type {
+    font-family: var(--ronin-font-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ronin-gold);
+}
+
+.round-end-result__points {
+    font-family: var(--ronin-font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--pico-color);
+    line-height: 1.2;
+}
+
+// Dora indicator section
+.round-end-result__indicators {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 0.5rem 0;
+    margin: 0 -0.25rem;
+    border-top: 1px solid var(--ronin-border-subtle);
+    border-bottom: 1px solid var(--ronin-border-subtle);
+    background: color-mix(in srgb, var(--ronin-surface-elevated) 50%, transparent);
+}
+
+.round-end-result__indicator-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.round-end-result__indicator-label {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ronin-text-muted);
+}
+
+.round-end-result__indicator-tiles {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+}
+
+.round-end-result__indicator-tile .tile {
+    width: 28px;
+    height: 37px;
+}
+
+// Winner section
+.round-end-result__winner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 0;
+}
+
+.round-end-result__winner + .round-end-result__winner {
+    border-top: 1px solid var(--ronin-border-subtle);
+}
+
+.round-end-result__winner-name {
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--ronin-text-muted);
+    font-family: var(--ronin-font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .round-end-result__hand {
@@ -191,49 +294,100 @@
     flex-wrap: wrap;
 }
 
+// Yaku breakdown: name left, han right
 .round-end-result__yaku-list {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0;
     font-family: var(--ronin-font-mono);
-    font-size: 0.8rem;
-    color: var(--ronin-text-secondary);
+    font-size: 0.78rem;
+    padding-top: 0.2rem;
 }
 
 .round-end-result__yaku-item {
-    padding: 0.1rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.12rem 0;
 }
 
+.round-end-result__yaku-name {
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__yaku-han {
+    color: var(--pico-color);
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+// Totals line
 .round-end-result__totals {
     font-family: var(--ronin-font-mono);
     font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--pico-color);
+    font-weight: 700;
+    color: var(--ronin-gold);
+    text-align: right;
 }
 
+// Score changes grid
 .round-end-result__scores {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    padding-top: 0.5rem;
+    gap: 0.15rem;
+    padding: 0.6rem 0.5rem;
     border-top: 1px solid var(--ronin-border);
+    background: color-mix(in srgb, var(--ronin-surface-elevated) 40%, transparent);
+    border-radius: 0 0 0.5rem 0.5rem;
+    margin: 0 -0.25rem -0.25rem;
+
+    // No double border when scores directly follow the header (draws)
+    .round-end-result__header + & {
+        border-top: none;
+    }
 }
 
 .round-end-result__score-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.85rem;
+    display: grid;
+    grid-template-columns: 2.5rem 1fr auto auto;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.78rem;
     font-family: var(--ronin-font-mono);
+    padding: 0.12rem 0;
+}
+
+.round-end-result__score-wind {
+    color: var(--ronin-text-muted);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .round-end-result__score-name {
-    min-width: 6rem;
     color: var(--pico-color);
+    font-family: var(--ronin-font-body);
+}
+
+.round-end-result__score-value {
+    color: var(--ronin-text-muted);
+    text-align: right;
 }
 
 .round-end-result__score-delta {
+    text-align: right;
+    min-width: 4.5rem;
+    font-weight: 600;
     color: var(--ronin-text-secondary);
+
+    &--positive {
+        color: var(--ronin-score-positive);
+    }
+
+    &--negative {
+        color: var(--ronin-score-negative);
+    }
 }
 
 // ─── Game-End Result Panel ─────────────────────────────────

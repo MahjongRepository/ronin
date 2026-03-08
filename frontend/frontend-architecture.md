@@ -83,8 +83,17 @@ src/styles/
 ├── _discards.scss     # Discard component styles (rows, grayed, sideways riichi)
 ├── _room.scss         # Room page styles (player list, chat, connection status)
 ├── _game.scss         # Game client styles (log panel, status badges)
-├── _game-board.scss   # Game board layout (CSS Grid, center info, overlays, debug, storybook)
-├── _replay-state.scss # Replay state display (navigation controls, result panels, board integration)
+├── game-board/        # Game board layout (split into focused partials)
+│   ├── _index.scss    # Barrel file (@forward all partials)
+│   ├── _grid.scss     # Board container, CSS custom properties, grid template, responsive breakpoints (2-factor scaling: base × multiplier)
+│   ├── _areas.scss    # Player area placements for all 4 positions
+│   ├── _center.scss   # Center info (edge scores with vertical writing, wind badges in corners, riichi stick SVGs, round info, stick counts)
+│   ├── _tile-scaling.scss # Tile, hand, meld, and discard scaling overrides inside .game-board
+│   ├── _dora.scss     # Dora indicator overlay (absolute top-left of board)
+│   ├── _overlay.scss  # Board overlay positioning and panel (fixed tile scale inside overlays)
+│   ├── _debug.scss    # Debug mode (grid area labels, component borders)
+│   └── _pages.scss    # Storybook and replay page layouts (#app:has() constraint removal)
+├── _replay-state.scss # Replay controls overlay, dropdowns, game-start/round-end/game-end result panels
 └── _storybook.scss    # Storybook layout (tile rows, cells)
 ```
 
@@ -156,7 +165,7 @@ Self-contained wire protocol module using Zod schemas and const objects (replaci
 Renders a development log panel showing parsed game events (camelCase objects via `parseServerMessage()`). Handles the join → play → reconnect lifecycle using protocol builder functions (`buildJoinGameMessage`, `buildReconnectMessage`, `buildConfirmRoundAction`). Auto-confirms round ends after 1s delay. Handles permanent and transient reconnection errors (retry with backoff for `reconnect_retry_later`, redirect to lobby for permanent errors). Falls back to raw JSON logging when parsing fails.
 
 ### Storybook Views (`views/storybook.ts`, `views/storybook-board.ts`, `views/storybook-melds.ts`, `views/storybook-hand.ts`, `views/storybook-discards.ts`)
-Developer-facing component showcase with a multi-page structure. The main page at `/play/storybook` renders all 37 tile faces organized by suit, back tile display, wire ID conversion demo (`tile136toString`), and links to sub-pages. Sub-pages: `/play/storybook/board` showcases the full game board layout with mock tile data for all 4 players, debug mode toggle, and overlay selector (no overlay / round end / game end); `/play/storybook/discards` showcases discard pile variants (basic rows, overflow, grayed-out claimed tiles, sideways riichi tiles, mixed); `/play/storybook/hand` showcases hand variants (face up, face down, with/without drawn tile, small hand); `/play/storybook/melds` showcases all meld types (chi, pon, open/closed kan, added kan) with examples. Navigation is shared via `storybook-nav.ts` (5 pages: Index, Board, Discards, Hand, Melds). Used for visual testing of game UI components.
+Developer-facing component showcase with a multi-page structure. The main page at `/play/storybook` renders all 37 tile faces organized by suit, back tile display, wire ID conversion demo (`tile136toString`), and links to sub-pages. Sub-pages: `/play/storybook/board` showcases the full game board layout with mock tile data for all 4 players, with floating overlay buttons for debug mode toggle and overlay selection (round end / game end); overlay mode persists in URL query parameter (`?overlay=round_end`); `/play/storybook/discards` showcases discard pile variants (basic rows, overflow, grayed-out claimed tiles, sideways riichi tiles, mixed); `/play/storybook/hand` showcases hand variants (face up, face down, with/without drawn tile, small hand); `/play/storybook/melds` showcases all meld types (chi, pon, open/closed kan, added kan) with examples. Navigation is shared via `storybook-nav.ts` (5 pages: Index, Board, Discards, Hand, Melds). Used for visual testing of game UI components.
 
 ### Tile Config (`entities/tile/lib/tile-config.ts`)
 Single source of truth for the active tile set and dimensions. Exports `TILE_FACES_SET` (face sprite folder name, e.g. `"fluffy-stuff"`) and `TILE_WIDTH`/`TILE_HEIGHT` (60×80 px). Used by the sprite build script, tile rendering, and storybook display.
@@ -177,21 +186,23 @@ Renders a player's discard pile as rows of face-up tiles. `Discards(tiles)` take
 Deterministic game state model for replay playback. Tracks table and player state by applying replay events in sequence. All state transitions are pure functions returning new objects (no mutation).
 
 **State Model** (`model/types.ts`):
-- `TableState` — game-level state: `gameId`, `players: PlayerState[]`, `dealerSeat`, round-level fields (`roundWind`, `roundNumber`, `honbaSticks`, `riichiSticks`, `doraIndicators`, `currentPlayerSeat`), meta fields (`phase: GamePhase`, `lastEventDescription`), result fields (`roundEndResult: RoundEndResult | null`, `gameEndResult: GameEndResult | null`)
+- `TableState` — game-level state: `gameId`, `players: PlayerState[]`, `dealerSeat`, round-level fields (`roundWind`, `roundNumber`, `honbaSticks`, `riichiSticks`, `doraIndicators`, `currentPlayerSeat`, `tilesRemaining`), meta fields (`phase: GamePhase`, `lastEventDescription`), result fields (`roundEndResult: RoundEndResult | null`, `gameEndResult: GameEndResult | null`)
 - `PlayerState` — per-player state: `seat`, `name`, `isAiPlayer`, `score`, `tiles: number[]`, `drawnTileId: number | null`, `discards: DiscardRecord[]`, `melds: MeldRecord[]`, `isRiichi`
 - `DiscardRecord` — `{ tileId, isTsumogiri, isRiichi, claimed? }` where `claimed` marks tiles taken by meld calls
 - `MeldRecord` — extends `DecodedMeld` from `@/shared/protocol` with an optional `addedTileId` field (set on added_kan melds to track which tile was added from hand)
 - `WinnerResult` — per-winner data for round-end display: `seat`, `closedTiles: number[]`, `melds: number[]` (IMME-encoded), `winningTile: number`, `handResult: { han, fu, yaku: { yakuId, han }[] }`
-- `RoundEndResult` — round-end result container: `resultType` (discriminated literal), `winners: WinnerResult[]` (empty for draws), `scoreChanges: Record<string, number>`, optional `loserSeat`
+- `RoundEndResult` — round-end result container: `resultType` (discriminated literal), `winners: WinnerResult[]` (empty for draws), `scoreChanges: Record<string, number>`, `doraIndicators: number[]`, `uraDoraIndicators: number[]`, optional `loserSeat`
 - `GameEndResult` — game-end standings: `winnerSeat`, `standings: { seat, score, finalScore }[]` (array order = placement order from backend)
 - `GamePhase` — `'pre_game' | 'in_round' | 'round_ended' | 'game_ended'`
 - `ReplayEvent` — narrow union of the 9 event types that appear in replays (excludes `call_prompt`, `error`, `furiten`)
 
 **Event Application** (`model/apply-event.ts`, `model/handlers/meld.ts`):
 - `applyEvent(state, event)` — top-level dispatcher switching on `event.type`, delegates to specific handlers. Uses exhaustive dispatch with `assertNever` for compile-time safety
-- Handlers for all 9 replay events: `game_started` (initializes 4 players), `round_started` (resets per-round state, populates tiles), `draw` (adds tile to hand, sets `drawnTileId`), `discard` (removes tile, appends to discards), `meld` (5-way switch for chi/pon/open_kan/closed_kan/added_kan), `riichi_declared`, `dora_revealed`, `round_end` (6 result type variants: tsumo, ron, double_ron, exhaustive_draw, abortive_draw, nagashi_mangan), `game_end`
+- Handlers for all 9 replay events: `game_started` (initializes 4 players), `round_started` (resets per-round state, populates tiles, sets `tilesRemaining` to 70), `draw` (adds tile to hand, sets `drawnTileId`, decrements `tilesRemaining`), `discard` (removes tile via `removeTileFromHand`, appends to discards), `meld` (5-way switch for chi/pon/open_kan/closed_kan/added_kan), `riichi_declared`, `dora_revealed`, `round_end` (6 result type variants: tsumo, ron, double_ron, exhaustive_draw, abortive_draw, nagashi_mangan), `game_end`
 - Each handler generates a human-readable `lastEventDescription`
-- `round_end` handler also populates `roundEndResult` via `extractRoundEndResult()` — extracts winner hand data for win results (tsumo/ron/double_ron), empty winners for draws
+- `removeTileFromHand(tiles, tileId, seat)` — shared helper that removes a tile by ID and re-sorts; throws if the tile is not found
+- `round_end` handler populates `roundEndResult` via `extractRoundEndResult(event, doraIndicators)` — extracts winner hand data for win results (tsumo/ron/double_ron), collects ura-dora indicators, empty winners for draws
+- Meld handler throws on invalid state (missing caller, missing fromSeat player, missing pon for added_kan, missing tile in hand) instead of returning unchanged state
 - `game_end` handler populates `gameEndResult` with standings and final scores
 - `round_started` clears `roundEndResult`; `game_started` clears both result fields
 
@@ -200,7 +211,7 @@ Deterministic game state model for replay playback. Tracks table and player stat
 
 **Action-Step Grouping** (`model/action-steps.ts`):
 - `ActionStep` — interface with `stateIndex` (timeline state to display, includes trailing non-stopping events) and `descriptionStateIndex` (timeline state of the primary stopping event, used for `lastEventDescription`)
-- `buildActionSteps(events: ReplayEvent[]): ActionStep[]` — maps raw events to action steps, grouping bookkeeping events (e.g., `dora_revealed`) with the preceding meaningful action. Stopping events: all replay event types except `dora_revealed`. Non-stopping events are batched so `stateIndex` points after all trailing non-stopping events while `descriptionStateIndex` points to the stopping event's state. Always includes an initial step at index 0
+- `buildActionSteps(events: ReplayEvent[]): ActionStep[]` — maps raw events to action steps, grouping bookkeeping events with the preceding meaningful action. Non-stopping events: `dora_revealed`, `game_started`, and the first `draw` immediately after `round_started` (so the round starts with a drawn tile visible). Non-stopping events are batched so `stateIndex` points after all trailing non-stopping events while `descriptionStateIndex` points to the stopping event's state. The initial step advances past any leading non-stopping events
 
 **Navigation Index** (`model/navigation-index.ts`):
 - `NavigationIndex` — contains `rounds: RoundInfo[]` (all rounds in the game), `stepToRoundIndex: number[]` (maps each action step to its round index, -1 for pre-game), and `turnsByRound: TurnInfo[][]` (draw-based turns within each round)
@@ -214,35 +225,37 @@ Deterministic game state model for replay playback. Tracks table and player stat
 - `meldToDisplay(meld: MeldRecord): MeldTileDisplay[]` — converts state-layer meld records to UI-layer display format for the existing `Meld` component. Handles sideways tile positioning based on relative seat positions (`(fromSeat - callerSeat + 4) % 4`), face-down tiles for closed kan, and stacked tiles for added kan
 
 **Wind Helper** (`lib/wind-name.ts`):
-- `windName(wind: number): string` — converts wire wind integers (0=East, 1=South, 2=West, 3=North) to display strings
+- `windName(wind: number): string` — converts wire wind integers (0=East, 1=South, 2=West, 3=North) to full display strings
+- `windLetter(wind: number): string` — converts wire wind integers to single letters ("E", "S", "W", "N"); returns "?" for out-of-range values
 
 **Yaku Name Mapping** (`lib/yaku-names.ts`):
 - `yakuName(yakuId: number): string` — maps numeric yaku IDs from the Python `mahjong` library to English display names. Covers situational yaku (0-11), hand pattern yaku (12-39), yakuman (100-119), and dora types (120-122). Returns `"Unknown yaku"` for unrecognized IDs
 
 **Board Mapper** (`lib/board-mapper.ts`):
-- `tableStateToDisplayState(state)` — converts `TableState` to `BoardDisplayState`, mapping players by seat to position (bottom=0, right=1, top=2, left=3). Bottom player gets face-up tiles; others get face-down. Handles drawn tile separation, meld conversion, and discard flag mapping
-- `formatScore(score)` — formats numbers with locale separators (e.g., `25000` → `"25,000"`)
+- `tableStateToDisplayState(state, options?)` — converts `TableState` to `BoardDisplayState`. Rotates players so the dealer sits at bottom position (bottom=0, right=1, top=2, left=3). Bottom player gets face-up tiles; others get face-down unless `options.allOpen` is true (used by replay view). Wind display uses single letters via `windLetter()`. Handles drawn tile separation, meld conversion, discard flag mapping, and `tilesRemaining` passthrough
+- `formatScore(score)` — returns plain number string (e.g., `25000` → `"25000"`)
 
 **UI Components** (`ui/`):
-- `GameBoard(props)` — CSS Grid-based game board layout with 4 player zones (bottom/right/top/left) and a center info area. Each player zone has 3 separate grid areas (hand, melds, discards) rendered as direct children. Non-bottom players are CSS-rotated (90/180/270 degrees). Accepts `BoardDisplayState` (or null for empty debug board), an optional overlay `TemplateResult`, and a debug toggle. Center area shows scores in compass layout, round wind, dora indicators, and stick counts. Debug mode adds red borders and area labels
-- `RoundEndDisplay(result, players)` — renders round-end win results: for each winner shows hand tiles (closed + melds + winning tile with gap), yaku list with han values, han/fu totals (with yakuman/double yakuman labels), and score changes for all players with sign-prefixed deltas. Handles double ron (two winner sections). Decodes IMME melds via `decodeMeldCompact()`, with `added_kan` rendered as `open_kan` (fallback for missing `addedTileId`)
-- `GameEndDisplay(result, players)` — renders game-end final standings table: rank (from array index), player name, raw score (comma-formatted), final score (uma/oka-adjusted, with sign prefix and one decimal). Preserves backend placement order
+- `GameBoard(props)` — CSS Grid-based game board layout with 4 player zones (bottom/right/top/left) and a center info area. Each player zone has 3 separate grid areas (hand, melds, discards) rendered as direct children. Melds render in reverse order. Non-bottom players are CSS-rotated (90/180/270 degrees). Accepts `BoardDisplayState` (or null for empty debug board), an optional overlay `TemplateResult`, and a debug toggle. Center area: scores at the four edges (left/right use absolute positioning with vertical writing mode), `WindBadge` components in the four corners (dealer highlighted in red), `RiichiStick` SVG icons between edges and scores, round name, tiles remaining counter, and honba/riichi stick counts with SVG icons. `DoraDisplay` renders as an absolute overlay at top-left of the board. Debug mode adds red borders and area labels
+- `GameStartDisplay(players, dealerSeat)` — renders a game-start panel showing all 4 players sorted by wind assignment (East first), with wind names and player names. Used as an overlay during the `pre_game` phase in replays
+- `RoundEndDisplay(result, players, dealerSeat)` — renders round-end results with a header showing result type label ("Tsumo", "Ron", etc.) and total winner points. Shows dora and ura-dora indicator tiles when present. For each winner: sorted closed hand tiles + melds + winning tile with gap, yaku list with name and han in separate columns, han/fu totals. Score changes grid shows wind, player name, current score, and delta with positive/negative coloring. Handles double ron (two winner sections). Decodes IMME melds via `decodeMeldCompact()` (throws on invalid values), with `added_kan` rendered as `open_kan` (fallback for missing `addedTileId`)
+- `GameEndDisplay(result, players)` — renders game-end final standings table: rank (from array index), player name, raw score (plain number), final score (uma/oka-adjusted, with sign prefix and one decimal). Preserves backend placement order
+- `HonbaStickIcon()` — SVG inline icon of a 100-point stick (rounded rectangle with 2×4 dot grid)
+- `RiichiStickIcon()` — SVG inline icon of a 1000-point stick (rounded rectangle with single center dot)
 - `DropdownSelect(props)` — shared stateless dropdown component for jump-to navigation. Props: `triggerLabel`, `items: DropdownItem[]`, `isOpen`, `onToggle`, `onSelect`. Renders a trigger button and an absolute-positioned panel of selectable items. Items have `label`, `stepIndex`, and `isCurrent` (for highlighting). The caller manages open/closed state and click-outside dismissal
 - `RoundSelector(props)` — thin wrapper mapping `RoundInfo[]` to `DropdownItem[]` and delegating to `DropdownSelect`. Labels format as "East 2, 0 honba — Tsumo by Alice". Trigger shows current round name or "Rounds"
 - `TurnSelector(props)` — thin wrapper mapping `TurnInfo[]` to `DropdownItem[]` and delegating to `DropdownSelect`. Labels format as "Turn 1 — Alice". Highlights the nearest turn to the current step. Trigger shows "Turn N" or "Turns"
 
-**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `WinnerResult`, `RoundEndResult`, `GameEndResult`, `GamePhase`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `ActionStep`, `buildActionSteps`, `RoundInfo`, `TurnInfo`, `NavigationIndex`, `buildNavigationIndex`, `roundForStep`, `turnsForStep`, `meldToDisplay`, `windName`, `yakuName`, `SEAT_POSITIONS`, `BoardCenterInfo`, `BoardDisplayState`, `BoardPlayerDisplay`, `BoardPlayerScore`, `SeatPosition`, `tableStateToDisplayState`, `GameBoard`, `GameBoardProps`, `RoundEndDisplay`, `GameEndDisplay`, `DropdownItem`, `DropdownSelectProps`, `DropdownSelect`, `RoundSelectorProps`, `RoundSelector`, `TurnSelectorProps`, `TurnSelector`
+**Public API** (`index.ts`): exports `TableState`, `PlayerState`, `ReplayEvent`, `WinnerResult`, `RoundEndResult`, `GameEndResult`, `GamePhase`, `createInitialTableState`, `applyEvent`, `buildTimeline`, `ActionStep`, `buildActionSteps`, `RoundInfo`, `TurnInfo`, `NavigationIndex`, `buildNavigationIndex`, `roundForStep`, `turnsForStep`, `meldToDisplay`, `windName`, `yakuName`, `SEAT_POSITIONS`, `BoardCenterInfo`, `BoardDisplayState`, `BoardPlayerDisplay`, `BoardPlayerScore`, `SeatPosition`, `tableStateToDisplayState`, `GameBoard`, `GameBoardProps`, `RoundEndDisplay`, `GameEndDisplay`, `GameStartDisplay`, `DropdownItem`, `DropdownSelectProps`, `DropdownSelect`, `RoundSelectorProps`, `RoundSelector`, `TurnSelectorProps`, `TurnSelector`
 
 ### Replay View (`views/replay.ts`)
-Displays completed game replays with visual state display and action-step navigation. Fetches NDJSON replay data via HTTP from `/api/replays/{gameId}` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), filters through `isReplayEvent()` type guard to extract the 9 replay event types, then builds a pre-computed state timeline via `buildTimeline()`, action steps via `buildActionSteps()`, and a navigation index via `buildNavigationIndex()`. Non-replay event types and parse failures are collected as `parseErrors` and surfaced as a warning.
+Displays completed game replays with full-viewport board and floating controls. Fetches NDJSON replay data via HTTP from `/api/replays/{gameId}` with `AbortController` for cleanup. Parses NDJSON lines (skipping the version tag), filters through `isReplayEvent()` type guard to extract the 9 replay event types, then builds a pre-computed state timeline via `buildTimeline()`, action steps via `buildActionSteps()`, and a navigation index via `buildNavigationIndex()`. Non-replay event types and parse failures are collected as `parseErrors` and surfaced as a warning.
 
-**Navigation**: Uses action-step indices (`currentStep`) instead of raw event indices — bookkeeping events like `dora_revealed` are batched with their preceding meaningful action. Three input methods: Prev/Next buttons, Left/Right arrow keys (`handleKeydown`, ignores text input focus), and mouse wheel on the nav bar (`handleWheel`, skips events inside `.dropdown-select__panel` for dropdown scrolling). All listeners are registered in `replayView()` and cleaned up in `cleanupReplayView()`.
+**Layout**: The board fills the entire viewport (`.replay-board-mode`). Controls float as a compact overlay panel at bottom-right (`.replay-controls`). All tiles are shown face-up via `tableStateToDisplayState(state, { allOpen: true })`. During `pre_game` phase, a `GameStartDisplay` overlay shows player wind assignments. Round/game end results display as board overlays via `buildOverlay()`.
 
-**Jump selectors**: `RoundSelector` and `TurnSelector` dropdown components in the nav bar allow jumping to any round or turn. The view manages `openDropdown: "round" | "turn" | null` state with a document click-outside listener for dismissal. `handleJumpToStep(stepIndex)` sets `currentStep` and closes any open dropdown.
+**Navigation**: Uses action-step indices (`currentStep`) instead of raw event indices — bookkeeping events like `dora_revealed` and `game_started` are batched with their preceding meaningful action. Three input methods: Prev/Next buttons (`<`/`>`), Left/Right arrow keys (`handleKeydown`, ignores text input focus), and mouse wheel on the entire container (`handleWheel`, skips events inside `.dropdown-select__panel` for dropdown scrolling). All listeners are registered in `replayView()` and cleaned up in `cleanupReplayView()`.
 
-**Counter display**: `formatStepCounter()` shows contextual position — "East 2, 1 honba — Step 5 / 42" during rounds, "Step 1 / N" before any round, "Game ended — Step N / N" after game end. Uses `roundForStep()` from the navigation index.
-
-The state display renders `GameBoard` via `tableStateToDisplayState()` conversion, with `buildOverlay()` providing `RoundEndDisplay` or `GameEndDisplay` overlays based on the game phase. The full-viewport layout uses `.replay-board-mode` with `#app:has()` constraint removal. Nav bar includes round/turn selector dropdowns and step counter. Shows "Replay" status badge and "Back to History" navigation.
+**Jump selectors**: `RoundSelector` and `TurnSelector` dropdown components in the controls allow jumping to any round or turn. Disabled placeholder buttons shown when navigation index is not yet available or phase is outside a round. The view manages `openDropdown: "round" | "turn" | null` state with a document click-outside listener for dismissal. `handleJumpToStep(stepIndex)` sets `currentStep` and closes any open dropdown.
 
 ### Session Storage (`shared/session/session-storage.ts`)
 Persists game session data (WebSocket URL, game ticket) in `sessionStorage` for reconnection across page navigations. Data is stored per `gameId` key.
@@ -343,8 +356,11 @@ frontend/
     │       │   └── yaku-names.ts     # Yaku ID to English name mapping
     │       └── ui/
     │           ├── game-board.ts     # Game board component (CSS Grid layout with 4 player zones + center)
-    │           ├── round-end-display.ts  # Round-end result panel (winning hand, yakus, scores)
+    │           ├── game-start-display.ts # Game-start panel (wind assignments)
+    │           ├── round-end-display.ts  # Round-end result panel (header, dora indicators, winning hand, yakus, scores)
     │           ├── game-end-display.ts   # Game-end standings table
+    │           ├── honba-stick-icon.ts   # SVG inline honba (100-point) stick icon
+    │           ├── riichi-stick-icon.ts  # SVG inline riichi (1000-point) stick icon
     │           ├── dropdown-select.ts    # Shared stateless dropdown component
     │           ├── round-selector.ts     # Round jump selector (wraps DropdownSelect)
     │           └── turn-selector.ts      # Turn jump selector (wraps DropdownSelect)
@@ -422,8 +438,17 @@ frontend/
         ├── _discards.scss   # Discard component styles (rows, grayed, sideways riichi)
         ├── _room.scss       # Room page styles (players, chat)
         ├── _game.scss       # Game client styles (log panel, status badges)
-        ├── _game-board.scss # Game board layout (CSS Grid, center info, overlays, debug, storybook)
-        ├── _replay-state.scss # Replay state display (navigation controls, result panels, board integration)
+        ├── game-board/      # Game board layout (split into focused partials)
+        │   ├── _index.scss  # Barrel (@forward all partials)
+        │   ├── _grid.scss   # Container, CSS vars, grid template, responsive
+        │   ├── _areas.scss  # Player area placements
+        │   ├── _center.scss # Center info (scores, wind badges, sticks)
+        │   ├── _tile-scaling.scss # Tile/hand/meld/discard sizing
+        │   ├── _dora.scss   # Dora indicator overlay
+        │   ├── _overlay.scss # Board overlay and panel
+        │   ├── _debug.scss  # Debug mode
+        │   └── _pages.scss  # Storybook and replay page layouts
+        ├── _replay-state.scss # Replay controls overlay, result panels
         └── _storybook.scss  # Storybook layout (tile rows, cells)
 ```
 

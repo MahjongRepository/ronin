@@ -340,7 +340,7 @@ def apply_tsumo_score(
             scores=scores,
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
-            closed_tiles=list(winner.tiles),
+            closed_tiles=list(winner.tiles[:-1]),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             win_tile=winner.tiles[-1],
             pao_seat=winner.pao_seat,

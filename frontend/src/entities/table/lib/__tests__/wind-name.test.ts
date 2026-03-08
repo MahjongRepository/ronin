@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { windName } from "@/entities/table/lib/wind-name";
+import { windLetter, windName } from "@/entities/table/lib/wind-name";
 
 describe("windName", () => {
     test("0 returns East", () => {
@@ -22,5 +22,19 @@ describe("windName", () => {
     test("out-of-range value returns Unknown", () => {
         expect(windName(4)).toBe("Unknown");
         expect(windName(-1)).toBe("Unknown");
+    });
+});
+
+describe("windLetter", () => {
+    test("maps wind indices to single letters", () => {
+        expect(windLetter(0)).toBe("E");
+        expect(windLetter(1)).toBe("S");
+        expect(windLetter(2)).toBe("W");
+        expect(windLetter(3)).toBe("N");
+    });
+
+    test("out-of-range value returns ?", () => {
+        expect(windLetter(4)).toBe("?");
+        expect(windLetter(-1)).toBe("?");
     });
 });

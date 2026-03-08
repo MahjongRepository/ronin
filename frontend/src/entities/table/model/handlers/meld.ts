@@ -19,9 +19,10 @@ function removeTilesFromHand(hand: number[], tilesToRemove: number[]): number[] 
     const result = [...hand];
     for (const tileId of tilesToRemove) {
         const idx = result.indexOf(tileId);
-        if (idx !== -1) {
-            result.splice(idx, 1);
+        if (idx === -1) {
+            throw new Error(`Tile ${tileId} not found in hand during meld`);
         }
+        result.splice(idx, 1);
     }
     return result;
 }
@@ -59,7 +60,7 @@ function markFromSeatDiscard(players: PlayerState[], fromSeat: number | null): P
     }
     const fromPlayer = players.find((p) => p.seat === fromSeat);
     if (!fromPlayer) {
-        return players;
+        throw new Error(`fromSeat player not found for seat ${fromSeat}`);
     }
     return updatePlayer(players, fromSeat, {
         discards: markLastDiscardClaimed(fromPlayer.discards),
@@ -69,7 +70,7 @@ function markFromSeatDiscard(players: PlayerState[], fromSeat: number | null): P
 function applyOpenMeld(state: TableState, event: MeldEvent): TableState {
     const caller = state.players.find((p) => p.seat === event.callerSeat);
     if (!caller) {
-        return state;
+        throw new Error(`Caller not found for seat ${event.callerSeat}`);
     }
 
     const tilesFromHand = event.tileIds.filter((id) => id !== event.calledTileId);
@@ -86,7 +87,7 @@ function applyOpenMeld(state: TableState, event: MeldEvent): TableState {
 function applyClosedKan(state: TableState, event: MeldEvent): TableState {
     const caller = state.players.find((p) => p.seat === event.callerSeat);
     if (!caller) {
-        return state;
+        throw new Error(`Caller not found for seat ${event.callerSeat}`);
     }
 
     const callerUpdate: CallerUpdate = {
@@ -125,12 +126,12 @@ function findPonAndAddedTile(
 function applyAddedKan(state: TableState, event: MeldEvent): TableState {
     const caller = state.players.find((p) => p.seat === event.callerSeat);
     if (!caller) {
-        return state;
+        throw new Error(`Caller not found for seat ${event.callerSeat}`);
     }
 
     const match = findPonAndAddedTile(caller, event);
     if (!match) {
-        return state;
+        throw new Error(`No matching pon found for added_kan at seat ${event.callerSeat}`);
     }
 
     const updatedMelds = caller.melds.map((m): MeldRecord => {
@@ -165,9 +166,6 @@ function meldDescription(state: TableState, event: MeldEvent): string {
 
 export function applyMeld(state: TableState, event: MeldEvent): TableState {
     const nextState = applyMeldByType(state, event);
-    if (nextState === state) {
-        return state;
-    }
     return {
         ...nextState,
         currentPlayerSeat: event.callerSeat,

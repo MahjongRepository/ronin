@@ -144,7 +144,7 @@ describe("buildNavigationIndex", () => {
         const events: ReplayEvent[] = [
             makeGameStartedEvent(),
             makeRoundStartedEvent(),
-            makeDrawEvent(0, 52),
+            makeDrawEvent(0, 52), // batched with round_started (not a separate turn)
             makeDrawEvent(1, 53),
             makeDrawEvent(2, 54),
             makeTsumoRoundEnd(2, { "0": 22000, "1": 22000, "2": 34000, "3": 22000 }),
@@ -155,10 +155,10 @@ describe("buildNavigationIndex", () => {
         const navIndex = buildNavigationIndex(events, actionSteps, states);
         const turns = turnsForStep(navIndex, navIndex.rounds[0].actionStepIndex);
 
-        expect(turns).toHaveLength(3);
-        expect(turns[0]).toMatchObject({ playerName: "Alice", turnNumber: 1 });
-        expect(turns[1]).toMatchObject({ playerName: "Bot-1", turnNumber: 2 });
-        expect(turns[2]).toMatchObject({ playerName: "Bot-2", turnNumber: 3 });
+        // First draw is batched with round_started, so only 2 separate turns
+        expect(turns).toHaveLength(2);
+        expect(turns[0]).toMatchObject({ playerName: "Bot-1", turnNumber: 1 });
+        expect(turns[1]).toMatchObject({ playerName: "Bot-2", turnNumber: 2 });
     });
 
     test("roundForStep returns correct round at boundaries and mid-round", () => {
@@ -177,10 +177,9 @@ describe("buildNavigationIndex", () => {
     test("step at game_started (before any round) returns undefined / empty", () => {
         const { navIndex } = buildTwoRoundNavIndex();
 
+        // Step 0 is the initial step (post-game_started, pre_game phase)
         expect(roundForStep(navIndex, 0)).toBeUndefined();
-        expect(roundForStep(navIndex, 1)).toBeUndefined();
         expect(turnsForStep(navIndex, 0)).toEqual([]);
-        expect(turnsForStep(navIndex, 1)).toEqual([]);
     });
 
     test("stepToRoundIndex has correct length matching actionSteps length", () => {
@@ -200,11 +199,11 @@ describe("buildNavigationIndex", () => {
         const events: ReplayEvent[] = [
             makeGameStartedEvent(),
             makeRoundStartedEvent({ roundNumber: 1, wind: 0 }),
-            makeDrawEvent(0, 52),
+            makeDrawEvent(0, 52), // batched with round_started
             makeDrawEvent(1, 53),
             makeTsumoRoundEnd(0, { "0": 33000, "1": 22300, "2": 22300, "3": 22300 }),
             makeRoundStartedEvent({ roundNumber: 2, wind: 0 }),
-            makeDrawEvent(0, 54),
+            makeDrawEvent(0, 54), // batched with round_started
             makeTsumoRoundEnd(0, { "0": 41000, "1": 19600, "2": 19600, "3": 19600 }),
             makeGameEndEvent(),
         ];
@@ -213,12 +212,11 @@ describe("buildNavigationIndex", () => {
         const navIndex = buildNavigationIndex(events, actionSteps, states);
 
         const [round1Turns, round2Turns] = navIndex.turnsByRound;
-        expect(round1Turns).toHaveLength(2);
+        // First draw in each round is batched with round_started
+        expect(round1Turns).toHaveLength(1);
         expect(round1Turns[0].turnNumber).toBe(1);
-        expect(round1Turns[1].turnNumber).toBe(2);
 
-        expect(round2Turns).toHaveLength(1);
-        expect(round2Turns[0].turnNumber).toBe(1);
+        expect(round2Turns).toHaveLength(0);
     });
 });
 
@@ -252,9 +250,9 @@ describe("single-round game", () => {
         const { navIndex } = buildSingleRoundNavIndex();
 
         expect(navIndex.turnsByRound).toHaveLength(1);
-        expect(navIndex.turnsByRound[0]).toHaveLength(2);
-        expect(navIndex.turnsByRound[0][0]).toMatchObject({ playerName: "Alice", turnNumber: 1 });
-        expect(navIndex.turnsByRound[0][1]).toMatchObject({ playerName: "Bot-1", turnNumber: 2 });
+        // First draw is batched with round_started, only second draw is a turn
+        expect(navIndex.turnsByRound[0]).toHaveLength(1);
+        expect(navIndex.turnsByRound[0][0]).toMatchObject({ playerName: "Bot-1", turnNumber: 1 });
     });
 
     test("roundForStep returns the round for mid-round steps", () => {
@@ -291,7 +289,8 @@ describe("game ending mid-round (no round_end before game_end)", () => {
         const { navIndex } = buildMidRoundEndNavIndex();
 
         expect(navIndex.turnsByRound).toHaveLength(1);
-        expect(navIndex.turnsByRound[0]).toHaveLength(2);
+        // First draw is batched with round_started, only second draw is a turn
+        expect(navIndex.turnsByRound[0]).toHaveLength(1);
     });
 
     test("game_end step is not assigned to any round", () => {

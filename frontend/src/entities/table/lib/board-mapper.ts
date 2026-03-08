@@ -1,4 +1,4 @@
-import { windName } from "@/entities/table/lib/wind-name";
+import { windLetter, windName } from "@/entities/table/lib/wind-name";
 import {
     type BoardCenterInfo,
     type BoardDisplayState,
@@ -13,7 +13,7 @@ import { type DiscardTile, type HandTile, tile136toString } from "@/entities/til
 const REQUIRED_PLAYERS = 4;
 
 function formatScore(score: number): string {
-    return score.toLocaleString("en-US");
+    return String(score);
 }
 
 function toHandTile(tileId: number, show: "face" | "back"): HandTile {
@@ -73,8 +73,12 @@ const EMPTY_SCORE: BoardPlayerScore = {
     wind: "",
 };
 
-function mapPlayerDisplay(player: PlayerState, position: SeatPosition): BoardPlayerDisplay {
-    const show = position === "bottom" ? "face" : "back";
+function mapPlayerDisplay(
+    player: PlayerState,
+    position: SeatPosition,
+    allOpen: boolean,
+): BoardPlayerDisplay {
+    const show = allOpen || position === "bottom" ? "face" : "back";
     const { baseTiles, drawnTile } = buildHandTiles(player, show);
 
     return {
@@ -91,14 +95,15 @@ function mapPlayerScore(player: PlayerState, state: TableState): BoardPlayerScor
         isDealer: player.seat === state.dealerSeat,
         isRiichi: player.isRiichi,
         score: formatScore(player.score),
-        wind: windName((player.seat - state.dealerSeat + 4) % 4),
+        wind: windLetter((player.seat - state.dealerSeat + 4) % 4),
     };
 }
 
-// Normalize players by seat index into a fixed [bottom, right, top, left] tuple.
+// Rotate players so the dealer sits at bottom, then clockwise: right, top, left.
 // Handles unsorted arrays and incomplete states (< 4 players) gracefully.
 function normalizeBySeat(
     players: PlayerState[],
+    dealerSeat: number,
 ): [
     PlayerState | undefined,
     PlayerState | undefined,
@@ -112,23 +117,33 @@ function normalizeBySeat(
         PlayerState | undefined,
     ] = [undefined, undefined, undefined, undefined];
     for (const p of players) {
-        if (p.seat >= 0 && p.seat < REQUIRED_PLAYERS) {
-            slots[p.seat] = p;
+        if (p.seat < 0 || p.seat >= REQUIRED_PLAYERS) {
+            throw new Error(`Invalid seat ${p.seat}, expected 0–${REQUIRED_PLAYERS - 1}`);
         }
+        const position = (p.seat - dealerSeat + REQUIRED_PLAYERS) % REQUIRED_PLAYERS;
+        slots[position] = p;
     }
     return slots;
 }
 
-function tableStateToDisplayState(state: TableState): BoardDisplayState | null {
+interface DisplayOptions {
+    allOpen?: boolean;
+}
+
+function tableStateToDisplayState(
+    state: TableState,
+    options: DisplayOptions = {},
+): BoardDisplayState | null {
     if (state.players.length !== REQUIRED_PLAYERS) {
         return null;
     }
 
-    const seats = normalizeBySeat(state.players);
+    const { allOpen = false } = options;
+    const seats = normalizeBySeat(state.players, state.dealerSeat);
 
     const players = SEAT_POSITIONS.map((pos, i) => {
         const p = seats[i];
-        return p ? mapPlayerDisplay(p, pos) : EMPTY_PLAYER;
+        return p ? mapPlayerDisplay(p, pos, allOpen) : EMPTY_PLAYER;
     }) as BoardDisplayState["players"];
 
     const scores = seats.map((p) =>
@@ -142,6 +157,7 @@ function tableStateToDisplayState(state: TableState): BoardDisplayState | null {
             riichiSticks: state.riichiSticks,
             roundDisplay: `${windName(state.roundWind)} ${state.roundNumber}`,
             scores,
+            tilesRemaining: state.tilesRemaining,
         },
         players,
     };

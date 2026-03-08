@@ -8,6 +8,7 @@ interface BoardCenterInfo {
     roundDisplay: string;
     honbaSticks: number;
     riichiSticks: number;
+    tilesRemaining: number;
     doraIndicators: TileFace[];
     scores: [BoardPlayerScore, BoardPlayerScore, BoardPlayerScore, BoardPlayerScore];
 }

@@ -15,6 +15,7 @@ export function createInitialTableState(): TableState {
         roundEndResult: null,
         roundNumber: 0,
         roundWind: 0,
+        tilesRemaining: 0,
     };
 }
 

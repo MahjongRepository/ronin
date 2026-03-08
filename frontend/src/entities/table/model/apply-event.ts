@@ -28,6 +28,9 @@ import {
     type WinnerResult,
 } from "./types";
 
+/** Live wall size after dealing: 136 total - 14 dead wall - 52 dealt (13 × 4 players). */
+const TILES_AFTER_DEAL = 136 - 14 - 13 * 4;
+
 function assertNever(value: never): never {
     throw new Error(`Unhandled replay event type: ${(value as { type: string }).type}`);
 }
@@ -79,6 +82,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         roundEndResult: null,
         roundNumber: event.roundNumber,
         roundWind: event.wind,
+        tilesRemaining: TILES_AFTER_DEAL,
     };
 }
 
@@ -96,7 +100,19 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
             drawnTileId: event.tileId,
             tiles: [...player.tiles, event.tileId],
         }),
+        tilesRemaining: state.tilesRemaining - 1,
     };
+}
+
+function removeTileFromHand(tiles: number[], tileId: number, seat: number): number[] {
+    const result = tiles.slice();
+    const idx = result.indexOf(tileId);
+    if (idx === -1) {
+        throw new Error(`Discarded tile ${tileId} not found in hand of seat ${seat}`);
+    }
+    result.splice(idx, 1);
+    result.sort((tileA, tileB) => (tileA >> 2) - (tileB >> 2));
+    return result;
 }
 
 function applyDiscard(state: TableState, event: DiscardEvent): TableState {
@@ -105,11 +121,7 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
         throw new Error(`No player found for seat ${event.seat}`);
     }
     const tileName = tile136toString(event.tileId);
-    const updatedTiles = player.tiles.slice();
-    const idx = updatedTiles.indexOf(event.tileId);
-    if (idx !== -1) {
-        updatedTiles.splice(idx, 1);
-    }
+    const updatedTiles = removeTileFromHand(player.tiles, event.tileId, event.seat);
     return {
         ...state,
         lastEventDescription: `${player.name} discarded ${tileName}`,
@@ -238,26 +250,53 @@ function extractWinnerFromSingle(event: TsumoRoundEnd | RonRoundEnd): WinnerResu
     };
 }
 
-function extractRoundEndResult(event: RoundEndEvent): RoundEndResult {
+function collectUraDoraIndicators(event: RoundEndEvent): number[] {
+    switch (event.resultType) {
+        case ROUND_RESULT_TYPE.TSUMO:
+        case ROUND_RESULT_TYPE.RON:
+            return event.uraDoraIndicators ?? [];
+        case ROUND_RESULT_TYPE.DOUBLE_RON: {
+            const ids = new Set<number>();
+            for (const w of event.winners) {
+                for (const id of w.uraDoraIndicators ?? []) {
+                    ids.add(id);
+                }
+            }
+            return [...ids];
+        }
+        default:
+            return [];
+    }
+}
+
+function extractRoundEndResult(event: RoundEndEvent, doraIndicators: number[]): RoundEndResult {
+    const uraDoraIndicators = collectUraDoraIndicators(event);
+
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.TSUMO:
             return {
+                doraIndicators,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                uraDoraIndicators,
                 winners: [extractWinnerFromSingle(event)],
             };
         case ROUND_RESULT_TYPE.RON:
             return {
+                doraIndicators,
                 loserSeat: event.loserSeat,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                uraDoraIndicators,
                 winners: [extractWinnerFromSingle(event)],
             };
         case ROUND_RESULT_TYPE.DOUBLE_RON:
             return {
+                doraIndicators,
                 loserSeat: event.loserSeat,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                uraDoraIndicators,
                 winners: event.winners.map((w) => ({
                     closedTiles: w.closedTiles,
                     handResult: w.handResult,
@@ -270,8 +309,10 @@ function extractRoundEndResult(event: RoundEndEvent): RoundEndResult {
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW:
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
             return {
+                doraIndicators,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                uraDoraIndicators,
                 winners: [],
             };
         default: {
@@ -287,7 +328,7 @@ function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
         lastEventDescription: roundEndDescription(state, event),
         phase: "round_ended" as GamePhase,
         players: updateScoresFromMap(state.players, event.scores),
-        roundEndResult: extractRoundEndResult(event),
+        roundEndResult: extractRoundEndResult(event, state.doraIndicators),
     };
 }
 

@@ -115,11 +115,11 @@ describe("GameEndDisplay", () => {
         expect(names[0].textContent).toBe("Seat 99");
     });
 
-    test("raw scores are comma-formatted", () => {
+    test("raw scores are plain numbers", () => {
         const el = renderTo(GameEndDisplay(makeGameEndResult(), makePlayers()));
         const scores = el.querySelectorAll(".game-end-result__score");
-        expect(scores[0].textContent).toBe("35,000");
-        expect(scores[3].textContent).toBe("15,000");
+        expect(scores[0].textContent).toBe("35000");
+        expect(scores[3].textContent).toBe("15000");
     });
 
     test("renders Final Standings title", () => {

@@ -16,8 +16,18 @@ import { ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 type OverlayMode = "none" | "round_end" | "game_end";
 
+const VALID_OVERLAY_MODES = new Set<OverlayMode>(["none", "round_end", "game_end"]);
+
+function parseOverlayParam(): OverlayMode {
+    const param = new URLSearchParams(window.location.search).get("overlay");
+    if (param && VALID_OVERLAY_MODES.has(param as OverlayMode)) {
+        return param as OverlayMode;
+    }
+    return "none";
+}
+
 let debugMode = true;
-let overlayMode: OverlayMode = "none";
+let overlayMode: OverlayMode = parseOverlayParam();
 
 function rerender(): void {
     const app = document.getElementById("app");
@@ -31,9 +41,19 @@ function handleDebugToggle(): void {
     rerender();
 }
 
-function handleOverlayChange(event: Event): void {
-    const select = event.target as HTMLSelectElement;
-    overlayMode = select.value as OverlayMode;
+function syncOverlayParam(): void {
+    const url = new URL(window.location.href);
+    if (overlayMode === "none") {
+        url.searchParams.delete("overlay");
+    } else {
+        url.searchParams.set("overlay", overlayMode);
+    }
+    history.replaceState(null, "", url);
+}
+
+function handleOverlayToggle(mode: OverlayMode): void {
+    overlayMode = overlayMode === mode ? "none" : mode;
+    syncOverlayParam();
     rerender();
 }
 
@@ -153,11 +173,12 @@ const mockCenter: BoardCenterInfo = {
     riichiSticks: 1,
     roundDisplay: "East 1",
     scores: [
-        { isCurrent: true, isDealer: true, isRiichi: false, score: "25,000", wind: "East" },
-        { isCurrent: false, isDealer: false, isRiichi: false, score: "25,000", wind: "South" },
-        { isCurrent: false, isDealer: false, isRiichi: false, score: "25,000", wind: "West" },
-        { isCurrent: false, isDealer: false, isRiichi: true, score: "24,000", wind: "North" },
+        { isCurrent: false, isDealer: true, isRiichi: true, score: "25000", wind: "E" },
+        { isCurrent: true, isDealer: false, isRiichi: true, score: "25000", wind: "S" },
+        { isCurrent: false, isDealer: false, isRiichi: true, score: "25000", wind: "W" },
+        { isCurrent: false, isDealer: false, isRiichi: true, score: "24000", wind: "N" },
     ],
+    tilesRemaining: 42,
 };
 
 const bottomPlayer: BoardPlayerDisplay = {
@@ -243,8 +264,10 @@ const mockPlayers: PlayerState[] = [
 
 // Mock round-end result: tsumo by seat 0 with 3 yaku
 const mockRoundEnd: RoundEndResult = {
+    doraIndicators: [16, 56],
     resultType: ROUND_RESULT_TYPE.TSUMO,
     scoreChanges: { "0": 8000, "1": -4000, "2": -2000, "3": -2000 },
+    uraDoraIndicators: [28],
     winners: [
         {
             closedTiles: [0, 4, 8, 36, 40, 44, 72, 76, 80, 108, 112, 116, 120],
@@ -288,24 +311,23 @@ function buildOverlay(): TemplateResult | undefined {
 function storybookBoardView(): TemplateResult {
     return html`
         <div class="board-storybook">
-            <div class="board-storybook__toolbar">
-                <a href="/play/storybook" class="board-storybook__back">Back</a>
-                <label class="board-storybook__toggle">
-                    <input
-                        type="checkbox"
-                        ?checked=${debugMode}
-                        @change=${handleDebugToggle}
-                    />
-                    Debug mode
-                </label>
-                <select class="board-storybook__select" @change=${handleOverlayChange}>
-                    <option value="none" ?selected=${overlayMode === "none"}>No overlay</option>
-                    <option value="round_end" ?selected=${overlayMode === "round_end"}>Round end</option>
-                    <option value="game_end" ?selected=${overlayMode === "game_end"}>Game end</option>
-                </select>
-            </div>
             <div class="board-storybook__viewport">
                 ${GameBoard({ debug: debugMode, overlay: buildOverlay(), state: mockState })}
+            </div>
+            <div class="board-storybook__overlay">
+                <a class="board-storybook__btn" href="/play/storybook">Back</a>
+                <button
+                    class="board-storybook__btn ${debugMode ? "board-storybook__btn--active" : ""}"
+                    @click=${handleDebugToggle}
+                >Debug</button>
+                <button
+                    class="board-storybook__btn ${overlayMode === "round_end" ? "board-storybook__btn--active" : ""}"
+                    @click=${() => handleOverlayToggle("round_end")}
+                >Round end</button>
+                <button
+                    class="board-storybook__btn ${overlayMode === "game_end" ? "board-storybook__btn--active" : ""}"
+                    @click=${() => handleOverlayToggle("game_end")}
+                >Game end</button>
             </div>
         </div>
     `;

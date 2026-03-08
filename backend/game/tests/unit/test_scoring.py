@@ -243,6 +243,26 @@ class TestApplyTsumoScore:
         assert new_game_state.riichi_sticks == 0
         assert result.riichi_sticks_collected == 2
 
+    def test_closed_tiles_exclude_win_tile(self):
+        """Tsumo result closed_tiles should not contain the winning tile.
+
+        The win tile is reported separately in win_tile, so closed_tiles
+        should only have the 13-tile hand (same convention as ron).
+        """
+        # Player hand: tiles [0,1,2,3] where 3 is the drawn (winning) tile
+        game_state = self._create_game_state()
+        hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
+
+        _new_round_state, _new_game_state, result = apply_tsumo_score(
+            game_state,
+            winner_seat=0,
+            hand_result=hand_result,
+        )
+
+        assert result.win_tile == 3
+        assert result.win_tile not in result.closed_tiles
+        assert result.closed_tiles == [0, 1, 2]
+
     def test_riichi_winner_gets_ura_dora_indicators(self):
         """Riichi tsumo winner gets ura dora indicators from dead wall."""
         dead_wall = tuple(range(100, 114))

@@ -113,7 +113,8 @@ function stateWithChiAndPon() {
     };
     state = applyEvent(state, chiEvent);
 
-    // Bob discards 38, Alice pons with 36, 37
+    // Bob draws 38, then discards it; Alice pons with 36, 37
+    state = drawTile(state, 1, 38);
     state = applyEvent(state, {
         isRiichi: false,
         isTsumogiri: false,
@@ -376,8 +377,7 @@ describe("applyEvent - meld - added_kan", () => {
         expect(next.players[0].melds[1].meldType).toBe("added_kan");
     });
 
-    test("no-op when no matching pon exists (does not change turn state)", () => {
-        // State without any pon meld
+    test("throws when no matching pon exists for added_kan", () => {
         const state = stateAfterRoundStarted();
         const addedKanEvent: MeldEvent = {
             calledTileId: 38,
@@ -387,10 +387,9 @@ describe("applyEvent - meld - added_kan", () => {
             tileIds: [36, 37, 38, 39],
             type: "meld",
         };
-        const next = applyEvent(state, addedKanEvent);
-
-        // Should return unchanged state (including currentPlayerSeat)
-        expect(next).toBe(state);
+        expect(() => applyEvent(state, addedKanEvent)).toThrow(
+            "No matching pon found for added_kan at seat 0",
+        );
     });
 });
 

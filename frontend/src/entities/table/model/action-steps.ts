@@ -9,14 +9,26 @@ export interface ActionStep {
     stateIndex: number;
 }
 
-function isStoppingEvent(event: ReplayEvent): boolean {
-    return event.type !== "dora_revealed";
+const NON_STOPPING_TYPES: ReadonlySet<ReplayEvent["type"]> = new Set([
+    "dora_revealed",
+    "game_started",
+]);
+
+function isStoppingEvent(event: ReplayEvent, previousEvent: ReplayEvent | undefined): boolean {
+    if (NON_STOPPING_TYPES.has(event.type)) {
+        return false;
+    }
+    // First draw after round_started is batched so the round starts with a drawn tile
+    if (event.type === "draw" && previousEvent?.type === "round_started") {
+        return false;
+    }
+    return true;
 }
 
 /** Scans ahead past any trailing non-stopping events starting from `start`, returns the end index. */
 function findBatchEnd(events: ReplayEvent[], start: number): number {
     let end = start;
-    while (end < events.length && !isStoppingEvent(events[end])) {
+    while (end < events.length && !isStoppingEvent(events[end], events[end - 1])) {
         end++;
     }
     return end;
@@ -26,7 +38,7 @@ function findBatchEnd(events: ReplayEvent[], start: number): number {
 function collectStoppingSteps(events: ReplayEvent[], steps: ActionStep[]): void {
     let i = 0;
     while (i < events.length) {
-        if (!isStoppingEvent(events[i])) {
+        if (!isStoppingEvent(events[i], events[i - 1])) {
             i++;
         } else {
             const descriptionStateIndex = i + 1;
@@ -48,7 +60,8 @@ function collectStoppingSteps(events: ReplayEvent[], steps: ActionStep[]): void 
  * and the last entry's stateIndex equals events.length (the state after all events).
  */
 export function buildActionSteps(events: ReplayEvent[]): ActionStep[] {
-    const steps: ActionStep[] = [{ descriptionStateIndex: 0, stateIndex: 0 }];
+    const initialEnd = findBatchEnd(events, 0);
+    const steps: ActionStep[] = [{ descriptionStateIndex: initialEnd, stateIndex: initialEnd }];
     collectStoppingSteps(events, steps);
 
     // Ensure the terminal state is reachable when all events are non-stopping

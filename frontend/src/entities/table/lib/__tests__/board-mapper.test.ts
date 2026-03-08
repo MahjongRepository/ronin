@@ -202,7 +202,7 @@ describe("tableStateToDisplayState", () => {
             expect(result.center.roundDisplay).toBe("South 2");
         });
 
-        test("player scores formatted with locale separators", () => {
+        test("player scores formatted as plain numbers", () => {
             const state = makeTableState({
                 players: [
                     makePlayer({ score: 32100, seat: 0 }),
@@ -212,16 +212,17 @@ describe("tableStateToDisplayState", () => {
                 ],
             });
             const result = tableStateToDisplayState(state)!;
-            expect(result.center.scores[0].score).toBe("32,100");
-            expect(result.center.scores[1].score).toBe("25,000");
+            expect(result.center.scores[0].score).toBe("32100");
+            expect(result.center.scores[1].score).toBe("25000");
         });
 
-        test("dealer marked correctly based on dealerSeat", () => {
+        test("dealer always at bottom (position 0)", () => {
             const state = makeTableState({ dealerSeat: 2 });
             const result = tableStateToDisplayState(state)!;
-            expect(result.center.scores[2].isDealer).toBe(true);
-            expect(result.center.scores[0].isDealer).toBe(false);
+            // Dealer rotates to position 0 (bottom)
+            expect(result.center.scores[0].isDealer).toBe(true);
             expect(result.center.scores[1].isDealer).toBe(false);
+            expect(result.center.scores[2].isDealer).toBe(false);
             expect(result.center.scores[3].isDealer).toBe(false);
         });
 
@@ -236,20 +237,20 @@ describe("tableStateToDisplayState", () => {
             const state = makeTableState({ dealerSeat: 0 });
             const result = tableStateToDisplayState(state)!;
             // Seat 0 is dealer, wind relative to dealer is East
-            expect(result.center.scores[0].wind).toBe("East");
-            expect(result.center.scores[1].wind).toBe("South");
-            expect(result.center.scores[2].wind).toBe("West");
-            expect(result.center.scores[3].wind).toBe("North");
+            expect(result.center.scores[0].wind).toBe("E");
+            expect(result.center.scores[1].wind).toBe("S");
+            expect(result.center.scores[2].wind).toBe("W");
+            expect(result.center.scores[3].wind).toBe("N");
         });
 
-        test("wind names computed relative to dealer", () => {
-            // Dealer at seat 2: seat 2 is East, seat 3 is South, seat 0 is West, seat 1 is North
+        test("wind letters computed relative to dealer, dealer at bottom", () => {
+            // Dealer at seat 2 rotates to bottom: position 0=E, 1=S, 2=W, 3=N
             const state = makeTableState({ dealerSeat: 2 });
             const result = tableStateToDisplayState(state)!;
-            expect(result.center.scores[0].wind).toBe("West");
-            expect(result.center.scores[1].wind).toBe("North");
-            expect(result.center.scores[2].wind).toBe("East");
-            expect(result.center.scores[3].wind).toBe("South");
+            expect(result.center.scores[0].wind).toBe("E");
+            expect(result.center.scores[1].wind).toBe("S");
+            expect(result.center.scores[2].wind).toBe("W");
+            expect(result.center.scores[3].wind).toBe("N");
         });
 
         test("scores tuple has exactly 4 entries", () => {
@@ -261,8 +262,8 @@ describe("tableStateToDisplayState", () => {
 });
 
 describe("formatScore", () => {
-    test("formats with locale separators", () => {
-        expect(formatScore(25000)).toBe("25,000");
+    test("formats as plain number", () => {
+        expect(formatScore(25000)).toBe("25000");
     });
 
     test("formats zero", () => {
@@ -270,6 +271,6 @@ describe("formatScore", () => {
     });
 
     test("formats negative scores", () => {
-        expect(formatScore(-1500)).toBe("-1,500");
+        expect(formatScore(-1500)).toBe("-1500");
     });
 });

@@ -47,8 +47,10 @@ function makeWinner(overrides?: Partial<WinnerResult>): WinnerResult {
 
 function makeTsumoResult(overrides?: Partial<RoundEndResult>): RoundEndResult {
     return {
+        doraIndicators: [16],
         resultType: ROUND_RESULT_TYPE.TSUMO,
         scoreChanges: { "0": 10000, "1": -3000, "2": -3000, "3": -4000 },
+        uraDoraIndicators: [],
         winners: [makeWinner()],
         ...overrides,
     };
@@ -100,16 +102,15 @@ describe("RoundEndDisplay", () => {
             expect(meldTiles.length).toBe(4);
         });
 
-        test("skips invalid IMME-encoded melds without crashing", () => {
+        test("throws on invalid IMME-encoded melds", () => {
             const invalidImme = 999999; // out of IMME range
             const validPonImme = 16128; // valid pon of 1m
             const result = makeTsumoResult({
                 winners: [makeWinner({ melds: [invalidImme, validPonImme] })],
             });
-            const el = renderTo(RoundEndDisplay(result, makePlayers(), 0));
-            const hand = el.querySelector(".round-end-result__hand");
-            const meldElements = hand!.querySelectorAll(".meld");
-            expect(meldElements).toHaveLength(1); // only the valid meld renders
+            expect(() => RoundEndDisplay(result, makePlayers(), 0)).toThrow(
+                "IMME value must be 0-24423, got 999999",
+            );
         });
 
         test("renders hand tiles and winning tile with gap", () => {
@@ -214,9 +215,11 @@ describe("RoundEndDisplay", () => {
 
         test("double ron renders two winner sections", () => {
             const result: RoundEndResult = {
+                doraIndicators: [],
                 loserSeat: 1,
                 resultType: ROUND_RESULT_TYPE.DOUBLE_RON,
                 scoreChanges: { "0": 8000, "1": -16000, "2": 8000, "3": 0 },
+                uraDoraIndicators: [],
                 winners: [
                     makeWinner({ seat: 0 }),
                     makeWinner({
@@ -274,6 +277,37 @@ describe("RoundEndDisplay", () => {
             const deltas = el.querySelectorAll(".round-end-result__score-delta");
             expect(deltas[2].textContent).toBe("0");
             expect(deltas[3].textContent).toBe("0");
+        });
+    });
+
+    describe("dora indicators", () => {
+        test("renders dora indicator tiles", () => {
+            const result = makeTsumoResult({ doraIndicators: [16, 56] });
+            const el = renderTo(RoundEndDisplay(result, makePlayers(), 0));
+            const rows = el.querySelectorAll(".round-end-result__indicator-group");
+            expect(rows).toHaveLength(1);
+            expect(rows[0].querySelector(".round-end-result__indicator-label")?.textContent).toBe(
+                "Dora",
+            );
+            expect(rows[0].querySelectorAll(".round-end-result__indicator-tile")).toHaveLength(2);
+        });
+
+        test("renders ura dora indicator tiles", () => {
+            const result = makeTsumoResult({ uraDoraIndicators: [28] });
+            const el = renderTo(RoundEndDisplay(result, makePlayers(), 0));
+            const rows = el.querySelectorAll(".round-end-result__indicator-group");
+            expect(rows).toHaveLength(2);
+            expect(rows[1].querySelector(".round-end-result__indicator-label")?.textContent).toBe(
+                "Ura",
+            );
+            expect(rows[1].querySelectorAll(".round-end-result__indicator-tile")).toHaveLength(1);
+        });
+
+        test("hides indicator section when no dora indicators", () => {
+            const result = makeTsumoResult({ doraIndicators: [], uraDoraIndicators: [] });
+            const el = renderTo(RoundEndDisplay(result, makePlayers(), 0));
+            const indicators = el.querySelector(".round-end-result__indicators");
+            expect(indicators).toBeNull();
         });
     });
 });

@@ -29,6 +29,7 @@ export type {
 export { tableStateToDisplayState } from "./lib/board-mapper";
 export { RoundEndDisplay } from "./ui/round-end-display";
 export { GameEndDisplay } from "./ui/game-end-display";
+export { GameStartDisplay } from "./ui/game-start-display";
 export type { DropdownItem, DropdownSelectProps } from "./ui/dropdown-select";
 export { DropdownSelect } from "./ui/dropdown-select";
 export { formatRoundName } from "./lib/round-name";

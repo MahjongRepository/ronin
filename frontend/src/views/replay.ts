@@ -5,6 +5,7 @@ import {
     GameBoard,
     GameEndDisplay,
     type GamePhase,
+    GameStartDisplay,
     type NavigationIndex,
     type ReplayEvent,
     RoundEndDisplay,
@@ -295,6 +296,21 @@ function buildOverlay(tableState: TableState): TemplateResult | undefined {
     return undefined;
 }
 
+function buildBoardContent(tableState: TableState): TemplateResult {
+    if (tableState.phase === "pre_game" && tableState.players.length > 0) {
+        return html`<div class="board-overlay">
+            <div class="board-overlay__panel">
+                ${GameStartDisplay(tableState.players, tableState.dealerSeat)}
+            </div>
+        </div>`;
+    }
+    return GameBoard({
+        debug: false,
+        overlay: buildOverlay(tableState),
+        state: tableStateToDisplayState(tableState, { allOpen: true }),
+    });
+}
+
 function updateStateDisplay(): void {
     const container = document.getElementById("replay-state-container");
     if (!container) {
@@ -303,75 +319,64 @@ function updateStateDisplay(): void {
 
     const step = state.actionSteps[state.currentStep];
     const displayState = step ? state.states[step.stateIndex] : undefined;
-    const descriptionState = step ? state.states[step.descriptionStateIndex] : undefined;
     const totalSteps = state.actionSteps.length;
-    const counterText = formatStepCounter({
-        currentStep: state.currentStep,
-        navIndex: state.navigationIndex,
-        phase: displayState?.phase ?? "pre_game",
-        totalSteps,
-    });
 
     render(
         html`
-            ${
-                state.parseErrors.length > 0
-                    ? html`<div class="replay-state__warning">
-                    ${state.parseErrors.length} line(s) could not be parsed
-                </div>`
-                    : ""
-            }
-            <div class="replay-board-layout__nav">
-                <button
-                    class="replay-state__nav-btn"
-                    @click=${handlePrev}
-                    ?disabled=${state.currentStep === 0}
-                >Prev</button>
-                ${
-                    state.navigationIndex
-                        ? RoundSelector({
-                              currentRound: roundForStep(state.navigationIndex, state.currentStep),
-                              isOpen: state.openDropdown === "round",
-                              onSelect: handleJumpToStep,
-                              onToggle: () => handleToggleDropdown("round"),
-                              rounds: state.navigationIndex.rounds,
-                          })
-                        : ""
-                }
-                ${
-                    state.navigationIndex &&
-                    (displayState?.phase === "in_round" || displayState?.phase === "round_ended")
-                        ? TurnSelector({
-                              currentStep: state.currentStep,
-                              isOpen: state.openDropdown === "turn",
-                              onSelect: handleJumpToStep,
-                              onToggle: () => handleToggleDropdown("turn"),
-                              turns: turnsForStep(state.navigationIndex, state.currentStep),
-                          })
-                        : ""
-                }
-                <span class="replay-state__counter">
-                    ${counterText}
-                </span>
-                <button
-                    class="replay-state__nav-btn"
-                    @click=${handleNext}
-                    ?disabled=${state.currentStep >= totalSteps - 1}
-                >Next</button>
-            </div>
-            <div class="replay-board-layout__description">
-                ${descriptionState?.lastEventDescription ?? ""}
-            </div>
             <div class="replay-board-layout__board">
+                ${displayState ? buildBoardContent(displayState) : ""}
+            </div>
+            <div class="replay-controls">
                 ${
-                    displayState
-                        ? GameBoard({
-                              debug: false,
-                              overlay: buildOverlay(displayState),
-                              state: tableStateToDisplayState(displayState),
-                          })
+                    state.parseErrors.length > 0
+                        ? html`<div class="replay-state__warning">
+                        ${state.parseErrors.length} line(s) could not be parsed
+                    </div>`
                         : ""
                 }
+                <div class="replay-controls__nav">
+                    <button
+                        class="replay-state__nav-btn"
+                        @click=${handlePrev}
+                        ?disabled=${state.currentStep === 0}
+                    >&lt;</button>
+                    ${
+                        state.navigationIndex
+                            ? RoundSelector({
+                                  currentRound: roundForStep(
+                                      state.navigationIndex,
+                                      state.currentStep,
+                                  ),
+                                  isOpen: state.openDropdown === "round",
+                                  onSelect: handleJumpToStep,
+                                  onToggle: () => handleToggleDropdown("round"),
+                                  rounds: state.navigationIndex.rounds,
+                              })
+                            : html`
+                                  <button class="dropdown-select__trigger" disabled>Rounds</button>
+                              `
+                    }
+                    ${
+                        state.navigationIndex &&
+                        (displayState?.phase === "in_round" ||
+                            displayState?.phase === "round_ended")
+                            ? TurnSelector({
+                                  currentStep: state.currentStep,
+                                  isOpen: state.openDropdown === "turn",
+                                  onSelect: handleJumpToStep,
+                                  onToggle: () => handleToggleDropdown("turn"),
+                                  turns: turnsForStep(state.navigationIndex, state.currentStep),
+                              })
+                            : html`
+                                  <button class="dropdown-select__trigger" disabled>Turns</button>
+                              `
+                    }
+                    <button
+                        class="replay-state__nav-btn"
+                        @click=${handleNext}
+                        ?disabled=${state.currentStep >= totalSteps - 1}
+                    >&gt;</button>
+                </div>
             </div>
         `,
         container,
@@ -384,11 +389,8 @@ function attachWheelListener(container: HTMLElement): void {
     if (wheelNavElement) {
         return;
     }
-    const navEl = container.querySelector<HTMLElement>(".replay-board-layout__nav");
-    if (navEl) {
-        navEl.addEventListener("wheel", handleWheel, { passive: false });
-        wheelNavElement = navEl;
-    }
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    wheelNavElement = container;
 }
 
 function createEmptyState(generation: number): ReplayViewState {
@@ -422,14 +424,7 @@ export function replayView(gameId: string): TemplateResult {
     document.addEventListener("click", handleClickOutside);
 
     return html`
-        <div class="replay-board-mode">
-            <div class="game-header">
-                <a href="/history" class="secondary" role="button">Back to History</a>
-                <h2>Game: ${gameId}</h2>
-                <span class="connection-status status-replay">Replay</span>
-            </div>
-            <div class="replay-board-layout" id="replay-state-container"></div>
-        </div>
+        <div class="replay-board-mode" id="replay-state-container"></div>
     `;
 }
 

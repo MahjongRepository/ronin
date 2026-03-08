@@ -258,6 +258,14 @@ describe("applyEvent - round_started", () => {
         expect(state.players.map((p) => p.tiles)).toEqual(originalPlayers.map((p) => p.tiles));
         expect(state.phase).toBe("pre_game");
     });
+
+    test("sets tilesRemaining to 70 (live wall after dealing)", () => {
+        const state = stateAfterGameStarted();
+        const event = makeRoundStartedEvent();
+        const next = applyEvent(state, event);
+
+        expect(next.tilesRemaining).toBe(70);
+    });
 });
 
 function stateAfterRoundStarted() {
@@ -310,6 +318,14 @@ describe("applyEvent - draw", () => {
 
         expect(next.players[0].tiles).toContain(52);
         expect(next.players[0].drawnTileId).toBe(52);
+    });
+
+    test("decrements tilesRemaining by 1", () => {
+        const state = stateAfterRoundStarted();
+        const event = makeDrawEvent({ seat: 0, tileId: 52 });
+        const next = applyEvent(state, event);
+
+        expect(next.tilesRemaining).toBe(69);
     });
 
     test("sets currentPlayerSeat to the drawing player", () => {

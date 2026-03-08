@@ -1,0 +1,42 @@
+// Board overlay — positioning context and overlay panel
+
+// Positioning context for overlay and dora indicator (both use position: absolute)
+.game-board {
+    position: relative;
+}
+
+.board-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgb(0 0 0 / 60%);
+    z-index: 20;
+    padding: 1rem;
+
+    // Fixed tile scale inside overlays so hand tiles always fit the panel.
+    // Must re-derive tile vars here because --board-tile-w/h are computed
+    // on .game-board and inherited as resolved values.
+    --board-scale: 0.35;
+    --board-tile-w: calc(60px * var(--board-scale));
+    --board-tile-h: calc(80px * var(--board-scale));
+
+    @media (width >= 640px) {
+        --board-scale: 0.55;
+    }
+}
+
+.board-overlay__panel {
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    max-width: min(94%, 560px);
+    max-height: 90%;
+    overflow-y: auto;
+
+    @media (width >= 640px) {
+        padding: 1.5rem;
+    }
+}
