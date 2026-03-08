@@ -384,6 +384,7 @@ ronin/
 ├── Makefile
 └── backend/
     ├── shared/
+    │   ├── storage.py            # ReplayStorage protocol, LocalReplayStorage (gzip file persistence with two-level shard directories), replay_file_path helper
     │   ├── dal/
     │   │   ├── __init__.py           # Public API: PlayerRepository, GameRepository, PlayedGame
     │   │   ├── models.py             # PlayedGame persistence model

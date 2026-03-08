@@ -3,30 +3,50 @@
 import gzip
 import os
 import stat
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from shared.storage import LocalReplayStorage
+from shared.storage import LocalReplayStorage, replay_file_path
+
+
+class TestReplayFilePath:
+    def test_returns_two_level_sharded_path(self):
+        base = Path("/replays")
+        result = replay_file_path(base, "55ae1889-2f92-4007-9b66-baa11b0e6f05")
+        assert result == base / "55" / "ae" / "55ae1889-2f92-4007-9b66-baa11b0e6f05.txt.gz"
+
+    def test_rejects_game_id_shorter_than_4_chars(self):
+        base = Path("/replays")
+        with pytest.raises(ValueError, match="at least 4 characters"):
+            replay_file_path(base, "abc")
+
+    def test_accepts_exactly_4_char_game_id(self):
+        base = Path("/replays")
+        result = replay_file_path(base, "abcd")
+        assert result == base / "ab" / "cd" / "abcd.txt.gz"
 
 
 class TestLocalReplayStorage:
-    def test_creates_directory_on_first_write(self, tmp_path):
+    def test_creates_shard_directories_on_first_write(self, tmp_path):
         replay_dir = tmp_path / "replays"
         storage = LocalReplayStorage(str(replay_dir))
 
-        storage.save_replay("game_1", "line1\nline2\n")
+        storage.save_replay("game_1234", "line1\nline2\n")
 
         assert replay_dir.is_dir()
-        assert (replay_dir / "game_1.txt.gz").exists()
+        shard_dir = replay_dir / "ga" / "me"
+        assert shard_dir.is_dir()
+        assert (shard_dir / "game_1234.txt.gz").exists()
 
     def test_writes_gzip_compressed_content(self, tmp_path):
         storage = LocalReplayStorage(str(tmp_path))
         content = '{"type":"discard","target":"all"}\n{"type":"draw","target":"all"}\n'
 
-        storage.save_replay("game_abc", content)
+        storage.save_replay("game_abc_def", content)
 
-        compressed_path = tmp_path / "game_abc.txt.gz"
+        compressed_path = tmp_path / "ga" / "me" / "game_abc_def.txt.gz"
         assert compressed_path.exists()
         decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
         assert decompressed == content
@@ -34,17 +54,18 @@ class TestLocalReplayStorage:
     def test_overwrites_existing_file(self, tmp_path):
         storage = LocalReplayStorage(str(tmp_path))
 
-        storage.save_replay("game_1", "original content")
-        storage.save_replay("game_1", "updated content")
+        storage.save_replay("game_1234", "original content")
+        storage.save_replay("game_1234", "updated content")
 
-        decompressed = gzip.decompress((tmp_path / "game_1.txt.gz").read_bytes()).decode("utf-8")
+        compressed_path = tmp_path / "ga" / "me" / "game_1234.txt.gz"
+        decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
         assert decompressed == "updated content"
 
     def test_rejects_path_traversal(self, tmp_path):
         storage = LocalReplayStorage(str(tmp_path))
 
         with pytest.raises(ValueError, match="Path traversal rejected"):
-            storage.save_replay("../escape", "malicious")
+            storage.save_replay("../escape_now", "malicious")
         with pytest.raises(ValueError, match="Path traversal rejected"):
             storage.save_replay("../../etc/passwd", "malicious")
 
@@ -54,7 +75,8 @@ class TestLocalReplayStorage:
 
         storage.save_replay("game_unicode", content)
 
-        decompressed = gzip.decompress((tmp_path / "game_unicode.txt.gz").read_bytes()).decode("utf-8")
+        compressed_path = tmp_path / "ga" / "me" / "game_unicode.txt.gz"
+        decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
         assert decompressed == content
 
 
@@ -73,8 +95,9 @@ class TestLocalReplayStorageErrorHandling:
             storage.save_replay("game_fail", "content")
 
         # No target file or leftover temp files
-        assert not (tmp_path / "game_fail.txt.gz").exists()
-        remaining = list(tmp_path.glob(".replay_*.tmp"))
+        shard_dir = tmp_path / "ga" / "me"
+        assert not (shard_dir / "game_fail.txt.gz").exists()
+        remaining = list(shard_dir.glob(".replay_*.tmp"))
         assert remaining == []
         # fd was properly closed
         fd_arg = mock_fdopen.call_args[0][0]
@@ -90,8 +113,9 @@ class TestLocalReplayStorageErrorHandling:
         ):
             storage.save_replay("game_fail", "content")
 
-        assert not (tmp_path / "game_fail.txt.gz").exists()
-        remaining = list(tmp_path.glob(".replay_*.tmp"))
+        shard_dir = tmp_path / "ga" / "me"
+        assert not (shard_dir / "game_fail.txt.gz").exists()
+        remaining = list(shard_dir.glob(".replay_*.tmp"))
         assert remaining == []
 
     def test_no_double_close_when_fdopen_succeeds_but_fsync_fails(self, tmp_path):
@@ -117,17 +141,28 @@ class TestLocalReplayStoragePermissions:
         replay_dir = tmp_path / "replays"
         storage = LocalReplayStorage(str(replay_dir))
 
-        storage.save_replay("game_1", "content")
+        storage.save_replay("game_1234", "content")
 
         dir_mode = stat.S_IMODE(replay_dir.stat().st_mode)
         assert dir_mode == 0o700
+
+    def test_shard_directories_created_with_owner_only_permissions(self, tmp_path):
+        replay_dir = tmp_path / "replays"
+        storage = LocalReplayStorage(str(replay_dir))
+
+        storage.save_replay("game_1234", "content")
+
+        level1 = replay_dir / "ga"
+        level2 = level1 / "me"
+        assert stat.S_IMODE(level1.stat().st_mode) == 0o700
+        assert stat.S_IMODE(level2.stat().st_mode) == 0o700
 
     def test_replay_file_created_with_owner_only_permissions(self, tmp_path):
         replay_dir = tmp_path / "replays"
         storage = LocalReplayStorage(str(replay_dir))
 
-        storage.save_replay("game_1", "content")
+        storage.save_replay("game_1234", "content")
 
-        file_path = replay_dir / "game_1.txt.gz"
+        file_path = replay_dir / "ga" / "me" / "game_1234.txt.gz"
         file_mode = stat.S_IMODE(file_path.stat().st_mode)
         assert file_mode == 0o600

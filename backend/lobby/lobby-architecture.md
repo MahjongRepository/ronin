@@ -18,7 +18,7 @@ Portal service for room management, authentication, and game client serving.
 
 ### Public (replay access)
 - `GET /play/history/{game_id}` - Game client HTML page for replay viewing (serves same play.html template, no auth required)
-- `GET /api/replays/{game_id}` - Replay API endpoint returning gzip-compressed NDJSON replay content (`Content-Encoding: gzip`, `Cache-Control: immutable`). Returns 404 for invalid/nonexistent game IDs. Rate-limited via Traefik in production
+- `GET /api/replays/{game_id}` - Replay API endpoint returning gzip-compressed NDJSON replay content (`Content-Encoding: gzip`, `Cache-Control: immutable`). Requires game_id to be at least 4 characters; returns 404 for invalid/nonexistent game IDs. Rate-limited via Traefik in production
 
 ### Protected (session cookie or API key required)
 - `GET /` - Lobby HTML page (server-rendered, lists rooms from local room manager)
@@ -174,7 +174,7 @@ These practices are mandatory for all lobby code. Violations must be caught in c
 - **Views** (`views/`) - Jinja2 templates and view handlers split by domain:
   - `handlers.py` — Lobby, room, and matchmaking page handlers (`lobby_page`, `room_page`, `matchmaking_page`, `create_room_and_redirect`, `join_room_and_redirect`)
   - `history_handlers.py` — History page handler and game data transformation (`history_page`, `_format_duration`, `_prepare_history_for_display`)
-  - `replay_handlers.py` — Replay API handler (`replay_content`); reads gzip-compressed replay files with path traversal protection and file size limits
+  - `replay_handlers.py` — Replay API handler (`replay_content`); resolves sharded replay file paths via `shared.storage.replay_file_path`, enforces minimum game ID length, path traversal protection, and file size limits
   - `game_handlers.py` — Game client and dev page handlers (`play_page`, `styleguide_page`)
   - `assets.py` — Vite manifest utilities and Jinja2 template factory (`create_templates`, `load_vite_manifest`, `resolve_vite_asset_urls`)
   - `auth_handlers.py` — Auth handlers (login, register, logout, bot_auth, bot_create_room, bot_matchmaking_auth)
@@ -190,6 +190,7 @@ Dependencies on `shared/`:
 - `shared.validators` - String list parsing (CORS origins, allowed hosts) and custom env settings source
 - `shared.auth` - `AuthService`, `AuthSessionStore`, `PlayerRepository` for player management; `create_signed_ticket` and `sign_game_ticket` for HMAC-signed game tickets
 - `shared.db` - `Database`, `SqlitePlayerRepository` for SQLite-backed player storage, `SqliteGameRepository` for played game queries
+- `shared.storage` - `replay_file_path` for resolving sharded replay file paths, `_MIN_GAME_ID_LEN` for game ID validation
 
 ## Project Structure
 
@@ -306,7 +307,7 @@ Lobby settings (prefixed with `LOBBY_`):
 - `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/play`)
 - `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
 - `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `.vite/manifest.json` (default: `frontend/dist`)
-- `LOBBY_REPLAY_DIR` - Directory containing gzip-compressed replay files (default: `backend/data/replays`)
+- `LOBBY_REPLAY_DIR` - Root directory for gzip-compressed replay files distributed across a two-level shard structure `{id[0:2]}/{id[2:4]}/{game_id}.txt.gz` (default: `backend/data/replays`)
 - `LOBBY_VITE_DEV_URL` - Vite dev server URL for HMR in development (default: empty; set to `http://localhost:5173` when running Vite dev server)
 
 Auth settings (prefixed with `AUTH_`):

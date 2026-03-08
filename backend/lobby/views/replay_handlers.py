@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import Response
 
+from shared.storage import _MIN_GAME_ID_LEN, replay_file_path
+
 if TYPE_CHECKING:
     from starlette.requests import Request
 
@@ -25,11 +27,11 @@ _NOT_FOUND = Response("Not found", status_code=404, media_type="text/plain")
 def _load_replay(replay_dir_str: str, game_id: str) -> bytes | None:
     """Resolve paths and read a gzip-compressed replay file.
 
-    Returns the raw gzip bytes, or None if the file is missing, too large,
+    Return the raw gzip bytes, or None if the file is missing, too large,
     or the game_id resolves outside the replay directory.
     """
     replay_dir = Path(replay_dir_str).resolve()
-    target = (replay_dir / f"{game_id}.txt.gz").resolve()
+    target = replay_file_path(replay_dir, game_id).resolve()
 
     if not target.is_relative_to(replay_dir):
         return None
@@ -50,7 +52,12 @@ async def replay_content(request: Request) -> Response:
     """GET /api/replays/{game_id} — serve a gzip-compressed replay file."""
     game_id = request.path_params["game_id"]
 
-    if not game_id or len(game_id) > _GAME_ID_MAX_LEN or not _GAME_ID_RE.match(game_id):
+    if (
+        not game_id
+        or len(game_id) < _MIN_GAME_ID_LEN
+        or len(game_id) > _GAME_ID_MAX_LEN
+        or not _GAME_ID_RE.match(game_id)
+    ):
         return _NOT_FOUND
 
     replay_dir_str: str = request.app.state.settings.replay_dir

@@ -587,7 +587,7 @@ def main() -> None:
             old_file.unlink()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    replay_files = sorted(REPLAYS_DIR.glob("*.txt.gz"))
+    replay_files = sorted(REPLAYS_DIR.glob("??/??/*.txt.gz"))
     if not replay_files:
         logger.info("No replay files found in %s", REPLAYS_DIR)
         return

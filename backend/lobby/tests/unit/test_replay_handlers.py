@@ -9,6 +9,7 @@ from lobby.server.app import create_app
 from lobby.server.settings import LobbyServerSettings
 from lobby.views.replay_handlers import _load_replay
 from shared.auth.settings import AuthSettings
+from shared.storage import replay_file_path
 
 
 def _make_client(tmp_path):
@@ -37,9 +38,11 @@ def _make_client(tmp_path):
 
 
 def _write_gzip_replay(replay_dir, game_id, content):
-    """Write a gzip-compressed replay file."""
+    """Write a gzip-compressed replay file at the sharded path."""
+    target = replay_file_path(replay_dir, game_id)
+    target.parent.mkdir(parents=True, exist_ok=True)
     compressed = gzip.compress(content.encode("utf-8"))
-    (replay_dir / f"{game_id}.txt.gz").write_bytes(compressed)
+    target.write_bytes(compressed)
 
 
 class TestReplayContent:
@@ -107,6 +110,11 @@ class TestReplayContent:
         response = client.get(f"/api/replays/{'a' * 51}")
         assert response.status_code == 404
 
+    def test_game_id_too_short_returns_404(self, setup):
+        client, _replay_dir = setup
+        response = client.get("/api/replays/abc")
+        assert response.status_code == 404
+
     def test_game_id_at_max_length_is_accepted(self, setup):
         """A 50-char game_id should be accepted (if file exists)."""
         client, replay_dir = setup
@@ -126,33 +134,40 @@ class TestReplayContent:
     def test_oversized_file_returns_404(self, setup):
         """Files exceeding 1 MB on disk are rejected."""
         client, replay_dir = setup
+        game_id = "big-game"
+        target = replay_file_path(replay_dir, game_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
         # Write raw bytes > 1 MB (not valid gzip, but size check happens first)
-        (replay_dir / "big-game.txt.gz").write_bytes(b"\x00" * (1_048_576 + 1))
+        target.write_bytes(b"\x00" * (1_048_576 + 1))
 
-        response = client.get("/api/replays/big-game")
+        response = client.get(f"/api/replays/{game_id}")
         assert response.status_code == 404
 
     def test_unreadable_file_returns_404(self, setup):
         """Files that exist but can't be read return 404."""
         client, replay_dir = setup
-        target = replay_dir / "broken.txt.gz"
-        target.mkdir()  # directory, not a file — read_bytes will fail
+        game_id = "broken_file"
+        target = replay_file_path(replay_dir, game_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.mkdir()  # directory, not a file — read will fail
 
-        response = client.get("/api/replays/broken")
+        response = client.get(f"/api/replays/{game_id}")
         assert response.status_code == 404
 
     def test_path_traversal_via_symlink_returns_404(self, setup, tmp_path):
         """A game_id whose resolved path escapes the replay dir is rejected."""
         _client, replay_dir = setup
+        game_id = "escape_link"
         # Create a file outside the replay dir
         outside = tmp_path / "secret.txt.gz"
         outside.write_bytes(gzip.compress(b"secret"))
-        # Create a symlink inside the replay dir pointing outside
-        link = replay_dir / "escape.txt.gz"
-        link.symlink_to(outside)
+        # Create a symlink at the sharded path pointing outside
+        target = replay_file_path(replay_dir, game_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.symlink_to(outside)
 
         # Call the sync helper directly — the symlink resolves outside replay_dir
-        result = _load_replay(str(replay_dir), "escape")
+        result = _load_replay(str(replay_dir), game_id)
         assert result is None
 
     def test_replay_page_route_serves_play_page(self, setup):
