@@ -17,8 +17,9 @@ class TestLobbyServerSettings:
         assert settings.log_dir == ""
         assert settings.cors_origins == []
         assert settings.config_path is None
-        assert settings.game_client_url == "/play"
+        assert settings.game_client_url == "/play-ng"
         assert settings.game_assets_dir == "frontend/dist"
+        assert settings.majiang_dir == "../Majiang/dist"
 
     def test_config_path_override(self, monkeypatch):
         monkeypatch.setenv("LOBBY_CONFIG_PATH", "/etc/servers.yaml")

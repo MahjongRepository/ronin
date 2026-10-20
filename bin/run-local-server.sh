@@ -81,7 +81,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Set lobby settings for template rendering
-export LOBBY_GAME_CLIENT_URL="/play"
+export LOBBY_GAME_CLIENT_URL="/play-ng"
+# Serve the built Majiang client (npm run build in Majiang/) at /majiang/ and /play-ng/
+export LOBBY_MAJIANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)/Majiang/dist"
 # Override the default ws_allowed_origin to match the local lobby port
 export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
 

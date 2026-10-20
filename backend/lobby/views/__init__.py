@@ -8,6 +8,9 @@ from lobby.views.assets import (
     resolve_vite_asset_urls as resolve_vite_asset_urls,
 )
 from lobby.views.game_handlers import (
+    play_ng_page as play_ng_page,
+)
+from lobby.views.game_handlers import (
     play_page as play_page,
 )
 from lobby.views.game_handlers import (

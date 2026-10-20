@@ -41,6 +41,7 @@ from lobby.views import (
     load_vite_manifest,
     lobby_page,
     matchmaking_page,
+    play_ng_page,
     play_page,
     replay_content,
     resolve_vite_asset_urls,
@@ -127,6 +128,7 @@ def create_app(
 
     static_dir = Path(settings.static_dir).resolve()
     game_assets_dir = Path(settings.game_assets_dir).resolve()
+    majiang_dir = Path(settings.majiang_dir).resolve()
 
     matchmaking_manager = MatchmakingManager()
     room_connections = RoomConnectionManager()
@@ -150,6 +152,7 @@ def create_app(
         Route("/play/storybook/melds", public_route(play_page), methods=["GET"], name="storybook_melds_page"),
         Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
+        Route("/play-ng/{game_id}", protected_html(play_ng_page), methods=["GET"], name="play_ng_page"),
         Route(
             "/rooms/new",
             protected_html(create_room_and_redirect),
@@ -207,6 +210,13 @@ def create_app(
     else:
         logger.warning("game assets directory not found, /game-assets/ will not be served", path=str(game_assets_dir))
 
+    if majiang_dir.is_dir():
+        routes.append(
+            Mount("/majiang", app=StaticFiles(directory=str(majiang_dir)), name="majiang"),
+        )
+    else:
+        logger.warning("majiang assets directory not found, /majiang/ will not be served", path=str(majiang_dir))
+
     validate_route_auth_policy(routes)
     protected_api_paths = collect_protected_api_paths(routes)
 
@@ -256,6 +266,7 @@ def create_app(
         room_manager=room_manager,
         room_connections=room_connections,
         matchmaking_manager=matchmaking_manager,
+        majiang_dir=majiang_dir,
     )
 
     logger.info("lobby server ready")
@@ -274,6 +285,7 @@ def _attach_state(  # noqa: PLR0913
     room_manager: LobbyRoomManager,
     room_connections: RoomConnectionManager,
     matchmaking_manager: MatchmakingManager,
+    majiang_dir: Path,
 ) -> None:
     app.state.db = db
     app.state.game_repo = game_repo
@@ -308,6 +320,12 @@ def _attach_state(  # noqa: PLR0913
         templates.env.globals["game_js_url"] = urls.get("game_js", "")
         game_assets_available = bool(urls.get("game_js"))
 
+    majiang_available = majiang_dir.is_dir() and (majiang_dir / "ronin.html").is_file()
+    if not majiang_available:
+        logger.warning("majiang client page (ronin.html) not found, /play-ng/ returns 503", path=str(majiang_dir))
+
+    app.state.majiang_dir = majiang_dir
+    app.state.majiang_available = majiang_available
     templates.env.globals["app_version"] = APP_VERSION
     templates.env.globals["git_commit"] = GIT_COMMIT
     templates.env.globals["current_year"] = datetime.now(tz=UTC).year
