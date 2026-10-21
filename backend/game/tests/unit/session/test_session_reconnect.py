@@ -1,5 +1,3 @@
-"""Unit tests for game reconnection in SessionManager."""
-
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -18,18 +16,17 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
-from game.messaging.compact import encode_draw
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import SessionData
 from game.session.replay_collector import ReplayCollector
 from game.tests.mocks import MockConnection, MockGameService
 from game.tests.unit.session.helpers import create_started_game, disconnect_and_reconnect
+from game.wire.compact import encode_draw
+from game.wire.events import EVENT_TYPE_INT
 
 
 def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapshot:
-    """Build a minimal ReconnectionSnapshot for testing."""
     return ReconnectionSnapshot(
         game_id=game_id,
         players=[
@@ -57,8 +54,6 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
 
 
 def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLAYING, pending_call_prompt=None):
-    """Override get_game_state to return a mock with round_state for reconnect turn detection."""
-
     class _MockRoundState:
         pass
 
@@ -76,14 +71,10 @@ def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLA
 
 
 class TestSessionManagerReconnect:
-    """Tests for SessionManager.reconnect() method."""
-
     @pytest.mark.asyncio
-    async def test_successful_reconnection(self, manager):
-        """Player receives game_reconnected message, other players receive player_reconnected."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_session_disconnected__should_send_game_reconnected_and_notify_others(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn, bob_conn = conns
-
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
 
@@ -92,55 +83,47 @@ class TestSessionManagerReconnect:
 
         await manager.leave_game(alice_conn, notify_player=False)
         bob_conn._outbox.clear()
-
         _stub_game_state_for_reconnect(manager)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 1
         assert reconnect_msgs[0]["gid"] == "game1"
         assert reconnect_msgs[0]["s"] == 0
-
         bob_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_RECONNECTED]
         assert len(bob_msgs) == 1
         assert bob_msgs[0]["player_name"] == "Alice"
 
     @pytest.mark.asyncio
-    async def test_reconnect_invalid_token(self, manager):
-        """Returns error for unknown session token."""
-        await create_started_game(manager, "game1")
+    async def test_reconnect__when_token_unknown__should_return_no_session_error(self, manager):
+        await create_started_game(manager)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", "nonexistent-token")
-
+        await manager.reconnect(new_conn, game_id="game1", session_token="nonexistent-token")
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_NO_SESSION
 
     @pytest.mark.asyncio
-    async def test_reconnect_not_disconnected(self, manager):
-        """Returns retryable error when session exists but is not yet disconnected."""
-        conns = await create_started_game(manager, "game1", player_names=["Alice"])
+    async def test_reconnect__when_session_still_connected__should_return_retry_later_error(self, manager):
+        conns = await create_started_game(manager, player_names=["Alice"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_RETRY_LATER
 
     @pytest.mark.asyncio
-    async def test_reconnect_game_gone(self, manager):
-        """Returns error when game no longer exists."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_game_cleaned_up__should_return_game_gone_error(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -148,7 +131,6 @@ class TestSessionManagerReconnect:
         # disconnect both players so the game is cleaned up
         await manager.leave_game(alice_conn, notify_player=False)
         await manager.leave_game(conns[1], notify_player=False)
-
         assert manager._games.get("game1") is None
 
         # manually re-create the session to test the game_gone path
@@ -164,54 +146,46 @@ class TestSessionManagerReconnect:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_GAME_GONE
 
     @pytest.mark.asyncio
-    async def test_reconnect_game_mismatch(self, manager):
-        """Reconnect on wrong game_id returns reconnect_game_mismatch."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_game_id_differs_from_session__should_return_game_mismatch_error(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "wrong_game_id", alice_token)
-
+        await manager.reconnect(new_conn, game_id="wrong_game_id", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_GAME_MISMATCH
 
     @pytest.mark.asyncio
-    async def test_reconnect_retry_later_no_lock(self, manager):
-        """Reconnect while lock not yet created returns retryable reconnect_retry_later."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_game_lock_missing__should_return_retry_later_error(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
 
         await manager.leave_game(alice_conn, notify_player=False)
-
         manager._game_locks.pop("game1", None)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_RETRY_LATER
 
     @pytest.mark.asyncio
-    async def test_reconnect_timer_created_with_preserved_bank(self, manager):
-        """Timer is created for reconnected seat with saved bank seconds."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_bank_saved_on_leave__should_restore_timer_with_that_bank(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -220,40 +194,31 @@ class TestSessionManagerReconnect:
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
 
         await manager.leave_game(alice_conn, notify_player=False)
-
         # override the bank time that leave_game saved
         session = manager._session_store.get_session(alice_token)
         session.remaining_bank_seconds = 1.5
-
         _stub_game_state_for_reconnect(manager)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 1
-
         timer = manager._timer_manager.get_timer("game1", 0)
         assert timer is not None
         assert timer.bank_seconds == 1.5
-
         reconnected_session = manager._session_store.get_session(alice_token)
         assert reconnected_session is not None
         assert reconnected_session.remaining_bank_seconds is None
 
 
 class TestBankTimePreservation:
-    """Tests for bank time preservation across disconnect/reconnect."""
-
     @pytest.mark.asyncio
-    async def test_disconnect_mid_turn_deducts_elapsed_time(self, manager):
-        """Disconnect mid-turn deducts time exceeding base_turn_seconds from saved bank."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_bank_time__when_player_leaves_mid_turn__should_save_bank_minus_elapsed_overtime(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         timer = manager._timer_manager.get_timer("game1", 0)
         assert timer is not None
 
@@ -263,7 +228,6 @@ class TestBankTimePreservation:
         timer._turn_start_time = time.monotonic() - (base_time + 1.0)
 
         await manager.leave_game(alice_conn, notify_player=False)
-
         session = manager._session_store.get_session(alice_token)
         assert session is not None
         assert session.remaining_bank_seconds is not None
@@ -271,13 +235,11 @@ class TestBankTimePreservation:
         assert session.remaining_bank_seconds == pytest.approx(initial_bank - 1.0, abs=0.1)
 
     @pytest.mark.asyncio
-    async def test_disconnect_during_meld_prompt_preserves_bank_unchanged(self, manager):
-        """Disconnect during meld prompt preserves bank time unchanged (meld timers don't consume bank)."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_bank_time__when_player_leaves_during_meld_prompt__should_save_bank_unchanged(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         timer = manager._timer_manager.get_timer("game1", 0)
         assert timer is not None
         initial_bank = timer.bank_seconds
@@ -287,7 +249,6 @@ class TestBankTimePreservation:
         assert timer._turn_start_time is None
 
         await manager.leave_game(alice_conn, notify_player=False)
-
         session = manager._session_store.get_session(alice_token)
         assert session is not None
         assert session.remaining_bank_seconds is not None
@@ -295,12 +256,9 @@ class TestBankTimePreservation:
 
 
 class TestReconnectTurnState:
-    """Tests for turn state being sent on reconnection."""
-
     @pytest.mark.asyncio
-    async def test_pending_turn_actions_sent_on_reconnection(self, manager):
-        """If it's the reconnected player's turn, draw events are resent."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_it_is_players_turn__should_resend_draw_event(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -322,45 +280,37 @@ class TestReconnectTurnState:
 
         _stub_game_state_for_reconnect(manager, current_seat=0)
         manager._game_service.is_round_advance_pending = lambda gid: False
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 1
         assert draw_msgs[0]["d"] == encode_draw(0, 42)
 
 
 class TestReconnectEdgeCases:
-    """Tests for reconnect edge cases."""
-
     @pytest.mark.asyncio
-    async def test_reconnect_already_active_rejected(self, manager):
-        """Reconnect while already in a game returns error."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_session_token_still_active__should_return_already_active_error(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
         await manager.leave_game(alice_conn, notify_player=False)
 
         bob_conn = conns[1]
-        await manager.reconnect(bob_conn, "game1", alice_token)
-
+        await manager.reconnect(bob_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         reconnect_errors = [m for m in error_msgs if m["code"] == SessionErrorCode.RECONNECT_ALREADY_ACTIVE]
         assert len(reconnect_errors) == 1
 
     @pytest.mark.asyncio
-    async def test_reconnect_snapshot_failure_restores_ai(self, manager):
-        """If snapshot building fails, the AI player is re-added at the seat."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_snapshot_unavailable__should_return_snapshot_failed_and_restore_ai(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: None
 
         replace_calls = []
@@ -371,28 +321,23 @@ class TestReconnectEdgeCases:
             return original_replace(game_id, player_name)
 
         manager._game_service.replace_with_ai_player = tracking_replace
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         replace_calls.clear()
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert any(m["code"] == SessionErrorCode.RECONNECT_SNAPSHOT_FAILED for m in error_msgs)
-
         assert len(replace_calls) == 1
         assert replace_calls[0] == ("game1", "Alice")
 
     @pytest.mark.asyncio
-    async def test_reconnect_no_seat_rejected(self, manager):
-        """Reconnect with session that has no seat returns error."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_session_has_no_seat__should_return_no_seat_error(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         session = manager._session_store.get_session(alice_token)
@@ -400,15 +345,13 @@ class TestReconnectEdgeCases:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert any(m["code"] == SessionErrorCode.RECONNECT_NO_SEAT for m in error_msgs)
 
     @pytest.mark.asyncio
-    async def test_reconnect_cleans_stale_connections(self, manager):
-        """Stale connections at the seat are removed before adding the new player."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_old_connection_still_in_game__should_evict_and_close_it(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -419,29 +362,22 @@ class TestReconnectEdgeCases:
         # manually mark session as disconnected without removing from game.players
         session = manager._session_store.get_session(alice_token)
         session.disconnected_at = time.monotonic()
-
         game = manager._games["game1"]
         assert alice_conn.connection_id in game.players
 
         _stub_game_state_for_reconnect(manager)
-
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         assert alice_conn.connection_id not in game.players
         assert new_conn.connection_id in game.players
-
         assert alice_conn.is_closed
 
     @pytest.mark.asyncio
-    async def test_reconnect_rejected_when_session_cleared_before_lock(self, manager):
-        """Reconnect is rejected if session is no longer disconnected when the lock is acquired.
-
-        Simulates a concurrent reconnect completing (clearing disconnected_at)
-        between prevalidation and the lock-internal revalidation.
-        """
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_session_reconnected_concurrently_before_lock__should_return_no_session_error(
+        self, manager
+    ):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -453,36 +389,34 @@ class TestReconnectEdgeCases:
         _stub_game_state_for_reconnect(manager)
 
         session = manager._session_store.get_session(alice_token)
-
         # Bypass prevalidation by directly calling reconnect internals:
         # patch _validate_reconnect to return the expected tuple while the
         # session is still marked disconnected, then clear disconnected_at
         # to simulate a concurrent reconnect having completed.
         original_validate = manager._validate_reconnect
 
-        async def patched_validate(connection, room_id, token):
-            result = await original_validate(connection, room_id, token)
+        async def patched_validate(connection, game_id, session_token):
+            result = await original_validate(connection, game_id=game_id, session_token=session_token)
             if result is not None:
                 # Simulate concurrent reconnect completing before lock acquisition
                 session.disconnected_at = None
+
             return result
 
         manager._validate_reconnect = patched_validate
-
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
-        manager._validate_reconnect = original_validate
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert any(m["code"] == SessionErrorCode.RECONNECT_NO_SESSION for m in error_msgs)
 
+        manager._validate_reconnect = original_validate
+
     @pytest.mark.asyncio
-    async def test_reconnect_rejected_when_connection_removed_before_lock(self, manager):
-        """Reconnect is rejected if the connection was removed from _connections
-        between prevalidation and lock acquisition (e.g. by auth timeout)."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_connection_removed_before_lock__should_return_silently_without_registering(
+        self, manager
+    ):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -497,29 +431,27 @@ class TestReconnectEdgeCases:
         # connection from _connections between prevalidation and lock acquisition.
         original_validate = manager._validate_reconnect
 
-        async def patched_validate(connection, room_id, token):
-            result = await original_validate(connection, room_id, token)
+        async def patched_validate(connection, game_id, session_token):
+            result = await original_validate(connection, game_id=game_id, session_token=session_token)
             if result is not None:
                 manager._connections.pop(connection.connection_id, None)
+
             return result
 
         manager._validate_reconnect = patched_validate
-
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
-        manager._validate_reconnect = original_validate
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         # Should silently return without registering or sending errors
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 0
         assert new_conn.connection_id not in manager._players
 
+        manager._validate_reconnect = original_validate
+
     @pytest.mark.asyncio
-    async def test_reconnect_no_draw_event_when_game_state_none(self, manager):
-        """No draw event sent if get_game_state returns None after reconnect."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_game_state_missing__should_send_no_draw_event(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -527,13 +459,11 @@ class TestReconnectEdgeCases:
         snapshot = _make_snapshot("game1", seat=0)
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         manager._game_service.get_game_state = lambda gid: None
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         # reconnect succeeds, but no draw event sent
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 1
@@ -541,9 +471,8 @@ class TestReconnectEdgeCases:
         assert len(draw_msgs) == 0
 
     @pytest.mark.asyncio
-    async def test_reconnect_snapshot_exception_restores_ai(self, manager):
-        """If build_reconnection_snapshot raises, the AI player is re-added at the seat."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_snapshot_raises__should_restore_ai_and_propagate(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -552,7 +481,6 @@ class TestReconnectEdgeCases:
             raise RuntimeError("snapshot failed")
 
         manager._game_service.build_reconnection_snapshot = raise_error
-
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
@@ -561,7 +489,6 @@ class TestReconnectEdgeCases:
             return original_replace(game_id, player_name)
 
         manager._game_service.replace_with_ai_player = tracking_replace
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -569,15 +496,14 @@ class TestReconnectEdgeCases:
         replace_calls.clear()
 
         with pytest.raises(RuntimeError, match="snapshot failed"):
-            await manager.reconnect(new_conn, "game1", alice_token)
+            await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
 
         assert len(replace_calls) == 1
         assert replace_calls[0] == ("game1", "Alice")
 
     @pytest.mark.asyncio
-    async def test_reconnect_no_draw_event_when_call_prompt_pending(self, manager):
-        """No draw event sent when a call prompt is pending during reconnect."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_call_prompt_pending__should_send_no_draw_event(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -601,20 +527,17 @@ class TestReconnectEdgeCases:
             target=SeatTarget(seat=0),
         )
         manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 0
 
     @pytest.mark.asyncio
-    async def test_reconnect_no_draw_event_in_non_playing_phase(self, manager):
-        """No draw event sent when round is not in PLAYING phase."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_round_not_playing__should_send_no_draw_event(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -637,35 +560,29 @@ class TestReconnectEdgeCases:
             target=SeatTarget(seat=0),
         )
         manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, "game1", alice_token)
-
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 0
 
 
 class TestReconnectThenPlay:
-    """Tests for performing game actions after reconnecting."""
-
     @pytest.mark.asyncio
-    async def test_reconnect_then_play(self, manager):
-        """Player reconnects and can perform game actions normally."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_discard_sent_after_reconnect__should_handle_it_as_reconnected_player(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
 
         snapshot = _make_snapshot("game1", seat=0)
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         _stub_game_state_for_reconnect(manager)
 
-        new_conn, _new_token = await disconnect_and_reconnect(manager, alice_conn, "game1")
+        new_conn, _new_token = await disconnect_and_reconnect(manager, alice_conn, game_id="game1")
         new_conn._outbox.clear()
 
-        await manager.handle_game_action(new_conn, GameAction.DISCARD, {"tile_id": 1})
-
+        await manager.handle_game_action(new_conn, action=GameAction.DISCARD, data={"tile_id": 1})
         action_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(action_msgs) == 1
         assert action_msgs[0]["player"] == "Alice"
@@ -673,12 +590,9 @@ class TestReconnectThenPlay:
 
 
 class TestMultipleReconnects:
-    """Tests for multiple disconnect/reconnect cycles."""
-
     @pytest.mark.asyncio
-    async def test_multiple_reconnects_bank_decreases(self, manager):
-        """Bank time monotonically decreases across multiple disconnect/reconnect cycles."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_reconnect__when_repeated_after_overtime__should_decrease_bank_each_time(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
 
         snapshot = _make_snapshot("game1", seat=0)
@@ -692,18 +606,17 @@ class TestMultipleReconnects:
             # simulate elapsed time that exceeds base time by 0.5s
             timer = manager._timer_manager.get_timer("game1", 0)
             assert timer is not None
+
             base_time = timer._config.base_turn_seconds
             timer._turn_start_time = time.monotonic() - (base_time + 0.5)
 
             player = manager._players[current_conn.connection_id]
             token = player.session_token
-
             await manager.leave_game(current_conn, notify_player=False)
 
             new_conn = MockConnection()
             manager.register_connection(new_conn)
-            await manager.reconnect(new_conn, "game1", token)
-
+            await manager.reconnect(new_conn, game_id="game1", session_token=token)
             timer = manager._timer_manager.get_timer("game1", 0)
             assert timer is not None
             bank_values.append(timer.bank_seconds)
@@ -716,11 +629,8 @@ class TestMultipleReconnects:
 
 
 class TestAllHumansDisconnected:
-    """Tests for game cancellation when all humans disconnect."""
-
     @pytest.mark.asyncio
-    async def test_all_humans_disconnected_game_canceled_no_replay_persisted(self, manager):
-        """When all humans disconnect, the game is canceled and replay is discarded."""
+    async def test_reconnect__when_all_humans_leave__should_discard_replay_without_saving(self, manager):
         # Create manager with a replay collector to verify it's not persisted
         mock_replay = MagicMock(spec=ReplayCollector)
         mock_replay.start_game = MagicMock()
@@ -733,7 +643,6 @@ class TestAllHumansDisconnected:
 
         conns = await create_started_game(
             manager_with_replay,
-            "game1",
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
@@ -742,10 +651,8 @@ class TestAllHumansDisconnected:
         # disconnect both human players
         await manager_with_replay.leave_game(conns[0], notify_player=False)
         await manager_with_replay.leave_game(conns[1], notify_player=False)
-
         # game should be cleaned up
         assert manager_with_replay.get_game("game1") is None
-
         # replay should be cleaned up (discarded), not saved
         mock_replay.save_and_cleanup.assert_not_awaited()
         mock_replay.cleanup_game.assert_called_once_with("game1")

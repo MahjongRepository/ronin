@@ -1,5 +1,3 @@
-"""Shared WebSocket utilities for lobby handlers."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -8,7 +6,7 @@ from urllib.parse import urlparse
 if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
-    from lobby.server.settings import LobbyServerSettings
+    from lobby.settings import LobbyServerSettings
 
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -25,6 +23,7 @@ def check_origin(websocket: WebSocket) -> bool:
     ws_allowed_origin = settings.ws_allowed_origin
     if not ws_allowed_origin:
         return True
+
     origin = websocket.headers.get("origin", "")
     return origin == ws_allowed_origin or _loopback_equivalent(origin, ws_allowed_origin)
 

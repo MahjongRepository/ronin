@@ -1,12 +1,3 @@
-"""
-Focused unit tests for the call resolution subsystem.
-
-Tests cover resolution priority logic: single ron, double ron, triple ron
-(abortive draw), meld priority (pon > chi), all-passed flow, chankan
-decline completion, and DISCARD prompt resolution (four riichi abort after
-ron pass).
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -59,21 +50,19 @@ def _default_seat_configs() -> list[SeatConfig]:
 
 
 def _create_frozen_game_state() -> MahjongGameState:
-    """Create a frozen game state for testing with dealer at seat 0."""
     game_state = init_game(_default_seat_configs(), wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
 
 class TestActionToMeldCallTypeGuard:
-    def test_unknown_action_raises(self):
+    def test_action_to_meld_call_type__when_unknown_action__should_raise_value_error(self):
         with pytest.raises(ValueError, match="no meld call type for action"):
             _action_to_meld_call_type(GameAction.DISCARD)
 
 
 class TestPickBestMeldResponse:
-    def test_pon_over_chi(self):
-        """Pon has higher priority than chi."""
+    def test_pick_best_meld_response__when_pon_and_chi__should_prefer_pon(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -84,6 +73,7 @@ class TestPickBestMeldResponse:
                 MeldCaller(seat=3, call_type=MeldCallType.CHI),
             ),
         )
+
         responses = [
             CallResponse(seat=3, action=GameAction.CALL_CHI),
             CallResponse(seat=1, action=GameAction.CALL_PON),
@@ -92,8 +82,7 @@ class TestPickBestMeldResponse:
         assert best is not None
         assert best.seat == 1
 
-    def test_kan_over_pon(self):
-        """Kan has higher priority than pon."""
+    def test_pick_best_meld_response__when_kan_and_pon__should_prefer_kan(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -104,6 +93,7 @@ class TestPickBestMeldResponse:
                 MeldCaller(seat=2, call_type=MeldCallType.OPEN_KAN),
             ),
         )
+
         responses = [
             CallResponse(seat=1, action=GameAction.CALL_PON),
             CallResponse(seat=2, action=GameAction.CALL_KAN),
@@ -112,8 +102,7 @@ class TestPickBestMeldResponse:
         assert best is not None
         assert best.seat == 2
 
-    def test_distance_tiebreak(self):
-        """Same priority: closer counter-clockwise distance wins."""
+    def test_pick_best_meld_response__when_same_call_type__should_prefer_closest_seat(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -124,6 +113,7 @@ class TestPickBestMeldResponse:
                 MeldCaller(seat=3, call_type=MeldCallType.PON),
             ),
         )
+
         responses = [
             CallResponse(seat=3, action=GameAction.CALL_PON),
             CallResponse(seat=1, action=GameAction.CALL_PON),
@@ -132,8 +122,7 @@ class TestPickBestMeldResponse:
         assert best is not None
         assert best.seat == 1  # distance 1 < distance 3
 
-    def test_unknown_caller_filtered_out(self):
-        """Responses from seats not in the original callers are ignored."""
+    def test_pick_best_meld_response__when_responder_not_a_caller__should_return_none(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -141,6 +130,7 @@ class TestPickBestMeldResponse:
             pending_seats=frozenset(),
             callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
         )
+
         # seat 2 was not a caller, so it should be filtered out
         responses = [
             CallResponse(seat=2, action=GameAction.CALL_PON),
@@ -148,8 +138,7 @@ class TestPickBestMeldResponse:
         best = pick_best_meld_response(responses, prompt)
         assert best is None
 
-    def test_ron_caller_fallback_to_pon(self):
-        """Ron caller (int) that passes on ron and responds with pon is accepted."""
+    def test_pick_best_meld_response__when_ron_caller_responds_pon__should_accept_pon(self):
         prompt = PendingCallPrompt(
             call_type=CallType.DISCARD,
             tile_id=0,
@@ -158,6 +147,7 @@ class TestPickBestMeldResponse:
             # seat 2 is a ron caller (int), not a MeldCaller
             callers=(2,),
         )
+
         responses = [
             CallResponse(seat=2, action=GameAction.CALL_PON),
         ]
@@ -165,8 +155,7 @@ class TestPickBestMeldResponse:
         assert best is not None
         assert best.seat == 2
 
-    def test_ron_caller_fallback_priority(self):
-        """Ron caller falling back to pon competes fairly with MeldCaller."""
+    def test_pick_best_meld_response__when_ron_caller_falls_back__should_keep_meld_priority(self):
         prompt = PendingCallPrompt(
             call_type=CallType.DISCARD,
             tile_id=0,
@@ -175,6 +164,7 @@ class TestPickBestMeldResponse:
             # seat 1 is ron caller (int), seat 3 is meld caller (chi)
             callers=(1, MeldCaller(seat=3, call_type=MeldCallType.CHI, options=((4, 8),))),
         )
+
         responses = [
             CallResponse(seat=1, action=GameAction.CALL_PON),
             CallResponse(seat=3, action=GameAction.CALL_CHI, sequence_tiles=(4, 8)),
@@ -186,8 +176,7 @@ class TestPickBestMeldResponse:
 
 
 class TestResolveSingleRon:
-    def test_single_ron_resolves(self):
-        """Single ron response resolves to RON round end."""
+    def test_resolve_call_prompt__when_single_ron__should_end_round_with_ron(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -196,7 +185,6 @@ class TestResolveSingleRon:
         round_state = update_player(round_state, 1, tiles=waiting_tiles)
 
         win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-
         prompt = PendingCallPrompt(
             call_type=CallType.RON,
             tile_id=win_tile,
@@ -209,7 +197,6 @@ class TestResolveSingleRon:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -218,8 +205,7 @@ class TestResolveSingleRon:
 
 
 class TestResolveDoubleRon:
-    def test_double_ron_resolves(self):
-        """Two ron responses resolve to DOUBLE_RON round end."""
+    def test_resolve_call_prompt__when_two_rons__should_end_round_with_double_ron(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -230,7 +216,6 @@ class TestResolveDoubleRon:
         round_state = update_player(round_state, 2, tiles=waiting_tiles_2)
 
         win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-
         prompt = PendingCallPrompt(
             call_type=CallType.RON,
             tile_id=win_tile,
@@ -246,7 +231,6 @@ class TestResolveDoubleRon:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -255,8 +239,7 @@ class TestResolveDoubleRon:
 
 
 class TestResolveTripleRon:
-    def test_triple_ron_abortive_draw(self):
-        """Three ron responses trigger triple ron abortive draw."""
+    def test_resolve_call_prompt__when_three_rons__should_end_round_with_triple_ron_draw(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -276,7 +259,6 @@ class TestResolveTripleRon:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
         end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -285,18 +267,17 @@ class TestResolveTripleRon:
 
 
 class TestResolveNoPrompt:
-    def test_no_prompt_returns_empty(self):
-        """No pending prompt returns empty result with unchanged state."""
+    def test_resolve_call_prompt__when_no_prompt__should_return_unchanged_state_without_events(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
+
         result = resolve_call_prompt(round_state, game_state)
         assert len(result.events) == 0
         assert result.new_round_state is round_state
 
 
 class TestResolveAllPassed:
-    def test_all_passed_advances_turn(self):
-        """All passes on a meld prompt advance the turn."""
+    def test_resolve_call_prompt__when_all_passed__should_clear_prompt(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -314,14 +295,12 @@ class TestResolveAllPassed:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.pending_call_prompt is None
 
 
 class TestResolveChankanDecline:
-    def test_chankan_all_passed_completes_kan(self):
-        """All pass on chankan completes the added kan."""
+    def test_resolve_call_prompt__when_all_pass_chankan__should_complete_added_kan(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
 
@@ -354,7 +333,6 @@ class TestResolveChankanDecline:
         game_state = game_state.model_copy(update={"round_state": new_round_state})
 
         result = resolve_call_prompt(new_round_state, game_state)
-
         assert result.new_round_state is not None
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
@@ -362,8 +340,7 @@ class TestResolveChankanDecline:
 
 
 class TestCompleteAddedKanAfterChankanDecline:
-    def test_completes_kan_with_draw_event(self):
-        """Completing added kan after chankan decline emits meld and draw events."""
+    def test_complete_added_kan__should_emit_meld_and_rinshan_draw(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -389,21 +366,17 @@ class TestCompleteAddedKanAfterChankanDecline:
             caller_seat=0,
             tile_id=fourth_tile,
         )
-
         assert new_round_state is not None
         assert new_game_state is not None
-
         meld_events = [e for e in events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.ADDED_KAN
-
         draw_events = [e for e in events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 1
         assert draw_events[0].tile_id is not None
         assert draw_events[0].available_actions is not None
 
-    def test_four_kans_abort_after_chankan_decline(self):
-        """Completing 4th kan from different players triggers four kans abortive draw."""
+    def test_complete_added_kan__when_fourth_kan_after_chankan_decline__should_abort_round(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -466,7 +439,6 @@ class TestCompleteAddedKanAfterChankanDecline:
             caller_seat=0,
             tile_id=fourth_tile,
         )
-
         assert new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
@@ -474,14 +446,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
 
 class TestResolvePonChiMeldResponse:
-    """No DrawEvent after pon/chi — the MeldEvent is the only signal.
-
-    Per mahjong rules, after calling pon/chi the only valid action is to
-    discard a tile. The client infers turn ownership from MeldEvent.caller_seat.
-    """
-
-    def test_pon_emits_no_draw_event(self):
-        """No DrawEvent after pon — only MeldEvent is emitted."""
+    def test_resolve_meld_response__when_pon__should_emit_meld_without_draw(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -492,6 +457,7 @@ class TestResolvePonChiMeldResponse:
         pon_pair = TilesConverter.string_to_136_array(man="99")[:2]
         player_tiles = tuple(four_of_kind + other_tiles + pon_pair)
         round_state = update_player(round_state, 0, tiles=player_tiles)
+
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -509,15 +475,13 @@ class TestResolvePonChiMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].caller_seat == 0
 
-    def test_chi_emits_no_draw_event(self):
-        """No DrawEvent after chi — only MeldEvent is emitted."""
+    def test_resolve_meld_response__when_chi__should_emit_meld_without_draw(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -526,6 +490,7 @@ class TestResolvePonChiMeldResponse:
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="12")
         player_tiles = tuple(chi_tiles + other_tiles)
         round_state = update_player(round_state, 1, tiles=player_tiles)
+
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -544,7 +509,6 @@ class TestResolvePonChiMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
@@ -553,21 +517,19 @@ class TestResolvePonChiMeldResponse:
 
 
 class TestMeldPromptFourRiichiAbort:
-    """Four riichi abort triggered through MELD prompt resolution."""
-
-    def test_four_riichi_abort_via_meld_prompt(self):
-        """Riichi finalization triggers four-riichi abort through MELD prompt (no ron callers)."""
+    def test_resolve_call_prompt__when_meld_prompt_completes_fourth_riichi__should_abort_round(self):
         # seat 0 is the discarder with pending riichi, seats 1-3 already in riichi
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
-        players = tuple(
+        players = (
             create_player(
-                seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
-                is_riichi=(i in (1, 2, 3)),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
+                seat=0,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
+            ),
+            create_player(seat=1, is_riichi=True),
+            create_player(seat=2, is_riichi=True),
+            create_player(seat=3, is_riichi=True),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -593,28 +555,27 @@ class TestMeldPromptFourRiichiAbort:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         # riichi should be finalized even through MELD prompt
         riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
         assert len(riichi_events) == 1
         assert riichi_events[0].seat == 0
-
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
 
-    def test_meld_prompt_riichi_finalized_on_all_pass(self):
-        """Riichi is finalized when all callers pass on a MELD prompt."""
+    def test_resolve_call_prompt__when_all_pass_on_meld_prompt_with_riichi__should_finalize_riichi(self):
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
-        players = tuple(
+        players = (
             create_player(
-                seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
+                seat=0,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
+            ),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -639,7 +600,6 @@ class TestMeldPromptFourRiichiAbort:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         # riichi should be finalized
         riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
         assert len(riichi_events) == 1
@@ -648,10 +608,7 @@ class TestMeldPromptFourRiichiAbort:
 
 
 class TestResolveCallPromptPendingSeatsGuard:
-    """Tests that resolve_call_prompt raises when pending_seats is not empty."""
-
-    def test_raises_on_pending_seats(self):
-        """Cannot resolve when some callers have not responded."""
+    def test_resolve_call_prompt__when_seats_pending__should_raise_value_error(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -670,10 +627,7 @@ class TestResolveCallPromptPendingSeatsGuard:
 
 
 class TestResolveCallPromptUnrecognizedMeldFallthrough:
-    """Tests that unrecognized meld responses fall through to all-pass."""
-
-    def test_unrecognized_meld_responses_treated_as_all_pass(self):
-        """Meld responses from unrecognized callers fall through to all-pass logic."""
+    def test_resolve_call_prompt__when_meld_responses_unrecognized__should_treat_as_all_pass(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -694,7 +648,6 @@ class TestResolveCallPromptUnrecognizedMeldFallthrough:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result is not None
         assert result.new_round_state is not None
         assert result.new_round_state.pending_call_prompt is None

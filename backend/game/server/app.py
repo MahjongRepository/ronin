@@ -1,3 +1,4 @@
+import contextlib
 import json
 from typing import TYPE_CHECKING
 
@@ -10,7 +11,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 
 from game.logic.mahjong_service import MahjongGameService
-from game.messaging.router import MessageRouter
+from game.server.router import MessageRouter
 from game.server.settings import GameServerSettings
 from game.server.types import CreateGameRequest
 from game.server.websocket import websocket_endpoint
@@ -25,6 +26,8 @@ from shared.storage import LocalReplayStorage
 logger = structlog.get_logger()
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from starlette.requests import Request
     from starlette.websockets import WebSocket
 
@@ -55,7 +58,8 @@ _MAX_REQUEST_BODY_SIZE = 4096
 
 
 def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> str | None:
-    """Verify each player's ticket signature, expiry, and identity claims.
+    """
+    Verify each player's ticket signature, expiry, and identity claims.
 
     Returns an error message string if validation fails, or None if all tickets are valid.
     """
@@ -63,15 +67,19 @@ def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> st
         ticket = verify_game_ticket(player_spec.game_ticket, secret)
         if ticket is None:
             return "Invalid or expired game ticket"
+
         if ticket.room_id != game_request.game_id:
             return "Ticket game_id mismatch"
+
         if ticket.username != player_spec.name or ticket.user_id != player_spec.user_id:
             return "Ticket identity mismatch"
+
     return None
 
 
 async def _read_request_body(request: Request) -> bytes | JSONResponse:
-    """Stream-read request body with hard size cutoff.
+    """
+    Stream-read request body with hard size cutoff.
 
     Returns raw bytes on success, or a JSONResponse error on failure.
     """
@@ -82,9 +90,11 @@ async def _read_request_body(request: Request) -> bytes | JSONResponse:
             total += len(chunk)
             if total > _MAX_REQUEST_BODY_SIZE:
                 return JSONResponse({"error": "Request body too large"}, status_code=413)
+
             chunks.append(chunk)
     except ClientDisconnect:
         return JSONResponse({"error": "Client disconnected"}, status_code=400)
+
     return b"".join(chunks)
 
 
@@ -96,6 +106,7 @@ async def create_game(request: Request) -> JSONResponse:
         result = await _read_request_body(request)
         if isinstance(result, JSONResponse):
             return result
+
         raw_body = result
         body = json.loads(raw_body)
         game_request = CreateGameRequest(**body)
@@ -111,9 +122,9 @@ async def create_game(request: Request) -> JSONResponse:
 
     try:
         session_manager.create_pending_game(
-            game_request.game_id,
-            game_request.players,
-            game_request.num_ai_players,
+            game_id=game_request.game_id,
+            player_specs=game_request.players,
+            num_ai_players=game_request.num_ai_players,
         )
     except ValueError:
         return JSONResponse({"error": "Game with this ID already exists"}, status_code=409)
@@ -131,7 +142,7 @@ def create_app(
     message_router: MessageRouter | None = None,
 ) -> Starlette:
     if settings is None:  # pragma: no cover
-        settings = GameServerSettings()  # ty: ignore[missing-argument]
+        settings = GameServerSettings()
 
     if game_service is None:  # pragma: no cover
         game_service = MahjongGameService()
@@ -166,15 +177,17 @@ def create_app(
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 
-    async def on_shutdown() -> None:
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
+        yield
         session_manager.cancel_all_pending_timeouts()
         session_manager.cancel_all_auth_timeouts()
         if owned_db is not None:
             owned_db.close()
 
-    app = Starlette(routes=routes, on_shutdown=[on_shutdown])
+    app = Starlette(routes=routes, lifespan=lifespan)
     app.add_middleware(
-        CORSMiddleware,  # type: ignore[arg-type]
+        CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
@@ -187,7 +200,9 @@ def create_app(
 
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
-    """ASGI application factory for production use (e.g., uvicorn --factory)."""
-    _settings = GameServerSettings()  # ty: ignore[missing-argument]
+    """
+    ASGI application factory for production use (e.g., uvicorn --factory).
+    """
+    _settings = GameServerSettings()
     setup_logging(log_dir=_settings.log_dir)
     return create_app(settings=_settings)

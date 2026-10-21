@@ -1,5 +1,3 @@
-"""Tests for game server app lifecycle (DB ownership and shutdown)."""
-
 from starlette.testclient import TestClient
 
 from game.server.app import create_app
@@ -8,8 +6,7 @@ from game.tests.mocks import MockGameService
 
 
 class TestOwnedDbShutdown:
-    def test_shutdown_closes_owned_db(self, tmp_path, monkeypatch):
-        """When the app creates its own SessionManager, shutdown closes the owned DB."""
+    def test_app_shutdown__when_app_owns_db__should_close_connection(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AUTH_DATABASE_PATH", str(tmp_path / "test.db"))
         settings = GameServerSettings()
         app = create_app(settings=settings, game_service=MockGameService())

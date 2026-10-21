@@ -1,9 +1,3 @@
-"""
-Matchmaker for seat assignment and AI player filling.
-
-Assigns players to random seats and fills remaining slots with AI players.
-"""
-
 from game.logic.enums import AIPlayerType
 from game.logic.rng import create_seat_rng
 from game.logic.settings import NUM_PLAYERS
@@ -11,7 +5,9 @@ from game.logic.types import SeatConfig
 
 
 def _ai_player_names(num_ai: int) -> set[str]:
-    """Return the set of AI player names that will be generated."""
+    """
+    Return the set of AI player names that will be generated.
+    """
     return {f"Tsumogiri {i}" for i in range(1, num_ai + 1)}
 
 
@@ -19,17 +15,20 @@ def fill_seats(player_names: list[str], seed: str | None = None) -> list[SeatCon
     """
     Create seat configurations for a game.
 
-    Assigns players to random seats and fills remaining with tsumogiri AI players.
-    The sample ordering determines which seats get players AND the order of name assignment,
-    so seat randomization works correctly even with all-player games.
+    Assigns players to random seats and fills remaining with tsumogiri AI players. The sample ordering determines which
+    seats get players AND the order of name assignment, so seat randomization works correctly even with all-player
+    games.
     """
     if not player_names or len(player_names) > NUM_PLAYERS:
         raise ValueError(f"Expected 1 to {NUM_PLAYERS} player names, got {len(player_names)}")
+
     player_names = [name.strip() for name in player_names]
     if any(not name for name in player_names):
         raise ValueError("Player names must not be empty or whitespace")
+
     if len(player_names) != len(set(player_names)):
         raise ValueError("Player names must be unique")
+
     num_ai = NUM_PLAYERS - len(player_names)
     collisions = _ai_player_names(num_ai) & set(player_names)
     if collisions:
@@ -45,7 +44,6 @@ def fill_seats(player_names: list[str], seed: str | None = None) -> list[SeatCon
 
     configs: list[SeatConfig] = []
     ai_player_number = 1
-
     for seat in range(NUM_PLAYERS):
         if seat in seat_to_player:
             configs.append(SeatConfig(name=seat_to_player[seat]))

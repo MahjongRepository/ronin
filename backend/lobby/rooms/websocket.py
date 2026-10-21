@@ -1,5 +1,3 @@
-"""WebSocket handler for lobby room interactions."""
-
 from __future__ import annotations
 
 import json
@@ -25,14 +23,16 @@ if TYPE_CHECKING:
     from lobby.registry.manager import RegistryManager
     from lobby.rooms.connections import RoomConnectionManager
     from lobby.rooms.manager import LobbyRoomManager
-    from lobby.server.settings import LobbyServerSettings
+    from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
 
 logger = structlog.get_logger()
 
 
 class _RoomContext:
-    """Bundles per-connection state extracted from app.state."""
+    """
+    Bundles per-connection state extracted from app.state.
+    """
 
     __slots__ = (
         "auth_settings",
@@ -52,12 +52,15 @@ class _RoomContext:
         self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.room_connections: RoomConnectionManager = websocket.app.state.room_connections
         self.registry: RegistryManager = websocket.app.state.registry
+
         self.connection_id: str = str(uuid.uuid4())
         self.username: str = websocket.user.username
 
 
 async def room_websocket(websocket: WebSocket) -> None:
-    """Handle a WebSocket connection for a lobby room."""
+    """
+    Handle a WebSocket connection for a lobby room.
+    """
     if not check_origin(websocket):
         await websocket.close(code=4003, reason="forbidden_origin")
         return
@@ -85,10 +88,10 @@ async def room_websocket(websocket: WebSocket) -> None:
     # that hasn't received its own ``room_joined`` yet.
     async with room.join_lock:
         result = ctx.room_manager.join_room(
-            ctx.connection_id,
-            ctx.room_id,
-            websocket.user.user_id,
-            ctx.username,
+            connection_id=ctx.connection_id,
+            room_id=ctx.room_id,
+            user_id=websocket.user.user_id,
+            username=ctx.username,
         )
         if isinstance(result, str):
             log.info("join rejected", reason=result)
@@ -97,7 +100,7 @@ async def room_websocket(websocket: WebSocket) -> None:
             return
 
         await websocket.send_json(result)
-        ctx.room_connections.add(ctx.room_id, ctx.connection_id, websocket)
+        ctx.room_connections.add(room_id=ctx.room_id, connection_id=ctx.connection_id, websocket=websocket)
         log.info("player joined room", player_count=room.player_count)
         await _broadcast_player_joined(ctx)
 
@@ -115,8 +118,8 @@ async def _broadcast_player_joined(ctx: _RoomContext) -> None:
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is not None:
         await ctx.room_connections.broadcast(
-            ctx.room_id,
-            {
+            room_id=ctx.room_id,
+            message={
                 "type": "player_joined",
                 "player_name": ctx.username,
                 "players": [p.model_dump() for p in room.get_player_info()],
@@ -139,7 +142,7 @@ async def _message_loop(websocket: WebSocket, ctx: _RoomContext) -> None:
             continue
 
         if isinstance(message, LobbySetReadyMessage):
-            await _handle_set_ready(websocket, ctx, message)
+            await _handle_set_ready(websocket, ctx, message=message)
         elif isinstance(message, LobbyStartGameMessage):
             game_started = await _handle_start_game(websocket, ctx)
             if game_started:
@@ -158,7 +161,9 @@ async def _handle_set_ready(
     ctx: _RoomContext,
     message: LobbySetReadyMessage,
 ) -> None:
-    """Handle a set_ready message — broadcast state change, never auto-start."""
+    """
+    Handle a set_ready message — broadcast state change, never auto-start.
+    """
     result = ctx.room_manager.set_ready(ctx.connection_id, ready=message.ready)
     if isinstance(result, str):
         await websocket.send_json({"type": "error", "message": result})
@@ -172,8 +177,8 @@ async def _handle_set_ready(
     room = ctx.room_manager.get_room(room_id_result)
     if room is not None:
         await ctx.room_connections.broadcast(
-            room_id_result,
-            {
+            room_id=room_id_result,
+            message={
                 "type": "player_ready_changed",
                 "players": [p.model_dump() for p in room.get_player_info()],
                 "can_start": can_start,
@@ -182,12 +187,12 @@ async def _handle_set_ready(
 
 
 async def _handle_start_game(websocket: WebSocket, ctx: _RoomContext) -> bool:
-    """Handle start_game — only the owner can trigger game transition.
+    """
+    Handle start_game — only the owner can trigger game transition.
 
-    Acquires join_lock only for the atomic start_game() call which
-    sets transitioning=True. The lock is released BEFORE the network
-    call in _transition_to_game(), so concurrent joins are rejected
-    quickly with "room_transitioning" instead of blocking on the lock.
+    Acquires join_lock only for the atomic start_game() call which sets transitioning=True. The lock is released BEFORE
+    the network call in _transition_to_game(), so concurrent joins are rejected quickly with "room_transitioning"
+    instead of blocking on the lock.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
@@ -205,7 +210,8 @@ async def _handle_start_game(websocket: WebSocket, ctx: _RoomContext) -> bool:
 
 
 async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
-    """Create a game on the game server and notify all players.
+    """
+    Create a game on the game server and notify all players.
 
     Return True when the game was created and connections were closed.
     """
@@ -219,17 +225,17 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
     # Sign game tickets for each player
     players_for_tickets = [(player.user_id, player.username, conn_id) for conn_id, player in room.players.items()]
     player_specs, ticket_map = sign_player_tickets(
-        players_for_tickets,
-        room_id,
-        ctx.auth_settings.game_ticket_secret,
+        players=players_for_tickets,
+        game_id=room_id,
+        ticket_secret=ctx.auth_settings.game_ticket_secret,
     )
 
     try:
         ws_url = await create_game_on_server(
-            room_id,
-            player_specs,
-            room.num_ai_players,
-            ctx.registry,
+            game_id=room_id,
+            players=player_specs,
+            num_ai_players=room.num_ai_players,
+            registry=ctx.registry,
         )
     except GameTransitionError as e:
         log.exception("failed to create game")
@@ -239,16 +245,17 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
         room = ctx.room_manager.get_room(room_id)
         if room is not None:
             await ctx.room_connections.broadcast(
-                room_id,
-                {
+                room_id=room_id,
+                message={
                     "type": "player_ready_changed",
                     "players": [p.model_dump() for p in room.get_player_info()],
                     "can_start": room.can_start,
                 },
             )
+
         await ctx.room_connections.broadcast(
-            room_id,
-            {"type": "error", "message": f"Failed to start game: {e}"},
+            room_id=room_id,
+            message={"type": "error", "message": f"Failed to start game: {e}"},
         )
         return False
 
@@ -289,30 +296,36 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
 
     log.info("game transition complete", ws_url=ws_url)
     ctx.room_manager.remove_room(room_id)
-    await ctx.room_connections.close_connections(room_id)
+    await ctx.room_connections.close_connections(room_id=room_id)
     return True
 
 
 async def _handle_chat(ctx: _RoomContext, message: LobbyChatMessage) -> None:
-    """Broadcast a chat message to the room."""
+    """
+    Broadcast a chat message to the room.
+    """
     await ctx.room_connections.broadcast(
-        ctx.room_id,
-        {"type": "chat", "player_name": ctx.username, "text": message.text},
+        room_id=ctx.room_id,
+        message={"type": "chat", "player_name": ctx.username, "text": message.text},
     )
 
 
 async def _handle_leave(websocket: WebSocket, _ctx: _RoomContext) -> None:
-    """Handle a leave_room message. Closing triggers _cleanup_connection via the finally block."""
+    """
+    Handle a leave_room message.
+
+    Closing triggers _cleanup_connection via the finally block.
+    """
     await websocket.close()
 
 
 async def _cleanup_connection(ctx: _RoomContext) -> None:
-    """Clean up after a disconnected connection.
+    """
+    Clean up after a disconnected connection.
 
-    Acquires join_lock so that cleanup waits for any in-progress join to
-    finish (including room_connections registration). This prevents a race
-    where host transfer targets a joining player whose connection isn't
-    registered yet, causing the owner_changed message to be dropped.
+    Acquires join_lock so that cleanup waits for any in-progress join to finish (including room_connections
+    registration). This prevents a race where host transfer targets a joining player whose connection isn't registered
+    yet, causing the owner_changed message to be dropped.
     """
     username = ctx.username
     room = ctx.room_manager.get_room(ctx.room_id)
@@ -341,9 +354,10 @@ async def _cleanup_connection(ctx: _RoomContext) -> None:
                             "players": [p.model_dump() for p in room.get_player_info()],
                         },
                     )
+
                 await ctx.room_connections.broadcast(
-                    room_id,
-                    {
+                    room_id=room_id,
+                    message={
                         "type": "player_left",
                         "player_name": username,
                         "players": [p.model_dump() for p in room.get_player_info()],

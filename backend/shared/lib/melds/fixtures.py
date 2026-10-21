@@ -1,9 +1,3 @@
-"""Meld fixtures: ~250 melds in wire format covering all meld types.
-
-Wire format matches MeldEvent sent to client:
-{'type': 'meld', 'meld_type': '...', 'caller_seat': N, 'from_seat': N, 'tile_ids': [...], 'called_tile_id': N}
-"""
-
 from shared.lib.melds.compact import MeldData, MeldType
 
 # 136-format: tile_34 * 4 gives first copy, +1/+2/+3 for other copies
@@ -18,7 +12,9 @@ HONORS_34 = (27, 28, 29, 30, 31, 32, 33)
 
 
 def _id(tile_34: int, copy: int = 0) -> int:  # deadcode: ignore
-    """Return a specific copy (0-3) of a tile type in 136-format."""
+    """
+    Return a specific copy (0-3) of a tile type in 136-format.
+    """
     return tile_34 * 4 + copy
 
 
@@ -29,7 +25,9 @@ def _meld(  # deadcode: ignore
     from_seat: int | None = None,
     called_tile_id: int | None = None,
 ) -> MeldData:
-    """Build a meld in wire format."""
+    """
+    Build a meld in wire format.
+    """
     return MeldData(
         type="meld",
         meld_type=meld_type,
@@ -98,10 +96,11 @@ def _build_chi_fixtures() -> list[MeldData]:  # deadcode: ignore
 
 
 def _build_pon_fixtures() -> list[MeldData]:  # deadcode: ignore
-    """Pon melds with game-realistic variety (~80 total).
+    """
+    Pon melds with game-realistic variety (~80 total).
 
-    Pon can be called from any of the other 3 players (shimocha/toimen/kamicha).
-    Covers all 34 tile types with multiple caller/from combinations.
+    Pon can be called from any of the other 3 players (shimocha/toimen/kamicha). Covers all 34 tile types with multiple
+    caller/from combinations.
     """
     melds: list[MeldData] = []
 
@@ -153,7 +152,8 @@ def _build_pon_fixtures() -> list[MeldData]:  # deadcode: ignore
 
 
 def _build_open_kan_fixtures() -> list[MeldData]:  # deadcode: ignore
-    """Open kan (daiminkan): rare in real games (~25 total).
+    """
+    Open kan (daiminkan): rare in real games (~25 total).
 
     Spread across terminals, honors, and select middle tiles.
     """
@@ -205,7 +205,8 @@ def _build_open_kan_fixtures() -> list[MeldData]:  # deadcode: ignore
 
 
 def _build_closed_kan_fixtures() -> list[MeldData]:  # deadcode: ignore
-    """Closed kan (ankan): no from_seat or called_tile (~20 total).
+    """
+    Closed kan (ankan): no from_seat or called_tile (~20 total).
 
     All 4 tiles come from the player's hand.
     """
@@ -256,7 +257,8 @@ def _build_closed_kan_fixtures() -> list[MeldData]:  # deadcode: ignore
 
 
 def _build_added_kan_fixtures() -> list[MeldData]:  # deadcode: ignore
-    """Added kan (shouminkan): upgrade an existing pon (~20 total).
+    """
+    Added kan (shouminkan): upgrade an existing pon (~20 total).
 
     Keeps from_seat from the original pon call.
     Convention: tile_ids has the added tile last; called_tile_id is the
@@ -318,7 +320,9 @@ def _build_added_kan_fixtures() -> list[MeldData]:  # deadcode: ignore
 
 
 def build_all_fixtures() -> list[MeldData]:  # deadcode: ignore
-    """Build ~250 meld fixtures covering every type with game-realistic variety."""
+    """
+    Build ~250 meld fixtures covering every type with game-realistic variety.
+    """
     return (
         _build_chi_fixtures()
         + _build_pon_fixtures()

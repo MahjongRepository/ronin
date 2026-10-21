@@ -1,5 +1,3 @@
-"""SQLite database connection and schema management."""
-
 import os
 import sqlite3
 from pathlib import Path
@@ -38,7 +36,9 @@ CREATE INDEX IF NOT EXISTS idx_played_games_started_at
 
 
 class Database:
-    """SQLite database wrapper with schema management."""
+    """
+    SQLite database wrapper with schema management.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self._path = str(path)
@@ -46,13 +46,18 @@ class Database:
 
     @property
     def connection(self) -> sqlite3.Connection:
-        """Return the active connection or raise if disconnected."""
+        """
+        Return the active connection or raise if disconnected.
+        """
         if self._conn is None:
             raise RuntimeError("Database is not connected")
+
         return self._conn
 
     def connect(self) -> None:
-        """Open the database, apply pragmas, create schema, and harden file permissions."""
+        """
+        Open the database, apply pragmas, create schema, and harden file permissions.
+        """
         parent = Path(self._path).parent
         parent.mkdir(parents=True, exist_ok=True)
 
@@ -65,19 +70,23 @@ class Database:
         self._harden_permissions()
 
     def close(self) -> None:
-        """Close the database connection."""
+        """
+        Close the database connection.
+        """
         if self._conn is not None:
             self._conn.close()
             self._conn = None
 
     def _harden_permissions(self) -> None:
-        """Set restrictive file permissions on POSIX systems (best effort).
+        """
+        Set restrictive file permissions on POSIX systems (best effort).
 
-        Hardens the main DB file and WAL/SHM sibling files created by WAL mode,
-        since they also contain database content (password and API-key hashes).
+        Hardens the main DB file and WAL/SHM sibling files created by WAL mode, since they also contain database content
+        (password and API-key hashes).
         """
         if os.name != "posix":  # pragma: no cover
             return
+
         for suffix in ("", "-wal", "-shm"):
             p = Path(self._path + suffix)
             if p.exists():

@@ -1,5 +1,3 @@
-"""Starlette AuthenticationBackend that validates session cookies or API keys."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -7,7 +5,7 @@ from typing import TYPE_CHECKING
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 
 from lobby.auth.models import AuthenticatedPlayer
-from shared.auth.models import AccountType
+from shared.dal.models import AccountType
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
@@ -16,11 +14,11 @@ if TYPE_CHECKING:
 
 
 class SessionOrApiKeyBackend(AuthenticationBackend):
-    """Authenticate requests via session cookie/query param or X-API-Key header.
+    """
+    Authenticate requests via session cookie/query param or X-API-Key header.
 
-    Checks the session cookie first, then the ``session_id`` query parameter
-    (used by WebSocket clients). If both are absent or invalid, falls back to
-    the X-API-Key header for bot accounts.
+    Checks the session cookie first, then the ``session_id`` query parameter (used by WebSocket clients). If both are
+    absent or invalid, falls back to the X-API-Key header for bot accounts.
     """
 
     def __init__(self, auth_service: AuthService) -> None:
@@ -34,6 +32,7 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
         session_id = conn.cookies.get("session_id")
         if session_id is None and conn.scope["type"] == "websocket":
             session_id = conn.query_params.get("session_id")
+
         session = self._auth_service.validate_session(session_id)
         if session is not None:
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(

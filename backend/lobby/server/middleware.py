@@ -1,5 +1,3 @@
-"""ASGI middleware for the lobby server."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -22,7 +20,8 @@ def _build_csp_headers(
     list[tuple[bytes, bytes]],  # lobby (default — all non-game pages)
     list[tuple[bytes, bytes]],  # game
 ]:
-    """Build path-specific CSP header sets.
+    """
+    Build path-specific CSP header sets.
 
     Two tiers:
     - Lobby (all non-game pages, including rooms): scripts + same-origin connect
@@ -38,6 +37,7 @@ def _build_csp_headers(
         parsed = urlparse(vite_dev_url)
         ws_scheme = "wss" if parsed.scheme == "https" else "ws"
         ws_origin = f"{ws_scheme}://{parsed.netloc}"
+
         vite_script = f" {vite_dev_url}"
         vite_connect = f" {vite_dev_url} {ws_origin}"
         vite_style = f" {vite_dev_url}"
@@ -78,11 +78,11 @@ SECURITY_HEADERS = _build_csp_headers("")[0]
 
 
 class SecurityHeadersMiddleware:
-    """Inject standard security headers into every HTTP response.
+    """
+    Inject standard security headers into every HTTP response.
 
-    Game paths (/play/*, /play-ng/*, /game-assets/, /majiang/) get a CSP that
-    allows scripts and external WebSocket. All other paths (lobby, rooms, auth)
-    get a CSP that allows scripts and same-origin WebSocket.
+    Game paths (/play/*, /play-ng/*, /game-assets/, /majiang/) get a CSP that allows scripts and external WebSocket. All other paths (lobby,
+    rooms, auth) get a CSP that allows scripts and same-origin WebSocket.
     """
 
     def __init__(self, app: ASGIApp, *, vite_dev_url: str = "") -> None:
@@ -92,6 +92,7 @@ class SecurityHeadersMiddleware:
     def _get_csp_headers(self, path: str) -> list[tuple[bytes, bytes]]:
         if path.startswith(("/play/", "/play-ng/", "/game-assets/", "/majiang/")):
             return self._game_headers
+
         return self._lobby_headers
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -106,21 +107,22 @@ class SecurityHeadersMiddleware:
                 headers = list(message.get("headers", []))
                 headers.extend(extra_headers)
                 message["headers"] = headers
+
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
 
 
 class SlashNormalizationMiddleware:
-    """Strip trailing slashes so that /path/ is handled the same as /path.
+    """
+    Strip trailing slashes so that /path/ is handled the same as /path.
 
-    Without this, Starlette's default ``redirect_slashes=True`` responds
-    with a 307 redirect for the trailing-slash variant.  That redirect
-    bypasses authentication middleware, which means unauthenticated
-    requests to ``/servers/`` would get a redirect instead of a 401.
+    Without this, Starlette's default ``redirect_slashes=True`` responds with a 307 redirect for the trailing-slash
+    variant.  That redirect bypasses authentication middleware, which means unauthenticated requests to ``/servers/``
+    would get a redirect instead of a 401.
 
-    Applied as ASGI middleware, it rewrites the path *before* routing,
-    eliminating the need for duplicate trailing-slash route definitions.
+    Applied as ASGI middleware, it rewrites the path *before* routing, eliminating the need for duplicate trailing-slash
+    route definitions.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -131,4 +133,5 @@ class SlashNormalizationMiddleware:
             path: str = scope["path"]
             if len(path) > 1 and path.endswith("/"):
                 scope["path"] = path.rstrip("/")
+
         await self.app(scope, receive, send)

@@ -43,8 +43,7 @@ class MessageRouter:
     """
     Routes incoming messages to appropriate handlers.
 
-    This class contains pure business logic and can be tested
-    without real WebSocket connections.
+    This class contains pure business logic and can be tested without real WebSocket connections.
     """
 
     def __init__(self, session_manager: SessionManager, *, game_ticket_secret: str) -> None:
@@ -82,20 +81,28 @@ class MessageRouter:
         ticket_str: str,
         game_id: str,
     ) -> GameTicket | None:
-        """Verify game ticket signature, expiry, and game binding. Send error on failure."""
+        """
+        Verify game ticket signature, expiry, and game binding.
+
+        Send error on failure.
+        """
         ticket = verify_game_ticket(ticket_str, self._game_ticket_secret)
         if ticket is None:
             logger.warning("invalid game ticket")
             await self._send_ticket_error(connection, "Invalid game ticket")
             return None
+
         if ticket.room_id != game_id:
             logger.warning("ticket game_id mismatch", ticket_room_id=ticket.room_id, expected_game_id=game_id)
             await self._send_ticket_error(connection, "Ticket game_id mismatch")
             return None
+
         return ticket
 
     async def _send_ticket_error(self, connection: ConnectionProtocol, message: str) -> None:
-        """Send an INVALID_TICKET error to the connection."""
+        """
+        Send an INVALID_TICKET error to the connection.
+        """
         await connection.send_message(
             ErrorMessage(code=SessionErrorCode.INVALID_TICKET, message=message).model_dump(),
         )
@@ -105,10 +112,13 @@ class MessageRouter:
         connection: ConnectionProtocol,
         message: JoinGameMessage,
     ) -> None:
-        """Verify game ticket and join a pending game."""
-        ticket = await self._verify_ticket(connection, message.game_ticket, connection.game_id)
+        """
+        Verify game ticket and join a pending game.
+        """
+        ticket = await self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
         if ticket is None:
             return
+
         await self._session_manager.join_game(
             connection=connection,
             game_id=connection.game_id,
@@ -120,10 +130,13 @@ class MessageRouter:
         connection: ConnectionProtocol,
         message: ReconnectMessage,
     ) -> None:
-        """Verify game ticket and attempt reconnection."""
-        ticket = await self._verify_ticket(connection, message.game_ticket, connection.game_id)
+        """
+        Verify game ticket and attempt reconnection.
+        """
+        ticket = await self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
         if ticket is None:
             return
+
         await self._session_manager.reconnect(
             connection=connection,
             game_id=connection.game_id,
@@ -135,7 +148,9 @@ class MessageRouter:
         connection: ConnectionProtocol,
         message: DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
     ) -> None:
-        """Route a game action message, handling expected and fatal errors."""
+        """
+        Route a game action message, handling expected and fatal errors.
+        """
         try:
             data = message.model_dump(exclude={"t", "a"})
             action = GameAction[message.a.name]

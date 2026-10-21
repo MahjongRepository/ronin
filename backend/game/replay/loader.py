@@ -1,14 +1,3 @@
-"""Replay loader: parse ReplayCollector event-log format into ReplayInput.
-
-The ReplayCollector writes gameplay events as newline-delimited JSON objects.
-This module reads that format, extracts player actions from the event
-stream, and constructs a validated ReplayInput for the replay runner.
-
-Event types that represent player actions are mapped via an explicit allowlist.
-Unknown event types raise ReplayLoadError to surface new action-producing
-events rather than silently dropping them.
-"""
-
 from __future__ import annotations
 
 import gzip
@@ -21,10 +10,11 @@ from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION, create_seat_rng, validate_seed_hex
 from game.logic.settings import NUM_PLAYERS
-from game.messaging.compact import decode_discard
-from game.messaging.event_payload import EVENT_TYPE_INT
-from game.replay.models import REPLAY_VERSION, ReplayInput, ReplayInputEvent
+from game.replay.models import ReplayInput, ReplayInputEvent
+from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
+from game.wire.events import EVENT_TYPE_INT
+from game.wire.replay_format import REPLAY_VERSION
 from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.
@@ -47,24 +37,30 @@ _NON_ACTION_EVENTS = frozenset(
 
 
 class ReplayLoadError(Exception):
-    """Raised when a replay file cannot be loaded or parsed."""
+    """
+    Raised when a replay file cannot be loaded or parsed.
+    """
 
 
 def _validate_version_tag(tag: dict[str, Any]) -> str:
-    """Validate the version tag (first line of the replay file).
+    """
+    Validate the version tag (first line of the replay file).
 
     Return the version string.
     """
     version = tag.get("version")
     if version is None:
         raise ReplayLoadError("First line must be a version tag with 'version' field")
+
     if version != REPLAY_VERSION:
         raise ReplayLoadError(f"Replay version mismatch: expected {REPLAY_VERSION}, got {version}")
+
     return version
 
 
 def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[str, Any]]]:
-    """Validate and extract fields from the game_started event.
+    """
+    Validate and extract fields from the game_started event.
 
     Returns (seed, rng_version, players).
     """
@@ -80,6 +76,7 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
         raise ReplayLoadError(
             "game_started event missing 'rv' field (old replay format not supported)",
         )
+
     if rng_version != RNG_VERSION:
         raise ReplayLoadError(f"Replay RNG version mismatch: expected {RNG_VERSION}, got {rng_version}")
 
@@ -96,7 +93,9 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
 
 
 def load_replay_from_string(content: str) -> ReplayInput:
-    """Parse newline-delimited JSON objects into ReplayInput."""
+    """
+    Parse newline-delimited JSON objects into ReplayInput.
+    """
     content = content.strip()
     if not content:
         raise ReplayLoadError("Empty replay content")
@@ -133,7 +132,8 @@ def load_replay_from_string(content: str) -> ReplayInput:
 
 
 def load_replay_from_file(path: str | Path) -> ReplayInput:
-    """Load a replay from a file path.
+    """
+    Load a replay from a file path.
 
     Supports both plain text and gzip-compressed (.gz) replay files.
     """
@@ -146,25 +146,33 @@ def load_replay_from_file(path: str | Path) -> ReplayInput:
             content = path.read_text(encoding="utf-8")
     except (OSError, EOFError, zlib.error) as exc:
         raise ReplayLoadError(f"Cannot read replay file {path}: {exc}") from exc
+
     return load_replay_from_string(content)
 
 
 def _extract_seat_to_name(players: list[dict[str, Any]]) -> dict[int, str]:
-    """Extract seat-to-name mapping from game_started players, validating structure."""
+    """
+    Extract seat-to-name mapping from game_started players, validating structure.
+    """
     seat_to_name: dict[int, str] = {}
     for i, player in enumerate(players):
         if not isinstance(player, dict):
             raise ReplayLoadError(f"game_started player entry {i} is not a dict")
+
         try:
             seat = player["s"]
             name = player["nm"]
         except KeyError as exc:
             raise ReplayLoadError(f"game_started player entry {i} missing required field: {exc}") from exc
+
         if not isinstance(seat, int):
             raise ReplayLoadError(f"game_started player entry {i} has non-integer seat: {seat!r}")
+
         if not isinstance(name, str) or not name:
             raise ReplayLoadError(f"game_started player entry {i} has invalid name: {name!r}")
+
         seat_to_name[seat] = name
+
     return seat_to_name
 
 
@@ -172,7 +180,8 @@ def _reconstruct_input_order(
     seed: str,
     seat_to_name: dict[int, str],
 ) -> tuple[str, str, str, str]:
-    """Reconstruct the original player name input order from the seed.
+    """
+    Reconstruct the original player name input order from the seed.
 
     During replay, fill_seats receives all 4 names (human + AI) and calls
     rng.sample(range(4), 4) to assign seats. This function inverts that
@@ -185,24 +194,28 @@ def _reconstruct_input_order(
         raise ReplayLoadError(
             f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}",
         )
+
     rng = create_seat_rng(seed)
     seat_order = rng.sample(range(NUM_PLAYERS), NUM_PLAYERS)
-    return tuple(seat_to_name[s] for s in seat_order)  # type: ignore[return-value]
+    first, second, third, fourth = (seat_to_name[s] for s in seat_order)
+    return first, second, third, fourth
 
 
 def _extract_action(
     event: dict[str, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
-    """Extract player action(s) from a single event-log entry.
+    """
+    Extract player action(s) from a single event-log entry.
 
-    Return a list of ReplayInputEvent (usually one, two for double_ron),
-    or None if the event does not represent a player action.
-    Raise ReplayLoadError for unknown event types.
+    Return a list of ReplayInputEvent (usually one, two for double_ron), or None if the event does not represent a
+    player action. Raise ReplayLoadError for unknown event types, so a new action-producing event fails loudly instead
+    of being silently dropped from the replay.
     """
     event_type = event.get("t")
     if event_type is None:
         raise ReplayLoadError("Event missing required 't' field")
+
     if not isinstance(event_type, int) or isinstance(event_type, bool):
         raise ReplayLoadError(f"Event 't' field must be an integer, got {type(event_type).__name__}")
 
@@ -222,19 +235,24 @@ def _extract_action(
 
 
 def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
-    """Parse a discard event from packed integer encoding."""
+    """
+    Parse a discard event from packed integer encoding.
+    """
     d = event.get("d")
     if d is None:
         raise ReplayLoadError("discard event missing 'd' field")
+
     try:
         seat, tile_id, _is_tsumogiri, is_riichi = decode_discard(d)
     except (ValueError, TypeError) as exc:
         raise ReplayLoadError(f"Invalid discard packed value: {exc}") from exc
+
     action = GameAction.DECLARE_RIICHI if is_riichi else GameAction.DISCARD
     try:
         player_name = seat_to_name[seat]
     except KeyError:
         raise ReplayLoadError(f"discard event references unknown seat: {seat}") from None
+
     return ReplayInputEvent(
         player_name=player_name,
         action=action,
@@ -243,10 +261,13 @@ def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> Repla
 
 
 def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
-    """Parse a compact meld event {"t": 0, "m": <IMME_int>} into a call action."""
+    """
+    Parse a compact meld event {"t": 0, "m": <IMME_int>} into a call action.
+    """
     imme_value = event.get("m")
     if imme_value is None:
         raise ReplayLoadError("Compact meld event missing 'm' field")
+
     if not isinstance(imme_value, int) or isinstance(imme_value, bool):
         raise ReplayLoadError(f"Compact meld 'm' field must be an integer, got {type(imme_value).__name__}")
 
@@ -254,6 +275,7 @@ def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> 
         meld_data = decode_meld_compact(imme_value)
     except (ValueError, TypeError) as exc:
         raise ReplayLoadError(f"Invalid compact meld value {imme_value}: {exc}") from exc
+
     caller_seat = meld_data["caller_seat"]
     meld_type = meld_data["meld_type"]
 
@@ -262,17 +284,21 @@ def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> 
     except KeyError:
         raise ReplayLoadError(f"meld event references unknown seat: {caller_seat}") from None
 
-    if meld_type == "chi":
-        return _parse_chi_from_meld_data(meld_data, player_name)
-    if meld_type == "pon":
-        return _parse_pon_from_meld_data(meld_data, player_name)
-    if meld_type in ("open_kan", "closed_kan", "added_kan"):
-        return _parse_kan_from_meld_data(meld_data, player_name)
-    raise ReplayLoadError(f"Unknown meld_type in decoded IMME: {meld_type!r}")
+    match meld_type:
+        case "chi":
+            return _parse_chi_from_meld_data(meld_data, player_name)
+        case "pon":
+            return _parse_pon_from_meld_data(meld_data, player_name)
+        case "open_kan" | "closed_kan" | "added_kan":
+            return _parse_kan_from_meld_data(meld_data, player_name)
+        case _:
+            raise ReplayLoadError(f"Unknown meld_type in decoded IMME: {meld_type!r}")
 
 
 def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
-    """Parse a chi action from a decoded MeldData dict."""
+    """
+    Parse a chi action from a decoded MeldData dict.
+    """
     called_tile_id = meld_data["called_tile_id"]
     tile_ids = meld_data["tile_ids"]
     sequence_tiles = [t for t in tile_ids if t != called_tile_id]
@@ -284,7 +310,9 @@ def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 
 def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
-    """Parse a pon action from a decoded MeldData dict."""
+    """
+    Parse a pon action from a decoded MeldData dict.
+    """
     called_tile_id = meld_data["called_tile_id"]
     return ReplayInputEvent(
         player_name=player_name,
@@ -294,16 +322,16 @@ def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 
 def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
-    """Parse a kan action from a decoded MeldData dict."""
+    """
+    Parse a kan action from a decoded MeldData dict.
+    """
     meld_type = meld_data["meld_type"]
     kan_type_map = {"open_kan": "open", "closed_kan": "closed", "added_kan": "added"}
     kan_type = kan_type_map[meld_type]
 
     tile_ids = meld_data["tile_ids"]
     called_tile_id = meld_data["called_tile_id"]
-
     tile_id = called_tile_id if called_tile_id is not None else tile_ids[0]
-
     return ReplayInputEvent(
         player_name=player_name,
         action=GameAction.CALL_KAN,
@@ -312,40 +340,49 @@ def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
-    """Parse a round_end event into player action(s), if any."""
+    """
+    Parse a round_end event into player action(s), if any.
+    """
     result_type = event.get("rt")
-
-    if result_type == WireRoundResultType.TSUMO:
-        return _parse_tsumo_round_end(event, seat_to_name)
-    if result_type == WireRoundResultType.RON:
-        return _parse_ron_round_end(event, seat_to_name)
-    if result_type == WireRoundResultType.DOUBLE_RON:
-        return _parse_double_ron_round_end(event, seat_to_name)
-    if result_type == WireRoundResultType.ABORTIVE_DRAW:
-        return _parse_abortive_draw_round_end(event, seat_to_name)
-    # exhaustive_draw, nagashi_mangan — no player action
-    if result_type in (WireRoundResultType.EXHAUSTIVE_DRAW, WireRoundResultType.NAGASHI_MANGAN):
-        return None
-    raise ReplayLoadError(f"Unknown round_end result type: {result_type!r}")
+    match result_type:
+        case WireRoundResultType.TSUMO:
+            return _parse_tsumo_round_end(event, seat_to_name)
+        case WireRoundResultType.RON:
+            return _parse_ron_round_end(event, seat_to_name)
+        case WireRoundResultType.DOUBLE_RON:
+            return _parse_double_ron_round_end(event, seat_to_name)
+        case WireRoundResultType.ABORTIVE_DRAW:
+            return _parse_abortive_draw_round_end(event, seat_to_name)
+        # exhaustive_draw, nagashi_mangan — no player action
+        case WireRoundResultType.EXHAUSTIVE_DRAW | WireRoundResultType.NAGASHI_MANGAN:
+            return None
+        case _:
+            raise ReplayLoadError(f"Unknown round_end result type: {result_type!r}")
 
 
 def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
-    """Parse a tsumo round_end result."""
+    """
+    Parse a tsumo round_end result.
+    """
     try:
         winner_seat = result["ws"]
         player_name = seat_to_name[winner_seat]
     except KeyError as exc:
         raise ReplayLoadError(f"tsumo round_end missing or invalid field: {exc}") from exc
+
     return [ReplayInputEvent(player_name=player_name, action=GameAction.DECLARE_TSUMO)]
 
 
 def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
-    """Parse a ron round_end result."""
+    """
+    Parse a ron round_end result.
+    """
     try:
         winner_seat = result["ws"]
         player_name = seat_to_name[winner_seat]
     except KeyError as exc:
         raise ReplayLoadError(f"ron round_end missing or invalid field: {exc}") from exc
+
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON)]
 
 
@@ -353,10 +390,13 @@ def _parse_double_ron_round_end(
     result: dict[str, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
-    """Parse a double_ron round_end result."""
+    """
+    Parse a double_ron round_end result.
+    """
     winners = result.get("wn", [])
     if not winners:
         raise ReplayLoadError("double_ron round_end must have at least one winner")
+
     try:
         return [
             ReplayInputEvent(
@@ -373,14 +413,18 @@ def _parse_abortive_draw_round_end(
     result: dict[str, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
-    """Parse an abortive_draw round_end result."""
+    """
+    Parse an abortive_draw round_end result.
+    """
     reason = result.get("rn")
     if reason != "nine_terminals":
         # Other abortive draws (four_riichi, etc.) are not player actions
         return None
+
     try:
         seat = result["s"]
         player_name = seat_to_name[seat]
     except KeyError as exc:
         raise ReplayLoadError(f"nine_terminals abortive_draw missing or invalid field: {exc}") from exc
+
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_KYUUSHU)]

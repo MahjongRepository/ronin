@@ -1,10 +1,8 @@
-"""Integration tests for lobby endpoints with local room management."""
-
 import pytest
 from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 
@@ -13,14 +11,17 @@ class TestLobbyEndpoints:
     @pytest.fixture
     def client(self, tmp_path):
         config_file = tmp_path / "servers.yaml"
-        config_file.write_text("""
+        servers_yaml = """
 servers:
   - name: "test-server"
     url: "http://localhost:8711"
-""")
+"""
+        config_file.write_text(servers_yaml)
+
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("/* test */")
+
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -36,9 +37,10 @@ servers:
         # Register a user so authenticated endpoints can be tested
         register_with_csrf(c, "apiuser")
         yield c
+
         app.state.db.close()
 
-    def test_health(self, client):
+    def test_health_route__should_return_ok_with_version_and_commit(self, client):
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
@@ -46,7 +48,7 @@ servers:
         assert "version" in data
         assert "commit" in data
 
-    def test_list_servers(self, client):
+    def test_servers_route__should_list_configured_servers(self, client):
         response = client.get("/servers")
         assert response.status_code == 200
         data = response.json()

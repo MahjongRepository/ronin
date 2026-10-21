@@ -16,65 +16,58 @@ from game.logic.types import (
     HandResultInfo,
     TsumoResult,
 )
-from game.messaging.compact import decode_discard, decode_draw
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
     service_event_payload,
     shape_call_prompt_payload,
 )
+from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireRoundResultType
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
 
 
 class TestEventTypeIntExhaustiveness:
-    """Verify EVENT_TYPE_INT covers every EventType member."""
-
-    def test_all_event_types_mapped(self):
+    def test_event_type_int__should_map_every_event_type(self):
         missing = set(EventType) - set(EVENT_TYPE_INT)
         assert not missing, f"EVENT_TYPE_INT missing entries for: {missing}"
 
-    def test_no_duplicate_integer_values(self):
+    def test_event_type_int__should_have_unique_values(self):
         values = list(EVENT_TYPE_INT.values())
         assert len(values) == len(set(values)), "EVENT_TYPE_INT has duplicate integer values"
 
 
 class TestServiceEventPayload:
-    """Tests for centralized event payload shaping."""
-
-    def test_discard_produces_packed_integer(self):
-        """Discard event produces {"t": 2, "d": <packed_int>}."""
+    def test_service_event_payload__when_discard__should_pack_into_integer(self):
         event = ServiceEvent(
             event=EventType.DISCARD,
             data=DiscardEvent(seat=0, tile_id=10, is_riichi=True),
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert set(payload.keys()) == {"t", "d"}
+
         seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
         assert seat == 0
         assert tile_id == 10
         assert is_tsumogiri is False
         assert is_riichi is True
 
-    def test_draw_produces_packed_integer(self):
-        """Draw event produces {"t": 1, "d": <packed_int>}."""
+    def test_service_event_payload__when_draw__should_pack_into_integer(self):
         event = ServiceEvent(
             event=EventType.DRAW,
             data=DrawEvent(seat=1, tile_id=42, target="seat_1"),
             target=SeatTarget(seat=1),
         )
         payload = service_event_payload(event)
-
         assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
         assert set(payload.keys()) == {"t", "d"}
+
         seat, tile_id = decode_draw(payload["d"])
         assert seat == 1
         assert tile_id == 42
 
-    def test_draw_with_available_actions_included(self):
-        """Non-empty available_actions are included as 'aa' with compact keys."""
+    def test_service_event_payload__when_draw_has_available_actions__should_include_them(self):
         event = ServiceEvent(
             event=EventType.DRAW,
             data=DrawEvent(
@@ -86,13 +79,11 @@ class TestServiceEventPayload:
             target=SeatTarget(seat=0),
         )
         payload = service_event_payload(event)
-
         assert "aa" in payload
         assert len(payload["aa"]) == 1
         assert payload["aa"][0] == {"a": WirePlayerAction.DISCARD, "tl": [10]}
 
-    def test_draw_available_action_none_tiles_excluded(self):
-        """Available action with tiles=None omits the tiles field."""
+    def test_service_event_payload__when_available_action_has_no_tiles__should_omit_tile_list(self):
         event = ServiceEvent(
             event=EventType.DRAW,
             data=DrawEvent(
@@ -104,15 +95,12 @@ class TestServiceEventPayload:
             target=SeatTarget(seat=0),
         )
         payload = service_event_payload(event)
-
         assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
         assert "tl" not in payload["aa"][0]
 
 
 class TestShapeCallPromptPayload:
-    """Tests for call prompt wire payload shaping with compact keys."""
-
-    def test_ron_prompt_drops_callers_keeps_caller_seat(self):
+    def test_shape_call_prompt_payload__when_ron_prompt__should_drop_callers_and_keep_caller_seat(self):
         payload = {
             "clt": WireCallType.RON,
             "ti": 42,
@@ -120,7 +108,6 @@ class TestShapeCallPromptPayload:
             "clr": [0],
         }
         result = shape_call_prompt_payload(payload)
-
         assert "clr" not in result
         assert result == {
             "clt": WireCallType.RON,
@@ -129,7 +116,7 @@ class TestShapeCallPromptPayload:
             "cs": 0,
         }
 
-    def test_unknown_call_type_returns_payload_unchanged(self):
+    def test_shape_call_prompt_payload__when_unknown_call_type__should_return_payload_unchanged(self):
         payload = {
             "clt": 99,
             "ti": 42,
@@ -137,11 +124,10 @@ class TestShapeCallPromptPayload:
             "clr": [0],
         }
         result = shape_call_prompt_payload(payload)
-
         assert result == payload
         assert result["clr"] == [0]
 
-    def test_meld_prompt_multiple_call_types(self):
+    def test_shape_call_prompt_payload__when_meld_prompt_has_multiple_call_types__should_list_all_call_types(self):
         payload = {
             "clt": WireCallType.MELD,
             "ti": 55,
@@ -152,7 +138,6 @@ class TestShapeCallPromptPayload:
             ],
         }
         result = shape_call_prompt_payload(payload)
-
         assert "clr" not in result
         assert result["cs"] == 0
         assert result["ac"] == [
@@ -162,10 +147,7 @@ class TestShapeCallPromptPayload:
 
 
 class TestMeldEventPayload:
-    """Tests for MeldEvent compact wire payload."""
-
-    def test_meld_event_produces_compact_format(self):
-        """MeldEvent is serialized as compact {"t": 0, "m": <IMME_int>}."""
+    def test_meld_event_payload__should_use_compact_format(self):
         event = ServiceEvent(
             event=EventType.MELD,
             data=MeldEvent(
@@ -178,7 +160,6 @@ class TestMeldEventPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["t"] == EVENT_TYPE_MELD
         assert "m" in payload
         assert set(payload.keys()) == {"t", "m"}
@@ -196,10 +177,7 @@ _SCORES = {0: 25000, 1: 25000, 2: 25000, 3: 25000}
 
 
 class TestRoundEndPayload:
-    """Tests for round_end flattening with compact keys and exclude_none."""
-
-    def test_tsumo_none_fields_omitted(self):
-        """Tsumo result omits pao_seat and ura_dora_indicators when None."""
+    def test_round_end_payload__when_tsumo_fields_none__should_omit_them(self):
         event = ServiceEvent(
             event=EventType.ROUND_END,
             data=RoundEndEvent(
@@ -218,7 +196,6 @@ class TestRoundEndPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert "result" not in payload
         assert payload["rt"] == WireRoundResultType.TSUMO
         assert "ps" not in payload
@@ -226,8 +203,7 @@ class TestRoundEndPayload:
         assert payload["ws"] == 0
         assert payload["wt"] == 1
 
-    def test_tsumo_present_fields_kept(self):
-        """Tsumo result keeps pao_seat and ura_dora_indicators when set."""
+    def test_round_end_payload__when_tsumo_fields_present__should_keep_them(self):
         event = ServiceEvent(
             event=EventType.ROUND_END,
             data=RoundEndEvent(
@@ -248,12 +224,10 @@ class TestRoundEndPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["ps"] == 2
         assert payload["ud"] == [10]
 
-    def test_double_ron_none_fields_omitted(self):
-        """Double ron winners omit pao_seat and ura_dora_indicators when None."""
+    def test_round_end_payload__when_double_ron_winner_fields_none__should_omit_them(self):
         event = ServiceEvent(
             event=EventType.ROUND_END,
             data=RoundEndEvent(
@@ -284,7 +258,6 @@ class TestRoundEndPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["rt"] == WireRoundResultType.DOUBLE_RON
         for winner in payload["wn"]:
             assert "ps" not in winner

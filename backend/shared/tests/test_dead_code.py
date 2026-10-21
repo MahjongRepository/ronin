@@ -11,8 +11,10 @@ def _load_dead_code_module():
     module_path = repo_root / "bin" / "check-dead-code.py"
     spec = importlib.util.spec_from_file_location("check_dead_code", module_path)
     assert spec is not None
+
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
@@ -22,7 +24,7 @@ def _write_dedent(path: Path, content: str) -> None:
     path.write_text(textwrap.dedent(content).lstrip("\n"))
 
 
-def test_reports_test_only_chain(tmp_path: Path) -> None:
+def test_find_dead_code__when_only_tests_reference_chain__should_report_test_only(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "game" / "logic"
@@ -60,7 +62,7 @@ def test_reports_test_only_chain(tmp_path: Path) -> None:
     assert unreferenced_names == {"unused"}
 
 
-def test_does_not_report_production_chain(tmp_path: Path) -> None:
+def test_find_dead_code__when_production_reaches_chain__should_report_nothing(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "game" / "logic"
@@ -100,7 +102,7 @@ def test_does_not_report_production_chain(tmp_path: Path) -> None:
     assert report.all_dead() == []
 
 
-def test_reports_unreferenced_definitions(tmp_path: Path) -> None:
+def test_find_dead_code__when_definitions_unreferenced__should_report_unreferenced(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "lobby" / "logic"
@@ -123,7 +125,7 @@ def test_reports_unreferenced_definitions(tmp_path: Path) -> None:
     assert report.test_only == []
 
 
-def test_reports_unused_methods(tmp_path: Path) -> None:
+def test_find_dead_code__when_method_unused__should_report_only_that_method(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "game" / "logic"
@@ -160,7 +162,7 @@ def test_reports_unused_methods(tmp_path: Path) -> None:
     assert "Player.used" not in dead_names
 
 
-def test_ignores_definitions_with_deadcode_ignore_comment(tmp_path: Path) -> None:
+def test_find_dead_code__when_deadcode_ignore_comment__should_skip_definition(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "game" / "logic"
@@ -190,7 +192,7 @@ def test_ignores_definitions_with_deadcode_ignore_comment(tmp_path: Path) -> Non
     assert "Settings.actually_dead" in dead_names
 
 
-def test_keeps_overridden_methods_from_imported_base(tmp_path: Path) -> None:
+def test_find_dead_code__when_method_overrides_imported_base__should_keep_it(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "game" / "logic"
@@ -225,7 +227,7 @@ def test_keeps_overridden_methods_from_imported_base(tmp_path: Path) -> None:
     assert "MySettings.not_an_override" in dead_names
 
 
-def test_keeps_decorated_methods_when_class_is_live(tmp_path: Path) -> None:
+def test_find_dead_code__when_decorated_method_in_live_class__should_keep_it(tmp_path: Path):
     dead_code = _load_dead_code_module()
     src_dir = tmp_path / "src"
     prod_dir = src_dir / "game" / "logic"

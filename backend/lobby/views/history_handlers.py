@@ -1,10 +1,8 @@
-"""History page handler and game data transformation."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie
+from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -20,21 +18,27 @@ SECONDS_PER_MINUTE = 60
 
 
 def _format_duration(started_at: datetime, ended_at: datetime) -> str:
-    """Format game duration as a human-readable string (e.g. '5m 30s', '1h 12m', '45s')."""
+    """
+    Format game duration as a human-readable string (e.g. '5m 30s', '1h 12m', '45s').
+    """
     seconds = max(int((ended_at - started_at).total_seconds()), 0)
     if seconds >= SECONDS_PER_HOUR:
         h = seconds // SECONDS_PER_HOUR
         m = (seconds % SECONDS_PER_HOUR) // SECONDS_PER_MINUTE
         return f"{h}h {m}m"
+
     if seconds >= SECONDS_PER_MINUTE:
         m = seconds // SECONDS_PER_MINUTE
         s = seconds % SECONDS_PER_MINUTE
         return f"{m}m {s}s"
+
     return f"{seconds}s"
 
 
 def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
-    """Transform played games into template-friendly view models."""
+    """
+    Transform played games into template-friendly view models.
+    """
     result = []
     for game in games:
         # Completed games: standings in placement order from game logic, standings[0] is winner
@@ -49,9 +53,11 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
             }
             for i, s in enumerate(game.standings)
         ]
+
         duration_label = None
         if game.ended_at:
             duration_label = _format_duration(game.started_at, game.ended_at)
+
         status = "completed" if game.end_reason == "completed" else "active"
         result.append(
             {
@@ -64,6 +70,7 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
                 ),
             },
         )
+
     return result
 
 
@@ -88,5 +95,6 @@ async def history_page(request: Request) -> Response:
     )
     if is_new:
         auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response

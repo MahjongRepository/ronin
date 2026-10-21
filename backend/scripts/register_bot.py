@@ -1,17 +1,9 @@
-"""
-Register a bot account and print the API key.
-
-Usage: python -m scripts.register_bot <bot_name>
-
-The API key is printed once and never stored. Save it securely.
-"""
-
 import asyncio
-import os
 import sys
 
 from shared.auth.password import SimpleHasher
 from shared.auth.service import AuthError, AuthService
+from shared.auth.settings import AuthSettings
 from shared.db import Database, SqlitePlayerRepository
 
 
@@ -21,7 +13,7 @@ async def main() -> None:
         sys.exit(1)
 
     bot_name = sys.argv[1]
-    db_path = os.environ.get("AUTH_DATABASE_PATH", "backend/storage.db")
+    db_path = AuthSettings().database_path
 
     db = Database(db_path)
     db.connect()

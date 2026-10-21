@@ -1,5 +1,3 @@
-"""Tests for replay loader: event-log parsing, action extraction, error handling."""
-
 import gzip
 import json
 from typing import TYPE_CHECKING
@@ -12,8 +10,6 @@ if TYPE_CHECKING:
 from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION
-from game.messaging.compact import encode_discard
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
     _MAX_REPLAY_EVENTS,
@@ -21,8 +17,10 @@ from game.replay.loader import (
     load_replay_from_file,
     load_replay_from_string,
 )
-from game.replay.models import REPLAY_VERSION
+from game.wire.compact import encode_discard
 from game.wire.enums import WireRoundResultType
+from game.wire.events import EVENT_TYPE_INT
+from game.wire.replay_format import REPLAY_VERSION
 from shared.lib.melds import MeldData, encode_meld_compact
 
 # Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3
@@ -56,7 +54,6 @@ def _compact_meld(
     tile_ids: list[int],
     called_tile_id: int | None,
 ) -> str:
-    """Encode a meld as compact JSON: {"t": 0, "m": <IMME_int>}."""
     meld_data = MeldData(
         type="meld",
         meld_type=meld_type,
@@ -69,12 +66,10 @@ def _compact_meld(
 
 
 def _build_event_log(*extra_lines: str) -> str:
-    """Build a newline-delimited event-log string."""
     return "\n".join([VERSION_TAG_LINE, GAME_STARTED_LINE, *extra_lines])
 
 
-def test_parse_single_discard():
-    """Parse a discard event into a DISCARD action."""
+def test_load_replay__when_discard_event__should_produce_discard_action_for_seat_player():
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
@@ -82,8 +77,8 @@ def test_parse_single_discard():
         },
     )
     content = _build_event_log(ROUND_STARTED_LINE, DRAW_LINE, discard)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert replay.seed == _TEST_SEED
     # player_names is in reconstructed input order (for fill_seats), not seat order
     assert set(replay.player_names) == {"Alice", "Bob", "Charlie", "Diana"}
@@ -93,8 +88,7 @@ def test_parse_single_discard():
     assert replay.events[0].data == {"tile_id": 118}
 
 
-def test_discard_with_riichi_maps_to_declare_riichi():
-    """Discard with is_riichi=true maps to DECLARE_RIICHI action."""
+def test_load_replay__when_discard_has_riichi_flag__should_produce_declare_riichi_action():
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
@@ -102,77 +96,73 @@ def test_discard_with_riichi_maps_to_declare_riichi():
         },
     )
     content = _build_event_log(discard)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.DECLARE_RIICHI
     assert replay.events[0].data == {"tile_id": 50}
 
 
-def test_meld_pon():
-    """Compact meld event with pon maps to CALL_PON."""
+def test_load_replay__when_pon_meld__should_produce_call_pon_action():
     # tile_34=2 (3m): tile IDs 8, 9, 10. Called tile 8 from seat 0.
-    meld = _compact_meld("pon", caller_seat=2, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
+    meld = _compact_meld(meld_type="pon", caller_seat=2, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
     content = _build_event_log(meld)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
     assert replay.events[0].action == GameAction.CALL_PON
     assert replay.events[0].data == {"tile_id": 8}
 
 
-def test_meld_chi():
-    """Compact meld event with chi maps to CALL_CHI with sequence_tiles."""
-    meld = _compact_meld("chi", caller_seat=1, from_seat=0, tile_ids=[20, 24, 28], called_tile_id=20)
+def test_load_replay__when_chi_meld__should_produce_call_chi_action_with_sequence_tiles():
+    meld = _compact_meld(meld_type="chi", caller_seat=1, from_seat=0, tile_ids=[20, 24, 28], called_tile_id=20)
     content = _build_event_log(meld)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.CALL_CHI
     assert replay.events[0].data == {"tile_id": 20, "sequence_tiles": [24, 28]}
 
 
-def test_meld_open_kan():
-    """Compact meld event with open_kan maps to CALL_KAN using called_tile_id."""
-    meld = _compact_meld("open_kan", caller_seat=3, from_seat=0, tile_ids=[0, 1, 2, 3], called_tile_id=2)
+def test_load_replay__when_open_kan_meld__should_produce_open_call_kan_action():
+    meld = _compact_meld(meld_type="open_kan", caller_seat=3, from_seat=0, tile_ids=[0, 1, 2, 3], called_tile_id=2)
     content = _build_event_log(meld)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Diana"
     assert replay.events[0].action == GameAction.CALL_KAN
     assert replay.events[0].data == {"tile_id": 2, "kan_type": "open"}
 
 
-def test_meld_closed_kan():
-    """Compact meld event with closed_kan maps to CALL_KAN with kan_type=closed."""
-    meld = _compact_meld("closed_kan", caller_seat=1, from_seat=None, tile_ids=[0, 1, 2, 3], called_tile_id=None)
+def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_action():
+    meld = _compact_meld(
+        meld_type="closed_kan", caller_seat=1, from_seat=None, tile_ids=[0, 1, 2, 3], called_tile_id=None
+    )
     content = _build_event_log(meld)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.CALL_KAN
     assert replay.events[0].data == {"tile_id": 0, "kan_type": "closed"}
 
 
-def test_meld_added_kan():
-    """Compact meld event with added_kan maps to CALL_KAN with kan_type=added."""
-    meld = _compact_meld("added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7)
+def test_load_replay__when_added_kan_meld__should_produce_added_call_kan_action():
+    meld = _compact_meld(meld_type="added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7)
     content = _build_event_log(meld)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
     assert replay.events[0].action == GameAction.CALL_KAN
     assert replay.events[0].data == {"tile_id": 7, "kan_type": "added"}
 
 
-def test_round_end_tsumo():
-    """round_end with tsumo result maps to DECLARE_TSUMO."""
+def test_load_replay__when_round_ends_in_tsumo__should_produce_declare_tsumo_action():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -182,15 +172,14 @@ def test_round_end_tsumo():
         },
     )
     content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
     assert replay.events[0].action == GameAction.DECLARE_TSUMO
 
 
-def test_round_end_ron():
-    """round_end with ron result maps to CALL_RON."""
+def test_load_replay__when_round_ends_in_ron__should_produce_call_ron_action():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -200,15 +189,14 @@ def test_round_end_ron():
         },
     )
     content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.CALL_RON
 
 
-def test_round_end_double_ron():
-    """round_end with double_ron produces two CALL_RON in winners list order."""
+def test_load_replay__when_round_ends_in_double_ron__should_produce_call_ron_for_each_winner():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -221,8 +209,8 @@ def test_round_end_double_ron():
         },
     )
     content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 2
     assert replay.events[0].player_name == "Diana"
     assert replay.events[0].action == GameAction.CALL_RON
@@ -230,8 +218,7 @@ def test_round_end_double_ron():
     assert replay.events[1].action == GameAction.CALL_RON
 
 
-def test_round_end_abortive_nine_terminals():
-    """round_end with abortive nine_terminals maps to CALL_KYUUSHU."""
+def test_load_replay__when_round_ends_in_nine_terminals__should_produce_call_kyuushu_action():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -241,15 +228,14 @@ def test_round_end_abortive_nine_terminals():
         },
     )
     content = _build_event_log(round_end)
-    replay = load_replay_from_string(content)
 
+    replay = load_replay_from_string(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
     assert replay.events[0].action == GameAction.CALL_KYUUSHU
 
 
-def test_non_scoring_round_ends_produce_no_actions():
-    """round_end types that don't imply a player action produce no actions."""
+def test_load_replay__when_round_ends_without_player_action__should_produce_no_actions():
     cases = [
         (WireRoundResultType.ABORTIVE_DRAW, {"rn": "four_riichi"}),
         (WireRoundResultType.EXHAUSTIVE_DRAW, {"ts": [], "ns": []}),
@@ -258,12 +244,12 @@ def test_non_scoring_round_ends_produce_no_actions():
     for rt, extra_fields in cases:
         round_end = json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_END], "rt": rt, **extra_fields})
         content = _build_event_log(round_end)
+
         replay = load_replay_from_string(content)
         assert len(replay.events) == 0, f"Expected no events for round_end type {rt}"
 
 
-def test_non_action_events_skipped():
-    """Known non-action events (draw, dora_revealed, etc.) are silently skipped."""
+def test_load_replay__when_events_are_not_player_actions__should_skip_them():
     content = _build_event_log(
         ROUND_STARTED_LINE,
         DRAW_LINE,
@@ -272,50 +258,43 @@ def test_non_action_events_skipped():
         json.dumps({"t": EVENT_TYPE_INT[EventType.GAME_END], "result": {}}),
     )
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 0
 
 
-def test_error_missing_version_tag():
-    """ReplayLoadError when replay has only one event (no version tag + game_started pair)."""
+def test_load_replay__when_version_tag_missing__should_raise():
     content = GAME_STARTED_LINE
     with pytest.raises(ReplayLoadError, match="must contain at least a version tag"):
         load_replay_from_string(content)
 
 
-def test_error_version_mismatch():
-    """ReplayLoadError when version tag has wrong version."""
+def test_load_replay__when_version_mismatches__should_raise():
     bad_version = json.dumps({"version": "99.0"})
     content = f"{bad_version}\n{GAME_STARTED_LINE}"
     with pytest.raises(ReplayLoadError, match="Replay version mismatch"):
         load_replay_from_string(content)
 
 
-def test_error_missing_version_field():
-    """ReplayLoadError when first event has no 'version' field."""
+def test_load_replay__when_first_line_has_no_version_field__should_raise():
     no_version = json.dumps({"something": "else"})
     content = f"{no_version}\n{GAME_STARTED_LINE}"
     with pytest.raises(ReplayLoadError, match="must be a version tag"):
         load_replay_from_string(content)
 
 
-def test_error_missing_game_started():
-    """ReplayLoadError when second event is not game_started."""
+def test_load_replay__when_first_event_is_not_game_started__should_raise():
     round_started = json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_STARTED], "view": {}})
     content = f"{VERSION_TAG_LINE}\n{round_started}"
     with pytest.raises(ReplayLoadError, match="First event must be game_started"):
         load_replay_from_string(content)
 
 
-def test_error_malformed_json():
-    """ReplayLoadError for malformed JSON."""
+def test_load_replay__when_json_is_malformed__should_raise():
     content = VERSION_TAG_LINE + "\n{invalid json}"
     with pytest.raises(ReplayLoadError, match="Malformed JSON"):
         load_replay_from_string(content)
 
 
-def test_error_missing_rng_version():
-    """ReplayLoadError when game_started missing rv."""
+def test_load_replay__when_rng_version_missing__should_raise():
     no_version = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -333,8 +312,7 @@ def test_error_missing_rng_version():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_version}")
 
 
-def test_error_rng_version_mismatch():
-    """ReplayLoadError when game_started has wrong rng_version."""
+def test_load_replay__when_rng_version_mismatches__should_raise():
     bad_version = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -353,8 +331,7 @@ def test_error_rng_version_mismatch():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_version}")
 
 
-def test_error_missing_seed():
-    """ReplayLoadError when game_started missing sd."""
+def test_load_replay__when_seed_missing__should_raise():
     no_seed = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -371,8 +348,7 @@ def test_error_missing_seed():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_seed}")
 
 
-def test_error_non_hex_seed():
-    """ReplayLoadError when seed contains non-hex characters."""
+def test_load_replay__when_seed_is_not_hex__should_raise():
     bad_seed = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -391,28 +367,24 @@ def test_error_non_hex_seed():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_seed}")
 
 
-def test_error_unknown_event_type():
-    """ReplayLoadError for unknown integer event type."""
+def test_load_replay__when_event_type_unknown__should_raise():
     content = _build_event_log(json.dumps({"t": 999}))
     with pytest.raises(ReplayLoadError, match="Unknown event type"):
         load_replay_from_string(content)
 
 
-def test_error_missing_event_type():
-    """ReplayLoadError when event has no 't' field."""
+def test_load_replay__when_event_type_missing__should_raise():
     content = _build_event_log(json.dumps({"seat": 0, "tile_id": 10}))
     with pytest.raises(ReplayLoadError, match="Event missing required 't' field"):
         load_replay_from_string(content)
 
 
-def test_error_empty_content():
-    """ReplayLoadError for empty content."""
+def test_load_replay__when_content_is_empty__should_raise():
     with pytest.raises(ReplayLoadError, match="Empty replay content"):
         load_replay_from_string("")
 
 
-def test_load_replay_from_file(tmp_path: Path):
-    """load_replay_from_file reads from a file path."""
+def test_load_replay_from_file__when_plain_text_file__should_load_replay(tmp_path: Path):
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
@@ -428,8 +400,7 @@ def test_load_replay_from_file(tmp_path: Path):
     assert len(replay.events) == 1
 
 
-def test_load_replay_from_gzip_file(tmp_path: Path):
-    """load_replay_from_file reads gzip-compressed replay files."""
+def test_load_replay_from_file__when_gzip_file__should_load_replay(tmp_path: Path):
     discard = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
@@ -445,14 +416,12 @@ def test_load_replay_from_gzip_file(tmp_path: Path):
     assert len(replay.events) == 1
 
 
-def test_load_replay_from_file_io_error():
-    """ReplayLoadError for missing file."""
+def test_load_replay_from_file__when_file_unreadable__should_raise():
     with pytest.raises(ReplayLoadError, match="Cannot read replay file"):
         load_replay_from_file("/nonexistent/path/replay.txt")
 
 
-def test_load_replay_from_corrupted_gzip_file(tmp_path: Path):
-    """ReplayLoadError for a .gz file containing invalid gzip data."""
+def test_load_replay_from_file__when_gzip_is_corrupted__should_raise(tmp_path: Path):
     file_path = tmp_path / "corrupted.txt.gz"
     file_path.write_bytes(b"not valid gzip data at all")
 
@@ -460,8 +429,7 @@ def test_load_replay_from_corrupted_gzip_file(tmp_path: Path):
         load_replay_from_file(file_path)
 
 
-def test_error_missing_players():
-    """ReplayLoadError when game_started missing p."""
+def test_load_replay__when_players_missing__should_raise():
     no_players = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -474,8 +442,7 @@ def test_error_missing_players():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_players}")
 
 
-def test_error_unknown_round_end_result_type():
-    """ReplayLoadError for unknown round_end result type."""
+def test_load_replay__when_round_end_result_type_unknown__should_raise():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -487,53 +454,48 @@ def test_error_unknown_round_end_result_type():
         load_replay_from_string(content)
 
 
-def test_error_discard_missing_d_field():
-    """ReplayLoadError when discard event missing 'd' field."""
+def test_load_replay__when_discard_missing_packed_value__should_raise():
     discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD]})
     content = _build_event_log(discard)
     with pytest.raises(ReplayLoadError, match="discard event missing 'd' field"):
         load_replay_from_string(content)
 
 
-def test_error_discard_invalid_packed_value():
-    """ReplayLoadError when discard event has out-of-range packed value."""
+def test_load_replay__when_discard_packed_value_invalid__should_raise():
     discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": 9999})
     content = _build_event_log(discard)
     with pytest.raises(ReplayLoadError, match="Invalid discard packed value"):
         load_replay_from_string(content)
 
 
-def test_error_compact_meld_missing_m_field():
-    """ReplayLoadError when compact meld event has no 'm' field."""
+def test_load_replay__when_meld_missing_compact_value__should_raise():
     meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD]})
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="Compact meld event missing 'm' field"):
         load_replay_from_string(content)
 
 
-def test_error_compact_meld_corrupt_value():
-    """ReplayLoadError when compact meld value is out of range."""
+def test_load_replay__when_meld_compact_value_corrupt__should_raise():
     meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": 999999})
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="Invalid compact meld value"):
         load_replay_from_string(content)
 
 
-def test_error_discard_unknown_seat(monkeypatch: pytest.MonkeyPatch):
-    """ReplayLoadError when decoded discard references a seat not in game_started."""
+def test_load_replay__when_discard_references_unknown_seat__should_raise(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         replay_loader_module,
         "decode_discard",
         lambda _d: (9, 0, False, False),
     )
+
     discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": 0})
     content = _build_event_log(discard)
     with pytest.raises(ReplayLoadError, match="discard event references unknown seat"):
         load_replay_from_string(content)
 
 
-def test_error_compact_meld_unknown_seat(monkeypatch: pytest.MonkeyPatch):
-    """ReplayLoadError when decoded meld references a seat not in game_started."""
+def test_load_replay__when_meld_references_unknown_seat__should_raise(monkeypatch: pytest.MonkeyPatch):
     fake_meld_data = MeldData(
         type="meld",
         meld_type="pon",
@@ -543,14 +505,14 @@ def test_error_compact_meld_unknown_seat(monkeypatch: pytest.MonkeyPatch):
         called_tile_id=0,
     )
     monkeypatch.setattr(replay_loader_module, "decode_meld_compact", lambda _v: fake_meld_data)
+
     meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": 0})
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="meld event references unknown seat"):
         load_replay_from_string(content)
 
 
-def test_error_compact_meld_unknown_meld_type(monkeypatch: pytest.MonkeyPatch):
-    """ReplayLoadError when decoded meld has an unknown meld_type."""
+def test_load_replay__when_meld_type_unknown__should_raise(monkeypatch: pytest.MonkeyPatch):
     fake_meld_data = MeldData(
         type="meld",
         meld_type="bogus",
@@ -560,14 +522,14 @@ def test_error_compact_meld_unknown_meld_type(monkeypatch: pytest.MonkeyPatch):
         called_tile_id=0,
     )
     monkeypatch.setattr(replay_loader_module, "decode_meld_compact", lambda _v: fake_meld_data)
+
     meld = json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": 0})
     content = _build_event_log(meld)
     with pytest.raises(ReplayLoadError, match="Unknown meld_type in decoded IMME"):
         load_replay_from_string(content)
 
 
-def test_error_invalid_seat_indices():
-    """ReplayLoadError when player seats are not {0, 1, 2, 3}."""
+def test_load_replay__when_player_seats_are_not_0_to_3__should_raise():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -586,8 +548,7 @@ def test_error_invalid_seat_indices():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
-def test_error_round_end_tsumo_missing_winner_seat():
-    """ReplayLoadError when tsumo round_end missing ws."""
+def test_load_replay__when_tsumo_round_end_missing_winner_seat__should_raise():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -599,8 +560,7 @@ def test_error_round_end_tsumo_missing_winner_seat():
         load_replay_from_string(content)
 
 
-def test_error_ron_round_end_missing_winner_seat():
-    """ReplayLoadError when ron round_end missing ws."""
+def test_load_replay__when_ron_round_end_missing_winner_seat__should_raise():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -612,8 +572,7 @@ def test_error_ron_round_end_missing_winner_seat():
         load_replay_from_string(content)
 
 
-def test_error_double_ron_no_valid_winners():
-    """ReplayLoadError when double_ron has no valid winners (empty or missing)."""
+def test_load_replay__when_double_ron_has_no_winners__should_raise():
     # Empty winners list
     round_end_empty = json.dumps(
         {
@@ -636,8 +595,7 @@ def test_error_double_ron_no_valid_winners():
         load_replay_from_string(_build_event_log(round_end_missing))
 
 
-def test_error_double_ron_winner_missing_seat():
-    """ReplayLoadError when double_ron winner entry missing ws."""
+def test_load_replay__when_double_ron_winner_missing_seat__should_raise():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -650,8 +608,7 @@ def test_error_double_ron_winner_missing_seat():
         load_replay_from_string(content)
 
 
-def test_error_abortive_draw_nine_terminals_missing_seat():
-    """ReplayLoadError when nine_terminals abortive_draw missing s."""
+def test_load_replay__when_nine_terminals_missing_seat__should_raise():
     round_end = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.ROUND_END],
@@ -664,26 +621,24 @@ def test_error_abortive_draw_nine_terminals_missing_seat():
         load_replay_from_string(content)
 
 
-def test_error_discard_boolean_packed_value():
-    """ReplayLoadError when discard event has a boolean packed value."""
+def test_load_replay__when_discard_packed_value_is_bool__should_raise():
     discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": True})
     content = _build_event_log(discard)
     with pytest.raises(ReplayLoadError, match="Invalid discard packed value"):
         load_replay_from_string(content)
 
 
-def test_error_exceeds_max_replay_events():
-    """ReplayLoadError when replay content exceeds the maximum event count."""
+def test_load_replay__when_event_count_exceeds_maximum__should_raise():
     events = [VERSION_TAG_LINE, GAME_STARTED_LINE]
     filler = json.dumps({"t": EVENT_TYPE_INT[EventType.DRAW], "seat": 0, "tile_id": 0})
     events.extend([filler] * _MAX_REPLAY_EVENTS)
     content = "\n".join(events)
+
     with pytest.raises(ReplayLoadError, match="maximum event count"):
         load_replay_from_string(content)
 
 
-def test_error_player_entry_not_dict():
-    """ReplayLoadError when a game_started player entry is not a dict."""
+def test_load_replay__when_player_entry_is_not_a_dict__should_raise():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -697,8 +652,7 @@ def test_error_player_entry_not_dict():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
-def test_error_player_entry_missing_seat():
-    """ReplayLoadError when a game_started player entry is missing 's'."""
+def test_load_replay__when_player_entry_missing_seat__should_raise():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -717,8 +671,7 @@ def test_error_player_entry_missing_seat():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
-def test_error_player_entry_non_integer_seat():
-    """ReplayLoadError when a game_started player entry has a non-integer seat."""
+def test_load_replay__when_player_entry_seat_is_not_integer__should_raise():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
@@ -737,22 +690,19 @@ def test_error_player_entry_non_integer_seat():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
-def test_error_boolean_event_type():
-    """ReplayLoadError when event 't' field is a boolean instead of int."""
+def test_load_replay__when_event_type_is_bool__should_raise():
     content = _build_event_log(json.dumps({"t": True, "seat": 0, "tile_id": 5}))
     with pytest.raises(ReplayLoadError, match="'t' field must be an integer"):
         load_replay_from_string(content)
 
 
-def test_error_boolean_meld_value():
-    """ReplayLoadError when meld 'm' field is a boolean instead of int."""
+def test_load_replay__when_meld_value_is_bool__should_raise():
     content = _build_event_log(json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": True}))
     with pytest.raises(ReplayLoadError, match="'m' field must be an integer"):
         load_replay_from_string(content)
 
 
-def test_error_player_entry_empty_name():
-    """ReplayLoadError when a game_started player entry has an empty name."""
+def test_load_replay__when_player_entry_name_is_empty__should_raise():
     bad_started = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],

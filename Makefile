@@ -1,23 +1,30 @@
 export PATH := $(HOME)/.bun/bin:$(PATH)
 
+BE_RUN := uv run --project backend
+
+DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
+
 .PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
 
 test:
-	uv run pytest -v
+	cd backend && uv run pytest -v --cov
 
 run-local-server:
 	@bash ./bin/run-local-server.sh
 
 lint:
-	uv run ruff format --check backend
-	uv run ruff check backend
+	cd backend && uv run docformatter --check --diff $(DOCFORMATTER_PATHS)
+	cd backend && uv run ruff format --check
+	cd backend && uv run ruff check
+	cd backend && uv run lint-imports
 
 format:
-	uv run ruff check --fix backend
-	uv run ruff format backend
+	cd backend && (uv run docformatter --in-place $(DOCFORMATTER_PATHS) ; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 3 ])
+	cd backend && uv run ruff check --fix
+	cd backend && uv run ruff format
 
 typecheck:
-	uv run ty check backend
+	cd backend && uv run ty check
 
 typecheck-frontend:
 	cd frontend && bun run typecheck
@@ -32,16 +39,16 @@ test-frontend:
 	cd frontend && bun run test
 
 run-debug:
-	PYTHONPATH=backend uv run python backend/debug.py
+	$(BE_RUN) python backend/debug.py
 
 run-all-checks:
 	@bash ./bin/run-all-checks.sh|| true
 
 deadcode:
-	uv run python bin/check-dead-code.py backend
+	$(BE_RUN) python bin/check-dead-code.py backend
 
 generate-replays:
-	PYTHONPATH=backend uv run python -m game.replay.external.tenhou
+	$(BE_RUN) python -m game.replay.external.tenhou
 
 profile:
-	uv run python bin/profile_replay.py
+	$(BE_RUN) python bin/profile_replay.py

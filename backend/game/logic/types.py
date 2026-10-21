@@ -1,10 +1,3 @@
-"""
-Pydantic models for game logic data structures.
-
-Contains typed models for round results, AI player actions, available actions,
-meld callers, and player views that cross component boundaries.
-"""
-
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_serializer
@@ -60,14 +53,18 @@ WirePlayerActionField = Annotated[PlayerAction, PlainSerializer(_player_action_t
 
 
 class SeatConfig(BaseModel):
-    """Configuration for a single seat in a game."""
+    """
+    Configuration for a single seat in a game.
+    """
 
     name: str
     ai_player_type: AIPlayerType | None = None
 
 
 class GamePlayerInfo(BaseModel):
-    """Player identity information sent at game start."""
+    """
+    Player identity information sent at game start.
+    """
 
     seat: int = Field(serialization_alias="s")
     name: str = Field(serialization_alias="nm")
@@ -80,46 +77,60 @@ class GamePlayerInfo(BaseModel):
 
 
 class DiscardActionData(BaseModel):
-    """Data for discard action."""
+    """
+    Data for discard action.
+    """
 
     tile_id: int
 
 
 class RiichiActionData(BaseModel):
-    """Data for riichi declaration action."""
+    """
+    Data for riichi declaration action.
+    """
 
     tile_id: int
 
 
 class PonActionData(BaseModel):
-    """Data for pon call action."""
+    """
+    Data for pon call action.
+    """
 
     tile_id: int
 
 
 class ChiActionData(BaseModel):
-    """Data for chi call action."""
+    """
+    Data for chi call action.
+    """
 
     tile_id: int
     sequence_tiles: tuple[int, int]
 
 
 class KanActionData(BaseModel):
-    """Data for kan call action."""
+    """
+    Data for kan call action.
+    """
 
     tile_id: int
     kan_type: KanType = KanType.OPEN
 
 
 class YakuInfo(BaseModel):
-    """Per-yaku breakdown with han value and library yaku ID."""
+    """
+    Per-yaku breakdown with han value and library yaku ID.
+    """
 
     yaku_id: int = Field(serialization_alias="yi")
     han: int
 
 
 class HandResultInfo(BaseModel):
-    """Hand value information for win results."""
+    """
+    Hand value information for win results.
+    """
 
     han: int
     fu: int
@@ -127,7 +138,9 @@ class HandResultInfo(BaseModel):
 
 
 class TsumoResult(BaseModel):
-    """Result of a tsumo (self-draw) win."""
+    """
+    Result of a tsumo (self-draw) win.
+    """
 
     type: RoundResultType = RoundResultType.TSUMO
     winner_seat: int = Field(serialization_alias="ws")
@@ -143,7 +156,9 @@ class TsumoResult(BaseModel):
 
 
 class RonResult(BaseModel):
-    """Result of a ron (discard) win."""
+    """
+    Result of a ron (discard) win.
+    """
 
     type: RoundResultType = RoundResultType.RON
     winner_seat: int = Field(serialization_alias="ws")
@@ -160,7 +175,9 @@ class RonResult(BaseModel):
 
 
 class DoubleRonWinner(BaseModel):
-    """Per-winner data in a double ron result."""
+    """
+    Per-winner data in a double ron result.
+    """
 
     winner_seat: int = Field(serialization_alias="ws")
     hand_result: HandResultInfo = Field(serialization_alias="hr")
@@ -172,7 +189,9 @@ class DoubleRonWinner(BaseModel):
 
 
 class DoubleRonResult(BaseModel):
-    """Result of a double ron win."""
+    """
+    Result of a double ron win.
+    """
 
     type: RoundResultType = RoundResultType.DOUBLE_RON
     loser_seat: int = Field(serialization_alias="ls")
@@ -183,7 +202,9 @@ class DoubleRonResult(BaseModel):
 
 
 class TenpaiHand(BaseModel):
-    """Hand data for a tenpai player revealed at exhaustive draw."""
+    """
+    Hand data for a tenpai player revealed at exhaustive draw.
+    """
 
     seat: int = Field(serialization_alias="s")
     closed_tiles: list[int] = Field(serialization_alias="ct")
@@ -191,7 +212,9 @@ class TenpaiHand(BaseModel):
 
 
 class ExhaustiveDrawResult(BaseModel):
-    """Result of an exhaustive draw (wall empty)."""
+    """
+    Result of an exhaustive draw (wall empty).
+    """
 
     type: RoundResultType = RoundResultType.EXHAUSTIVE_DRAW
     tempai_seats: list[int] = Field(serialization_alias="ts")
@@ -202,7 +225,9 @@ class ExhaustiveDrawResult(BaseModel):
 
 
 class AbortiveDrawResult(BaseModel):
-    """Result of an abortive draw."""
+    """
+    Result of an abortive draw.
+    """
 
     type: RoundResultType = RoundResultType.ABORTIVE_DRAW
     reason: AbortiveDrawType = Field(serialization_alias="rn")
@@ -212,7 +237,9 @@ class AbortiveDrawResult(BaseModel):
 
 
 class NagashiManganResult(BaseModel):
-    """Result of a nagashi mangan at exhaustive draw."""
+    """
+    Result of a nagashi mangan at exhaustive draw.
+    """
 
     type: RoundResultType = RoundResultType.NAGASHI_MANGAN
     qualifying_seats: list[int] = Field(serialization_alias="qs")
@@ -224,7 +251,9 @@ class NagashiManganResult(BaseModel):
 
 
 class PlayerStanding(BaseModel):
-    """Player standing in final game results."""
+    """
+    Player standing in final game results.
+    """
 
     seat: int = Field(serialization_alias="s")
     score: WireScore = Field(serialization_alias="sc")
@@ -232,7 +261,9 @@ class PlayerStanding(BaseModel):
 
 
 class GameEndResult(BaseModel):
-    """Result of game finalization."""
+    """
+    Result of game finalization.
+    """
 
     type: RoundResultType = RoundResultType.GAME_END
     winner_seat: int
@@ -254,7 +285,9 @@ class MeldCaller(BaseModel):
 
 
 class RonCallInput(BaseModel):
-    """Input data for ron call processing."""
+    """
+    Input data for ron call processing.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -265,7 +298,9 @@ class RonCallInput(BaseModel):
 
 
 class MeldCallInput(BaseModel):
-    """Input data for meld call processing."""
+    """
+    Input data for meld call processing.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -276,28 +311,36 @@ class MeldCallInput(BaseModel):
 
 
 class AIPlayerAction(BaseModel):
-    """AI player's chosen action during their turn."""
+    """
+    AI player's chosen action during their turn.
+    """
 
     action: PlayerAction
     tile_id: int | None = None
 
 
 class AvailableActionItem(BaseModel):
-    """An available action for a player during their turn."""
+    """
+    An available action for a player during their turn.
+    """
 
     action: WirePlayerActionField = Field(serialization_alias="a")
     tiles: list[int] | None = Field(default=None, serialization_alias="tl")
 
 
 class PlayerView(BaseModel):
-    """Player-visible information about another player."""
+    """
+    Player-visible information about another player.
+    """
 
     seat: int = Field(serialization_alias="s")
     score: WireScore = Field(serialization_alias="sc")
 
 
 class GameView(BaseModel):
-    """Complete game view for a specific player."""
+    """
+    Complete game view for a specific player.
+    """
 
     seat: int
     round_wind: WindName
@@ -313,7 +356,9 @@ class GameView(BaseModel):
 
 
 class DiscardInfo(BaseModel):
-    """Discard tile information for reconnection snapshot."""
+    """
+    Discard tile information for reconnection snapshot.
+    """
 
     tile_id: int = Field(serialization_alias="ti")
     is_tsumogiri: bool = Field(default=False, serialization_alias="tg")
@@ -321,7 +366,9 @@ class DiscardInfo(BaseModel):
 
 
 class PlayerReconnectState(BaseModel):
-    """Per-player visible state in a reconnection snapshot."""
+    """
+    Per-player visible state in a reconnection snapshot.
+    """
 
     seat: int = Field(serialization_alias="s")
     score: WireScore = Field(serialization_alias="sc")
@@ -331,7 +378,9 @@ class PlayerReconnectState(BaseModel):
 
 
 class ReconnectionSnapshot(BaseModel):
-    """Full game state snapshot sent to a reconnecting player."""
+    """
+    Full game state snapshot sent to a reconnecting player.
+    """
 
     game_id: str = Field(serialization_alias="gid")
     players: list[GamePlayerInfo] = Field(serialization_alias="p")

@@ -1,5 +1,3 @@
-"""Game server configuration via environment variables."""
-
 from typing import TYPE_CHECKING
 
 from pydantic import Field, field_validator
@@ -16,14 +14,11 @@ class GameServerSettings(BaseSettings):
 
     max_capacity: int = Field(default=100, ge=1)
     log_dir: str = ""
-    cors_origins: list[str] = ["http://localhost:8712"]
-    replay_dir: str = Field(default="backend/data/replays", min_length=1)
+    cors_origins: list[str]
+    replay_dir: str = Field(min_length=1)
 
     # SQLite database file path shared with the lobby service.
-    database_path: str = Field(
-        default="backend/storage.db",
-        validation_alias="AUTH_DATABASE_PATH",
-    )
+    database_path: str = Field(validation_alias="AUTH_DATABASE_PATH")
 
     # Read from AUTH_GAME_TICKET_SECRET (not GAME_GAME_TICKET_SECRET).
     # The secret lives under the AUTH_ namespace because it's shared auth infrastructure,

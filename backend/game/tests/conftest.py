@@ -10,8 +10,8 @@ from game.logic.state import (
     MahjongRoundState,
 )
 from game.logic.wall import Wall, _extract_ura_dora
-from game.messaging.router import MessageRouter
 from game.server.app import create_app
+from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import MockConnection, MockGameService
@@ -45,7 +45,6 @@ def create_player(
     is_riichi_furiten: bool = False,
     score: int = 25000,
 ) -> MahjongPlayer:
-    """Create a MahjongPlayer with sensible defaults for testing."""
     return MahjongPlayer(
         seat=seat,
         name=name if name is not None else f"Player{seat}",
@@ -81,14 +80,9 @@ def create_round_state(
     pending_call_prompt: Any = None,
     wall_obj: Wall | None = None,
 ) -> MahjongRoundState:
-    """Create a MahjongRoundState with sensible defaults for testing.
-
-    Accepts wall/dead_wall/dora_indicators/pending_dora_count kwargs
-    and builds a Wall object from them. If wall_obj is provided, it takes
-    precedence over the individual fields.
-    """
     if players is None:
         players = tuple(create_player(seat=i) for i in range(4))
+
     if wall_obj is not None:
         game_wall = wall_obj
     else:
@@ -100,6 +94,7 @@ def create_round_state(
             ura_dora_indicators=_extract_ura_dora(dead_wall_tuple),
             pending_dora_count=pending_dora_count,
         )
+
     return MahjongRoundState(
         players=tuple(players),
         wall=game_wall,
@@ -124,9 +119,9 @@ def create_game_state(
     seed: str = "",
     settings: GameSettings | None = None,
 ) -> MahjongGameState:
-    """Create a MahjongGameState with sensible defaults for testing."""
     if round_state is None:
         round_state = create_round_state()
+
     kwargs: dict[str, Any] = {
         "round_state": round_state,
         "round_number": round_number,
@@ -137,6 +132,7 @@ def create_game_state(
     }
     if settings is not None:
         kwargs["settings"] = settings
+
     return MahjongGameState(**kwargs)
 
 

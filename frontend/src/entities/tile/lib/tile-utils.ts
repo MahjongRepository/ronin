@@ -1,9 +1,3 @@
-// 136-format tile layout
-//   Man:    0-35   (4 copies each of 1m-9m)
-//   Pin:   36-71   (4 copies each of 1p-9p)
-//   Sou:   72-107  (4 copies each of 1s-9s)
-//   Honor: 108-135 (4 copies each of 1z-7z)
-
 /** Tile face names matching sprite symbol IDs. */
 const TILE_FACES = [
     "1m",

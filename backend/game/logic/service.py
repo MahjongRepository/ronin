@@ -23,6 +23,7 @@ class GameService(ABC):
     @abstractmethod
     async def handle_action(
         self,
+        *,
         game_id: str,
         player_name: str,
         action: GameAction,
@@ -48,11 +49,9 @@ class GameService(ABC):
         """
         Start a game with the given players.
 
-        Returns a list of initial state events (one per player with their view).
-        When seed is provided, the game is deterministically reproducible.
-        When seed is None, a random seed is generated.
-        When settings is provided, the game uses the given settings.
-        When wall is provided, use it instead of generating from seed.
+        Returns a list of initial state events (one per player with their view). When seed is provided, the game is
+        deterministically reproducible. When seed is None, a random seed is generated. When settings is provided, the
+        game uses the given settings. When wall is provided, use it instead of generating from seed.
         """
         ...
 
@@ -65,17 +64,22 @@ class GameService(ABC):
 
     @abstractmethod
     def get_game_seed(self, game_id: str) -> str | None:
-        """Return the seed for a game, or None if game doesn't exist."""
+        """
+        Return the seed for a game, or None if game doesn't exist.
+        """
         ...
 
     @abstractmethod
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
-        """Return the current game state, or None if game doesn't exist."""
+        """
+        Return the current game state, or None if game doesn't exist.
+        """
         ...
 
     @abstractmethod
     async def handle_timeout(
         self,
+        *,
         game_id: str,
         player_name: str,
         timeout_type: TimeoutType,
@@ -120,12 +124,15 @@ class GameService(ABC):
 
     @abstractmethod
     def restore_human_player(self, game_id: str, seat: int) -> None:
-        """Remove the AI player at a seat and restore it for human control."""
+        """
+        Remove the AI player at a seat and restore it for human control.
+        """
         ...
 
     @abstractmethod
     def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
-        """Build a full game state snapshot for a reconnecting player at the given seat.
+        """
+        Build a full game state snapshot for a reconnecting player at the given seat.
 
         Must be called after restore_human_player() so the AI player flag is correct.
         """
@@ -133,15 +140,21 @@ class GameService(ABC):
 
     @abstractmethod
     def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
-        """Rebuild the draw event with available actions for a specific seat."""
+        """
+        Rebuild the draw event with available actions for a specific seat.
+        """
         ...
 
     @abstractmethod
     def is_round_advance_pending(self, game_id: str) -> bool:
-        """Check if a round advance is waiting for player confirmation."""
+        """
+        Check if a round advance is waiting for player confirmation.
+        """
         ...
 
     @abstractmethod
     def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
-        """Return player names that still need to confirm round advance."""
+        """
+        Return player names that still need to confirm round advance.
+        """
         ...

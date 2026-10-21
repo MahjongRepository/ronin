@@ -1,9 +1,3 @@
-"""
-Unit tests for edge cases in action handlers.
-
-Tests cover previously untested code paths (removed pragma: no cover lines).
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -64,15 +58,13 @@ def _default_seat_configs() -> list[SeatConfig]:
 
 
 def _create_frozen_game_state() -> MahjongGameState:
-    """Create a frozen game state for testing with dealer at seat 0."""
     game_state = init_game(_default_seat_configs(), wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
 
 class TestPickBestMeldResponse:
-    def test_pick_best_meld_with_meld_callers(self):
-        """Test pick_best_meld_response with MeldCaller objects."""
+    def test_pick_best_meld_response__when_pon_and_chi_callers__should_pick_pon_caller(self):
         # create a prompt with MeldCaller objects
         tile_id = 0
         prompt = PendingCallPrompt(
@@ -91,9 +83,7 @@ class TestPickBestMeldResponse:
             CallResponse(seat=1, action=GameAction.CALL_PON),
             CallResponse(seat=2, action=GameAction.CALL_CHI),
         ]
-
         best = pick_best_meld_response(responses, prompt)
-
         # pon has higher priority (1) than chi (2)
         assert best is not None
         assert best.seat == 1
@@ -101,14 +91,7 @@ class TestPickBestMeldResponse:
 
 
 class TestResolveMeldResponse:
-    def test_meld_causes_exhaustive_draw(self):
-        """Test that open kan meld call resolves when wall is nearly empty.
-
-        When the wall has just enough tiles for the kan guard (min_wall_for_kan=2),
-        the open kan draws from dead wall. The exhaustive draw will be detected on
-        the next draw phase; here we verify the meld resolution succeeds and the
-        player gets a turn event.
-        """
+    def test_resolve_meld_response__when_open_kan_with_minimal_live_wall__should_resolve_kan(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -145,20 +128,13 @@ class TestResolveMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         # open kan resolves successfully; the player gets a turn to discard
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.PLAYING
         # verify the meld was processed (player 1 has a kan meld)
         assert any(m.type == FrozenMeld.KAN for m in result.new_round_state.players[1].melds)
 
-    def test_resolve_meld_open_kan_four_kans_abort(self):
-        """Open kan meld resolution triggers four kans abort, returning early at FINISHED.
-
-        When resolve_call_prompt dispatches to _resolve_meld_response for an open kan,
-        and that open kan is the 4th kan across 2+ players, the round ends immediately
-        with an abortive draw. This covers action_handlers.py line 207.
-        """
+    def test_resolve_meld_response__when_open_kan_is_fourth_kan__should_abort_round(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -192,6 +168,7 @@ class TestResolveMeldResponse:
         round_state = update_player(round_state, 1, melds=(kan_meld_1,))
         round_state = update_player(round_state, 2, melds=(kan_meld_2,))
         round_state = update_player(round_state, 3, tiles=player3_tiles)
+
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -208,7 +185,6 @@ class TestResolveMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         # four kans abort: round is FINISHED
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
@@ -218,12 +194,7 @@ class TestResolveMeldResponse:
 
 
 class TestCompleteAddedKanAfterChankanDecline:
-    def test_four_kans_after_chankan_decline(self):
-        """Test that completing added kan after chankan decline can trigger four kans abort.
-
-        Four kans abortive draw requires 4 total kans across 2+ different players.
-        Player 0 has 2 kans + 1 pon. Player 1 has 1 kan. Player 0 upgrades pon to 4th kan.
-        """
+    def test_complete_added_kan__when_fourth_kan_after_chankan_decline__should_abort_round(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -294,7 +265,6 @@ class TestCompleteAddedKanAfterChankanDecline:
             caller_seat=0,
             tile_id=fourth_tile,
         )
-
         # verify abortive draw for four kans
         assert new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
@@ -303,8 +273,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
 
 class TestHandlePonMultiCaller:
-    def test_handle_pon_multi_caller_waiting(self):
-        """Test pon with multiple callers: one responds, waiting for others."""
+    def test_handle_pon__when_other_callers_pending__should_wait_for_them(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -329,7 +298,6 @@ class TestHandlePonMultiCaller:
 
         # seat 1 calls pon
         result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
-
         # verify empty events (waiting for seat 2)
         assert isinstance(result, ActionResult)
         assert len(result.events) == 0
@@ -341,8 +309,7 @@ class TestHandlePonMultiCaller:
 
 
 class TestHandleChiMultiCaller:
-    def test_handle_chi_multi_caller_waiting(self):
-        """Chi with multiple callers: one responds, waiting for others."""
+    def test_handle_chi__when_other_callers_pending__should_wait_for_them(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -371,20 +338,17 @@ class TestHandleChiMultiCaller:
             seat=1,
             data=ChiActionData(tile_id=tile_id, sequence_tiles=sequence_tiles),
         )
-
         assert len(result.events) == 0
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 
 
 class TestHandleKanMultiCaller:
-    def test_handle_kan_multi_caller_waiting(self):
-        """Open kan with multiple callers: one responds, waiting for others."""
+    def test_handle_kan__when_other_callers_pending__should_wait_for_them(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="5")[0]
-
         player1_tiles = tuple(TilesConverter.string_to_136_array(man="555368", pin="2479", sou="358"))
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
@@ -407,15 +371,13 @@ class TestHandleKanMultiCaller:
             seat=1,
             data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
-
         assert len(result.events) == 0
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
 
 
 class TestHandleChiTileMismatch:
-    def test_handle_chi_tile_mismatch(self):
-        """Test chi with wrong tile_id returns error."""
+    def test_handle_chi__when_tile_mismatches_prompt__should_emit_invalid_chi_error(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -439,7 +401,6 @@ class TestHandleChiTileMismatch:
             seat=1,
             data=ChiActionData(tile_id=wrong_tile_id, sequence_tiles=(1, 2)),
         )
-
         # verify error event
         assert isinstance(result, ActionResult)
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
@@ -449,12 +410,7 @@ class TestHandleChiTileMismatch:
 
 
 class TestHandleKanCausesDraw:
-    def test_handle_kan_causes_draw(self):
-        """Test closed kan that triggers four kans abortive draw.
-
-        Four kans abortive draw requires 4 total kans across 2+ different players.
-        Player 0 has 2 kans. Player 1 has 1 kan. Player 0 declares 4th closed kan.
-        """
+    def test_handle_kan__when_fourth_closed_kan_across_players__should_abort_round(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -515,7 +471,6 @@ class TestHandleKanCausesDraw:
             seat=0,
             data=KanActionData(tile_id=fourth_kan_tiles[0], kan_type=KanType.CLOSED),
         )
-
         # verify round ends with four kans abortive draw
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
@@ -525,13 +480,7 @@ class TestHandleKanCausesDraw:
 
 
 class TestHandleKanChankanOpportunity:
-    def test_handle_kan_chankan_opportunity(self):
-        """Test added kan creates chankan prompt, causing handle_kan to return early.
-
-        When handle_kan processes an added kan and a chankan prompt is created,
-        the function returns immediately after detecting the prompt in events.
-        This covers action_handlers.py line 727.
-        """
+    def test_handle_kan__when_chankan_possible__should_emit_chankan_prompt(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
@@ -566,7 +515,6 @@ class TestHandleKanChankanOpportunity:
             seat=0,
             data=KanActionData(tile_id=fourth_tile, kan_type=KanType.ADDED),
         )
-
         # verify chankan prompt is created (handle_kan returns early at line 727)
         assert result.new_round_state is not None
         call_prompt_events = [e for e in result.events if isinstance(e, CallPromptEvent)]
@@ -575,13 +523,9 @@ class TestHandleKanChankanOpportunity:
 
 
 class TestDiscardPromptValidation:
-    """Validation edge cases for unified DISCARD prompts."""
-
-    def test_ron_caller_sending_meld_action_rejected(self):
-        """Ron caller on a DISCARD prompt cannot send a meld action."""
+    def test_discard_prompt__when_ron_caller_sends_meld_action__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
 
         prompt = PendingCallPrompt(
@@ -597,11 +541,9 @@ class TestDiscardPromptValidation:
         with pytest.raises(InvalidGameActionError, match="only ron is valid"):
             handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
 
-    def test_seat_not_in_discard_callers_rejected(self):
-        """Seat with no caller entry in a DISCARD prompt is rejected."""
+    def test_discard_prompt__when_seat_not_a_caller__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
 
         # seat 2 is pending but not in callers list (inconsistent state)
@@ -618,11 +560,9 @@ class TestDiscardPromptValidation:
         with pytest.raises(InvalidGameActionError, match="no meld options"):
             handle_pon(round_state, game_state, seat=2, data=PonActionData(tile_id=tile_id))
 
-    def test_meld_caller_sending_wrong_action_rejected(self):
-        """Meld caller on a DISCARD prompt cannot send an action that doesn't match."""
+    def test_discard_prompt__when_meld_caller_sends_wrong_action__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
 
         prompt = PendingCallPrompt(
@@ -640,15 +580,10 @@ class TestDiscardPromptValidation:
 
 
 class TestChankanRiechiFuritenOnPass:
-    """Riichi player passing on chankan gets riichi furiten."""
-
-    def test_riichi_player_passing_chankan_gets_riichi_furiten(self):
-        """Riichi player who passes a chankan opportunity gets riichi furiten set."""
+    def test_chankan_pass__when_riichi_player_passes__should_set_riichi_furiten(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
-
         # make seat 1 a riichi player
         round_state = update_player(round_state, 1, is_riichi=True)
 
@@ -665,6 +600,5 @@ class TestChankanRiechiFuritenOnPass:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = handle_pass(round_state, game_state, seat=1)
-
         assert result.new_round_state is not None
         assert result.new_round_state.players[1].is_riichi_furiten is True

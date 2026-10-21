@@ -84,7 +84,8 @@ Deferred Dora reveal applies even if the discard is subsequently claimed for a m
 - Noten penalty (exhaustive draw only): 3,000 points total redistributed (split evenly among noten payers, distributed evenly to tenpai players). No noten payments on abortive draws.
 - Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
 - Goshashonyu rounding (五捨六入): ≤500 rounds toward zero, ≥600 rounds away
-- Tie-breaking: When players have equal final scores, the player closer to starting dealer (seat 0) ranks higher. Applies to final placement and to double ron riichi stick allocation (winner closest counter-clockwise to discarder receives them).
+- Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
+- Double ron riichi sticks: the winner closest counter-clockwise to the discarder receives them.
 
 ### Liability (Pao)
 

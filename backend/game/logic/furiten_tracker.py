@@ -1,5 +1,3 @@
-"""Track per-player furiten state changes across game rounds."""
-
 from typing import TYPE_CHECKING
 
 from game.logic.enums import RoundPhase
@@ -12,7 +10,8 @@ if TYPE_CHECKING:
 
 
 class FuritenTracker:
-    """Track per-seat furiten state and emit change events.
+    """
+    Track per-seat furiten state and emit change events.
 
     Maintain a boolean per seat per game. After each action, the caller
     passes the current round state and the tracker compares effective furiten
@@ -32,7 +31,9 @@ class FuritenTracker:
         self._player_ids: dict[str, dict[int, int]] = {}
 
     def init_game(self, game_id: str) -> None:
-        """Initialize furiten tracking for a new game or round."""
+        """
+        Initialize furiten tracking for a new game or round.
+        """
         self._state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
         self._player_ids[game_id] = {}
 
@@ -41,10 +42,11 @@ class FuritenTracker:
         game_id: str,
         round_state: MahjongRoundState,
     ) -> list[ServiceEvent]:
-        """Check all seats for furiten state changes and return events.
+        """
+        Check all seats for furiten state changes and return events.
 
-        Only check when the round is in PLAYING phase. Skip seats where
-        the player object is unchanged (same id()) since the last call.
+        Only check when the round is in PLAYING phase. Skip seats where the player object is unchanged (same id()) since
+        the last call.
         """
         if round_state.phase != RoundPhase.PLAYING:
             return []
@@ -55,11 +57,9 @@ class FuritenTracker:
         furiten_state = self._state[game_id]
         player_ids = self._player_ids[game_id]
         events: list[ServiceEvent] = []
-
         for seat in range(NUM_PLAYERS):
             player = round_state.players[seat]
             pid = id(player)
-
             if pid == player_ids.get(seat):
                 continue
 
@@ -83,6 +83,8 @@ class FuritenTracker:
         return events
 
     def cleanup_game(self, game_id: str) -> None:
-        """Remove furiten state for a game."""
+        """
+        Remove furiten state for a game.
+        """
         self._state.pop(game_id, None)
         self._player_ids.pop(game_id, None)

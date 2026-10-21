@@ -1,7 +1,3 @@
-"""
-Round initialization and management for Mahjong game.
-"""
-
 from __future__ import annotations
 
 import structlog
@@ -46,19 +42,20 @@ def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
     """
     Find waiting tiles based on hand tiles only (ignoring melds for agari check).
 
-    Uses agari.is_agari without open_sets since the mahjong library's agari
-    checker expects meld tiles to be included in the tiles_34 array when
-    open_sets is provided. For tenpai/karaten checks, we only have hand tiles
-    (excluding melds), so passing None is correct.
+    Uses agari.is_agari without open_sets since the mahjong library's agari checker expects meld tiles to be included in
+    the tiles_34 array when open_sets is provided. For tenpai/karaten checks, we only have hand tiles (excluding melds),
+    so passing None is correct.
     """
     tiles_34 = hand_to_34_array(tiles)
     waiting = set()
     for tile_34 in range(NUM_TILE_TYPES):
         if tiles_34[tile_34] >= MAX_TILE_COPIES:
             continue
+
         tiles_34[tile_34] += 1
         if Agari.is_agari(tiles_34, None):
             waiting.add(tile_34)
+
         tiles_34[tile_34] -= 1
 
     return waiting
@@ -70,15 +67,14 @@ def draw_tile(
     """
     Draw a tile from the wall for the current player.
 
-    Returns (new_round_state, drawn_tile).
-    Returns (unchanged_state, None) if wall is empty.
+    Returns (new_round_state, drawn_tile). Returns (unchanged_state, None) if wall is empty.
     """
     new_wall, tile = wall_ops.draw_tile(round_state.wall)
     if tile is None:
         return round_state, None
 
     new_state = round_state.model_copy(update={"wall": new_wall})
-    new_state = add_tile_to_player(new_state, new_state.current_player_seat, tile)
+    new_state = add_tile_to_player(new_state, seat=new_state.current_player_seat, tile_id=tile)
     return new_state, tile
 
 
@@ -92,11 +88,9 @@ def discard_tile(
     """
     Discard a tile from a player's hand.
 
-    Returns (new_round_state, discard_record).
-    Raises InvalidDiscardError if tile not in hand or violates kuikae.
+    Returns (new_round_state, discard_record). Raises InvalidDiscardError if tile not in hand or violates kuikae.
     """
     player = round_state.players[seat]
-
     if tile_id not in player.tiles:
         logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
         raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
@@ -142,8 +136,8 @@ def discard_tile(
     }
     if round_state.is_after_meld_call:
         round_updates["is_after_meld_call"] = False
-    new_state = round_state.model_copy(update=round_updates)
 
+    new_state = round_state.model_copy(update=round_updates)
     return new_state, discard
 
 
@@ -153,8 +147,8 @@ def add_dora_indicator(
     """
     Reveal the next dora indicator from dead wall.
 
-    Called after a kan is declared. Returns (new_state, new_indicator_tile_id).
-    Dora indicators are at dead wall indices 2, 3, 4, 5, 6.
+    Called after a kan is declared. Returns (new_state, new_indicator_tile_id). Dora indicators are at dead wall indices
+    2, 3, 4, 5, 6.
     """
     new_wall, indicator = wall_ops.add_dora_indicator(round_state.wall)
     new_state = round_state.model_copy(update={"wall": new_wall})
@@ -167,9 +161,8 @@ def reveal_pending_dora(
     """
     Reveal any pending dora indicators queued by open/added kan.
 
-    Called after a discard to implement the rule that open and added kan
-    dora indicators are revealed after the replacement tile is discarded,
-    not immediately when the kan is declared.
+    Called after a discard to implement the rule that open and added kan dora indicators are revealed after the
+    replacement tile is discarded, not immediately when the kan is declared.
 
     Returns (new_state, list_of_newly_revealed_dora_indicator_tile_ids).
     """
@@ -184,18 +177,15 @@ def draw_from_dead_wall(
     """
     Draw a replacement tile from the dead wall after kan.
 
-    After drawing, replenishes the dead wall by moving the last tile
-    from the live wall to maintain 14 dead wall tiles.
-    Sets the player's is_rinshan flag to True.
-    Returns (new_state, drawn_tile).
+    After drawing, replenishes the dead wall by moving the last tile from the live wall to maintain 14 dead wall tiles.
+    Sets the player's is_rinshan flag to True. Returns (new_state, drawn_tile).
     """
     new_wall, tile = wall_ops.draw_from_dead_wall(round_state.wall)
 
     current_seat = round_state.current_player_seat
     new_state = round_state.model_copy(update={"wall": new_wall})
-    new_state = add_tile_to_player(new_state, current_seat, tile)
+    new_state = add_tile_to_player(new_state, seat=current_seat, tile_id=tile)
     new_state = update_player(new_state, current_seat, is_rinshan=True)
-
     return new_state, tile
 
 
@@ -217,7 +207,6 @@ def is_tempai(
 
     Returns:
         True if the hand is in tenpai, False otherwise.
-
     """
     tiles_list = list(tiles)
 
@@ -236,6 +225,7 @@ def is_tempai(
             t34 = tiles_list[i] // 4
             if t34 in checked:
                 continue
+
             checked.add(t34)
             tiles_34[t34] -= 1
             is_tenpai = calculate_replacement_number(tiles_34, four) == 1
@@ -244,6 +234,7 @@ def is_tempai(
                 remaining = tiles_list[:i] + tiles_list[i + 1 :]
                 if not _is_pure_karaten(remaining, melds):
                     return True
+
         return False
 
     # Unlike the 14-tile loop above, tile count here can be invalid for
@@ -263,9 +254,8 @@ def _is_pure_karaten(
     """
     Check if all winning tiles are entirely in the player's own hand + melds.
 
-    Uses local tile and meld lists rather than player object.
-    Pure karaten means the player holds all 4 copies of every tile they are
-    waiting on. This is not considered valid tenpai.
+    Uses local tile and meld lists rather than player object. Pure karaten means the player holds all 4 copies of every
+    tile they are waiting on. This is not considered valid tenpai.
     """
     waiting = _get_hand_waiting_tiles(tiles)
     if not waiting:
@@ -305,7 +295,6 @@ def process_exhaustive_draw(
     tempai_seats = []
     noten_seats = []
     tenpai_hands = []
-
     for player in round_state.players:
         if is_tempai(player.tiles, player.melds):
             tempai_seats.append(player.seat)
@@ -324,7 +313,13 @@ def process_exhaustive_draw(
     if settings.has_nagashi_mangan:
         qualifying = check_nagashi_mangan(round_state)
         if qualifying:
-            return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats, tenpai_hands)
+            return apply_nagashi_mangan_score(
+                game_state,
+                qualifying_seats=qualifying,
+                tempai_seats=tempai_seats,
+                noten_seats=noten_seats,
+                tenpai_hands=tenpai_hands,
+            )
 
     scores = {p.seat: p.score for p in round_state.players}
     score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
@@ -352,7 +347,6 @@ def process_exhaustive_draw(
 
     # update game state with new round state
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
-
     return (
         new_round_state,
         new_game_state,
@@ -394,10 +388,12 @@ def check_nagashi_mangan(
         for other in round_state.players:
             if other.seat == player.seat:
                 continue
+
             for meld in other.melds:
                 if meld.from_who == player.seat:
                     was_claimed = True
                     break
+
             if was_claimed:
                 break
 

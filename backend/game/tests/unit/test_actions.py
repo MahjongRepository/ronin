@@ -1,7 +1,3 @@
-"""
-Unit tests for available actions builder.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.actions import get_available_actions
@@ -11,7 +7,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.types import SeatConfig
 from game.logic.wall import Wall
-from game.tests.unit.helpers import _string_to_34_tile
+from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -24,7 +20,6 @@ def _default_seat_configs() -> list[SeatConfig]:
 
 
 def _update_player(round_state, seat, **updates: object):
-    """Helper to update a player in an immutable round state."""
     players = list(round_state.players)
     players[seat] = players[seat].model_copy(update=updates)
     return round_state.model_copy(update={"players": tuple(players)})
@@ -32,23 +27,20 @@ def _update_player(round_state, seat, **updates: object):
 
 class TestGetAvailableActions:
     def _create_game_state(self):
-        """Create a game state for testing."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         # draw a tile for the dealer
         new_round_state, _tile = draw_tile(game_state.round_state)
         return game_state.model_copy(update={"round_state": new_round_state})
 
-    def test_does_not_return_discard_action(self):
-        """DISCARD is always available and handled implicitly; not in available_actions."""
+    def test_get_available_actions__should_not_include_discard(self):
         game_state = self._create_game_state()
         round_state = game_state.round_state
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
         assert len(discard_actions) == 0
 
-    def test_kan_action_format(self):
+    def test_get_available_actions__when_kan_available__should_list_kan_tiles(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -59,13 +51,11 @@ class TestGetAvailableActions:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
-        if kan_actions:
-            assert kan_actions[0].tiles is not None
-            assert isinstance(kan_actions[0].tiles, list)
+        assert len(kan_actions) == 1
+        assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
 
-    def test_no_kan_when_wall_empty(self):
+    def test_get_available_actions__when_wall_empty__should_not_offer_kan(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -77,26 +67,22 @@ class TestGetAvailableActions:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         # no kan should be available since wall is empty
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 0
 
-    def test_no_actions_for_empty_hand(self):
-        """Empty hand returns no actions (no tsumo, no kan, etc.)."""
+    def test_get_available_actions__when_hand_empty__should_return_none(self):
         game_state = self._create_game_state()
         round_state = game_state.round_state
         round_state = _update_player(round_state, 0, tiles=())
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         assert len(actions) == 0
 
 
 class TestAddedKanAction:
-    def test_added_kan_available_with_pon_and_fourth_tile(self):
-        """Player with a pon meld and 4th tile in hand can declare added kan."""
+    def test_added_kan_action__when_pon_and_fourth_tile_in_hand__should_be_offered(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -126,8 +112,6 @@ class TestAddedKanAction:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]
         assert len(added_kan_actions) == 1
-        assert added_kan_actions[0].tiles is not None
-        assert _string_to_34_tile(man="1") in added_kan_actions[0].tiles
+        assert added_kan_actions[0].tiles == [_string_to_34_tile(man="1")]

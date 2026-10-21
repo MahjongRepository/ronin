@@ -1,10 +1,3 @@
-"""Unit tests for game-to-IMME bridge in meld_compact.py.
-
-Tests round-trip encoding for each meld type, verifying that the vocabulary
-mapping between game objects (FrozenMeld, MeldEvent) and the shared IMME
-encoder's MeldData is correct.
-"""
-
 import pytest
 
 from game.logic.enums import MeldViewType
@@ -19,10 +12,7 @@ from shared.lib.melds import decode_meld_compact
 
 
 class TestFrozenMeldToMeldData:
-    """Verify vocabulary mapping from FrozenMeld types to wire MeldData types."""
-
-    def test_unknown_meld_type_raises(self):
-        """A meld_type not in the mapping raises ValueError."""
+    def test_frozen_meld_to_meld_data__when_meld_type_unknown__should_raise(self):
         meld = FrozenMeld(
             tiles=(0, 4, 8),
             meld_type="chi",
@@ -37,9 +27,7 @@ class TestFrozenMeldToMeldData:
 
 
 class TestFrozenMeldRoundTrip:
-    """Encode FrozenMeld -> IMME int -> decode and verify all fields survive."""
-
-    def test_chi_round_trip(self):
+    def test_frozen_meld_compact__when_chi__should_round_trip(self):
         # 1m-2m-3m chi, caller=1, from kamicha (seat 0), called tile is 1m copy 0
         meld = FrozenMeld(
             tiles=(0, 4, 8),
@@ -57,7 +45,7 @@ class TestFrozenMeldRoundTrip:
         assert sorted(decoded["tile_ids"]) == [0, 4, 8]
         assert decoded["called_tile_id"] == 0
 
-    def test_pon_round_trip(self):
+    def test_frozen_meld_compact__when_pon__should_round_trip(self):
         # Pon of 1m (copies 0,1,2), caller=2, from seat 0
         meld = FrozenMeld(
             tiles=(0, 1, 2),
@@ -75,7 +63,7 @@ class TestFrozenMeldRoundTrip:
         assert sorted(decoded["tile_ids"]) == [0, 1, 2]
         assert decoded["called_tile_id"] == 0
 
-    def test_open_kan_round_trip(self):
+    def test_frozen_meld_compact__when_open_kan__should_round_trip(self):
         # Open kan of 1m (all 4 copies), caller=3, from seat 1
         meld = FrozenMeld(
             tiles=(0, 1, 2, 3),
@@ -93,7 +81,7 @@ class TestFrozenMeldRoundTrip:
         assert sorted(decoded["tile_ids"]) == [0, 1, 2, 3]
         assert decoded["called_tile_id"] == 0
 
-    def test_closed_kan_round_trip(self):
+    def test_frozen_meld_compact__when_closed_kan__should_round_trip(self):
         # Closed kan of 2m (tile_34=1, copies 4,5,6,7), caller=0
         meld = FrozenMeld(
             tiles=(4, 5, 6, 7),
@@ -111,7 +99,7 @@ class TestFrozenMeldRoundTrip:
         assert sorted(decoded["tile_ids"]) == [4, 5, 6, 7]
         assert decoded["called_tile_id"] is None
 
-    def test_shouminkan_round_trip(self):
+    def test_frozen_meld_compact__when_shouminkan__should_round_trip_as_added_kan(self):
         # Added kan (shouminkan) of 1m, caller=1, from seat 3
         meld = FrozenMeld(
             tiles=(0, 1, 2, 3),
@@ -129,7 +117,7 @@ class TestFrozenMeldRoundTrip:
         assert sorted(decoded["tile_ids"]) == [0, 1, 2, 3]
         assert decoded["called_tile_id"] == 0
 
-    def test_chankan_round_trip(self):
+    def test_frozen_meld_compact__when_chankan__should_encode_as_added_kan(self):
         # Chankan uses same wire type as shouminkan (added_kan)
         meld = FrozenMeld(
             tiles=(0, 1, 2, 3),
@@ -146,7 +134,7 @@ class TestFrozenMeldRoundTrip:
         assert decoded["from_seat"] == 0
         assert decoded["called_tile_id"] == 1
 
-    def test_all_four_seats_produce_distinct_values(self):
+    def test_frozen_meld_compact__when_same_pon_from_different_seats__should_encode_distinct_values(self):
         # Same pon from different seats should produce different IMME values
         compacts = set()
         for seat in range(4):
@@ -164,9 +152,7 @@ class TestFrozenMeldRoundTrip:
 
 
 class TestMeldEventRoundTrip:
-    """Encode MeldEvent -> IMME int -> decode and verify fields."""
-
-    def test_chi_event_round_trip(self):
+    def test_meld_event_compact__when_chi__should_round_trip(self):
         event = MeldEvent(
             meld_type=MeldViewType.CHI,
             caller_seat=2,
@@ -181,7 +167,7 @@ class TestMeldEventRoundTrip:
         assert decoded["from_seat"] == 1
         assert sorted(decoded["tile_ids"]) == [36, 40, 44]
 
-    def test_pon_event_round_trip(self):
+    def test_meld_event_compact__when_pon__should_round_trip(self):
         event = MeldEvent(
             meld_type=MeldViewType.PON,
             caller_seat=0,
@@ -196,7 +182,7 @@ class TestMeldEventRoundTrip:
         assert decoded["from_seat"] == 3
         assert decoded["called_tile_id"] == 2
 
-    def test_open_kan_event_round_trip(self):
+    def test_meld_event_compact__when_open_kan__should_round_trip(self):
         event = MeldEvent(
             meld_type=MeldViewType.OPEN_KAN,
             caller_seat=1,
@@ -210,7 +196,7 @@ class TestMeldEventRoundTrip:
         assert decoded["caller_seat"] == 1
         assert decoded["called_tile_id"] == 9
 
-    def test_closed_kan_event_round_trip(self):
+    def test_meld_event_compact__when_closed_kan__should_round_trip(self):
         event = MeldEvent(
             meld_type=MeldViewType.CLOSED_KAN,
             caller_seat=3,
@@ -225,7 +211,7 @@ class TestMeldEventRoundTrip:
         assert decoded["from_seat"] is None
         assert decoded["called_tile_id"] is None
 
-    def test_added_kan_event_round_trip(self):
+    def test_meld_event_compact__when_added_kan__should_round_trip(self):
         event = MeldEvent(
             meld_type=MeldViewType.ADDED_KAN,
             caller_seat=0,

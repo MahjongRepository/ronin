@@ -1,14 +1,10 @@
-"""Wire encoding enums for client-to-server messaging.
-
-These IntEnum classes define stable integer assignments for client message
-types and game actions. They are used exclusively by the messaging layer.
-"""
-
 from enum import IntEnum
 
 
 class WireClientMessageType(IntEnum):
-    """Integer wire encoding for client-to-server message types."""
+    """
+    Integer wire encoding for client-to-server message types.
+    """
 
     GAME_ACTION = 3
     CHAT = 4
@@ -18,7 +14,9 @@ class WireClientMessageType(IntEnum):
 
 
 class WireGameAction(IntEnum):
-    """Integer wire encoding for game actions."""
+    """
+    Integer wire encoding for game actions.
+    """
 
     DISCARD = 0
     DECLARE_RIICHI = 1

@@ -1,17 +1,9 @@
-"""
-Replay adapter for deterministic game replay through MahjongGameService.
-
-Dependency direction: replay imports from game.logic and game.messaging.
-Game logic modules never import from replay.
-"""
-
 from game.replay.loader import (
     ReplayLoadError,
     load_replay_from_file,
     load_replay_from_string,
 )
 from game.replay.models import (
-    REPLAY_VERSION,
     ReplayError,
     ReplayInput,
     ReplayInputAfterGameEndError,
@@ -29,7 +21,6 @@ from game.replay.runner import (
 )
 
 __all__ = [
-    "REPLAY_VERSION",
     "ReplayError",
     "ReplayInput",
     "ReplayInputAfterGameEndError",

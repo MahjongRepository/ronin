@@ -32,7 +32,7 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 # Install dependencies first (layer cache — only re-runs when deps change)
-COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Trim the venv: strip native extensions (~11MB), remove package metadata (~1.2MB),

@@ -1,5 +1,3 @@
-"""Tests for HMAC-SHA256 game ticket signing and verification."""
-
 import base64
 import hashlib
 import hmac
@@ -35,9 +33,10 @@ def _make_ticket(
 
 
 class TestSignAndVerifyRoundTrip:
-    def test_valid_ticket_round_trips(self):
+    def test_game_ticket__when_signed_and_verified__should_return_same_ticket(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
+
         result = verify_game_ticket(token, SECRET)
         assert result is not None
         assert result.user_id == ticket.user_id
@@ -46,76 +45,82 @@ class TestSignAndVerifyRoundTrip:
 
 
 class TestExpiredTicket:
-    def test_expired_ticket_rejected(self):
+    def test_game_ticket__when_expired__should_reject(self):
         past = time.time() - TICKET_TTL_SECONDS - 1
         ticket = _make_ticket(issued_at=past, expires_at=past + TICKET_TTL_SECONDS)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_ticket_at_boundary_still_valid(self):
+    def test_game_ticket__when_expiring_at_full_ttl__should_accept(self):
         now = time.time()
         ticket = _make_ticket(issued_at=now, expires_at=now + TICKET_TTL_SECONDS)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is not None
 
 
 class TestTamperedTicket:
-    def test_tampered_payload_rejected(self):
+    def test_game_ticket__when_payload_tampered__should_reject(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         payload_b64, sig_b64 = token.split(".")
+
         # Decode, tamper, re-encode
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
         payload["username"] = "evil"
         tampered_payload = base64.urlsafe_b64encode(json.dumps(payload, sort_keys=True).encode()).decode()
         tampered_token = f"{tampered_payload}.{sig_b64}"
+
         assert verify_game_ticket(tampered_token, SECRET) is None
 
-    def test_tampered_signature_rejected(self):
+    def test_game_ticket__when_signature_tampered__should_reject(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         payload_b64, sig_b64 = token.split(".")
+
         # Flip a byte in the signature
         sig_bytes = bytearray(base64.urlsafe_b64decode(sig_b64))
         sig_bytes[0] ^= 0xFF
         tampered_sig = base64.urlsafe_b64encode(bytes(sig_bytes)).decode()
         tampered_token = f"{payload_b64}.{tampered_sig}"
+
         assert verify_game_ticket(tampered_token, SECRET) is None
 
 
 class TestWrongSecret:
-    def test_wrong_secret_rejected(self):
+    def test_game_ticket__when_secret_wrong__should_reject(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         assert verify_game_ticket(token, "wrong-secret") is None
 
 
 class TestMalformedToken:
-    def test_no_dot_separator(self):
+    def test_game_ticket__when_token_has_no_dot__should_reject(self):
         assert verify_game_ticket("nodot", SECRET) is None
 
-    def test_too_many_dots(self):
+    def test_game_ticket__when_token_has_too_many_dots__should_reject(self):
         assert verify_game_ticket("a.b.c", SECRET) is None
 
-    def test_invalid_base64_payload(self):
+    def test_game_ticket__when_payload_not_base64__should_reject(self):
         assert verify_game_ticket("!!!invalid.AAAA", SECRET) is None
 
-    def test_invalid_base64_signature(self):
+    def test_game_ticket__when_signature_not_base64__should_reject(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         payload_b64 = token.split(".")[0]
+
         assert verify_game_ticket(f"{payload_b64}.!!!invalid", SECRET) is None
 
-    def test_valid_json_but_missing_fields(self):
-        """A properly signed token whose payload lacks required GameTicket fields."""
+    def test_game_ticket__when_fields_missing__should_reject(self):
         incomplete_payload = json.dumps({"user_id": "x"}, sort_keys=True).encode()
         sig = hmac.new(SECRET.encode(), incomplete_payload, hashlib.sha256).digest()
         payload_b64 = base64.urlsafe_b64encode(incomplete_payload).decode()
         sig_b64 = base64.urlsafe_b64encode(sig).decode()
+
         assert verify_game_ticket(f"{payload_b64}.{sig_b64}", SECRET) is None
 
-    def test_non_numeric_expires_at_returns_none(self):
-        """A signed token with non-numeric expires_at returns None instead of raising TypeError."""
+    def test_game_ticket__when_expires_at_not_numeric__should_reject(self):
         payload = json.dumps(
             {
                 "expires_at": "not-a-number",
@@ -129,11 +134,11 @@ class TestMalformedToken:
         sig = hmac.new(SECRET.encode(), payload, hashlib.sha256).digest()
         payload_b64 = base64.urlsafe_b64encode(payload).decode()
         sig_b64 = base64.urlsafe_b64encode(sig).decode()
+
         assert verify_game_ticket(f"{payload_b64}.{sig_b64}", SECRET) is None
 
 
 def _sign_raw_payload(payload: dict) -> str:
-    """Sign an arbitrary payload dict, bypassing GameTicket dataclass validation."""
     payload_bytes = json.dumps(payload, sort_keys=True).encode()
     sig = hmac.new(SECRET.encode(), payload_bytes, hashlib.sha256).digest()
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode()
@@ -142,47 +147,46 @@ def _sign_raw_payload(payload: dict) -> str:
 
 
 class TestTemporalValidation:
-    """Ticket issued_at, expires_at, and lifetime bounds."""
-
-    def test_future_issued_ticket_rejected(self):
-        """A ticket issued far in the future is rejected."""
+    def test_game_ticket__when_issued_in_future_beyond_skew__should_reject(self):
         future = time.time() + CLOCK_SKEW_SECONDS + 100
         ticket = _make_ticket(issued_at=future, expires_at=future + 3600)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_expires_at_equal_to_issued_at_rejected(self):
-        """expires_at must be strictly greater than issued_at."""
+    def test_game_ticket__when_expires_at_equals_issued_at__should_reject(self):
         now = time.time()
         ticket = _make_ticket(issued_at=now, expires_at=now)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_expires_at_before_issued_at_rejected(self):
+    def test_game_ticket__when_expires_before_issued__should_reject(self):
         now = time.time()
         ticket = _make_ticket(issued_at=now, expires_at=now - 100)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_overlong_lifetime_rejected(self):
-        """Ticket lifetime exceeding TTL + skew is rejected."""
+    def test_game_ticket__when_lifetime_exceeds_ttl_plus_skew__should_reject(self):
         now = time.time()
         ticket = _make_ticket(
             issued_at=now,
             expires_at=now + TICKET_TTL_SECONDS + CLOCK_SKEW_SECONDS + 1,
         )
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_clock_skew_tolerance_accepted(self):
-        """A ticket issued slightly in the future (within skew) is accepted."""
+    def test_game_ticket__when_issued_within_clock_skew__should_accept(self):
         now = time.time()
         slight_future = now + CLOCK_SKEW_SECONDS - 1
         ticket = _make_ticket(issued_at=slight_future, expires_at=slight_future + 3600)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is not None
 
-    def test_non_finite_issued_at_rejected(self):
+    def test_game_ticket__when_issued_at_infinite__should_reject(self):
         token = _sign_raw_payload(
             {
                 "user_id": "u1",
@@ -194,7 +198,7 @@ class TestTemporalValidation:
         )
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_nan_expires_at_rejected(self):
+    def test_game_ticket__when_expires_at_nan__should_reject(self):
         token = _sign_raw_payload(
             {
                 "user_id": "u1",
@@ -206,7 +210,7 @@ class TestTemporalValidation:
         )
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_non_numeric_issued_at_rejected(self):
+    def test_game_ticket__when_issued_at_not_numeric__should_reject(self):
         token = _sign_raw_payload(
             {
                 "user_id": "u1",
@@ -218,7 +222,7 @@ class TestTemporalValidation:
         )
         assert verify_game_ticket(token, SECRET) is None
 
-    def test_boolean_issued_at_rejected(self):
+    def test_game_ticket__when_issued_at_boolean__should_reject(self):
         token = _sign_raw_payload(
             {
                 "user_id": "u1",

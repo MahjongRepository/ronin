@@ -1,9 +1,3 @@
-"""
-Scoring calculation for Mahjong game.
-
-Handles hand value calculation and score application for wins (tsumo, ron, double ron).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -66,7 +60,9 @@ class HandResult:
 
 @dataclass(frozen=True)
 class ScoringContext:
-    """Group common scoring parameters: player, round/game state, settings, and win flags."""
+    """
+    Group common scoring parameters: player, round/game state, settings, and win flags.
+    """
 
     player: MahjongPlayer
     round_state: MahjongRoundState
@@ -83,7 +79,9 @@ def _build_hand_config(
     is_tsumo: bool,
     is_chankan: bool = False,
 ) -> HandConfig:
-    """Build HandConfig with all relevant flags for scoring."""
+    """
+    Build HandConfig with all relevant flags for scoring.
+    """
     haitei_flag = is_tsumo and is_haitei(round_state)
     houtei_flag = not is_tsumo and is_houtei(round_state)
     tenhou_flag = is_tsumo and is_tenhou(player, round_state)
@@ -111,13 +109,14 @@ def _build_hand_config(
 def collect_ura_dora_indicators(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> list[int] | None:
     """
     Collect ura dora indicator tile IDs for a riichi winner.
 
-    Return None when player is not riichi or ura dora is disabled.
-    Return the list of ura dora indicator tile IDs otherwise.
+    Return None when player is not riichi or ura dora is disabled. Return the list of ura dora indicator tile IDs
+    otherwise.
     """
     if not settings.has_uradora or not player.is_riichi:
         return None
@@ -133,9 +132,12 @@ def _collect_dora_indicators(
     round_state: MahjongRoundState,
     settings: GameSettings,
 ) -> list[int]:
-    """Collect omote (face-up) dora indicators for scoring."""
+    """
+    Collect omote (face-up) dora indicators for scoring.
+    """
     if settings.has_omote_dora:
         return list(round_state.wall.dora_indicators) if round_state.wall.dora_indicators else []
+
     return []
 
 
@@ -144,7 +146,9 @@ def _evaluate_hand(
     tiles: list[int],
     win_tile: int,
 ) -> HandResult:
-    """Build scoring config, collect dora, run hand calculator, and return result."""
+    """
+    Build scoring config, collect dora, run hand calculator, and return result.
+    """
     config = _build_hand_config(
         ctx.player,
         ctx.round_state,
@@ -153,7 +157,7 @@ def _evaluate_hand(
         is_chankan=ctx.is_chankan,
     )
     dora_indicators = _collect_dora_indicators(ctx.round_state, ctx.settings)
-    ura_dora_indicators = collect_ura_dora_indicators(ctx.player, ctx.round_state, ctx.settings)
+    ura_dora_indicators = collect_ura_dora_indicators(ctx.player, ctx.round_state, settings=ctx.settings)
 
     melds = frozen_melds_to_melds(ctx.player.melds)
     result = HandCalculator.estimate_hand_value(
@@ -164,7 +168,6 @@ def _evaluate_hand(
         config=config,
         ura_dora_indicators=ura_dora_indicators,
     )
-
     if result.error:
         tile_counts_34 = hand_to_34_array(tiles)
         logger.error(
@@ -185,6 +188,7 @@ def _evaluate_hand(
         for y in result.yaku:
             han = y.han_open if result.is_open_hand and y.han_open > 0 else y.han_closed
             yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=han))
+
     return HandResult(
         han=result.han or 0,
         fu=result.fu or 0,
@@ -198,11 +202,11 @@ def calculate_hand_value(ctx: ScoringContext, win_tile: int) -> HandResult:
     """
     Calculate the value of a winning hand using the mahjong library's HandCalculator.
 
-    Build HandConfig with all relevant flags and OptionalRules for scoring.
-    Return a HandResult with han, fu, cost breakdown, and yaku list.
+    Build HandConfig with all relevant flags and OptionalRules for scoring. Return a HandResult with han, fu, cost
+    breakdown, and yaku list.
     """
     tiles = all_player_tiles(ctx.player)
-    return _evaluate_hand(ctx, tiles, win_tile)
+    return _evaluate_hand(ctx, tiles=tiles, win_tile=win_tile)
 
 
 def calculate_hand_value_with_tiles(
@@ -213,14 +217,16 @@ def calculate_hand_value_with_tiles(
     """
     Calculate the value of a winning hand using explicit tiles list.
 
-    Accept tiles directly instead of reading from player.tiles. Use this for
-    ron calculations where the win tile needs to be included in the tiles list.
+    Accept tiles directly instead of reading from player.tiles. Use this for ron calculations where the win tile needs
+    to be included in the tiles list.
     """
-    return _evaluate_hand(ctx, tiles, win_tile)
+    return _evaluate_hand(ctx, tiles=tiles, win_tile=win_tile)
 
 
 def _current_scores(game_state: MahjongGameState) -> dict[int, int]:
-    """Extract current scores from game state (after riichi deductions, before payment)."""
+    """
+    Extract current scores from game state (after riichi deductions, before payment).
+    """
     return {p.seat: p.score for p in game_state.round_state.players}
 
 
@@ -230,7 +236,9 @@ def _apply_score_changes(
     *,
     clear_riichi: bool = True,
 ) -> tuple[MahjongRoundState, MahjongGameState]:
-    """Apply score changes to round state and optionally clear riichi sticks."""
+    """
+    Apply score changes to round state and optionally clear riichi sticks.
+    """
     new_round_state = game_state.round_state
     for seat, change in score_changes.items():
         player = new_round_state.players[seat]
@@ -257,6 +265,7 @@ def _tsumo_payment_for_seat(
     """
     if is_dealer_win or seat == dealer_seat:
         return hand_result.cost_main + honba_bonus_per_loser
+
     return hand_result.cost_additional + honba_bonus_per_loser
 
 
@@ -284,6 +293,7 @@ def apply_tsumo_score(
     settings = game_state.settings
     scores = _current_scores(game_state)
     winner = round_state.players[winner_seat]
+
     is_dealer_win = winner_seat == round_state.dealer_seat
     honba_bonus_per_loser = game_state.honba_sticks * settings.honba_tsumo_bonus_per_loser
 
@@ -310,6 +320,7 @@ def apply_tsumo_score(
         for seat in range(NUM_PLAYERS):
             if seat == winner_seat:
                 continue
+
             payment = _tsumo_payment_for_seat(
                 seat,
                 is_dealer_win=is_dealer_win,
@@ -319,6 +330,7 @@ def apply_tsumo_score(
             )
             score_changes[seat] = -payment
             total_payment += payment
+
         score_changes[winner_seat] = total_payment
 
     # winner receives riichi sticks
@@ -326,7 +338,6 @@ def apply_tsumo_score(
     score_changes[winner_seat] += riichi_bonus
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
-
     return (
         new_round_state,
         new_game_state,
@@ -344,7 +355,7 @@ def apply_tsumo_score(
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             win_tile=winner.tiles[-1],
             pao_seat=winner.pao_seat,
-            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
+            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
 
@@ -401,7 +412,6 @@ def apply_ron_score(
     score_changes[winner_seat] += riichi_bonus
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
-
     return (
         new_round_state,
         new_game_state,
@@ -420,7 +430,7 @@ def apply_ron_score(
             closed_tiles=list(winner.tiles),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             pao_seat=winner.pao_seat,
-            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
+            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
 
@@ -457,11 +467,11 @@ def apply_double_ron_score(
         if check_seat in winner_seats:
             riichi_receiver = check_seat
             break
+
     if riichi_receiver is None:
         raise ValueError("No riichi receiver found in double ron")
 
     winner_results = []
-
     for winner_seat, hand_result in winners:
         winner = round_state.players[winner_seat]
         payment = hand_result.cost_main + honba_bonus
@@ -497,12 +507,11 @@ def apply_double_ron_score(
                 closed_tiles=list(winner.tiles),
                 melds=[frozen_meld_to_compact(m) for m in winner.melds],
                 pao_seat=winner.pao_seat,
-                ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
+                ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
             ),
         )
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
-
     return (
         new_round_state,
         new_game_state,
@@ -542,6 +551,7 @@ def apply_nagashi_mangan_score(
         for seat in range(NUM_PLAYERS):
             if seat == winner_seat:
                 continue
+
             payment = (
                 settings.nagashi_mangan_dealer_payment
                 if is_dealer or seat == round_state.dealer_seat
@@ -551,7 +561,6 @@ def apply_nagashi_mangan_score(
             score_changes[winner_seat] += payment
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes, clear_riichi=False)
-
     return (
         new_round_state,
         new_game_state,

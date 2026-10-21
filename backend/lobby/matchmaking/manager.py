@@ -1,41 +1,56 @@
-"""Matchmaking queue manager."""
-
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 import structlog
 
 from lobby.matchmaking.models import MATCHMAKING_SEATS, QueueEntry
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 logger = structlog.get_logger()
 
 
-class MatchmakingManager:
-    """Manage the matchmaking queue.
+def _nobody_in_room(_user_id: str) -> bool:
+    return False
 
-    Pure state management -- no WebSocket I/O. The WebSocket handler
-    calls manager methods and handles responses.
+
+class MatchmakingManager:
+    """
+    Manage the matchmaking queue.
+
+    Pure state management -- no WebSocket I/O. The WebSocket handler calls manager methods and handles responses.
+    `is_user_in_room` is the only link to the rooms feature: a user seated in a room cannot queue.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, is_user_in_room: Callable[[str], bool] = _nobody_in_room) -> None:
+        self._is_user_in_room = is_user_in_room
         self._queue: list[QueueEntry] = []
         self._user_ids: set[str] = set()
         self._in_flight: set[str] = set()
         self._lock = asyncio.Lock()
 
     def add_player(self, entry: QueueEntry) -> None:
-        """Add a player to the matchmaking queue.
-
-        Caller must hold self._lock.
         """
+        Add a player to the matchmaking queue.
+
+        Caller must hold self._lock. Raise ValueError("already_in_room") or ValueError("already_in_queue") when the user
+        cannot queue.
+        """
+        if self._is_user_in_room(entry.user_id):
+            raise ValueError("already_in_room")
+
         if entry.user_id in self._user_ids or entry.user_id in self._in_flight:
             raise ValueError("already_in_queue")
+
         self._queue.append(entry)
         self._user_ids.add(entry.user_id)
 
     def remove_player(self, connection_id: str) -> None:
-        """Remove a player from the queue by connection_id.
+        """
+        Remove a player from the queue by connection_id.
 
         Caller must hold self._lock.
         """
@@ -46,7 +61,8 @@ class MatchmakingManager:
                 return
 
     def try_match(self) -> list[QueueEntry] | None:
-        """Pop MATCHMAKING_SEATS players if enough in queue, else None.
+        """
+        Pop MATCHMAKING_SEATS players if enough in queue, else None.
 
         Caller must hold self._lock.
         """
@@ -56,14 +72,16 @@ class MatchmakingManager:
             for entry in matched:
                 self._user_ids.discard(entry.user_id)
                 self._in_flight.add(entry.user_id)
+
             return matched
+
         return None
 
     def requeue_at_front(self, entries: list[QueueEntry]) -> None:
-        """Re-insert entries at the front of the queue.
+        """
+        Re-insert entries at the front of the queue.
 
-        Used when game creation fails after popping a match.
-        Caller must hold self._lock.
+        Used when game creation fails after popping a match. Caller must hold self._lock.
         """
         for entry in reversed(entries):
             self._in_flight.discard(entry.user_id)
@@ -80,17 +98,18 @@ class MatchmakingManager:
         return len(self._queue)
 
     def get_queue_entries(self) -> list[QueueEntry]:
-        """Return a snapshot of current queue entries.
+        """
+        Return a snapshot of current queue entries.
 
         Caller must hold self._lock.
         """
         return list(self._queue)
 
     def clear_in_flight(self, user_ids: set[str]) -> None:
-        """Remove user IDs from the in-flight set.
+        """
+        Remove user IDs from the in-flight set.
 
-        Called after match resolution for users not being requeued.
-        Caller must hold self._lock.
+        Called after match resolution for users not being requeued. Caller must hold self._lock.
         """
         self._in_flight -= user_ids
 

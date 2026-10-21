@@ -28,12 +28,6 @@ frontend/coverage
 # ---
 
 # AI stuff
-AGENTS.md
-AGENTS.override.md
-Dockerfile.agent
-Makefile.agent
-bin/agent_run.py
-.claude
 thoughts
 
 # bots run stuff

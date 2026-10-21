@@ -1,5 +1,3 @@
-"""Unit tests for get_player_view."""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import WindName
@@ -14,7 +12,6 @@ from game.logic.wall import Wall
 
 class TestGetPlayerView:
     def _create_test_game_state(self):
-        """Create a game state for testing."""
         haku = TilesConverter.string_to_136_array(honors="5")[0]
         players = (
             MahjongPlayer(
@@ -87,18 +84,17 @@ class TestGetPlayerView:
             riichi_sticks=0,
         )
 
-    def test_view_converts_round_wind_to_name(self):
+    def test_get_player_view__when_round_wind_is_int__should_convert_to_wind_name(self):
         game_state = self._create_test_game_state()
         view = get_player_view(game_state, seat=0)
         # round_wind=0 (int) should be converted to WindName.EAST
         assert view.round_wind == WindName.EAST
 
-    def test_view_for_different_seats(self):
+    def test_get_player_view__when_different_seats__should_show_each_seats_own_tiles(self):
         game_state = self._create_test_game_state()
 
         view0 = get_player_view(game_state, seat=0)
         view1 = get_player_view(game_state, seat=1)
-
         assert view0.my_tiles != view1.my_tiles
         assert len(view0.my_tiles) == 13
         assert len(view1.my_tiles) == 13

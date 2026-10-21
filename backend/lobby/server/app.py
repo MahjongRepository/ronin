@@ -13,7 +13,7 @@ from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse, PlainTextResponse, Response
-from starlette.routing import Mount, Route, WebSocketRoute
+from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from lobby.auth.backend import SessionOrApiKeyBackend
@@ -32,7 +32,7 @@ from lobby.rooms.connections import RoomConnectionManager
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import room_websocket
 from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.views import (
     create_room_and_redirect,
     create_templates,
@@ -49,15 +49,13 @@ from lobby.views import (
     storybook_page,
 )
 from lobby.views.auth_handlers import (
-    bot_auth,
-    bot_create_room,
-    bot_matchmaking_auth,
     login,
     login_page,
     logout,
     register,
     register_page,
 )
+from lobby.views.bot_api_handlers import bot_auth, bot_create_room, bot_matchmaking_auth
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings
@@ -76,19 +74,24 @@ if TYPE_CHECKING:
 def _make_auth_error_handler(
     protected_api_paths: set[str],
 ) -> Callable[[Request, Exception], Awaitable[Response]]:
-    """Build an HTTPException handler that rewrites 401s on protected JSON endpoints."""
+    """
+    Build an HTTPException handler that rewrites 401s on protected JSON endpoints.
+    """
 
     async def _auth_error_handler(request: Request, exc: Exception) -> Response:
-        """Rewrite 401 errors on protected JSON endpoints to JSON responses.
+        """
+        Rewrite 401 errors on protected JSON endpoints to JSON responses.
 
-        All other HTTP exceptions delegate to Starlette's default behavior
-        (plain-text response with the exception detail).
+        All other HTTP exceptions delegate to Starlette's default behavior (plain-text response with the exception
+        detail).
         """
         http_exc = cast("HTTPException", exc)
         if http_exc.status_code == HTTPStatus.UNAUTHORIZED and request.url.path in protected_api_paths:
             return JSONResponse({"error": "Authentication required"}, status_code=HTTPStatus.UNAUTHORIZED)
+
         if http_exc.status_code in {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}:
             return Response(status_code=http_exc.status_code, headers=http_exc.headers)
+
         return PlainTextResponse(http_exc.detail or "", status_code=http_exc.status_code, headers=http_exc.headers)
 
     return _auth_error_handler
@@ -123,25 +126,26 @@ def create_app(
 ) -> Starlette:
     if settings is None:  # pragma: no cover
         settings = LobbyServerSettings()
+
     if auth_settings is None:  # pragma: no cover
-        auth_settings = AuthSettings()  # type: ignore[call-arg]
+        auth_settings = AuthSettings()
 
     static_dir = Path(settings.static_dir).resolve()
     game_assets_dir = Path(settings.game_assets_dir).resolve()
     majiang_dir = Path(settings.majiang_dir).resolve()
 
-    matchmaking_manager = MatchmakingManager()
     room_connections = RoomConnectionManager()
     room_manager = LobbyRoomManager(
         room_ttl_seconds=300,
         on_room_expired=lambda room_id, _conn_ids: room_connections.close_connections(
-            room_id,
+            room_id=room_id,
             code=4002,
             reason="room_expired",
         ),
     )
+    matchmaking_manager = MatchmakingManager(is_user_in_room=room_manager.has_user_in_any_room)
 
-    routes = [
+    routes: list[BaseRoute] = [
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
         Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
@@ -223,8 +227,10 @@ def create_app(
     # Initialize database and auth components
     db = Database(auth_settings.database_path)
     db.connect()
+
     player_repo = SqlitePlayerRepository(db)
     game_repo = SqliteGameRepository(db)
+
     session_store = AuthSessionStore()
     hasher = get_hasher(auth_settings.password_hasher)
     auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
@@ -234,6 +240,7 @@ def create_app(
         session_store.start_cleanup()
         room_manager.start_reaper()
         yield
+
         await room_manager.stop_reaper()
         await session_store.stop_cleanup()
         db.close()
@@ -243,16 +250,16 @@ def create_app(
         lifespan=lifespan,
         exception_handlers={HTTPException: _make_auth_error_handler(protected_api_paths)},
     )
-    app.add_middleware(SlashNormalizationMiddleware)  # type: ignore[arg-type]
-    app.add_middleware(AuthenticationMiddleware, backend=SessionOrApiKeyBackend(auth_service))  # type: ignore[arg-type]
+    app.add_middleware(SlashNormalizationMiddleware)
+    app.add_middleware(AuthenticationMiddleware, backend=SessionOrApiKeyBackend(auth_service))
     app.add_middleware(
-        CORSMiddleware,  # type: ignore[arg-type]
+        CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "X-API-Key"],
     )
-    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)  # type: ignore[arg-type]
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)  # type: ignore[arg-type]
+    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
     registry = RegistryManager(settings.config_path)
     _attach_state(
@@ -294,6 +301,7 @@ def _attach_state(  # noqa: PLR0913
     app.state.registry = registry
 
     templates = create_templates()
+    env_globals = cast("dict[str, object]", templates.env.globals)
     dev_mode = APP_VERSION == "dev"
     vite_dev_url = settings.vite_dev_url
 
@@ -301,23 +309,26 @@ def _attach_state(  # noqa: PLR0913
         # Vite dev server: templates load assets from Vite for HMR.
         # CSS URLs point to SCSS source files — Vite compiles and serves them as CSS.
         # JS URLs point to TS entry points — Vite serves them as ES modules.
-        templates.env.globals["vite_dev"] = True
-        templates.env.globals["vite_dev_url"] = vite_dev_url
-        templates.env.globals["lobby_css_url"] = f"{vite_dev_url}/src/styles/lobby-app.scss"
-        templates.env.globals["lobby_js_url"] = f"{vite_dev_url}/src/lobby/index.ts"
-        templates.env.globals["game_css_url"] = f"{vite_dev_url}/src/styles/game-app.scss"
-        templates.env.globals["game_js_url"] = f"{vite_dev_url}/src/index.ts"
+        env_globals["vite_dev"] = True
+        env_globals["vite_dev_url"] = vite_dev_url
+
+        env_globals["lobby_css_url"] = f"{vite_dev_url}/src/styles/lobby-app.scss"
+        env_globals["lobby_js_url"] = f"{vite_dev_url}/src/lobby/index.ts"
+        env_globals["game_css_url"] = f"{vite_dev_url}/src/styles/game-app.scss"
+        env_globals["game_js_url"] = f"{vite_dev_url}/src/index.ts"
         game_assets_available = True
     else:
         # Production (or standalone dev without Vite): read Vite manifest
-        templates.env.globals["vite_dev"] = False
-        templates.env.globals["vite_dev_url"] = ""
+        env_globals["vite_dev"] = False
+        env_globals["vite_dev_url"] = ""
+
         manifest = load_vite_manifest(settings.game_assets_dir)
         urls = resolve_vite_asset_urls(manifest)
-        templates.env.globals["lobby_css_url"] = urls.get("lobby_css", "")
-        templates.env.globals["lobby_js_url"] = urls.get("lobby_js", "")
-        templates.env.globals["game_css_url"] = urls.get("game_css", "")
-        templates.env.globals["game_js_url"] = urls.get("game_js", "")
+
+        env_globals["lobby_css_url"] = urls.get("lobby_css", "")
+        env_globals["lobby_js_url"] = urls.get("lobby_js", "")
+        env_globals["game_css_url"] = urls.get("game_css", "")
+        env_globals["game_js_url"] = urls.get("game_js", "")
         game_assets_available = bool(urls.get("game_js"))
 
     majiang_available = majiang_dir.is_dir() and (majiang_dir / "ronin.html").is_file()
@@ -326,10 +337,12 @@ def _attach_state(  # noqa: PLR0913
 
     app.state.majiang_dir = majiang_dir
     app.state.majiang_available = majiang_available
-    templates.env.globals["app_version"] = APP_VERSION
-    templates.env.globals["git_commit"] = GIT_COMMIT
-    templates.env.globals["current_year"] = datetime.now(tz=UTC).year
-    templates.env.globals["dev_mode"] = dev_mode
+
+    env_globals["app_version"] = APP_VERSION
+    env_globals["git_commit"] = GIT_COMMIT
+    env_globals["current_year"] = datetime.now(tz=UTC).year
+    env_globals["dev_mode"] = dev_mode
+
     app.state.templates = templates
     app.state.game_assets_available = game_assets_available
     app.state.auth_service = auth_service
@@ -339,8 +352,10 @@ def _attach_state(  # noqa: PLR0913
 
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
-    """Factory function for uvicorn --factory lobby.server.app:get_app."""
+    """
+    Factory function for uvicorn --factory lobby.server.app:get_app.
+    """
     s = LobbyServerSettings()
-    auth = AuthSettings()  # ty: ignore[missing-argument]
+    auth = AuthSettings()
     setup_logging(log_dir=s.log_dir)
     return create_app(settings=s, auth_settings=auth)

@@ -96,14 +96,12 @@ function makeGameEndEvent(): GameEndEvent {
     };
 }
 
-/** Helper to build all three inputs for buildNavigationIndex from events. */
 function buildNavInputs(events: ReplayEvent[]) {
     const states = buildTimeline(events);
     const actionSteps = buildActionSteps(events);
     return { actionSteps, events, states };
 }
 
-/** Helper to build a 2-round game's navigation index. */
 function buildTwoRoundNavIndex() {
     const events: ReplayEvent[] = [
         makeGameStartedEvent(),

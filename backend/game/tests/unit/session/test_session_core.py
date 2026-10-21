@@ -7,37 +7,33 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.types import MeldCaller
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionMessageType
+from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game
 
 
 class TestSessionManager:
-    async def test_leave_game_notifies_others(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_leave_game__when_player_leaves__should_notify_others(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.leave_game(conns[1])
-
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0]["type"] == SessionMessageType.PLAYER_LEFT
         assert conns[0].sent_messages[0]["player_name"] == "Bob"
 
-    async def test_handle_game_action_broadcasts_events(self, manager):
-        """handle_game_action processes list of events and broadcasts them."""
-        conns = await create_started_game(manager, "game1")
+    async def test_handle_game_action__when_service_returns_event__should_broadcast_it(self, manager):
+        conns = await create_started_game(manager)
 
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {"key": "value"})
-
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"key": "value"})
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
         assert msg.get("t") == EVENT_TYPE_INT[EventType.DRAW]
         assert msg["action"] == GameAction.DISCARD
 
-    async def test_targeted_events_only_sent_to_target_player(self, manager):
-        """Events with seat_N target go only to the player at that seat."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_broadcast_events__when_event_targets_seat__should_send_only_to_that_player(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
@@ -52,14 +48,12 @@ class TestSessionManager:
             target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [seat_event])
-
         # only conn1 (seat 0) should receive the event
         assert len(conns[0].sent_messages) == 1
         assert len(conns[1].sent_messages) == 0
 
-    async def test_call_prompt_only_sent_to_callers(self, manager):
-        """Per-seat CallPromptEvent is only sent to the targeted seat, not to all players."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_broadcast_events__when_call_prompt_targets_seat__should_send_only_to_that_caller(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         # per-seat call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
@@ -75,15 +69,13 @@ class TestSessionManager:
             target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [call_event])
-
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         assert len(conns[1].sent_messages) == 0
 
-    async def test_call_prompt_sent_once_when_player_has_multiple_meld_options(self, manager):
-        """Per-seat CallPromptEvent is sent once per player even when they have both pon and chi options."""
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+    async def test_broadcast_events__when_caller_has_pon_and_chi__should_send_call_prompt_once(self, manager):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         # seat 0 can both pon and chi the same tile -- two MeldCaller entries for the same seat.
         game = manager.get_game("game1")
@@ -103,7 +95,6 @@ class TestSessionManager:
             target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [call_event])
-
         # seat 0 should receive the call_prompt exactly once
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]

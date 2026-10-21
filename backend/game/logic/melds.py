@@ -1,7 +1,3 @@
-"""
-Meld operations for Mahjong game (pon, chi, kan).
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -56,6 +52,7 @@ def _count_total_kans(round_state: MahjongRoundState) -> int:
         for m in player.melds:
             if m.type in _KAN_MELD_TYPES:
                 count += 1
+
     return count
 
 
@@ -110,11 +107,13 @@ def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
             count += 1
             if count >= TILES_FOR_PON:
                 return True
+
     return False
 
 
 def can_call_chi(
     player: MahjongPlayer,
+    *,
     discarded_tile: int,
     discarder_seat: int,
     caller_seat: int,
@@ -139,23 +138,20 @@ def can_call_chi(
         return []
 
     discarded_34 = tile_to_34(discarded_tile)
-
     if is_honor(discarded_34):
         return []
 
     tile_value = discarded_34 % TILES_PER_SUIT
     hand_tiles_by_34 = _build_same_suit_tile_map(player.tiles, discarded_34)
-
-    return _find_chi_combinations(discarded_34, tile_value, hand_tiles_by_34)
+    return _find_chi_combinations(discarded_34=discarded_34, tile_value=tile_value, hand_tiles=hand_tiles_by_34)
 
 
 def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: int) -> dict[int, list[int]]:
     """
     Build a map of tiles in hand that are in the same suit as discarded tile.
     """
-    result: dict[int, list[int]] = {}
     discarded_suit = discarded_34 // TILES_PER_SUIT
-
+    result: dict[int, list[int]] = {}
     for t in tiles:
         t34 = tile_to_34(t)
         if t34 // TILES_PER_SUIT == discarded_suit:
@@ -176,15 +172,21 @@ def _find_chi_combinations(
 
     # discarded tile is lowest in sequence (e.g., 1 in 123)
     if tile_value <= CHI_LOWEST_MAX_VALUE:
-        _add_combination_if_valid(combinations, hand_tiles, discarded_34 + 1, discarded_34 + 2)
+        _add_combination_if_valid(
+            combinations=combinations, hand_tiles=hand_tiles, tile34_a=discarded_34 + 1, tile34_b=discarded_34 + 2
+        )
 
     # discarded tile is middle in sequence (e.g., 2 in 123)
     if CHI_MIDDLE_MIN_VALUE <= tile_value <= CHI_MIDDLE_MAX_VALUE:
-        _add_combination_if_valid(combinations, hand_tiles, discarded_34 - 1, discarded_34 + 1)
+        _add_combination_if_valid(
+            combinations=combinations, hand_tiles=hand_tiles, tile34_a=discarded_34 - 1, tile34_b=discarded_34 + 1
+        )
 
     # discarded tile is highest in sequence (e.g., 3 in 123)
     if tile_value >= CHI_HIGHEST_MIN_VALUE:
-        _add_combination_if_valid(combinations, hand_tiles, discarded_34 - 2, discarded_34 - 1)
+        _add_combination_if_valid(
+            combinations=combinations, hand_tiles=hand_tiles, tile34_a=discarded_34 - 2, tile34_b=discarded_34 - 1
+        )
 
     return combinations
 
@@ -204,6 +206,7 @@ def _add_combination_if_valid(
 
 def can_call_open_kan(
     player: MahjongPlayer,
+    *,
     discarded_tile: int,
     round_state: MahjongRoundState,
     settings: GameSettings,
@@ -255,7 +258,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
 
     tenpai_player = player.model_copy(update={"tiles": tuple(tiles_13)})
     original_waits = get_waiting_tiles(tenpai_player)
-
     if not original_waits:
         return False
 
@@ -281,9 +283,7 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
             "melds": (*player.melds, kan_meld),
         },
     )
-
     new_waits = get_waiting_tiles(temp_player)
-
     return new_waits == original_waits
 
 
@@ -291,30 +291,35 @@ def _find_closed_kan_candidates(
     player: MahjongPlayer,
     tile_counts: dict[int, int],
 ) -> list[int]:
-    """Find tile_34 values where the player holds 4 copies (closed kan candidates).
+    """
+    Find tile_34 values where the player holds 4 copies (closed kan candidates).
 
-    For riichi players, additional constraints apply: the drawn tile must be
-    the kan tile, and the kan must preserve the waiting tiles.
+    For riichi players, additional constraints apply: the drawn tile must be the kan tile, and the kan must preserve the
+    waiting tiles.
     """
     possible = []
     for t34, count in tile_counts.items():
         if count < TILES_FOR_CLOSED_KAN:
             continue
+
         if player.is_riichi:
             # the drawn tile (last in hand) must be the kan tile;
             # a riichi player cannot kan tiles already held before drawing
             if player.tiles[-1] // 4 != t34:
                 continue
+
             if _kan_preserves_waits_for_riichi(player, t34):
                 possible.append(t34)
         else:
             possible.append(t34)
+
     return possible
 
 
 def get_possible_closed_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> list[int]:
     """
@@ -349,6 +354,7 @@ def get_possible_closed_kans(
 def get_possible_added_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> list[int]:
     """
@@ -386,6 +392,7 @@ def get_possible_added_kans(
 
 def _check_pao(
     player: MahjongPlayer,
+    *,
     discarder_seat: int,
     called_tile_34: int,
     settings: GameSettings,
@@ -406,11 +413,14 @@ def _check_pao(
     for tile_set, threshold, enabled in pao_rules:
         if called_tile_34 not in tile_set:
             continue
+
         if not enabled:
             continue
+
         count = sum(1 for m in player.melds if tile_to_34(m.tiles[0]) in tile_set and m.type in _PAO_MELD_TYPES)
         if count + 1 >= threshold:
             return discarder_seat
+
     return None
 
 
@@ -422,7 +432,8 @@ def _validate_kan_preconditions(
     player: MahjongPlayer | None = None,
     kan_label: str = "kan",
 ) -> None:
-    """Validate common kan preconditions (defense-in-depth guards).
+    """
+    Validate common kan preconditions (defense-in-depth guards).
 
     Raises InvalidMeldError if:
     - reject_riichi is True and the player is in riichi
@@ -449,8 +460,7 @@ def _remove_matching_tiles(
     """
     Find and remove up to ``count`` tiles matching ``tile_34`` from hand.
 
-    Return ``(removed_tiles, new_hand)``.
-    Raise ``InvalidMeldError`` if fewer than ``count`` matching tiles are found.
+    Return ``(removed_tiles, new_hand)``. Raise ``InvalidMeldError`` if fewer than ``count`` matching tiles are found.
     """
     removed_tiles: list[int] = []
     new_hand: list[int] = []
@@ -481,7 +491,9 @@ def _finalize_meld_state(
     *,
     mark_open: bool,
 ) -> MahjongRoundState:
-    """Apply shared post-meld state updates: track open hand, clear ippatsu, set current player."""
+    """
+    Apply shared post-meld state updates: track open hand, clear ippatsu, set current player.
+    """
     if mark_open and caller_seat not in state.players_with_open_hands:
         new_open_hands = (*state.players_with_open_hands, caller_seat)
         state = state.model_copy(update={"players_with_open_hands": new_open_hands})
@@ -496,7 +508,9 @@ def _handle_kan_dora_and_draw(
     *,
     is_closed_kan: bool,
 ) -> MahjongRoundState:
-    """Handle dora reveal/deferral and dead wall draw for kan declarations."""
+    """
+    Handle dora reveal/deferral and dead wall draw for kan declarations.
+    """
     if settings.has_kandora:
         if is_closed_kan:
             if settings.kandora_immediate_for_closed_kan:
@@ -514,6 +528,7 @@ def _handle_kan_dora_and_draw(
 
 def call_pon(
     round_state: MahjongRoundState,
+    *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
@@ -522,14 +537,15 @@ def call_pon(
     """
     Execute a pon call on a discarded tile.
 
-    Removes 2 matching tiles from caller's hand, creates a FrozenMeld object,
-    updates game state (open hands, ippatsu flags, current player).
-    Returns (new_round_state, created_meld).
+    Removes 2 matching tiles from caller's hand, creates a FrozenMeld object, updates game state (open hands, ippatsu
+    flags, current player). Returns (new_round_state, created_meld).
     """
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
 
-    removed_tiles, new_hand = _remove_matching_tiles(caller.tiles, tile_34, TILES_FOR_PON, "pon", caller_seat)
+    removed_tiles, new_hand = _remove_matching_tiles(
+        hand=caller.tiles, tile_34=tile_34, count=TILES_FOR_PON, meld_name="pon", seat=caller_seat
+    )
 
     # create meld with all 3 tiles (2 from hand + called tile)
     meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
@@ -541,16 +557,15 @@ def call_pon(
         who=caller_seat,
         from_who=discarder_seat,
     )
-
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
-    pao_seat = _check_pao(caller, discarder_seat, tile_34, settings)
+    pao_seat = _check_pao(caller, discarder_seat=discarder_seat, called_tile_34=tile_34, settings=settings)
 
     # set kuikae restriction based on settings
     kuikae_tiles: tuple[int, ...] = ()
     if settings.has_kuikae:
-        kuikae_tiles = tuple(get_kuikae_tiles(MeldCallType.PON, tile_34))
+        kuikae_tiles = tuple(get_kuikae_tiles(call_type=MeldCallType.PON, called_tile_34=tile_34))
 
     # update player state
     player_updates: dict[str, object] = {
@@ -565,12 +580,12 @@ def call_pon(
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     # Pon requires a subsequent discard without drawing; mark state for tsumogiri detection
     new_state = new_state.model_copy(update={"is_after_meld_call": True})
-
     return new_state, meld
 
 
 def _validate_chi_sequence(tile_id: int, sequence_tiles: tuple[int, int]) -> None:
-    """Validate that the called tile and sequence tiles form a consecutive run in one suit.
+    """
+    Validate that the called tile and sequence tiles form a consecutive run in one suit.
 
     Raises InvalidMeldError if:
     - Any tile is an honor tile (chi requires numbered tiles)
@@ -580,15 +595,18 @@ def _validate_chi_sequence(tile_id: int, sequence_tiles: tuple[int, int]) -> Non
     all_34 = sorted(tile_to_34(t) for t in (tile_id, *sequence_tiles))
     if any(is_honor(t) for t in all_34):
         raise InvalidMeldError("chi is not allowed with honor tiles")
+
     suits = {t // TILES_PER_SUIT for t in all_34}
     if len(suits) != 1:
         raise InvalidMeldError("chi tiles must be from the same suit")
+
     if all_34[1] - all_34[0] != 1 or all_34[2] - all_34[1] != 1:
         raise InvalidMeldError("chi tiles must form a consecutive sequence")
 
 
 def call_chi(  # noqa: PLR0913
     round_state: MahjongRoundState,
+    *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
@@ -598,9 +616,8 @@ def call_chi(  # noqa: PLR0913
     """
     Execute a chi call on a discarded tile.
 
-    Removes sequence_tiles from caller's hand, creates a FrozenMeld object,
-    updates game state (open hands, ippatsu flags, current player).
-    Returns (new_round_state, created_meld).
+    Removes sequence_tiles from caller's hand, creates a FrozenMeld object, updates game state (open hands, ippatsu
+    flags, current player). Returns (new_round_state, created_meld).
     """
     caller = round_state.players[caller_seat]
 
@@ -625,7 +642,6 @@ def call_chi(  # noqa: PLR0913
         who=caller_seat,
         from_who=discarder_seat,
     )
-
     new_melds = (*caller.melds, meld)
 
     # set kuikae restriction based on settings
@@ -634,7 +650,9 @@ def call_chi(  # noqa: PLR0913
         called_34 = tile_to_34(tile_id)
         sequence_tiles_34 = [tile_to_34(t) for t in sequence_tiles]
         if settings.has_kuikae_suji:
-            kuikae = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_tiles_34)
+            kuikae = get_kuikae_tiles(
+                call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_tiles_34
+            )
         else:
             # only forbid the called tile type (no suji restriction)
             kuikae = [called_34]
@@ -650,12 +668,12 @@ def call_chi(  # noqa: PLR0913
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     # Chi requires a subsequent discard without drawing; mark state for tsumogiri detection
     new_state = new_state.model_copy(update={"is_after_meld_call": True})
-
     return new_state, meld
 
 
 def call_open_kan(
     round_state: MahjongRoundState,
+    *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
@@ -664,9 +682,8 @@ def call_open_kan(
     """
     Execute an open kan (daiminkan) call on a discarded tile.
 
-    Removes 3 matching tiles from caller's hand, creates a FrozenMeld object,
-    updates game state. The caller must draw from dead wall after this.
-    Returns (new_round_state, created_meld).
+    Removes 3 matching tiles from caller's hand, creates a FrozenMeld object, updates game state. The caller must draw
+    from dead wall after this. Returns (new_round_state, created_meld).
     """
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
@@ -680,11 +697,11 @@ def call_open_kan(
     )
 
     removed_tiles, new_hand = _remove_matching_tiles(
-        caller.tiles,
-        tile_34,
-        TILES_FOR_OPEN_KAN,
-        "open kan",
-        caller_seat,
+        hand=caller.tiles,
+        tile_34=tile_34,
+        count=TILES_FOR_OPEN_KAN,
+        meld_name="open kan",
+        seat=caller_seat,
     )
 
     # create meld with all 4 tiles (3 from hand + called tile)
@@ -697,11 +714,10 @@ def call_open_kan(
         who=caller_seat,
         from_who=discarder_seat,
     )
-
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
-    pao_seat = _check_pao(caller, discarder_seat, tile_34, settings)
+    pao_seat = _check_pao(caller, discarder_seat=discarder_seat, called_tile_34=tile_34, settings=settings)
 
     # update player state
     player_updates: dict[str, object] = {
@@ -714,7 +730,6 @@ def call_open_kan(
     new_state = update_player(round_state, caller_seat, **player_updates)
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
-
     return new_state, meld
 
 
@@ -727,9 +742,8 @@ def validate_closed_kan(
     """
     Validate that a closed kan (ankan) declaration is legal without executing it.
 
-    Checks riichi constraints, kan preconditions (wall tiles, max kans),
-    and that the player holds 4 copies of the tile type.
-    Raises InvalidMeldError on any violation.
+    Checks riichi constraints, kan preconditions (wall tiles, max kans), and that the player holds 4 copies of the tile
+    type. Raises InvalidMeldError on any violation.
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
@@ -737,6 +751,7 @@ def validate_closed_kan(
     if player.is_riichi:
         if tile_to_34(player.tiles[-1]) != tile_34:
             raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
+
         if not _kan_preserves_waits_for_riichi(player, tile_34):
             raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
 
@@ -751,6 +766,7 @@ def validate_closed_kan(
 
 def call_closed_kan(
     round_state: MahjongRoundState,
+    *,
     seat: int,
     tile_id: int,
     settings: GameSettings,
@@ -758,8 +774,7 @@ def call_closed_kan(
     """
     Execute a closed kan (ankan) declaration.
 
-    Player declares kan with 4 tiles from hand. The hand remains closed.
-    Returns (new_round_state, created_meld).
+    Player declares kan with 4 tiles from hand. The hand remains closed. Returns (new_round_state, created_meld).
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
@@ -768,17 +783,18 @@ def call_closed_kan(
     if player.is_riichi:
         if tile_to_34(player.tiles[-1]) != tile_34:
             raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
+
         if not _kan_preserves_waits_for_riichi(player, tile_34):
             raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
 
     _validate_kan_preconditions(round_state, settings)
 
     removed_tiles, new_hand = _remove_matching_tiles(
-        player.tiles,
-        tile_34,
-        TILES_FOR_CLOSED_KAN,
-        "closed kan",
-        seat,
+        hand=player.tiles,
+        tile_34=tile_34,
+        count=TILES_FOR_CLOSED_KAN,
+        meld_name="closed kan",
+        seat=seat,
     )
 
     # create meld with all 4 tiles (closed kan - opened=False)
@@ -789,7 +805,6 @@ def call_closed_kan(
         opened=False,
         who=seat,
     )
-
     new_melds = (*player.melds, meld)
 
     # update player state
@@ -802,7 +817,6 @@ def call_closed_kan(
     # closed kan does NOT make the hand open (mark_open=False)
     new_state = _finalize_meld_state(new_state, seat, mark_open=False)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=True)
-
     return new_state, meld
 
 
@@ -812,11 +826,11 @@ def resolve_added_kan_tile(
     tile_id: int,
     settings: GameSettings,
 ) -> int:
-    """Validate and resolve the tile_id for an added kan declaration.
+    """
+    Validate and resolve the tile_id for an added kan declaration.
 
-    Checks kan preconditions, verifies a matching pon exists, and resolves the
-    tile_id to the actual in-hand copy. Must be called before chankan checks so
-    that the resolved tile is used consistently for prompts and scoring.
+    Checks kan preconditions, verifies a matching pon exists, and resolves the tile_id to the actual in-hand copy. Must
+    be called before chankan checks so that the resolved tile is used consistently for prompts and scoring.
 
     Returns the resolved tile_id (the actual physical tile in hand).
     """
@@ -853,6 +867,7 @@ def resolve_added_kan_tile(
 
 def call_added_kan(
     round_state: MahjongRoundState,
+    *,
     seat: int,
     tile_id: int,
     settings: GameSettings,
@@ -860,9 +875,8 @@ def call_added_kan(
     """
     Execute an added kan (shouminkan) declaration.
 
-    Player upgrades an existing pon to a kan by adding the 4th tile.
-    The tile_id should already be resolved via resolve_added_kan_tile().
-    Returns (new_round_state, upgraded_meld).
+    Player upgrades an existing pon to a kan by adding the 4th tile. The tile_id should already be resolved via
+    resolve_added_kan_tile(). Returns (new_round_state, upgraded_meld).
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
@@ -923,5 +937,4 @@ def call_added_kan(
     # added kan keeps the hand open (already open from the pon), no need to re-mark
     new_state = _finalize_meld_state(new_state, seat, mark_open=False)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
-
     return new_state, upgraded_meld

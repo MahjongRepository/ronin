@@ -1,5 +1,3 @@
-"""Monitor client liveness via application-level heartbeat."""
-
 import asyncio
 import contextlib
 import time
@@ -15,7 +13,9 @@ logger = structlog.get_logger()
 
 
 class _HasPlayers(Protocol):
-    """Entity with a players dict (Game)."""
+    """
+    Entity with a players dict (Game).
+    """
 
     @property
     def players(self) -> dict[str, Any]: ...
@@ -27,10 +27,11 @@ EntityResolver = Callable[[str], _HasPlayers | None]
 
 
 class HeartbeatMonitor:
-    """Monitor client liveness and disconnect stale connections.
+    """
+    Monitor client liveness and disconnect stale connections.
 
-    Tracks per-connection ping timestamps and runs per-game background loops
-    that disconnect connections that haven't pinged within the timeout window.
+    Tracks per-connection ping timestamps and runs per-game background loops that disconnect connections that haven't
+    pinged within the timeout window.
     """
 
     def __init__(self) -> None:
@@ -38,31 +39,44 @@ class HeartbeatMonitor:
         self._tasks: dict[str, asyncio.Task[None]] = {}  # "game:{id}" -> task
 
     def record_connect(self, connection_id: str) -> None:
-        """Record initial ping timestamp for a new connection."""
+        """
+        Record initial ping timestamp for a new connection.
+        """
         self._last_ping[connection_id] = time.monotonic()
 
     def record_disconnect(self, connection_id: str) -> None:
-        """Remove ping tracking for a disconnected connection."""
+        """
+        Remove ping tracking for a disconnected connection.
+        """
         self._last_ping.pop(connection_id, None)
 
     def record_ping(self, connection_id: str) -> None:
-        """Update ping timestamp for a tracked connection."""
+        """
+        Update ping timestamp for a tracked connection.
+        """
         if connection_id in self._last_ping:
             self._last_ping[connection_id] = time.monotonic()
 
     def start_for_game(self, game_id: str, get_game: EntityResolver) -> None:
-        """Start the heartbeat monitor for a game."""
-        self._start(f"game:{game_id}", game_id, "game", get_game)
+        """
+        Start the heartbeat monitor for a game.
+        """
+        self._start(key=f"game:{game_id}", entity_id=game_id, entity_type="game", get_entity=get_game)
 
     async def stop_for_game(self, game_id: str) -> None:
-        """Stop the heartbeat monitor for a game."""
+        """
+        Stop the heartbeat monitor for a game.
+        """
         await self._stop(f"game:{game_id}")
 
     def _start(self, key: str, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
         existing = self._tasks.get(key)
         if existing is not None and not existing.done():
             existing.cancel()
-        self._tasks[key] = asyncio.create_task(self._check_loop(entity_id, entity_type, get_entity))
+
+        self._tasks[key] = asyncio.create_task(
+            self._check_loop(entity_id=entity_id, entity_type=entity_type, get_entity=get_entity)
+        )
 
     async def _stop(self, key: str) -> None:
         task = self._tasks.pop(key, None)
@@ -72,7 +86,9 @@ class HeartbeatMonitor:
                 await task
 
     async def _check_loop(self, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
-        """Periodically check for stale connections in a game."""
+        """
+        Periodically check for stale connections in a game.
+        """
         while True:
             await asyncio.sleep(HEARTBEAT_CHECK_INTERVAL)
             entity = get_entity(entity_id)

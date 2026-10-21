@@ -1,5 +1,3 @@
-"""Shared game transition logic for creating games on the game server."""
-
 from __future__ import annotations
 
 from http import HTTPStatus
@@ -21,12 +19,17 @@ _HTTP_CREATED = HTTPStatus.CREATED
 
 
 async def create_game_on_server(
+    *,
     game_id: str,
     players: list[dict],
     num_ai_players: int,
     registry: RegistryManager,
 ) -> str:
-    """Call POST /games on a game server. Return the game server WebSocket URL."""
+    """
+    Call POST /games on a game server.
+
+    Return the game server WebSocket URL.
+    """
     await registry.check_health()
     healthy_servers = registry.get_healthy_servers()
     if not healthy_servers:
@@ -55,11 +58,13 @@ async def create_game_on_server(
 
 
 def sign_player_tickets(
+    *,
     players: list[tuple[str, str, str]],
     game_id: str,
     ticket_secret: str,
 ) -> tuple[list[dict], dict[str, str]]:
-    """Sign game tickets for a list of players.
+    """
+    Sign game tickets for a list of players.
 
     Args:
         players: List of (user_id, username, connection_id) tuples.
@@ -72,7 +77,10 @@ def sign_player_tickets(
     player_specs = []
     ticket_map: dict[str, str] = {}
     for user_id, username, conn_id in players:
-        signed_ticket = create_signed_ticket(user_id, username, game_id, ticket_secret)
+        signed_ticket = create_signed_ticket(
+            user_id=user_id, username=username, room_id=game_id, game_ticket_secret=ticket_secret
+        )
         player_specs.append({"name": username, "user_id": user_id, "game_ticket": signed_ticket})
         ticket_map[conn_id] = signed_ticket
+
     return player_specs, ticket_map

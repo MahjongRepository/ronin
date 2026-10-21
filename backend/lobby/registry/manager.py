@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 import structlog
@@ -7,25 +7,19 @@ import yaml
 
 from lobby.registry.types import GameServer
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 logger = structlog.get_logger()
 
 
-def _get_default_config_path() -> Path:  # pragma: no cover — production default, tests always provide config_path
-    """Return the file-relative default path to servers.yaml."""
-    backend_root = Path(__file__).parent.parent.parent
-    return backend_root / "config" / "servers.yaml"
-
-
 class RegistryManager:
-    def __init__(self, config_path: Path | None = None) -> None:
+    def __init__(self, config_path: Path) -> None:
         self._servers: list[GameServer] = []
-        self._config_path = config_path or _get_default_config_path()
+        self._config_path = config_path
         self._load_config()
 
     def _load_config(self) -> None:
-        if not self._config_path.exists():
-            return
-
         with self._config_path.open() as f:
             config = yaml.safe_load(f)
 

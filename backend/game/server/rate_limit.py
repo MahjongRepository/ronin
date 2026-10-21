@@ -1,14 +1,12 @@
-"""Token bucket rate limiter for WebSocket message throttling."""
-
 import time
 
 
 class TokenBucket:
-    """Rate limiter using the token bucket algorithm.
+    """
+    Rate limiter using the token bucket algorithm.
 
-    Tokens are added at a constant rate up to a maximum burst capacity.
-    Each consume() call removes one token; returns False when the bucket
-    is empty (caller should throttle).
+    Tokens are added at a constant rate up to a maximum burst capacity. Each consume() call removes one token; returns
+    False when the bucket is empty (caller should throttle).
     """
 
     def __init__(self, rate: float, burst: int) -> None:
@@ -18,7 +16,11 @@ class TokenBucket:
         self._last_refill = time.monotonic()
 
     def consume(self) -> bool:
-        """Try to consume one token. Returns True if allowed, False if rate-limited."""
+        """
+        Try to consume one token.
+
+        Returns True if allowed, False if rate-limited.
+        """
         now = time.monotonic()
         elapsed = now - self._last_refill
         self._tokens = min(self._burst, self._tokens + elapsed * self._rate)
@@ -27,4 +29,5 @@ class TokenBucket:
         if self._tokens >= 1.0:
             self._tokens -= 1.0
             return True
+
         return False

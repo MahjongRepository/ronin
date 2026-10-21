@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from game.logic.enums import GameAction, TimeoutType, WindName
 from game.logic.events import (
@@ -15,10 +15,11 @@ from game.logic.service import GameService
 from game.logic.settings import GameSettings, GameType
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
+if TYPE_CHECKING:
+    from game.logic.state import MahjongGameState
+
 
 class MockResultEvent(GameEvent):
-    """Mock event for action results in tests."""
-
     player: str
     action: GameAction | str
     input: dict[str, Any]
@@ -26,8 +27,6 @@ class MockResultEvent(GameEvent):
 
 
 class _MockPlayer:
-    """Minimal player stub with seat and name."""
-
     __slots__ = ("name", "seat")
 
     def __init__(self, seat: int, name: str) -> None:
@@ -36,8 +35,6 @@ class _MockPlayer:
 
 
 class _MockSettings:
-    """Minimal settings stub exposing game_type."""
-
     __slots__ = ("game_type",)
 
     def __init__(self, game_type: str = GameType.HANCHAN) -> None:
@@ -45,8 +42,6 @@ class _MockSettings:
 
 
 class _MockRoundState:
-    """Minimal round state stub with players list."""
-
     __slots__ = ("players",)
 
     def __init__(self, players: list[_MockPlayer] | None = None) -> None:
@@ -54,8 +49,6 @@ class _MockRoundState:
 
 
 class _MockGameState:
-    """Minimal game state stub for replay collection and persistence tests."""
-
     __slots__ = ("rng_version", "round_number", "round_state", "settings")
 
     def __init__(
@@ -72,11 +65,6 @@ class _MockGameState:
 
 
 class MockGameService(GameService):
-    """Mock game service for testing.
-
-    Simply echoes back actions as events.
-    """
-
     def __init__(self) -> None:
         self._player_seats: dict[str, dict[str, int]] = {}  # game_id -> {player_name -> seat}
         self._seeds: dict[str, str] = {}  # game_id -> seed
@@ -84,14 +72,15 @@ class MockGameService(GameService):
         self._game_types: dict[str, str] = {}  # game_id -> game_type string
 
     def get_player_seat(self, game_id: str, player_name: str) -> int | None:
-        """Get the seat number for a player by name."""
         game_seats = self._player_seats.get(game_id)
         if game_seats is None:
             return None
+
         return game_seats.get(player_name)
 
     async def handle_action(
         self,
+        *,
         game_id: str,
         player_name: str,
         action: GameAction,
@@ -135,7 +124,6 @@ class MockGameService(GameService):
         players = [
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
         ]
-
         return [
             ServiceEvent(
                 event=EventType.GAME_STARTED,
@@ -167,19 +155,18 @@ class MockGameService(GameService):
         ]
 
     def get_game_seed(self, game_id: str) -> str | None:
-        """Return the seed for a game, or None if game doesn't exist."""
         return self._seeds.get(game_id)
 
-    def get_game_state(self, game_id: str) -> _MockGameState | None:  # type: ignore[override]
-        """Return a mock game state, or None if game doesn't exist."""
+    def get_game_state(self, game_id: str) -> MahjongGameState | None:
         if game_id not in self._seeds:
             return None
+
         all_names = self._all_player_names.get(game_id, [])
         players = [_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]
         game_type = self._game_types.get(game_id, GameType.HANCHAN)
-        return _MockGameState(
-            round_state=_MockRoundState(players=players),
-            settings=_MockSettings(game_type=game_type),
+        return cast(
+            "MahjongGameState",
+            _MockGameState(round_state=_MockRoundState(players=players), settings=_MockSettings(game_type=game_type)),
         )
 
     def cleanup_game(self, game_id: str) -> None:
@@ -219,6 +206,7 @@ class MockGameService(GameService):
 
     async def handle_timeout(
         self,
+        *,
         game_id: str,
         player_name: str,
         timeout_type: TimeoutType,

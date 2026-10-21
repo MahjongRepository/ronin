@@ -1,8 +1,3 @@
-"""
-Tile representation utilities for Mahjong game.
-"""
-
-
 # tile ranges in 136-format (4 copies of each tile)
 # man (characters): 0-35 (1m-9m, 4 copies each)
 # pin (circles): 36-71 (1p-9p, 4 copies each)
@@ -43,11 +38,12 @@ def tile_to_34(tile_id: int) -> int:
     """
     Convert 136-format tile ID to 34-format.
 
-    In 136-format, each tile type has 4 copies (tile_id // 4 gives the type).
-    In 34-format, each tile type is represented by a single index (0-33).
+    In 136-format, each tile type has 4 copies (tile_id // 4 gives the type). In 34-format, each tile type is
+    represented by a single index (0-33).
     """
     if not (TILE_ID_MIN <= tile_id <= TILE_ID_MAX):
         raise ValueError(f"tile_id must be in [{TILE_ID_MIN}, {TILE_ID_MAX}], got {tile_id}")
+
     return tile_id // 4
 
 
@@ -73,7 +69,9 @@ def is_terminal_or_honor(tile_34: int) -> bool:
 
 
 def sort_tiles(tiles: list[int]) -> list[int]:
-    """Sort tiles by their 136-format tile ID."""
+    """
+    Sort tiles by their 136-format tile ID.
+    """
     return sorted(tiles)
 
 
@@ -81,13 +79,15 @@ def hand_to_34_array(tiles: list[int] | tuple[int, ...]) -> list[int]:
     """
     Convert a list of 136-format tile IDs to a 34-array (tile counts).
 
-    The 34-array has 34 elements, where each index represents a tile type
-    and the value is the count of that tile type in the hand.
+    The 34-array has 34 elements, where each index represents a tile type and the value is the count of that tile type
+    in the hand.
     """
     if tiles and (min(tiles) < TILE_ID_MIN or max(tiles) > TILE_ID_MAX):
         bad = next(t for t in tiles if not (TILE_ID_MIN <= t <= TILE_ID_MAX))
         raise ValueError(f"tile_id must be in [{TILE_ID_MIN}, {TILE_ID_MAX}], got {bad}")
+
     tiles_34 = [0] * NUM_TILE_TYPES
     for tile_id in tiles:
         tiles_34[tile_id // 4] += 1
+
     return tiles_34

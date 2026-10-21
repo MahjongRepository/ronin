@@ -1,10 +1,3 @@
-"""
-Action handlers for game actions.
-
-Each handler validates input and returns ActionResult containing events and optional new state.
-These handlers are designed to be used by the MahjongGameService to process player actions.
-"""
-
 import structlog
 
 from game.logic.abortive import (
@@ -75,7 +68,9 @@ def _create_not_your_turn_error(
     round_state: MahjongRoundState | None = None,
     game_state: MahjongGameState | None = None,
 ) -> ActionResult:
-    """Create an error result for when it's not a player's turn."""
+    """
+    Create an error result for when it's not a player's turn.
+    """
     return ActionResult(
         events=[ErrorEvent(code=GameErrorCode.NOT_YOUR_TURN, message="not your turn", target=f"seat_{seat}")],
         new_round_state=round_state,
@@ -90,13 +85,13 @@ def _validate_call_prompt(
     tile_id: int,
     error_code: GameErrorCode,
 ) -> PendingCallPrompt | ActionResult:
-    """Validate the pending call prompt for a meld call (pon, chi, etc.).
+    """
+    Validate the pending call prompt for a meld call (pon, chi, etc.).
 
-    Check that a pending call prompt exists, that the seat is among the pending
-    callers, and that the tile_id matches the prompt's tile_id.
+    Check that a pending call prompt exists, that the seat is among the pending callers, and that the tile_id matches
+    the prompt's tile_id.
 
-    Return the validated PendingCallPrompt on success, or an ActionResult with
-    an ErrorEvent on failure.
+    Return the validated PendingCallPrompt on success, or an ActionResult with an ErrorEvent on failure.
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
@@ -137,7 +132,8 @@ def _validate_chi_sequence(
     tile_id: int,
     sequence_tiles: tuple[int, int],
 ) -> None:
-    """Validate chi sequence_tiles before recording the response.
+    """
+    Validate chi sequence_tiles before recording the response.
 
     Raises InvalidGameActionError if:
     - Either tile is not in the player's hand
@@ -153,6 +149,7 @@ def _validate_chi_sequence(
                 seat=seat,
                 reason=f"sequence tile {t} not in hand",
             )
+
         hand_list.remove(t)
 
     # The 3 tiles must form a valid sequence (consecutive values in same suit, not honor)
@@ -189,7 +186,8 @@ def _validate_matching_tile_count(
     min_count: int,
     action_name: str,
 ) -> None:
-    """Validate that the player has enough matching tiles for a meld call.
+    """
+    Validate that the player has enough matching tiles for a meld call.
 
     Raises InvalidGameActionError if the player has fewer than min_count matching tiles.
     """
@@ -208,10 +206,11 @@ def _validate_meld_action_for_callers(
     seat: int,
     action: GameAction,
 ) -> None:
-    """Validate that the meld action matches available call types for this seat.
+    """
+    Validate that the meld action matches available call types for this seat.
 
-    Raises InvalidGameActionError if no meld callers exist for the seat
-    or the action doesn't match any available call type.
+    Raises InvalidGameActionError if no meld callers exist for the seat or the action doesn't match any available call
+    type.
     """
     seat_callers = [c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == seat]
     if not seat_callers:
@@ -220,6 +219,7 @@ def _validate_meld_action_for_callers(
             seat=seat,
             reason=f"action {action.value} not available: no meld options for this seat",
         )
+
     allowed: frozenset[GameAction] = frozenset().union(
         *(_MELD_CALL_TYPE_TO_GAME_ACTIONS.get(c.call_type, frozenset()) for c in seat_callers),
     )
@@ -233,7 +233,9 @@ def _validate_meld_action_for_callers(
 
 
 def _is_ron_caller_on_prompt(prompt: PendingCallPrompt, seat: int) -> bool:
-    """Check if the seat is a ron caller (int entry) on the prompt."""
+    """
+    Check if the seat is a ron caller (int entry) on the prompt.
+    """
     return any(c == seat for c in prompt.callers if isinstance(c, int))
 
 
@@ -242,10 +244,10 @@ def _validate_caller_action_matches_prompt(
     seat: int,
     action: GameAction,
 ) -> None:
-    """Validate that the player's response action is among their available call types.
+    """
+    Validate that the player's response action is among their available call types.
 
-    Raises InvalidGameActionError if the action is not valid for the seat's role
-    on this prompt type.
+    Raises InvalidGameActionError if the action is not valid for the seat's role on this prompt type.
     """
     # Ron-only prompts (RON, CHANKAN) and ron callers on DISCARD: only CALL_RON is valid
     ron_only = prompt.call_type in (CallType.RON, CallType.CHANKAN) or (
@@ -258,6 +260,7 @@ def _validate_caller_action_matches_prompt(
                 seat=seat,
                 reason=f"only ron is valid for this seat on a {prompt.call_type.value} prompt",
             )
+
         return
 
     # Meld prompts and meld callers on DISCARD: ron is never valid, check meld types
@@ -274,11 +277,13 @@ def _validate_caller_action_matches_prompt(
             seat=seat,
             reason=f"cannot call ron on a {prompt.call_type.value} prompt",
         )
-    _validate_meld_action_for_callers(prompt, seat, action)
+
+    _validate_meld_action_for_callers(prompt, seat=seat, action=action)
 
 
 def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: int) -> int:
-    """Identify the winning caller's seat from prompt responses for error attribution.
+    """
+    Identify the winning caller's seat from prompt responses for error attribution.
 
     When resolution fails, the error is from the response being executed (ron > pon/kan > chi),
     not from the player whose response happened to trigger resolution.
@@ -291,6 +296,7 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
         caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
         ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, FALLBACK_CALLER_ORDER))
         return ron_responses[0].seat
+
     meld_responses = [
         r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
     ]
@@ -298,6 +304,7 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
         best = pick_best_meld_response(meld_responses, prompt)
         if best is not None:
             return best.seat
+
     return fallback_seat
 
 
@@ -307,16 +314,18 @@ def _resolve_call_prompt_safe(
     prompt: PendingCallPrompt,
     triggering_seat: int,
 ) -> ActionResult:
-    """Resolve a call prompt with a safety net for resolution-time exceptions.
+    """
+    Resolve a call prompt with a safety net for resolution-time exceptions.
 
-    Wraps resolve_call_prompt to catch GameRuleError and convert to InvalidGameActionError
-    with correct blame attribution (the offending caller, not the triggering respondent).
+    Wraps resolve_call_prompt to catch GameRuleError and convert to InvalidGameActionError with correct blame
+    attribution (the offending caller, not the triggering respondent).
     """
     try:
         resolve_result = resolve_call_prompt(round_state, game_state)
     except GameRuleError as e:
         offending_seat = _find_offending_seat_from_prompt(prompt, triggering_seat)
         raise InvalidGameActionError(action="resolve_call", seat=offending_seat, reason=str(e)) from e
+
     return ActionResult(
         resolve_result.events,
         new_round_state=resolve_result.new_round_state,
@@ -337,17 +346,18 @@ _MELD_CALL_TYPE_TO_GAME_ACTIONS: dict[MeldCallType, frozenset[GameAction]] = {
 def handle_discard(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
     data: DiscardActionData,
 ) -> ActionResult:
     """
     Handle a discard action.
 
-    Validates the player's turn and tile_id, then processes the discard.
-    Returns ActionResult with events, post-discard flag, and new state.
+    Validates the player's turn and tile_id, then processes the discard. Returns ActionResult with events, post-discard
+    flag, and new state.
     """
     if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat, round_state, game_state)
+        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
 
     try:
         new_round_state, new_game_state, events = process_discard_phase(
@@ -370,17 +380,18 @@ def handle_discard(
 def handle_riichi(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
     data: RiichiActionData,
 ) -> ActionResult:
     """
     Handle a riichi declaration with discard.
 
-    Validates the player's turn and tile_id, then processes the riichi discard.
-    Returns ActionResult with events and new state.
+    Validates the player's turn and tile_id, then processes the riichi discard. Returns ActionResult with events and new
+    state.
     """
     if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat, round_state, game_state)
+        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
 
     try:
         new_round_state, new_game_state, events = process_discard_phase(
@@ -403,19 +414,19 @@ def handle_riichi(
 def handle_tsumo(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
 ) -> ActionResult:
     """
     Handle a tsumo declaration.
 
-    Validates the player's turn and processes the tsumo win.
-    Returns ActionResult with events and new state.
+    Validates the player's turn and processes the tsumo win. Returns ActionResult with events and new state.
     """
     if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat, round_state, game_state)
+        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
 
     try:
-        new_round_state, new_game_state, events = process_tsumo_call(round_state, game_state, seat)
+        new_round_state, new_game_state, events = process_tsumo_call(round_state, game_state, winner_seat=seat)
         return ActionResult(
             events,
             new_round_state=new_round_state,
@@ -429,14 +440,14 @@ def handle_tsumo(
 def handle_ron(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
 ) -> ActionResult:
     """
     Handle a ron call from a player.
 
-    Record ron intent on the pending call prompt.
-    Execute during resolution (supports double ron).
-    Returns ActionResult with events and new state.
+    Record ron intent on the pending call prompt. Execute during resolution (supports double ron). Returns ActionResult
+    with events and new state.
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
@@ -454,7 +465,7 @@ def handle_ron(
         )
 
     # validate ron is allowed on this prompt type
-    _validate_caller_action_matches_prompt(prompt, seat, GameAction.CALL_RON)
+    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_RON)
 
     # add response
     response = CallResponse(seat=seat, action=GameAction.CALL_RON)
@@ -463,7 +474,7 @@ def handle_ron(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
+        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
 
     return ActionResult(
         [],
@@ -475,27 +486,30 @@ def handle_ron(
 def handle_pon(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
     data: PonActionData,
 ) -> ActionResult:
     """
     Handle a pon call from a player.
 
-    Record pon intent on the pending call prompt.
-    Execute the pon only during resolution when all callers respond.
+    Record pon intent on the pending call prompt. Execute the pon only during resolution when all callers respond.
     Returns ActionResult with events and new state.
     """
-    result = _validate_call_prompt(round_state, game_state, seat, data.tile_id, GameErrorCode.INVALID_PON)
+    result = _validate_call_prompt(
+        round_state, game_state, seat=seat, tile_id=data.tile_id, error_code=GameErrorCode.INVALID_PON
+    )
     if isinstance(result, ActionResult):
         return result
+
     prompt = result
 
     # validate caller action matches prompt
-    _validate_caller_action_matches_prompt(prompt, seat, GameAction.CALL_PON)
+    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_PON)
 
     # validate matching tiles exist
     player = round_state.players[seat]
-    _validate_matching_tile_count(player, prompt.tile_id, seat, min_count=2, action_name="call_pon")
+    _validate_matching_tile_count(player, tile_id=prompt.tile_id, seat=seat, min_count=2, action_name="call_pon")
 
     # add response
     response = CallResponse(seat=seat, action=GameAction.CALL_PON)
@@ -504,7 +518,7 @@ def handle_pon(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
+        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
 
     return ActionResult(
         [],
@@ -516,27 +530,30 @@ def handle_pon(
 def handle_chi(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
     data: ChiActionData,
 ) -> ActionResult:
     """
     Handle a chi call from a player.
 
-    Record chi intent on the pending call prompt.
-    Execute the chi only during resolution when all callers respond.
+    Record chi intent on the pending call prompt. Execute the chi only during resolution when all callers respond.
     Returns ActionResult with events and new state.
     """
-    result = _validate_call_prompt(round_state, game_state, seat, data.tile_id, GameErrorCode.INVALID_CHI)
+    result = _validate_call_prompt(
+        round_state, game_state, seat=seat, tile_id=data.tile_id, error_code=GameErrorCode.INVALID_CHI
+    )
     if isinstance(result, ActionResult):
         return result
+
     prompt = result
 
     # validate caller action matches prompt
-    _validate_caller_action_matches_prompt(prompt, seat, GameAction.CALL_CHI)
+    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_CHI)
 
     # validate sequence_tiles before recording response
     player = round_state.players[seat]
-    _validate_chi_sequence(player, prompt, seat, data.tile_id, data.sequence_tiles)
+    _validate_chi_sequence(player, prompt, seat=seat, tile_id=data.tile_id, sequence_tiles=data.sequence_tiles)
 
     # add response
     response = CallResponse(seat=seat, action=GameAction.CALL_CHI, sequence_tiles=data.sequence_tiles)
@@ -545,7 +562,7 @@ def handle_chi(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
+        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
 
     return ActionResult(
         [],
@@ -563,26 +580,27 @@ def _handle_open_kan_call_response(
     """
     Handle open kan as a call response to a pending prompt.
 
-    Record intent and trigger resolution when all callers have responded.
-    Returns ActionResult with events and new state.
+    Record intent and trigger resolution when all callers have responded. Returns ActionResult with events and new
+    state.
     """
     result = _validate_call_prompt(
         round_state,
         game_state,
-        seat,
-        submitted_tile_id,
-        GameErrorCode.INVALID_KAN,
+        seat=seat,
+        tile_id=submitted_tile_id,
+        error_code=GameErrorCode.INVALID_KAN,
     )
     if isinstance(result, ActionResult):
         return result
+
     prompt = result
 
     # validate caller action matches prompt
-    _validate_caller_action_matches_prompt(prompt, seat, GameAction.CALL_KAN)
+    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_KAN)
 
     # validate open kan: tile count
     player = round_state.players[seat]
-    _validate_matching_tile_count(player, prompt.tile_id, seat, min_count=3, action_name="call_kan")
+    _validate_matching_tile_count(player, tile_id=prompt.tile_id, seat=seat, min_count=3, action_name="call_kan")
 
     # add response
     response = CallResponse(seat=seat, action=GameAction.CALL_KAN)
@@ -591,7 +609,7 @@ def _handle_open_kan_call_response(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
+        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
 
     return ActionResult(
         [],
@@ -606,10 +624,11 @@ def _handle_self_kan(
     seat: int,
     data: KanActionData,
 ) -> ActionResult:
-    """Handle closed or added kan during the player's own turn.
+    """
+    Handle closed or added kan during the player's own turn.
 
-    Executes the kan immediately via process_meld_call, then checks for
-    chankan prompt or emits a draw event for the dead wall replacement tile.
+    Executes the kan immediately via process_meld_call, then checks for chankan prompt or emits a draw event for the
+    dead wall replacement tile.
     """
     # after pon/chi, the player must discard — kan requires a drawn tile
     if round_state.is_after_meld_call:
@@ -625,7 +644,7 @@ def _handle_self_kan(
         new_round_state, new_game_state, events = process_meld_call(
             round_state,
             game_state,
-            meld_input,
+            meld_input=meld_input,
         )
     except GameRuleError as e:
         logger.warning("kan rejected", reason=str(e))
@@ -645,7 +664,7 @@ def _handle_self_kan(
     if new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[seat]
         drawn_tile = player.tiles[-1]
-        events = [*events, create_draw_event(new_round_state, new_game_state, seat, tile_id=drawn_tile)]
+        events = [*events, create_draw_event(new_round_state, new_game_state, seat=seat, tile_id=drawn_tile)]
 
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
@@ -653,6 +672,7 @@ def _handle_self_kan(
 def handle_kan(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
     data: KanActionData,
 ) -> ActionResult:
@@ -665,7 +685,7 @@ def handle_kan(
     """
     # Open kan is a call response to another player's discard (validated by _validate_call_prompt)
     if data.kan_type == KanType.OPEN:
-        return _handle_open_kan_call_response(round_state, game_state, seat, data.tile_id)
+        return _handle_open_kan_call_response(round_state, game_state, seat=seat, submitted_tile_id=data.tile_id)
 
     # closed/added kan cannot be called while a call prompt is pending
     if round_state.pending_call_prompt is not None:
@@ -677,24 +697,25 @@ def handle_kan(
 
     # closed/added kan during own turn - immediate execution
     if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat, round_state, game_state)
+        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
 
-    return _handle_self_kan(round_state, game_state, seat, data)
+    return _handle_self_kan(round_state, game_state, seat=seat, data=data)
 
 
 def handle_kyuushu(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
 ) -> ActionResult:
     """
     Handle kyuushu kyuuhai (nine terminals) abortive draw declaration.
 
-    Validates the player's turn and kyuushu conditions, then processes the abortive draw.
-    Returns ActionResult with events and new state.
+    Validates the player's turn and kyuushu conditions, then processes the abortive draw. Returns ActionResult with
+    events and new state.
     """
     if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat, round_state, game_state)
+        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
 
     if not game_state.settings.has_kyuushu_kyuuhai:
         raise InvalidGameActionError(
@@ -704,7 +725,7 @@ def handle_kyuushu(
         )
 
     player = round_state.players[seat]
-    if not can_call_kyuushu_kyuuhai(player, round_state, game_state.settings):
+    if not can_call_kyuushu_kyuuhai(player, round_state, settings=game_state.settings):
         raise InvalidGameActionError(
             action="call_kyuushu",
             seat=seat,
@@ -722,14 +743,14 @@ def handle_kyuushu(
 def handle_pass(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
+    *,
     seat: int,
 ) -> ActionResult:
     """
     Handle passing on a meld/ron opportunity.
 
-    Record the pass on the pending call prompt and apply furiten if applicable.
-    When all callers have responded, trigger resolution.
-    Returns ActionResult with events and new state.
+    Record the pass on the pending call prompt and apply furiten if applicable. When all callers have responded, trigger
+    resolution. Returns ActionResult with events and new state.
     """
     events: list[GameEvent] = []
     new_round_state = round_state
@@ -763,6 +784,7 @@ def handle_pass(
         player = new_round_state.players[seat]
         if player.is_riichi:
             new_round_state = update_player(new_round_state, seat, is_riichi_furiten=True)
+
         new_game_state = update_game_with_round(new_game_state, new_round_state)
 
     # Remove from pending without recording a CallResponse. resolve_call_prompt
@@ -776,7 +798,9 @@ def handle_pass(
 
     # resolve if all callers have responded
     if not new_prompt.pending_seats:
-        resolve_result = _resolve_call_prompt_safe(new_round_state, new_game_state, new_prompt, seat)
+        resolve_result = _resolve_call_prompt_safe(
+            new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat
+        )
         events.extend(resolve_result.events)
         new_round_state = resolve_result.new_round_state
         new_game_state = resolve_result.new_game_state

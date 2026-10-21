@@ -1,13 +1,3 @@
-"""
-Unit tests for turn.py edge cases requiring direct state construction.
-
-Covers: kyuushu availability in draw phase, riichi furiten marking logic,
-chi opportunity detection via _find_meld_callers, ron caller detection and
-distance sorting, hand calculation error paths for single ron / double ron / tsumo,
-chankan opportunity detection via _process_added_kan_call, and chi sequence_tiles
-validation in process_meld_call.
-"""
-
 from unittest.mock import patch
 
 import pytest
@@ -35,14 +25,17 @@ from game.tests.conftest import create_game_state, create_player, create_round_s
 
 
 class TestKyuushuKyuuhaiDrawPhase:
-    def test_kyuushu_kyuuhai_available_in_draw_phase(self):
-        """Player with 9+ terminal/honor types on first turn gets kyuushu action."""
+    def test_kyuushu_kyuuhai__when_in_draw_phase__should_be_available(self):
         kyuushu_tiles = tuple(
             TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="123")
             + TilesConverter.string_to_136_array(man="22334"),
         )
-
-        players = tuple(create_player(seat=i, tiles=kyuushu_tiles if i == 0 else ()) for i in range(4))
+        players = (
+            create_player(seat=0, tiles=kyuushu_tiles),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -59,7 +52,6 @@ class TestKyuushuKyuuhaiDrawPhase:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_draw_phase(round_state, game_state)
-
         draw_events = [e for e in events if isinstance(e, DrawEvent) and e.available_actions]
         assert len(draw_events) == 1
         available_actions = [a.action for a in draw_events[0].available_actions]
@@ -67,20 +59,20 @@ class TestKyuushuKyuuhaiDrawPhase:
 
 
 class TestRiichiFuriten:
-    def test_riichi_furiten_on_discard(self):
-        """Riichi player becomes furiten when their waiting tile passes without ron."""
+    def test_riichi_furiten__when_riichi_player_discarded_winning_tile__should_flag_riichi_furiten(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         furiten_discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
             create_player(
-                seat=i,
-                tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()),
-                is_riichi=(i == 1),
-                discards=(Discard(tile_id=furiten_discard_tile),) if i == 1 else (),
-            )
-            for i in range(4)
+                seat=1,
+                tiles=hand_tiles_1,
+                is_riichi=True,
+                discards=(Discard(tile_id=furiten_discard_tile),),
+            ),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -96,21 +88,16 @@ class TestRiichiFuriten:
         game_state = create_game_state(round_state)
 
         new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
-
         assert new_round.players[1].is_riichi_furiten is True
 
-    def test_riichi_furiten_skips_ron_callers(self):
-        """Riichi player who CAN call ron is NOT marked furiten."""
+    def test_riichi_furiten__when_riichi_player_not_furiten__should_offer_ron_prompt(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()),
-                is_riichi=(i == 1),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1, is_riichi=True),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -126,24 +113,22 @@ class TestRiichiFuriten:
         game_state = create_game_state(round_state)
 
         new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) >= 1
+        assert len(call_prompts) == 1
         assert new_round.players[1].is_riichi_furiten is False
 
 
 class TestChiOpportunity:
-    def test_chi_opportunity_found(self):
-        """Chi opportunity is detected when kamicha can form a sequence."""
+    def test_chi_opportunity__when_next_player_holds_sequence__should_be_found(self):
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="13579", sou="135799")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
-
         discard_tile = TilesConverter.string_to_136_array(man="5")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="6666"))
@@ -159,24 +144,23 @@ class TestChiOpportunity:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
         assert len(call_prompts) == 1
         chi_callers = [
             c for c in call_prompts[0].callers if hasattr(c, "call_type") and c.call_type == MeldCallType.CHI
         ]
-        assert len(chi_callers) >= 1
+        assert len(chi_callers) == 1
 
 
 class TestFindRonCallers:
-    def test_find_ron_callers_finds_tenpai_player(self):
-        """_find_ron_callers detects eligible tenpai player."""
+    def test_find_ron_callers__when_player_tenpai_on_discard__should_include_player(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -192,19 +176,18 @@ class TestFindRonCallers:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) >= 1
+        assert len(call_prompts) == 1
         assert 1 in call_prompts[0].callers
 
-    def test_ron_callers_sorted_by_distance(self):
-        """Multiple ron callers are sorted by counter-clockwise distance from discarder."""
+    def test_find_ron_callers__when_multiple_callers__should_sort_by_distance(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles if i in (1, 3) else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles),
+            create_player(seat=2),
+            create_player(seat=3, tiles=hand_tiles),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -220,22 +203,23 @@ class TestFindRonCallers:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) >= 1
+        assert len(call_prompts) == 1
         # ron callers (ints) come first, sorted by distance from discarder
         ron_callers = [c for c in call_prompts[0].callers if isinstance(c, int)]
-        assert ron_callers[0] == 1
-        assert ron_callers[1] == 3
+        assert ron_callers == [1, 3]
 
 
 class TestSingleRonHandError:
-    def test_single_ron_hand_error_raises(self):
-        """Hand calculation error in single ron raises typed domain exception."""
+    def test_single_ron__when_hand_result_error__should_raise(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ()) for i in range(4))
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -254,16 +238,19 @@ class TestSingleRonHandError:
 
             ron_input = RonCallInput(ron_callers=[1], tile_id=discard_tile, discarder_seat=0)
             with pytest.raises(InvalidWinError, match="ron calculation error"):
-                process_ron_call(round_state, game_state, ron_input)
+                process_ron_call(round_state, game_state, ron_input=ron_input)
 
 
 class TestDoubleRonHandError:
-    def test_double_ron_hand_error_raises(self):
-        """Hand calculation error in double ron raises InvalidWinError with seat number."""
+    def test_double_ron__when_hand_result_error__should_raise(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles if i in (1, 2) else ()) for i in range(4))
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=hand_tiles),
+            create_player(seat=2, tiles=hand_tiles),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -282,15 +269,18 @@ class TestDoubleRonHandError:
 
             ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
             with pytest.raises(InvalidWinError, match="ron calculation error for seat 1"):
-                process_ron_call(round_state, game_state, ron_input)
+                process_ron_call(round_state, game_state, ron_input=ron_input)
 
 
 class TestTsumoHandError:
-    def test_tsumo_hand_error_raises(self):
-        """Hand calculation error in tsumo raises typed domain exception."""
+    def test_tsumo__when_hand_result_error__should_raise(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles if i == 0 else ()) for i in range(4))
+        players = (
+            create_player(seat=0, tiles=hand_tiles),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -308,12 +298,11 @@ class TestTsumoHandError:
             mock_calc.return_value = HandResult(error="mock error")
 
             with pytest.raises(InvalidWinError, match="tsumo calculation error"):
-                process_tsumo_call(round_state, game_state, 0)
+                process_tsumo_call(round_state, game_state, winner_seat=0)
 
 
 class TestAddedKanChankan:
-    def test_process_added_kan_call_chankan(self):
-        """Added kan with chankan opportunity creates CHANKAN call prompt."""
+    def test_added_kan__when_player_can_chankan__should_prompt_chankan(self):
         pon_meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
             tiles=tuple(TilesConverter.string_to_136_array(man="111")[:3]),
@@ -322,16 +311,12 @@ class TestAddedKanChankan:
         )
         fourth_tile = TilesConverter.string_to_136_array(man="1111")[3]
         other_tiles_0 = TilesConverter.string_to_136_array(pin="123456789", sou="11")
-
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="23456789", pin="456", sou="55"))
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(fourth_tile, *other_tiles_0) if i == 0 else (hand_tiles_1 if i == 1 else ()),
-                melds=(pon_meld,) if i == 0 else (),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(fourth_tile, *other_tiles_0), melds=(pon_meld,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -347,24 +332,22 @@ class TestAddedKanChankan:
         game_state = create_game_state(round_state)
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
-        _new_round, _new_game, events = process_meld_call(round_state, game_state, meld_input)
-
+        _new_round, _new_game, events = process_meld_call(round_state, game_state, meld_input=meld_input)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
-        assert len(call_prompts) >= 1
+        assert len(call_prompts) == 1
 
 
 class TestChiSequenceTilesValidation:
-    def test_chi_sequence_tiles_none_raises(self):
-        """Chi call with None sequence_tiles raises typed domain exception."""
+    def test_chi__when_sequence_tiles_none__should_raise(self):
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="11")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
-
         discard_tile = TilesConverter.string_to_136_array(man="5")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="6666"))
@@ -386,18 +369,19 @@ class TestChiSequenceTilesValidation:
             sequence_tiles=None,
         )
         with pytest.raises(InvalidMeldError, match="chi call requires sequence_tiles"):
-            process_meld_call(round_state, game_state, meld_input)
+            process_meld_call(round_state, game_state, meld_input=meld_input)
 
 
 class TestAbortiveDrawIntegration:
-    """Integration tests for abortive draw paths through process_discard_phase."""
-
-    def test_four_winds_abort(self):
-        """Four identical wind discards trigger abortive draw via process_discard_phase."""
+    def test_abortive_draw__when_four_same_winds_discarded__should_abort_four_winds(self):
         east_winds = tuple(TilesConverter.string_to_136_array(honors="1111"))
         discard_tile = east_winds[3]
-
-        players = tuple(create_player(seat=i, tiles=(discard_tile,) if i == 0 else ()) for i in range(4))
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -414,23 +398,19 @@ class TestAbortiveDrawIntegration:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_WINDS
 
-    def test_triple_ron_abort(self):
-        """Three ron callers trigger abortive draw via process_discard_phase."""
+    def test_abortive_draw__when_three_players_ron__should_abort_triple_ron(self):
         tenpai_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=tenpai_hand if i in (1, 2, 3) else ((discard_tile,) if i == 0 else ()),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=tenpai_hand),
+            create_player(seat=2, tiles=tenpai_hand),
+            create_player(seat=3, tiles=tenpai_hand),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -446,19 +426,19 @@ class TestAbortiveDrawIntegration:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.TRIPLE_RON
 
-    def test_four_riichi_abort(self):
-        """Fourth riichi declaration triggers abortive draw via process_discard_phase."""
+    def test_abortive_draw__when_four_players_riichi__should_abort_four_riichi(self):
         hand_tiles_0 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_0 if i == 0 else (), is_riichi=(i in (1, 2, 3))) for i in range(4)
+        players = (
+            create_player(seat=0, tiles=hand_tiles_0),
+            create_player(seat=1, is_riichi=True),
+            create_player(seat=2, is_riichi=True),
+            create_player(seat=3, is_riichi=True),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -479,7 +459,6 @@ class TestAbortiveDrawIntegration:
             discard_tile,
             is_riichi=True,
         )
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -487,12 +466,15 @@ class TestAbortiveDrawIntegration:
 
 
 class TestDoubleRonScenario:
-    def test_double_ron_produces_double_ron_result(self):
-        """Two players simultaneously calling ron produces DOUBLE_RON result type."""
+    def test_double_ron__when_two_players_ron__should_produce_double_ron_result(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles if i in (1, 2) else ()) for i in range(4))
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=hand_tiles),
+            create_player(seat=2, tiles=hand_tiles),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -507,16 +489,14 @@ class TestDoubleRonScenario:
         game_state = create_game_state(round_state)
 
         ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
-        _new_round, _new_game, events = process_ron_call(round_state, game_state, ron_input)
-
+        _new_round, _new_game, events = process_ron_call(round_state, game_state, ron_input=ron_input)
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
 
 
 class TestAddedKanNormalPath:
-    def test_added_kan_upgrades_pon_to_shouminkan(self):
-        """Added kan without chankan upgrades pon to SHOUMINKAN."""
+    def test_added_kan__when_no_chankan__should_upgrade_pon_to_shouminkan(self):
         pon_meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
             tiles=tuple(TilesConverter.string_to_136_array(man="111")[:3]),
@@ -525,14 +505,11 @@ class TestAddedKanNormalPath:
         )
         fourth_tile = TilesConverter.string_to_136_array(man="1111")[3]
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="11")
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(fourth_tile, *other_tiles) if i == 0 else (),
-                melds=(pon_meld,) if i == 0 else (),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(fourth_tile, *other_tiles), melds=(pon_meld,)),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -548,65 +525,52 @@ class TestAddedKanNormalPath:
         game_state = create_game_state(round_state)
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
-        new_round, _new_game, _events = process_meld_call(round_state, game_state, meld_input)
-
+        new_round, _new_game, _events = process_meld_call(round_state, game_state, meld_input=meld_input)
         assert any(m.type == FrozenMeld.SHOUMINKAN for m in new_round.players[0].melds)
 
 
 class TestMaybeEmitDoraEvent:
-    """Test _maybe_emit_dora_event emits events for each new dora indicator."""
-
-    def test_no_new_dora(self):
-        """No event emitted when dora count is unchanged."""
+    def test_dora_event__when_no_new_dora__should_emit_nothing(self):
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = create_round_state(
             dead_wall=dead_wall,
             dora_indicators=(dead_wall[2],),
         )
+
         events = []
-
-        _maybe_emit_dora_event(1, round_state, events)
-
+        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
         assert events == []
 
-    def test_single_new_dora(self):
-        """Single new dora indicator emits one event."""
+    def test_dora_event__when_one_new_dora__should_emit_one_event(self):
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = create_round_state(
             dead_wall=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3]),
         )
+
         events = []
-
-        _maybe_emit_dora_event(1, round_state, events)
-
+        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
         assert len(events) == 1
         assert events[0].tile_id == dead_wall[3]
 
-    def test_multiple_new_dora(self):
-        """Multiple new dora indicators emit one event per indicator."""
+    def test_dora_event__when_multiple_new_dora__should_emit_event_for_each(self):
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = create_round_state(
             dead_wall=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3], dead_wall[4]),
         )
+
         events = []
-
-        _maybe_emit_dora_event(1, round_state, events)
-
+        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
         assert len(events) == 2
         assert events[0].tile_id == dead_wall[3]
         assert events[1].tile_id == dead_wall[4]
 
 
 class TestValidateRiichiDiscard:
-    """Test _validate_riichi_discard helper validates riichi conditions."""
-
-    def test_rejects_non_tenpai_discard(self):
-        """Riichi discard that leaves hand not in tenpai is rejected."""
+    def test_validate_riichi_discard__when_discard_breaks_tenpai__should_reject(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
         bad_discard = TilesConverter.string_to_136_array(pin="1")[0]
-
         player = create_player(seat=0, tiles=hand_tiles)
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -620,4 +584,4 @@ class TestValidateRiichiDiscard:
             current_player_seat=0,
         )
         with pytest.raises(InvalidRiichiError, match="not tenpai"):
-            _validate_riichi_discard(player, round_state, bad_discard, GameSettings())
+            _validate_riichi_discard(player, round_state, tile_id=bad_discard, settings=GameSettings())

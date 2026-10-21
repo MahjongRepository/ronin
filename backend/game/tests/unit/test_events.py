@@ -1,5 +1,3 @@
-"""Tests for game event utility functions and validation."""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -28,7 +26,7 @@ from game.tests.unit.helpers import _string_to_136_tile
 
 
 class TestServiceEvent:
-    def test_event_mismatch_raises(self) -> None:
+    def test_service_event__when_event_type_mismatches_data__should_raise_value_error(self):
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         with pytest.raises(ValueError, match=r"does not match data\.type"):
             ServiceEvent(
@@ -38,32 +36,30 @@ class TestServiceEvent:
 
 
 class TestParseEventTarget:
-    def test_broadcast_target(self) -> None:
+    def test_parse_event_target__when_broadcast__should_return_broadcast_target(self):
         result = parse_event_target("all")
         assert isinstance(result, BroadcastTarget)
 
-    def test_seat_targets(self) -> None:
+    def test_parse_event_target__when_seat_n__should_return_seat_target(self):
         for seat in range(4):
             result = parse_event_target(f"seat_{seat}")
             assert isinstance(result, SeatTarget)
             assert result.seat == seat
 
-    def test_invalid_target_raises(self) -> None:
+    def test_parse_event_target__when_invalid_value__should_raise_value_error(self):
         with pytest.raises(ValueError, match="invalid target value"):
             parse_event_target("bogus")
 
-    def test_negative_seat_raises(self) -> None:
+    def test_parse_event_target__when_negative_seat__should_raise_value_error(self):
         with pytest.raises(ValueError, match="invalid seat number"):
             parse_event_target("seat_-1")
 
 
 class TestConvertEvents:
-    def test_convert_events_handles_typed_events(self):
-        """convert_events converts typed events to ServiceEvent format."""
+    def test_convert_events__when_typed_event__should_wrap_in_service_event(self):
         events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0")]
 
         result = convert_events(events)
-
         assert len(result) == 1
         assert isinstance(result[0], ServiceEvent)
         assert result[0].event == EventType.DRAW
@@ -71,8 +67,7 @@ class TestConvertEvents:
         assert result[0].data.seat == 0
         assert result[0].target == SeatTarget(seat=0)
 
-    def test_convert_events_splits_call_prompt_per_seat(self):
-        """convert_events splits a CallPromptEvent with 2 callers into 2 per-seat ServiceEvents."""
+    def test_convert_events__when_call_prompt_has_several_seats__should_split_per_seat(self):
         callers = [
             MeldCaller(seat=0, call_type=MeldCallType.PON),
             MeldCaller(seat=1, call_type=MeldCallType.PON),
@@ -86,7 +81,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 2
         assert result[0].target == SeatTarget(seat=0)
         assert result[1].target == SeatTarget(seat=1)
@@ -99,8 +93,7 @@ class TestConvertEvents:
         assert result[1].data.callers == [MeldCaller(seat=1, call_type=MeldCallType.PON)]
         assert result[0].event == EventType.CALL_PROMPT
 
-    def test_convert_events_deduplicates_meld_callers(self):
-        """convert_events deduplicates MeldCaller entries for the same seat."""
+    def test_convert_events__when_seat_has_pon_and_chi_options__should_send_one_prompt_with_both(self):
         callers = [
             MeldCaller(seat=0, call_type=MeldCallType.PON),
             MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
@@ -114,15 +107,13 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 1
         assert result[0].target == SeatTarget(seat=0)
         # both call options preserved for the same seat
         assert isinstance(result[0].data, CallPromptEvent)
         assert result[0].data.callers == callers
 
-    def test_convert_events_single_caller_call_prompt(self):
-        """convert_events produces a single per-seat ServiceEvent for a single-caller CallPromptEvent."""
+    def test_convert_events__when_call_prompt_has_single_caller__should_target_that_seat(self):
         call_prompt = CallPromptEvent(
             call_type=CallType.RON,
             tile_id=10,
@@ -132,15 +123,13 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 1
         assert result[0].target == SeatTarget(seat=1)
         assert isinstance(result[0].data, CallPromptEvent)
         assert result[0].data.callers == [1]
         assert result[0].event == EventType.CALL_PROMPT
 
-    def test_convert_events_splits_discard_prompt_per_seat(self):
-        """DISCARD prompt with mixed ron + meld callers is split into per-seat RON/MELD events."""
+    def test_convert_events__when_discard_prompt_mixes_ron_and_meld__should_split_per_seat(self):
         callers: list = [
             1,  # ron caller (seat 1)
             MeldCaller(seat=2, call_type=MeldCallType.PON),  # meld caller (seat 2)
@@ -154,7 +143,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 2
         # seat 1 gets a RON event
         seat1_event = next(se for se in result if se.target == SeatTarget(seat=1))
@@ -167,8 +155,7 @@ class TestConvertEvents:
         assert seat2_event.data.call_type == CallType.MELD
         assert seat2_event.data.callers == [MeldCaller(seat=2, call_type=MeldCallType.PON)]
 
-    def test_convert_events_discard_prompt_ron_only(self):
-        """DISCARD prompt with only ron callers splits correctly."""
+    def test_convert_events__when_discard_prompt_ron_only__should_emit_ron_prompts(self):
         call_prompt = CallPromptEvent(
             call_type=CallType.DISCARD,
             tile_id=10,
@@ -178,7 +165,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 2
         for se in result:
             assert isinstance(se.data, CallPromptEvent)
@@ -186,22 +172,19 @@ class TestConvertEvents:
 
 
 class TestConvertEventsTargetValidation:
-    def test_negative_seat_target_raises(self) -> None:
-        """convert_events rejects negative seat numbers in event targets."""
+    def test_convert_events__when_negative_seat_target__should_raise_value_error(self):
         event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_-1")
         with pytest.raises(ValueError, match="invalid seat number"):
             convert_events([event])
 
-    def test_invalid_target_string_raises(self) -> None:
-        """convert_events rejects target strings that are neither 'all' nor 'seat_N'."""
+    def test_convert_events__when_invalid_target_string__should_raise_value_error(self):
         event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="bogus")
         with pytest.raises(ValueError, match="invalid target value"):
             convert_events([event])
 
 
 class TestSplitDiscardPromptEmptyCallersGuard:
-    def test_raises_for_seat_with_no_entries(self) -> None:
-        """_split_discard_prompt_for_seat raises ValueError if seat has no ron or meld entries."""
+    def test_split_discard_prompt__when_seat_has_no_ron_or_meld_entries__should_raise_value_error(self):
         call_prompt = CallPromptEvent(
             call_type=CallType.DISCARD,
             tile_id=42,
@@ -214,8 +197,7 @@ class TestSplitDiscardPromptEmptyCallersGuard:
 
 
 class TestExtractRoundResult:
-    def test_extract_round_result_finds_result(self):
-        """extract_round_result extracts result from round_end event."""
+    def test_extract_round_result__when_round_end_event__should_return_result(self):
         tsumo_result = TsumoResult(
             winner_seat=0,
             hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
@@ -240,14 +222,12 @@ class TestExtractRoundResult:
         ]
 
         result = extract_round_result(events)
-
         assert result is not None
         assert isinstance(result, TsumoResult)
         assert result.type == RoundResultType.TSUMO
         assert result.winner_seat == 0
 
-    def test_extract_round_result_no_round_end(self):
-        """extract_round_result returns None when no round_end event."""
+    def test_extract_round_result__when_no_round_end_event__should_return_none(self):
         events = [
             ServiceEvent(
                 event=EventType.DRAW,
@@ -262,5 +242,4 @@ class TestExtractRoundResult:
         ]
 
         result = extract_round_result(events)
-
         assert result is None

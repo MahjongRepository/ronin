@@ -1,7 +1,3 @@
-"""
-Abortive draw conditions for Mahjong.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -24,6 +20,7 @@ if TYPE_CHECKING:
 def can_call_kyuushu_kyuuhai(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> bool:
     """
@@ -41,12 +38,12 @@ def can_call_kyuushu_kyuuhai(
     # check if any calls have been made (including closed kans)
     if round_state.players_with_open_hands:
         return False
+
     if any(p.melds for p in round_state.players):
         return False
 
     # count unique terminal/honor tile types in hand
     terminal_honor_types = _count_terminal_honor_types(player.tiles)
-
     return terminal_honor_types >= settings.kyuushu_min_types
 
 
@@ -59,6 +56,7 @@ def _count_terminal_honor_types(tiles: list[int] | tuple[int, ...]) -> int:
         tile_34 = tile_to_34(tile_id)
         if is_terminal_or_honor(tile_34):
             unique_types.add(tile_34)
+
     return len(unique_types)
 
 
@@ -93,8 +91,7 @@ def check_triple_ron(ron_callers: list[int], triple_ron_count: int) -> bool:
     """
     Check if enough players simultaneously declare ron for an abortive draw.
 
-    When 2 players can ron, both win (double ron).
-    When 3 players can ron, it's an abortive draw (triple ron).
+    When 2 players can ron, both win (double ron). When 3 players can ron, it's an abortive draw (triple ron).
     """
     return len(ron_callers) == triple_ron_count
 
@@ -108,7 +105,6 @@ def check_four_kans(round_state: MahjongRoundState, settings: GameSettings) -> b
     """
     total_kans = 0
     players_with_kans = set()
-
     for player in round_state.players:
         player_kans = sum(1 for m in player.melds if m.type in (FrozenMeld.KAN, FrozenMeld.SHOUMINKAN))
         total_kans += player_kans

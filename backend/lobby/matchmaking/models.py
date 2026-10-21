@@ -11,7 +11,9 @@ MATCHMAKING_SEATS = 4
 
 @dataclass
 class QueueEntry:
-    """A player waiting in the matchmaking queue."""
+    """
+    A player waiting in the matchmaking queue.
+    """
 
     connection_id: str
     user_id: str

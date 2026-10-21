@@ -1,12 +1,14 @@
-"""Persistence models for the data access layer."""
-
 from datetime import datetime
+from enum import StrEnum
+from typing import Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PlayedGameStanding(BaseModel, frozen=True):
-    """Per-player info, populated at game start and enriched with scores at game end."""
+    """
+    Per-player info, populated at game start and enriched with scores at game end.
+    """
 
     name: str  # player name (human or AI)
     seat: int
@@ -16,7 +18,9 @@ class PlayedGameStanding(BaseModel, frozen=True):
 
 
 class PlayedGame(BaseModel, frozen=True):
-    """Record of a played game persisted to storage."""
+    """
+    Record of a played game persisted to storage.
+    """
 
     game_id: str
     started_at: datetime
@@ -26,3 +30,32 @@ class PlayedGame(BaseModel, frozen=True):
     num_rounds_played: int | None = None  # total rounds played (only set at game end)
     # at start: seat order with names/seats/user_ids; at end: placement order with scores
     standings: list[PlayedGameStanding] = Field(default_factory=list)
+
+
+class AccountType(StrEnum):
+    HUMAN = "human"
+    BOT = "bot"
+
+
+class Player(BaseModel, frozen=True):
+    """
+    Player account stored in the player repository.
+
+    Humans carry a bcrypt `password_hash`; bots carry the "!" sentinel there and a SHA-256 `api_key_hash`.
+    """
+
+    user_id: str
+    username: str
+    password_hash: str
+    account_type: AccountType = AccountType.HUMAN
+    api_key_hash: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_account_fields(self) -> Self:
+        if self.account_type == AccountType.HUMAN and not self.password_hash:
+            raise ValueError("Human accounts must have a password hash")
+
+        if self.account_type == AccountType.BOT and not self.api_key_hash:
+            raise ValueError("Bot accounts must have an api_key_hash")
+
+        return self

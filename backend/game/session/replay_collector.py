@@ -1,19 +1,8 @@
-"""Replay collector for persisting gameplay events for post-game analysis.
-
-Collects broadcast gameplay events and selected seat-targeted concealed events
-during a game and writes them as newline-delimited JSON to storage at game end.
-Broadcast events capture public game state transitions (discards, melds, round
-end, etc.). Seat-targeted DrawEvent carries concealed draw data
-(available_actions stripped). Per-seat RoundStartedEvent views are merged into
-a single record with all players' tiles for full game reconstruction. Internal
-prompt and error event types are excluded.
-"""
-
 from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -28,7 +17,7 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import service_event_payload
-from game.replay.models import REPLAY_VERSION
+from game.wire.replay_format import REPLAY_VERSION
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
@@ -47,7 +36,8 @@ _EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
 
 
 class ReplayCollector:
-    """Collects and persists gameplay events per game for post-game replay.
+    """
+    Collects and persists gameplay events per game for post-game replay.
 
     Accepts BroadcastTarget gameplay events (discards, melds, round end, etc.)
     and selected SeatTarget events (DrawEvent for tile draws). The
@@ -70,25 +60,26 @@ class ReplayCollector:
         self._rng_versions: dict[str, str] = {}
 
     def start_game(self, game_id: str, seed: str, rng_version: str) -> None:
-        """Begin collecting events for a game."""
+        """
+        Begin collecting events for a game.
+        """
         self._buffers[game_id] = []
         self._seeds[game_id] = seed
         self._rng_versions[game_id] = rng_version
 
     def collect_events(self, game_id: str, events: list[ServiceEvent]) -> None:
-        """Append qualifying events to the game buffer.
+        """
+        Append qualifying events to the game buffer.
 
-        Per-seat RoundStartedEvent views are merged into a single record with
-        all players' tiles. DrawEvent is included for draw reconstruction
-        (available_actions stripped). Excluded internal types (prompts, errors,
-        furiten) are skipped.
+        Per-seat RoundStartedEvent views are merged into a single record with all players' tiles. DrawEvent is included
+        for draw reconstruction (available_actions stripped). Excluded internal types (prompts, errors, furiten) are
+        skipped.
         """
         buffer = self._buffers.get(game_id)
         if buffer is None:
             return
 
         pending_round_started: list[ServiceEvent] = []
-
         for event in events:
             if isinstance(event.data, RoundStartedEvent) and isinstance(event.target, SeatTarget):
                 pending_round_started.append(event)
@@ -105,7 +96,8 @@ class ReplayCollector:
             payload = service_event_payload(event)
             if isinstance(event.data, DrawEvent):
                 payload.pop("aa", None)
-            self._inject_seed_if_game_started(game_id, event, payload)
+
+            self._inject_seed_if_game_started(game_id=game_id, event=event, payload=payload)
             buffer.append(json.dumps(payload, default=str))
 
         # Flush any remaining round_started events at end of batch
@@ -114,11 +106,15 @@ class ReplayCollector:
 
     @staticmethod
     def _should_include(event: ServiceEvent) -> bool:
-        """Check whether a non-round-started event qualifies for replay persistence."""
+        """
+        Check whether a non-round-started event qualifies for replay persistence.
+        """
         if isinstance(event.target, SeatTarget):
             return isinstance(event.data, _SEAT_TARGET_INCLUDED)
+
         if isinstance(event.target, BroadcastTarget):
             return not isinstance(event.data, _EXCLUDED_EVENT_TYPES)
+
         return False
 
     def _inject_seed_if_game_started(
@@ -127,38 +123,40 @@ class ReplayCollector:
         event: ServiceEvent,
         payload: dict[str, Any],
     ) -> None:
-        """Inject the game seed into the replay payload for GameStartedEvent."""
+        """
+        Inject the game seed into the replay payload for GameStartedEvent.
+        """
         if isinstance(event.data, GameStartedEvent):
             seed = self._seeds.get(game_id)
             if seed is not None:
                 payload["sd"] = seed
+
             rng_version = self._rng_versions.get(game_id)
             if rng_version is not None:
                 payload["rv"] = rng_version
 
     @staticmethod
     def _merge_round_started_payloads(events: list[ServiceEvent]) -> str:
-        """Merge per-seat RoundStartedEvent payloads into a single JSON record.
+        """
+        Merge per-seat RoundStartedEvent payloads into a single JSON record.
 
-        Take the first seat's payload as the base. Extract my_tiles from each seat's
-        event and store per-player tiles in the merged record for full game reconstruction.
-        The my_tiles and seat fields are stripped from the merged output since each
-        player's tiles are stored directly on the player dict and the per-seat
-        perspective is meaningless after merging.
+        Take the first seat's payload as the base. Extract my_tiles from each seat's event and store per-player tiles in
+        the merged record for full game reconstruction. The my_tiles and seat fields are stripped from the merged output
+        since each player's tiles are stored directly on the player dict and the per-seat perspective is meaningless
+        after merging.
 
-        Assumes the caller passes a non-empty list of RoundStartedEvent entries.
-        All per-seat RoundStartedEvent entries for a round must arrive in a
-        contiguous block within a single collect_events() call.
+        Assumes the caller passes a non-empty list of RoundStartedEvent entries. All per-seat RoundStartedEvent entries
+        for a round must arrive in a contiguous block within a single collect_events() call.
         """
         if not events:
             return "{}"
-        tiles_by_seat: dict[int, list[int]] = {}
-        base_payload = service_event_payload(events[0])
 
+        tiles_by_seat: dict[int, list[int]] = {}
         for event in events:
-            data: RoundStartedEvent = event.data  # type: ignore[assignment]
+            data = cast("RoundStartedEvent", event.data)
             tiles_by_seat[data.seat] = data.my_tiles
 
+        base_payload = service_event_payload(events[0])
         for player_dict in base_payload["p"]:
             seat = player_dict["s"]
             if seat in tiles_by_seat:
@@ -170,11 +168,11 @@ class ReplayCollector:
         return json.dumps(base_payload, default=str)
 
     async def save_and_cleanup(self, game_id: str) -> None:
-        """Persist collected events to storage and discard the buffer.
+        """
+        Persist collected events to storage and discard the buffer.
 
-        File I/O is offloaded to a worker thread to avoid blocking the
-        async event loop. Errors during storage are logged but never raised,
-        to avoid blocking the game-end cleanup flow.
+        File I/O is offloaded to a worker thread to avoid blocking the async event loop. Errors during storage are
+        logged but never raised, to avoid blocking the game-end cleanup flow.
         """
         buffer = self._buffers.pop(game_id, None)
         self._seeds.pop(game_id, None)
@@ -190,7 +188,9 @@ class ReplayCollector:
             logger.exception("failed to save replay")
 
     def cleanup_game(self, game_id: str) -> None:
-        """Discard the event buffer without persisting (abandoned game)."""
+        """
+        Discard the event buffer without persisting (abandoned game).
+        """
         self._buffers.pop(game_id, None)
         self._seeds.pop(game_id, None)
         self._rng_versions.pop(game_id, None)

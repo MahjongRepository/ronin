@@ -1,8 +1,3 @@
-"""
-Verify that game type, player count, scores, uma, oka, tobi, and agariyame
-settings are properly configurable and not hardcoded in game logic.
-"""
-
 import pytest
 
 from game.logic.exceptions import UnsupportedSettingsError
@@ -22,10 +17,7 @@ from game.tests.conftest import create_game_state, create_player, create_round_s
 
 
 class TestGameType:
-    """Verify game_type setting controls wind progression and game-end."""
-
-    def test_hanchan_primary_wind_completes_after_south(self):
-        """Hanchan: game does NOT end after East wind (unique_dealers=5), continues to South."""
+    def test_game_type__when_hanchan_after_east__should_not_end(self):
         players = tuple(create_player(seat=i, score=35000) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -36,8 +28,7 @@ class TestGameType:
         # unique_dealers=5 means East is done, entering South — primary wind NOT complete yet
         assert check_game_end(game_state) is False
 
-    def test_hanchan_ends_after_south_with_winner(self):
-        """Hanchan: game ends after South wind when a player has threshold score."""
+    def test_game_type__when_hanchan_after_south_with_winner__should_end(self):
         players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -47,8 +38,7 @@ class TestGameType:
         )
         assert check_game_end(game_state) is True
 
-    def test_tonpusen_ends_after_east_with_winner(self):
-        """Tonpusen: game ends after East wind when a player has threshold score."""
+    def test_game_type__when_tonpusen_after_east_with_winner__should_end(self):
         players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -58,8 +48,7 @@ class TestGameType:
         )
         assert check_game_end(game_state) is True
 
-    def test_tonpusen_does_not_end_during_east(self):
-        """Tonpusen: game does NOT end during East wind even with high scores."""
+    def test_game_type__when_tonpusen_during_east__should_not_end(self):
         players = tuple(create_player(seat=i, score=50000 if i == 0 else 16667) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -71,34 +60,30 @@ class TestGameType:
 
 
 class TestStartingScore:
-    """Verify starting_score setting is used from settings, not hardcoded."""
-
-    def test_custom_starting_score_in_init_game(self):
-        """Players start with the configured starting_score, not hardcoded 25000."""
+    def test_starting_score__when_custom__should_apply_to_init_game_players(self):
         seat_configs = [SeatConfig(name=f"P{i}") for i in range(4)]
         wall = list(range(136))
+
         game_state = init_game(seat_configs, settings=GameSettings(starting_score=30000), wall=wall)
         for player in game_state.round_state.players:
             assert player.score == 30000
 
-    def test_starting_score_affects_oka_calculation(self):
-        """Oka = (target - starting) * num_players / 1000."""
+    def test_starting_score__when_custom__should_change_oka_in_final_scores(self):
         # With starting=20000, target=30000: oka = (30000-20000)*4/1000 = 40
         # Raw scores summing to starting*4 = 80000
         raw = [(0, 35000), (1, 25000), (2, 15000), (3, 5000)]
         settings = GameSettings(starting_score=20000, target_score=30000)
+
         result = calculate_final_scores(raw, settings)
         # 1st: diff=5 + oka=40 + uma=20 = 65
         assert result[0][1] == 65
 
 
 class TestTargetScore:
-    """Verify target_score setting is used in oka and final score adjustment."""
-
-    def test_custom_target_score_shifts_final_scores(self):
-        """Final scores are calculated relative to target_score."""
+    def test_target_score__when_custom__should_shift_final_scores(self):
         raw = [(0, 40000), (1, 30000), (2, 20000), (3, 10000)]
         settings = GameSettings(target_score=25000, starting_score=25000)
+
         result = calculate_final_scores(raw, settings)
         # target=starting, so oka=0
         # diff from target: +15, +5, -5, -15
@@ -109,10 +94,7 @@ class TestTargetScore:
 
 
 class TestWinningScoreThreshold:
-    """Verify winning_score_threshold is distinct from target_score."""
-
-    def test_threshold_distinct_from_target_score(self):
-        """Game ends based on winning_score_threshold, not target_score."""
+    def test_winning_score_threshold__when_leader_above_target_but_below_threshold__should_not_end_game(self):
         # Set high threshold: even 35000 doesn't end the game
         players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
         round_state = create_round_state(players=players)
@@ -127,8 +109,7 @@ class TestWinningScoreThreshold:
         # 35000 < 40000, so game continues into West
         assert check_game_end(game_state) is False
 
-    def test_custom_low_threshold_ends_game_early(self):
-        """Lower threshold ends game sooner after primary wind."""
+    def test_winning_score_threshold__when_custom_low__should_end_game_early(self):
         players = tuple(create_player(seat=i, score=26000 if i == 0 else 24667) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -141,12 +122,10 @@ class TestWinningScoreThreshold:
 
 
 class TestUma:
-    """Verify uma setting is applied correctly in final score calculation."""
-
-    def test_custom_uma_applied_to_final_scores(self):
-        """Custom uma spread changes final placement rewards/penalties."""
+    def test_uma__when_custom__should_apply_to_final_scores(self):
         raw = [(0, 30000), (1, 30000), (2, 20000), (3, 20000)]
         settings = GameSettings(uma=(30, 10, -10, -30))
+
         result = calculate_final_scores(raw, settings)
         # default oka=20 (target=30000, starting=25000)
         # seat0: diff=0 + oka=20 + uma=30 = 50
@@ -157,22 +136,19 @@ class TestUma:
         assert result == [(0, 50), (1, 10), (2, -20), (3, -40)]
         assert sum(s for _, s in result) == 0
 
-    def test_validate_rejects_wrong_length_uma(self):
+    def test_uma__when_wrong_length__should_be_rejected(self):
         settings = GameSettings(uma=(20, 10, -30))
         with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
             validate_settings(settings)
 
-    def test_validate_rejects_nonzero_sum_uma(self):
+    def test_uma__when_sum_nonzero__should_be_rejected(self):
         settings = GameSettings(uma=(20, 10, -10, -10))
         with pytest.raises(UnsupportedSettingsError, match="uma values must sum to zero"):
             validate_settings(settings)
 
 
 class TestTobi:
-    """Verify tobi (bankruptcy) game-end behavior."""
-
-    def test_tobi_ends_game_when_score_below_zero(self):
-        """Player with negative score triggers game end when tobi is enabled."""
+    def test_tobi__when_score_below_zero__should_end_game(self):
         players = tuple(create_player(seat=i, score=-100 if i == 3 else 33367) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -182,8 +158,7 @@ class TestTobi:
         )
         assert check_game_end(game_state) is True
 
-    def test_tobi_does_not_trigger_at_zero(self):
-        """Score of exactly 0 does NOT trigger tobi (threshold is strict <)."""
+    def test_tobi__when_score_exactly_zero__should_not_end_game(self):
         players = tuple(create_player(seat=i, score=0 if i == 3 else 33334) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -193,8 +168,7 @@ class TestTobi:
         )
         assert check_game_end(game_state) is False
 
-    def test_tobi_disabled_ignores_negative_score(self):
-        """When tobi is disabled, negative scores do not end the game."""
+    def test_tobi__when_disabled_and_score_negative__should_not_end_game(self):
         players = tuple(create_player(seat=i, score=-5000 if i == 3 else 35000) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(
@@ -204,8 +178,7 @@ class TestTobi:
         )
         assert check_game_end(game_state) is False
 
-    def test_custom_tobi_threshold(self):
-        """Custom tobi_threshold changes the bankruptcy boundary."""
+    def test_tobi__when_custom_threshold__should_end_game_below_it(self):
         players = tuple(create_player(seat=i, score=500 if i == 3 else 33167) for i in range(4))
         round_state = create_round_state(players=players)
         # threshold=1000: score of 500 < 1000 triggers tobi
@@ -218,19 +191,14 @@ class TestTobi:
 
 
 class TestAgariyame:
-    """Verify agariyame setting exists and is validated as unsupported."""
-
-    def test_validate_rejects_agariyame_enabled(self):
+    def test_agariyame__when_enabled__should_be_rejected(self):
         settings = GameSettings(has_agariyame=True)
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame=True is not supported"):
             validate_settings(settings)
 
 
 class TestFinalizeGamePlacement:
-    """Verify finalize_game uses settings correctly for placement."""
-
-    def test_finalize_uses_starting_score_and_target_from_settings(self):
-        """Final scores use the settings' starting_score and target_score."""
+    def test_finalize_game__when_target_equals_starting_score__should_rank_by_score_with_zero_sum(self):
         players = tuple(create_player(seat=i, score=score) for i, score in enumerate([40000, 30000, 20000, 10000]))
         round_state = create_round_state(players=players)
         settings = GameSettings(starting_score=25000, target_score=25000)

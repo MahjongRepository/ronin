@@ -1,9 +1,3 @@
-"""Integration tests for WebSocket reconnection flow over MessagePack transport.
-
-These tests verify the full reconnection lifecycle through the HTTP/WebSocket layer
-using starlette TestClient, complementing the unit tests in test_session_reconnect.py.
-"""
-
 import time
 
 import pytest
@@ -16,7 +10,6 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
@@ -29,10 +22,10 @@ from game.tests.helpers.websocket import (
     send_ws,
 )
 from game.tests.mocks import MockConnection, MockGameService
+from game.wire.events import EVENT_TYPE_INT
 
 
 def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSnapshot:
-    """Build a minimal ReconnectionSnapshot for integration tests."""
     return ReconnectionSnapshot(
         game_id=game_id,
         players=[
@@ -60,14 +53,8 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
 
 
 def _start_game_and_get_ticket(client: TestClient) -> str:
-    """Start a 1-player game over WebSocket and disconnect to get the game ticket.
-
-    Injects a second mock player into the game AFTER start so the game
-    survives when Player1 disconnects via WebSocket close.
-    Returns the game ticket string (which is the session token).
-    """
     sm = client.app.state.session_manager
-    tickets = create_pending_game(client, "test_game")
+    tickets = create_pending_game(client, game_id="test_game")
     ticket = tickets[0]
 
     # Player1 joins and starts the game via WebSocket
@@ -77,8 +64,9 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
         # Inject a "Player2" mock connection into the game so it survives Player1 leaving
         p2_conn = MockConnection()
         sm.register_connection(p2_conn)
-        p2_session = sm._session_store.create_session("Player2", "test_game", token="p2-token")
+        p2_session = sm._session_store.create_session(player_name="Player2", game_id="test_game", token="p2-token")
         sm._session_store.bind_seat(p2_session.session_token, 1)
+
         game = sm._games["test_game"]
         p2_player = Player(
             connection=p2_conn,
@@ -101,8 +89,6 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
 
 
 class TestWebSocketReconnect:
-    """Integration tests for reconnection over WebSocket transport."""
-
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
@@ -110,12 +96,10 @@ class TestWebSocketReconnect:
         with TestClient(app) as client:
             yield client
 
-    def test_reconnect_full_flow(self, client):
-        """Full reconnect flow over WebSocket: receive game_reconnected with game state."""
+    def test_reconnect__when_ticket_valid__should_send_game_reconnected(self, client):
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -126,14 +110,12 @@ class TestWebSocketReconnect:
                     "game_ticket": ticket,
                 },
             )
-
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.GAME_RECONNECTED
             assert msg["gid"] == "test_game"
             assert msg["s"] == 0
 
-    def test_reconnect_invalid_ticket_over_websocket(self, client):
-        """Reconnect with invalid ticket returns structured error over WebSocket."""
+    def test_reconnect__when_ticket_invalid__should_return_invalid_ticket_error(self, client):
         _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -144,15 +126,13 @@ class TestWebSocketReconnect:
                     "game_ticket": "invalid-ticket-string",
                 },
             )
-
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.INVALID_TICKET
 
-    def test_reconnect_game_gone_over_websocket(self, client):
-        """Reconnect after game cleanup returns game_gone error."""
+    def test_reconnect__when_game_already_cleaned_up__should_return_game_gone_error(self, client):
         sm = client.app.state.session_manager
-        tickets = create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, game_id="test_game")
 
         # Start and leave via WebSocket (1 human = game gets cleaned up)
         ticket = None
@@ -185,17 +165,14 @@ class TestWebSocketReconnect:
                     "game_ticket": ticket,
                 },
             )
-
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
 
-    def test_reconnect_then_game_action(self, client):
-        """Player reconnects and can send game actions over the same WebSocket."""
+    def test_reconnect__when_action_sent_after_reconnect__should_process_it(self, client):
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -206,7 +183,6 @@ class TestWebSocketReconnect:
                     "game_ticket": ticket,
                 },
             )
-
             reconnect_msg = recv_ws(ws)
             assert reconnect_msg["type"] == SessionMessageType.GAME_RECONNECTED
 
@@ -218,7 +194,6 @@ class TestWebSocketReconnect:
                     "ti": 0,
                 },
             )
-
             action_msg = recv_ws(ws)
             assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert action_msg["player"] == "Player1"

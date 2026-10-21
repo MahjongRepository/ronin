@@ -1,5 +1,3 @@
-"""Centralized game settings for Mahjong - all configurable gameplay rules."""
-
 from __future__ import annotations
 
 from enum import StrEnum
@@ -11,14 +9,18 @@ from game.logic.exceptions import UnsupportedSettingsError
 
 
 class GameType(StrEnum):
-    """Game length type."""
+    """
+    Game length type.
+    """
 
     HANCHAN = "hanchan"  # East + South
     TONPUSEN = "tonpusen"  # East only
 
 
 class RenhouValue(StrEnum):
-    """Renhou scoring level."""
+    """
+    Renhou scoring level.
+    """
 
     NONE = "none"
     MANGAN = "mangan"  # 5-han (current default, supported by mahjong library)
@@ -27,14 +29,18 @@ class RenhouValue(StrEnum):
 
 
 class EnchousenType(StrEnum):
-    """Extension round behavior after South wind."""
+    """
+    Extension round behavior after South wind.
+    """
 
     NONE = "none"
     SUDDEN_DEATH = "sudden_death"  # West wind until someone exceeds target
 
 
 class LeftoverRiichiBets(StrEnum):
-    """What happens to uncollected riichi bets at game end."""
+    """
+    What happens to uncollected riichi bets at game end.
+    """
 
     WINNER = "winner"  # Top player collects them
     LOST = "lost"  # They disappear
@@ -151,28 +157,36 @@ WIND_THRESHOLDS: tuple[int, int, int] = (NUM_PLAYERS, NUM_PLAYERS * 2, NUM_PLAYE
 
 
 def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
-    """Validate timer-related settings are within acceptable ranges."""
+    """
+    Validate timer-related settings are within acceptable ranges.
+    """
     if settings.base_turn_seconds < 0:
         errors.append("base_turn_seconds must be non-negative")
+
     if settings.initial_bank_seconds <= 0:
         errors.append("initial_bank_seconds must be positive")
+
     if settings.max_bank_seconds < settings.initial_bank_seconds:
         errors.append("max_bank_seconds must be >= initial_bank_seconds")
+
     if settings.round_bonus_seconds < 0:
         errors.append("round_bonus_seconds must be non-negative")
+
     if settings.meld_decision_seconds <= 0:
         errors.append("meld_decision_seconds must be positive")
+
     if settings.round_advance_timeout_seconds <= 0:
         errors.append("round_advance_timeout_seconds must be positive")
+
     if settings.pending_game_timeout_seconds <= 0:
         errors.append("pending_game_timeout_seconds must be positive")
 
 
 def validate_settings(settings: GameSettings) -> None:
-    """Validate that all settings values are supported by the engine.
+    """
+    Validate that all settings values are supported by the engine.
 
-    Raises UnsupportedSettingsError for any setting value that is defined
-    but not yet implemented in runtime logic.
+    Raises UnsupportedSettingsError for any setting value that is defined but not yet implemented in runtime logic.
     """
     errors: list[str] = []
 
@@ -198,7 +212,9 @@ def validate_settings(settings: GameSettings) -> None:
 
 
 def build_optional_rules(settings: GameSettings) -> OptionalRules:
-    """Build mahjong library OptionalRules from GameSettings."""
+    """
+    Build mahjong library OptionalRules from GameSettings.
+    """
     return OptionalRules(
         has_aka_dora=settings.has_akadora,
         has_open_tanyao=settings.has_kuitan,

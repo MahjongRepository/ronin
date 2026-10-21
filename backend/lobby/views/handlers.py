@@ -1,5 +1,3 @@
-"""Lobby and room page handlers."""
-
 from __future__ import annotations
 
 import uuid
@@ -7,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import RedirectResponse
 
-from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
+from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -24,7 +22,9 @@ def _render_lobby_with_error(
     username: str,
     error: str,
 ) -> Response:
-    """Render the lobby page with an error message."""
+    """
+    Render the lobby page with an error message.
+    """
     csrf_token, is_new = get_or_create_csrf_token(request)
     response = templates.TemplateResponse(
         request,
@@ -38,7 +38,8 @@ def _render_lobby_with_error(
     )
     if is_new:  # pragma: no cover — CSRF validation guarantees cookie exists before this path
         auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -62,7 +63,8 @@ async def lobby_page(request: Request) -> Response:
     )
     if is_new:
         auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -94,7 +96,9 @@ async def join_room_and_redirect(request: Request) -> Response:
     room = room_manager.get_room(room_id)
     if room is None:
         rooms = room_manager.get_rooms_info()
-        return _render_lobby_with_error(request, templates, rooms, user.username, "Room not found")
+        return _render_lobby_with_error(
+            request, templates=templates, rooms=rooms, username=user.username, error="Room not found"
+        )
 
     return RedirectResponse(f"/rooms/{room_id}", status_code=303)
 
@@ -117,7 +121,8 @@ async def matchmaking_page(request: Request) -> Response:
     )
     if is_new:
         auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -147,5 +152,6 @@ async def room_page(request: Request) -> Response:
     )
     if is_new:
         auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response

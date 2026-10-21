@@ -1,6 +1,3 @@
-// Wire protocol constants as const objects with derived union types.
-// Replaces legacy TypeScript enums from protocol.ts.
-
 // --- Numeric constants ---
 
 export const NUM_TILES = 136;

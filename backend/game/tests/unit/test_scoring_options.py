@@ -1,9 +1,3 @@
-"""
-Verify that double wind pair fu, chiitoitsu fu/han, pinfu tsumo fu,
-open pinfu fu, and kiriage mangan settings are properly handled
-in the scoring pipeline.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -15,7 +9,6 @@ from game.tests.conftest import create_player, create_round_state
 
 
 def _make_round_state(*, dealer_seat=0, round_wind=0, dora_indicators=None):
-    """Create a round state for scoring tests with mid-game state to avoid tenhou/chiihou."""
     dummy_discard = (Discard(tile_id=0),)
     players = tuple(create_player(seat=i, score=25000, discards=dummy_discard) for i in range(4))
     return create_round_state(
@@ -31,10 +24,7 @@ def _make_round_state(*, dealer_seat=0, round_wind=0, dora_indicators=None):
 
 
 class TestDoubleWindPairFu:
-    """Verify double wind pair gives 4 fu when player wind equals round wind."""
-
-    def test_double_wind_pair_gives_4_fu(self):
-        """East player in East round with East pair gets 4 fu from the pair."""
+    def test_calculate_hand_value__when_pair_is_double_wind__should_add_4_fu(self):
         # Seat 0, dealer_seat=0 -> player wind = East (27)
         # round_wind=0 -> round wind = East (27)
         # Hand: 123m 456m 789p EE + 23s waiting for 4s (ryanmen)
@@ -52,13 +42,11 @@ class TestDoubleWindPairFu:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         # Base 20 (tsumo) + 4 (double valued pair) + 2 (tsumo fu) = 26, rounds to 30
         assert result.fu == 30
 
-    def test_single_wind_pair_gives_2_fu(self):
-        """Player wind pair (not matching round wind) gives only 2 fu."""
+    def test_calculate_hand_value__when_pair_is_single_wind__should_add_2_fu(self):
         # Seat 0, dealer_seat=0 -> player wind = East
         # round_wind=1 -> round wind = South
         # East pair = single valued pair (player wind only) = 2 fu
@@ -76,13 +64,11 @@ class TestDoubleWindPairFu:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         # Base 20 (tsumo) + 2 (single valued pair) + 2 (tsumo fu) = 24, rounds to 30
         assert result.fu == 30
 
-    def test_double_wind_pair_produces_higher_fu_than_single_on_ron(self):
-        """Double wind pair (4 fu) crosses a rounding boundary that single (2 fu) does not on ron."""
+    def test_calculate_hand_value__when_ron_with_double_vs_single_wind_pair__should_give_double_more_fu(self):
         # Hand: 111m (closed terminal pon = 8 fu) + 456m + 789p + EE pair + 23s wait on 4s
         # Closed ron: base 30 + 8 (terminal pon) + pair fu + 0 (ryanmen) = 38 or 42
         # Single pair: 30 + 8 + 2 = 40 fu (exactly 40, no rounding)
@@ -116,13 +102,11 @@ class TestDoubleWindPairFu:
             is_tsumo=False,
         )
         result_single = calculate_hand_value(ctx_single, win_tile)
-
         assert result_double.error is None
         assert result_single.error is None
         assert result_double.fu > result_single.fu
 
-    def test_non_valued_pair_gives_no_pair_fu(self):
-        """Non-valued pair (simple tile) gives 0 fu for the pair, producing pinfu 20 fu."""
+    def test_calculate_hand_value__when_pair_not_valued__should_add_no_pair_fu(self):
         # Pinfu hand: 123m 456m 789p 55s (non-valued pair) + 23s wait on 4s (ryanmen)
         tiles = TilesConverter.string_to_136_array(man="123456", pin="789", sou="2355")
         round_state = _make_round_state(dealer_seat=0, round_wind=0)
@@ -135,17 +119,13 @@ class TestDoubleWindPairFu:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         # Pinfu tsumo: base 20, no set fu, no pair fu, no tsumo fu = 20 fu
         assert result.fu == 20
 
 
 class TestChiitoitsuFu:
-    """Verify chiitoitsu always scores fixed 25 fu, 2 han."""
-
-    def test_chiitoitsu_fixed_25_fu(self):
-        """Chiitoitsu hand has exactly 25 fu."""
+    def test_calculate_hand_value__when_chiitoitsu__should_score_25_fu(self):
         tiles = TilesConverter.string_to_136_array(man="1133", pin="2277", sou="5588", honors="11")
         round_state = _make_round_state()
         win_tile = tiles[-1]
@@ -155,12 +135,10 @@ class TestChiitoitsuFu:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert result.fu == 25
 
-    def test_chiitoitsu_is_2_han(self):
-        """Chiitoitsu yaku contributes exactly 2 han (closed hand)."""
+    def test_calculate_hand_value__when_chiitoitsu__should_give_yaku_worth_2_han(self):
         tiles = TilesConverter.string_to_136_array(man="1133", pin="2277", sou="5588", honors="11")
         round_state = _make_round_state()
         win_tile = tiles[-1]
@@ -169,8 +147,8 @@ class TestChiitoitsuFu:
 
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, win_tile)
 
+        result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # Chiitoitsu (2 han) + menzen tsumo (1 han) = 3 han minimum
         assert result.han >= 3
@@ -181,19 +159,12 @@ class TestChiitoitsuFu:
 
 
 class TestPinfuTsumoFu:
-    """Verify fu_for_pinfu_tsumo setting controls pinfu tsumo fu."""
-
     def _make_pinfu_tiles(self):
-        """Return 13 closed tiles + a ryanmen win tile for a pinfu hand.
-
-        Hand: 123m 456m 789p 55s pair, waiting on 23s -> 4s ryanmen.
-        """
         closed = TilesConverter.string_to_136_array(man="123456", pin="789", sou="2355")
         win_tile = TilesConverter.string_to_136_array(sou="4")[0]
         return closed, win_tile
 
-    def test_pinfu_tsumo_0_fu_when_disabled(self):
-        """Pinfu tsumo scores 20 fu (no extra tsumo fu) when fu_for_pinfu_tsumo=False."""
+    def test_calculate_hand_value__when_pinfu_tsumo_fu_disabled__should_score_20_fu(self):
         closed, win_tile = self._make_pinfu_tiles()
         final_tiles = (*tuple(closed), win_tile)
 
@@ -204,12 +175,10 @@ class TestPinfuTsumoFu:
         settings = GameSettings(fu_for_pinfu_tsumo=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert result.fu == 20
 
-    def test_pinfu_tsumo_with_fu_when_enabled(self):
-        """Pinfu tsumo scores 30 fu (2 extra tsumo fu) when fu_for_pinfu_tsumo=True."""
+    def test_calculate_hand_value__when_pinfu_tsumo_fu_enabled__should_add_tsumo_fu(self):
         closed, win_tile = self._make_pinfu_tiles()
         final_tiles = (*tuple(closed), win_tile)
 
@@ -220,21 +189,13 @@ class TestPinfuTsumoFu:
         settings = GameSettings(fu_for_pinfu_tsumo=True)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         # base 20 + 2 tsumo fu = 22, rounds up to 30
         assert result.fu == 30
 
 
 class TestOpenPinfuFu:
-    """Verify fu_for_open_pinfu setting controls open pinfu fu."""
-
     def _make_open_pinfu_state(self, *, fu_for_open_pinfu: bool):
-        """Create an open tanyao hand with all sequences (0 fu from sets).
-
-        Hand: 234m chi (open) + 567m 234p 55p pair + 23s waiting on 4s (ryanmen).
-        Open tanyao provides yaku for ron.
-        """
         closed_tiles = TilesConverter.string_to_136_array(man="567", pin="23455", sou="23")
         chi_tiles = TilesConverter.string_to_136_array(man="234")
         chi = FrozenMeld(
@@ -257,30 +218,23 @@ class TestOpenPinfuFu:
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         return ctx, win_tile
 
-    def test_open_pinfu_2_fu_when_enabled(self):
-        """Open pinfu hand gets 2 fu added when fu_for_open_pinfu=True, rounding to 30."""
+    def test_calculate_hand_value__when_open_pinfu_fu_enabled__should_add_2_fu(self):
         ctx, win_tile = self._make_open_pinfu_state(fu_for_open_pinfu=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         # Open hand ron: base 20 + 2 fu (open pinfu) = 22, rounds to 30
         assert result.fu == 30
 
-    def test_open_pinfu_no_fu_when_disabled(self):
-        """Open pinfu hand gets no added fu when fu_for_open_pinfu=False, staying at 20."""
+    def test_calculate_hand_value__when_open_pinfu_fu_disabled__should_score_20_fu(self):
         ctx, win_tile = self._make_open_pinfu_state(fu_for_open_pinfu=False)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         # Open hand ron: base 20 + 0 fu = 20
         assert result.fu == 20
 
 
 class TestKiriageMangan:
-    """Verify has_kiriage_mangan setting controls kiriage mangan scoring."""
-
-    def test_4_han_30_fu_scores_mangan_when_enabled(self):
-        """4 han / 30 fu hand scores as mangan (8000 non-dealer ron) when kiriage is enabled."""
+    def test_calculate_hand_value__when_kiriage_enabled_and_4_han_30_fu__should_score_mangan(self):
         # tanyao (1) + pinfu (1) + iipeiko (1) + riichi (1) = 4 han, pinfu ron = 30 fu
         tiles = TilesConverter.string_to_136_array(man="223344", pin="567", sou="234")
         pair_tile = TilesConverter.string_to_136_array(man="55")
@@ -295,16 +249,15 @@ class TestKiriageMangan:
 
         settings = GameSettings(has_kiriage_mangan=True, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
-        result = calculate_hand_value(ctx, win_tile)
 
+        result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert result.han == 4
         assert result.fu == 30
         # Kiriage: 4/30 -> mangan (8000 for non-dealer ron)
         assert result.cost_main == 8000
 
-    def test_4_han_30_fu_scores_exact_when_disabled(self):
-        """4 han / 30 fu hand scores 7700 (non-dealer ron) when kiriage is disabled."""
+    def test_calculate_hand_value__when_kiriage_disabled_and_4_han_30_fu__should_score_7700(self):
         tiles = TilesConverter.string_to_136_array(man="223344", pin="567", sou="234")
         pair_tile = TilesConverter.string_to_136_array(man="55")
         all_tiles = (*tuple(tiles), pair_tile[0])
@@ -318,8 +271,8 @@ class TestKiriageMangan:
 
         settings = GameSettings(has_kiriage_mangan=False, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
-        result = calculate_hand_value(ctx, win_tile)
 
+        result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert result.han == 4
         assert result.fu == 30

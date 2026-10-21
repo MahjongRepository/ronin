@@ -1,22 +1,3 @@
-"""
-Random number generation for wall shuffling and dealer determination.
-
-Uses PCG64DXSM (Permuted Congruential Generator with DXSM output function):
-1. Generate a cryptographic seed (96 bytes / 768 bits) via secrets module
-2. Derive per-round RNG state via SHA512 with domain separation (versioned prefix)
-3. Use PCG64DXSM to generate high-quality random uint64 values
-4. Apply Fisher-Yates shuffle with rejection sampling for a provably unbiased permutation
-
-PCG64DXSM was chosen over MT19937 because:
-- Passes all BigCrush/PractRand statistical tests
-- 128-bit state (vs 2.5KB for MT19937)
-- DXSM output has excellent avalanche properties (no SHA512 post-processing needed)
-- Industry standard: default bit generator in NumPy since v1.22
-
-Reference: O'Neill, M. (2014). "PCG: A Family of Simple Fast Space-Efficient
-Statistically Good Algorithms for Random Number Generation."
-"""
-
 import hashlib
 import random
 import secrets
@@ -45,9 +26,11 @@ def validate_seed_hex(seed_hex: str) -> None:
     """
     if not isinstance(seed_hex, str):
         raise TypeError(f"Seed must be a string, got {type(seed_hex).__name__}")
+
     expected_length = SEED_BYTES * 2
     if len(seed_hex) != expected_length:
         raise ValueError(f"Seed must be exactly {expected_length} hex characters, got {len(seed_hex)}")
+
     try:
         bytes.fromhex(seed_hex)
     except ValueError:
@@ -62,6 +45,10 @@ class PCG64DXSM:
     (double-xorshift-multiply) output permutation for high-quality 64-bit output.
 
     Reference: NumPy's default PCG64DXSM bit generator uses the same constants.
+
+    Chosen over MT19937: it passes the BigCrush/PractRand statistical tests, keeps 128 bits of state (vs 2.5KB), and the
+    DXSM output mixes well enough to need no SHA512 post-processing. See O'Neill, M. (2014), "PCG: A Family of Simple
+    Fast Space-Efficient Statistically Good Algorithms for Random Number Generation."
     """
 
     def __init__(self, state: int, increment: int) -> None:
@@ -74,7 +61,9 @@ class PCG64DXSM:
         self._state = (self._state * _PCG_MULTIPLIER + self._inc) & _UINT128_MASK  # advance 2
 
     def next_uint64(self) -> int:
-        """Generate the next 64-bit unsigned integer and advance state."""
+        """
+        Generate the next 64-bit unsigned integer and advance state.
+        """
         # Output from current state (output before advance)
         state = self._state
         hi = (state >> 64) & _UINT64_MASK
@@ -94,7 +83,9 @@ class PCG64DXSM:
 
 
 def generate_seed() -> str:
-    """Generate a cryptographic seed as a hex string (192 chars / 768 bits)."""
+    """
+    Generate a cryptographic seed as a hex string (192 chars / 768 bits).
+    """
     return secrets.token_bytes(SEED_BYTES).hex()
 
 
@@ -102,9 +93,8 @@ def _derive_pcg(domain_prefix: bytes, data: bytes) -> PCG64DXSM:
     """
     Derive a PCG64DXSM from SHA512 hash of domain-separated data.
 
-    SHA512(domain_prefix + data) produces 64 bytes; the first 16 bytes
-    become the PCG state and the next 16 bytes become the increment.
-    Domain separation ensures different contexts produce different output.
+    SHA512(domain_prefix + data) produces 64 bytes; the first 16 bytes become the PCG state and the next 16 bytes become
+    the increment. Domain separation ensures different contexts produce different output.
     """
     derived = hashlib.sha512(domain_prefix + data).digest()
     state = int.from_bytes(derived[:16], byteorder="little")
@@ -122,6 +112,7 @@ def _derive_round_pcg(seed_hex: str, round_number: int) -> PCG64DXSM:
     """
     if not (0 <= round_number < 2**32):
         raise ValueError("round_number must be in [0, 2^32)")
+
     validate_seed_hex(seed_hex)
     seed_bytes = bytes.fromhex(seed_hex)
     round_bytes = round_number.to_bytes(4, byteorder="little")
@@ -132,12 +123,12 @@ def _bounded_uint64(pcg: PCG64DXSM, bound: int) -> int:
     """
     Generate an unbiased random integer in [0, bound) via rejection sampling.
 
-    Rejects values from the partial final bucket to eliminate modulo bias entirely.
-    With 64-bit output and max bound of 136, rejection probability per step is
-    ~136/2^64 ≈ 7.4x10^-18 — effectively zero overhead in practice.
+    Rejects values from the partial final bucket to eliminate modulo bias entirely. With 64-bit output and max bound of
+    136, rejection probability per step is ~136/2^64 ≈ 7.4x10^-18 — effectively zero overhead in practice.
     """
     if bound <= 0 or bound > (1 << 64):
         raise ValueError("bound must be in (0, 2^64]")
+
     limit = (1 << 64) - ((1 << 64) % bound)
     while True:
         r = pcg.next_uint64()
@@ -160,11 +151,14 @@ def _fisher_yates_shuffle(tiles: list[int], pcg: PCG64DXSM) -> list[int]:
     for i in range(n - 1):
         j = i + _bounded_uint64(pcg, n - i)
         result[i], result[j] = result[j], result[i]
+
     return result
 
 
 def roll_dice(pcg: PCG64DXSM) -> tuple[int, int]:
-    """Roll two standard six-sided dice using the PCG generator."""
+    """
+    Roll two standard six-sided dice using the PCG generator.
+    """
     die1 = _bounded_uint64(pcg, 6) + 1
     die2 = _bounded_uint64(pcg, 6) + 1
     return die1, die2
@@ -189,8 +183,7 @@ def _derive_dealer_pcg(seed_hex: str) -> PCG64DXSM:
     """
     Derive a PCG64DXSM for dealer determination from the game seed.
 
-    Uses a separate domain prefix ("ronin-dealer-v1:") so the dealer RNG stream
-    is independent from the wall RNG stream.
+    Uses a separate domain prefix ("ronin-dealer-v1:") so the dealer RNG stream is independent from the wall RNG stream.
     """
     validate_seed_hex(seed_hex)
     return _derive_pcg(_DEALER_DOMAIN_PREFIX, bytes.fromhex(seed_hex))
@@ -213,8 +206,10 @@ def determine_first_dealer(seed_hex: str) -> tuple[int, tuple[int, int], tuple[i
     Return (dealer_seat, first_dice, second_dice).
     """
     pcg = _derive_dealer_pcg(seed_hex)
+
     first_dice = roll_dice(pcg)
     temp_dealer = (sum(first_dice) - 1) % NUM_PLAYERS
+
     second_dice = roll_dice(pcg)
     dealer = (temp_dealer + sum(second_dice) - 1) % NUM_PLAYERS
     return dealer, first_dice, second_dice
@@ -224,11 +219,11 @@ def create_seat_rng(seed_hex: str | None) -> random.Random:
     """
     Create a seeded RNG for seat assignment (matchmaker).
 
-    Uses stdlib random.Random for seat shuffling — statistical perfection
-    is not critical for 4-seat assignment, and this avoids coupling the
-    matchmaker to PCG64DXSM internals.
+    Uses stdlib random.Random for seat shuffling — statistical perfection is not critical for 4-seat assignment, and
+    this avoids coupling the matchmaker to PCG64DXSM internals.
     """
     if seed_hex is None:
         return random.Random()  # noqa: S311
+
     validate_seed_hex(seed_hex)
     return random.Random(int(seed_hex, 16))  # noqa: S311

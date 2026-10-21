@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Find production definitions (top-level and class methods) that are only referenced in tests or not referenced at all.
-
-Neither vulture nor deadcode handles these cases: vulture treats all files equally
-(no prod vs test distinction), and deadcode crashes on Python 3.14 (uses removed ast.Str).
-"""
 
 import ast
 import importlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def _source_files(src: Path) -> list[Path]:
+    return sorted(path for path in src.rglob("*.py") if ".venv" not in path.relative_to(src).parts)
 
 
 def _is_test_file(path: Path) -> bool:
@@ -213,7 +212,7 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
     def has_implicit_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return any(decorator_name(d) in implicit_decorators for d in node.decorator_list)
 
-    for py_file in sorted(src.rglob("*.py")):
+    for py_file in _source_files(src):
         if _is_test_file(py_file):
             continue
         try:
@@ -275,7 +274,7 @@ def _collect_references(src: Path, *, test_files: bool) -> _ReferenceBucket:
     When test_files=False, collect from production files only.
     """
     refs = _ReferenceBucket(names=set(), attrs=set())
-    for py_file in src.rglob("*.py"):
+    for py_file in _source_files(src):
         is_test = _is_test_file(py_file)
         if test_files != is_test:
             continue
@@ -349,6 +348,12 @@ def _resolve_live_definitions(
 
 
 def find_dead_code(src: Path) -> DeadCodeReport:
+    """
+    Find production definitions (top-level and class methods) referenced only from tests or not at all.
+
+    A custom scan because neither vulture nor deadcode covers this: vulture treats all files equally (no production vs
+    test distinction), and deadcode crashes on Python 3.14 (it uses the removed ast.Str).
+    """
     scan = _collect_production_scan(src)
     test_refs = _collect_references(src, test_files=True)
     live = _resolve_live_definitions(

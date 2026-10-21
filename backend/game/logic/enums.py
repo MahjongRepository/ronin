@@ -1,12 +1,10 @@
-"""
-String enum definitions for Mahjong game concepts.
-"""
-
 from enum import IntEnum, StrEnum
 
 
 class PlayerAction(StrEnum):
-    """Actions available to a player during their turn."""
+    """
+    Actions available to a player during their turn.
+    """
 
     DISCARD = "discard"
     RIICHI = "riichi"
@@ -17,7 +15,9 @@ class PlayerAction(StrEnum):
 
 
 class GameAction(StrEnum):
-    """Actions dispatched from client to game service."""
+    """
+    Actions dispatched from client to game service.
+    """
 
     DISCARD = "discard"
     DECLARE_RIICHI = "declare_riichi"
@@ -32,7 +32,9 @@ class GameAction(StrEnum):
 
 
 class GameErrorCode(StrEnum):
-    """Error codes sent to clients for invalid game actions."""
+    """
+    Error codes sent to clients for invalid game actions.
+    """
 
     NOT_YOUR_TURN = "not_your_turn"
     INVALID_DISCARD = "invalid_discard"
@@ -52,7 +54,9 @@ class GameErrorCode(StrEnum):
 
 
 class MeldCallType(StrEnum):
-    """Types of meld calls that can be made on a discarded tile."""
+    """
+    Types of meld calls that can be made on a discarded tile.
+    """
 
     PON = "pon"
     CHI = "chi"
@@ -73,14 +77,18 @@ FALLBACK_MELD_PRIORITY = 99  # sorts unknown call types after all known ones
 
 
 class KanType(StrEnum):
-    """Subtypes of kan declarations."""
+    """
+    Subtypes of kan declarations.
+    """
 
     OPEN = "open"
     CLOSED = "closed"
     ADDED = "added"
 
     def to_meld_call_type(self) -> MeldCallType:
-        """Convert kan type to the corresponding meld call type."""
+        """
+        Convert kan type to the corresponding meld call type.
+        """
         return _KAN_TO_MELD_CALL[self]
 
 
@@ -92,7 +100,9 @@ _KAN_TO_MELD_CALL: dict[KanType, MeldCallType] = {
 
 
 class CallType(StrEnum):
-    """Types of call prompts sent to players."""
+    """
+    Types of call prompts sent to players.
+    """
 
     RON = "ron"
     MELD = "meld"
@@ -101,7 +111,9 @@ class CallType(StrEnum):
 
 
 class WireCallType(IntEnum):
-    """Integer wire encoding for CallType."""
+    """
+    Integer wire encoding for CallType.
+    """
 
     RON = 0
     MELD = 1
@@ -109,7 +121,9 @@ class WireCallType(IntEnum):
 
 
 class WireMeldCallType(IntEnum):
-    """Integer wire encoding for MeldCallType."""
+    """
+    Integer wire encoding for MeldCallType.
+    """
 
     PON = 0
     CHI = 1
@@ -117,7 +131,9 @@ class WireMeldCallType(IntEnum):
 
 
 class WirePlayerAction(IntEnum):
-    """Integer wire encoding for PlayerAction."""
+    """
+    Integer wire encoding for PlayerAction.
+    """
 
     DISCARD = 0
     RIICHI = 1
@@ -128,7 +144,9 @@ class WirePlayerAction(IntEnum):
 
 
 class AbortiveDrawType(StrEnum):
-    """Types of abortive draws in Mahjong."""
+    """
+    Types of abortive draws in Mahjong.
+    """
 
     NINE_TERMINALS = "nine_terminals"
     FOUR_RIICHI = "four_riichi"
@@ -138,7 +156,9 @@ class AbortiveDrawType(StrEnum):
 
 
 class RoundResultType(StrEnum):
-    """Types of round end results."""
+    """
+    Types of round end results.
+    """
 
     TSUMO = "tsumo"
     RON = "ron"
@@ -150,7 +170,9 @@ class RoundResultType(StrEnum):
 
 
 class WireWind(IntEnum):
-    """Integer wire encoding for WindName."""
+    """
+    Integer wire encoding for WindName.
+    """
 
     EAST = 0
     SOUTH = 1
@@ -159,7 +181,9 @@ class WireWind(IntEnum):
 
 
 class WindName(StrEnum):
-    """Wind direction names."""
+    """
+    Wind direction names.
+    """
 
     EAST = "East"
     SOUTH = "South"
@@ -169,13 +193,17 @@ class WindName(StrEnum):
 
 
 class AIPlayerType(StrEnum):
-    """Types of AI players available for matchmaking."""
+    """
+    Types of AI players available for matchmaking.
+    """
 
     TSUMOGIRI = "tsumogiri"
 
 
 class TimeoutType(StrEnum):
-    """Types of player timeouts."""
+    """
+    Types of player timeouts.
+    """
 
     TURN = "turn"
     MELD = "meld"
@@ -183,7 +211,9 @@ class TimeoutType(StrEnum):
 
 
 class MeldViewType(StrEnum):
-    """Meld type names for client-facing view."""
+    """
+    Meld type names for client-facing view.
+    """
 
     CHI = "chi"
     PON = "pon"
@@ -193,7 +223,9 @@ class MeldViewType(StrEnum):
 
 
 class RoundPhase(StrEnum):
-    """Phase of a mahjong round."""
+    """
+    Phase of a mahjong round.
+    """
 
     WAITING = "waiting"
     PLAYING = "playing"
@@ -201,7 +233,9 @@ class RoundPhase(StrEnum):
 
 
 class GamePhase(StrEnum):
-    """Phase of a mahjong game."""
+    """
+    Phase of a mahjong game.
+    """
 
     IN_PROGRESS = "in_progress"
     FINISHED = "finished"

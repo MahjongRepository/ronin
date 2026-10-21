@@ -1,5 +1,3 @@
-"""Tests for auth policy helpers and route validation."""
-
 from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
@@ -21,7 +19,7 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from shared.auth.models import AccountType
+from shared.dal.models import AccountType
 
 
 async def _login_page(request: Request) -> JSONResponse:
@@ -39,7 +37,6 @@ def _make_request(
     query_string: bytes = b"",
     account_type: AccountType = AccountType.HUMAN,
 ) -> Request:
-    """Build a real Starlette Request with auth scopes pre-set."""
     scopes = ["authenticated"] if authenticated else []
     scope = {
         "type": "http",
@@ -55,6 +52,7 @@ def _make_request(
     }
     if authenticated:
         scope["user"] = AuthenticatedPlayer(user_id="test-id", username="test", account_type=account_type)
+
     return Request(scope)
 
 
@@ -67,24 +65,22 @@ def _sync_dummy_handler(request: Request) -> str:
 
 
 class TestProtectedHtml:
-    async def test_unauthenticated_redirects_to_login(self) -> None:
+    async def test_protected_html__when_unauthenticated__should_redirect_to_login(self):
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=False)
 
         result = await wrapped(request)
-
         assert isinstance(result, RedirectResponse)
         assert result.status_code == 303
         location = dict(result.headers)["location"]
         assert "/login" in location
         assert "next=" in location
 
-    async def test_redirect_preserves_query_string(self) -> None:
+    async def test_protected_html__when_unauthenticated_with_query__should_preserve_it_in_next(self):
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=False, path="/page", query_string=b"tab=settings")
 
         result = await wrapped(request)
-
         assert isinstance(result, RedirectResponse)
         location = dict(result.headers)["location"]
         parsed = urlparse(location)
@@ -92,28 +88,25 @@ class TestProtectedHtml:
         query = parse_qs(parsed.query)
         assert "/page?tab=settings" in query["next"]
 
-    async def test_authenticated_passes_through(self) -> None:
+    async def test_protected_html__when_authenticated__should_call_handler(self):
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=True)
 
         result = await wrapped(request)
-
         assert result == "ok"
 
-    def test_sync_authenticated_passes_through(self) -> None:
+    def test_protected_html__when_sync_handler_authenticated__should_call_handler(self):
         wrapped = protected_html(_sync_dummy_handler)
         request = _make_request(authenticated=True)
 
         result = wrapped(request)
-
         assert result == "ok"
 
-    def test_sync_unauthenticated_redirects_to_login(self) -> None:
+    def test_protected_html__when_sync_handler_unauthenticated__should_redirect_to_login(self):
         wrapped = protected_html(_sync_dummy_handler)
         request = _make_request(authenticated=False)
 
         result = wrapped(request)
-
         assert isinstance(result, RedirectResponse)
         assert result.status_code == 303
         location = dict(result.headers)["location"]
@@ -122,7 +115,7 @@ class TestProtectedHtml:
 
 
 class TestProtectedApi:
-    async def test_unauthenticated_raises_401(self) -> None:
+    async def test_protected_api__when_unauthenticated__should_raise_401(self):
         wrapped = protected_api(_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -131,17 +124,16 @@ class TestProtectedApi:
 
         assert exc_info.value.status_code == 401
 
-    async def test_authenticated_passes_through(self) -> None:
+    async def test_protected_api__when_authenticated__should_call_handler(self):
         wrapped = protected_api(_dummy_handler)
         request = _make_request(authenticated=True)
 
         result = await wrapped(request)
-
         assert result == "ok"
 
 
 class TestBotOnly:
-    async def test_unauthenticated_raises_401(self) -> None:
+    async def test_bot_only__when_unauthenticated__should_raise_401(self):
         wrapped = bot_only(_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -150,24 +142,22 @@ class TestBotOnly:
 
         assert exc_info.value.status_code == 401
 
-    async def test_authenticated_human_returns_403(self) -> None:
+    async def test_bot_only__when_human__should_return_403(self):
         wrapped = bot_only(_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.HUMAN)
 
         result = await wrapped(request)
-
         assert isinstance(result, JSONResponse)
         assert result.status_code == 403
 
-    async def test_authenticated_bot_passes_through(self) -> None:
+    async def test_bot_only__when_bot__should_call_handler(self):
         wrapped = bot_only(_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.BOT)
 
         result = await wrapped(request)
-
         assert result == "ok"
 
-    def test_sync_unauthenticated_raises_401(self) -> None:
+    def test_bot_only__when_sync_handler_unauthenticated__should_raise_401(self):
         wrapped = bot_only(_sync_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -176,45 +166,39 @@ class TestBotOnly:
 
         assert exc_info.value.status_code == 401
 
-    def test_sync_authenticated_human_returns_403(self) -> None:
+    def test_bot_only__when_sync_handler_human__should_return_403(self):
         wrapped = bot_only(_sync_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.HUMAN)
 
         result = wrapped(request)
-
         assert isinstance(result, JSONResponse)
         assert result.status_code == 403
 
-    def test_sync_authenticated_bot_passes_through(self) -> None:
+    def test_bot_only__when_sync_handler_bot__should_call_handler(self):
         wrapped = bot_only(_sync_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.BOT)
 
         result = wrapped(request)
-
         assert result == "ok"
 
 
 class TestPublicRoute:
-    async def test_does_not_block_unauthenticated(self) -> None:
+    async def test_public_route__when_unauthenticated__should_call_handler(self):
         wrapped = public_route(_dummy_handler)
         request = _make_request(authenticated=False)
 
         result = await wrapped(request)
-
         assert result == "ok"
 
-    def test_sync_does_not_block_unauthenticated(self) -> None:
+    def test_public_route__when_sync_handler_unauthenticated__should_call_handler(self):
         wrapped = public_route(_sync_dummy_handler)
         request = _make_request(authenticated=False)
 
         result = wrapped(request)
-
         assert result == "ok"
 
 
 def _make_handler() -> object:
-    """Return a fresh async handler with no attributes from prior tests."""
-
     async def handler(request: Request) -> str:
         return "ok"
 
@@ -222,45 +206,33 @@ def _make_handler() -> object:
 
 
 class TestValidateRouteAuthPolicy:
-    def test_all_routes_classified_passes(self) -> None:
-        routes = [
-            Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
-            Route("/b", protected_api(_make_handler()), methods=["GET"], name="b"),
-            Route("/c", bot_only(_make_handler()), methods=["POST"], name="c"),
-        ]
-
-        validate_route_auth_policy(routes)
-
-    def test_unclassified_route_raises_runtime_error(self) -> None:
+    def test_validate_route_auth_policy__when_route_unclassified__should_raise_runtime_error(self):
         routes = [
             Route("/ok", public_route(_make_handler()), methods=["GET"], name="ok"),
             Route("/bad", _make_handler(), methods=["GET"], name="bad"),
         ]
-
         with pytest.raises(RuntimeError, match="Unclassified routes"):
             validate_route_auth_policy(routes)
 
-    def test_mount_is_exempt(self) -> None:
+    def test_validate_route_auth_policy__when_mount_present__should_exempt_it(self):
         routes = [
             Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
             Mount("/static", app=Starlette(), name="static"),
         ]
-
         validate_route_auth_policy(routes)
 
-    def test_multiple_unclassified_routes_all_reported(self) -> None:
+    def test_validate_route_auth_policy__when_several_routes_unclassified__should_report_all(self):
         routes = [
             Route("/x", _make_handler(), methods=["GET"], name="x"),
             Route("/y", _make_handler(), methods=["POST"], name="y"),
         ]
-
         with pytest.raises(RuntimeError, match="/x") as exc_info:
             validate_route_auth_policy(routes)
         assert "/y" in str(exc_info.value)
 
 
 class TestCollectProtectedApiPaths:
-    def test_collects_protected_api_and_bot_only_paths(self) -> None:
+    def test_collect_protected_api_paths__should_collect_protected_api_and_bot_only_paths(self):
         routes = [
             Route("/rooms", protected_api(_make_handler()), methods=["GET"], name="rooms"),
             Route("/servers", protected_api(_make_handler()), methods=["GET"], name="servers"),
@@ -268,17 +240,13 @@ class TestCollectProtectedApiPaths:
             Route("/", protected_html(_make_handler()), methods=["GET"], name="index"),
             Route("/health", public_route(_make_handler()), methods=["GET"], name="health"),
         ]
-
         result = collect_protected_api_paths(routes)
-
         assert result == {"/rooms", "/servers", "/api/bot"}
 
-    def test_ignores_mounts(self) -> None:
+    def test_collect_protected_api_paths__when_mount_present__should_ignore_it(self):
         routes = [
             Route("/rooms", protected_api(_make_handler()), methods=["GET"], name="rooms"),
             Mount("/static", app=Starlette(), name="static"),
         ]
-
         result = collect_protected_api_paths(routes)
-
         assert result == {"/rooms"}

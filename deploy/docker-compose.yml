@@ -88,6 +88,7 @@ services:
       AUTH_GAME_TICKET_SECRET: ${AUTH_GAME_TICKET_SECRET:?Set AUTH_GAME_TICKET_SECRET}
       AUTH_DATABASE_PATH: /app/data/db/ronin.db
       GAME_REPLAY_DIR: /app/data/replays
+      GAME_CORS_ORIGINS: https://%%DOMAIN%%
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:

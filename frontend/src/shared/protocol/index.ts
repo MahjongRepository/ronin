@@ -1,4 +1,3 @@
-// Public API for the protocol module.
 export {
     NUM_TILES,
     NUM_TILE_TYPES,

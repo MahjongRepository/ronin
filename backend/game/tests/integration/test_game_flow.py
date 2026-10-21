@@ -1,10 +1,3 @@
-"""
-Integration tests for Mahjong game flow.
-
-Tests service-level game creation event contract and end-to-end
-discard cycle through MahjongGameService.
-"""
-
 import pytest
 
 from game.logic.enums import CallType, GameAction, RoundPhase
@@ -13,44 +6,34 @@ from game.logic.mahjong_service import MahjongGameService
 
 
 class TestGameCreationAndJoin:
-    """Test game creation and initial state delivery."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_create_game_and_join_returns_initial_state(self, service):
-        """Create game and verify game_started broadcast event is received."""
+    async def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
         events = await service.start_game("game1", ["Player"], seed="a" * 192)
-
         game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
-
         event = game_started_events[0]
         assert isinstance(event.data, GameStartedEvent)
         assert event.target == BroadcastTarget()
         assert event.data.game_id == "game1"
         assert event.data.dealer_seat in range(4)
         assert len(event.data.players) == 4
-
         for player in event.data.players:
             assert player.seat is not None
             assert player.name is not None
 
 
 class TestGameServiceIntegration:
-    """Integration tests using MahjongGameService."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_sequential_discards_through_service(self, service):
-        """Test that multiple player discards can be processed sequentially."""
+    async def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         actions_processed = 0
-
         # play several discards (AI players will respond automatically)
         for _ in range(10):
             game_state = service.get_game_state("game1")
@@ -64,10 +47,10 @@ class TestGameServiceIntegration:
             if player.name == "Player" and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 await service.handle_action(
-                    "game1",
-                    player.name,
-                    GameAction.DISCARD,
-                    {"tile_id": tile_to_discard},
+                    game_id="game1",
+                    player_name=player.name,
+                    action=GameAction.DISCARD,
+                    data={"tile_id": tile_to_discard},
                 )
                 actions_processed += 1
 
@@ -75,19 +58,11 @@ class TestGameServiceIntegration:
 
 
 class TestUnifiedDiscardClaimIntegration:
-    """Integration test for unified DISCARD prompt through MahjongGameService."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_per_seat_call_prompts_never_use_raw_discard(self, service):
-        """Per-seat call prompt events use RON or MELD call_type, never raw DISCARD.
-
-        Plays multiple discards to maximize the chance of observing call prompts.
-        Verifies the wire contract: DISCARD prompts are split per-seat with the
-        appropriate call_type for each recipient.
-        """
+    async def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         found_prompt = False
@@ -104,12 +79,11 @@ class TestUnifiedDiscardClaimIntegration:
 
             tile_to_discard = player.tiles[-1]
             events = await service.handle_action(
-                "game1",
-                "Player",
-                GameAction.DISCARD,
-                {"tile_id": tile_to_discard},
+                game_id="game1",
+                player_name="Player",
+                action=GameAction.DISCARD,
+                data={"tile_id": tile_to_discard},
             )
-
             call_prompt_events = [e for e in events if e.event == EventType.CALL_PROMPT]
             for cp_event in call_prompt_events:
                 found_prompt = True

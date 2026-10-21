@@ -72,7 +72,6 @@ function setupLocation(): void {
     });
 }
 
-/** Set up a connected game view with captured message/status handlers. */
 function setupConnection(): void {
     gameView("test-game");
     vi.runAllTimers();
@@ -85,7 +84,6 @@ const retryLaterMessage = {
     type: "session_error",
 };
 
-/** Transition connection to "playing" state and simulate a reconnect scenario. */
 function setupPlayingAndReconnect(): void {
     setupConnection();
     capturedMessageHandler!({ d: 0, t: 1 });

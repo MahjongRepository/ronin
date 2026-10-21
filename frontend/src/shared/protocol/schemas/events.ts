@@ -1,7 +1,3 @@
-// Zod schemas for the 10 game event types (excludes call_prompt and round_end).
-// Each schema parses raw wire-format dicts with single-char aliases
-// into well-typed camelCase objects.
-
 import { z } from "zod";
 
 import { EVENT_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";

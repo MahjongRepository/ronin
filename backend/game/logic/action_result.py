@@ -1,11 +1,3 @@
-"""Shared result type and helpers for action handler execution.
-
-This module provides the ActionResult type and shared helpers used by
-action handlers and the game service. It lives in a neutral module to
-avoid import cycles between action_handlers and extracted subsystem
-modules (e.g., call_resolution).
-"""
-
 from typing import TYPE_CHECKING, NamedTuple
 
 from game.logic.actions import get_available_actions
@@ -19,9 +11,11 @@ class ActionResult(NamedTuple):
     """
     Result of an action handler execution.
 
-    Contains the events produced by the action and optionally the new
-    immutable state after the action. When new_round_state and new_game_state
-    are provided, the caller should use them to update its stored state.
+    Contains the events produced by the action and optionally the new immutable state after the action. When
+    new_round_state and new_game_state are provided, the caller should use them to update its stored state.
+
+    Defined outside action_handlers so that call_resolution and the other handler subsystems can import it without an
+    import cycle.
     """
 
     events: list[GameEvent]
@@ -36,8 +30,10 @@ def create_draw_event(
     seat: int,
     tile_id: int,
 ) -> DrawEvent:
-    """Create a draw event for a player with available actions."""
-    available_actions = get_available_actions(round_state, game_state, seat)
+    """
+    Create a draw event for a player with available actions.
+    """
+    available_actions = get_available_actions(round_state, game_state, seat=seat)
     return DrawEvent(
         seat=seat,
         tile_id=tile_id,

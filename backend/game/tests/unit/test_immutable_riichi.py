@@ -1,12 +1,3 @@
-"""
-Unit tests for immutable riichi declaration edge cases.
-
-Tests basic riichi mechanics (flag setting, point deduction, stick increment)
-are covered by integration tests in test_game_flow.py::TestRiichiAndIppatsu.
-This file focuses on double riichi (daburi) logic requiring specific state
-construction not achievable via replays.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -22,10 +13,7 @@ from game.logic.wall import Wall
 
 
 class TestDeclareRiichiDaburi:
-    """Tests for double riichi (daburi) edge cases."""
-
     def _create_tempai_hand(self) -> tuple[int, ...]:
-        """Create a tempai hand."""
         return tuple(TilesConverter.string_to_136_array(man="1123456788899"))
 
     def _create_game_state(
@@ -35,7 +23,6 @@ class TestDeclareRiichiDaburi:
         players_with_open_hands: tuple[int, ...] | None = None,
         other_player_melds: dict[int, tuple[FrozenMeld, ...]] | None = None,
     ) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create game state for testing riichi declaration."""
         player = MahjongPlayer(
             seat=0,
             name="Test",
@@ -58,12 +45,7 @@ class TestDeclareRiichiDaburi:
         )
         return round_state, game_state
 
-    def test_double_riichi_on_first_turn(self):
-        """Declaring riichi on first turn with no open hands is double riichi.
-
-        In the actual game flow, declare_riichi is called AFTER the riichi discard
-        is added to player.discards. So for double riichi, len(discards) == 1.
-        """
+    def test_declare_riichi__when_riichi_discard_is_first_discard__should_set_daburi(self):
         round_state, game_state = self._create_game_state(
             player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
             players_with_open_hands=(),
@@ -77,17 +59,11 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is True
         # original state unchanged
         assert round_state.players[0].is_daburi is False
 
-    def test_no_double_riichi_after_first_discard(self):
-        """No double riichi if player has already discarded before riichi.
-
-        In the actual game flow, declare_riichi is called AFTER the riichi discard
-        is added. So for non-double riichi, len(discards) > 1.
-        """
+    def test_declare_riichi__when_player_already_discarded__should_not_set_daburi(self):
         round_state, game_state = self._create_game_state(
             player_discards=(
                 Discard(tile_id=TilesConverter.string_to_136_array(sou="88")[0]),
@@ -103,11 +79,9 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is False
 
-    def test_no_double_riichi_if_open_hands_exist(self):
-        """No double riichi if any player has called an open meld."""
+    def test_declare_riichi__when_open_meld_exists__should_not_set_daburi(self):
         round_state, game_state = self._create_game_state(
             player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
             players_with_open_hands=(1,),
@@ -120,11 +94,9 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is False
 
-    def test_no_double_riichi_if_other_player_has_closed_kan(self):
-        """No double riichi if another player declared a closed kan."""
+    def test_declare_riichi__when_other_player_has_closed_kan__should_not_set_daburi(self):
         closed_kan = FrozenMeld(
             meld_type=FrozenMeld.KAN,
             tiles=tuple(TilesConverter.string_to_136_array(pin="1111")),
@@ -143,11 +115,9 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is False
 
-    def test_declare_riichi_sets_ippatsu(self):
-        """Riichi declaration sets the ippatsu flag for the declaring player."""
+    def test_declare_riichi__should_set_ippatsu_only_for_declarer(self):
         round_state, game_state = self._create_game_state(
             player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
         )
@@ -159,7 +129,6 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=GameSettings(),
         )
-
         assert new_round_state.players[0].is_ippatsu is True
         # other players not affected
         for i in range(1, 4):

@@ -14,7 +14,7 @@ from game.server.rate_limit import TokenBucket
 logger = structlog.get_logger()
 
 if TYPE_CHECKING:
-    from game.messaging.router import MessageRouter
+    from game.server.router import MessageRouter
 
 _GAME_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _MAX_GAME_ID_LENGTH = 50
@@ -97,6 +97,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     )
                     await connection.close(code=4004, reason="too_many_decode_errors")
                     return
+
                 continue
 
             decode_errors = 0
@@ -106,6 +107,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many messages").model_dump(),
                 )
                 continue
+
             await router.handle_message(connection, data)
     except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip
         pass

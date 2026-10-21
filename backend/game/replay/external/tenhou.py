@@ -1,26 +1,3 @@
-"""
-Tenhou XML replay format converter.
-
-All rights related to tenhou XML replay format are reserved by tenhou.net.
-This converter is not affiliated with tenhou.net.
-
-Convert Ronin replay files to tenhou.net XML format.
-We need that compatibility with services that use tenhou XML as a common replay format.
-
-Load all files from data/replays/ and write tenhou XML files to data/tenhou_replays/.
-
-Replay files use the compact wire format with integer event types and short field aliases:
-- GAME_STARTED (t=8): game ID, player names, seed
-- ROUND_STARTED (t=9, merged): all players' tiles, dora indicators, round metadata, scores
-- DRAW (t=1): packed seat+tile_id in "d" field
-- DISCARD (t=2): packed seat+tile_id+flags in "d" field
-- RIICHI_DECLARED (t=5): seat that declared riichi (score deduction)
-- MELD (t=0): compact IMME-encoded meld integer in "m" field
-- DORA_REVEALED (t=6): single revealed dora tile_id after kan
-- ROUND_END (t=4): round result with winner closed_tiles/melds/win_tile embedded
-- GAME_END (t=10): final standings with scores and placement deltas
-"""
-
 import gzip
 import json
 from pathlib import Path
@@ -30,7 +7,7 @@ import structlog
 from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID
 
 from game.logic.types import WIRE_SCORE_DIVISOR
-from game.messaging.compact import decode_discard, decode_draw
+from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from shared.lib.melds.compact import decode_meld_compact
 
@@ -62,6 +39,7 @@ def _to_binary_string(number: int, size: int | None = None) -> str:
     result = bin(number).replace("0b", "")
     if size and len(result) < size:
         result = "0" * (size - len(result)) + result
+
     return result
 
 
@@ -69,6 +47,7 @@ def _from_who_offset(who: int, from_who: int) -> int:
     result = from_who - who
     if result < 0:
         result += 4
+
     return result
 
 
@@ -172,49 +151,53 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
     called_tile = meld_event["called_tile_id"]
     who: int = meld_event["caller_seat"]
 
-    if meld_type == "chi":
-        return _encode_chi(tiles, called_tile, who, meld_event["from_seat"])
-    if meld_type == "pon":
-        return _encode_pon(tiles, called_tile, who, meld_event["from_seat"])
-    if meld_type == "added_kan":
-        tile = called_tile if called_tile is not None else sorted(tiles)[0]
-        source: int = meld_event.get("from_seat", who)
-        added = meld_event.get("_added_tile")
-        return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
-    if meld_type == "closed_kan":
-        tile = called_tile if called_tile is not None else sorted(tiles)[0]
-        return _encode_kan(tiles, tile, who, who)
-    if meld_type == "open_kan":
-        return _encode_kan(tiles, called_tile, who, meld_event["from_seat"])
-
-    return "0"
+    match meld_type:
+        case "chi":
+            return _encode_chi(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
+        case "pon":
+            return _encode_pon(tiles, called_tile, who, meld_event["from_seat"])
+        case "added_kan":
+            tile = called_tile if called_tile is not None else min(tiles)
+            source: int = meld_event.get("from_seat", who)
+            added = meld_event.get("_added_tile")
+            return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
+        case "closed_kan":
+            tile = called_tile if called_tile is not None else min(tiles)
+            return _encode_kan(tiles=tiles, called_tile=tile, who=who, from_who=who)
+        case "open_kan":
+            return _encode_kan(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
+        case _:
+            return "0"
 
 
 def build_yaku_string(yaku_list: list[dict[str, Any]]) -> str:
-    """Build tenhou yaku string from per-yaku breakdown in replay data.
+    """
+    Build tenhou yaku string from per-yaku breakdown in replay data.
 
-    Each yaku dict contains yi (yaku_id) and han, which are passed through
-    with only an ID translation to tenhou format.
+    Each yaku dict contains yi (yaku_id) and han, which are passed through with only an ID translation to tenhou format.
     """
     parts = []
     for yaku in yaku_list:
         tenhou_id = YAKU_ID_TO_TENHOU_ID.get(yaku["yi"])
         if tenhou_id is not None:
             parts.append(f"{tenhou_id},{yaku['han']}")
+
     return ",".join(parts)
 
 
 def _format_sc(scores: dict[str, int], score_changes: dict[str, int]) -> str:
-    """Format the sc attribute: 'score0,change0,score1,change1,...' (in hundreds).
+    """
+    Format the sc attribute: 'score0,change0,score1,change1,...' (in hundreds).
 
-    Both scores and score_changes are dicts with string keys in wire format
-    (already divided by WIRE_SCORE_DIVISOR, i.e. in hundreds).
+    Both scores and score_changes are dicts with string keys in wire format (already divided by WIRE_SCORE_DIVISOR, i.e.
+    in hundreds).
     """
     parts = []
     for i in range(4):
         score = scores.get(str(i), 0)
         change = score_changes.get(str(i), 0)
         parts.append(f"{score},{change}")
+
     return ",".join(parts)
 
 
@@ -222,11 +205,11 @@ def _hand_payment_from_winner_change(
     winner_change_wire: int,
     riichi_sticks_collected: int,
 ) -> int:
-    """Compute the hand payment for the tenhou ten attribute.
+    """
+    Compute the hand payment for the tenhou ten attribute.
 
-    winner_change_wire is in wire format (divided by WIRE_SCORE_DIVISOR).
-    Tenhou ten uses full points (not hundreds), so convert back.
-    Tenhou ten includes honba but excludes riichi.
+    winner_change_wire is in wire format (divided by WIRE_SCORE_DIVISOR). Tenhou ten uses full points (not hundreds), so
+    convert back. Tenhou ten includes honba but excludes riichi.
     """
     riichi_bonus = riichi_sticks_collected * 1000
     return winner_change_wire * WIRE_SCORE_DIVISOR - riichi_bonus
@@ -240,26 +223,40 @@ def _compute_limit(han: int) -> int:
     """
     if han >= _HAN_YAKUMAN:
         return 5
+
     if han >= _HAN_SANBAIMAN:
         return 4
+
     if han >= _HAN_BAIMAN:
         return 3
+
     if han >= _HAN_HANEMAN:
         return 2
+
     if han >= _HAN_MANGAN:
         return 1
+
     return 0
 
 
 def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
-    """Format the doraHaiUra attribute, or empty string when absent."""
+    """
+    Format the doraHaiUra attribute, or empty string when absent.
+    """
     if not ura_dora_indicators:
         return ""
+
     ura_string = ",".join(str(d) for d in ura_dora_indicators)
     return f' doraHaiUra="{ura_string}"'
 
 
 class TenhouConverter:
+    """
+    Convert a Ronin replay event log to tenhou.net XML, the common replay format of other mahjong services.
+
+    The tenhou XML replay format belongs to tenhou.net; this converter is not affiliated with tenhou.net.
+    """
+
     def __init__(self, events: list[dict[str, Any]]) -> None:
         self.events = events
         self.tags: list[str] = []
@@ -284,12 +281,15 @@ class TenhouConverter:
 
     @property
     def _total_riichi_sticks(self) -> int:
-        """Riichi sticks on the table: carryovers from previous rounds plus deposits this round."""
+        """
+        Riichi sticks on the table: carryovers from previous rounds plus deposits this round.
+        """
         return self.table_riichi_sticks + self._round_riichi_count
 
     def convert(self) -> str:
         for event in self.events:
             self._process_event(event)
+
         return "".join(self.tags)
 
     def _process_event(self, event: dict[str, Any]) -> None:
@@ -416,7 +416,7 @@ class TenhouConverter:
 
         who = meld_data["caller_seat"]
         tiles = meld_data["tile_ids"]
-        tile_group = sorted(tiles)[0] // 4
+        tile_group = min(tiles) // 4
 
         meld_event = dict(meld_data)
 
@@ -453,7 +453,9 @@ class TenhouConverter:
         self._update_scores_from_round_end(event)
 
     def _update_scores_from_round_end(self, event: dict[str, Any]) -> None:
-        """Update tracked scores from round_end scores and score_changes."""
+        """
+        Update tracked scores from round_end scores and score_changes.
+        """
         scores = event.get("scs", {})
         changes = event.get("sch", {})
         for i in range(4):
@@ -496,7 +498,9 @@ class TenhouConverter:
         )
 
     def _emit_double_ron(self, result: dict[str, Any]) -> None:
-        """Emit one AGARI tag per winner in a double-ron."""
+        """
+        Emit one AGARI tag per winner in a double-ron.
+        """
         loser = result["ls"]
         winning_tile = result["wt"]
         sc_string = _format_sc(result["scs"], result["sch"])
@@ -536,6 +540,7 @@ class TenhouConverter:
             seat = hand["s"]
             tiles_str = ",".join(str(t) for t in hand["ct"])
             hai_attrs += f' hai{seat}="{tiles_str}"'
+
         self.tags.append(
             f'<RYUUKYOKU ba="{self.honba},{self._total_riichi_sticks}" sc="{sc_string}"{hai_attrs} />',
         )
@@ -559,6 +564,7 @@ class TenhouConverter:
             standing = next(s for s in standings if s["s"] == seat)
             final_score = float(standing["fs"])
             owari_parts.append(f"{standing['sc']},{final_score:.1f}")
+
         owari_string = ",".join(owari_parts)
 
         # Append owari to the last AGARI/RYUUKYOKU tag
@@ -575,6 +581,7 @@ def convert_replay(filepath: Path) -> str:
     else:
         with filepath.open() as f:
             content = f.read().strip()
+
     events = [json.loads(line) for line in content.split("\n") if line]
     converter = TenhouConverter(events)
     return converter.convert()
@@ -585,6 +592,7 @@ def main() -> None:
     if OUTPUT_DIR.exists():
         for old_file in OUTPUT_DIR.iterdir():
             old_file.unlink()
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     replay_files = sorted(REPLAYS_DIR.glob("??/??/*.txt.gz"))
