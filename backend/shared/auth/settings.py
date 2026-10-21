@@ -10,7 +10,7 @@ class AuthSettings(BaseSettings):
     game_ticket_secret: str = Field(min_length=1)
 
     # SQLite database file path
-    database_path: str = "backend/storage.db"
+    database_path: str
 
     # Cookie Secure flag -- True in production, False for local dev (HTTP)
     cookie_secure: bool = True

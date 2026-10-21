@@ -29,8 +29,9 @@ Services are created in `create_app()` and stored on `app.state`; handlers read 
 ## Auth model
 
 * Humans register and log in with username and password (bcrypt) and get a session cookie.
-* Bots get an API key from `cd backend && AUTH_DATABASE_PATH=storage.db uv run python -m
-  scripts.register_bot <name>` (printed once, never stored). They send it as `X-API-Key` to
+* Bots get an API key from `cd backend && uv run python -m scripts.register_bot <name>` with the
+  `AuthSettings` environment set (`AUTH_DATABASE_PATH`, `AUTH_GAME_TICKET_SECRET`), printed once and
+  never stored. They send it as `X-API-Key` to
   `POST /api/rooms` or `POST /api/matchmaking/join`, and open the returned `ws_url` with
   `?session_id=...`.
 * `SessionOrApiKeyBackend` takes the session id from the cookie, or from the `session_id` query

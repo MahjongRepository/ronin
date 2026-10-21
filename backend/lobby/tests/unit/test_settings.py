@@ -7,18 +7,13 @@ from lobby.settings import LobbyServerSettings
 
 
 class TestLobbyServerSettings:
-    def test_lobby_server_settings__should_use_defaults_when_env_unset(self, monkeypatch):
-        monkeypatch.delenv("LOBBY_LOG_DIR", raising=False)
-        monkeypatch.delenv("LOBBY_CORS_ORIGINS", raising=False)
-        monkeypatch.delenv("LOBBY_CONFIG_PATH", raising=False)
-        monkeypatch.delenv("LOBBY_GAME_CLIENT_URL", raising=False)
-        monkeypatch.delenv("LOBBY_GAME_ASSETS_DIR", raising=False)
-        settings = LobbyServerSettings()
-        assert settings.log_dir == ""
-        assert settings.cors_origins == []
-        assert settings.config_path is None
-        assert settings.game_client_url == "/play"
-        assert settings.game_assets_dir == "frontend/dist"
+    def test_lobby_server_settings__when_deployment_values_unset__should_raise_for_each(self, monkeypatch):
+        for name in ("LOBBY_ALLOWED_HOSTS", "LOBBY_CONFIG_PATH", "LOBBY_REPLAY_DIR", "LOBBY_WS_ALLOWED_ORIGIN"):
+            monkeypatch.delenv(name)
+        with pytest.raises(ValidationError) as exc_info:
+            LobbyServerSettings()
+        missing = {error["loc"][0] for error in exc_info.value.errors() if error["type"] == "missing"}
+        assert missing == {"allowed_hosts", "config_path", "replay_dir", "ws_allowed_origin"}
 
     def test_lobby_server_settings__when_config_path_env_set__should_override_config_path(self, monkeypatch):
         monkeypatch.setenv("LOBBY_CONFIG_PATH", "/etc/servers.yaml")

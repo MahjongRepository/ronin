@@ -34,8 +34,9 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
   structlog through stdlib logging so `caplog` sees it.
 * Run checks from `backend/` (`cd backend && uv run pytest ...`); the ruff, ty, pytest and coverage
   paths in `pyproject.toml` are relative to it.
-* Run the servers and `bin/` scripts from the repo root with `uv run --project backend ...`: their
-  default paths (`frontend/dist`, `backend/storage.db`, `backend/data/replays`) are relative to it.
+* Run the servers and `bin/` scripts from the repo root with `uv run --project backend ...`: the
+  relative asset defaults (`frontend/dist`, `frontend/public`) and the database and replay paths
+  `bin/local-settings.sh` sets resolve against it.
 * `make lint` (docformatter check + ruff format check + ruff), `make typecheck` (ty), `make test`.
 * docformatter formats nothing when given `.`, so the Makefile's `DOCFORMATTER_PATHS` lists the backend's
   top-level packages and modules: add a new one there. It exits 3 when it changed files, which
@@ -45,10 +46,16 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
 
 ## Configuration
 
-* Settings are pydantic-settings classes, the only list of variables: `AuthSettings`
-  (`shared/auth/settings.py`, `AUTH_`), `LobbyServerSettings` (`lobby/settings.py`, `LOBBY_`),
-  `GameServerSettings` (`game/server/settings.py`, `GAME_`); `LOG_LEVEL` / `LOG_FORMAT` are read in
-  `shared/logging.py`.
+* Settings are pydantic-settings classes, the only list of variables and the only way application
+  code reads the environment (never `os.environ`): `AuthSettings` (`shared/auth/settings.py`,
+  `AUTH_`), `LobbyServerSettings` (`lobby/settings.py`, `LOBBY_`), `GameServerSettings`
+  (`game/server/settings.py`, `GAME_`), `LoggingSettings` (`shared/logging.py`, no prefix).
+* A safe application default (timeouts, capacity, cookie and hasher choice, asset paths inside the
+  app layout) stays in the class. A deployment-specific value (secrets, the database, replay and
+  server-list paths, allowed hosts and origins) is a required field with no default, so a
+  misconfigured deployment fails at startup: `deploy/docker-compose.yml` supplies it in production,
+  `bin/local-settings.sh` (sourced by `bin/run-local-server.sh`) locally, and `.env.tests` in tests,
+  where the paths point at `/nonexistent/` so a test that touches them must pass its own `tmp_path`.
 * Both servers share `AUTH_GAME_TICKET_SECRET` (the lobby signs tickets, the game server verifies
   them) and the SQLite database at `AUTH_DATABASE_PATH`.
 * `AUTH_COOKIE_SECURE` defaults to `true`; `.env.local` and `.env.tests` set it to `false`.

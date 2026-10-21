@@ -22,6 +22,7 @@ done
 if [ -f .env.local ]; then
     set -a && . .env.local && set +a
 fi
+. "$(dirname "$0")/local-settings.sh"
 
 kill_tree() {
     local pid="$1"
@@ -82,8 +83,6 @@ trap cleanup EXIT INT TERM
 
 # Set lobby settings for template rendering
 export LOBBY_GAME_CLIENT_URL="/play"
-# Override the default ws_allowed_origin to match the local lobby port
-export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
 
 echo "Starting game server on port $GAME_PORT..."
 uv run --project backend uvicorn --factory game.server.app:get_app --reload --host 0.0.0.0 --port $GAME_PORT &

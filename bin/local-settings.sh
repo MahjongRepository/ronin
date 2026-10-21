@@ -1,0 +1,6 @@
+export AUTH_DATABASE_PATH="${AUTH_DATABASE_PATH:-backend/storage.db}"
+export LOBBY_ALLOWED_HOSTS="${LOBBY_ALLOWED_HOSTS:-localhost,127.0.0.1,*.local}"
+export LOBBY_REPLAY_DIR="${LOBBY_REPLAY_DIR:-backend/data/replays}"
+export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
+export GAME_REPLAY_DIR="${GAME_REPLAY_DIR:-backend/data/replays}"
+export GAME_CORS_ORIGINS="http://localhost:$LOBBY_PORT"

@@ -15,14 +15,14 @@ class LobbyServerSettings(BaseSettings):
 
     log_dir: str = ""
     cors_origins: list[str] = []
-    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver", "*.local"]
-    config_path: Path | None = None
+    allowed_hosts: list[str]
+    config_path: Path
     static_dir: str = "frontend/public"
     game_client_url: str = "/play"
     game_assets_dir: str = "frontend/dist"
     vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server
-    replay_dir: str = Field(default="backend/data/replays", min_length=1)
-    ws_allowed_origin: str | None = "http://localhost:8710"
+    replay_dir: str = Field(min_length=1)
+    ws_allowed_origin: str | None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

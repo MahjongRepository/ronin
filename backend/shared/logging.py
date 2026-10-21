@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
-import os
 import sys
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 if TYPE_CHECKING:
     from collections.abc import MutableMapping
@@ -38,25 +39,29 @@ def _is_test() -> bool:
     return "pytest" in sys.modules
 
 
-def _resolve_json_mode() -> bool:
-    value = os.environ.get("LOG_FORMAT", "").lower()
-    if value not in _VALID_LOG_FORMATS:
-        msg = f"Invalid LOG_FORMAT={value!r}. Must be 'json', 'console', or unset."
-        raise ValueError(msg)
-    return value == "json"
+class LoggingSettings(BaseSettings):
+    model_config = {"env_prefix": ""}
 
+    log_level: str = "INFO"
+    log_format: str = ""
 
-def _resolve_log_level() -> int:
-    """
-    Resolve log level from LOG_LEVEL env var.
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        value = v.upper()
+        if value not in _VALID_LOG_LEVELS:
+            msg = f"Invalid LOG_LEVEL={value!r}. Must be one of {', '.join(sorted(_VALID_LOG_LEVELS))}."
+            raise ValueError(msg)
+        return value
 
-    Defaults to INFO.
-    """
-    value = os.environ.get("LOG_LEVEL", "INFO").upper()
-    if value not in _VALID_LOG_LEVELS:
-        msg = f"Invalid LOG_LEVEL={value!r}. Must be one of {', '.join(sorted(_VALID_LOG_LEVELS))}."
-        raise ValueError(msg)
-    return getattr(logging, value)
+    @field_validator("log_format", mode="before")
+    @classmethod
+    def validate_log_format(cls, v: str) -> str:
+        value = v.lower()
+        if value not in _VALID_LOG_FORMATS:
+            msg = f"Invalid LOG_FORMAT={value!r}. Must be 'json', 'console', or unset."
+            raise ValueError(msg)
+        return value
 
 
 def _build_stdlib_formatter(*, json_mode: bool, colors: bool = False) -> logging.Formatter:
@@ -87,14 +92,15 @@ def setup_logging(
     """
     Configure structlog with stdout and optional file output.
 
-    Log level is resolved from the LOG_LEVEL env var (default: INFO). When log_dir is provided, writes to a fixed
-    ``app.log`` file inside that directory using WatchedFileHandler (compatible with logrotate). Returns the log file
-    path if created, None otherwise.
+    Level and format come from LoggingSettings (LOG_LEVEL, default INFO; LOG_FORMAT). When log_dir is provided, writes
+    to a fixed ``app.log`` file inside that directory using WatchedFileHandler (compatible with logrotate). Returns the
+    log file path if created, None otherwise.
     """
-    json_mode = _resolve_json_mode()
+    settings = LoggingSettings()
+    json_mode = settings.log_format == "json"
 
     if level is None:
-        level = _resolve_log_level()
+        level = getattr(logging, settings.log_level)
 
     # Configure structlog pipeline.
     # format_exc_info is intentionally NOT here — it runs in ProcessorFormatter
