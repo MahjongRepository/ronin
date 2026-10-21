@@ -1,7 +1,10 @@
 # Backend (Python / Starlette)
 
-Before working in `game/` or `lobby/`, read that directory's `AGENTS.md` and the architecture
-documents it names.
+Before working in `game/` or `lobby/`, read that directory's `AGENTS.md`. `shared/` holds what
+both servers use: accounts, auth sessions and game tickets (`shared/auth/`), repository interfaces
+(`shared/dal/`) and their SQLite implementations (`shared/db/`), replay storage
+(`shared/storage.py`), logging, and the IMME meld encoding (`shared/lib/melds/`, see its
+`README.md`).
 
 ## Tooling
 

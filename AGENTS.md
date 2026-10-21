@@ -1,9 +1,9 @@
 # Ronin
 
 Language rules (code, Python, JavaScript/TypeScript) come from the shared user rules. This file and
-the nested `AGENTS.md` files add only what is specific to ronin, and win where they conflict. Before
-planning work in an area, read the nested `AGENTS.md` covering it and the architecture documents it
-names.
+the nested `AGENTS.md` files add only what is specific to ronin, and win where they conflict. Each
+nested `AGENTS.md` holds its area's architecture and rules; before planning work in an area, read it
+and the `docs/` files it names for the task.
 
 ## Repository layout
 
@@ -20,6 +20,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind `make run-all-checks`, `make run-local-server`, `make deadcode` and
   `make profile`.
+* `docs/` — reference read on demand: `game-protocol.md`, `lobby-api.md`, `configuration.md`,
+  `game-rules.md`.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 
 ## Commands
@@ -42,9 +44,9 @@ Ronin is a Riichi Mahjong game server and browser client.
   `cd frontend && bunx vitest run <path>`).
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
-* After a structural change, update the architecture document of the area it touched
-  (`backend/game/game-architecture.md`, `backend/lobby/lobby-architecture.md`,
-  `frontend/frontend-architecture.md`).
+* After a structural change, update the `AGENTS.md` of the area it touched; after a protocol,
+  route, setting or rule change, update the matching `docs/` file. Keep `AGENTS.md` to architecture
+  and rules: lookup tables, message shapes and file listings belong in `docs/` or nowhere.
 * Commit subjects use `feat:` / `bug:` / `chore:` prefixes (the `release` skill groups by them); a
   performance change also carries a trailing `!perf` (`optimize-engine` searches for it).
 
