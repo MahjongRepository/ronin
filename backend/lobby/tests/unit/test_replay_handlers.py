@@ -18,9 +18,12 @@ def _make_client(tmp_path):
     static_dir.mkdir()
     game_assets_dir = tmp_path / "dist"
     game_assets_dir.mkdir()
+    config_file = tmp_path / "servers.yaml"
+    config_file.write_text("servers: []\n")
 
     app = create_app(
         settings=LobbyServerSettings(
+            config_path=config_file,
             replay_dir=str(replay_dir),
             static_dir=str(static_dir),
             game_assets_dir=str(game_assets_dir),

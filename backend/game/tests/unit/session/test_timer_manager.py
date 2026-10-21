@@ -25,7 +25,6 @@ def timer_manager(timeout_log):
 class TestTimerManagerCreate:
     def test_timer_manager__when_timers_created__should_register_only_given_seats(self, timer_manager):
         timer_manager.create_timers(game_id="g1", seats=[0, 1, 2])
-        assert timer_manager.has_game("g1")
         for seat in [0, 1, 2]:
             assert timer_manager.get_timer("g1", seat) is not None
         # seat 3 not created
@@ -52,7 +51,6 @@ class TestTimerManagerCleanup:
         timer_manager.create_timers(game_id="g1", seats=[0, 1, 2, 3])
 
         timer_manager.cleanup_game("g1")
-        assert not timer_manager.has_game("g1")
         for seat in range(4):
             assert timer_manager.get_timer("g1", seat) is None
 
@@ -103,7 +101,6 @@ class TestTimerManagerCancel:
 
         timer_manager.cancel_all("g1")
         # both timers cancelled but still registered
-        assert timer_manager.has_game("g1")
         assert timer_manager.get_timer("g1", 0)._active_task is None
         assert timer_manager.get_timer("g1", 1)._active_task is None
 

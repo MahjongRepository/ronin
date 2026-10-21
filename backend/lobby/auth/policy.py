@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from starlette.authentication import has_required_scope, requires
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
-from starlette.routing import Mount, Route
+from starlette.routing import Route
 
 from shared.dal.models import AccountType
 
@@ -152,13 +152,10 @@ def validate_route_auth_policy(routes: list[BaseRoute]) -> None:
     """
     Verify every Route has an auth policy marker.
 
-    Mount routes are exempt.     Raises RuntimeError listing all unclassified routes if any are found.
+    Mount and other non-Route entries are exempt. Raise RuntimeError listing all unclassified routes if any are found.
     """
     unclassified: list[str] = []
     for route in routes:
-        if isinstance(route, Mount):
-            continue
-
         if isinstance(route, Route) and not hasattr(route.endpoint, AUTH_POLICY_ATTR):
             name = route.name or getattr(route.endpoint, "__name__", "unknown")
             unclassified.append(f"{route.path} ({name})")

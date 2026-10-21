@@ -62,8 +62,8 @@ class SqliteGameRepository(GameRepository):
         """
         Update a game's end state.
 
-        Only updates games that have not already ended.         When standings is None (abandoned games), preserves
-        existing standings         from game start (player names, seats, user_ids without scores).
+        Only updates games that have not already ended. When standings is None (abandoned games), preserves the existing
+        standings from game start (player names, seats, user_ids without scores).
         """
 
         async with self._lock:

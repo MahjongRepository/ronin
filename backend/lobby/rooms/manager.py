@@ -128,7 +128,7 @@ class LobbyRoomManager:
         """
         Set ready state.
 
-        Returns (room_id, can_start) or error string.         Owner cannot set ready — they use start_game instead.
+        Returns (room_id, can_start) or error string. Owner cannot set ready — they use start_game instead.
         """
         room_id = self._player_rooms.get(connection_id)
         if room_id is None:

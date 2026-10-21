@@ -1024,8 +1024,8 @@ class SessionManager:
         """
         Register a validated player into a pending game.
 
-        Caller must hold the pending lock.         Returns the evicted stale connection (if any) for the caller to close
-        outside the lock.
+        Caller must hold the pending lock. Returns the evicted stale connection (if any) for the caller to close outside
+        the lock.
         """
         game = self._games.get(game_id)
         pending = self._pending_games.get(game_id)
@@ -1369,9 +1369,6 @@ class SessionManager:
         # game ended -- cancel all timers
         if self._has_game_ended(events):
             self._timer_manager.cancel_all(game_id)
-            return
-
-        if not self._timer_manager.has_game(game_id):
             return
 
         # add round bonus to all player timers when a new round starts

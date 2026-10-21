@@ -42,9 +42,9 @@ class TestRegistryManagerLoadConfig:
         server = manager.get_servers()[0]
         assert server.client_url == "http://s1:8001"
 
-    def test_registry_load_config__when_file_missing__should_have_no_servers(self, tmp_path):
-        manager = RegistryManager(config_path=tmp_path / "nonexistent.yaml")
-        assert manager.get_servers() == []
+    def test_registry_load_config__when_file_missing__should_raise(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            RegistryManager(config_path=tmp_path / "nonexistent.yaml")
 
     def test_registry_load_config__when_servers_list_empty__should_have_no_servers(self, tmp_path):
         config = tmp_path / "servers.yaml"

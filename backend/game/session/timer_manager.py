@@ -33,12 +33,6 @@ class TimerManager:
         """
         self._timers[game_id] = {seat: TurnTimer(config=config) for seat in seats}
 
-    def has_game(self, game_id: str) -> bool:
-        """
-        Check if timers exist for a game.
-        """
-        return game_id in self._timers
-
     def get_timer(self, game_id: str, seat: int) -> TurnTimer | None:
         """
         Get the timer for a specific seat in a game.

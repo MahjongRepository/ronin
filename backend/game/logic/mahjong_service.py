@@ -896,9 +896,6 @@ class MahjongGameService(GameService):
         """
         Replace a disconnected player with an AI player at their seat.
         """
-        if self._games.get(game_id) is None:
-            return
-
         # find seat BEFORE registering AI player (_find_player_seat skips AI player seats)
         seat = self._find_player_seat(game_id, player_name)
         if seat is None:

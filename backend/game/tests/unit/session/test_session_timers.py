@@ -30,11 +30,11 @@ from .helpers import create_started_game, make_dummy_game_view, make_game_with_p
 class TestSessionManagerTimers:
     async def test_session_timers__when_game_cleaned_up__should_remove_timers_and_lock(self, manager):
         conns = await create_started_game(manager)
-        assert manager._timer_manager.has_game("game1")
+        assert "game1" in manager._timer_manager._timers
         assert "game1" in manager._game_locks
 
         await manager.leave_game(conns[0])
-        assert not manager._timer_manager.has_game("game1")
+        assert "game1" not in manager._timer_manager._timers
         assert "game1" not in manager._game_locks
 
     async def test_handle_timeout__when_turn_times_out__should_broadcast_resulting_events(self, manager):

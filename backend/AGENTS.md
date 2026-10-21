@@ -38,6 +38,8 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
   relative asset defaults (`frontend/dist`, `frontend/public`) and the database and replay paths
   `bin/local-settings.sh` sets resolve against it.
 * `make lint` (docformatter check + ruff format check + ruff), `make typecheck` (ty), `make test`.
+  Only `make test` measures coverage (`--cov`, 100% gate); `addopts` leaves it out so a path-scoped
+  `uv run pytest <path>` runs just that path without failing the gate.
 * docformatter formats nothing when given `.`, so the Makefile's `DOCFORMATTER_PATHS` lists the backend's
   top-level packages and modules: add a new one there. It exits 3 when it changed files, which
   `make format` treats as success. It also rewraps a triple-quoted string passed directly as a call

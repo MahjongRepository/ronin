@@ -7,7 +7,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 .PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
 
 test:
-	cd backend && uv run pytest -v
+	cd backend && uv run pytest -v --cov
 
 run-local-server:
 	@bash ./bin/run-local-server.sh

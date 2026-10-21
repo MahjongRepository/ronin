@@ -45,7 +45,7 @@ packages = ["lobby", "game", "shared"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--no-header --tb=short -qq --cov"
+addopts = "--no-header --tb=short -qq"
 timeout = 10
 
 [tool.ruff]

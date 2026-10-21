@@ -20,9 +20,6 @@ class RegistryManager:
         self._load_config()
 
     def _load_config(self) -> None:
-        if not self._config_path.exists():
-            return
-
         with self._config_path.open() as f:
             config = yaml.safe_load(f)
 
