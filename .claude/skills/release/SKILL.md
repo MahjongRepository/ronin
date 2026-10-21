@@ -47,9 +47,9 @@ This outputs markdown-formatted sections (Features, Bug Fixes, Maintenance, Othe
 
 ## Step 4: Read architecture diffs for context
 
-1. Run `git diff <tag>..HEAD -- '*AGENTS.md' 'docs/'` to get diffs of the architecture notes and reference docs
+1. Run `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` to get diffs of the architecture notes and the ruleset
 2. Read the diffs to understand what changed at a high level
-3. The architecture lives in `backend/game/AGENTS.md`, `backend/lobby/AGENTS.md` and `frontend/AGENTS.md`; `docs/` holds the protocol, API, configuration and game rules
+3. The architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game/` and its `logic/`, `session/`, `messaging/`, `backend/lobby/` and `rooms/`, `frontend/` and its `src/shared/protocol/`, `src/entities/table/`)
 
 Use this context to write the summary in Step 6.
 

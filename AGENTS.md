@@ -2,8 +2,10 @@
 
 Language rules (code, Python, JavaScript/TypeScript) come from the shared user rules. This file and
 the nested `AGENTS.md` files add only what is specific to ronin, and win where they conflict. Each
-nested `AGENTS.md` holds its area's architecture and rules; before planning work in an area, read it
-and the `docs/` files it names for the task.
+nested `AGENTS.md` holds the architecture and rules of its directory, down to subsystems
+(`backend/game/logic/`, `backend/game/messaging/`, `frontend/src/entities/table/`, ...); before
+planning work, read every `AGENTS.md` on the path to the code it touches
+(`find . -name AGENTS.md -not -path '*/node_modules/*'`).
 
 ## Repository layout
 
@@ -20,8 +22,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind `make run-all-checks`, `make run-local-server`, `make deadcode` and
   `make profile`.
-* `docs/` — reference read on demand: `game-protocol.md`, `lobby-api.md`, `configuration.md`,
-  `game-rules.md`.
+* `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 
 ## Commands
@@ -44,9 +45,10 @@ Ronin is a Riichi Mahjong game server and browser client.
   `cd frontend && bunx vitest run <path>`).
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
-* After a structural change, update the `AGENTS.md` of the area it touched; after a protocol,
-  route, setting or rule change, update the matching `docs/` file. Keep `AGENTS.md` to architecture
-  and rules: lookup tables, message shapes and file listings belong in `docs/` or nowhere.
+* After a structural change, update the nearest `AGENTS.md` it invalidates; after a rule change,
+  update `docs/game-rules.md`. Keep `AGENTS.md` to architecture, invariants and rules the code
+  cannot show: no route or message tables, enum value lists, env var lists or file listings — the
+  code is their reference.
 * Commit subjects use `feat:` / `bug:` / `chore:` prefixes (the `release` skill groups by them); a
   performance change also carries a trailing `!perf` (`optimize-engine` searches for it).
 

@@ -18,6 +18,16 @@ both servers use: accounts, auth sessions and game tickets (`shared/auth/`), rep
   default paths (`frontend/dist`, `backend/storage.db`, `backend/data/replays`) are relative to it.
 * `make lint` (ruff format check + ruff), `make typecheck` (ty), `make test`.
 
+## Configuration
+
+* Settings are pydantic-settings classes, the only list of variables: `AuthSettings`
+  (`shared/auth/settings.py`, `AUTH_`), `LobbyServerSettings` (`LOBBY_`), `GameServerSettings`
+  (`GAME_`); `LOG_LEVEL` / `LOG_FORMAT` are read in `shared/logging.py`.
+* Both servers share `AUTH_GAME_TICKET_SECRET` (the lobby signs tickets, the game server verifies
+  them) and the SQLite database at `AUTH_DATABASE_PATH`.
+* `AUTH_COOKIE_SECURE` defaults to `true`; `.env.local` and `.env.tests` set it to `false`.
+* Production values live in `deploy/docker-compose.yml` and the server's `/opt/ronin/.env`.
+
 ## Conventions
 
 * Game state and domain events are frozen Pydantic models (`game/logic/state.py`); the other

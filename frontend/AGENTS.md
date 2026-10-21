@@ -1,8 +1,8 @@
 # Frontend (TypeScript / lit-html)
 
 Two apps from one source tree, built by Vite with Bun: the lobby scripts that enhance the
-server-rendered lobby pages, and the game client SPA. The wire protocol they speak is in
-`docs/game-protocol.md` and `docs/lobby-api.md`.
+server-rendered lobby pages, and the game client SPA. `src/shared/protocol/` and
+`src/entities/table/` have their own `AGENTS.md`.
 
 ## Tooling
 
@@ -45,32 +45,6 @@ rather than introducing new FSD layers:
   `Hand`, `Meld`, `Discards` and the 136-format tile helpers. `table`: the game table model and
   board UI. `table` may use `tile`, never the reverse.
 * `shared/` — protocol, session, WebSocket and config; imports nothing above it.
-
-## Protocol layer (`shared/protocol/`)
-
-* Wire values are `as const` objects with derived union types in `constants.ts`, not TS enums.
-* `schemas/` parse every server message with Zod from compact wire keys into camelCase objects;
-  `decoders/` unpack the integer draw, discard and IMME meld encodings; `builders/` construct every
-  client message.
-* `parseServerMessage` returns an `[error, message]` tuple, checked before the value is used.
-  Follow that shape for new parsers.
-* A server protocol change lands here in the same change as the backend and `docs/game-protocol.md`.
-
-## Table model (`entities/table/`)
-
-The replay view runs on a pure model:
-
-* `TableState` / `PlayerState` (`model/types.ts`) hold the table. `applyEvent(state, event)`
-  returns a new state: no mutation, exhaustive dispatch ending in `assertNever`, and a handler
-  throws on an impossible state (a missing tile or caller) instead of returning the state
-  unchanged.
-* `buildTimeline(events)` precomputes every state (`states[i + 1]` follows `events[i]`);
-  `buildActionSteps` folds bookkeeping events (`dora_revealed`, `game_started`, the first draw of a
-  round) into the preceding step; `buildNavigationIndex` maps steps to rounds and turns.
-* `lib/board-mapper.ts` turns a `TableState` into the `BoardDisplayState` the `ui/` components
-  render, rotating seats so the dealer sits at the bottom.
-* `ReplayEvent` is the subset of events stored in replays; `call_prompt`, `error` and `furiten` never
-  appear there.
 
 ## Conventions
 
