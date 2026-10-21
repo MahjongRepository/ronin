@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -156,7 +156,7 @@ class ReplayCollector:
         base_payload = service_event_payload(events[0])
 
         for event in events:
-            data: RoundStartedEvent = event.data  # type: ignore[assignment]
+            data = cast("RoundStartedEvent", event.data)
             tiles_by_seat[data.seat] = data.my_tiles
 
         for player_dict in base_payload["p"]:

@@ -119,7 +119,7 @@ class TestSessionManagerDefensiveChecks:
                 target=BroadcastTarget(),
             ),
         ]
-        game_service.start_game = AsyncMock(return_value=error_events)  # type: ignore[assignment]
+        game_service.start_game = AsyncMock(return_value=error_events)
         manager = SessionManager(game_service)
 
         ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")

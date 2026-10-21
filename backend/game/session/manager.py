@@ -96,10 +96,12 @@ class SessionManager:
         # RuntimeError is suppressed for synchronous test contexts without
         # a running event loop. In production, register_connection is always
         # called from within the ASGI event loop.
-        with contextlib.suppress(RuntimeError):
-            self._auth_timeouts[connection.connection_id] = asyncio.create_task(
-                self._auth_timeout(connection),
-            )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        self._auth_timeouts[connection.connection_id] = loop.create_task(self._auth_timeout(connection))
 
     def unregister_connection(self, connection: ConnectionProtocol) -> None:
         self._connections.pop(connection.connection_id, None)

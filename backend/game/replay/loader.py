@@ -187,7 +187,8 @@ def _reconstruct_input_order(
         )
     rng = create_seat_rng(seed)
     seat_order = rng.sample(range(NUM_PLAYERS), NUM_PLAYERS)
-    return tuple(seat_to_name[s] for s in seat_order)  # type: ignore[return-value]
+    first, second, third, fourth = (seat_to_name[s] for s in seat_order)
+    return first, second, third, fourth
 
 
 def _extract_action(

@@ -688,11 +688,11 @@ def _process_chi_call(
     discarder_seat = round_state.current_player_seat
     new_round_state, meld = call_chi(
         round_state,
-        caller_seat,
-        discarder_seat,
-        tile_id,
-        sequence_tiles,
-        game_state.settings,
+        caller_seat=caller_seat,
+        discarder_seat=discarder_seat,
+        tile_id=tile_id,
+        sequence_tiles=sequence_tiles,
+        settings=game_state.settings,
     )
     tile_ids = list(meld.tiles)
     events: list[GameEvent] = [
@@ -801,7 +801,7 @@ def _process_closed_kan_call(
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
-    events = [
+    events: list[GameEvent] = [
         MeldEvent(
             meld_type=MeldViewType.CLOSED_KAN,
             caller_seat=caller_seat,
@@ -862,7 +862,7 @@ def _process_added_kan_call(
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_added_kan(round_state, caller_seat, resolved_tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
-    events = [
+    events: list[GameEvent] = [
         MeldEvent(
             meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,

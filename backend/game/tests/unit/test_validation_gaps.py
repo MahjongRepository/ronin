@@ -853,7 +853,7 @@ class TestCallChiDefenseInDepth:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="not found in hand"):
-            call_chi(round_state, 1, 0, 0, (5, 9), settings)
+            call_chi(round_state, caller_seat=1, discarder_seat=0, tile_id=0, sequence_tiles=(5, 9), settings=settings)
 
 
 class TestSoftErrorsRemainUnchanged:
@@ -1214,7 +1214,7 @@ class TestAIPlayerSafetyNets:
         await service.start_game("test", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        ai_player_seat = min(ai_player_controller.ai_player_seats)
 
         with patch.object(
             service,
@@ -1235,7 +1235,7 @@ class TestAIPlayerSafetyNets:
         await service.start_game("test", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        ai_player_seat = min(ai_player_controller.ai_player_seats)
         player_seat = service.get_player_seat("test", "Player")
 
         with (
@@ -1323,7 +1323,7 @@ class TestAIPlayerSafetyNets:
         game_state = service._games["test"]
         ai_player_controller = service._ai_player_controllers["test"]
         # Use an existing AI player seat (not the player seat 0) as current player
-        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        ai_player_seat = min(ai_player_controller.ai_player_seats)
         player_seat = service.get_player_seat("test", "Player")
         assert ai_player_seat != player_seat
 
@@ -1371,7 +1371,7 @@ class TestAIPlayerSafetyNets:
         await service.start_game("test", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seat = sorted(ai_player_controller.ai_player_seats)[0]
+        ai_player_seat = min(ai_player_controller.ai_player_seats)
         player_seat = service.get_player_seat("test", "Player")
 
         with (

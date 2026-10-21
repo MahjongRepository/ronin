@@ -25,12 +25,12 @@ meld = MeldData(
     called_tile_id=8,
 )
 
-value = encode_meld_compact(meld)   # e.g. 16181
-decoded = decode_meld_compact(value) # reproduces all fields
+value = encode_meld_compact(meld)  # e.g. 16181
+decoded = decode_meld_compact(value)  # reproduces all fields
 
 # Wrap in a game event envelope for network transport.
-event = encode_game_event(meld)      # {"t": 0, "m": 16181}
-decoded = decode_game_event(event)   # back to MeldData
+event = encode_game_event(meld)  # {"t": 0, "m": 16181}
+decoded = decode_game_event(event)  # back to MeldData
 ```
 
 ## MeldData Format
@@ -162,6 +162,7 @@ Example bridge for a game `FrozenMeld` object:
 
 ```python
 from shared.lib.melds import MeldData, encode_meld_compact
+
 
 def frozen_meld_to_compact(meld) -> int:
     data = MeldData(

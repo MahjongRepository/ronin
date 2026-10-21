@@ -231,7 +231,7 @@ class MahjongGameService(GameService):
             view = get_player_view(game_state, seat)
             # Copy raw attribute values instead of using model_dump() to avoid
             # double-application of WireScore serializers on PlayerView.score.
-            view_fields = {name: getattr(view, name) for name in view.model_fields}
+            view_fields = {name: getattr(view, name) for name in type(view).model_fields}
             events.append(
                 ServiceEvent(
                     event=EventType.ROUND_STARTED,

@@ -177,12 +177,12 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
     if meld_type == "pon":
         return _encode_pon(tiles, called_tile, who, meld_event["from_seat"])
     if meld_type == "added_kan":
-        tile = called_tile if called_tile is not None else sorted(tiles)[0]
+        tile = called_tile if called_tile is not None else min(tiles)
         source: int = meld_event.get("from_seat", who)
         added = meld_event.get("_added_tile")
         return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
     if meld_type == "closed_kan":
-        tile = called_tile if called_tile is not None else sorted(tiles)[0]
+        tile = called_tile if called_tile is not None else min(tiles)
         return _encode_kan(tiles, tile, who, who)
     if meld_type == "open_kan":
         return _encode_kan(tiles, called_tile, who, meld_event["from_seat"])
@@ -416,7 +416,7 @@ class TenhouConverter:
 
         who = meld_data["caller_seat"]
         tiles = meld_data["tile_ids"]
-        tile_group = sorted(tiles)[0] // 4
+        tile_group = min(tiles) // 4
 
         meld_event = dict(meld_data)
 

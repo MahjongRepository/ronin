@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from game.logic.enums import GameAction, TimeoutType, WindName
 from game.logic.events import (
@@ -14,6 +14,9 @@ from game.logic.rng import RNG_VERSION
 from game.logic.service import GameService
 from game.logic.settings import GameSettings, GameType
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
+
+if TYPE_CHECKING:
+    from game.logic.state import MahjongGameState
 
 
 class MockResultEvent(GameEvent):
@@ -170,16 +173,16 @@ class MockGameService(GameService):
         """Return the seed for a game, or None if game doesn't exist."""
         return self._seeds.get(game_id)
 
-    def get_game_state(self, game_id: str) -> _MockGameState | None:  # type: ignore[override]
+    def get_game_state(self, game_id: str) -> MahjongGameState | None:
         """Return a mock game state, or None if game doesn't exist."""
         if game_id not in self._seeds:
             return None
         all_names = self._all_player_names.get(game_id, [])
         players = [_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]
         game_type = self._game_types.get(game_id, GameType.HANCHAN)
-        return _MockGameState(
-            round_state=_MockRoundState(players=players),
-            settings=_MockSettings(game_type=game_type),
+        return cast(
+            "MahjongGameState",
+            _MockGameState(round_state=_MockRoundState(players=players), settings=_MockSettings(game_type=game_type)),
         )
 
     def cleanup_game(self, game_id: str) -> None:

@@ -589,6 +589,7 @@ def _validate_chi_sequence(tile_id: int, sequence_tiles: tuple[int, int]) -> Non
 
 def call_chi(  # noqa: PLR0913
     round_state: MahjongRoundState,
+    *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,

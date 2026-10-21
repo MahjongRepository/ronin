@@ -178,7 +178,7 @@ class TestHeartbeatMonitorLoop:
 
         # make close raise a ConnectionError
         failing_close = AsyncMock(side_effect=ConnectionError("connection lost"))
-        conn.close = failing_close  # type: ignore[assignment]
+        conn.close = failing_close
 
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.side_effect = [None, asyncio.CancelledError()]

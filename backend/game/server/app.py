@@ -1,3 +1,4 @@
+import contextlib
 import json
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,8 @@ from shared.storage import LocalReplayStorage
 logger = structlog.get_logger()
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from starlette.requests import Request
     from starlette.websockets import WebSocket
 
@@ -131,7 +134,7 @@ def create_app(
     message_router: MessageRouter | None = None,
 ) -> Starlette:
     if settings is None:  # pragma: no cover
-        settings = GameServerSettings()  # ty: ignore[missing-argument]
+        settings = GameServerSettings()
 
     if game_service is None:  # pragma: no cover
         game_service = MahjongGameService()
@@ -166,15 +169,17 @@ def create_app(
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 
-    async def on_shutdown() -> None:
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
+        yield
         session_manager.cancel_all_pending_timeouts()
         session_manager.cancel_all_auth_timeouts()
         if owned_db is not None:
             owned_db.close()
 
-    app = Starlette(routes=routes, on_shutdown=[on_shutdown])
+    app = Starlette(routes=routes, lifespan=lifespan)
     app.add_middleware(
-        CORSMiddleware,  # type: ignore[arg-type]
+        CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
@@ -188,6 +193,6 @@ def create_app(
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
     """ASGI application factory for production use (e.g., uvicorn --factory)."""
-    _settings = GameServerSettings()  # ty: ignore[missing-argument]
+    _settings = GameServerSettings()
     setup_logging(log_dir=_settings.log_dir)
     return create_app(settings=_settings)
