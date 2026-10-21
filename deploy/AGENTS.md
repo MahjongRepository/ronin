@@ -45,6 +45,7 @@ a workstation through `make -C deploy <target> TARGET=dev` (`TARGET` picks `spot
 * Containers log to **journald** (`setup-journald`: persistent, 500 MB, 30 days); there are no application
   log files on the server. `make -C deploy spot-check-logs-errors SINCE="2 hours ago"` greps app errors
   and tracebacks and saves them to `/tmp/ronin-errors.log` on the workstation.
-* `setup-restic` installs a daily systemd timer (04:00) running `scripts/backup.sh`: an
+* `setup-restic` installs a persistent daily systemd timer (04:00 plus up to 10 minutes of jitter)
+  running `scripts/backup.sh`: an
   `sqlite3 .backup` of the DB plus the replays into a restic repository at `/opt/ronin/backups/` on
   the same host.

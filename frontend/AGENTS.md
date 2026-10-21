@@ -14,7 +14,7 @@ Bun drives everything, from `frontend/` or through the root `make` targets:
   changes; the sprite is committed. `entities/tile/lib/tile-config.ts` is the single source for the
   active tile set and tile size.
 * Vite has two entries, `src/index.ts` (game) and `src/lobby/index.ts` (lobby), with
-  `base: "/game-assets/"`. The lobby backend reads `dist/.vite/manifest.json` into template globals;
+  `base: "/game-assets/"` for builds (`/` under the dev server). The lobby backend reads `dist/.vite/manifest.json` into template globals;
   under `make run-local-server` (`LOBBY_VITE_DEV_URL`) the templates load from the Vite dev server
   (`:5173`) instead.
 

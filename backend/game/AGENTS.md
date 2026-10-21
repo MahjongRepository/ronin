@@ -15,13 +15,13 @@ hands each player a signed game ticket; players then connect to `/ws/{game_id}` 
   collection.
 * `logic/` — the rules engine behind the `GameService` interface (`MahjongGameService`); returns
   `list[ServiceEvent]` and knows nothing about connections.
-* `replay/` — runs recorded games through the public `GameService` API (`run_replay`,
-  `ReplayLoader`) for tests and profiling.
+* `replay/` — runs recorded games through the public `GameService` API (`runner.py`: `run_replay`;
+  `loader.py`: `load_replay_from_file` / `load_replay_from_string`) for tests and profiling.
 * `wire/enums.py` — integer wire codes shared by `messaging` and `replay`.
 
-Import direction is enforced by `tests/integration/test_architecture_boundary.py`: `logic` never
-imports `replay`, and `messaging` never imports `session`. Put a shared wire type in `wire/` rather
-than crossing those lines.
+Import direction is enforced by `tests/integration/test_architecture_boundary.py`: at runtime,
+`logic` never imports `replay` and `messaging` never imports `session`; imports under
+`if TYPE_CHECKING:` are allowed. Put a shared wire type in `wire/` rather than crossing those lines.
 
 ## Security requirements
 
@@ -43,8 +43,9 @@ Mandatory for all game server code; review must catch violations.
   on untrusted input; handle `ClientDisconnect`.
 * Validate the WebSocket `game_id` path parameter against `_GAME_ID_PATTERN` and
   `_MAX_GAME_ID_LENGTH` before accepting.
-* Shutdown cancels every background task (`cancel_all_pending_timeouts()`,
-  `cancel_all_auth_timeouts()`).
+* Every background task is cancelled on teardown. Server shutdown calls
+  `cancel_all_pending_timeouts()` and `cancel_all_auth_timeouts()`; a game's turn timers and
+  heartbeat are cancelled when the game is cleaned up. A new kind of task joins one of those paths.
 * Concealed hand tiles are logged at DEBUG only; game tickets and session tokens are never logged at
   INFO or above.
 

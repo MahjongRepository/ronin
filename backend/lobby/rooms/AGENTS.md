@@ -5,8 +5,8 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
 
 * Creating a room fills every seat with a tsumogiri bot; each joining human replaces the first bot
   seat. Every `players` array holds exactly 4 entries in seat order, and bot seats are always ready.
-* The creator owns the room and is the only one who starts it: non-owners send `set_ready`, the
-  owner sends `start_game`. `can_start` is true once at least `min_human_players` humans are seated
+* The first player to join owns the room (`host_connection_id`) and is the only one who starts it:
+  non-owners send `set_ready`, the owner sends `start_game`. `can_start` is true once at least `min_human_players` humans are seated
   (bot API, 1–4, default 1) and every non-owner human is ready. Nothing starts automatically. When
   the owner leaves, ownership passes on (`owner_changed`).
 * Game transition: under the room's `join_lock` the lobby only sets `transitioning=True`, then

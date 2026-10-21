@@ -28,7 +28,8 @@ changes.
 
 A discard creates one `PendingCallPrompt` (`call_type=DISCARD`) holding every eligible caller: ron
 callers as `int`, meld callers as `MeldCaller`, and a seat eligible for both as a ron caller only.
-Shouminkan creates a `CHANKAN` prompt. Each response (including pass) removes the seat from
+A shouminkan that someone can rob, or an ankan that a kokushi hand can rob, creates a `CHANKAN`
+prompt instead. Each response (including pass) removes the seat from
 `pending_seats`; when it is empty, `call_resolution.resolve_call_prompt()` picks ron > pon/kan > chi
 > pass. Dora reveal and riichi finalization after a discard wait until no ron is taken.
 

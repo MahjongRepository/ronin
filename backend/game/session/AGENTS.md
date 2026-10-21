@@ -10,7 +10,8 @@ per-game lock.
   timeout (10s) fires, with AI players in the empty seats. With no humans it is cancelled.
 * **Disconnect** from a started game: an AI player takes the seat, the player's timer stops and the
   remaining bank time is saved on the session, and any pending turn, call or round confirmation for
-  that seat is resolved. An invalid action disconnects with code 1008. When the last human leaves,
+  that seat is resolved. A provably invalid action (`InvalidGameActionError`) disconnects the
+  offending seat with code 1008; an ordinary rule error only answers with an error. When the last human leaves,
   the game is torn down: there are never all-AI games, and no reconnect after that.
 * **Reconnect:** the router verifies the ticket; the session must be disconnected and belong to the
   path's game. Under the lock: evict stale connections, remove the AI player

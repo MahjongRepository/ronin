@@ -3,9 +3,10 @@
 The game table model and board UI. The replay view runs on it.
 
 * `TableState` / `PlayerState` (`model/types.ts`) hold the table. `applyEvent(state, event)`
-  returns a new state: no mutation, exhaustive dispatch ending in `assertNever`, and a handler
-  throws on an impossible state (a missing tile or caller) instead of returning the state
-  unchanged.
+  returns a new state: no mutation, exhaustive dispatch ending in `assertNever`. The draw, discard
+  and meld handlers throw on an impossible state (a missing tile, player or caller); a new check
+  throws the same way rather than returning the state unchanged. The other handlers tolerate a
+  missing player or result.
 * `buildTimeline(events)` precomputes every state (`states[i + 1]` follows `events[i]`);
   `buildActionSteps` folds bookkeeping events (`dora_revealed`, `game_started`, the first draw of a
   round) into the preceding step; `buildNavigationIndex` maps steps to rounds and turns.
