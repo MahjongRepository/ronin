@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from shared.auth.session_store import AuthSessionStore
 from shared.dal.models import AccountType
@@ -130,10 +132,15 @@ class TestCleanupLifecycle:
         store = AuthSessionStore()
         store.create_session("u1", "alice", ttl_seconds=0)
 
-        with patch.object(store, "cleanup_expired", wraps=store.cleanup_expired) as mock_cleanup:
-            with patch("shared.auth.session_store.CLEANUP_INTERVAL_SECONDS", 0.01):
-                store.start_cleanup()
-                await asyncio.sleep(0.05)
-                await store.stop_cleanup()
+        with (
+            patch.object(store, "cleanup_expired", wraps=store.cleanup_expired) as mock_cleanup,
+            patch(
+                "shared.auth.session_store.asyncio.sleep",
+                new_callable=AsyncMock,
+                side_effect=[None, None, asyncio.CancelledError()],
+            ),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await store._cleanup_loop()
 
-            assert mock_cleanup.call_count >= 1
+        assert mock_cleanup.call_count == 2

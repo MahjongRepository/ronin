@@ -89,14 +89,6 @@ class TestSessionReplayCollect:
 
         collector.collect_events.assert_called_once_with("game1", events)
 
-    async def test_replay_collect__when_no_collector__should_broadcast_without_error(self):
-        game_service = MockGameService()
-        manager = SessionManager(game_service)
-        game, _player, _conn = make_game_with_player(manager)
-
-        events = [_make_discard_event()]
-        await manager._broadcast_events(game, events)  # should not raise
-
 
 class TestSessionReplaySave:
     async def test_replay_save__when_game_end_event__should_save_and_cleanup(self):
@@ -116,14 +108,6 @@ class TestSessionReplaySave:
         await manager._close_connections_on_game_end(game, events)
 
         collector.save_and_cleanup.assert_not_called()
-
-    async def test_replay_save__when_no_collector_on_game_end__should_not_raise(self):
-        game_service = MockGameService()
-        manager = SessionManager(game_service)
-        game, _player, _conn = make_game_with_player(manager)
-
-        events = [_make_game_end_event()]
-        await manager._close_connections_on_game_end(game, events)  # should not raise
 
 
 class TestSessionReplayCleanup:

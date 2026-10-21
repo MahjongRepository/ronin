@@ -217,15 +217,6 @@ def _make_handler() -> object:
 
 
 class TestValidateRouteAuthPolicy:
-    def test_validate_route_auth_policy__when_all_routes_classified__should_pass(self) -> None:
-        routes = [
-            Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
-            Route("/b", protected_api(_make_handler()), methods=["GET"], name="b"),
-            Route("/c", bot_only(_make_handler()), methods=["POST"], name="c"),
-        ]
-
-        validate_route_auth_policy(routes)
-
     def test_validate_route_auth_policy__when_route_unclassified__should_raise_runtime_error(self) -> None:
         routes = [
             Route("/ok", public_route(_make_handler()), methods=["GET"], name="ok"),

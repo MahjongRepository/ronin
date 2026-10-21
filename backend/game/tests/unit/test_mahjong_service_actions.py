@@ -129,7 +129,7 @@ class TestMahjongGameServiceProcessActionResult:
         ):
             events = await service._process_action_result_internal("game1", result)
 
-        assert len(events) >= 1
+        assert [e.event for e in events] == [EventType.CALL_PROMPT]
 
 
 class TestProcessActionResultRoundEnd:
@@ -158,7 +158,7 @@ class TestProcessActionResultRoundEnd:
         events = await service._process_action_result_internal("game1", result)
 
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
-        assert len(round_end_events) >= 1
+        assert len(round_end_events) == 1
 
 
 class TestMahjongGameServiceHandleChankanPrompt:
@@ -233,7 +233,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
         ):
             result = await service._handle_chankan_prompt("game1", events)
 
-        assert len(result) >= 1
+        assert [e.event for e in result] == [EventType.CALL_PROMPT]
 
     async def test_handle_chankan_prompt__when_no_pending_prompt__should_return_events_unchanged(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -273,16 +273,17 @@ class TestNoDataActionDispatchRouting:
 
         events = await service.handle_action("game1", "Player", action, {})
 
-        assert len(events) >= 1
-        assert any(e.event == EventType.ERROR for e in events)
+        assert events[0].event == EventType.ERROR
+        assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
 
     async def test_handle_action__when_ron_without_call_prompt__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", GameAction.CALL_RON, {})
 
-        assert len(events) >= 1
-        assert any(e.event == EventType.ERROR for e in events)
+        assert len(events) == 1
+        assert events[0].event == EventType.ERROR
+        assert events[0].data.code == GameErrorCode.INVALID_RON
 
 
 class TestDispatchActionDataNullFallback:

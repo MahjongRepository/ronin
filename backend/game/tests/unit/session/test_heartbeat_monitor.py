@@ -70,7 +70,7 @@ class TestHeartbeatMonitorTaskManagement:
 
         # yield control so the cancellation propagates
         await asyncio.sleep(0)
-        assert first_task.cancelled() or first_task.done()
+        assert first_task.cancelled()
 
         # clean up
         await monitor.stop_for_game("game1")
@@ -170,7 +170,8 @@ class TestHeartbeatMonitorLoop:
             with contextlib.suppress(asyncio.CancelledError):
                 await monitor._check_loop("game1", "game", get_game)
 
-        # should not raise -- error is suppressed
+        failing_close.assert_awaited_once_with(code=1000, reason="heartbeat_timeout")
+        assert mock_sleep.await_count == 2
 
     async def test_heartbeat_monitor__when_one_of_two_connections_stale__should_close_only_stale_one(self):
         monitor = HeartbeatMonitor()

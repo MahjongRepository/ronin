@@ -319,7 +319,7 @@ class TestDualEligibleSeatRonDominant:
         # seat 1 should only be a ron caller (int), not meld caller
         seat1_callers = [c for c in prompt.callers if (isinstance(c, int) and c == 1)]
         seat1_melds = [c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == 1]
-        assert len(seat1_callers) >= 1
+        assert len(seat1_callers) == 1
         assert len(seat1_melds) == 0
 
     def test_discard_claim__when_ron_caller_responds_pon__should_reject(self):

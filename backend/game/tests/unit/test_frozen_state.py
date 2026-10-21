@@ -212,7 +212,8 @@ class TestFrozenMeldScoringIntegration:
         result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
-        assert result.han >= 1
+        assert result.han == 4
+        assert result.fu == 30
 
 
 class TestUpdatePlayerValidation:

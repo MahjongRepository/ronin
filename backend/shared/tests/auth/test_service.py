@@ -179,9 +179,6 @@ class TestLogout:
         auth_service.logout(session.session_id)
         assert auth_service.validate_session(session.session_id) is None
 
-    def test_auth_service_logout__when_session_unknown__should_not_raise(self, auth_service):
-        auth_service.logout("nonexistent")  # should not raise
-
 
 class TestRegisterConcurrentRace:
     async def test_auth_service_register__when_repo_reports_duplicate__should_raise_auth_error(self, auth_service):

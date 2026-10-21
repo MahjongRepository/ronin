@@ -74,7 +74,7 @@ class TestSessionManagerInvalidAction:
             await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
 
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warning_records) >= 1
+        assert len(warning_records) == 1
         msg = warning_records[0].msg
         assert msg["event"] == "invalid game action"
         assert msg["action"] == "discard"

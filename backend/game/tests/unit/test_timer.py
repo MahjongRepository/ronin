@@ -144,9 +144,12 @@ class TestBaseTimeBehavior:
         async def on_timeout():
             callback_called.set()
 
+        loop = asyncio.get_running_loop()
+        started_at = loop.time()
         timer.start_turn_timer(on_timeout)
         # should fire at ~0.1s (0.05 base + 0.05 bank)
         await asyncio.wait_for(callback_called.wait(), timeout=1.0)
+        assert loop.time() - started_at >= 0.09
 
 
 class TestBankCap:

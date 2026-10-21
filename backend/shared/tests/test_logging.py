@@ -87,7 +87,7 @@ class TestSetupLogging:
 
         assert log_path is not None
         lines = log_path.read_text().strip().splitlines()
-        assert len(lines) >= 1
+        assert len(lines) == 1
         parsed = json.loads(lines[0])
         assert parsed["event"] == "json test event"
         assert parsed["game_id"] == "test-game"

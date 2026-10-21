@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -125,12 +126,16 @@ class TestFinishGame:
         assert result.standings[0].name == "Alice"
         assert result.standings[0].score is None  # no scores for abandoned games
 
-    async def test_game_repository__when_finishing_unknown_game__should_not_raise(
-        self, repo: SqliteGameRepository
+    async def test_game_repository__when_finishing_unknown_game__should_warn_without_creating_it(
+        self, repo: SqliteGameRepository, caplog: pytest.LogCaptureFixture
     ) -> None:
-        # Should log a warning but not raise
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game("nonexistent", ended_at=end_time)
+        with caplog.at_level(logging.WARNING):
+            await repo.finish_game("nonexistent", ended_at=end_time)
+
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert [r.msg["event"] for r in warning_records] == ["finish_game had no effect (not found or already ended)"]
+        assert await repo.get_game("nonexistent") is None
 
 
 class TestGetRecentGames:

@@ -2,6 +2,7 @@ import pytest
 
 from game.logic.enums import CallType, GameErrorCode, GamePhase, RoundPhase
 from game.logic.events import (
+    DiscardEvent,
     ErrorEvent,
     EventType,
     SeatTarget,
@@ -151,12 +152,12 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         events = await service.process_ai_player_actions_after_replacement("game1", player_seat)
 
-        assert len(events) > 0
+        assert events[0].data == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     async def test_ai_actions_after_replacement__when_replaced_player_is_pending_caller__should_clear_their_seat(
         self, service
     ):
-        await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
+        await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
         alice = _find_player(round_state, "Alice")
@@ -175,10 +176,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         await service.process_ai_player_actions_after_replacement("game1", alice.seat)
 
         updated_round = service._games["game1"].round_state
-        # Alice was the only pending caller, so after AI player resolves the prompt should be cleared.
-        # AI player followup may create new MELD prompts, but Alice's seat must not remain pending.
-        if updated_round.pending_call_prompt is not None:
-            assert alice.seat not in updated_round.pending_call_prompt.pending_seats
+        assert updated_round.pending_call_prompt is None
 
     async def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(
         self, service
@@ -233,7 +231,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
 
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
-        assert len(round_end_events) >= 1
+        assert len(round_end_events) == 1
 
 
 class TestSeedDeterminism:

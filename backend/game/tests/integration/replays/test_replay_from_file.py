@@ -41,7 +41,7 @@ async def test_replay_runner__when_single_discard_replay_loaded__should_produce_
 
     # Startup should include dealer draw
     draw_events = [e for e in trace.startup_events if e.event == EventType.DRAW]
-    assert len(draw_events) >= 1
+    assert len(draw_events) == 1
 
     # Verify the discard step produced DISCARD event
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]

@@ -69,10 +69,9 @@ class TestCalculateHandValue:
         result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
-        assert result.han >= 1  # at least menzen tsumo
-        assert result.fu > 0
-        assert result.cost_main > 0
-        assert len(result.yaku) > 0
+        assert [(y.yaku_id, y.han) for y in result.yaku] == [(0, 1), (27, 2), (120, 1), (121, 2)]
+        assert (result.han, result.fu) == (6, 30)
+        assert (result.cost_main, result.cost_additional) == (6000, 6000)
 
     def test_calculate_hand_value__when_riichi_tsumo__should_include_riichi_yaku(self):
         # closed hand with riichi
@@ -87,8 +86,8 @@ class TestCalculateHandValue:
         result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
-        assert result.han >= 2  # riichi + menzen tsumo
-        assert any(y.yaku_id == 1 for y in result.yaku)  # Riichi
+        assert [(y.yaku_id, y.han) for y in result.yaku] == [(0, 1), (1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
+        assert result.han == 8
 
     def test_calculate_hand_value__when_riichi_ron__should_not_include_menzen_tsumo(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
@@ -102,8 +101,8 @@ class TestCalculateHandValue:
         result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
-        assert result.han >= 1  # riichi
-        assert not any(y.yaku_id == 0 for y in result.yaku)  # no Menzen Tsumo
+        assert [(y.yaku_id, y.han) for y in result.yaku] == [(1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
+        assert result.han == 7
 
     def test_calculate_hand_value__when_open_hand_has_no_yaku__should_return_no_yaku_error(self):
         # open hand with no yaku
@@ -160,8 +159,8 @@ class TestCalculateHandValue:
         result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
-        assert result.han >= 1  # yakuhai (haku)
-        assert result.cost_main > 0
+        assert [(y.yaku_id, y.han) for y in result.yaku] == [(15, 1), (120, 1), (121, 2)]
+        assert (result.han, result.fu, result.cost_main) == (4, 30, 12000)
 
 
 class TestApplyTsumoScore:
@@ -430,12 +429,7 @@ class TestApplyDoubleRonScore:
         # riichi sticks cleared
         assert new_game_state.riichi_sticks == 0
 
-        # verify which winner got riichi sticks
-        for w in result.winners:
-            if w.winner_seat == 2:
-                assert w.riichi_sticks_collected == 2
-            else:
-                assert w.riichi_sticks_collected == 0
+        assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {0: 0, 2: 2}
 
     def test_apply_double_ron_score__when_loser_seat_3__should_award_sticks_to_seat_0(self):
         # different loser seat changes who gets riichi
@@ -485,11 +479,7 @@ class TestApplyDoubleRonScore:
             winning_tile=0,
         )
 
-        for w in result.winners:
-            if w.winner_seat == 0:
-                assert w.ura_dora_indicators == [dead_wall[7]]
-            else:
-                assert w.ura_dora_indicators is None
+        assert {w.winner_seat: w.ura_dora_indicators for w in result.winners} == {0: [dead_wall[7]], 2: None}
 
     def test_apply_double_ron_score__when_no_winners__should_raise(self):
         game_state = self._create_game_state()
@@ -812,9 +802,8 @@ class TestChankanYakuScoring:
         result = calculate_hand_value(ctx, win_tile)
 
         assert result.error is None
-        assert any(y.yaku_id == 4 for y in result.yaku)  # Chankan
-        # riichi + chankan = 2 han
-        assert result.han >= 2
+        assert [(y.yaku_id, y.han) for y in result.yaku] == [(1, 1), (4, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
+        assert result.han == 8
 
     def test_calculate_hand_value__when_open_hand_chankan__should_score_with_chankan_as_only_yaku(self):
         # setup: open hand with pon of 1m (no yaku)
@@ -831,7 +820,7 @@ class TestChankanYakuScoring:
 
         game_state = _create_scoring_game_state()
         # add win tile (5m)
-        win_tile = TilesConverter.string_to_136_array(man="5")[0]
+        win_tile = TilesConverter.string_to_136_array(man="55")[1]
         all_tiles = (*tuple(closed_tiles), win_tile)
         round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
         player = round_state.players[0]
@@ -848,8 +837,8 @@ class TestChankanYakuScoring:
 
         # chankan provides the yaku, hand should succeed
         assert result.error is None
-        assert any(y.yaku_id == 4 for y in result.yaku)  # Chankan
-        assert result.han >= 1
+        assert [(y.yaku_id, y.han) for y in result.yaku] == [(4, 1), (120, 1), (121, 2)]
+        assert result.han == 4
 
     def test_calculate_hand_value__when_open_hand_ron_without_chankan_flag__should_return_no_yaku_error(self):
         # setup: same open hand as above

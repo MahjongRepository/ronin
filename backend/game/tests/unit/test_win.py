@@ -189,9 +189,7 @@ class TestGetWaitingTiles:
 
         waiting = get_waiting_tiles(player)
 
-        assert 23 in waiting or 26 in waiting  # 6s or 9s
-        assert 0 not in waiting  # 1m excluded (4 copies held)
-        assert len(waiting) > 0
+        assert waiting == {23, 26}
 
     def test_waiting_tiles__when_chiitoitsu_tempai__should_list_wait(self):
         # 6 pairs + single: 11m 22m 33m 44p 55p 66s 7s -> waiting for 7s

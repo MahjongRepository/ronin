@@ -7,7 +7,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.types import SeatConfig
 from game.logic.wall import Wall
-from game.tests.unit.helpers import _string_to_34_tile
+from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -54,9 +54,8 @@ class TestGetAvailableActions:
         actions = get_available_actions(round_state, game_state, seat=0)
 
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
-        if kan_actions:
-            assert kan_actions[0].tiles is not None
-            assert isinstance(kan_actions[0].tiles, list)
+        assert len(kan_actions) == 1
+        assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
 
     def test_get_available_actions__when_wall_empty__should_not_offer_kan(self):
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
@@ -120,5 +119,4 @@ class TestAddedKanAction:
 
         added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]
         assert len(added_kan_actions) == 1
-        assert added_kan_actions[0].tiles is not None
-        assert _string_to_34_tile(man="1") in added_kan_actions[0].tiles
+        assert added_kan_actions[0].tiles == [_string_to_34_tile(man="1")]

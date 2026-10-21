@@ -59,11 +59,12 @@ class TestTimerManagerCleanup:
         timer = timer_manager.get_timer("g1", 0)
         # start a turn timer to make it active
         timer_manager.start_turn_timer("g1", 0)
-        assert timer._active_task is not None
+        active_task = timer._active_task
+        assert active_task is not None
 
         timer_manager.cleanup_game("g1")
-        # task should be cancelled
-        assert timer._active_task is None or timer._active_task.done()
+        await asyncio.sleep(0)
+        assert active_task.cancelled()
 
 
 class TestTimerManagerStop:

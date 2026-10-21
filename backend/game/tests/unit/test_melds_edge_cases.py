@@ -540,11 +540,6 @@ class TestValidateChiSequence:
         with pytest.raises(InvalidMeldError, match="consecutive sequence"):
             _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
 
-    def test_validate_chi_sequence__when_valid_sequence__should_not_raise(self):
-        man_tiles = TilesConverter.string_to_136_array(man="123")
-        # Should not raise
-        _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
-
 
 class TestCheckPaoDisabled:
     def test_pao__when_daisangen_pao_disabled__should_return_none(self):

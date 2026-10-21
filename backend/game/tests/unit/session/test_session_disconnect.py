@@ -156,6 +156,7 @@ class TestLockBoundaryRaces:
 
         async def slow_handle_action(game_id, player_name, action, data):
             execution_order.append("action_start")
+            await asyncio.sleep(0)
             result = await original_handle(game_id, player_name, action, data)
             execution_order.append("action_end")
             return result
@@ -178,12 +179,7 @@ class TestLockBoundaryRaces:
             manager.leave_game(conns[0]),
         )
 
-        # both operations completed without errors -- verify they didn't interleave
-        if "action_start" in execution_order and "action_end" in execution_order:
-            start_idx = execution_order.index("action_start")
-            end_idx = execution_order.index("action_end")
-            between = execution_order[start_idx : end_idx + 1]
-            assert "replace_start" not in between
+        assert execution_order == ["action_start", "action_end", "replace_start", "process_ai_player"]
 
     async def test_lock_boundary__when_leave_races_timeout__should_not_replace_mid_timeout(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
@@ -196,6 +192,7 @@ class TestLockBoundaryRaces:
 
         async def slow_timeout(game_id, player_name, timeout_type):
             execution_order.append("timeout_start")
+            await asyncio.sleep(0)
             result = await original_timeout(game_id, player_name, timeout_type)
             execution_order.append("timeout_end")
             return result
@@ -218,12 +215,7 @@ class TestLockBoundaryRaces:
             manager.leave_game(conns[0]),
         )
 
-        # timeout and leave should be serialized
-        if "timeout_start" in execution_order and "timeout_end" in execution_order:
-            start_idx = execution_order.index("timeout_start")
-            end_idx = execution_order.index("timeout_end")
-            between = execution_order[start_idx : end_idx + 1]
-            assert "replace_start" not in between
+        assert execution_order == ["timeout_start", "timeout_end", "replace_start", "process_ai_player"]
 
     async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
@@ -248,7 +240,7 @@ class TestLockBoundaryRaces:
             manager.leave_game(conns[1]),
         )
 
-        assert cleanup_count <= 1
+        assert cleanup_count == 1
         assert manager.get_game("game1") is None
 
     async def test_lock_boundary__when_ai_replacement_runs_on_leave__should_hold_game_lock(self, manager):

@@ -86,25 +86,25 @@ class TestRoomConnectionManager:
         ws = _mock_ws()
         mgr.add("room-1", "conn-1", ws)
 
-        await mgr.send_to("conn-1", {"type": "hello"})
+        sent = await mgr.send_to("conn-1", {"type": "hello"})
 
+        assert sent is True
         ws.send_text.assert_called_once_with(json.dumps({"type": "hello"}))
 
     @pytest.mark.asyncio
-    async def test_room_connection_manager_send_to__when_connection_unknown__should_not_raise(self):
+    async def test_room_connection_manager_send_to__when_connection_unknown__should_return_false(self):
         mgr = RoomConnectionManager()
-        # Should not raise
-        await mgr.send_to("unknown", {"type": "test"})
+
+        assert await mgr.send_to("unknown", {"type": "test"}) is False
 
     @pytest.mark.asyncio
-    async def test_room_connection_manager_send_to__when_send_fails__should_not_raise(self):
+    async def test_room_connection_manager_send_to__when_send_fails__should_return_false(self):
         mgr = RoomConnectionManager()
         ws = _mock_ws()
         ws.send_text.side_effect = RuntimeError("closed")
         mgr.add("room-1", "conn-1", ws)
 
-        # Should not raise
-        await mgr.send_to("conn-1", {"type": "test"})
+        assert await mgr.send_to("conn-1", {"type": "test"}) is False
 
     @pytest.mark.asyncio
     async def test_room_connection_manager_send_to__when_socket_missing_from_room__should_not_send(self):
@@ -132,14 +132,17 @@ class TestRoomConnectionManager:
         assert "room-1" not in mgr._connections
 
     @pytest.mark.asyncio
-    async def test_room_connection_manager_close_connections__when_close_fails__should_not_raise(self):
+    async def test_room_connection_manager_close_connections__when_close_fails__should_still_drop_room(self):
         mgr = RoomConnectionManager()
         ws = _mock_ws()
         ws.close.side_effect = RuntimeError("already closed")
         mgr.add("room-1", "conn-1", ws)
 
-        # Should not raise
         await mgr.close_connections("room-1")
+
+        ws.close.assert_called_once()
+        assert "room-1" not in mgr._connections
+        assert mgr.remove("conn-1") is None
 
     @pytest.mark.asyncio
     async def test_room_connection_manager_close_connections__when_room_unknown__should_not_raise(self):

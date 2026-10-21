@@ -92,7 +92,7 @@ class TestMinWallForKan:
 
         # default min_wall_for_kan=2: exactly 2 tiles → can kan
         settings = GameSettings()
-        assert len(get_possible_closed_kans(round_state.players[0], round_state, settings)) > 0
+        assert get_possible_closed_kans(round_state.players[0], round_state, settings) == [tile_to_34(tiles_4m[0])]
 
         # custom min_wall_for_kan=3: only 2 tiles → cannot kan
         settings_3 = GameSettings(min_wall_for_kan=3)
@@ -146,7 +146,7 @@ class TestKanAfterMeldCallBlocked:
 
         settings = GameSettings()
         result = get_possible_closed_kans(round_state.players[0], round_state, settings)
-        assert len(result) > 0
+        assert result == [tile_to_34(tiles_4m[0])]
 
 
 # ---------------------------------------------------------------------------

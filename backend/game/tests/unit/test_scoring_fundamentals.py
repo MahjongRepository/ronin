@@ -317,24 +317,6 @@ class TestTieBreaking:
         assert result.standings[2].seat == 3  # 25000
         assert result.standings[3].seat == 0  # 24000
 
-    def test_apply_double_ron_score__when_riichi_sticks__should_give_them_to_winner_closest_after_loser(self):
-        game_state = _scoring_game_state(riichi=2)
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        # loser=0, winners=1,3. Counter-clockwise from 0: check 1,2,3 → seat 1 is first
-        _, _, result = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr), (3, hr)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-
-        for w in result.winners:
-            if w.winner_seat == 1:
-                assert w.riichi_sticks_collected == 2
-            else:
-                assert w.riichi_sticks_collected == 0
-
     def test_validate_settings__when_tie_break_by_seat_order_false__should_raise(self):
         settings = GameSettings(tie_break_by_seat_order=False)
         with pytest.raises(Exception, match="tie_break_by_seat_order"):

@@ -20,7 +20,8 @@ class TestWebSocketConnection:
         mock_ws.close = AsyncMock(side_effect=WebSocketDisconnect())
         conn = WebSocketConnection(mock_ws, game_id="test-game", connection_id="test-conn")
 
-        await conn.close()
+        await conn.close(code=4001, reason="auth_timeout")
+        mock_ws.close.assert_awaited_once_with(code=4001, reason="auth_timeout")
 
     async def test_websocket_connection__when_receive_bytes_hits_disconnect__should_raise_connection_error(self):
         mock_ws = MagicMock()

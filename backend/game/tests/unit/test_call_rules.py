@@ -450,11 +450,7 @@ class TestDoubleRonRiichiStickDistribution:
             winning_tile=0,
         )
 
-        for w in result.winners:
-            if w.winner_seat == 1:
-                assert w.riichi_sticks_collected == 3
-            else:
-                assert w.riichi_sticks_collected == 0
+        assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {1: 3, 3: 0}
 
     def test_double_ron_riichi_sticks__when_lower_seat_winner_is_farther__should_go_to_closer_winner(self):
         game_state = _scoring_game_state(riichi=2)
@@ -468,11 +464,7 @@ class TestDoubleRonRiichiStickDistribution:
             winning_tile=0,
         )
 
-        for w in result.winners:
-            if w.winner_seat == 3:
-                assert w.riichi_sticks_collected == 2
-            else:
-                assert w.riichi_sticks_collected == 0
+        assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {0: 0, 3: 2}
 
     def test_double_ron_riichi_sticks__should_add_stick_value_to_closer_winner_score(self):
         game_state = _scoring_game_state(riichi=2)

@@ -86,7 +86,7 @@ class TestReplayContent:
     def test_replay_route__when_game_id_empty__should_not_serve_replay(self, setup):
         client, _replay_dir = setup
         response = client.get("/api/replays/")
-        assert response.status_code in {404, 307}
+        assert response.status_code == 404
 
     def test_replay_route__when_game_id_has_special_chars__should_return_404(self, setup):
         client, _replay_dir = setup

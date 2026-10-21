@@ -45,7 +45,7 @@ async def test_replay_runner__when_full_game_replayed__should_end_with_conserved
 
     # --- Multiple rounds played ---
     round_end_steps = [s for s in trace.steps if any(e.event == EventType.ROUND_END for e in s.emitted_events)]
-    assert len(round_end_steps) >= 1  # at least one round completed
+    assert len(round_end_steps) == 12
 
     # --- Game ended ---
     final = trace.final_state

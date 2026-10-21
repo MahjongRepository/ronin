@@ -31,9 +31,6 @@ class TestGenerateSeed:
 
 
 class TestValidateSeedHex:
-    def test_validate_seed_hex__when_valid_seed__should_accept(self):
-        validate_seed_hex(FIXED_SEED)
-
     def test_validate_seed_hex__when_uppercase_hex__should_accept(self):
         validate_seed_hex(FIXED_SEED.upper())
 

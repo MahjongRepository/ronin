@@ -6,6 +6,7 @@ from game.logic.enums import CallType, GameAction, GameErrorCode, MeldCallType, 
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
+    DiscardEvent,
     ErrorEvent,
     EventType,
     RoundEndEvent,
@@ -154,7 +155,9 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
     def service(self):
         return MahjongGameService()
 
-    async def test_check_and_handle_round_end__when_round_finished__should_return_true_and_append_events(self, service):
+    async def test_check_and_handle_round_end__when_round_finished__should_return_true_and_keep_round_end(
+        self, service
+    ):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
@@ -176,8 +179,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         result = await service._check_and_handle_round_end("game1", events)
 
         assert result is True
-        assert len(events) >= 1
-        assert any(e.event == EventType.ROUND_END for e in events)
+        assert [e.event for e in events] == [EventType.ROUND_END]
 
     async def test_check_and_handle_round_end__when_events_have_no_round_result__should_append_error_event(
         self, service
@@ -220,7 +222,7 @@ class TestMahjongGameServiceProcessPostDiscard:
 
         result = await service._process_post_discard("game1", events)
 
-        assert len(result) >= 1
+        assert [e.event for e in result] == [EventType.ROUND_END]
 
     async def test_process_post_discard__when_prompt_pending_for_human_player__should_return_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -257,7 +259,7 @@ class TestMahjongGameServiceProcessPostDiscard:
 
         result = await service._process_post_discard("game1", events)
 
-        assert len(result) >= 1
+        assert [(e.event, e.target) for e in result] == [(EventType.CALL_PROMPT, SeatTarget(seat=player.seat))]
 
     async def test_process_post_discard__when_prompt_pending_only_for_ai_player__should_return_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -312,7 +314,7 @@ class TestMahjongGameServiceProcessPostDiscard:
 
         result = await service._process_post_discard("game1", events)
 
-        assert len(result) >= 1
+        assert [e.event for e in result] == [EventType.CALL_PROMPT, EventType.DRAW]
 
     async def test_process_post_discard__when_round_continues__should_draw_for_next_player(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -328,7 +330,7 @@ class TestMahjongGameServiceProcessPostDiscard:
 
         result = await service._process_post_discard("game1", events)
 
-        assert len(result) >= 1
+        assert [(e.event, e.target) for e in result] == [(EventType.DRAW, SeatTarget(seat=current_seat))]
 
 
 class TestMahjongGameServiceTimeoutIntegration:
@@ -352,8 +354,7 @@ class TestMahjongGameServiceTimeoutIntegration:
 
         events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
 
-        assert len(events) > 0
-        assert any(e.event == EventType.DISCARD for e in events)
+        assert events[0].data == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     async def test_handle_timeout__when_turn_timeout_off_players_turn__should_return_no_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -395,7 +396,7 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         result = await service._process_post_discard("game1", events)
 
         round_end = [e for e in result if e.event == EventType.ROUND_END]
-        assert len(round_end) >= 1
+        assert len(round_end) == 1
 
     async def test_process_post_discard__when_ai_call_resolves_with_empty_wall__should_return_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -422,7 +423,7 @@ class TestMahjongGameServicePostDiscardRoundEnd:
 
         result = await service._process_post_discard("game1", events)
 
-        assert len(result) >= 1
+        assert [e.event for e in result] == [EventType.ROUND_END]
 
 
 class TestMahjongGameServiceFindCallerInfo:
@@ -633,8 +634,10 @@ class TestTurnTimeoutKuikaeIntegration:
 
         events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
 
-        discard_events = [e for e in events if e.event == EventType.DISCARD]
-        assert len(discard_events) >= 1
+        player_discard = events[0].data
+        assert isinstance(player_discard, DiscardEvent)
+        assert player_discard.seat == player.seat
+        assert tile_to_34(player_discard.tile_id) != kuikae_34
 
 
 class TestAIPlayerTsumogiriFallbackKuikae:
@@ -667,8 +670,10 @@ class TestAIPlayerTsumogiriFallbackKuikae:
         result = await service._ai_player_tsumogiri_fallback("game1", ai_seat)
 
         assert result is not None
-        discard_events = [e for e in result if e.event == EventType.DISCARD]
-        assert len(discard_events) >= 1
+        discard_events = [e.data for e in result if isinstance(e.data, DiscardEvent)]
+        assert len(discard_events) == 1
+        assert discard_events[0].seat == ai_seat
+        assert tile_to_34(discard_events[0].tile_id) != kuikae_34
 
 
 class TestServiceGuardClauses:

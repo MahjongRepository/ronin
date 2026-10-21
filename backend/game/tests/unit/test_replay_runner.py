@@ -419,7 +419,7 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
     synthetic_confirm_steps = [
         s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND
     ]
-    assert len(synthetic_confirm_steps) > 0
+    assert len(synthetic_confirm_steps) == 12
 
 
 async def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():

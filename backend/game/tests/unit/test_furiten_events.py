@@ -110,11 +110,7 @@ class TestFuritenEventsInGameFlow:
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
-        if game_state.round_state.current_player_seat != player.seat:
-            pytest.skip("Player is not the current player after game start")
-
-        if not player.tiles:
-            pytest.skip("Player has no tiles")
+        assert game_state.round_state.current_player_seat == player.seat
 
         # Pretend the server previously told the client they were in furiten.
         # When handle_action runs and computes furiten=False (the actual state),
@@ -124,13 +120,8 @@ class TestFuritenEventsInGameFlow:
         tile_id = player.tiles[-1]
         events = await service.handle_action("game1", "Player", GameAction.DISCARD, {"tile_id": tile_id})
 
-        round_ended = any(e.event == EventType.ROUND_END for e in events)
-        if round_ended:
-            pytest.skip("Round ended during discard, furiten check skipped")
-            return
-
         furiten_events = [e for e in events if e.event == EventType.FURITEN and isinstance(e.data, FuritenEvent)]
-        assert len(furiten_events) >= 1
+        assert len(furiten_events) == 1
         assert furiten_events[0].data.is_furiten is False
         assert furiten_events[0].target == SeatTarget(seat=player.seat)
 

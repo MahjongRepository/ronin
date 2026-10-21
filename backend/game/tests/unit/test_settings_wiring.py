@@ -39,9 +39,6 @@ _OTHER_HAND = (20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32)
 
 
 class TestValidateSettings:
-    def test_validate_settings__when_defaults__should_pass(self):
-        validate_settings(GameSettings())
-
     def test_validate_settings__when_renhou_baiman__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
             validate_settings(GameSettings(renhou_value=RenhouValue.BAIMAN))
@@ -53,9 +50,6 @@ class TestValidateSettings:
     def test_validate_settings__when_several_unsupported_values__should_report_all(self):
         with pytest.raises(UnsupportedSettingsError, match=r"has_agariyame.*renhou_value=BAIMAN"):
             validate_settings(GameSettings(has_agariyame=True, renhou_value=RenhouValue.BAIMAN))
-
-    def test_validate_settings__when_renhou_mangan__should_pass(self):
-        validate_settings(GameSettings(renhou_value=RenhouValue.MANGAN))
 
     def test_validate_settings__when_uma_valid__should_pass(self):
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))

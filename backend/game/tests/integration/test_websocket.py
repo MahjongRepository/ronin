@@ -36,8 +36,10 @@ class TestWebSocketIntegration:
         tickets = create_pending_game(client, "test_game")
         with client.websocket_connect("/ws/test_game") as ws:
             messages = join_game_and_start(ws, tickets[0])
-            last = messages[-1]
-            assert last["t"] in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW])
+            assert [message["t"] for message in messages] == [
+                EVENT_TYPE_INT[EventType.GAME_STARTED],
+                EVENT_TYPE_INT[EventType.ROUND_STARTED],
+            ]
 
     def test_websocket__when_chat_sent__should_echo_chat_with_player_name(self, client):
         tickets = create_pending_game(client, "test_game")
@@ -82,9 +84,8 @@ class TestWebSocketIntegration:
                 ws,
                 {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]},
             )
-            # Should get game events (not an error about dead connection)
             msg = recv_ws(ws)
-            assert msg.get("t") is not None or msg.get("type") is not None
+            assert msg["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
 
     def test_websocket__when_join_ticket_invalid__should_return_invalid_ticket_error(self, client):
         create_pending_game(client, "test_game")

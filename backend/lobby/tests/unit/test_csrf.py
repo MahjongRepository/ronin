@@ -29,7 +29,7 @@ class TestGetOrCreateCsrfToken:
     def test_get_or_create_csrf_token__when_no_cookie__should_generate_new_token(self) -> None:
         request = _make_request()
         token, is_new = get_or_create_csrf_token(request)
-        assert len(token) > 0
+        assert len(token) == 43
         assert is_new is True
 
     def test_get_or_create_csrf_token__when_called_twice_without_cookie__should_generate_unique_tokens(self) -> None:
