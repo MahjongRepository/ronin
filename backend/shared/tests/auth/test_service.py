@@ -39,7 +39,6 @@ def auth_service(player_repo, session_store):
 class TestRegister:
     async def test_auth_service_register__when_valid__should_create_human_player(self, auth_service):
         player = await auth_service.register("alice", "password123")
-
         assert player.username == "alice"
         assert player.account_type == AccountType.HUMAN
         assert player.user_id
@@ -85,7 +84,6 @@ class TestRegister:
 class TestRegisterBot:
     async def test_auth_service_register_bot__when_valid__should_return_player_and_hashed_api_key(self, auth_service):
         player, raw_api_key = await auth_service.register_bot("MyBot")
-
         assert player.username == "MyBot"
         assert player.account_type == AccountType.BOT
         assert player.password_hash == "!"
@@ -111,14 +109,12 @@ class TestLogin:
     async def test_auth_service_login__when_credentials_valid__should_return_session(self, auth_service):
         await auth_service.register("alice", "password123")
         session = await auth_service.login("alice", "password123")
-
         assert session.username == "alice"
         assert session.session_id
 
     async def test_auth_service_login__when_human__should_create_human_session(self, auth_service):
         await auth_service.register("alice", "password123")
         session = await auth_service.login("alice", "password123")
-
         assert session.account_type == AccountType.HUMAN
 
     async def test_auth_service_login__when_password_wrong__should_raise(self, auth_service):

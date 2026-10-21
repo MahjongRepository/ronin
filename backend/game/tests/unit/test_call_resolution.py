@@ -192,7 +192,6 @@ class TestResolveSingleRon:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -228,7 +227,6 @@ class TestResolveDoubleRon:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -257,7 +255,6 @@ class TestResolveTripleRon:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
         end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
@@ -293,7 +290,6 @@ class TestResolveAllPassed:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         assert result.new_round_state.pending_call_prompt is None
 
@@ -332,7 +328,6 @@ class TestResolveChankanDecline:
         game_state = game_state.model_copy(update={"round_state": new_round_state})
 
         result = resolve_call_prompt(new_round_state, game_state)
-
         assert result.new_round_state is not None
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
@@ -366,14 +361,11 @@ class TestCompleteAddedKanAfterChankanDecline:
             caller_seat=0,
             tile_id=fourth_tile,
         )
-
         assert new_round_state is not None
         assert new_game_state is not None
-
         meld_events = [e for e in events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.ADDED_KAN
-
         draw_events = [e for e in events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 1
         assert draw_events[0].tile_id is not None
@@ -442,7 +434,6 @@ class TestCompleteAddedKanAfterChankanDecline:
             caller_seat=0,
             tile_id=fourth_tile,
         )
-
         assert new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
@@ -478,7 +469,6 @@ class TestResolvePonChiMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
@@ -512,7 +502,6 @@ class TestResolvePonChiMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
@@ -558,12 +547,10 @@ class TestMeldPromptFourRiichiAbort:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         # riichi should be finalized even through MELD prompt
         riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
         assert len(riichi_events) == 1
         assert riichi_events[0].seat == 0
-
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -603,7 +590,6 @@ class TestMeldPromptFourRiichiAbort:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         # riichi should be finalized
         riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
         assert len(riichi_events) == 1
@@ -652,7 +638,6 @@ class TestResolveCallPromptUnrecognizedMeldFallthrough:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result is not None
         assert result.new_round_state is not None
         assert result.new_round_state.pending_call_prompt is None

@@ -57,20 +57,18 @@ class TestRonPlusMeldCallersRonWins:
 
         # process_discard_phase creates a unified DISCARD prompt
         new_round, new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 1
         assert call_prompts[0].call_type == CallType.DISCARD
-
         # verify both callers are present
         ron_callers = [c for c in call_prompts[0].callers if isinstance(c, int)]
         meld_callers = [c for c in call_prompts[0].callers if isinstance(c, MeldCaller)]
         assert 1 in ron_callers
         assert any(c.seat == 2 for c in meld_callers)
-
         # simulate: B calls ron, C passes -> ron resolves
         prompt = new_round.pending_call_prompt
         assert prompt is not None
+
         resolved_prompt = prompt.model_copy(
             update={
                 "pending_seats": frozenset(),
@@ -117,10 +115,10 @@ class TestRonPassMeldClaims:
         game_state = create_game_state(round_state)
 
         new_round, new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
-
         # simulate: B passes (ron caller), C calls pon
         prompt = new_round.pending_call_prompt
         assert prompt is not None
+
         resolved_prompt = prompt.model_copy(
             update={
                 "pending_seats": frozenset(),
@@ -131,7 +129,6 @@ class TestRonPassMeldClaims:
         new_game = update_game_with_round(new_game, new_round)
 
         result = resolve_call_prompt(new_round, new_game)
-
         # pon should execute - no DrawEvent, only MeldEvent
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
@@ -173,10 +170,10 @@ class TestAllCallersPass:
         game_state = create_game_state(round_state)
 
         new_round, new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
-
         # all pass
         prompt = new_round.pending_call_prompt
         assert prompt is not None
+
         resolved_prompt = prompt.model_copy(
             update={"pending_seats": frozenset(), "responses": ()},
         )
@@ -184,7 +181,6 @@ class TestAllCallersPass:
         new_game = update_game_with_round(new_game, new_round)
 
         result = resolve_call_prompt(new_round, new_game)
-
         # turn should advance, prompt cleared
         assert result.new_round_state.pending_call_prompt is None
         assert result.new_round_state.current_player_seat != 0
@@ -280,7 +276,6 @@ class TestAllRonPassMeldWins:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].caller_seat == 2  # pon wins over chi
@@ -315,7 +310,6 @@ class TestDualEligibleSeatRonDominant:
         prompt = new_round.pending_call_prompt
         assert prompt is not None
         assert prompt.call_type == CallType.DISCARD
-
         # seat 1 should only be a ron caller (int), not meld caller
         seat1_callers = [c for c in prompt.callers if (isinstance(c, int) and c == 1)]
         seat1_melds = [c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == 1]
@@ -376,7 +370,6 @@ class TestDualEligibleSeatPassFuriten:
         game_state = create_game_state(round_state)
 
         result = handle_pass(round_state, game_state, seat=1)
-
         assert result.new_round_state.players[1].is_temporary_furiten is True
 
     def test_discard_claim__when_pass_on_meld_only_discard__should_not_apply_furiten(self):
@@ -404,7 +397,6 @@ class TestDualEligibleSeatPassFuriten:
         game_state = create_game_state(round_state)
 
         result = handle_pass(round_state, game_state, seat=2)
-
         assert result.new_round_state.players[2].is_temporary_furiten is False
 
 
@@ -451,12 +443,10 @@ class TestRiichiFinalizationAfterRonPass:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         # riichi should be finalized first
         riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
         assert len(riichi_events) == 1
         assert riichi_events[0].seat == 0
-
         # meld (pon) should execute - no DrawEvent, only MeldEvent
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
@@ -498,11 +488,9 @@ class TestFourRiichiAbortAfterRonPass:
         game_state = create_game_state(round_state)
 
         result = resolve_call_prompt(round_state, game_state)
-
         riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
         assert len(riichi_events) == 1
         assert riichi_events[0].seat == 0
-
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -542,7 +530,6 @@ class TestHandleRonOnDiscardPrompt:
         game_state = create_game_state(round_state)
 
         result = handle_ron(round_state, game_state, seat=1)
-
         # should record response and wait for seat 2
         assert result.new_round_state.pending_call_prompt is not None
         responses = result.new_round_state.pending_call_prompt.responses
@@ -582,7 +569,6 @@ class TestHandlePassThenResolve:
 
         # seat 2 passes (meld caller -> no furiten)
         result2 = handle_pass(result1.new_round_state, result1.new_game_state, seat=2)
-
         # should be resolved (turn advanced)
         assert result2.new_round_state.pending_call_prompt is None
         assert result2.new_round_state.current_player_seat != 0
@@ -616,7 +602,6 @@ class TestLastDiscardRestriction:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         # no call prompt should be created (no ron callers either in this scenario)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 0
@@ -648,7 +633,6 @@ class TestLastDiscardRestriction:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 0
 
@@ -677,7 +661,6 @@ class TestLastDiscardRestriction:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         # a call prompt should exist with only ron callers
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 1
@@ -718,9 +701,9 @@ class TestLastDiscardRestriction:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 1
+
         prompt = call_prompts[0]
         # ron caller (seat 1) should be present, meld caller (seat 2) should not
         ron_callers = [c for c in prompt.callers if isinstance(c, int)]

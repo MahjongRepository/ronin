@@ -48,7 +48,6 @@ class TestKyuushuKyuuhaiDrawPhase:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_draw_phase(round_state, game_state)
-
         draw_events = [e for e in events if isinstance(e, DrawEvent) and e.available_actions]
         assert len(draw_events) == 1
         available_actions = [a.action for a in draw_events[0].available_actions]
@@ -84,7 +83,6 @@ class TestRiichiFuriten:
         game_state = create_game_state(round_state)
 
         new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
-
         assert new_round.players[1].is_riichi_furiten is True
 
     def test_riichi_furiten__when_riichi_player_not_furiten__should_offer_ron_prompt(self):
@@ -113,7 +111,6 @@ class TestRiichiFuriten:
         game_state = create_game_state(round_state)
 
         new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
         assert len(call_prompts) == 1
         assert new_round.players[1].is_riichi_furiten is False
@@ -145,7 +142,6 @@ class TestChiOpportunity:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
         assert len(call_prompts) == 1
         chi_callers = [
@@ -177,7 +173,6 @@ class TestFindRonCallers:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
         assert len(call_prompts) == 1
         assert 1 in call_prompts[0].callers
@@ -204,7 +199,6 @@ class TestFindRonCallers:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
         assert len(call_prompts) == 1
         # ron callers (ints) come first, sorted by distance from discarder
@@ -327,7 +321,6 @@ class TestAddedKanChankan:
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
         _new_round, _new_game, events = process_meld_call(round_state, game_state, meld_input=meld_input)
-
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(call_prompts) == 1
 
@@ -389,7 +382,6 @@ class TestAbortiveDrawIntegration:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -420,7 +412,6 @@ class TestAbortiveDrawIntegration:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -452,7 +443,6 @@ class TestAbortiveDrawIntegration:
             discard_tile,
             is_riichi=True,
         )
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -480,7 +470,6 @@ class TestDoubleRonScenario:
 
         ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
         _new_round, _new_game, events = process_ron_call(round_state, game_state, ron_input=ron_input)
-
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
@@ -520,7 +509,6 @@ class TestAddedKanNormalPath:
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
         new_round, _new_game, _events = process_meld_call(round_state, game_state, meld_input=meld_input)
-
         assert any(m.type == FrozenMeld.SHOUMINKAN for m in new_round.players[0].melds)
 
 
@@ -534,7 +522,6 @@ class TestMaybeEmitDoraEvent:
         events = []
 
         _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
-
         assert events == []
 
     def test_dora_event__when_one_new_dora__should_emit_one_event(self):
@@ -546,7 +533,6 @@ class TestMaybeEmitDoraEvent:
         events = []
 
         _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
-
         assert len(events) == 1
         assert events[0].tile_id == dead_wall[3]
 
@@ -559,7 +545,6 @@ class TestMaybeEmitDoraEvent:
         events = []
 
         _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
-
         assert len(events) == 2
         assert events[0].tile_id == dead_wall[3]
         assert events[1].tile_id == dead_wall[4]

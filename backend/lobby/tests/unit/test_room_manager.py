@@ -24,7 +24,6 @@ class TestJoinRoom:
         assert result["player_name"] == "Alice"
         assert result["is_owner"] is True
         assert len(result["players"]) == 4  # always 4 seats
-
         room = mgr.get_room("room-1")
         assert room.seats[0] == "conn-1"
         assert room.seat_of("conn-1") == 0
@@ -36,7 +35,6 @@ class TestJoinRoom:
         result = mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         assert isinstance(result, dict)
         assert result["is_owner"] is False
-
         room = mgr.get_room("room-1")
         assert room.seats[1] == "conn-2"
 
@@ -49,7 +47,6 @@ class TestJoinRoom:
 
         mgr.leave_room("conn-1")  # frees seat 1
         mgr.join_room(connection_id="conn-3", room_id="room-1", user_id="u3", username="P3")
-
         room = mgr.get_room("room-1")
         assert room.seats[1] == "conn-3"  # filled the gap
 
@@ -109,7 +106,6 @@ class TestMinHumanPlayers:
         mgr.set_ready("conn-2", ready=True)
         mgr.join_room(connection_id="conn-3", room_id="room-1", user_id="user-3", username="Carol")
         mgr.set_ready("conn-3", ready=True)
-
         room = mgr.get_room("room-1")
         assert room.can_start is False
 
@@ -167,7 +163,6 @@ class TestLeaveRoom:
         mgr.create_room("room-1")
         mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
         mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
-
         room = mgr.get_room("room-1")
         assert room.host_connection_id == "conn-1"
 
@@ -256,6 +251,7 @@ class TestSetReady:
         mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         room = mgr.get_room("room-1")
         assert room is not None
+
         room.players.pop("conn-2")
         result = mgr.set_ready("conn-2", ready=True)
         assert result == "not_in_room"
@@ -269,7 +265,6 @@ class TestStartGame:
         # Owner alone with default min_human_players=1 — can_start is True
         result = mgr.start_game("conn-1")
         assert result is None
-
         room = mgr.get_room("room-1")
         assert room.transitioning is True
 
@@ -317,7 +312,6 @@ class TestStartGame:
 
         result = mgr.start_game("conn-1")
         assert result is None
-
         room = mgr.get_room("room-1")
         assert room.transitioning is True
         assert room.num_ai_players == 1  # 3 humans, 1 bot
@@ -339,7 +333,6 @@ class TestClearTransitioning:
         mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         mgr.set_ready("conn-2", ready=True)
         mgr.start_game("conn-1")
-
         room = mgr.get_room("room-1")
         assert room.transitioning is True
 
@@ -369,7 +362,6 @@ class TestGetRoomsInfo:
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
         mgr.create_room("room-2")
-
         room1 = mgr.get_room("room-1")
         assert room1 is not None
         room1.transitioning = True
@@ -402,7 +394,6 @@ class TestRoomReaper:
         mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
 
         await mgr._reap_expired_rooms()
-
         assert mgr.get_room("room-1") is None
         assert len(expired_rooms) == 1
         assert expired_rooms[0] == ("room-1", ["conn-1"])
@@ -414,7 +405,6 @@ class TestRoomReaper:
         room.transitioning = True
 
         await mgr._reap_expired_rooms()
-
         assert mgr.get_room("room-1") is not None
 
     @pytest.mark.asyncio
@@ -433,6 +423,7 @@ class TestRoomReaper:
         first_task = mgr._reaper_task
         mgr.start_reaper()
         assert mgr._reaper_task is first_task
+
         await mgr.stop_reaper()
 
     @pytest.mark.asyncio

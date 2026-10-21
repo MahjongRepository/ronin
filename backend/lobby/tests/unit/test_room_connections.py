@@ -56,7 +56,6 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-2", websocket=ws2)
 
         await mgr.broadcast(room_id="room-1", message={"type": "test"}, exclude="conn-1")
-
         ws1.send_text.assert_not_called()
         ws2.send_text.assert_called_once()
 
@@ -70,7 +69,6 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-2", websocket=ws2)
 
         await mgr.broadcast(room_id="room-1", message={"type": "test"})
-
         # ws2 should still receive the message despite ws1 failing
         ws2.send_text.assert_called_once()
 
@@ -87,7 +85,6 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
 
         sent = await mgr.send_to("conn-1", {"type": "hello"})
-
         assert sent is True
         ws.send_text.assert_called_once_with(json.dumps({"type": "hello"}))
 
@@ -103,7 +100,6 @@ class TestRoomConnectionManager:
         ws = _mock_ws()
         ws.send_text.side_effect = RuntimeError("closed")
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
-
         assert await mgr.send_to("conn-1", {"type": "test"}) is False
 
     @pytest.mark.asyncio
@@ -126,7 +122,6 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-2", websocket=ws2)
 
         await mgr.close_connections(room_id="room-1", code=4002, reason="expired")
-
         ws1.close.assert_called_once_with(code=4002, reason="expired")
         ws2.close.assert_called_once_with(code=4002, reason="expired")
         assert "room-1" not in mgr._connections
@@ -139,7 +134,6 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
 
         await mgr.close_connections(room_id="room-1")
-
         ws.close.assert_called_once()
         assert "room-1" not in mgr._connections
         assert mgr.remove("conn-1") is None

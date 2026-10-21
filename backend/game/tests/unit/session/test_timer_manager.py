@@ -87,11 +87,11 @@ class TestTimerManagerCancel:
             timer_manager.start_meld_timer("g1", seat)
 
         timer_manager.cancel_other_timers("g1", exclude_seat=1)
-
         # seat 1's timer should still be active, others cancelled
         assert timer_manager.get_timer("g1", 0)._active_task is None
         assert timer_manager.get_timer("g1", 1)._active_task is not None
         assert timer_manager.get_timer("g1", 2)._active_task is None
+
         timer_manager.get_timer("g1", 1).cancel()
 
     async def test_timer_manager__when_cancel_all__should_cancel_tasks_and_keep_game_registered(self, timer_manager):
@@ -100,7 +100,6 @@ class TestTimerManagerCancel:
         timer_manager.start_meld_timer("g1", 1)
 
         timer_manager.cancel_all("g1")
-
         # both timers cancelled but still registered
         assert timer_manager.has_game("g1")
         assert timer_manager.get_timer("g1", 0)._active_task is None
@@ -117,8 +116,8 @@ class TestTimerManagerBank:
         timer_manager.start_turn_timer("g1", 0)
         # consume_bank deducts elapsed time without cancelling
         timer_manager.consume_bank("g1", 0)
-
         assert timer._bank_seconds <= initial_bank
+
         timer.cancel()
 
     def test_timer_manager__when_round_bonus_added__should_increase_every_seats_bank(self, timer_manager):
@@ -129,7 +128,6 @@ class TestTimerManagerBank:
         initial1 = timer1._bank_seconds
 
         timer_manager.add_round_bonus("g1")
-
         assert timer0._bank_seconds > initial0
         assert timer1._bank_seconds > initial1
 
@@ -141,6 +139,7 @@ class TestTimerManagerStartTurn:
 
         timer_manager.start_turn_timer("g1", 0)
         assert timer._active_task is not None
+
         timer.cancel()
 
     async def test_timer_manager__when_turn_timer_expires__should_report_turn_timeout(self, timer_manager, timeout_log):
@@ -150,7 +149,6 @@ class TestTimerManagerStartTurn:
         timer_manager.start_turn_timer("g1", 0)
         # wait for the timer to fire
         await asyncio.sleep(0.1)
-
         assert len(timeout_log) == 1
         assert timeout_log[0] == ("g1", TimeoutType.TURN, 0)
 
@@ -162,6 +160,7 @@ class TestTimerManagerStartMeld:
 
         timer_manager.start_meld_timer("g1", 0)
         assert timer._active_task is not None
+
         timer.cancel()
 
     async def test_timer_manager__when_meld_timer_expires__should_report_meld_timeout(self, timer_manager, timeout_log):
@@ -173,7 +172,6 @@ class TestTimerManagerStartMeld:
 
         timer_manager.start_meld_timer("g1", 0)
         await asyncio.sleep(0.1)
-
         assert len(timeout_log) == 1
         assert timeout_log[0] == ("g1", TimeoutType.MELD, 0)
 
@@ -192,7 +190,6 @@ class TestTimerManagerStartRoundAdvance:
 
         timer_manager.create_timers(game_id="g1", seats=[0, 1])
         timer_manager.start_round_advance_timers(game)
-
         timer0 = timer_manager.get_timer("g1", 0)
         timer1 = timer_manager.get_timer("g1", 1)
         assert timer0._active_task is not None
@@ -200,6 +197,7 @@ class TestTimerManagerStartRoundAdvance:
         # fixed timer doesn't consume bank time
         assert timer0._turn_start_time is None
         assert timer1._turn_start_time is None
+
         timer0.cancel()
         timer1.cancel()
 
@@ -240,6 +238,5 @@ class TestTimerManagerStartRoundAdvance:
             lambda: timer_manager._on_timeout("g1", TimeoutType.ROUND_ADVANCE, 0),
         )
         await asyncio.sleep(0.1)
-
         assert len(timeout_log) == 1
         assert timeout_log[0] == ("g1", TimeoutType.ROUND_ADVANCE, 0)

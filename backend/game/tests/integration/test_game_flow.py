@@ -12,17 +12,14 @@ class TestGameCreationAndJoin:
 
     async def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
         events = await service.start_game("game1", ["Player"], seed="a" * 192)
-
         game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
-
         event = game_started_events[0]
         assert isinstance(event.data, GameStartedEvent)
         assert event.target == BroadcastTarget()
         assert event.data.game_id == "game1"
         assert event.data.dealer_seat in range(4)
         assert len(event.data.players) == 4
-
         for player in event.data.players:
             assert player.seat is not None
             assert player.name is not None
@@ -88,7 +85,6 @@ class TestUnifiedDiscardClaimIntegration:
                 action=GameAction.DISCARD,
                 data={"tile_id": tile_to_discard},
             )
-
             call_prompt_events = [e for e in events if e.event == EventType.CALL_PROMPT]
             for cp_event in call_prompt_events:
                 found_prompt = True

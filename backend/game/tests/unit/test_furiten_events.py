@@ -109,7 +109,6 @@ class TestFuritenEventsInGameFlow:
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
-
         assert game_state.round_state.current_player_seat == player.seat
 
         # Pretend the server previously told the client they were in furiten.
@@ -121,7 +120,6 @@ class TestFuritenEventsInGameFlow:
         events = await service.handle_action(
             game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
         )
-
         furiten_events = [e for e in events if e.event == EventType.FURITEN and isinstance(e.data, FuritenEvent)]
         assert len(furiten_events) == 1
         assert furiten_events[0].data.is_furiten is False
@@ -129,6 +127,5 @@ class TestFuritenEventsInGameFlow:
 
     async def test_furiten_events__when_game_starts__should_emit_none(self, service):
         events = await service.start_game("game1", ["Player"], seed="a" * 192)
-
         furiten_events = [e for e in events if e.event == EventType.FURITEN]
         assert len(furiten_events) == 0

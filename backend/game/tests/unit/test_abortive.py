@@ -71,7 +71,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         assert result is True
 
     def test_can_call_kyuushu_kyuuhai__when_8_terminal_honor_types__should_forbid(self):
@@ -80,7 +79,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         assert result is False
 
     def test_can_call_kyuushu_kyuuhai__when_other_player_discarded__should_forbid(self):
@@ -90,7 +88,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         assert result is False
 
     def test_can_call_kyuushu_kyuuhai__when_player_discarded__should_forbid(self):
@@ -100,7 +97,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         assert result is False
 
     def test_can_call_kyuushu_kyuuhai__when_meld_exists__should_forbid(self):
@@ -109,7 +105,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         assert result is False
 
     def test_can_call_kyuushu_kyuuhai__when_closed_kan_exists__should_forbid(self):
@@ -144,7 +139,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         assert result is False
 
     def test_can_call_kyuushu_kyuuhai__when_duplicate_terminals__should_count_each_type_once(self):
@@ -159,7 +153,6 @@ class TestCanCallKyuushuKyuuhai:
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
-
         # only 8 unique types, not enough
         assert result is False
 
@@ -181,7 +174,6 @@ class TestCallKyuushuKyuuhai:
         round_state = self._create_round_state()
 
         _new_round_state, result = call_kyuushu_kyuuhai(round_state)
-
         assert result.type == RoundResultType.ABORTIVE_DRAW
         assert result.reason == AbortiveDrawType.NINE_TERMINALS
 
@@ -189,7 +181,6 @@ class TestCallKyuushuKyuuhai:
         round_state = self._create_round_state(current_player_seat=2)
 
         _new_round_state, result = call_kyuushu_kyuuhai(round_state)
-
         assert result.seat == 2
 
 
@@ -210,14 +201,12 @@ class TestCheckFourRiichi:
         round_state = self._create_round_state(riichi_seats=(0, 1, 2, 3))
 
         result = check_four_riichi(round_state)
-
         assert result is True
 
     def test_check_four_riichi__when_three_players_in_riichi__should_not_abort(self):
         round_state = self._create_round_state(riichi_seats=(0, 1, 2))
 
         result = check_four_riichi(round_state)
-
         assert result is False
 
 
@@ -226,14 +215,12 @@ class TestCheckTripleRon:
         ron_callers = [0, 1, 2]
 
         result = check_triple_ron(ron_callers, 3)
-
         assert result is True
 
     def test_check_triple_ron__when_two_callers__should_not_abort(self):
         ron_callers = [1, 3]
 
         result = check_triple_ron(ron_callers, 3)
-
         assert result is False
 
 
@@ -269,7 +256,6 @@ class TestCheckFourKans:
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
-
         assert result is True
 
     def test_check_four_kans__when_four_kans_by_one_player__should_not_abort(self):
@@ -285,7 +271,6 @@ class TestCheckFourKans:
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
-
         assert result is False
 
     def test_check_four_kans__when_three_kans__should_not_abort(self):
@@ -298,7 +283,6 @@ class TestCheckFourKans:
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
-
         assert result is False
 
     def test_check_four_kans__when_one_is_shouminkan__should_count_it(self):
@@ -316,7 +300,6 @@ class TestCheckFourKans:
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
-
         assert result is True
 
 
@@ -345,7 +328,6 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is True
 
     def test_check_four_winds__when_mixed_winds__should_not_abort(self):
@@ -356,7 +338,6 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is False
 
     def test_check_four_winds__when_non_wind_tiles__should_not_abort(self):
@@ -367,7 +348,6 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is False
 
     def test_check_four_winds__when_four_dragons__should_not_abort(self):
@@ -377,7 +357,6 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is False
 
     def test_check_four_winds__when_fewer_than_4_discards__should_not_abort(self):
@@ -387,7 +366,6 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is False
 
     def test_check_four_winds__when_more_than_4_discards__should_not_abort(self):
@@ -400,7 +378,6 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is False
 
     def test_check_four_winds__when_open_meld_exists__should_not_abort(self):
@@ -411,5 +388,4 @@ class TestCheckFourWinds:
         settings = GameSettings()
 
         result = check_four_winds(round_state, settings)
-
         assert result is False

@@ -32,7 +32,6 @@ class TestLocalReplayStorage:
         storage = LocalReplayStorage(str(replay_dir))
 
         storage.save_replay("game_1234", "line1\nline2\n")
-
         assert replay_dir.is_dir()
         shard_dir = replay_dir / "ga" / "me"
         assert shard_dir.is_dir()
@@ -43,7 +42,6 @@ class TestLocalReplayStorage:
         content = '{"type":"discard","target":"all"}\n{"type":"draw","target":"all"}\n'
 
         storage.save_replay("game_abc_def", content)
-
         compressed_path = tmp_path / "ga" / "me" / "game_abc_def.txt.gz"
         assert compressed_path.exists()
         decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
@@ -54,7 +52,6 @@ class TestLocalReplayStorage:
 
         storage.save_replay("game_1234", "original content")
         storage.save_replay("game_1234", "updated content")
-
         compressed_path = tmp_path / "ga" / "me" / "game_1234.txt.gz"
         decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
         assert decompressed == "updated content"
@@ -64,6 +61,7 @@ class TestLocalReplayStorage:
 
         with pytest.raises(ValueError, match="Path traversal rejected"):
             storage.save_replay("../escape_now", "malicious")
+
         with pytest.raises(ValueError, match="Path traversal rejected"):
             storage.save_replay("../../etc/passwd", "malicious")
 
@@ -72,7 +70,6 @@ class TestLocalReplayStorage:
         content = '{"player":"プレイヤー","type":"win"}\n'
 
         storage.save_replay("game_unicode", content)
-
         compressed_path = tmp_path / "ga" / "me" / "game_unicode.txt.gz"
         decompressed = gzip.decompress(compressed_path.read_bytes()).decode("utf-8")
         assert decompressed == content
@@ -92,6 +89,7 @@ class TestLocalReplayStorageErrorHandling:
         # No target file or leftover temp files
         shard_dir = tmp_path / "ga" / "me"
         assert not (shard_dir / "game_fail.txt.gz").exists()
+
         remaining = list(shard_dir.glob(".replay_*.tmp"))
         assert remaining == []
         # fd was properly closed
@@ -109,6 +107,7 @@ class TestLocalReplayStorageErrorHandling:
 
         shard_dir = tmp_path / "ga" / "me"
         assert not (shard_dir / "game_fail.txt.gz").exists()
+
         remaining = list(shard_dir.glob(".replay_*.tmp"))
         assert remaining == []
 
@@ -142,7 +141,6 @@ class TestLocalReplayStoragePermissions:
         storage = LocalReplayStorage(str(replay_dir))
 
         storage.save_replay("game_1234", "content")
-
         level1 = replay_dir / "ga"
         level2 = level1 / "me"
         assert stat.S_IMODE(level1.stat().st_mode) == 0o700

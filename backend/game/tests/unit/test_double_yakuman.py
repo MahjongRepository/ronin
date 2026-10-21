@@ -48,7 +48,6 @@ class TestSuuankouTankiDoubleYakuman:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert result.han == 26
         assert result.cost_main == 32000  # dealer pays
@@ -72,7 +71,6 @@ class TestSuuankouTankiDoubleYakuman:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert result.han == 13
         assert result.cost_main == 16000
@@ -108,7 +106,6 @@ class TestDaisuushiiDoubleYakuman:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert result.han == 26
         assert result.cost_main == 64000  # non-dealer ron

@@ -22,6 +22,7 @@ async def create_started_game(
     num_players = NUM_PLAYERS - num_ai_players
     if player_names is None:
         player_names = [f"Player{i}" for i in range(num_players)]
+
     if len(player_names) != num_players:
         raise ValueError(f"Expected {num_players} player names, got {len(player_names)}")
 
@@ -99,7 +100,6 @@ async def disconnect_and_reconnect(
     new_conn = MockConnection()
     manager.register_connection(new_conn)
     await manager.reconnect(new_conn, game_id=game_id, session_token=token)
-
     reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
 

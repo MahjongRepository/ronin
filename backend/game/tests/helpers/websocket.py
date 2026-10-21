@@ -21,6 +21,7 @@ def create_pending_game(client, *, game_id: str, num_ai_players: int = 3) -> lis
         ticket = make_test_game_ticket(username=f"Player{i + 1}", room_id=game_id, user_id=f"user-{i}")
         players.append({"name": f"Player{i + 1}", "user_id": f"user-{i}", "game_ticket": ticket})
         tickets.append(ticket)
+
     response = client.post(
         "/games",
         json={"game_id": game_id, "players": players, "num_ai_players": num_ai_players},
@@ -37,4 +38,5 @@ def join_game_and_start(ws, ticket: str) -> list[dict]:
         messages.append(msg)
         if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
             break
+
     return messages

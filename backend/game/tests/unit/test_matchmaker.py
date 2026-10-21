@@ -7,7 +7,6 @@ from game.logic.matchmaker import fill_seats
 class TestFillSeats:
     def test_fill_seats__when_one_player__should_add_three_ai_players(self):
         configs = fill_seats(["Alice"])
-
         assert len(configs) == 4
         player_configs = [c for c in configs if c.ai_player_type is None]
         ai_player_configs = [c for c in configs if c.ai_player_type is not None]
@@ -17,7 +16,6 @@ class TestFillSeats:
 
     def test_fill_seats__when_one_player__should_name_ai_players_tsumogiri_n(self):
         configs = fill_seats(["Alice"])
-
         ai_player_configs = [c for c in configs if c.ai_player_type is not None]
         assert [c.name for c in ai_player_configs] == ["Tsumogiri 1", "Tsumogiri 2", "Tsumogiri 3"]
         assert all(c.ai_player_type == AIPlayerType.TSUMOGIRI for c in ai_player_configs)
@@ -34,7 +32,6 @@ class TestFillSeats:
     def test_fill_seats__when_same_seed__should_assign_same_seats(self):
         configs1 = fill_seats(["Alice"], seed="a" * 192)
         configs2 = fill_seats(["Alice"], seed="a" * 192)
-
         for c1, c2 in zip(configs1, configs2, strict=True):
             assert c1.name == c2.name
             assert c1.ai_player_type == c2.ai_player_type
@@ -45,7 +42,6 @@ class TestFillSeatsFourPlayers:
         names = ["Alice", "Bob", "Charlie", "Dave"]
 
         configs = fill_seats(names)
-
         assert len(configs) == 4
         assert all(c.ai_player_type is None for c in configs)
         assert {c.name for c in configs} == set(names)

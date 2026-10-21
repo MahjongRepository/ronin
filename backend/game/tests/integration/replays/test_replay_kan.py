@@ -77,38 +77,30 @@ async def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement
     )
 
     trace = await run_replay_async(replay)
-
     # Find the kan step
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_steps = [s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN]
     assert len(kan_steps) == 1
-
     kan_step = kan_steps[0]
     assert kan_step.input_event.player_name == "Alice"
-
     # Verify meld event was emitted
     step_event_types = [e.event for e in kan_step.emitted_events]
     assert EventType.MELD in step_event_types
-
     # After kan: Alice (seat 2) should have the upgraded meld
     alice_after_kan = kan_step.state_after.round_state.players[2]
     assert len(alice_after_kan.melds) == 1
     kan_meld = alice_after_kan.melds[0]
     assert kan_meld.type == "shouminkan"
     assert set(kan_meld.tiles) == set(EAST_WIND_TILES)
-
     # Tile 111 must NOT be in Alice's hand (it was used for kan)
     assert 111 not in alice_after_kan.tiles
-
     # Replacement tile 135 (from dead wall) must be in Alice's hand
     assert 135 in alice_after_kan.tiles
-
     # The discard step after kan must have succeeded
     discard_after_kan = non_synthetic_steps[-1]
     assert discard_after_kan.input_event.action == GameAction.DISCARD
     assert discard_after_kan.input_event.player_name == "Alice"
     assert discard_after_kan.input_event.data["tile_id"] == 135
-
     # State transitions must be consistent
     for i in range(len(trace.steps) - 1):
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before
@@ -126,9 +118,7 @@ async def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
 
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
-
     alice_after_kan = kan_step.state_after.round_state.players[2]
-
     # Hand should have 11 tiles (13 - 2 pon - 1 discard + 1 replacement draw)
     assert len(alice_after_kan.tiles) == 11
 
@@ -137,6 +127,7 @@ async def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
     for tile_id in alice_after_kan.tiles:
         t34 = tile_to_34(tile_id)
         tile_34_counts[t34] = tile_34_counts.get(t34, 0) + 1
+
     for t34, count in tile_34_counts.items():
         assert count <= 4, f"tile_34={t34} appears {count} times in hand"
 
@@ -155,28 +146,22 @@ async def test_added_kan__when_replayed__should_reveal_dora_after_replacement_di
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
     kan_step_idx = non_synthetic_steps.index(kan_step)
     discard_after_kan = non_synthetic_steps[kan_step_idx + 1]
-
     # Kan step: dora is deferred, so NO DoraRevealedEvent
     kan_dora_events = [e for e in kan_step.emitted_events if e.event == EventType.DORA_REVEALED]
     assert len(kan_dora_events) == 0, "added kan should not reveal dora immediately"
-
     # Kan step: pending_dora_count should be incremented
     assert kan_step.state_after.round_state.wall.pending_dora_count == 1
-
     # Discard step after kan: DoraRevealedEvent should be emitted
     discard_dora_events = [e for e in discard_after_kan.emitted_events if e.event == EventType.DORA_REVEALED]
     assert len(discard_dora_events) == 1, "dora should be revealed after replacement discard"
-
     # Verify the revealed dora indicator tile
     dora_event = discard_dora_events[0].data
     assert isinstance(dora_event, DoraRevealedEvent)
     assert dora_event.tile_id == SECOND_DORA_INDICATOR
-
     # After discard: dora_indicators should contain both the original and the kan dora
     round_state = discard_after_kan.state_after.round_state
     assert len(round_state.wall.dora_indicators) == 2
     assert round_state.wall.dora_indicators[0] == FIRST_DORA_INDICATOR
     assert round_state.wall.dora_indicators[1] == SECOND_DORA_INDICATOR
-
     # pending_dora_count should be back to 0
     assert round_state.wall.pending_dora_count == 0

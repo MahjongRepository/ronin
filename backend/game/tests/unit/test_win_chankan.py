@@ -231,7 +231,6 @@ class TestChankanWithOpenHand:
         # player 2 does added kan with 4s - player 1 is waiting on 4s
         kan_tile = TilesConverter.string_to_136_array(sou="4")[0]
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-
         # player 1 has yakuhai (haku pon), so chankan is valid
         assert 1 in chankan_seats
 
@@ -277,7 +276,6 @@ class TestChankanWithOpenHand:
         # player 2 does added kan with 5m - player 1 is waiting on 5m
         kan_tile = TilesConverter.string_to_136_array(man="5")[0]
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
-
         # chankan itself provides a yaku, so player 1 can call chankan
         assert 1 in chankan_seats
 

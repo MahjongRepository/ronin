@@ -75,6 +75,7 @@ class MockGameService(GameService):
         game_seats = self._player_seats.get(game_id)
         if game_seats is None:
             return None
+
         return game_seats.get(player_name)
 
     async def handle_action(
@@ -160,6 +161,7 @@ class MockGameService(GameService):
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
         if game_id not in self._seeds:
             return None
+
         all_names = self._all_player_names.get(game_id, [])
         players = [_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]
         game_type = self._game_types.get(game_id, GameType.HANCHAN)

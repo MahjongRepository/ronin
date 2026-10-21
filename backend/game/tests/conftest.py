@@ -82,6 +82,7 @@ def create_round_state(
 ) -> MahjongRoundState:
     if players is None:
         players = tuple(create_player(seat=i) for i in range(4))
+
     if wall_obj is not None:
         game_wall = wall_obj
     else:
@@ -93,6 +94,7 @@ def create_round_state(
             ura_dora_indicators=_extract_ura_dora(dead_wall_tuple),
             pending_dora_count=pending_dora_count,
         )
+
     return MahjongRoundState(
         players=tuple(players),
         wall=game_wall,
@@ -119,6 +121,7 @@ def create_game_state(
 ) -> MahjongGameState:
     if round_state is None:
         round_state = create_round_state()
+
     kwargs: dict[str, Any] = {
         "round_state": round_state,
         "round_number": round_number,
@@ -129,6 +132,7 @@ def create_game_state(
     }
     if settings is not None:
         kwargs["settings"] = settings
+
     return MahjongGameState(**kwargs)
 
 

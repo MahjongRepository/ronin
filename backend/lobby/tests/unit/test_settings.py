@@ -10,8 +10,10 @@ class TestLobbyServerSettings:
     def test_lobby_server_settings__when_deployment_values_unset__should_raise_for_each(self, monkeypatch):
         for name in ("LOBBY_ALLOWED_HOSTS", "LOBBY_CONFIG_PATH", "LOBBY_REPLAY_DIR", "LOBBY_WS_ALLOWED_ORIGIN"):
             monkeypatch.delenv(name)
+
         with pytest.raises(ValidationError) as exc_info:
             LobbyServerSettings()
+
         missing = {error["loc"][0] for error in exc_info.value.errors() if error["type"] == "missing"}
         assert missing == {"allowed_hosts", "config_path", "replay_dir", "ws_allowed_origin"}
 

@@ -14,25 +14,21 @@ STARTING_SCORE = 25000
 
 async def test_replay_runner__when_full_game_replayed__should_end_with_conserved_ordered_standings():
     replay = load_replay_from_file(FIXTURES_DIR / "full_game.txt")
-
     assert isinstance(replay.seed, str)
     assert len(replay.seed) == 192
     assert replay.rng_version == RNG_VERSION
     assert set(replay.player_names) == PLAYERS
 
     trace = await run_replay_async(replay)
-
     # --- Trace structure ---
     assert trace.seed == replay.seed
     assert trace.rng_version == RNG_VERSION
     assert len(trace.seat_by_player) == 4
-
     # --- Startup events ---
     startup_types = {e.event for e in trace.startup_events}
     assert EventType.GAME_STARTED in startup_types
     assert EventType.ROUND_STARTED in startup_types
     assert EventType.DRAW in startup_types
-
     # --- Initial state ---
     initial = trace.initial_state
     assert initial.game_phase == GamePhase.IN_PROGRESS
@@ -46,11 +42,9 @@ async def test_replay_runner__when_full_game_replayed__should_end_with_conserved
     # --- Multiple rounds played ---
     round_end_steps = [s for s in trace.steps if any(e.event == EventType.ROUND_END for e in s.emitted_events)]
     assert len(round_end_steps) == 12
-
     # --- Game ended ---
     final = trace.final_state
     assert final.game_phase == GamePhase.FINISHED
-
     # Game end event was emitted
     game_end_events = [
         e
@@ -60,24 +54,19 @@ async def test_replay_runner__when_full_game_replayed__should_end_with_conserved
     ]
     assert len(game_end_events) == 1
     game_end_data = game_end_events[0].data
-
     # --- Final standings ---
     assert len(game_end_data.standings) == 4
     raw_scores = [s.score for s in game_end_data.standings]
     assert sum(raw_scores) == STARTING_SCORE * 4  # scores conserved
-
     # Uma-adjusted scores sum to zero
     final_scores = [s.final_score for s in game_end_data.standings]
     assert sum(final_scores) == 0
-
     # Standings are ordered by score (1st to 4th)
     standing_scores = [s.final_score for s in game_end_data.standings]
     assert standing_scores == sorted(standing_scores, reverse=True)
-
     # --- State transition consistency ---
     assert trace.steps[0].state_before == trace.initial_state
     assert trace.steps[-1].state_after == trace.final_state
-
     for i in range(len(trace.steps) - 1):
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before
 

@@ -33,7 +33,6 @@ class TestEmitDeferredDoraEventsImmutable:
         initial_dora_count = len(round_state.wall.dora_indicators)
 
         new_state, events = emit_deferred_dora_events(round_state)
-
         assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
         assert new_state.wall.pending_dora_count == 0
         assert len(events) == 1
@@ -46,7 +45,6 @@ class TestEmitDeferredDoraEventsImmutable:
         round_state = _default_round_state(pending_dora_count=0)
 
         new_state, events = emit_deferred_dora_events(round_state)
-
         assert new_state.wall.dora_indicators == round_state.wall.dora_indicators
         assert len(events) == 0
 
@@ -55,7 +53,6 @@ class TestEmitDeferredDoraEventsImmutable:
         initial_dora_count = len(round_state.wall.dora_indicators)
 
         new_state, events = emit_deferred_dora_events(round_state)
-
         assert len(new_state.wall.dora_indicators) == initial_dora_count + 2
         assert new_state.wall.pending_dora_count == 0
         assert len(events) == 2

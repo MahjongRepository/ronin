@@ -67,7 +67,6 @@ class TestCalculateHandValue:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(0, 1), (27, 2), (120, 1), (121, 2)]
         assert (result.han, result.fu) == (6, 30)
@@ -84,7 +83,6 @@ class TestCalculateHandValue:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(0, 1), (1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
         assert result.han == 8
@@ -99,7 +97,6 @@ class TestCalculateHandValue:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
         assert result.han == 7
@@ -127,7 +124,6 @@ class TestCalculateHandValue:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile[0])
-
         assert result.error == "no_yaku"
 
     def test_calculate_hand_value__when_open_hand_ron_with_meld_tiles_outside_hand__should_score_yakuhai(self):
@@ -157,7 +153,6 @@ class TestCalculateHandValue:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(15, 1), (120, 1), (121, 2)]
         assert (result.han, result.fu, result.cost_main) == (4, 30, 12000)
@@ -184,7 +179,6 @@ class TestApplyTsumoScore:
             winner_seat=0,
             hand_result=hand_result,
         )
-
         # dealer (seat 0) gets 6000 total (2000 * 3)
         assert new_round_state.players[0].score == 25000 + 6000
         # each non-dealer pays 2000
@@ -203,7 +197,6 @@ class TestApplyTsumoScore:
             winner_seat=1,
             hand_result=hand_result,
         )
-
         # winner gets 2000 + 600 (300 * 2 honba, but per-loser so 100*2*3=600)
         assert new_round_state.players[1].score == 25000 + 2600
         # dealer pays 1000 + 200
@@ -223,7 +216,6 @@ class TestApplyTsumoScore:
             winner_seat=1,
             hand_result=hand_result,
         )
-
         # winner gets 2000 + 2000 (riichi sticks)
         assert new_round_state.players[1].score == 25000 + 4000
         # riichi sticks should be cleared
@@ -240,7 +232,6 @@ class TestApplyTsumoScore:
             winner_seat=0,
             hand_result=hand_result,
         )
-
         assert result.win_tile == 3
         assert result.win_tile not in result.closed_tiles
         assert result.closed_tiles == [0, 1, 2]
@@ -265,7 +256,6 @@ class TestApplyTsumoScore:
             winner_seat=0,
             hand_result=hand_result,
         )
-
         assert result.ura_dora_indicators == [dead_wall[7]]
 
 
@@ -293,7 +283,6 @@ class TestApplyRonScore:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         # winner gets 2000 + 900
         assert new_round_state.players[0].score == 25000 + 2900
         # loser pays 2000 + 900
@@ -312,7 +301,6 @@ class TestApplyRonScore:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         # winner gets 2000 + 3000
         assert new_round_state.players[0].score == 25000 + 5000
         # loser only pays 2000
@@ -343,7 +331,6 @@ class TestApplyRonScore:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         assert result.ura_dora_indicators == [dead_wall[7]]
 
 
@@ -371,7 +358,6 @@ class TestApplyDoubleRonScore:
             loser_seat=1,
             winning_tile=55,
         )
-
         # seat 0 wins 2000
         assert new_round_state.players[0].score == 25000 + 2000
         # seat 2 wins 4000
@@ -397,7 +383,6 @@ class TestApplyDoubleRonScore:
             loser_seat=1,
             winning_tile=0,
         )
-
         # each winner gets 2000 + 600 honba
         assert new_round_state.players[0].score == 25000 + 2600
         assert new_round_state.players[2].score == 25000 + 2600
@@ -420,7 +405,6 @@ class TestApplyDoubleRonScore:
             loser_seat=1,
             winning_tile=0,
         )
-
         # seat 2 is closer (loser_seat + 1 = seat 2)
         # seat 2 gets 2000 + 2000 riichi
         assert new_round_state.players[2].score == 25000 + 4000
@@ -428,7 +412,6 @@ class TestApplyDoubleRonScore:
         assert new_round_state.players[0].score == 25000 + 2000
         # riichi sticks cleared
         assert new_game_state.riichi_sticks == 0
-
         assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {0: 0, 2: 2}
 
     def test_apply_double_ron_score__when_loser_seat_3__should_award_sticks_to_seat_0(self):
@@ -447,7 +430,6 @@ class TestApplyDoubleRonScore:
             loser_seat=3,
             winning_tile=0,
         )
-
         # seat 0 is closer (loser_seat + 1 = seat 0)
         # seat 0 gets 2000 + 1000 riichi
         assert new_round_state.players[0].score == 25000 + 3000
@@ -478,7 +460,6 @@ class TestApplyDoubleRonScore:
             loser_seat=1,
             winning_tile=0,
         )
-
         assert {w.winner_seat: w.ura_dora_indicators for w in result.winners} == {0: [dead_wall[7]], 2: None}
 
     def test_apply_double_ron_score__when_no_winners__should_raise(self):
@@ -515,7 +496,6 @@ class TestApplyNagashiManganScore:
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
         )
-
         assert result.type == RoundResultType.NAGASHI_MANGAN
         assert result.qualifying_seats == [0]
         assert result.score_changes[0] == 12000
@@ -537,7 +517,6 @@ class TestApplyNagashiManganScore:
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
         )
-
         assert result.score_changes[1] == 8000
         assert result.score_changes[0] == -4000  # dealer pays 4000
         assert result.score_changes[2] == -2000  # non-dealer pays 2000
@@ -557,7 +536,6 @@ class TestApplyNagashiManganScore:
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
         )
-
         # seat 0 (dealer): +12000 from nagashi, -4000 paying seat 2 (dealer pays 4000)
         # seat 2 (non-dealer): +8000 from nagashi, -4000 paying seat 0 (pays dealer 4000)
         assert result.score_changes[0] == 12000 - 4000  # 8000
@@ -594,7 +572,6 @@ class TestPaoTsumoScoring:
             winner_seat=1,
             hand_result=hand_result,
         )
-
         # total would be: 16000 (from dealer) + 8000 + 8000 = 32000
         # pao player (seat 2) pays all 32000
         assert result.pao_seat == 2
@@ -616,7 +593,6 @@ class TestPaoTsumoScoring:
             winner_seat=0,
             hand_result=hand_result,
         )
-
         # total would be: 16000 * 3 = 48000
         assert result.pao_seat == 3
         assert new_round_state.players[0].score == 25000 + 48000
@@ -635,7 +611,6 @@ class TestPaoTsumoScoring:
             winner_seat=1,
             hand_result=hand_result,
         )
-
         # total tsumo: 32000 + 2000 riichi bonus
         assert new_round_state.players[1].score == 25000 + 34000
         assert new_round_state.players[2].score == 25000 - 32000
@@ -652,7 +627,6 @@ class TestPaoTsumoScoring:
             winner_seat=1,
             hand_result=hand_result,
         )
-
         # honba: 100 per loser * 2 sticks = 200 per loser, 600 total
         # total normal: 32000 + 600 honba = 32600
         assert new_round_state.players[1].score == 25000 + 32600
@@ -684,7 +658,6 @@ class TestPaoRonScoring:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         # 32000 split: loser pays 16000, pao pays 16000
         assert result.pao_seat == 2
         assert new_round_state.players[0].score == 25000 + 32000
@@ -706,7 +679,6 @@ class TestPaoRonScoring:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         # pao == loser: normal ron, loser pays full
         assert result.pao_seat == 1
         assert new_round_state.players[0].score == 25000 + 32000
@@ -727,7 +699,6 @@ class TestPaoRonScoring:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         # total: 32000 + 600 honba = 32600, split: 16300 each
         assert new_round_state.players[0].score == 25000 + 32600
         assert new_round_state.players[1].score == 25000 - 16300
@@ -746,7 +717,6 @@ class TestPaoRonScoring:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         # 32000 split: loser 16000, pao 16000; winner also gets 1000 riichi
         assert new_round_state.players[0].score == 25000 + 33000
         assert new_round_state.players[1].score == 25000 - 16000
@@ -778,7 +748,6 @@ class TestPaoRonScoreConservation:
             hand_result=hand_result,
             winning_tile=0,
         )
-
         assert sum(result.score_changes.values()) == 0
 
 
@@ -800,7 +769,6 @@ class TestChankanYakuScoring:
             is_chankan=True,
         )
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(1, 1), (4, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
         assert result.han == 8
@@ -834,7 +802,6 @@ class TestChankanYakuScoring:
             is_chankan=True,
         )
         result = calculate_hand_value(ctx, win_tile)
-
         # chankan provides the yaku, hand should succeed
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(4, 1), (120, 1), (121, 2)]
@@ -864,7 +831,6 @@ class TestChankanYakuScoring:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
-
         # without chankan flag, the open hand has no yaku
         assert result.error == "no_yaku"
 
@@ -881,7 +847,6 @@ class TestHandValueParityBetweenFunctions:
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result_a = calculate_hand_value(ctx, win_tile)
         result_b = calculate_hand_value_with_tiles(ctx, tiles=tiles, win_tile=win_tile)
-
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
         assert result_a.cost_main == result_b.cost_main
@@ -912,7 +877,6 @@ class TestHandValueParityBetweenFunctions:
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result_a = calculate_hand_value(ctx, win_tile[0])
         result_b = calculate_hand_value_with_tiles(ctx, tiles=list(all_tiles), win_tile=win_tile[0])
-
         assert result_a.error == result_b.error == "no_yaku"
 
 
@@ -1010,6 +974,5 @@ class TestUraDoraScoringIntegration:
         settings = GameSettings(has_akadora=False, has_kan_uradora=True)
         ctx = ScoringContext(player=player, round_state=game_state.round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert any(y.yaku_id == 122 and y.han == 3 for y in result.yaku)  # Ura Dora 3

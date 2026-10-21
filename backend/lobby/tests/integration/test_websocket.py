@@ -125,6 +125,7 @@ class TestRoomWebSocket:
             app.state.room_manager.join_room(
                 connection_id=f"prefill-{i}", room_id="full-room", user_id=f"user-{i}", username=f"P{i}"
             )
+
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             msg = ws.receive_json()
             assert msg["type"] == "error"
@@ -167,6 +168,7 @@ class TestRoomWebSocket:
             ws.receive_json()  # room_joined
             room = app.state.room_manager.get_room(room_id)
             assert room is not None
+
             room.transitioning = True
             ws.send_text(json.dumps({"type": "set_ready", "ready": True}))
             msg = ws.receive_json()
@@ -360,6 +362,7 @@ class TestMultiPlayerWebSocket:
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 ws_alice.receive_json()  # room_joined
                 ws_bob.receive_json()  # player_joined
+
             # Alice's WS closed (disconnect)
             msg = ws_bob.receive_json()
             assert msg["type"] == "player_left"
@@ -427,6 +430,7 @@ class TestGameTransition:
         async def failing_send_to(connection_id, message):
             if isinstance(message, dict) and message.get("type") == "game_starting":
                 return False
+
             return await original_send_to(connection_id, message)
 
         with (
@@ -471,6 +475,7 @@ class TestGameTransition:
                 assert resync["type"] == "player_ready_changed"
                 assert "players" in resync
                 assert "can_start" in resync
+
                 msg = ws.receive_json()  # error
                 assert msg["type"] == "error"
                 assert "Failed to start game" in msg["message"]
@@ -500,6 +505,7 @@ class TestGameTransition:
                 assert resync["type"] == "player_ready_changed"
                 assert "players" in resync
                 assert "can_start" in resync
+
                 msg = ws.receive_json()  # error
                 assert msg["type"] == "error"
                 assert "Failed to start game" in msg["message"]
@@ -517,6 +523,7 @@ class TestGameTransition:
             assert resync["type"] == "player_ready_changed"
             assert "players" in resync
             assert "can_start" in resync
+
             msg = ws.receive_json()  # error
             assert msg["type"] == "error"
             assert "Failed to start game" in msg["message"]

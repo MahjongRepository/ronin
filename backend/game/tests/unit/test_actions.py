@@ -37,7 +37,6 @@ class TestGetAvailableActions:
         round_state = game_state.round_state
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
         assert len(discard_actions) == 0
 
@@ -52,7 +51,6 @@ class TestGetAvailableActions:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 1
         assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
@@ -69,7 +67,6 @@ class TestGetAvailableActions:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         # no kan should be available since wall is empty
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 0
@@ -81,7 +78,6 @@ class TestGetAvailableActions:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         assert len(actions) == 0
 
 
@@ -116,7 +112,6 @@ class TestAddedKanAction:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(round_state, game_state, seat=0)
-
         added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]
         assert len(added_kan_actions) == 1
         assert added_kan_actions[0].tiles == [_string_to_34_tile(man="1")]

@@ -15,5 +15,6 @@ class TestAuthSettings:
         monkeypatch.delenv("AUTH_DATABASE_PATH")
         with pytest.raises(ValidationError) as exc_info:
             AuthSettings()
+
         missing = {error["loc"][0] for error in exc_info.value.errors() if error["type"] == "missing"}
         assert missing == {"game_ticket_secret", "database_path"}

@@ -170,7 +170,6 @@ class TestGetWaitingTiles:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
-
         assert 11 in waiting  # 3p
         assert 14 in waiting  # 6p
 
@@ -180,7 +179,6 @@ class TestGetWaitingTiles:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
-
         assert 4 in waiting  # 5m
 
     def test_waiting_tiles__when_all_four_copies_held__should_exclude_tile(self):
@@ -188,7 +186,6 @@ class TestGetWaitingTiles:
         player = MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
-
         assert waiting == {23, 26}
 
     def test_waiting_tiles__when_chiitoitsu_tempai__should_list_wait(self):
@@ -197,7 +194,6 @@ class TestGetWaitingTiles:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
-
         assert 24 in waiting  # 7s
 
     def test_waiting_tiles__when_open_pon_tiles_removed_from_hand__should_list_waits(self):
@@ -217,7 +213,6 @@ class TestGetWaitingTiles:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
 
         waiting = get_waiting_tiles(player)
-
         assert 18 in waiting  # 1s
         assert 21 in waiting  # 4s
 

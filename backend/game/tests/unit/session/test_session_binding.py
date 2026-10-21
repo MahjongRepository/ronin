@@ -11,7 +11,6 @@ class TestSeatBindingOnStart:
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
-
         session1 = manager._session_store._sessions.get(player1.session_token)
         session2 = manager._session_store._sessions.get(player2.session_token)
         assert session1 is not None
@@ -28,7 +27,6 @@ class TestSessionDisconnect:
         token1 = player1.session_token
 
         await manager.leave_game(conns[0])
-
         session = manager._session_store._sessions.get(token1)
         assert session is not None
         assert session.disconnected_at is not None
@@ -43,7 +41,6 @@ class TestSessionDisconnect:
         manager._games.pop("game1", None)
 
         await manager.leave_game(conns[0])
-
         session = manager._session_store._sessions.get(token)
         assert session is None
 
@@ -60,7 +57,6 @@ class TestSessionCleanup:
         # both leave, triggering cleanup
         await manager.leave_game(conns[0])
         await manager.leave_game(conns[1])
-
         assert manager._session_store._sessions.get(token1) is None
         assert manager._session_store._sessions.get(token2) is None
         assert manager.get_game("game1") is None
@@ -89,7 +85,6 @@ class TestInvalidActionSessionTracking:
 
         error = InvalidGameActionError(seat=0, action="discard", reason="test error")
         await manager._handle_invalid_action(game_obj, conn, player=player, error=error)
-
         session_after = manager._session_store._sessions.get(session.session_token)
         assert session_after is not None
         assert session_after.disconnected_at is not None

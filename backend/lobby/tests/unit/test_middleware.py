@@ -66,49 +66,43 @@ def security_client() -> TestClient:
 
 
 class TestSlashNormalizationMiddleware:
-    def test_slash_normalization_middleware__when_trailing_slash__should_strip_it(
-        self, slash_client: TestClient
-    ) -> None:
+    def test_slash_normalization_middleware__when_trailing_slash__should_strip_it(self, slash_client: TestClient):
         response = slash_client.get("/items/")
         assert response.status_code == 200
         assert response.json() == {"path": "/items"}
 
     def test_slash_normalization_middleware__when_no_trailing_slash__should_leave_path_unchanged(
         self, slash_client: TestClient
-    ) -> None:
+    ):
         response = slash_client.get("/items")
         assert response.status_code == 200
         assert response.json() == {"path": "/items"}
 
-    def test_slash_normalization_middleware__when_root_path__should_keep_it(self, slash_client: TestClient) -> None:
+    def test_slash_normalization_middleware__when_root_path__should_keep_it(self, slash_client: TestClient):
         response = slash_client.get("/")
         # Root doesn't match /items, so 404 is expected — but path should stay "/"
         assert response.status_code == 404
 
 
 class TestSecurityHeadersMiddleware:
-    def test_security_headers_middleware__when_success__should_add_headers(self, security_client: TestClient) -> None:
+    def test_security_headers_middleware__when_success__should_add_headers(self, security_client: TestClient):
         response = security_client.get("/items")
         assert response.status_code == 200
         for name, value in SECURITY_HEADERS:
             assert response.headers[name.decode()] == value.decode()
 
-    def test_security_headers_middleware__when_404__should_add_headers(self, security_client: TestClient) -> None:
+    def test_security_headers_middleware__when_404__should_add_headers(self, security_client: TestClient):
         response = security_client.get("/nonexistent")
         assert response.status_code == 404
         for name, value in SECURITY_HEADERS:
             assert response.headers[name.decode()] == value.decode()
 
-    def test_security_headers_middleware__when_websocket__should_pass_through(
-        self, security_client: TestClient
-    ) -> None:
+    def test_security_headers_middleware__when_websocket__should_pass_through(self, security_client: TestClient):
         with security_client.websocket_connect("/ws") as ws:
             ws.send_text("hello")
             assert ws.receive_text() == "hello"
 
-    def test_security_headers_middleware__when_game_route__should_allow_self_scripts(
-        self, security_client: TestClient
-    ) -> None:
+    def test_security_headers_middleware__when_game_route__should_allow_self_scripts(self, security_client: TestClient):
         response = security_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
@@ -116,35 +110,33 @@ class TestSecurityHeadersMiddleware:
 
     def test_security_headers_middleware__when_game_route__should_allow_websocket_connect(
         self, security_client: TestClient
-    ) -> None:
+    ):
         response = security_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "connect-src 'self' ws: wss:" in csp
 
     def test_security_headers_middleware__when_game_assets_route__should_allow_self_scripts(
         self, security_client: TestClient
-    ) -> None:
+    ):
         response = security_client.get("/game-assets/test.js")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
 
     def test_security_headers_middleware__when_lobby_route__should_allow_self_scripts(
         self, security_client: TestClient
-    ) -> None:
+    ):
         response = security_client.get("/items")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
 
-    def test_security_headers_middleware__when_room_route__should_match_lobby_csp(
-        self, security_client: TestClient
-    ) -> None:
+    def test_security_headers_middleware__when_room_route__should_match_lobby_csp(self, security_client: TestClient):
         lobby_csp = security_client.get("/items").headers["content-security-policy"]
         room_csp = security_client.get("/rooms/test-room").headers["content-security-policy"]
         assert lobby_csp == room_csp
 
     def test_security_headers_middleware__when_game_route_trailing_slash__should_allow_self_scripts(
         self, security_client: TestClient
-    ) -> None:
+    ):
         response = security_client.get("/play/test-game/")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
@@ -158,7 +150,7 @@ class TestSecurityHeadersMiddlewareViteDev:
 
     def test_security_headers_middleware__when_vite_dev_on_lobby__should_allow_vite_scripts(
         self, vite_client: TestClient
-    ) -> None:
+    ):
         response = vite_client.get("/items")
         csp = response.headers["content-security-policy"]
         assert "http://localhost:5173" in csp
@@ -166,40 +158,40 @@ class TestSecurityHeadersMiddlewareViteDev:
 
     def test_security_headers_middleware__when_vite_dev_on_lobby__should_allow_vite_websocket(
         self, vite_client: TestClient
-    ) -> None:
+    ):
         response = vite_client.get("/items")
         csp = response.headers["content-security-policy"]
         assert "ws://localhost:5173" in csp
 
     def test_security_headers_middleware__when_vite_dev_on_lobby__should_allow_vite_styles(
         self, vite_client: TestClient
-    ) -> None:
+    ):
         response = vite_client.get("/items")
         csp = response.headers["content-security-policy"]
         assert "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://localhost:5173" in csp
 
     def test_security_headers_middleware__when_vite_dev_on_lobby__should_allow_vite_images(
         self, vite_client: TestClient
-    ) -> None:
+    ):
         response = vite_client.get("/items")
         csp = response.headers["content-security-policy"]
         assert "img-src 'self' http://localhost:5173" in csp
 
     def test_security_headers_middleware__when_vite_dev_on_game__should_allow_vite_scripts(
         self, vite_client: TestClient
-    ) -> None:
+    ):
         response = vite_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "http://localhost:5173" in csp
 
     def test_security_headers_middleware__when_vite_dev_on_game__should_allow_vite_websocket(
         self, vite_client: TestClient
-    ) -> None:
+    ):
         response = vite_client.get("/play/test-game")
         csp = response.headers["content-security-policy"]
         assert "ws://localhost:5173" in csp
 
-    def test_security_headers_middleware__when_vite_dev_url_https__should_use_wss(self) -> None:
+    def test_security_headers_middleware__when_vite_dev_url_https__should_use_wss(self):
         client = TestClient(_make_security_headers_app(vite_dev_url="https://localhost:5173"))
         response = client.get("/items")
         csp = response.headers["content-security-policy"]
@@ -230,7 +222,7 @@ _SCRIPT_SELF_TEMPLATES = ["base.html", "play.html", "room.html"]
 
 class TestCSPCompliance:
     @pytest.mark.parametrize("template_name", _SCRIPT_SELF_TEMPLATES)
-    def test_csp_templates__should_contain_no_inline_scripts(self, template_name: str) -> None:
+    def test_csp_templates__should_contain_no_inline_scripts(self, template_name: str):
         content = (_TEMPLATES_DIR / template_name).read_text()
         matches = _INLINE_SCRIPT_RE.findall(content)
         assert matches == [], (
@@ -238,7 +230,7 @@ class TestCSPCompliance:
         )
 
     @pytest.mark.parametrize("template_name", _SCRIPT_SELF_TEMPLATES)
-    def test_csp_templates__should_contain_no_inline_event_handlers(self, template_name: str) -> None:
+    def test_csp_templates__should_contain_no_inline_event_handlers(self, template_name: str):
         content = (_TEMPLATES_DIR / template_name).read_text()
         matches = _INLINE_HANDLER_RE.findall(content)
         assert matches == [], (
@@ -253,17 +245,17 @@ def _make_trusted_host_app(allowed_hosts: list[str]) -> Starlette:
 
 
 class TestTrustedHostMiddleware:
-    def test_trusted_host_middleware__when_host_allowed__should_pass(self) -> None:
+    def test_trusted_host_middleware__when_host_allowed__should_pass(self):
         client = TestClient(_make_trusted_host_app(["testserver"]))
         response = client.get("/items")
         assert response.status_code == 200
 
-    def test_trusted_host_middleware__when_host_disallowed__should_return_400(self) -> None:
+    def test_trusted_host_middleware__when_host_disallowed__should_return_400(self):
         client = TestClient(_make_trusted_host_app(["example.com"]))
         response = client.get("/items")
         assert response.status_code == 400
 
-    def test_trusted_host_middleware__when_host_matches_wildcard__should_pass(self) -> None:
+    def test_trusted_host_middleware__when_host_matches_wildcard__should_pass(self):
         client = TestClient(
             _make_trusted_host_app(["*.local"]),
             headers={"host": "myapp.local"},
@@ -271,7 +263,7 @@ class TestTrustedHostMiddleware:
         response = client.get("/items")
         assert response.status_code == 200
 
-    def test_trusted_host_middleware__when_host_misses_wildcard__should_return_400(self) -> None:
+    def test_trusted_host_middleware__when_host_misses_wildcard__should_return_400(self):
         client = TestClient(
             _make_trusted_host_app(["*.local"]),
         )

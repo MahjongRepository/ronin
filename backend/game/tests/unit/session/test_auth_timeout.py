@@ -32,16 +32,13 @@ class TestAuthTimeout:
     async def test_auth_timeout__when_connection_unregistered__should_cancel_timeout(self, manager):
         conn = MockConnection()
         manager.register_connection(conn)
-
         assert conn.connection_id in manager._auth_timeouts
 
         manager.unregister_connection(conn)
-
         assert conn.connection_id not in manager._auth_timeouts
 
     async def test_auth_timeout__when_player_joins_game__should_cancel_timeout(self, manager):
         conns = await create_started_game(manager)
-
         for conn in conns:
             assert conn.connection_id not in manager._auth_timeouts
 
@@ -50,14 +47,12 @@ class TestAuthTimeout:
         conn2 = MockConnection()
         manager.register_connection(conn1)
         manager.register_connection(conn2)
-
         assert len(manager._auth_timeouts) == 2
 
         manager.cancel_all_auth_timeouts()
-
         assert len(manager._auth_timeouts) == 0
-        await asyncio.sleep(0.01)
 
+        await asyncio.sleep(0.01)
         assert not conn1.is_closed
         assert not conn2.is_closed
 

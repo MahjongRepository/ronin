@@ -85,7 +85,6 @@ class TestPickBestMeldResponse:
         ]
 
         best = pick_best_meld_response(responses, prompt)
-
         # pon has higher priority (1) than chi (2)
         assert best is not None
         assert best.seat == 1
@@ -130,7 +129,6 @@ class TestResolveMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         # open kan resolves successfully; the player gets a turn to discard
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.PLAYING
@@ -187,7 +185,6 @@ class TestResolveMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         # four kans abort: round is FINISHED
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
@@ -268,7 +265,6 @@ class TestCompleteAddedKanAfterChankanDecline:
             caller_seat=0,
             tile_id=fourth_tile,
         )
-
         # verify abortive draw for four kans
         assert new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
@@ -302,7 +298,6 @@ class TestHandlePonMultiCaller:
 
         # seat 1 calls pon
         result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
-
         # verify empty events (waiting for seat 2)
         assert isinstance(result, ActionResult)
         assert len(result.events) == 0
@@ -343,7 +338,6 @@ class TestHandleChiMultiCaller:
             seat=1,
             data=ChiActionData(tile_id=tile_id, sequence_tiles=sequence_tiles),
         )
-
         assert len(result.events) == 0
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
@@ -378,7 +372,6 @@ class TestHandleKanMultiCaller:
             seat=1,
             data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
-
         assert len(result.events) == 0
         assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
         assert 2 in result.new_round_state.pending_call_prompt.pending_seats
@@ -409,7 +402,6 @@ class TestHandleChiTileMismatch:
             seat=1,
             data=ChiActionData(tile_id=wrong_tile_id, sequence_tiles=(1, 2)),
         )
-
         # verify error event
         assert isinstance(result, ActionResult)
         error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
@@ -480,7 +472,6 @@ class TestHandleKanCausesDraw:
             seat=0,
             data=KanActionData(tile_id=fourth_kan_tiles[0], kan_type=KanType.CLOSED),
         )
-
         # verify round ends with four kans abortive draw
         assert result.new_round_state is not None
         assert result.new_round_state.phase == RoundPhase.FINISHED
@@ -525,7 +516,6 @@ class TestHandleKanChankanOpportunity:
             seat=0,
             data=KanActionData(tile_id=fourth_tile, kan_type=KanType.ADDED),
         )
-
         # verify chankan prompt is created (handle_kan returns early at line 727)
         assert result.new_round_state is not None
         call_prompt_events = [e for e in result.events if isinstance(e, CallPromptEvent)]
@@ -616,6 +606,5 @@ class TestChankanRiechiFuritenOnPass:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = handle_pass(round_state, game_state, seat=1)
-
         assert result.new_round_state is not None
         assert result.new_round_state.players[1].is_riichi_furiten is True

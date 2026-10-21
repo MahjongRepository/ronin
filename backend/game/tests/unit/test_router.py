@@ -42,7 +42,6 @@ class TestMessageRouterBranches:
                 "game_ticket": ticket,
             },
         )
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
@@ -58,7 +57,6 @@ class TestMessageRouterBranches:
                 "game_ticket": "invalid-ticket-string",
             },
         )
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
@@ -78,7 +76,6 @@ class TestMessageRouterBranches:
                 "game_ticket": ticket,
             },
         )
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
@@ -89,14 +86,12 @@ class TestMessageRouterBranches:
         router, connection, _ = setup
 
         await router.handle_disconnect(connection)
-
         assert len(connection.sent_messages) == 0
 
     async def test_message_router__when_message_invalid__should_return_invalid_message_error(self, setup):
         router, connection, _ = setup
 
         await router.handle_message(connection, {"t": "invalid"})
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
@@ -112,7 +107,6 @@ class TestMessageRouterBranches:
                 "text": "Hello!",
             },
         )
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
@@ -122,7 +116,6 @@ class TestMessageRouterBranches:
         router, connection, _ = setup
 
         await router.handle_message(connection, {"t": WireClientMessageType.PING})
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.PONG
@@ -148,7 +141,6 @@ class TestMessageRouterBranches:
                 "ti": 0,
             },
         )
-
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
@@ -176,5 +168,4 @@ class TestMessageRouterBranches:
                 "ti": 0,
             },
         )
-
         assert connection.is_closed

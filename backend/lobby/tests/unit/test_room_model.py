@@ -50,7 +50,6 @@ class TestSeatArray:
         room.seats = ["conn-0", "conn-1", "conn-2", None]
 
         room.seats[1] = None
-
         assert room.seats == ["conn-0", None, "conn-2", None]
         assert room.seat_of("conn-0") == 0
         assert room.seat_of("conn-2") == 2
@@ -153,6 +152,7 @@ class TestCanStart:
                 user_id=f"u{i}",
                 username=f"P{i}",
             )
+
         room.players["conn-2"].ready = True
         room.players["conn-3"].ready = False
         assert room.can_start is False
@@ -191,23 +191,19 @@ class TestGetPlayerInfo:
 
         info = room.get_player_info()
         assert len(info) == 4
-
         # Seat 0: owner (Alice), always shown as ready
         assert info[0].name == "Alice"
         assert info[0].is_bot is False
         assert info[0].is_owner is True
         assert info[0].ready is True
-
         # Seat 1: bot
         assert info[1].name == f"{BOT_NAME_PREFIX} 2"
         assert info[1].is_bot is True
-
         # Seat 2: human (Bob), ready
         assert info[2].name == "Bob"
         assert info[2].is_bot is False
         assert info[2].is_owner is False
         assert info[2].ready is True
-
         # Seat 3: bot
         assert info[3].name == f"{BOT_NAME_PREFIX} 4"
         assert info[3].is_bot is True

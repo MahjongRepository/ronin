@@ -18,7 +18,6 @@ class TestPaoCustomThresholds:
 
         settings = GameSettings(daisangen_pao_set_threshold=2)
         result = _check_pao(player, discarder_seat=2, called_tile_34=hatsu_34, settings=settings)
-
         assert result == 2
 
     def test_pao__when_second_dragon_called_with_default_threshold__should_not_assign_pao(self):
@@ -30,7 +29,6 @@ class TestPaoCustomThresholds:
         hatsu_34 = tile_to_34(hatsu_tile)
 
         result = _check_pao(player, discarder_seat=2, called_tile_34=hatsu_34, settings=GameSettings())
-
         assert result is None
 
     def test_pao__when_daisuushii_threshold_is_3_and_third_wind_called__should_assign_pao(self):
@@ -47,7 +45,6 @@ class TestPaoCustomThresholds:
 
         settings = GameSettings(daisuushii_pao_set_threshold=3)
         result = _check_pao(player, discarder_seat=1, called_tile_34=west_34, settings=settings)
-
         assert result == 1
 
     def test_pao__when_third_wind_called_with_default_threshold__should_not_assign_pao(self):
@@ -63,7 +60,6 @@ class TestPaoCustomThresholds:
         west_34 = tile_to_34(west_tile)
 
         result = _check_pao(player, discarder_seat=1, called_tile_34=west_34, settings=GameSettings())
-
         assert result is None
 
 
@@ -83,7 +79,6 @@ class TestNoSuukantsuPao:
         man4_34 = tile_to_34(man4_tile)
 
         result = _check_pao(player, discarder_seat=1, called_tile_34=man4_34, settings=GameSettings())
-
         assert result is None
 
 
@@ -103,7 +98,6 @@ class TestClosedKanCountsInPaoThreshold:
         chun_34 = tile_to_34(chun_tile)
 
         result = _check_pao(player, discarder_seat=3, called_tile_34=chun_34, settings=GameSettings())
-
         assert result == 3
 
     def test_pao__when_shouminkan_and_fourth_wind_called__should_count_kan_and_assign_pao(self):
@@ -121,7 +115,6 @@ class TestClosedKanCountsInPaoThreshold:
         north_34 = tile_to_34(north_tile)
 
         result = _check_pao(player, discarder_seat=2, called_tile_34=north_34, settings=GameSettings())
-
         assert result == 2
 
 
@@ -149,7 +142,6 @@ class TestPaoIntegrationWithCallPon:
             tile_id=chun_discarded,
             settings=GameSettings(),
         )
-
         assert new_state.players[0].pao_seat == 1
 
     def test_pao__when_pon_is_below_threshold__should_not_set_pao(self):
@@ -171,5 +163,4 @@ class TestPaoIntegrationWithCallPon:
             tile_id=hatsu_discarded,
             settings=GameSettings(),
         )
-
         assert new_state.players[0].pao_seat is None

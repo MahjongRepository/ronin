@@ -78,7 +78,6 @@ def test_load_replay__when_discard_event__should_produce_discard_action_for_seat
     )
     content = _build_event_log(ROUND_STARTED_LINE, DRAW_LINE, discard)
     replay = load_replay_from_string(content)
-
     assert replay.seed == _TEST_SEED
     # player_names is in reconstructed input order (for fill_seats), not seat order
     assert set(replay.player_names) == {"Alice", "Bob", "Charlie", "Diana"}
@@ -97,7 +96,6 @@ def test_load_replay__when_discard_has_riichi_flag__should_produce_declare_riich
     )
     content = _build_event_log(discard)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.DECLARE_RIICHI
@@ -109,7 +107,6 @@ def test_load_replay__when_pon_meld__should_produce_call_pon_action():
     meld = _compact_meld(meld_type="pon", caller_seat=2, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
     assert replay.events[0].action == GameAction.CALL_PON
@@ -120,7 +117,6 @@ def test_load_replay__when_chi_meld__should_produce_call_chi_action_with_sequenc
     meld = _compact_meld(meld_type="chi", caller_seat=1, from_seat=0, tile_ids=[20, 24, 28], called_tile_id=20)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.CALL_CHI
@@ -131,7 +127,6 @@ def test_load_replay__when_open_kan_meld__should_produce_open_call_kan_action():
     meld = _compact_meld(meld_type="open_kan", caller_seat=3, from_seat=0, tile_ids=[0, 1, 2, 3], called_tile_id=2)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Diana"
     assert replay.events[0].action == GameAction.CALL_KAN
@@ -144,7 +139,6 @@ def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_actio
     )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.CALL_KAN
@@ -155,7 +149,6 @@ def test_load_replay__when_added_kan_meld__should_produce_added_call_kan_action(
     meld = _compact_meld(meld_type="added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
     assert replay.events[0].action == GameAction.CALL_KAN
@@ -173,7 +166,6 @@ def test_load_replay__when_round_ends_in_tsumo__should_produce_declare_tsumo_act
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
     assert replay.events[0].action == GameAction.DECLARE_TSUMO
@@ -190,7 +182,6 @@ def test_load_replay__when_round_ends_in_ron__should_produce_call_ron_action():
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
     assert replay.events[0].action == GameAction.CALL_RON
@@ -210,7 +201,6 @@ def test_load_replay__when_round_ends_in_double_ron__should_produce_call_ron_for
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 2
     assert replay.events[0].player_name == "Diana"
     assert replay.events[0].action == GameAction.CALL_RON
@@ -229,7 +219,6 @@ def test_load_replay__when_round_ends_in_nine_terminals__should_produce_call_kyu
     )
     content = _build_event_log(round_end)
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
     assert replay.events[0].action == GameAction.CALL_KYUUSHU
@@ -257,7 +246,6 @@ def test_load_replay__when_events_are_not_player_actions__should_skip_them():
         json.dumps({"t": EVENT_TYPE_INT[EventType.GAME_END], "result": {}}),
     )
     replay = load_replay_from_string(content)
-
     assert len(replay.events) == 0
 
 

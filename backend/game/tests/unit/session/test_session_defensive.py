@@ -19,7 +19,6 @@ class TestSessionManagerDefensiveChecks:
         manager.register_connection(conn)
 
         await manager.handle_game_action(conn, action=GameAction.DISCARD, data={})
-
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -80,7 +79,6 @@ class TestSessionManagerDefensiveChecks:
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
         # Verify pending game exists and has a timeout task
         pending = manager._pending_games.get("game1")
         assert pending is not None
@@ -120,11 +118,9 @@ class TestSessionManagerDefensiveChecks:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token=ticket)
-
         # game.started should be rolled back to False
         game = manager.get_game("game1")
         assert game is not None
         assert game.started is False
-
         # no lock or heartbeat resources should be allocated
         assert "game1" not in manager._game_locks

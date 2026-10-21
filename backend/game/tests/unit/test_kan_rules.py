@@ -77,6 +77,7 @@ def _make_round_state(
     )
     if is_after_meld_call:
         rs = rs.model_copy(update={"is_after_meld_call": True})
+
     return rs
 
 
@@ -467,7 +468,6 @@ class TestKokushiChankanOnAnkan:
         game_state = create_game_state(round_state)
 
         new_rs, _new_gs, events = _process_closed_kan_call(round_state, game_state, caller_seat=0, tile_id=man_1m[0])
-
         # should create a chankan prompt, not execute the kan
         chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(chankan_events) == 1
@@ -483,7 +483,6 @@ class TestKokushiChankanOnAnkan:
         game_state = create_game_state(round_state)
 
         new_rs, _new_gs, events = _process_closed_kan_call(round_state, game_state, caller_seat=0, tile_id=man_1m[0])
-
         # should execute the kan (MeldEvent, not CallPromptEvent)
         meld_events = [e for e in events if isinstance(e, MeldEvent) and e.meld_type == MeldViewType.CLOSED_KAN]
         assert len(meld_events) == 1
@@ -567,11 +566,9 @@ class TestChankanPreservation:
         game_state = create_game_state(round_state)
 
         new_rs, _new_gs, events = _process_added_kan_call(round_state, game_state, caller_seat=0, tile_id=pin_3[3])
-
         # chankan prompt should be created (not executing the kan)
         chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(chankan_events) == 1
-
         # ippatsu should be preserved (kan not executed yet)
         assert new_rs.players[1].is_ippatsu is True
 
@@ -614,7 +611,6 @@ class TestChankanPreservation:
 
         initial_dora_count = len(round_state.wall.dora_indicators)
         new_rs, _new_gs, _events = _process_added_kan_call(round_state, game_state, caller_seat=0, tile_id=pin_3[3])
-
         # dora should not be revealed (kan not executed yet)
         assert len(new_rs.wall.dora_indicators) == initial_dora_count
         assert new_rs.wall.pending_dora_count == 0
@@ -663,7 +659,6 @@ class TestResolveChankanDeclineClosedKan:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         assert result.new_round_state is not None
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
@@ -707,7 +702,6 @@ class TestResolveChankanDeclineClosedKan:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         # should trigger four kans abort
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1

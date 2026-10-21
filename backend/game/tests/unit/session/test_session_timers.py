@@ -43,7 +43,6 @@ class TestSessionManagerTimers:
         conns[0]._outbox.clear()
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-
         timeout_msgs = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(timeout_msgs) == 1
 
@@ -59,7 +58,6 @@ class TestSessionManagerTimers:
         manager._games.pop("game1", None)
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
 
@@ -71,7 +69,6 @@ class TestSessionManagerTimers:
         conns[0]._outbox.clear()
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
 
@@ -95,9 +92,9 @@ class TestSessionManagerTimerIntegration:
         )
 
         await manager._maybe_start_timer(game, [draw_event])
-
         # timer should have an active task (turn timer started)
         assert timer._active_task is not None
+
         timer.cancel()
 
     async def test_maybe_start_timer__when_pon_meld_event__should_start_turn_timer(self, manager):
@@ -119,9 +116,9 @@ class TestSessionManagerTimerIntegration:
         )
 
         await manager._maybe_start_timer(game, [meld_event])
-
         # timer should have an active task (turn timer started from pon meld)
         assert timer._active_task is not None
+
         timer.cancel()
 
     async def test_maybe_start_timer__when_call_prompt_event__should_start_meld_timer(self, manager):
@@ -144,9 +141,9 @@ class TestSessionManagerTimerIntegration:
         )
 
         await manager._maybe_start_timer(game, [call_event])
-
         # timer should have an active task (meld timer started)
         assert timer._active_task is not None
+
         timer.cancel()
 
     async def test_maybe_start_timer__when_round_started_event__should_add_round_bonus_to_bank(self, manager):
@@ -193,11 +190,11 @@ class TestSessionManagerTimerIntegration:
         )
 
         await manager._maybe_start_timer(game, [round_end_event])
-
         # timer should have an active task (round advance timer started)
         assert timer._active_task is not None
         # fixed timer doesn't consume bank time
         assert timer._turn_start_time is None
+
         timer.cancel()
 
     async def test_maybe_start_timer__when_game_end_event__should_not_start_timer(self, manager):
@@ -219,7 +216,6 @@ class TestSessionManagerTimerIntegration:
         )
 
         await manager._maybe_start_timer(game, [game_end_event])
-
         # timer task should not be started (game ended)
         assert timer._active_task is None
 
@@ -290,7 +286,6 @@ class TestPerPlayerTimers:
 
     async def test_per_player_timers__when_four_humans_start_game__should_create_timer_per_seat(self, manager):
         await create_started_game(manager, num_ai_players=0, player_names=["P0", "P1", "P2", "P3"])
-
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
             assert timer is not None
@@ -354,10 +349,10 @@ class TestPerPlayerTimers:
         ]
 
         await manager._maybe_start_timer(game, call_events)
-
         # both timers should have active tasks (meld timer started for each)
         assert timer0._active_task is not None
         assert timer1._active_task is not None
+
         timer0.cancel()
         timer1.cancel()
 
@@ -399,7 +394,6 @@ class TestPerPlayerTimers:
         # player at seat 0 acts (handle_game_action)
         conn1._outbox.clear()
         await manager.handle_game_action(conn1, action=GameAction.DISCARD, data={})
-
         # seat 0's timer should be stopped (bank time deducted), seat 1's cancelled
         assert timer1._active_task is None
 
@@ -444,8 +438,8 @@ class TestPerPlayerTimers:
         manager._game_service.handle_action = AsyncMock(return_value=[])
         conn1._outbox.clear()
         await manager.handle_game_action(conn1, action=GameAction.PASS, data={})
-
         # seat 0's timer should be stopped, seat 1's timer should still be running
         assert timer0._active_task is None
         assert timer1._active_task is not None
+
         timer1.cancel()

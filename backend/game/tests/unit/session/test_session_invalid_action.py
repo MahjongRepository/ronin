@@ -20,7 +20,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
         assert conns[0]._close_reason == "invalid_game_action"
@@ -39,7 +38,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         assert len(replace_calls) == 1
         assert replace_calls[0] == ("game1", "Alice")
 
@@ -49,7 +47,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         left_msgs = [m for m in conns[1].sent_messages if m.get("type") == SessionMessageType.PLAYER_LEFT]
         assert len(left_msgs) == 1
         assert left_msgs[0]["player_name"] == "Alice"
@@ -61,7 +58,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         # game should be cleaned up
         assert manager.get_game("game1") is None
 
@@ -101,7 +97,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         # Bob should receive the AI player action event
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
@@ -119,11 +114,9 @@ class TestSessionManagerInvalidAction:
 
         # Alice (seat 0) sends the action that triggers the error
         await manager.handle_game_action(conns[0], action=GameAction.PASS, data={})
-
         # Bob (seat 1, the offender) should be disconnected
         assert conns[1].is_closed
         assert conns[1]._close_code == 1008
-
         # Alice (seat 0, innocent) should NOT be disconnected
         assert not conns[0].is_closed
 
@@ -143,7 +136,6 @@ class TestSessionManagerInvalidAction:
         )
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         # original offender (seat 0) should still be disconnected
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
@@ -167,7 +159,6 @@ class TestSessionManagerInvalidAction:
 
         # simulate the WebSocket disconnect handler calling leave_game
         await manager.leave_game(conns[0])
-
         # no additional replacement should have happened
         assert len(replace_calls) == 0
 
@@ -179,7 +170,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = AsyncMock(side_effect=error)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         # neither player should be disconnected (offending seat is an AI player)
         assert not conns[0].is_closed
         assert not conns[1].is_closed
@@ -194,11 +184,9 @@ class TestTimeoutInvalidActionHandling:
         manager._game_service.handle_timeout = AsyncMock(side_effect=error)
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-
         # offender (seat 0) should be disconnected
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
-
         # innocent player (seat 1) should NOT be disconnected
         assert not conns[1].is_closed
 
@@ -221,11 +209,9 @@ class TestTimeoutInvalidActionHandling:
         )
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-
         # original offender (seat 0) should still be disconnected
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
-
         # innocent player (seat 1) should NOT be disconnected
         assert not conns[1].is_closed
 
@@ -236,6 +222,5 @@ class TestTimeoutInvalidActionHandling:
         manager._game_service.handle_timeout = AsyncMock(side_effect=error)
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-
         assert conns[0].is_closed
         assert manager.get_game("game1") is None

@@ -109,6 +109,7 @@ class TestWebSocketIntegration:
             for _ in range(3):
                 ws.send_bytes(b"\xff\xff\xff")
                 recv_ws(ws)  # drain INVALID_MESSAGE error
+
             # Server closed the connection after 3 decode errors
             with pytest.raises(WebSocketDisconnect):
                 ws.receive_bytes()
@@ -292,6 +293,7 @@ class TestCreateGameEndpoint:
                 },
             )
             assert resp.status_code == 201
+
         ticket = make_test_game_ticket(username="Poverflow", room_id="overflow", user_id="u-overflow")
         response = client.post(
             "/games",

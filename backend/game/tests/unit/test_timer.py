@@ -27,7 +27,6 @@ class TestTurnTimerTurnTimer:
         timer.start_turn_timer(_noop)
         await asyncio.sleep(0.1)
         timer.stop()
-
         # bank should be reduced by approximately 0.1 seconds
         assert timer._bank_seconds < 10.0
         assert timer._bank_seconds > 9.0
@@ -67,7 +66,6 @@ class TestTurnTimerMeldTimer:
         timer.start_meld_timer(_noop)
         await asyncio.sleep(0.05)
         timer.cancel()
-
         # bank time should not change for meld timers
         assert timer._bank_seconds == 10.0
 

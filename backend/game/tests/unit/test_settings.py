@@ -20,6 +20,7 @@ class TestBuildOptionalRules:
     def test_build_optional_rules__when_kazoe_yakuman_toggled__should_map_kazoe_limit(self):
         rules = build_optional_rules(GameSettings(has_kazoe_yakuman=True))
         assert rules.kazoe_limit == HandConfig.KAZOE_LIMITED
+
         rules = build_optional_rules(GameSettings(has_kazoe_yakuman=False))
         assert rules.kazoe_limit == HandConfig.KAZOE_SANBAIMAN
 

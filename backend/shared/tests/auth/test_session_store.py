@@ -14,7 +14,6 @@ class TestCreateSession:
     def test_session_store_create_session__when_called__should_set_fields_and_future_expiry(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="user-1", username="alice")
-
         assert session.user_id == "user-1"
         assert session.username == "alice"
         assert session.session_id
@@ -23,19 +22,16 @@ class TestCreateSession:
     def test_session_store_create_session__when_no_account_type__should_default_to_human(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="user-1", username="alice")
-
         assert session.account_type == AccountType.HUMAN
 
     def test_session_store_create_session__when_bot__should_store_bot_account_type(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
-
         assert session.account_type == AccountType.BOT
 
     def test_session_store_create_session__when_bot_session_fetched__should_keep_account_type(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
-
         result = store.get_session(session.session_id)
         assert result is not None
         assert result.account_type == AccountType.BOT
@@ -45,7 +41,6 @@ class TestGetSession:
     def test_session_store_get_session__when_valid__should_return_session(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="u1", username="alice")
-
         result = store.get_session(session.session_id)
         assert result is not None
         assert result.user_id == "u1"
@@ -120,8 +115,8 @@ class TestCleanupLifecycle:
 
         store.start_cleanup()
         task2 = store._cleanup_task
-
         assert task1 is task2
+
         await store.stop_cleanup()
 
     async def test_session_store_cleanup__when_stopped_without_start__should_not_raise(self):

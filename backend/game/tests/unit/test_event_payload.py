@@ -44,9 +44,9 @@ class TestServiceEventPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert set(payload.keys()) == {"t", "d"}
+
         seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
         assert seat == 0
         assert tile_id == 10
@@ -60,9 +60,9 @@ class TestServiceEventPayload:
             target=SeatTarget(seat=1),
         )
         payload = service_event_payload(event)
-
         assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
         assert set(payload.keys()) == {"t", "d"}
+
         seat, tile_id = decode_draw(payload["d"])
         assert seat == 1
         assert tile_id == 42
@@ -79,7 +79,6 @@ class TestServiceEventPayload:
             target=SeatTarget(seat=0),
         )
         payload = service_event_payload(event)
-
         assert "aa" in payload
         assert len(payload["aa"]) == 1
         assert payload["aa"][0] == {"a": WirePlayerAction.DISCARD, "tl": [10]}
@@ -96,7 +95,6 @@ class TestServiceEventPayload:
             target=SeatTarget(seat=0),
         )
         payload = service_event_payload(event)
-
         assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
         assert "tl" not in payload["aa"][0]
 
@@ -110,7 +108,6 @@ class TestShapeCallPromptPayload:
             "clr": [0],
         }
         result = shape_call_prompt_payload(payload)
-
         assert "clr" not in result
         assert result == {
             "clt": WireCallType.RON,
@@ -127,7 +124,6 @@ class TestShapeCallPromptPayload:
             "clr": [0],
         }
         result = shape_call_prompt_payload(payload)
-
         assert result == payload
         assert result["clr"] == [0]
 
@@ -142,7 +138,6 @@ class TestShapeCallPromptPayload:
             ],
         }
         result = shape_call_prompt_payload(payload)
-
         assert "clr" not in result
         assert result["cs"] == 0
         assert result["ac"] == [
@@ -165,7 +160,6 @@ class TestMeldEventPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["t"] == EVENT_TYPE_MELD
         assert "m" in payload
         assert set(payload.keys()) == {"t", "m"}
@@ -202,7 +196,6 @@ class TestRoundEndPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert "result" not in payload
         assert payload["rt"] == WireRoundResultType.TSUMO
         assert "ps" not in payload
@@ -231,7 +224,6 @@ class TestRoundEndPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["ps"] == 2
         assert payload["ud"] == [10]
 
@@ -266,7 +258,6 @@ class TestRoundEndPayload:
             target=BroadcastTarget(),
         )
         payload = service_event_payload(event)
-
         assert payload["rt"] == WireRoundResultType.DOUBLE_RON
         for winner in payload["wn"]:
             assert "ps" not in winner

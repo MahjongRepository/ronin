@@ -53,7 +53,6 @@ class TestDrawTileImmutable:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         new_state, drawn = draw_tile(round_state)
-
         assert new_state.players[0].tiles[-1] == drawn
 
     def test_draw_tile__when_wall_is_empty__should_return_none(self):
@@ -61,7 +60,6 @@ class TestDrawTileImmutable:
         round_state = round_state.model_copy(update={"wall": Wall()})
 
         result_state, drawn = draw_tile(round_state)
-
         assert drawn is None
         assert result_state is round_state
 
@@ -89,7 +87,6 @@ class TestDrawFromDeadWallImmutable:
         round_state = self._create_round_state()
 
         new_state, _drawn = draw_from_dead_wall(round_state)
-
         # dead wall should stay at 14 (one popped, one replenished from live wall)
         assert len(new_state.wall.dead_wall_tiles) == DEAD_WALL_SIZE
         # original state unchanged
@@ -100,7 +97,6 @@ class TestDrawFromDeadWallImmutable:
         last_tile = round_state.wall.dead_wall_tiles[-1]
 
         _new_state, drawn = draw_from_dead_wall(round_state)
-
         assert drawn == last_tile
 
     def test_draw_from_dead_wall__when_drawing__should_add_tile_to_current_player_hand(self):
@@ -109,7 +105,6 @@ class TestDrawFromDeadWallImmutable:
         initial_hand_len = len(round_state.players[1].tiles)
 
         new_state, drawn = draw_from_dead_wall(round_state)
-
         assert len(new_state.players[1].tiles) == initial_hand_len + 1
         assert drawn in new_state.players[1].tiles
         # original state unchanged
@@ -120,7 +115,6 @@ class TestDrawFromDeadWallImmutable:
         assert round_state.players[0].is_rinshan is False
 
         new_state, _drawn = draw_from_dead_wall(round_state)
-
         assert new_state.players[0].is_rinshan is True
         # original state unchanged
         assert round_state.players[0].is_rinshan is False
@@ -131,7 +125,6 @@ class TestDrawFromDeadWallImmutable:
         last_wall_tile = round_state.wall.live_tiles[-1]
 
         new_state, _drawn = draw_from_dead_wall(round_state)
-
         # live wall loses one tile (moved to dead wall)
         assert len(new_state.wall.live_tiles) == initial_wall_len - 1
         # replenish tile is appended at the end of dead wall
@@ -198,7 +191,6 @@ class TestDiscardTileImmutable:
         last_tile = round_state.players[0].tiles[-1]
 
         _new_state, result = discard_tile(round_state, seat=0, tile_id=last_tile)
-
         assert result.is_tsumogiri is True
 
     def test_discard_tile__when_discarding_other_tile__should_not_mark_tsumogiri(self):
@@ -207,7 +199,6 @@ class TestDiscardTileImmutable:
         first_tile = round_state.players[0].tiles[0]
 
         _new_state, result = discard_tile(round_state, seat=0, tile_id=first_tile)
-
         assert result.is_tsumogiri is False
 
     def test_discard_tile__when_riichi_declared__should_mark_riichi_discard(self):
@@ -215,7 +206,6 @@ class TestDiscardTileImmutable:
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
 
         _new_state, result = discard_tile(round_state, seat=0, tile_id=man_6, is_riichi=True)
-
         assert result.is_riichi_discard is True
 
     def test_discard_tile__when_players_have_ippatsu__should_clear_only_discarders_ippatsu(self):
@@ -228,7 +218,6 @@ class TestDiscardTileImmutable:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         new_state, _discard = discard_tile(round_state, seat=0, tile_id=man_6)
-
         # discarding player's ippatsu is cleared
         assert new_state.players[0].is_ippatsu is False
         # other players' ippatsu is preserved (only cleared on meld calls)
@@ -245,7 +234,6 @@ class TestDiscardTileImmutable:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         new_state, _discard = discard_tile(round_state, seat=0, tile_id=man_6)
-
         assert new_state.players[0].is_rinshan is False
         # original state unchanged
         assert round_state.players[0].is_rinshan is True
@@ -272,7 +260,6 @@ class TestDiscardTileImmutable:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         _new_state, result = discard_tile(round_state, seat=0, tile_id=man_6)
-
         assert result.tile_id == man_6
 
     def test_discard_tile__when_kuikae_restriction_active__should_clear_it_after_discard(self):
@@ -284,7 +271,6 @@ class TestDiscardTileImmutable:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         new_state, _discard = discard_tile(round_state, seat=0, tile_id=man_6)
-
         assert new_state.players[0].kuikae_tiles == ()
         # original state unchanged
         assert round_state.players[0].kuikae_tiles == kuikae

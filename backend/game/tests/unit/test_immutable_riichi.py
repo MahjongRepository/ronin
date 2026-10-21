@@ -59,7 +59,6 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is True
         # original state unchanged
         assert round_state.players[0].is_daburi is False
@@ -80,7 +79,6 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is False
 
     def test_declare_riichi__when_open_meld_exists__should_not_set_daburi(self):
@@ -96,7 +94,6 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is False
 
     def test_declare_riichi__when_other_player_has_closed_kan__should_not_set_daburi(self):
@@ -118,7 +115,6 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=settings,
         )
-
         assert new_round_state.players[0].is_daburi is False
 
     def test_declare_riichi__should_set_ippatsu_only_for_declarer(self):
@@ -133,7 +129,6 @@ class TestDeclareRiichiDaburi:
             seat=0,
             settings=GameSettings(),
         )
-
         assert new_round_state.players[0].is_ippatsu is True
         # other players not affected
         for i in range(1, 4):

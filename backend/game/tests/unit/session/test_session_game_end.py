@@ -47,7 +47,6 @@ class TestSessionManagerGameEnd:
 
         events = [self._make_game_end_event()]
         await manager._close_connections_on_game_end(game, events)
-
         assert conn.is_closed is True
         assert conn._close_code == 1000
         assert conn._close_reason == "game_ended"
@@ -68,7 +67,6 @@ class TestSessionManagerGameEnd:
             target=BroadcastTarget(),
         )
         await manager._close_connections_on_game_end(game, [generic_event])
-
         assert conn.is_closed is False
 
     async def test_game_end__when_game_end_event_with_two_players__should_close_both(self, manager):
@@ -80,7 +78,6 @@ class TestSessionManagerGameEnd:
 
         events = [self._make_game_end_event()]
         await manager._close_connections_on_game_end(game, events)
-
         assert conn1.is_closed is True
         assert conn2.is_closed is True
 
@@ -90,7 +87,6 @@ class TestSessionManagerCloseGameOnError:
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.close_game_on_error(conns[0])
-
         assert conns[0].is_closed
         assert conns[1].is_closed
         assert conns[0]._close_code == 1011
@@ -102,7 +98,6 @@ class TestSessionManagerCloseGameOnError:
 
         # should not raise
         await manager.close_game_on_error(conn)
-
         assert not conn.is_closed
 
     async def test_close_game_on_error__when_game_mapping_missing__should_keep_connection_open(self, manager):
@@ -113,7 +108,6 @@ class TestSessionManagerCloseGameOnError:
 
         # should return without error
         await manager.close_game_on_error(conns[0])
-
         # connection should NOT be closed (game is gone)
         assert not conns[0].is_closed
 
@@ -123,7 +117,6 @@ class TestSessionManagerCloseGameOnError:
             num_ai_players=0,
             player_names=["P0", "P1", "P2", "P3"],
         )
-
         assert "game:game1" in manager._heartbeat._tasks
         heartbeat_task = manager._heartbeat._tasks.get("game:game1")
 
@@ -142,7 +135,6 @@ class TestGameEndFromAction:
         manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         assert conns[0].is_closed
         assert conns[0]._close_code == 1000
         assert conns[0]._close_reason == "game_ended"
@@ -160,7 +152,6 @@ class TestGameEndFromAction:
         manager._game_service.handle_action = AsyncMock(side_effect=error)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-
         # Offender closed with 1008 (invalid action)
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
@@ -177,7 +168,6 @@ class TestGameEndFromTimeout:
         manager._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-
         assert conns[0].is_closed
         assert conns[0]._close_code == 1000
         assert conns[0]._close_reason == "game_ended"
@@ -195,7 +185,6 @@ class TestGameEndFromTimeout:
         manager._game_service.handle_timeout = AsyncMock(side_effect=error)
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-
         # Offender closed with 1008
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
@@ -213,7 +202,6 @@ class TestGameEndFromLeaveGame:
         )
 
         await manager.leave_game(conns[0])
-
         # Bob's connection should be closed with game_ended
         assert conns[1].is_closed
         assert conns[1]._close_code == 1000

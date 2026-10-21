@@ -15,7 +15,7 @@ class TestRoundTrip:
     def all_fixtures(self) -> list:
         return build_all_fixtures()
 
-    def test_game_event_codec__when_all_fixtures_encoded__should_round_trip(self, all_fixtures: list) -> None:
+    def test_game_event_codec__when_all_fixtures_encoded__should_round_trip(self, all_fixtures: list):
         for i, original in enumerate(all_fixtures):
             decoded = decode_game_event(encode_game_event(original))
             assert sorted(original["tile_ids"]) == sorted(decoded["tile_ids"]), f"[{i}] tile_ids"
@@ -26,7 +26,7 @@ class TestRoundTrip:
 
 
 class TestChiEncoding:
-    def test_encode_meld_compact__when_chi_copies_differ__should_produce_different_integers(self) -> None:
+    def test_encode_meld_compact__when_chi_copies_differ__should_produce_different_integers(self):
         wire1 = {
             "type": "meld",
             "meld_type": "chi",
@@ -45,7 +45,7 @@ class TestChiEncoding:
         }
         assert encode_meld_compact(wire1) != encode_meld_compact(wire2)
 
-    def test_encode_meld_compact__when_chi_called_position_differs__should_produce_different_integers(self) -> None:
+    def test_encode_meld_compact__when_chi_called_position_differs__should_produce_different_integers(self):
         base = {
             "type": "meld",
             "meld_type": "chi",
@@ -59,7 +59,7 @@ class TestChiEncoding:
             results.append(encode_meld_compact(wire))
         assert len(set(results)) == 3
 
-    def test_game_event_codec__when_chi_tile_ids_unsorted__should_round_trip(self) -> None:
+    def test_game_event_codec__when_chi_tile_ids_unsorted__should_round_trip(self):
         wire = {
             "type": "meld",
             "meld_type": "chi",
@@ -77,7 +77,7 @@ class TestChiEncoding:
 
 
 class TestPonEncoding:
-    def test_encode_meld_compact__when_pon_missing_copy_differs__should_produce_different_integers(self) -> None:
+    def test_encode_meld_compact__when_pon_missing_copy_differs__should_produce_different_integers(self):
         wire1 = {
             "type": "meld",
             "meld_type": "pon",
@@ -96,7 +96,7 @@ class TestPonEncoding:
         }
         assert encode_meld_compact(wire1) != encode_meld_compact(wire2)
 
-    def test_encode_meld_compact__when_pon_from_seat_differs__should_produce_different_integers(self) -> None:
+    def test_encode_meld_compact__when_pon_from_seat_differs__should_produce_different_integers(self):
         results = []
         for frm in [1, 2, 3]:
             wire = {
@@ -110,7 +110,7 @@ class TestPonEncoding:
             results.append(encode_meld_compact(wire))
         assert len(set(results)) == 3
 
-    def test_game_event_codec__when_pon_tile_ids_unsorted__should_round_trip(self) -> None:
+    def test_game_event_codec__when_pon_tile_ids_unsorted__should_round_trip(self):
         wire = {
             "type": "meld",
             "meld_type": "pon",
@@ -128,7 +128,7 @@ class TestPonEncoding:
 
 
 class TestShouminkanEncoding:
-    def test_encode_meld_compact__when_added_kan_called_copy_differs__should_produce_different_integers(self) -> None:
+    def test_encode_meld_compact__when_added_kan_called_copy_differs__should_produce_different_integers(self):
         results = []
         for called_copy in range(4):
             wire = {
@@ -144,7 +144,7 @@ class TestShouminkanEncoding:
 
 
 class TestDaiminkanEncoding:
-    def test_encode_meld_compact__when_open_kan_from_seat_differs__should_produce_different_integers(self) -> None:
+    def test_encode_meld_compact__when_open_kan_from_seat_differs__should_produce_different_integers(self):
         results = []
         for frm in [1, 2, 3]:
             wire = {
@@ -160,7 +160,7 @@ class TestDaiminkanEncoding:
 
 
 class TestGameEvent:
-    def test_encode_game_event__when_meld__should_produce_t_and_m_keys(self) -> None:
+    def test_encode_game_event__when_meld__should_produce_t_and_m_keys(self):
         wire = {
             "type": "meld",
             "meld_type": "chi",
@@ -173,23 +173,23 @@ class TestGameEvent:
         assert event["t"] == EVENT_TYPE_MELD
         assert isinstance(event["m"], int)
 
-    def test_decode_game_event__when_integer_out_of_range__should_raise(self) -> None:
+    def test_decode_game_event__when_integer_out_of_range__should_raise(self):
         with pytest.raises(ValueError, match="out of range"):
             decode_game_event({"t": 0, "m": 999999})
 
-    def test_decode_game_event__when_event_type_unsupported__should_raise(self) -> None:
+    def test_decode_game_event__when_event_type_unsupported__should_raise(self):
         with pytest.raises(ValueError, match="Unsupported event type"):
             decode_game_event({"t": 99, "m": 0})
 
-    def test_decode_game_event__when_payload_not_integer__should_raise(self) -> None:
+    def test_decode_game_event__when_payload_not_integer__should_raise(self):
         with pytest.raises(TypeError, match="Expected integer payload"):
             decode_game_event({"t": 0, "m": "bad"})
 
-    def test_decode_game_event__when_payload_is_bool__should_raise(self) -> None:
+    def test_decode_game_event__when_payload_is_bool__should_raise(self):
         with pytest.raises(TypeError, match="Expected integer payload"):
             decode_game_event({"t": 0, "m": True})
 
-    def test_encode_game_event__when_meld_type_unknown__should_raise(self) -> None:
+    def test_encode_game_event__when_meld_type_unknown__should_raise(self):
         wire = {
             "type": "meld",
             "meld_type": "unknown_type",
@@ -200,7 +200,7 @@ class TestGameEvent:
 
 
 class TestSeatValidation:
-    def test_encode_game_event__when_from_seat_equals_caller_seat__should_raise(self) -> None:
+    def test_encode_game_event__when_from_seat_equals_caller_seat__should_raise(self):
         for meld_type in ["pon", "open_kan", "added_kan"]:
             tile_ids = [0, 1, 2] if meld_type == "pon" else [0, 1, 2, 3]
             wire = {
@@ -214,7 +214,7 @@ class TestSeatValidation:
             with pytest.raises(ValueError, match="Invalid from_seat/caller_seat"):
                 encode_game_event(wire)
 
-    def test_encode_game_event__when_seat_out_of_range__should_raise(self) -> None:
+    def test_encode_game_event__when_seat_out_of_range__should_raise(self):
         with pytest.raises(ValueError, match="caller_seat must be"):
             encode_game_event(
                 {
@@ -226,6 +226,7 @@ class TestSeatValidation:
                     "called_tile_id": 0,
                 },
             )
+
         with pytest.raises(ValueError, match="from_seat must be"):
             encode_game_event(
                 {
@@ -238,7 +239,7 @@ class TestSeatValidation:
                 },
             )
 
-    def test_encode_game_event__when_seat_not_integer__should_raise(self) -> None:
+    def test_encode_game_event__when_seat_not_integer__should_raise(self):
         with pytest.raises(ValueError, match="caller_seat must be"):
             encode_game_event(
                 {
@@ -250,6 +251,7 @@ class TestSeatValidation:
                     "called_tile_id": 2,
                 },
             )
+
         with pytest.raises(ValueError, match="caller_seat must be"):
             encode_game_event(
                 {
@@ -261,6 +263,7 @@ class TestSeatValidation:
                     "called_tile_id": 0,
                 },
             )
+
         with pytest.raises(ValueError, match="from_seat must be"):
             encode_game_event(
                 {
@@ -273,7 +276,7 @@ class TestSeatValidation:
                 },
             )
 
-    def test_encode_game_event__when_chi_from_seat_not_kamicha__should_raise(self) -> None:
+    def test_encode_game_event__when_chi_from_seat_not_kamicha__should_raise(self):
         wire = {
             "type": "meld",
             "meld_type": "chi",
@@ -285,7 +288,7 @@ class TestSeatValidation:
         with pytest.raises(ValueError, match="Chi from_seat must be kamicha"):
             encode_game_event(wire)
 
-    def test_encode_game_event__when_chi_from_seat_not_integer__should_raise(self) -> None:
+    def test_encode_game_event__when_chi_from_seat_not_integer__should_raise(self):
         wire = {
             "type": "meld",
             "meld_type": "chi",
@@ -299,18 +302,18 @@ class TestSeatValidation:
 
 
 class TestNegativeInteger:
-    def test_decode_meld_compact__when_integer_negative__should_raise(self) -> None:
+    def test_decode_meld_compact__when_integer_negative__should_raise(self):
         with pytest.raises(ValueError, match="negative"):
             decode_meld_compact(-1)
 
-    def test_decode_meld_compact__when_value_is_bool__should_raise(self) -> None:
+    def test_decode_meld_compact__when_value_is_bool__should_raise(self):
         value: int = True
         with pytest.raises(TypeError, match="Expected integer"):
             decode_meld_compact(value)
 
 
 class TestNoneFieldValidation:
-    def test_encode_meld_compact__when_called_tile_is_none__should_raise(self) -> None:
+    def test_encode_meld_compact__when_called_tile_is_none__should_raise(self):
         for meld_type in ["chi", "pon", "open_kan", "added_kan"]:
             tile_ids = [0, 4, 8] if meld_type == "chi" else ([0, 1, 2] if meld_type == "pon" else [0, 1, 2, 3])
             from_seat = 3 if meld_type == "chi" else 1
@@ -325,7 +328,7 @@ class TestNoneFieldValidation:
             with pytest.raises(ValueError, match="called_tile_id"):
                 encode_meld_compact(wire)
 
-    def test_encode_meld_compact__when_from_seat_is_none__should_raise(self) -> None:
+    def test_encode_meld_compact__when_from_seat_is_none__should_raise(self):
         for meld_type in ["pon", "open_kan", "added_kan"]:
             tile_ids = [0, 1, 2] if meld_type == "pon" else [0, 1, 2, 3]
             wire = {
@@ -341,7 +344,7 @@ class TestNoneFieldValidation:
 
 
 class TestChiValidation:
-    def test_encode_meld_compact__when_chi_uses_honor_tiles__should_raise(self) -> None:
+    def test_encode_meld_compact__when_chi_uses_honor_tiles__should_raise(self):
         wire = {
             "type": "meld",
             "meld_type": "chi",
@@ -353,7 +356,7 @@ class TestChiValidation:
         with pytest.raises(ValueError, match="Chi tiles must be suited"):
             encode_meld_compact(wire)
 
-    def test_encode_meld_compact__when_chi_starts_at_suit_position_8__should_raise(self) -> None:
+    def test_encode_meld_compact__when_chi_starts_at_suit_position_8__should_raise(self):
         wire = {
             "type": "meld",
             "meld_type": "chi",

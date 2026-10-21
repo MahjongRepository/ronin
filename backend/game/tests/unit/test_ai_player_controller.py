@@ -23,6 +23,7 @@ class _AcceptAllAI(AIPlayer):
     def should_call_chi(self, player, discarded_tile, chi_options, round_state):
         if chi_options:
             return chi_options[0]
+
         return None
 
     def should_call_kan(self, player, kan_type, tile_34, round_state) -> bool:
@@ -60,7 +61,6 @@ class TestGetTurnAction:
         expected_tile = rs.players[1].tiles[-1]
 
         result = controller.get_turn_action(1, rs)
-
         assert result is not None
         action, data = result
         assert action == GameAction.DISCARD
@@ -146,7 +146,6 @@ class TestGetCallResponseAcceptingAI:
         rs = _create_round_state()
 
         result = controller.get_call_response(seat=1, round_state=rs, call_type=CallType.RON, tile_id=0, caller_info=1)
-
         assert result is not None
         action, data = result
         assert action == GameAction.CALL_RON
@@ -160,7 +159,6 @@ class TestGetCallResponseAcceptingAI:
         result = controller.get_call_response(
             seat=1, round_state=rs, call_type=CallType.CHANKAN, tile_id=0, caller_info=1
         )
-
         assert result is not None
         assert result[0] == GameAction.CALL_RON
 
@@ -172,7 +170,6 @@ class TestGetCallResponseAcceptingAI:
         result = controller.get_call_response(
             seat=1, round_state=rs, call_type=CallType.DISCARD, tile_id=0, caller_info=1
         )
-
         assert result is not None
         assert result[0] == GameAction.CALL_RON
 
@@ -186,7 +183,6 @@ class TestGetCallResponseAcceptingAI:
         result = controller.get_call_response(
             seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
         )
-
         assert result is not None
         action, data = result
         assert action == GameAction.CALL_PON
@@ -202,7 +198,6 @@ class TestGetCallResponseAcceptingAI:
         result = controller.get_call_response(
             seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
         )
-
         assert result is not None
         action, data = result
         assert action == GameAction.CALL_CHI
@@ -218,7 +213,6 @@ class TestGetCallResponseAcceptingAI:
         result = controller.get_call_response(
             seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
         )
-
         assert result is not None
         action, data = result
         assert action == GameAction.CALL_KAN
@@ -242,7 +236,6 @@ class TestAIPlayerControllerManagement:
         assert controller.is_ai_player(2) is False
 
         controller.add_ai_player(2, AIPlayer())
-
         assert controller.is_ai_player(2) is True
 
     def test_ai_player_controller__when_ai_player_removed__should_unmark_seat(self):
@@ -251,6 +244,5 @@ class TestAIPlayerControllerManagement:
         assert controller.is_ai_player(1) is True
 
         controller.remove_ai_player(1)
-
         assert controller.is_ai_player(1) is False
         assert 1 not in controller.ai_player_seats

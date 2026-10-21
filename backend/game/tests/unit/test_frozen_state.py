@@ -58,7 +58,6 @@ class TestStateUtilsUpdatePlayer:
     def test_update_player__when_score_changed__should_leave_original_state_untouched(self):
         state = self._create_round_state_with_players()
         new_state = update_player(state, 0, score=30000)
-
         assert state.players[0].score == 25000
         assert new_state.players[0].score == 30000
         assert new_state.players[1].score == 25000
@@ -66,7 +65,6 @@ class TestStateUtilsUpdatePlayer:
     def test_update_player__when_multiple_fields__should_apply_all(self):
         state = self._create_round_state_with_players()
         new_state = update_player(state, 1, is_riichi=True, is_ippatsu=True, score=24000)
-
         assert new_state.players[1].is_riichi is True
         assert new_state.players[1].is_ippatsu is True
         assert new_state.players[1].score == 24000
@@ -83,7 +81,6 @@ class TestStateUtilsTileOperations:
         state = self._create_round_state_with_tiles()
         new_tile = TilesConverter.string_to_136_array(pin="1")[0]
         new_state = add_tile_to_player(state, seat=0, tile_id=new_tile)
-
         assert len(state.players[0].tiles) == 9
         assert len(new_state.players[0].tiles) == 10
         assert new_state.players[0].tiles[-1] == new_tile
@@ -96,7 +93,6 @@ class TestStateUtilsTurnAdvance:
     def test_advance_turn__should_move_to_next_seat_and_count_turn(self):
         state = MahjongRoundState(players=self._players(), current_player_seat=0, turn_count=0)
         new_state = advance_turn(state)
-
         assert state.current_player_seat == 0
         assert state.turn_count == 0
         assert new_state.current_player_seat == 1
@@ -120,7 +116,6 @@ class TestStateUtilsPendingPrompt:
         )
         state = MahjongRoundState(pending_call_prompt=prompt)
         new_state = clear_pending_prompt(state)
-
         assert state.pending_call_prompt is not None
         assert new_state.pending_call_prompt is None
 
@@ -134,7 +129,6 @@ class TestStateUtilsPendingPrompt:
         )
         response = CallResponse(seat=1, action=GameAction.PASS)
         new_prompt = add_prompt_response(prompt, response)
-
         assert len(prompt.responses) == 0
         assert prompt.pending_seats == frozenset({1, 2})
         assert len(new_prompt.responses) == 1
@@ -166,7 +160,6 @@ class TestStateUtilsPlayerFlags:
         )
         state = MahjongRoundState(players=players)
         new_state = clear_all_players_ippatsu(state)
-
         assert state.players[0].is_ippatsu is True
         for i in range(4):
             assert new_state.players[i].is_ippatsu is False
@@ -210,7 +203,6 @@ class TestFrozenMeldScoringIntegration:
         win_tile = closed_tiles[-1]
         ctx = ScoringContext(player=players[0], round_state=round_state, settings=GameSettings(), is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert result.han == 4
         assert result.fu == 30

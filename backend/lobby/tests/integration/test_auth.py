@@ -231,7 +231,6 @@ class TestAuthEndpoints:
         response = client.post("/logout", data={"csrf_token": csrf}, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
-
         # After logout, protected routes redirect to login with next param
         response = client.get("/", follow_redirects=False)
         assert response.status_code == 303
@@ -331,6 +330,7 @@ class TestBotAuth:
         assert data["room_id"] == "room-bot"
         assert "/ws/rooms/room-bot" in data["ws_url"]
         assert "session_id" in data
+
         auth_service = client.app.state.auth_service
         session = auth_service.validate_session(data["session_id"])
         assert session is not None

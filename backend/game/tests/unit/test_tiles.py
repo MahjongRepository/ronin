@@ -27,6 +27,7 @@ class TestTileTo34:
     def test_tile_to_34__when_tile_id_out_of_range__should_raise(self):
         with pytest.raises(ValueError, match="tile_id must be in"):
             tile_to_34(-1)
+
         with pytest.raises(ValueError, match="tile_id must be in"):
             tile_to_34(136)
 
@@ -75,5 +76,6 @@ class TestHandTo34Array:
     def test_hand_to_34_array__when_tile_id_out_of_range__should_raise(self):
         with pytest.raises(ValueError, match="tile_id must be in"):
             hand_to_34_array([-1, 0, 4])
+
         with pytest.raises(ValueError, match="tile_id must be in"):
             hand_to_34_array([0, 4, 136])

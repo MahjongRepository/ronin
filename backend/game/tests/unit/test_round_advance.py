@@ -47,9 +47,9 @@ class TestRoundAdvanceWaiting:
         result = _make_exhaustive_draw_result()
 
         events = await service._handle_round_end("game1", result)
-
         assert events == []
         assert service.is_round_advance_pending("game1")
+
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
         unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
@@ -65,7 +65,6 @@ class TestRoundAdvanceWaiting:
 
         result = _make_exhaustive_draw_result()
         events = await service._handle_round_end("game1", result)
-
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) >= 4
         assert not service.is_round_advance_pending("game1")
@@ -85,7 +84,6 @@ class TestConfirmRound:
         events = await service.handle_action(
             game_id="game1", player_name="Player", action=GameAction.CONFIRM_ROUND, data={}
         )
-
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
         assert not service.is_round_advance_pending("game1")
@@ -102,9 +100,9 @@ class TestConfirmRound:
         events = await service.handle_action(
             game_id="game1", player_name="Alice", action=GameAction.CONFIRM_ROUND, data={}
         )
-
         assert events == []
         assert service.is_round_advance_pending("game1")
+
         unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
         assert alice.seat not in unconfirmed
         assert bob.seat in unconfirmed
@@ -115,7 +113,6 @@ class TestConfirmRound:
         events = await service.handle_action(
             game_id="game1", player_name="Player", action=GameAction.CONFIRM_ROUND, data={}
         )
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -135,7 +132,6 @@ class TestConfirmRound:
         events = await service.handle_action(
             game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
         )
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -157,7 +153,6 @@ class TestRoundAdvanceTimeout:
         events = await service.handle_timeout(
             game_id="game1", player_name="Player", timeout_type=TimeoutType.ROUND_ADVANCE
         )
-
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
 
@@ -178,9 +173,9 @@ class TestRoundAdvanceAIPlayerReplacement:
         service.replace_with_ai_player("game1", "Alice")
 
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
-
         assert events == []
         assert service.is_round_advance_pending("game1")
+
         unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
         assert alice.seat not in unconfirmed
 
@@ -195,7 +190,6 @@ class TestRoundAdvanceAIPlayerReplacement:
         service.replace_with_ai_player("game1", "Player")
 
         events = await service.process_ai_player_actions_after_replacement("game1", player.seat)
-
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) >= 4
         assert not service.is_round_advance_pending("game1")
@@ -213,7 +207,6 @@ class TestRoundAdvanceCleanup:
         assert service.is_round_advance_pending("game1")
 
         service.cleanup_game("game1")
-
         assert not service.is_round_advance_pending("game1")
 
     async def test_round_end__when_game_ends__should_not_create_pending_advance(self, service):
@@ -230,7 +223,6 @@ class TestRoundAdvanceCleanup:
         )
 
         events = await service._handle_round_end("game1", result)
-
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert not service.is_round_advance_pending("game1")
@@ -245,7 +237,6 @@ class TestRoundAdvanceHandleRoundEndNone:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service._handle_round_end("game1", round_result=None)
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.MISSING_ROUND_RESULT
@@ -258,21 +249,18 @@ class TestRoundAdvanceManager:
 
     def test_setup_pending__when_humans_present__should_wait_for_their_seats(self, manager):
         result = manager.setup_pending("g1", ai_player_seats={2, 3})
-
         assert result is False
         assert manager.is_pending("g1")
         assert manager.get_unconfirmed_seats("g1") == {0, 1}
 
     def test_setup_pending__when_all_seats_ai__should_advance_without_pending_state(self, manager):
         result = manager.setup_pending("g1", ai_player_seats={0, 1, 2, 3})
-
         assert result is True
         # No stale pending state -- all AI players means immediate advance
         assert not manager.is_pending("g1")
 
     def test_setup_pending__when_no_ai_seats__should_wait_for_all_seats(self, manager):
         result = manager.setup_pending("g1", ai_player_seats=set())
-
         assert result is False
         assert manager.get_unconfirmed_seats("g1") == {0, 1, 2, 3}
 
@@ -280,7 +268,6 @@ class TestRoundAdvanceManager:
         manager.setup_pending("g1", ai_player_seats={2, 3})
 
         result = manager.confirm_seat("g1", 0)
-
         assert result is False
         assert manager.is_pending("g1")
         assert manager.get_unconfirmed_seats("g1") == {1}
@@ -290,27 +277,23 @@ class TestRoundAdvanceManager:
         manager.confirm_seat("g1", 0)
 
         result = manager.confirm_seat("g1", 1)
-
         assert result is True
         assert not manager.is_pending("g1")
 
     def test_confirm_seat__when_no_pending_advance__should_return_none(self, manager):
         result = manager.confirm_seat("nonexistent", 0)
-
         assert result is None
 
     def test_confirm_seat__when_seat_confirmed_twice__should_count_once(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
         manager.confirm_seat("g1", 0)
         manager.confirm_seat("g1", 0)
-
         assert manager.get_unconfirmed_seats("g1") == {1}
 
     def test_cleanup_game__should_remove_pending_advance(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
 
         manager.cleanup_game("g1")
-
         assert not manager.is_pending("g1")
 
     def test_round_advance_manager__when_multiple_games__should_track_each_independently(self, manager):
@@ -318,7 +301,6 @@ class TestRoundAdvanceManager:
         manager.setup_pending("g2", ai_player_seats={1, 2, 3})
 
         manager.confirm_seat("g2", 0)
-
         assert manager.is_pending("g1")
         assert not manager.is_pending("g2")
         assert manager.get_unconfirmed_seats("g1") == {0, 1}
@@ -327,7 +309,6 @@ class TestRoundAdvanceManager:
         manager.setup_pending("g1", ai_player_seats={2, 3})
 
         result = manager.confirm_seat("g1", 2)
-
         assert result is False
         assert manager.is_pending("g1")
         assert manager.get_unconfirmed_seats("g1") == {0, 1}

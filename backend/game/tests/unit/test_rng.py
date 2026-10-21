@@ -81,7 +81,6 @@ class TestDeriveRoundPCG:
 
         pcg_after = _derive_round_pcg(FIXED_SEED, 5)
         after_output = pcg_after.next_uint64()
-
         assert direct_output == after_output
 
     def test_derive_round_pcg__when_different_rounds__should_yield_different_outputs(self):

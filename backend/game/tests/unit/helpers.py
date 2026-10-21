@@ -44,6 +44,7 @@ def _find_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
     for player in round_state.players:
         if player.name == name:
             return player
+
     raise ValueError(f"player {name} not found")
 
 

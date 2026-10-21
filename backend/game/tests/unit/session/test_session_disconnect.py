@@ -13,7 +13,6 @@ from .helpers import create_started_game
 class TestSessionManagerDisconnect:
     async def test_disconnect__when_one_of_two_humans_leaves__should_replace_with_ai_and_keep_game(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         game = manager.get_game("game1")
         assert game.started is True
 
@@ -28,7 +27,6 @@ class TestSessionManagerDisconnect:
         manager._game_service.replace_with_ai_player = tracking_replace
 
         await manager.leave_game(conns[0])
-
         assert len(replace_calls) == 1
         assert replace_calls[0] == ("game1", "Alice")
         # game should still exist (Bob is still in)
@@ -36,7 +34,6 @@ class TestSessionManagerDisconnect:
 
     async def test_disconnect__when_last_human_leaves__should_not_replace_with_ai_and_clean_up_game(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         game = manager.get_game("game1")
         assert game.started is True
 
@@ -60,13 +57,11 @@ class TestSessionManagerDisconnect:
 
     async def test_disconnect__when_player_leaves__should_remove_only_their_timer(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         # verify timers exist for both seats
         assert manager._timer_manager.get_timer("game1", 0) is not None
         assert manager._timer_manager.get_timer("game1", 1) is not None
 
         await manager.leave_game(conns[0])
-
         # seat 0's timer should be removed
         assert manager._timer_manager.get_timer("game1", 0) is None
         # seat 1's timer should remain
@@ -93,7 +88,6 @@ class TestSessionManagerDisconnect:
         )
 
         await manager.leave_game(conns[0])
-
         # Bob should receive the AI player action event
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
@@ -108,7 +102,6 @@ class TestSessionManagerDisconnect:
         # stale timeout fires for Alice's old seat (seat 0)
         # should be a no-op because _get_player_at_seat returns None for seat 0
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-
         assert len(conns[1].sent_messages) == 0
 
     async def test_disconnect__when_game_lock_missing__should_skip_ai_replacement_and_mark_session_disconnected(
@@ -135,9 +128,7 @@ class TestSessionManagerDisconnect:
         # leave_game should skip AI player replacement (no lock) but use started-game
         # session semantics (mark_disconnected, not remove_session)
         await manager.leave_game(conns[0])
-
         assert len(replace_calls) == 0
-
         # session should be marked disconnected (not removed) since game.started is True
         session = manager._session_store._sessions.get(token)
         assert session is not None
@@ -178,7 +169,6 @@ class TestLockBoundaryRaces:
             manager.handle_game_action(conns[1], action=GameAction.DISCARD, data={}),
             manager.leave_game(conns[0]),
         )
-
         assert execution_order == ["action_start", "action_end", "replace_start", "process_ai_player"]
 
     async def test_lock_boundary__when_leave_races_timeout__should_not_replace_mid_timeout(self, manager):
@@ -214,7 +204,6 @@ class TestLockBoundaryRaces:
             manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=1),
             manager.leave_game(conns[0]),
         )
-
         assert execution_order == ["timeout_start", "timeout_end", "replace_start", "process_ai_player"]
 
     async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
@@ -239,7 +228,6 @@ class TestLockBoundaryRaces:
             manager.leave_game(conns[1]),
             manager.leave_game(conns[1]),
         )
-
         assert cleanup_count == 1
         assert manager.get_game("game1") is None
 
@@ -260,7 +248,6 @@ class TestLockBoundaryRaces:
         manager._game_service.process_ai_player_actions_after_replacement = check_lock_process
 
         await manager.leave_game(conns[0])
-
         assert lock_was_held is True
 
 
@@ -273,7 +260,6 @@ class TestHeartbeat:
         # small delay so monotonic time advances
         await asyncio.sleep(0.01)
         await manager.handle_ping(conn)
-
         assert len(conn.sent_messages) == 1
         assert conn.sent_messages[0]["type"] == SessionMessageType.PONG
         assert manager._heartbeat._last_ping.get(conn.connection_id) > initial_time

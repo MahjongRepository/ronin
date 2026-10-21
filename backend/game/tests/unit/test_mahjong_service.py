@@ -31,7 +31,6 @@ class TestMahjongGameServiceFindPlayerSeat:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         seat = service._find_player_seat("game1", "Unknown")
-
         assert seat is None
 
     async def test_find_player_seat__when_name_belongs_to_ai_player__should_return_none(self, service):
@@ -46,7 +45,6 @@ class TestMahjongGameServiceFindPlayerSeat:
                 break
 
         seat = service._find_player_seat("game1", ai_player_name)
-
         assert seat is None
 
 
@@ -57,7 +55,6 @@ class TestMahjongGameServiceAllPlayers:
 
     async def test_start_game__when_four_players__should_emit_single_draw_event_for_dealer(self, service):
         events = await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
-
         # with 4 players, exactly 1 draw event for dealer (no AI player followup chain)
         draw_events = [e for e in events if e.event == EventType.DRAW]
         assert len(draw_events) == 1
@@ -78,7 +75,6 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
         assert ai_player_controller.is_ai_player(player_seat) is False
 
         service.replace_with_ai_player("game1", "Alice")
-
         assert ai_player_controller.is_ai_player(player_seat) is True
 
     async def test_replace_with_ai_player__when_game_does_not_exist__should_not_raise(self, service):
@@ -88,7 +84,6 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
         await service.start_game("game1", ["Alice"])
 
         service.replace_with_ai_player("game1", "Unknown")
-
         ai_player_controller = service._ai_player_controllers["game1"]
         assert len(ai_player_controller._ai_players) == 3
 
@@ -97,7 +92,6 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
 
         service.replace_with_ai_player("game1", "Alice")
         service.replace_with_ai_player("game1", "Alice")
-
         ai_player_controller = service._ai_player_controllers["game1"]
         assert len(ai_player_controller._ai_players) == 4
 
@@ -113,7 +107,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         events = await service.process_ai_player_actions_after_replacement("game1", seat=0)
-
         assert events == []
 
     async def test_ai_actions_after_replacement__when_replaced_player_has_turn__should_play_turn(self, service):
@@ -151,7 +144,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         service.replace_with_ai_player("game1", "Alice")
 
         events = await service.process_ai_player_actions_after_replacement("game1", player_seat)
-
         assert events[0].data == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     async def test_ai_actions_after_replacement__when_replaced_player_is_pending_caller__should_clear_their_seat(
@@ -174,7 +166,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         service.replace_with_ai_player("game1", "Alice")
 
         await service.process_ai_player_actions_after_replacement("game1", alice.seat)
-
         updated_round = service._games["game1"].round_state
         assert updated_round.pending_call_prompt is None
 
@@ -199,7 +190,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         service.replace_with_ai_player("game1", "Alice")
 
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
-
         updated_round = service._games["game1"].round_state
         assert updated_round.pending_call_prompt is not None
         assert bob.seat in updated_round.pending_call_prompt.pending_seats
@@ -229,7 +219,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         service.replace_with_ai_player("game1", "Alice")
 
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
-
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) == 1
 
@@ -244,11 +233,9 @@ class TestSeedDeterminism:
 
         state1 = service1._games["game1"]
         state2 = service2._games["game2"]
-
         names1 = [p.name for p in state1.round_state.players]
         names2 = [p.name for p in state2.round_state.players]
         assert names1 == names2
-
         tiles1 = [p.tiles for p in state1.round_state.players]
         tiles2 = [p.tiles for p in state2.round_state.players]
         assert tiles1 == tiles2
@@ -271,7 +258,6 @@ class TestAutoCleanup:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = await service._handle_round_end("game1", round_result=result)
-
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert "game1" in service._games
@@ -292,7 +278,6 @@ class TestAutoCleanup:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = await service._handle_round_end("game1", round_result=result)
-
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert "game1" not in service._games
@@ -314,7 +299,6 @@ class TestServiceAccessors:
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
         await service._handle_round_end("game1", result)
-
         assert service.is_round_advance_pending("game1") is True
 
     async def test_get_pending_round_advance_player_names__when_round_ended__should_list_all_players(
@@ -341,7 +325,6 @@ class TestMahjongGameServiceUnsupportedSettings:
         settings = GameSettings(has_agariyame=True)
         service = MahjongGameService(settings=settings)
         events = await service.start_game("game1", ["Alice"])
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -353,7 +336,6 @@ class TestMahjongGameServiceInvalidSeed:
     async def test_start_game__when_seed_is_malformed__should_return_error_event(self):
         service = MahjongGameService()
         events = await service.start_game("game1", ["Alice"], seed="bad-seed")
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -364,7 +346,6 @@ class TestMahjongGameServiceInvalidSeedType:
     async def test_start_game__when_seed_is_not_a_string__should_return_error_event(self):
         service = MahjongGameService()
         events = await service.start_game("game1", ["Alice"], seed=12345)
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -441,7 +422,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         player = _find_player(game_state.round_state, "Alice")
 
         snapshot = service.build_reconnection_snapshot("game1", player.seat)
-
         assert snapshot is not None
         assert snapshot.my_tiles == list(player.tiles)
         assert len(snapshot.player_states) == 4
@@ -461,7 +441,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.restore_human_player("game1", seat)
 
         snapshot = service.build_reconnection_snapshot("game1", seat)
-
         assert snapshot is not None
         reconnected_player = next(p for p in snapshot.players if p.seat == seat)
         assert reconnected_player.is_ai_player is False
@@ -481,7 +460,6 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         current_seat = game_state.round_state.current_player_seat
 
         events = service.build_draw_event_for_seat("game1", current_seat)
-
         assert len(events) == 1
         assert events[0].event == EventType.DRAW
         assert isinstance(events[0].target, SeatTarget)
@@ -493,7 +471,6 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         other_seat = (game_state.round_state.current_player_seat + 1) % 4
 
         events = service.build_draw_event_for_seat("game1", other_seat)
-
         assert events == []
 
     async def test_build_draw_event_for_seat__when_player_has_no_tiles__should_return_empty(self, service):

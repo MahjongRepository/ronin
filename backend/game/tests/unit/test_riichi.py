@@ -43,21 +43,18 @@ class TestCanDeclareRiichi:
         player, round_state = self._create_player_and_round_state()
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is True
 
     def test_can_declare_riichi__when_score_999__should_reject(self):
         player, round_state = self._create_player_and_round_state(score=999)
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is False
 
     def test_can_declare_riichi__when_score_exactly_1000__should_allow(self):
         player, round_state = self._create_player_and_round_state(score=1000)
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is True
 
     def test_can_declare_riichi__when_hand_has_open_meld__should_reject(self):
@@ -74,7 +71,6 @@ class TestCanDeclareRiichi:
         )
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is False
 
     def test_can_declare_riichi__when_hand_has_closed_kan__should_allow(self):
@@ -91,26 +87,22 @@ class TestCanDeclareRiichi:
         )
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is True
 
     def test_can_declare_riichi__when_not_tempai__should_reject(self):
         player, round_state = self._create_player_and_round_state(tiles=self._create_non_tempai_hand())
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is False
 
     def test_can_declare_riichi__when_wall_has_3_tiles__should_reject(self):
         player, round_state = self._create_player_and_round_state(wall_size=3)
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is False
 
     def test_can_declare_riichi__when_wall_has_4_tiles__should_allow(self):
         player, round_state = self._create_player_and_round_state(wall_size=4)
 
         result = can_declare_riichi(player, round_state, settings=GameSettings())
-
         assert result is True

@@ -95,6 +95,7 @@ class TestCreateWallFromTiles:
     def test_create_wall_from_tiles__when_wrong_tile_count__should_raise(self):
         with pytest.raises(ValueError, match="Expected 136"):
             create_wall_from_tiles(list(range(10)))
+
         with pytest.raises(ValueError, match="Expected 136"):
             create_wall_from_tiles(list(range(200)))
 
@@ -206,6 +207,7 @@ class TestDrawFromDeadWall:
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
         new_wall, _ = draw_from_dead_wall(wall)
         assert new_wall.rinshan_draws_count == 1
+
         new_wall2, _ = draw_from_dead_wall(new_wall)
         assert new_wall2.rinshan_draws_count == 2
 
@@ -241,6 +243,7 @@ class TestDrawFromDeadWall:
         current_wall = wall
         for _ in range(4):
             current_wall, _ = draw_from_dead_wall(current_wall)
+
         # Dora indicator positions (2-6) and ura dora positions (7-9) are unchanged
         for i in range(2, 10):
             assert current_wall.dead_wall_tiles[i] == dead[i]
@@ -408,6 +411,7 @@ class TestCollectUraDoraIndicators:
         assert current_wall.dead_wall_tiles[11] != dead[11]
         # But the ura dora indicators are preserved from the original values
         assert current_wall.ura_dora_indicators == ura_dora
+
         # Add kan dora indicators
         current_wall = current_wall.model_copy(
             update={
@@ -431,6 +435,7 @@ class TestComputeWallBreakInfo:
         # dealer=1, sum=5 -> target = (1+5-1)%4 = 1 (dealer itself)
         info = compute_wall_break_info((2, 3), dealer_seat=1)
         assert info.target_seat == 1
+
         # dealer=2, sum=2 -> target = (2+2-1)%4 = 3
         info = compute_wall_break_info((1, 1), dealer_seat=2)
         assert info.target_seat == 3
@@ -438,8 +443,10 @@ class TestComputeWallBreakInfo:
     def test_compute_wall_break_info__when_dice_sums_vary__should_pick_break_stack(self):
         info = compute_wall_break_info((3, 4), dealer_seat=0)
         assert info.break_stack == 44
+
         info = compute_wall_break_info((1, 1), dealer_seat=0)
         assert info.break_stack == 32
+
         info = compute_wall_break_info((6, 6), dealer_seat=0)
         assert info.break_stack == 56
 

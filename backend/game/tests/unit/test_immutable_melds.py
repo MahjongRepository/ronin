@@ -54,7 +54,6 @@ class TestCallPonImmutable:
             tile_id=man_1m[2],
             settings=GameSettings(),
         )
-
         assert meld.type == Meld.PON
         assert len(meld.tiles) == 3
         assert meld.opened is True
@@ -78,7 +77,6 @@ class TestCallPonImmutable:
             tile_id=man_1m[2],
             settings=GameSettings(),
         )
-
         for p in new_state.players:
             assert p.is_ippatsu is False
 
@@ -122,7 +120,6 @@ class TestCallChiImmutable:
             sequence_tiles=(man_tiles[1], man_tiles[2]),
             settings=GameSettings(),
         )
-
         assert meld.type == Meld.CHI
         assert len(meld.tiles) == 3
         assert meld.opened is True
@@ -152,7 +149,6 @@ class TestCallOpenKanImmutable:
             tile_id=man_1m[3],
             settings=GameSettings(),
         )
-
         assert meld.type == Meld.KAN
         assert len(meld.tiles) == 4
         assert meld.opened is True
@@ -182,7 +178,6 @@ class TestCallClosedKanImmutable:
         original_dora_count = len(round_state.wall.dora_indicators)
 
         new_state, meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
-
         assert meld.type == Meld.KAN
         assert len(meld.tiles) == 4
         assert meld.opened is False
@@ -203,7 +198,6 @@ class TestCallClosedKanImmutable:
         assert round_state.players[3].is_ippatsu is True
 
         new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
-
         # hand stays closed
         assert 0 not in new_state.players_with_open_hands
         # but ippatsu is cleared for everyone
@@ -237,7 +231,6 @@ class TestCallAddedKanImmutable:
         round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
 
         new_state, meld = call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
-
         assert meld.type == Meld.SHOUMINKAN
         assert len(meld.tiles) == 4
         assert meld.opened is True
@@ -302,7 +295,6 @@ class TestResolveAddedKanTile:
         round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
 
         resolved = resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[2], settings=GameSettings())
-
         assert resolved == man_1m[3]
 
     def test_resolve_added_kan_tile__when_exact_id_in_hand__should_return_it(self):
@@ -312,7 +304,6 @@ class TestResolveAddedKanTile:
         round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
 
         resolved = resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
-
         assert resolved == man_1m[3]
 
 
@@ -320,17 +311,20 @@ class TestFrozenMeldValidation:
     def test_frozen_meld__when_tile_count_invalid__should_be_rejected(self):
         with pytest.raises(Exception, match="3-4 tiles"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1), opened=True, who=0)
+
         with pytest.raises(Exception, match="3-4 tiles"):
             FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3, 4), opened=False, who=0)
 
     def test_frozen_meld__when_who_invalid__should_be_rejected(self):
         with pytest.raises(Exception, match="who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=-1)
+
         with pytest.raises(Exception, match="who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=4)
 
     def test_frozen_meld__when_from_who_invalid__should_be_rejected(self):
         with pytest.raises(Exception, match="from_who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=0, from_who=-1)
+
         with pytest.raises(Exception, match="from_who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=0, from_who=4)

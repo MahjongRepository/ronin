@@ -40,6 +40,7 @@ class TestReplayInputValidation:
         # Shifted tile IDs (1-136 instead of 0-135)
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
             ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=tuple(range(1, 137)))
+
         # Duplicate tile IDs
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
             ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), wall=(0,) * 136)

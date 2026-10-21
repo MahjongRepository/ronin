@@ -97,7 +97,6 @@ class TestRenhouScoring:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert any(y.yaku_id == 11 for y in result.yaku)  # Renhou
         assert result.han >= 5
@@ -113,7 +112,6 @@ class TestRenhouScoring:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert any(y.yaku_id == 11 for y in result.yaku)  # Renhou
         # renhou 5 han + at least tanyao 1 han
@@ -130,6 +128,5 @@ class TestRenhouScoring:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert not any(y.yaku_id == 11 for y in result.yaku)  # no Renhou

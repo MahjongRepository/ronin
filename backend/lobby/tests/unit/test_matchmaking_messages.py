@@ -31,6 +31,7 @@ class TestParseMatchmakingMessage:
         padding_needed = 4096 - len(base.encode("utf-8"))
         raw = json.dumps({"type": "ping", "padding": "x" * padding_needed})
         assert len(raw.encode("utf-8")) == 4096
+
         msg = parse_matchmaking_message(raw)
         assert isinstance(msg, MatchmakingPingMessage)
 
@@ -39,5 +40,6 @@ class TestParseMatchmakingMessage:
         padding_needed = 4097 - len(base.encode("utf-8"))
         raw = json.dumps({"type": "ping", "padding": "x" * padding_needed})
         assert len(raw.encode("utf-8")) == 4097
+
         with pytest.raises(ValueError, match="too large"):
             parse_matchmaking_message(raw)

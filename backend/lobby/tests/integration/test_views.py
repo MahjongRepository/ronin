@@ -111,7 +111,6 @@ servers:
         room_manager = client.app.state.room_manager
         room_manager.create_room("abc12345-long-id")
         room_manager.join_room(connection_id="conn-1", room_id="abc12345-long-id", user_id="user-1", username="Alice")
-
         response = client.get("/")
         assert "abc12345" in response.text
         assert "1/4" in response.text
@@ -190,6 +189,7 @@ servers:
         response = c.get("/play/test-game")
         assert response.status_code == 503
         assert "Game client assets not available" in response.text
+
         app.state.db.close()
 
     def test_game_assets_route__when_asset_requested__should_serve_it(self, client):
@@ -219,6 +219,7 @@ servers:
         )
         route_names = {r.name for r in app.routes}
         assert "game_assets" not in route_names
+
         app.state.db.close()
 
     def test_matchmaking_page__when_visited__should_return_html(self, client):
@@ -237,7 +238,6 @@ servers:
     def test_room_page__when_room_exists__should_render_room_template(self, client):
         room_manager = client.app.state.room_manager
         room_manager.create_room("test-room-42")
-
         response = client.get("/rooms/test-room-42")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
@@ -266,6 +266,7 @@ servers:
         response = c.get("/rooms/fresh-room")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
+
         app.state.db.close()
 
     def test_room_page__when_room_not_found__should_redirect_to_lobby(self, client):
@@ -293,6 +294,7 @@ servers:
         response = c.get("/storybook")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
+
         app.state.db.close()
 
     def test_storybook_page__when_visited__should_return_html(self, client):
@@ -402,7 +404,6 @@ class TestHistoryPage:
             ],
         )
         asyncio.run(client.app.state.game_repo.create_game(game))
-
         response = client.get("/history")
         assert response.status_code == 200
         assert "abcd1234" in response.text
@@ -469,4 +470,5 @@ class TestHistoryPage:
         response = c.get("/history", follow_redirects=False)
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
+
         app.state.db.close()

@@ -19,6 +19,7 @@ def _dora_han(result, yaku_id):
     for y in result.yaku:
         if y.yaku_id == yaku_id:
             return y.han
+
     return 0
 
 
@@ -67,7 +68,6 @@ class TestOmoteDoraSetting:
             is_tsumo=True,
         )
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert _dora_han(result, DORA_YAKU_ID) == 2
 
@@ -85,7 +85,6 @@ class TestOmoteDoraSetting:
             is_tsumo=True,
         )
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert _dora_han(result, DORA_YAKU_ID) == 0
 
@@ -129,7 +128,6 @@ class TestUraDoraSettingGating:
             is_tsumo=True,
         )
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert _dora_han(result, URA_DORA_YAKU_ID) == 2
 
@@ -158,7 +156,6 @@ class TestUraDoraSettingGating:
             is_tsumo=True,
         )
         result = calculate_hand_value(ctx, win_tile)
-
         assert result.error is None
         assert _dora_han(result, URA_DORA_YAKU_ID) == 0
 

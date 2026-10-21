@@ -39,7 +39,6 @@ class TestMahjongGameServiceHandleTimeout:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.MELD)
-
         assert events == []
 
     async def test_handle_timeout__when_meld_timeout_with_pending_prompt__should_send_pass_action(self, service):
@@ -177,7 +176,6 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         ]
 
         result = await service._check_and_handle_round_end("game1", events)
-
         assert result is True
         assert [e.event for e in events] == [EventType.ROUND_END]
 
@@ -190,7 +188,6 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
 
         events: list[ServiceEvent] = []
         result = await service._check_and_handle_round_end("game1", events)
-
         assert result is True
         error_events = [e for e in events if e.event == EventType.ERROR]
         assert len(error_events) == 1
@@ -221,7 +218,6 @@ class TestMahjongGameServiceProcessPostDiscard:
         ]
 
         result = await service._process_post_discard("game1", events)
-
         assert [e.event for e in result] == [EventType.ROUND_END]
 
     async def test_process_post_discard__when_prompt_pending_for_human_player__should_return_events(self, service):
@@ -258,7 +254,6 @@ class TestMahjongGameServiceProcessPostDiscard:
         ]
 
         result = await service._process_post_discard("game1", events)
-
         assert [(e.event, e.target) for e in result] == [(EventType.CALL_PROMPT, SeatTarget(seat=player.seat))]
 
     async def test_process_post_discard__when_prompt_pending_only_for_ai_player__should_return_events(self, service):
@@ -313,7 +308,6 @@ class TestMahjongGameServiceProcessPostDiscard:
         ]
 
         result = await service._process_post_discard("game1", events)
-
         assert [e.event for e in result] == [EventType.CALL_PROMPT, EventType.DRAW]
 
     async def test_process_post_discard__when_round_continues__should_draw_for_next_player(self, service):
@@ -329,7 +323,6 @@ class TestMahjongGameServiceProcessPostDiscard:
         events: list[ServiceEvent] = []
 
         result = await service._process_post_discard("game1", events)
-
         assert [(e.event, e.target) for e in result] == [(EventType.DRAW, SeatTarget(seat=current_seat))]
 
 
@@ -353,7 +346,6 @@ class TestMahjongGameServiceTimeoutIntegration:
         _update_round_state(service, "game1", current_player_seat=player.seat, wall=new_wall)
 
         events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
-
         assert events[0].data == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     async def test_handle_timeout__when_turn_timeout_off_players_turn__should_return_no_events(self, service):
@@ -365,7 +357,6 @@ class TestMahjongGameServiceTimeoutIntegration:
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
         events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
-
         assert events == []
 
     async def test_handle_timeout__when_turn_timeout_and_player_has_no_tiles__should_return_no_events(self, service):
@@ -377,7 +368,6 @@ class TestMahjongGameServiceTimeoutIntegration:
         _update_round_state(service, "game1", current_player_seat=player.seat)
 
         events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
-
         assert events == []
 
 
@@ -394,7 +384,6 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         events: list[ServiceEvent] = []
 
         result = await service._process_post_discard("game1", events)
-
         round_end = [e for e in result if e.event == EventType.ROUND_END]
         assert len(round_end) == 1
 
@@ -422,7 +411,6 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         events: list[ServiceEvent] = []
 
         result = await service._process_post_discard("game1", events)
-
         assert [e.event for e in result] == [EventType.ROUND_END]
 
 
@@ -462,7 +450,6 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         result = await service._process_ai_player_followup("game1")
-
         assert result == []
 
     async def test_process_ai_player_followup__when_call_prompt_pending__should_return_no_events(self, service):
@@ -486,7 +473,6 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         )
 
         result = await service._process_ai_player_followup("game1")
-
         assert result == []
 
     async def test_process_ai_player_followup__when_ai_has_no_turn_action__should_return_no_events(self, service):
@@ -566,6 +552,7 @@ class TestGameEndCleanupSafety:
         tiles = list(player.tiles)
         if len(tiles) < 14:
             tiles.append(0)
+
         _update_player(service, game_id="game1", seat=player.seat, tiles=tuple(tiles[:14]))
 
         game_state = service._games["game1"]
@@ -575,7 +562,6 @@ class TestGameEndCleanupSafety:
         events = await service.handle_action(
             game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
         )
-
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert "game1" not in service._games
@@ -635,7 +621,6 @@ class TestTurnTimeoutKuikaeIntegration:
         _update_round_state(service, "game1", current_player_seat=player.seat)
 
         events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
-
         player_discard = events[0].data
         assert isinstance(player_discard, DiscardEvent)
         assert player_discard.seat == player.seat
@@ -670,7 +655,6 @@ class TestAIPlayerTsumogiriFallbackKuikae:
         _update_round_state(service, "game1", current_player_seat=ai_seat)
 
         result = await service._ai_player_tsumogiri_fallback("game1", ai_seat)
-
         assert result is not None
         discard_events = [e.data for e in result if isinstance(e.data, DiscardEvent)]
         assert len(discard_events) == 1

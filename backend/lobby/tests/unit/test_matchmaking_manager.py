@@ -34,6 +34,7 @@ class TestAddPlayer:
         with pytest.raises(ValueError, match="already_in_room"):
             mgr.add_player(_make_entry(user_id="u1"))
         assert mgr.queue_size == 0
+
         mgr.add_player(_make_entry(user_id="u2", connection_id="c2"))
         assert mgr.queue_size == 1
 
@@ -75,6 +76,7 @@ class TestTryMatch:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         matched = mgr.try_match()
         assert matched is not None
         assert len(matched) == MATCHMAKING_SEATS
@@ -84,6 +86,7 @@ class TestTryMatch:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS + 2):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         matched = mgr.try_match()
         assert matched is not None
         assert len(matched) == MATCHMAKING_SEATS
@@ -93,6 +96,7 @@ class TestTryMatch:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         mgr.try_match()
         # Matched players are in-flight, not in queue, but still tracked
         assert mgr.has_user("u0")
@@ -103,6 +107,7 @@ class TestTryMatch:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         mgr.try_match()
         with pytest.raises(ValueError, match="already_in_queue"):
             mgr.add_player(_make_entry(user_id="u0", connection_id="c_new"))
@@ -111,9 +116,11 @@ class TestTryMatch:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         mgr.try_match()
         mgr.clear_in_flight({"u0", "u1", "u2", "u3"})
         assert not mgr.has_user("u0")
+
         mgr.add_player(_make_entry(user_id="u0", connection_id="c_new"))
         assert mgr.has_user("u0")
 
@@ -125,9 +132,11 @@ class TestRequeueAtFront:
         entry = _make_entry(user_id="u0", connection_id="c0", username="requeued")
         mgr.requeue_at_front([entry])
         assert mgr.queue_size == 2
+
         # Fill the remaining seats to trigger a match and verify ordering
         for i in range(2, MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         matched = mgr.try_match()
         assert matched is not None
         assert matched[0].username == "requeued"
@@ -143,8 +152,10 @@ class TestRequeueAtFront:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         matched = mgr.try_match()
         assert matched is not None
+
         # Requeue some entries -- they move from in_flight back to queue
         mgr.requeue_at_front(matched[:2])
         assert mgr.has_user("u0")  # requeued -> in _user_ids

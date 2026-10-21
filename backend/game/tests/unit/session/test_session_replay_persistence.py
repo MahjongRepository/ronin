@@ -86,7 +86,6 @@ class TestSessionReplayCollect:
 
         events = [_make_discard_event()]
         await manager._broadcast_events(game, events)
-
         collector.collect_events.assert_called_once_with("game1", events)
 
 
@@ -97,7 +96,6 @@ class TestSessionReplaySave:
 
         events = [_make_game_end_event()]
         await manager._close_connections_on_game_end(game, events)
-
         collector.save_and_cleanup.assert_awaited_once_with("game1")
 
     async def test_replay_save__when_no_game_end_event__should_not_save(self):
@@ -106,7 +104,6 @@ class TestSessionReplaySave:
 
         events = [_make_discard_event()]
         await manager._close_connections_on_game_end(game, events)
-
         collector.save_and_cleanup.assert_not_called()
 
 
@@ -117,7 +114,6 @@ class TestSessionReplayCleanup:
 
         # leave the game, making it empty -- should trigger cleanup
         await manager.leave_game(conns[0])
-
         collector.cleanup_game.assert_called_once_with("game1")
 
     async def test_replay_cleanup__when_no_collector_on_abandon__should_not_raise(self):

@@ -159,7 +159,6 @@ class TestKuikaeDisabledSetting:
             tile_id=man_tiles[2],
             settings=settings,
         )
-
         assert new_state.players[0].kuikae_tiles == ()
 
     def test_kuikae__when_disabled_and_chi__should_not_restrict_discard(self):
@@ -186,7 +185,6 @@ class TestKuikaeDisabledSetting:
             sequence_tiles=(man_tiles[1], man_tiles[2]),
             settings=settings,
         )
-
         assert new_state.players[1].kuikae_tiles == ()
 
 
@@ -204,9 +202,9 @@ class TestKuikaeSujiRestriction:
         forbidden = get_kuikae_tiles(
             call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
         )
-
         # 4m (called tile) and 7m (suji above 6m) should be forbidden
         assert called_34 in forbidden
+
         man_7m_34 = tile_to_34(TilesConverter.string_to_136_array(man="7")[0])
         assert man_7m_34 in forbidden
 
@@ -218,9 +216,9 @@ class TestKuikaeSujiRestriction:
         forbidden = get_kuikae_tiles(
             call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
         )
-
         # 6m (called tile) and 3m (suji below 4m) should be forbidden
         assert called_34 in forbidden
+
         man_3m_34 = tile_to_34(TilesConverter.string_to_136_array(man="3")[0])
         assert man_3m_34 in forbidden
 
@@ -232,7 +230,6 @@ class TestKuikaeSujiRestriction:
         forbidden = get_kuikae_tiles(
             call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
         )
-
         # Only 5m should be forbidden (no suji for middle tile)
         assert forbidden == [called_34]
 
@@ -244,7 +241,6 @@ class TestKuikaeSujiRestriction:
         forbidden = get_kuikae_tiles(
             call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
         )
-
         # Only 7m should be forbidden (10m doesn't exist, no suji)
         assert forbidden == [called_34]
 
@@ -374,7 +370,6 @@ class TestDoubleRonEnabled:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         round_end_events = [e for e in result.events if hasattr(e, "result")]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
@@ -400,7 +395,6 @@ class TestHeadBumpWhenDoubleRonDisabled:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         round_end_events = [e for e in result.events if hasattr(e, "result")]
         assert len(round_end_events) == 1
         # Head bump: should be a single RON, not double
@@ -427,7 +421,6 @@ class TestHeadBumpWhenDoubleRonDisabled:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(round_state, game_state)
-
         round_end_events = [e for e in result.events if hasattr(e, "result")]
         ron_result = round_end_events[0].result
         assert ron_result.type == RoundResultType.RON
@@ -457,7 +450,6 @@ class TestDoubleRonRiichiStickDistribution:
             loser_seat=0,
             winning_tile=0,
         )
-
         assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {1: 3, 3: 0}
 
     def test_double_ron_riichi_sticks__when_lower_seat_winner_is_farther__should_go_to_closer_winner(self):
@@ -471,7 +463,6 @@ class TestDoubleRonRiichiStickDistribution:
             loser_seat=2,
             winning_tile=0,
         )
-
         assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {0: 0, 3: 2}
 
     def test_double_ron_riichi_sticks__should_add_stick_value_to_closer_winner_score(self):
@@ -484,7 +475,6 @@ class TestDoubleRonRiichiStickDistribution:
             loser_seat=0,
             winning_tile=0,
         )
-
         # Seat 1 (riichi receiver): 25000 + 1000 (hand) + 2000 (riichi) = 28000
         assert new_rs.players[1].score == 25000 + 1000 + 2 * 1000
         # Seat 3 (non-receiver): 25000 + 1000 (hand only)
@@ -507,7 +497,6 @@ class TestDoubleRonHonbaBonus:
             loser_seat=0,
             winning_tile=0,
         )
-
         honba_bonus = 3 * 300  # 900 per winner
         # Each winner: 1000 + 900 = 1900
         assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
@@ -532,7 +521,6 @@ class TestDoubleRonHonbaBonus:
             loser_seat=0,
             winning_tile=0,
         )
-
         honba_bonus = 2 * 500  # 1000 per winner with custom setting
         assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
         assert new_rs.players[3].score == 25000 + 1000 + honba_bonus
@@ -555,7 +543,6 @@ class TestDoubleRonHonbaBonus:
             hand_result=hr,
             winning_tile=0,
         )
-
         honba_bonus = 3 * 300
         assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
         assert new_rs.players[0].score == 25000 - 1000 - honba_bonus
@@ -578,7 +565,6 @@ class TestDoubleRonScoreConservation:
             loser_seat=0,
             winning_tile=0,
         )
-
         total_change = sum(result.score_changes.values())
         assert total_change == 0
 
@@ -592,7 +578,6 @@ class TestDoubleRonScoreConservation:
             loser_seat=0,
             winning_tile=0,
         )
-
         # Score changes include riichi sticks from table (3000 bonus to one player)
         total_change = sum(result.score_changes.values())
         assert total_change == 3 * 1000  # riichi sticks are added to the pool

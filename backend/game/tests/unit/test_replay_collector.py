@@ -216,14 +216,11 @@ class TestReplayCollectorLifecycle:
         collector.collect_events("game1", [_make_discard_event()])
         collector.collect_events("game1", [_make_meld_event()])
         await collector.save_and_cleanup("game1")
-
         assert "game1" in storage.saved
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 2
-
         record0 = lines[0]
         assert record0["t"] == EVENT_TYPE_INT[EventType.DISCARD]
-
         record1 = lines[1]
         assert record1["t"] == EVENT_TYPE_INT[EventType.MELD]
 
@@ -234,7 +231,6 @@ class TestReplayCollectorLifecycle:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [_make_discard_event()])
         collector.cleanup_game("game1")
-
         assert "game1" not in storage.saved
 
     async def test_replay_collector__when_saved_twice__should_save_only_once(self):
@@ -257,7 +253,6 @@ class TestReplayCollectorLifecycle:
         # no start_game call
         collector.collect_events("game1", [_make_discard_event()])
         await collector.save_and_cleanup("game1")
-
         assert "game1" not in storage.saved
 
 
@@ -276,7 +271,6 @@ class TestReplayCollectorFiltering:
             ],
         )
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
         types = [event["t"] for event in lines]
@@ -301,7 +295,6 @@ class TestReplayCollectorFiltering:
             ],
         )
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
@@ -324,7 +317,6 @@ class TestReplayCollectorFiltering:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [draw_with_actions])
         await collector.save_and_cleanup("game1")
-
         record = _parse_saved_replay(storage.saved["game1"])[0]
         assert record["t"] == EVENT_TYPE_INT[EventType.DRAW]
         assert record["d"] == encode_draw(0, 42)
@@ -348,7 +340,6 @@ class TestReplayCollectorFiltering:
             ],
         )
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 7
         types = [event["t"] for event in lines]
@@ -376,7 +367,6 @@ class TestReplayCollectorFiltering:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [unknown_event, _make_discard_event()])
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
@@ -390,12 +380,10 @@ class TestReplayCollectorRoundStartedMerge:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", _make_all_round_started_events())
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         record = lines[0]
         assert record["t"] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
-
         players = record["p"]
         assert len(players) == 4
         for player in players:
@@ -417,7 +405,6 @@ class TestReplayCollectorRoundStartedMerge:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [_make_round_started_event(seat=2)])
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         record = lines[0]
@@ -445,7 +432,6 @@ class TestReplayCollectorRoundStartedMerge:
             ],
         )
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
         types = [event["t"] for event in lines]
@@ -467,7 +453,6 @@ class TestReplayCollectorRoundStartedMerge:
         # Second round: all 4 events in another batch
         collector.collect_events("game1", _make_all_round_started_events())
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
         types = [event["t"] for event in lines]
@@ -486,7 +471,6 @@ class TestReplayCollectorJsonLines:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [_make_discard_event(seat=2, tile_id=42)])
         await collector.save_and_cleanup("game1")
-
         record = _parse_saved_replay(storage.saved["game1"])[0]
         assert record["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert record["d"] == encode_discard(2, 42, is_tsumogiri=False, is_riichi=False)
@@ -504,7 +488,6 @@ class TestReplayCollectorJsonLines:
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [riichi_discard])
         await collector.save_and_cleanup("game1")
-
         record = _parse_saved_replay(storage.saved["game1"])[0]
         assert record["d"] == encode_discard(0, 10, is_tsumogiri=False, is_riichi=True)
 
@@ -546,7 +529,6 @@ class TestReplayCollectorIsolation:
 
         await collector.save_and_cleanup("game1")
         await collector.save_and_cleanup("game2")
-
         lines1 = _parse_saved_replay(storage.saved["game1"])
         lines2 = _parse_saved_replay(storage.saved["game2"])
         # Events are isolated
@@ -565,7 +547,6 @@ class TestReplayCollectorSeedInReplay:
         collector.start_game(game_id="game1", seed="d" * 192, rng_version=RNG_VERSION)
         collector.collect_events("game1", [_make_game_started_event()])
         await collector.save_and_cleanup("game1")
-
         record = _parse_saved_replay(storage.saved["game1"])[0]
         assert record["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
         assert record["sd"] == "d" * 192
@@ -581,16 +562,13 @@ class TestReplayCollectorSeedInReplay:
             [_make_game_started_event(), _make_discard_event(), _make_game_ended_event()],
         )
         await collector.save_and_cleanup("game1")
-
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
         game_started = lines[0]
         assert game_started["sd"] == "b" * 192
         assert game_started["rv"] == RNG_VERSION
-
         discard = lines[1]
         assert "sd" not in discard
-
         game_ended = lines[2]
         assert "sd" not in game_ended
 
@@ -613,5 +591,4 @@ class TestReplayCollectorSensitiveDataGuard:
             [_make_draw_event(), _make_round_started_event()],
         )
         await collector.save_and_cleanup("game1")
-
         assert "game1" not in storage.saved

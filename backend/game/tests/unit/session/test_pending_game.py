@@ -42,11 +42,9 @@ class TestCreatePendingGame:
     async def test_create_pending_game__when_created__should_register_game_and_session(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
         assert manager.get_game("game1") is not None
         assert "game1" in manager._pending_games
         assert manager.pending_game_count == 1
-
         # Session created with game_ticket as token
         session = manager._session_store.get_session("ticket-0")
         assert session is not None
@@ -73,7 +71,6 @@ class TestJoinGame:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
-
         game = manager.get_game("game1")
         assert game is not None
         assert game.started is True
@@ -85,14 +82,12 @@ class TestJoinGame:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="invalid-ticket")
-
         assert SessionErrorCode.JOIN_GAME_NO_SESSION in _error_codes(conn)
 
     async def test_join_game__when_game_does_not_exist__should_return_not_found_error(self, manager: SessionManager):
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="nonexistent", session_token="ticket-0")
-
         assert SessionErrorCode.JOIN_GAME_NOT_FOUND in _error_codes(conn)
 
     async def test_join_game__when_game_already_started__should_return_already_started_error(
@@ -109,7 +104,6 @@ class TestJoinGame:
         conn2 = MockConnection()
         manager.register_connection(conn2)
         await manager.join_game(conn2, game_id="game1", session_token="ticket-0")
-
         assert SessionErrorCode.JOIN_GAME_ALREADY_STARTED in _error_codes(conn2)
 
     async def test_join_game__when_connection_already_joined__should_return_already_in_game_error(
@@ -138,7 +132,6 @@ class TestJoinGame:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game2", session_token="ticket-0")
-
         assert SessionErrorCode.RECONNECT_GAME_MISMATCH in _error_codes(conn)
 
     async def test_join_game__when_token_reused_by_new_connection__should_evict_old_connection(
@@ -155,23 +148,18 @@ class TestJoinGame:
         conn2 = MockConnection()
         manager.register_connection(conn2)
         await manager.join_game(conn2, game_id="game1", session_token="ticket-0")
-
         assert len(_error_messages(conn2)) == 0
-
         pending = manager._pending_games.get("game1")
         assert pending is not None
         # connected_count stays at 1 (replacement, not new player)
         assert pending.connected_count == 1
-
         # New connection is registered, old one is removed from the game
         game = manager._games["game1"]
         assert conn2.connection_id in game.players
         assert conn1.connection_id not in game.players
-
         # Stale connection is removed from _connections and closed
         assert conn1.connection_id not in manager._connections
         assert conn1.is_closed
-
         # Heartbeat tracking is cleaned up for the old connection
         assert conn1.connection_id not in manager._heartbeat._last_ping
 
@@ -182,13 +170,11 @@ class TestJoinGame:
         conn1 = MockConnection()
         manager.register_connection(conn1)
         await manager.join_game(conn1, game_id="game1", session_token="ticket-0")
-
         assert "game1" in manager._pending_games
 
         conn2 = MockConnection()
         manager.register_connection(conn2)
         await manager.join_game(conn2, game_id="game1", session_token="ticket-1")
-
         game = manager.get_game("game1")
         assert game is not None
         assert game.started is True
@@ -209,7 +195,6 @@ class TestPendingGameTimeout:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
-
         pending = manager._pending_games.get("game1")
         assert pending is not None
         assert pending.timeout_task is not None
@@ -217,7 +202,6 @@ class TestPendingGameTimeout:
         # Cancel the real timeout and trigger manually with a short duration
         pending.timeout_task.cancel()
         await manager._pending_game_timeout("game1", 0)
-
         game = manager.get_game("game1")
         assert game is not None
         assert game.started is True
@@ -228,7 +212,6 @@ class TestPendingGameTimeout:
     ):
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
         pending = manager._pending_games.get("game1")
         timeout_task = pending.timeout_task
         assert timeout_task is not None
@@ -246,18 +229,16 @@ class TestPendingGameTimeout:
     ):
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
         # Cancel the real timeout and trigger manually with a short duration
         pending = manager._pending_games.get("game1")
         assert pending is not None
         assert pending.timeout_task is not None
+
         pending.timeout_task.cancel()
         await manager._pending_game_timeout("game1", 0)
-
         # Game should be cleaned up, not started
         assert manager.get_game("game1") is None
         assert "game1" not in manager._pending_games
-
         # Sessions should be cleaned up
         session = manager._session_store.get_session("ticket-0")
         assert session is None
@@ -279,7 +260,6 @@ class TestPendingGameDisconnect:
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
 
         await manager.leave_game(conn, notify_player=False)
-
         session = manager._session_store.get_session("ticket-0")
         assert session is not None
         assert session.disconnected_at is not None
@@ -300,9 +280,7 @@ class TestPendingGameDisconnect:
         conn2 = MockConnection()
         manager.register_connection(conn2)
         await manager.join_game(conn2, game_id="game1", session_token="ticket-0")
-
         assert len(_error_messages(conn2)) == 0
-
         pending = manager._pending_games.get("game1")
         assert pending is not None
         assert pending.connected_count == 1
@@ -319,7 +297,6 @@ class TestPendingGameDisconnect:
 
         await manager.leave_game(conn, notify_player=False)
         manager.unregister_connection(conn)
-
         # Game should still exist (pending, waiting for timeout)
         assert manager.get_game("game1") is not None
         assert "game1" in manager._pending_games
@@ -333,7 +310,6 @@ class TestPendingGameDisconnect:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
-
         # Game started immediately (only 1 player expected)
         assert manager.get_game("game1").started is True
         assert "game1" not in manager._pending_games
@@ -341,7 +317,6 @@ class TestPendingGameDisconnect:
         # Disconnect from started game - should clean up
         await manager.leave_game(conn, notify_player=False)
         manager.unregister_connection(conn)
-
         assert manager.get_game("game1") is None
 
 
@@ -536,7 +511,6 @@ class TestJoinGameViaRouter:
                 "game_ticket": ticket,
             },
         )
-
         game = manager.get_game(game_id)
         assert game is not None
         assert game.started is True
@@ -556,7 +530,6 @@ class TestJoinGameViaRouter:
                 "game_ticket": "forged-ticket",
             },
         )
-
         # Should get INVALID_TICKET error (signature verification fails)
         assert SessionErrorCode.INVALID_TICKET in _error_codes(conn)
 
@@ -613,7 +586,6 @@ class TestPendingGameDefensivePaths:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
-
         # Game should still be pending (only 1 of 2 connected)
         assert "game1" in manager._pending_games
 
@@ -630,7 +602,6 @@ class TestPendingGameDefensivePaths:
     ):
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
         pending = manager._pending_games.get("game1")
         assert pending is not None
 
@@ -649,7 +620,6 @@ class TestPendingGameDefensivePaths:
     async def test_complete_pending_game__when_game_removed__should_do_nothing(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
         pending = manager._pending_games.get("game1")
         assert pending is not None
 
@@ -684,7 +654,6 @@ class TestPendingGameDefensivePaths:
 
         conn = MockConnection()
         manager.register_connection(conn)
-
         # Manually set game as started to simulate race
         game = manager.get_game("game1")
         assert game is not None
@@ -701,7 +670,6 @@ class TestPendingGameDefensivePaths:
     ):
         specs = _make_specs(2)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
-
         # Simulate: game started but pending state still lingering (shouldn't happen
         # normally, but _cleanup_empty_game defensively handles it)
         game = manager.get_game("game1")
@@ -718,8 +686,8 @@ class TestPendingGameDefensivePaths:
         # Now remove player (makes game empty) and run cleanup
         game.players.pop(conn.connection_id)
         assert game.is_empty
-        await manager._cleanup_empty_game("game1", game)
 
+        await manager._cleanup_empty_game("game1", game)
         assert "game1" not in manager._pending_games
 
     async def test_validate_join_game__when_game_removed_meanwhile__should_return_not_found(
@@ -766,14 +734,12 @@ class TestPendingGameDefensivePaths:
         conn2 = MockConnection()
         manager.register_connection(conn2)
         await manager.join_game(conn2, game_id="game1", session_token="ticket-0")
-
         # conn1 has been evicted: removed from _connections
         assert conn1.connection_id not in manager._connections
 
         # conn1 tries to JOIN_GAME again (stale message loop still running).
         # The call is silently ignored because conn1 is no longer registered.
         await manager.join_game(conn1, game_id="game1", session_token="ticket-0")
-
         # conn2 must still be the active player, not evicted by conn1
         game = manager._games["game1"]
         assert conn2.connection_id in game.players
@@ -788,7 +754,6 @@ class TestPendingGameDefensivePaths:
         conn1 = MockConnection()
         manager.register_connection(conn1)
         await manager.join_game(conn1, game_id="game1", session_token="ticket-0")
-
         pending = manager._pending_games.get("game1")
         assert pending is not None
         assert pending.connected_count == 1
@@ -806,7 +771,6 @@ class TestPendingGameDefensivePaths:
         # Call _leave_pending_game directly (as leave_game would after
         # reading the stale player reference before the lock)
         await manager._leave_pending_game(game, conn1, player, notify_player=False)
-
         # connected_count must NOT be decremented (eviction didn't increment)
         assert pending.connected_count == 1
         # Session must still be marked as connected (not overwritten to disconnected)

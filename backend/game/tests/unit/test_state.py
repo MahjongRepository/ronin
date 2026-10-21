@@ -95,7 +95,6 @@ class TestGetPlayerView:
 
         view0 = get_player_view(game_state, seat=0)
         view1 = get_player_view(game_state, seat=1)
-
         assert view0.my_tiles != view1.my_tiles
         assert len(view0.my_tiles) == 13
         assert len(view1.my_tiles) == 13

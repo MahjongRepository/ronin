@@ -21,41 +21,37 @@ def _make_request(path: str = "/rooms") -> object:
 
 
 class TestAuthErrorHandler:
-    async def test_auth_error_handler__when_401_on_rooms__should_return_json(self) -> None:
+    async def test_auth_error_handler__when_401_on_rooms__should_return_json(self):
         request = _make_request("/rooms")
         exc = HTTPException(status_code=401)
 
         result = await _auth_error_handler(request, exc)
-
         assert isinstance(result, JSONResponse)
         assert result.status_code == 401
         assert result.body == b'{"error":"Authentication required"}'
 
-    async def test_auth_error_handler__when_401_on_non_api_path__should_return_plain_text(self) -> None:
+    async def test_auth_error_handler__when_401_on_non_api_path__should_return_plain_text(self):
         request = _make_request("/some-other-page")
         exc = HTTPException(status_code=401)
 
         result = await _auth_error_handler(request, exc)
-
         assert isinstance(result, PlainTextResponse)
         assert result.status_code == 401
 
-    async def test_auth_error_handler__when_404__should_return_plain_text(self) -> None:
+    async def test_auth_error_handler__when_404__should_return_plain_text(self):
         request = _make_request("/rooms")
         exc = HTTPException(status_code=404, detail="Not Found")
 
         result = await _auth_error_handler(request, exc)
-
         assert isinstance(result, PlainTextResponse)
         assert result.status_code == 404
         assert result.body == b"Not Found"
 
-    async def test_auth_error_handler__when_204__should_return_empty_response(self) -> None:
+    async def test_auth_error_handler__when_204__should_return_empty_response(self):
         request = _make_request("/rooms")
         exc = HTTPException(status_code=204)
 
         result = await _auth_error_handler(request, exc)
-
         assert isinstance(result, Response)
         assert not isinstance(result, (JSONResponse, PlainTextResponse))
         assert result.status_code == 204

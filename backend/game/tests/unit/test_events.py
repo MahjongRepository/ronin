@@ -26,7 +26,7 @@ from game.tests.unit.helpers import _string_to_136_tile
 
 
 class TestServiceEvent:
-    def test_service_event__when_event_type_mismatches_data__should_raise_value_error(self) -> None:
+    def test_service_event__when_event_type_mismatches_data__should_raise_value_error(self):
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         with pytest.raises(ValueError, match=r"does not match data\.type"):
             ServiceEvent(
@@ -36,21 +36,21 @@ class TestServiceEvent:
 
 
 class TestParseEventTarget:
-    def test_parse_event_target__when_broadcast__should_return_broadcast_target(self) -> None:
+    def test_parse_event_target__when_broadcast__should_return_broadcast_target(self):
         result = parse_event_target("all")
         assert isinstance(result, BroadcastTarget)
 
-    def test_parse_event_target__when_seat_n__should_return_seat_target(self) -> None:
+    def test_parse_event_target__when_seat_n__should_return_seat_target(self):
         for seat in range(4):
             result = parse_event_target(f"seat_{seat}")
             assert isinstance(result, SeatTarget)
             assert result.seat == seat
 
-    def test_parse_event_target__when_invalid_value__should_raise_value_error(self) -> None:
+    def test_parse_event_target__when_invalid_value__should_raise_value_error(self):
         with pytest.raises(ValueError, match="invalid target value"):
             parse_event_target("bogus")
 
-    def test_parse_event_target__when_negative_seat__should_raise_value_error(self) -> None:
+    def test_parse_event_target__when_negative_seat__should_raise_value_error(self):
         with pytest.raises(ValueError, match="invalid seat number"):
             parse_event_target("seat_-1")
 
@@ -60,7 +60,6 @@ class TestConvertEvents:
         events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0")]
 
         result = convert_events(events)
-
         assert len(result) == 1
         assert isinstance(result[0], ServiceEvent)
         assert result[0].event == EventType.DRAW
@@ -82,7 +81,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 2
         assert result[0].target == SeatTarget(seat=0)
         assert result[1].target == SeatTarget(seat=1)
@@ -109,7 +107,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 1
         assert result[0].target == SeatTarget(seat=0)
         # both call options preserved for the same seat
@@ -126,7 +123,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 1
         assert result[0].target == SeatTarget(seat=1)
         assert isinstance(result[0].data, CallPromptEvent)
@@ -147,7 +143,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 2
         # seat 1 gets a RON event
         seat1_event = next(se for se in result if se.target == SeatTarget(seat=1))
@@ -170,7 +165,6 @@ class TestConvertEvents:
         )
 
         result = convert_events([call_prompt])
-
         assert len(result) == 2
         for se in result:
             assert isinstance(se.data, CallPromptEvent)
@@ -178,19 +172,19 @@ class TestConvertEvents:
 
 
 class TestConvertEventsTargetValidation:
-    def test_convert_events__when_negative_seat_target__should_raise_value_error(self) -> None:
+    def test_convert_events__when_negative_seat_target__should_raise_value_error(self):
         event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_-1")
         with pytest.raises(ValueError, match="invalid seat number"):
             convert_events([event])
 
-    def test_convert_events__when_invalid_target_string__should_raise_value_error(self) -> None:
+    def test_convert_events__when_invalid_target_string__should_raise_value_error(self):
         event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="bogus")
         with pytest.raises(ValueError, match="invalid target value"):
             convert_events([event])
 
 
 class TestSplitDiscardPromptEmptyCallersGuard:
-    def test_split_discard_prompt__when_seat_has_no_ron_or_meld_entries__should_raise_value_error(self) -> None:
+    def test_split_discard_prompt__when_seat_has_no_ron_or_meld_entries__should_raise_value_error(self):
         call_prompt = CallPromptEvent(
             call_type=CallType.DISCARD,
             tile_id=42,
@@ -228,7 +222,6 @@ class TestExtractRoundResult:
         ]
 
         result = extract_round_result(events)
-
         assert result is not None
         assert isinstance(result, TsumoResult)
         assert result.type == RoundResultType.TSUMO
@@ -249,5 +242,4 @@ class TestExtractRoundResult:
         ]
 
         result = extract_round_result(events)
-
         assert result is None

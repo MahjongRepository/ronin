@@ -31,7 +31,6 @@ class TestMahjongGameServiceErrors:
         events = await service.handle_action(
             game_id="nonexistent", player_name="Player", action=GameAction.DISCARD, data={"tile_id": 0}
         )
-
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
@@ -43,7 +42,6 @@ class TestMahjongGameServiceErrors:
         events = await service.handle_action(
             game_id="game1", player_name="Unknown", action=GameAction.DISCARD, data={"tile_id": 0}
         )
-
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
@@ -53,7 +51,6 @@ class TestMahjongGameServiceErrors:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action(game_id="game1", player_name="Player", action="unknown_action", data={})
-
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
@@ -71,7 +68,6 @@ class TestMahjongGameServiceValidationError:
         events = await service.handle_action(
             game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": "not_an_int"}
         )
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -88,7 +84,6 @@ class TestMahjongGameServiceValidationError:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action(game_id="game1", player_name="Player", action=action, data={})
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
@@ -162,7 +157,6 @@ class TestProcessActionResultRoundEnd:
         )
         result = ActionResult(events=[round_end], needs_post_discard=False)
         events = await service._process_action_result_internal("game1", result)
-
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) == 1
 
@@ -200,7 +194,6 @@ class TestMahjongGameServiceHandleChankanPrompt:
         events = [chankan_prompt]
 
         result = await service._handle_chankan_prompt("game1", events)
-
         assert result == events
 
     async def test_handle_chankan_prompt__when_caller_is_ai_player__should_process_its_response(self, service):
@@ -258,7 +251,6 @@ class TestMahjongGameServiceHandleChankanPrompt:
         events = [chankan_prompt]
 
         result = await service._handle_chankan_prompt("game1", events)
-
         assert result == events
 
 
@@ -278,7 +270,6 @@ class TestNoDataActionDispatchRouting:
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
         events = await service.handle_action(game_id="game1", player_name="Player", action=action, data={})
-
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
 
@@ -286,7 +277,6 @@ class TestNoDataActionDispatchRouting:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action(game_id="game1", player_name="Player", action=GameAction.CALL_RON, data={})
-
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.INVALID_RON

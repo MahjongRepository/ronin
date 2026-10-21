@@ -31,12 +31,12 @@ class TestKuikaeEdgeCases:
         forbidden = get_kuikae_tiles(
             call_type=MeldCallType.CHI, called_tile_34=called_tile_34, sequence_tiles_34=sequence_tiles_34
         )
-
         # Should forbid 3m (called tile) and the suji below 1m (which is 0m, but doesn't exist)
         # Actually: sequence is [0, 1, 2], called is 2 (highest)
         # suji = all_tiles[0] - 1 = 0 - 1 = -1, but -1 < 0, so it's filtered out
         # So only the called tile should be forbidden
         assert called_tile_34 in forbidden
+
         # The suji would be -1, which is invalid, so it won't be in the list
         # But let's test with a valid case: 234m where 4m is called
         man_tiles_234 = TilesConverter.string_to_136_array(man="234")
@@ -46,7 +46,6 @@ class TestKuikaeEdgeCases:
         forbidden_234 = get_kuikae_tiles(
             call_type=MeldCallType.CHI, called_tile_34=called_tile_34_4m, sequence_tiles_34=sequence_tiles_34_23
         )
-
         # Sequence is [1, 2, 3] (234m in tile_34), called is 3 (4m)
         # suji = all_tiles[0] - 1 = 1 - 1 = 0 (1m)
         assert called_tile_34_4m in forbidden_234  # 4m
@@ -121,7 +120,6 @@ class TestKanLimits:
 
         settings = GameSettings()
         result = can_call_open_kan(player2, discarded_tile=discarded_tile, round_state=round_state, settings=settings)
-
         assert result is False
 
     def test_get_possible_closed_kans__when_four_kans_already_made__should_return_empty(self):
@@ -174,7 +172,6 @@ class TestKanLimits:
 
         settings = GameSettings()
         result = get_possible_closed_kans(player2, round_state, settings=settings)
-
         assert result == []
 
     def test_get_possible_added_kans__when_four_kans_already_made__should_return_empty(self):
@@ -233,7 +230,6 @@ class TestKanLimits:
 
         settings = GameSettings()
         result = get_possible_added_kans(player2, round_state, settings=settings)
-
         assert result == []
 
 
@@ -247,7 +243,6 @@ class TestRiichiKanWaitPreservation:
         tile_34_1m = tile_to_34(tiles[0])  # 1m
 
         result = _kan_preserves_waits_for_riichi(player, tile_34_1m)
-
         assert result is True
 
     def test_riichi_kan__when_kan_changes_waits__should_reject_it(self):
@@ -262,7 +257,6 @@ class TestRiichiKanWaitPreservation:
         tile_34_1m = tile_to_34(tiles[0])  # 1m
 
         result = _kan_preserves_waits_for_riichi(player, tile_34_1m)
-
         # This should be rejected because kan changes the hand structure
         assert result is False
 
@@ -276,7 +270,6 @@ class TestRiichiKanWaitPreservation:
         tile_34_9p = tile_to_34(nine_pin_tiles[0])
 
         result = _kan_preserves_waits_for_riichi(player, tile_34_9p)
-
         assert result is False
 
     def test_get_possible_closed_kans__when_riichi_kan_keeps_waits__should_include_it(self):
@@ -342,7 +335,6 @@ class TestPaoLiability:
         discarder_seat = 2
 
         result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=chun_34, settings=GameSettings())
-
         assert result == discarder_seat
 
     def test_pao__when_fourth_wind_called__should_return_discarder_seat(self):
@@ -380,7 +372,6 @@ class TestPaoLiability:
         discarder_seat = 3
 
         result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=north_34, settings=GameSettings())
-
         assert result == discarder_seat
 
     def test_pao__when_normal_tile_called__should_return_none(self):
@@ -392,7 +383,6 @@ class TestPaoLiability:
         discarder_seat = 1
 
         result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=tile_34, settings=GameSettings())
-
         assert result is None
 
     def test_pao__when_first_dragon_called__should_return_none(self):
@@ -403,7 +393,6 @@ class TestPaoLiability:
         discarder_seat = 2
 
         result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=haku_34, settings=GameSettings())
-
         assert result is None
 
     def test_pao__when_open_kan_completes_third_dragon__should_set_pao_on_discarder(self):
@@ -447,7 +436,6 @@ class TestPaoLiability:
             tile_id=chun_4th,
             settings=settings,
         )
-
         assert new_state.players[0].pao_seat == discarder_seat
 
     def test_pao__when_pon_completes_third_dragon__should_set_pao_on_discarder(self):
@@ -492,7 +480,6 @@ class TestPaoLiability:
             tile_id=chun_3rd,
             settings=settings,
         )
-
         assert new_state.players[0].pao_seat == discarder_seat
 
 

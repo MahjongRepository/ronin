@@ -31,7 +31,6 @@ class TestSetupLogging:
 
         test_logger = structlog.get_logger("test.writes_to_file")
         test_logger.info("hello from test")
-
         assert log_path is not None
         assert log_path.name == "app.log"
         content = log_path.read_text()
@@ -43,7 +42,6 @@ class TestSetupLogging:
 
         test_logger = structlog.get_logger("test.creates_log_dir")
         test_logger.info("nested log")
-
         assert log_dir.exists()
         assert log_path is not None
         assert log_path.name == "app.log"
@@ -52,7 +50,6 @@ class TestSetupLogging:
     def test_setup_logging__when_log_dir_empty__should_skip_file_handler(self, tmp_path):
         log_path = setup_logging(log_dir="")
         root = logging.getLogger()
-
         assert log_path is None
         assert len(root.handlers) == 1  # stdout only
         assert not any(isinstance(h, logging.handlers.WatchedFileHandler) for h in root.handlers)
@@ -61,14 +58,12 @@ class TestSetupLogging:
         setup_logging()
         setup_logging()
         root = logging.getLogger()
-
         assert len(root.handlers) == 1
 
     def test_setup_logging__when_log_level_env_set__should_apply_level(self, monkeypatch):
         monkeypatch.setenv("LOG_LEVEL", "debug")
         setup_logging()
         root = logging.getLogger()
-
         assert root.level == logging.DEBUG
 
     def test_setup_logging__when_log_level_invalid__should_raise(self, monkeypatch):
@@ -84,7 +79,6 @@ class TestSetupLogging:
         test_logger = structlog.get_logger("test.json")
         test_logger.info("json test event", extra_field="value")
         structlog.contextvars.clear_contextvars()
-
         assert log_path is not None
         lines = log_path.read_text().strip().splitlines()
         assert len(lines) == 1

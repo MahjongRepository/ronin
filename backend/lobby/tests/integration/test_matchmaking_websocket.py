@@ -208,6 +208,7 @@ class TestMatchmakingGameTransition:
             )
             mgr.add_player(entry)
             entries.append(entry)
+
         return entries
 
     def test_matchmaking_websocket__when_fourth_player_joins__should_send_game_starting_to_all(self, app, client):

@@ -18,7 +18,6 @@ class TestSessionManager:
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.leave_game(conns[1])
-
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0]["type"] == SessionMessageType.PLAYER_LEFT
         assert conns[0].sent_messages[0]["player_name"] == "Bob"
@@ -27,7 +26,6 @@ class TestSessionManager:
         conns = await create_started_game(manager)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"key": "value"})
-
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
@@ -50,7 +48,6 @@ class TestSessionManager:
             target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [seat_event])
-
         # only conn1 (seat 0) should receive the event
         assert len(conns[0].sent_messages) == 1
         assert len(conns[1].sent_messages) == 0
@@ -72,7 +69,6 @@ class TestSessionManager:
             target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [call_event])
-
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
@@ -99,7 +95,6 @@ class TestSessionManager:
             target=SeatTarget(seat=0),
         )
         await manager._broadcast_events(game, [call_event])
-
         # seat 0 should receive the call_prompt exactly once
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
