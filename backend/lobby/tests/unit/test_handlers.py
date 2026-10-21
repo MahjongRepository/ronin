@@ -16,6 +16,7 @@ class TestLoadViteManifest:
         vite_dir = tmp_path / ".vite"
         vite_dir.mkdir()
         (vite_dir / "manifest.json").write_text("not valid json{{{")
+
         with pytest.raises(ValueError, match=r"Malformed manifest\.json"):
             load_vite_manifest(str(tmp_path))
 
@@ -23,6 +24,7 @@ class TestLoadViteManifest:
         vite_dir = tmp_path / ".vite"
         vite_dir.mkdir()
         (vite_dir / "manifest.json").write_text('["not", "a", "dict"]')
+
         with pytest.raises(TypeError, match=r"must be a JSON object"):
             load_vite_manifest(str(tmp_path))
 
@@ -31,6 +33,7 @@ class TestLoadViteManifest:
         vite_dir.mkdir()
         manifest = {"src/index.ts": {"file": "assets/game-abc.js", "isEntry": True}}
         (vite_dir / "manifest.json").write_text(json.dumps(manifest))
+
         assert load_vite_manifest(str(tmp_path)) == manifest
 
 
@@ -184,12 +187,14 @@ class TestPrepareGamesForDisplay:
     def test_prepare_history_for_display__when_tonpusen__should_label_east(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="tonpusen")
+
         result = _prepare_history_for_display([game])
         assert result[0]["game_type_label"] == "東"
 
     def test_prepare_history_for_display__when_game_type_unknown__should_use_empty_label(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="")
+
         result = _prepare_history_for_display([game])
         assert result[0]["game_type_label"] == ""
 
@@ -207,5 +212,6 @@ class TestPrepareGamesForDisplay:
     def test_prepare_history_for_display__when_standings_empty__should_have_no_players(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, standings=[])
+
         result = _prepare_history_for_display([game])
         assert result[0]["players"] == []

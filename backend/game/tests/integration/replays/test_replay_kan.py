@@ -75,7 +75,6 @@ async def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement
         wall=_build_added_kan_wall(),
         events=_build_added_kan_events(),
     )
-
     trace = await run_replay_async(replay)
     # Find the kan step
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
@@ -113,9 +112,7 @@ async def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
         wall=_build_added_kan_wall(),
         events=_build_added_kan_events(),
     )
-
     trace = await run_replay_async(replay)
-
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
     alice_after_kan = kan_step.state_after.round_state.players[2]
@@ -139,9 +136,7 @@ async def test_added_kan__when_replayed__should_reveal_dora_after_replacement_di
         wall=_build_added_kan_wall(),
         events=_build_added_kan_events(),
     )
-
     trace = await run_replay_async(replay)
-
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
     kan_step_idx = non_synthetic_steps.index(kan_step)

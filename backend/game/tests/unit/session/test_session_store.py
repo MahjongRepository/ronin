@@ -6,6 +6,7 @@ class TestSessionStore:
         store = SessionStore()
         s1 = store.create_session(player_name="Alice", game_id="g1")
         s2 = store.create_session(player_name="Bob", game_id="g1")
+
         store.cleanup_game("g1")
         assert store._sessions.get(s1.session_token) is None
         assert store._sessions.get(s2.session_token) is None
@@ -14,6 +15,7 @@ class TestSessionStore:
         store = SessionStore()
         s1 = store.create_session(player_name="Alice", game_id="g1")
         s2 = store.create_session(player_name="Bob", game_id="g2")
+
         store.cleanup_game("g1")
         assert store._sessions.get(s1.session_token) is None
         assert store._sessions.get(s2.session_token) is not None

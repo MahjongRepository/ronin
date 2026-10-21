@@ -37,14 +37,12 @@ class TestRonPlusMeldCallersRonWins:
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
 
         wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(discard_tile,) if i == 0 else (ron_hand if i == 1 else (pon_tiles if i == 2 else ())),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2, tiles=pon_tiles),
+            create_player(seat=3),
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -92,18 +90,12 @@ class TestRonPassMeldClaims:
         other_tiles = TilesConverter.string_to_136_array(man="123456789", sou="11")
 
         wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(
-                    (discard_tile,)
-                    if i == 0
-                    else (ron_hand if i == 1 else ((*pon_tiles, *other_tiles) if i == 2 else ()))
-                ),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2, tiles=(*pon_tiles, *other_tiles)),
+            create_player(seat=3),
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -147,18 +139,12 @@ class TestAllCallersPass:
         other_tiles = TilesConverter.string_to_136_array(man="123456789", sou="11")
 
         wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(
-                    (discard_tile,)
-                    if i == 0
-                    else (ron_hand if i == 1 else ((*pon_tiles, *other_tiles) if i == 2 else ()))
-                ),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2, tiles=(*pon_tiles, *other_tiles)),
+            create_player(seat=3),
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -193,12 +179,11 @@ class TestMultipleRonPlusMeld:
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=ron_hand_1 if i == 1 else (ron_hand_2 if i == 2 else ()),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=ron_hand_1),
+            create_player(seat=2, tiles=ron_hand_2),
+            create_player(seat=3),
         )
 
         # set up prompt directly: seats 1 and 2 are ron callers, seat 3 is meld
@@ -213,7 +198,6 @@ class TestMultipleRonPlusMeld:
                 CallResponse(seat=2, action=GameAction.CALL_RON),
             ),
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -237,7 +221,6 @@ class TestAllRonPassMeldWins:
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
         chi_tiles = TilesConverter.string_to_136_array(pin="24")
         other_tiles = TilesConverter.string_to_136_array(man="123456789", sou="11")
-
         wall, dead_wall = _make_wall_and_dead_wall()
 
         # seat 2 has pon tiles, seat 3 has chi tiles, seat 1 is ron caller (will pass)
@@ -257,12 +240,11 @@ class TestAllRonPassMeldWins:
             ),
         )
 
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=((*pon_tiles, *other_tiles) if i == 2 else ((*chi_tiles, *other_tiles) if i == 3 else ())),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0),
+            create_player(seat=1),
+            create_player(seat=2, tiles=(*pon_tiles, *other_tiles)),
+            create_player(seat=3, tiles=(*chi_tiles, *other_tiles)),
         )
         round_state = create_round_state(
             players=players,
@@ -288,14 +270,12 @@ class TestDualEligibleSeatRonDominant:
 
         wall, dead_wall = _make_wall_and_dead_wall()
         # seat 1 has ron hand AND can pon (has two pin 3s)
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(discard_tile,) if i == 0 else (ron_hand if i == 1 else ()),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2),
+            create_player(seat=3),
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -407,18 +387,16 @@ class TestRiichiFinalizationAfterRonPass:
         other_tiles = TilesConverter.string_to_136_array(man="123456789", pin="11")
 
         wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(
+        players = (
             create_player(
-                seat=i,
-                tiles=(
-                    tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113"))
-                    if i == 0
-                    else ((*pon_tiles, *other_tiles) if i == 2 else ())
-                ),
+                seat=0,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
                 # seat 0 is the discarder, about to finalize riichi
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
+            ),
+            create_player(seat=1),
+            create_player(seat=2, tiles=(*pon_tiles, *other_tiles)),
+            create_player(seat=3),
         )
 
         # create a DISCARD prompt with seat 1 as ron caller (already passed) and seat 2 as meld
@@ -430,7 +408,6 @@ class TestRiichiFinalizationAfterRonPass:
             callers=(1, MeldCaller(seat=2, call_type=MeldCallType.PON)),
             responses=(CallResponse(seat=2, action=GameAction.CALL_PON),),
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -457,14 +434,15 @@ class TestFourRiichiAbortAfterRonPass:
     def test_discard_claim__when_fourth_riichi_discard_unclaimed__should_abort_four_riichi(self):
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
-        players = tuple(
+        players = (
             create_player(
-                seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
-                is_riichi=(i in (1, 2, 3)),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
+                seat=0,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
+            ),
+            create_player(seat=1, is_riichi=True),
+            create_player(seat=2, is_riichi=True),
+            create_player(seat=3, is_riichi=True),
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
@@ -475,7 +453,6 @@ class TestFourRiichiAbortAfterRonPass:
             pending_seats=frozenset(),
             callers=(1,),  # seat 1 was a ron caller who passed
         )
-
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -511,12 +488,11 @@ class TestHandleRonOnDiscardPrompt:
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=ron_hand if i == 1 else (),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2),
+            create_player(seat=3),
         )
         round_state = create_round_state(
             players=players,
@@ -582,12 +558,11 @@ class TestLastDiscardRestriction:
         other_tiles = TilesConverter.string_to_136_array(man="1234", sou="1234567")
 
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="88889999", pin="112266"))
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=((discard_tile,) if i == 0 else ((*pon_tiles, *other_tiles) if i == 2 else ())),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1),
+            create_player(seat=2, tiles=(*pon_tiles, *other_tiles)),
+            create_player(seat=3),
         )
 
         # empty live wall: last tile was already drawn
@@ -613,12 +588,11 @@ class TestLastDiscardRestriction:
         other_tiles = TilesConverter.string_to_136_array(man="1234", sou="1234567")
 
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="88889999", pin="112233"))
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=((discard_tile,) if i == 0 else ((*chi_tiles, *other_tiles) if i == 1 else ())),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=(*chi_tiles, *other_tiles)),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         # empty live wall
@@ -641,12 +615,11 @@ class TestLastDiscardRestriction:
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
 
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333366"))
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=((discard_tile,) if i == 0 else (ron_hand if i == 1 else ())),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         # empty live wall
@@ -677,16 +650,11 @@ class TestLastDiscardRestriction:
         other_tiles = TilesConverter.string_to_136_array(man="1234", sou="1234567")
 
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="88889999", pin="112266"))
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(
-                    (discard_tile,)
-                    if i == 0
-                    else (ron_hand if i == 1 else ((*pon_tiles, *other_tiles) if i == 2 else ()))
-                ),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=ron_hand),
+            create_player(seat=2, tiles=(*pon_tiles, *other_tiles)),
+            create_player(seat=3),
         )
 
         # empty live wall
@@ -703,7 +671,6 @@ class TestLastDiscardRestriction:
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 1
-
         prompt = call_prompts[0]
         # ron caller (seat 1) should be present, meld caller (seat 2) should not
         ron_callers = [c for c in prompt.callers if isinstance(c, int)]

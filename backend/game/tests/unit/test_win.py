@@ -29,7 +29,6 @@ class TestCheckTsumoMeldDedup:
         # meld tiles IN player.tiles (dedup path in all_player_tiles)
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         pon_tiles = TilesConverter.string_to_136_array(pin="888")
-
         all_tiles = closed_tiles + pon_tiles
 
         pon = FrozenMeld(
@@ -40,8 +39,8 @@ class TestCheckTsumoMeldDedup:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
+
         assert check_tsumo(player) is True
 
     def test_check_tsumo__when_meld_tiles_absent_from_hand__should_win(self):
@@ -57,8 +56,8 @@ class TestCheckTsumoMeldDedup:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+
         assert check_tsumo(player) is True
 
 
@@ -75,7 +74,6 @@ class TestCheckTsumoWithTiles:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         ron_tile = TilesConverter.string_to_136_array(sou="4")[0]
         tiles_with_ron = [*closed_tiles, ron_tile]
@@ -115,7 +113,6 @@ class TestCanDeclareTsumo:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
@@ -126,7 +123,6 @@ class TestCanDeclareTsumo:
         closed_tiles_before_win = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
         win_tile = TilesConverter.string_to_136_array(man="5")[:1]
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-
         all_tiles = closed_tiles_before_win + pon_tiles + win_tile
 
         pon = FrozenMeld(
@@ -137,7 +133,6 @@ class TestCanDeclareTsumo:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
@@ -156,7 +151,6 @@ class TestCanDeclareTsumo:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
@@ -209,7 +203,6 @@ class TestGetWaitingTiles:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
 
         waiting = get_waiting_tiles(player)
@@ -256,7 +249,6 @@ class TestIsFuriten:
             tiles=tuple(one_m_tiles),
             opened=False,
         )
-
         # waiting on 1s and 4s (not 1m since we have kan of 1m), no discards
         player = MahjongPlayer(seat=0, name="P1", tiles=tuple(tiles), melds=(kan,), score=25000)
 
@@ -324,6 +316,7 @@ class TestTemporaryFuritenResetOnDiscard:
             ),
         )
         ron_tile = TilesConverter.string_to_136_array(pin="3")[0]
+
         assert can_call_ron(player, discarded_tile=ron_tile, round_state=round_state, settings=GameSettings()) is False
 
     def test_temporary_furiten__when_active__should_allow_tsumo(self):
@@ -374,6 +367,7 @@ class TestRiichiFuritenPermanent:
             ),
         )
         ron_tile = TilesConverter.string_to_136_array(pin="3")[0]
+
         assert can_call_ron(player, discarded_tile=ron_tile, round_state=round_state, settings=GameSettings()) is False
 
     def test_riichi_furiten__when_active__should_allow_tsumo(self):
@@ -487,7 +481,6 @@ class TestCanCallRon:
             score=25000,
         )
         round_state = self._create_round_state()
-
         discarded_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         assert (
@@ -499,7 +492,6 @@ class TestCanCallRon:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), is_riichi=True, score=25000)
         round_state = self._create_round_state()
-
         discarded_tile = TilesConverter.string_to_136_array(sou="9")[0]
 
         assert (
@@ -521,10 +513,8 @@ class TestCanCallRon:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
-
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
         assert (
@@ -546,10 +536,8 @@ class TestCanCallRon:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
-
         discarded_tile = TilesConverter.string_to_136_array(man="6")[0]
 
         assert (
@@ -571,10 +559,8 @@ class TestCanCallRon:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
-
         discarded_tile = TilesConverter.string_to_136_array(sou="55")[1]
 
         assert (
@@ -595,10 +581,8 @@ class TestCanCallRon:
             who=0,
             from_who=1,
         )
-
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
-
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
         assert (
@@ -847,7 +831,6 @@ class TestShibariDoraOnly:
         dora_indicator = tuple(TilesConverter.string_to_136_array(man="4")[:1])
         round_state = self._create_round_state(dora_indicator)
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
-
         # ron on 6m completes the hand (234m + 56m pair -> 23456m = 234m + 56m... no)
         # ron on 5m gives 55m pair: 111m(pon) + 234m + 234p + 567s + 55m
         ron_tile = TilesConverter.string_to_136_array(man="5")[0]

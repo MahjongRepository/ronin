@@ -50,6 +50,7 @@ class TestParseLobbyMessage:
         # Each CJK char is 3 bytes. ~1300 chars = ~3900 bytes, should be fine.
         text = "\u4e00" * 1000  # 3000 bytes
         raw = f'{{"type": "chat", "text": "{text}"}}'
+
         msg = parse_lobby_message(raw)
         assert isinstance(msg, LobbyChatMessage)
 

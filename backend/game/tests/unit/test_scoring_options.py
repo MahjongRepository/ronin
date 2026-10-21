@@ -147,6 +147,7 @@ class TestChiitoitsuFu:
 
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # Chiitoitsu (2 han) + menzen tsumo (1 han) = 3 han minimum
@@ -248,6 +249,7 @@ class TestKiriageMangan:
 
         settings = GameSettings(has_kiriage_mangan=True, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert result.han == 4
@@ -269,6 +271,7 @@ class TestKiriageMangan:
 
         settings = GameSettings(has_kiriage_mangan=False, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert result.han == 4

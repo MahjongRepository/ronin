@@ -55,12 +55,12 @@ class TestKuikaeEdgeCases:
 class TestKanLimits:
     def test_can_call_open_kan__when_wall_below_min_for_kan__should_return_false(self):
         pin_5p = TilesConverter.string_to_136_array(pin="555")
+        discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
         player = create_player(seat=1, tiles=pin_5p)
         round_state = create_round_state(
             players=[create_player(seat=0), player, create_player(seat=2), create_player(seat=3)],
             wall=(1,),  # only 1 tile; min_wall_for_kan defaults to 2
         )
-        discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
         assert (
             can_call_open_kan(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
             is False
@@ -106,16 +106,14 @@ class TestKanLimits:
         pin_5p = TilesConverter.string_to_136_array(pin="555")
         player2 = create_player(seat=2, tiles=pin_5p)
 
+        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         players = [
             create_player(seat=0, melds=player0_melds),
             create_player(seat=1, melds=player1_melds),
             player2,
             create_player(seat=3),
         ]
-
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         round_state = create_round_state(players=players, wall=wall)
-
         discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
 
         settings = GameSettings()
@@ -160,14 +158,13 @@ class TestKanLimits:
         pin_5p = TilesConverter.string_to_136_array(pin="5555")
         player2 = create_player(seat=2, tiles=pin_5p)
 
+        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         players = [
             create_player(seat=0, melds=player0_melds),
             create_player(seat=1, melds=player1_melds),
             player2,
             create_player(seat=3),
         ]
-
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         round_state = create_round_state(players=players, wall=wall)
 
         settings = GameSettings()
@@ -218,14 +215,13 @@ class TestKanLimits:
         )
         player2 = create_player(seat=2, tiles=[pin_5p[3]], melds=[pon_meld])
 
+        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         players = [
             create_player(seat=0, melds=player0_melds),
             create_player(seat=1, melds=player1_melds),
             player2,
             create_player(seat=3),
         ]
-
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
         round_state = create_round_state(players=players, wall=wall)
 
         settings = GameSettings()
@@ -236,9 +232,7 @@ class TestKanLimits:
 class TestRiichiKanWaitPreservation:
     def test_riichi_kan__when_kan_keeps_waits__should_allow_it(self):
         tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
-
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
         # Check if kan on 1m preserves waits
         tile_34_1m = tile_to_34(tiles[0])  # 1m
 
@@ -250,9 +244,7 @@ class TestRiichiKanWaitPreservation:
         # Hand: 1112345678999m (tenpai on 1m, 4m, 7m)
         # If we kan 1111m or 9999m, waits change
         tiles = TilesConverter.string_to_136_array(man="1112345678999")
-
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
         # Check if kan on 1m changes waits
         tile_34_1m = tile_to_34(tiles[0])  # 1m
 
@@ -262,9 +254,7 @@ class TestRiichiKanWaitPreservation:
 
     def test_riichi_kan__when_kan_tile_is_also_a_wait__should_reject_it(self):
         tiles = TilesConverter.string_to_136_array(man="11234", sou="567", pin="789999")
-
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
         # 9p in 34-format = 17
         nine_pin_tiles = TilesConverter.string_to_136_array(pin="9")
         tile_34_9p = tile_to_34(nine_pin_tiles[0])
@@ -326,7 +316,6 @@ class TestPaoLiability:
                 who=0,
             ),
         )
-
         player = create_player(seat=0, melds=melds)
 
         # Call _check_pao with chun (3rd dragon)
@@ -363,7 +352,6 @@ class TestPaoLiability:
                 who=0,
             ),
         )
-
         player = create_player(seat=0, melds=melds)
 
         # Call _check_pao with north (4th wind)
@@ -415,7 +403,6 @@ class TestPaoLiability:
                 who=0,
             ),
         )
-
         # Player has 3 chun tiles in hand
         player = create_player(seat=0, tiles=chun_tiles[:3], melds=melds)
 
@@ -458,7 +445,6 @@ class TestPaoLiability:
                 who=0,
             ),
         )
-
         # Player has 2 chun tiles in hand
         other_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player = create_player(seat=0, tiles=tuple(chun_tiles) + tuple(other_tiles), melds=melds)
@@ -495,13 +481,12 @@ class TestChiKuikaeWithoutSuji:
             create_player(seat=2),
             create_player(seat=3),
         ]
-
-        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
         )
 
+        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
@@ -510,7 +495,6 @@ class TestChiKuikaeWithoutSuji:
             sequence_tiles=(man_tiles[1], man_tiles[2]),
             settings=settings,
         )
-
         called_34 = tile_to_34(man_tiles[0])
         # Only the called tile type should be forbidden (no suji)
         assert new_state.players[1].kuikae_tiles == (called_34,)

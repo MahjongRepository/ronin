@@ -45,6 +45,7 @@ class TestKyuushuKyuuhaiThresholds:
         ]
         rs = self._round_state_with_hand(tiles)
         settings = GameSettings(kyuushu_min_types=10)
+
         assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings=settings) is False
 
 
@@ -70,6 +71,7 @@ class TestTripleRonThresholds:
 class TestProcessAbortiveDraw:
     def test_process_abortive_draw__should_produce_zero_score_changes(self):
         game_state = create_game_state()
+
         result = process_abortive_draw(game_state, AbortiveDrawType.NINE_TERMINALS)
         assert all(v == 0 for v in result.score_changes.values())
         assert result.type == RoundResultType.ABORTIVE_DRAW
@@ -78,6 +80,7 @@ class TestProcessAbortiveDraw:
         players = tuple(create_player(seat=i, score=25000 + i * 1000) for i in range(4))
         rs = create_round_state(players=players)
         game_state = create_game_state(round_state=rs)
+
         result = process_abortive_draw(game_state, AbortiveDrawType.FOUR_WINDS)
         assert result.scores[0] == 25000
         assert result.scores[1] == 26000

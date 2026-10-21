@@ -38,6 +38,7 @@ class TestTimerManagerRemove:
 
     def test_timer_manager__when_timer_removed__should_return_it_and_keep_other_seats(self, timer_manager):
         timer_manager.create_timers(game_id="g1", seats=[0, 1])
+
         timer = timer_manager.remove_timer("g1", 0)
         assert timer is not None
         # should be gone after removal
@@ -49,6 +50,7 @@ class TestTimerManagerRemove:
 class TestTimerManagerCleanup:
     def test_timer_manager__when_game_cleaned_up__should_remove_all_timers(self, timer_manager):
         timer_manager.create_timers(game_id="g1", seats=[0, 1, 2, 3])
+
         timer_manager.cleanup_game("g1")
         assert not timer_manager.has_game("g1")
         for seat in range(4):
@@ -218,6 +220,7 @@ class TestTimerManagerStartRoundAdvance:
         game = Game(game_id="g1")
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=0)
         game.players[conn.connection_id] = player
+
         # no timers created
         timer_manager.start_round_advance_timers(game)
 

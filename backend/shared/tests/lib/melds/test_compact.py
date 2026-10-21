@@ -314,9 +314,13 @@ class TestNegativeInteger:
 
 class TestNoneFieldValidation:
     def test_encode_meld_compact__when_called_tile_is_none__should_raise(self):
-        for meld_type in ["chi", "pon", "open_kan", "added_kan"]:
-            tile_ids = [0, 4, 8] if meld_type == "chi" else ([0, 1, 2] if meld_type == "pon" else [0, 1, 2, 3])
-            from_seat = 3 if meld_type == "chi" else 1
+        cases = [
+            ("chi", [0, 4, 8], 3),
+            ("pon", [0, 1, 2], 1),
+            ("open_kan", [0, 1, 2, 3], 1),
+            ("added_kan", [0, 1, 2, 3], 1),
+        ]
+        for meld_type, tile_ids, from_seat in cases:
             wire = {
                 "type": "meld",
                 "meld_type": meld_type,

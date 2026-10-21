@@ -48,7 +48,6 @@ class TestWebSocketIntegration:
             join_game_and_start(ws, tickets[0])
 
             send_ws(ws, {"t": WireClientMessageType.CHAT, "text": "Hello from game!"})
-
             response = recv_ws(ws)
             assert response["type"] == SessionMessageType.CHAT
             assert response["player_name"] == "Player1"
@@ -61,7 +60,6 @@ class TestWebSocketIntegration:
             join_game_and_start(ws, tickets[0])
 
             send_ws(ws, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0})
-
             response = recv_ws(ws)
             assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert response["player"] == "Player1"
@@ -74,7 +72,6 @@ class TestWebSocketIntegration:
         with client.websocket_connect("/ws/test_game") as ws:
             # Send garbage bytes that aren't valid MessagePack
             ws.send_bytes(b"\xff\xff\xff")
-
             response = recv_ws(ws)
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_MESSAGE
@@ -95,7 +92,6 @@ class TestWebSocketIntegration:
                 ws,
                 {"t": WireClientMessageType.JOIN_GAME, "game_ticket": "not-a-valid-ticket"},
             )
-
             response = recv_ws(ws)
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_TICKET
@@ -211,6 +207,7 @@ class TestStatusEndpoint:
 
     def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
         create_pending_game(client, game_id="r1")
+
         response = client.get("/status")
         data = response.json()
         assert data["pending_games"] == 1
@@ -228,6 +225,7 @@ class TestCreateGameEndpoint:
 
     def test_create_game_endpoint__when_body_valid__should_return_201_pending(self, client):
         ticket = make_test_game_ticket(username="Player1", room_id="test-game", user_id="user-0")
+
         response = client.post(
             "/games",
             json={
@@ -245,6 +243,7 @@ class TestCreateGameEndpoint:
 
     def test_create_game_endpoint__when_game_id_invalid__should_return_400(self, client):
         ticket = make_test_game_ticket(username="Player1", room_id="bad id!", user_id="user-0")
+
         response = client.post(
             "/games",
             json={
@@ -258,6 +257,7 @@ class TestCreateGameEndpoint:
     def test_create_game_endpoint__when_pending_game_exists__should_return_409(self, client):
         create_pending_game(client, game_id="dupe")
         ticket = make_test_game_ticket(username="Player1", room_id="dupe", user_id="user-0")
+
         response = client.post(
             "/games",
             json={
@@ -272,6 +272,7 @@ class TestCreateGameEndpoint:
         sm = client.app.state.session_manager
         sm._games["active-game"] = object()
         ticket = make_test_game_ticket(username="Player1", room_id="active-game", user_id="user-0")
+
         response = client.post(
             "/games",
             json={
@@ -307,6 +308,7 @@ class TestCreateGameEndpoint:
 
     def test_create_game_endpoint__when_body_oversized__should_return_413(self, client):
         oversized = b'{"game_id": "' + b"x" * 5000 + b'"}'
+
         response = client.post("/games", content=oversized, headers={"Content-Type": "application/json"})
         assert response.status_code == 413
         assert response.json() == {"error": "Request body too large"}

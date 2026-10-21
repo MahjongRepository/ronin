@@ -144,7 +144,6 @@ async def test_run_replay_async__when_service_raises_invalid_action__should_rais
             raise InvalidGameActionError(action="discard", seat=0, reason="test error")
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
-
     # Strict mode: raises ReplayError
     with pytest.raises(ReplayError) as exc_info:
         await run_replay_async(replay, service_factory=RaisingService)
@@ -728,8 +727,8 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
             return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     replay = _build_replay(actions=((pon_player, GameAction.CALL_PON, {"tile_id": 0}),))
-
     svc_instance = CallResponseService()
+
     trace = await run_replay_async(
         replay,
         ReplayOptions(strict=False),
@@ -891,6 +890,7 @@ async def test_run_replay_async__when_replay_has_rng_version__should_carry_it_to
     custom_version = "test-rng-v99"
     replay = _build_replay()
     replay = replay.model_copy(update={"rng_version": custom_version})
+
     trace = await run_replay_async(replay)
     assert trace.rng_version == custom_version
     assert trace.rng_version != RNG_VERSION
@@ -999,7 +999,6 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
                 return []
 
             events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
-
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
                 assert state is not None

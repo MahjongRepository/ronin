@@ -30,6 +30,7 @@ def _west_game_state(
     scores = player_scores or [25000, 25000, 25000, 25000]
     players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
     round_state = MahjongRoundState(players=players, dealer_seat=dealer_seat, round_wind=2)
+
     settings = GameSettings(
         game_type=game_type,
         enchousen=enchousen,
@@ -105,6 +106,7 @@ class TestWestRoundEndCondition:
         rs = MahjongRoundState(players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.HANCHAN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=7, settings=settings)
+
         assert check_game_end(gs) is False
 
 
@@ -143,6 +145,7 @@ class TestWestRoundRenchanOverride:
             dealer_seat=1,
             player_scores=[31000, 24000, 22000, 23000],
         )
+
         result = _exhaustive_draw(tempai_seats=[1], noten_seats=[0, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.round_state.dealer_seat == 1  # dealer stays (tenpai renchan)
@@ -154,6 +157,7 @@ class TestWestRoundRenchanOverride:
             dealer_seat=1,
             player_scores=[29000, 24000, 24000, 23000],
         )
+
         result = _exhaustive_draw(tempai_seats=[1], noten_seats=[0, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.round_state.dealer_seat == 1  # renchan
@@ -172,6 +176,7 @@ class TestWestRoundRotation:
 
     def test_west_rotation__when_non_dealer_wins_west_1__should_advance_to_west_2(self):
         gs = _west_game_state(unique_dealers=9, dealer_seat=0, player_scores=[25000, 25000, 25000, 25000])
+
         new_gs = process_round_end(gs, _tsumo(winner_seat=1))
         assert new_gs.unique_dealers == 10
         assert new_gs.round_state.dealer_seat == 1
@@ -179,12 +184,14 @@ class TestWestRoundRotation:
 
     def test_west_rotation__when_non_dealer_wins_west_4__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[25000, 25000, 25000, 25000])
+
         new_gs = process_round_end(gs, _tsumo(winner_seat=1))
         assert new_gs.unique_dealers == 13
         assert check_game_end(new_gs) is True
 
     def test_west_rotation__when_dealer_noten_draw_in_west_4__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[25000, 25000, 25000, 25000])
+
         result = _exhaustive_draw(tempai_seats=[0], noten_seats=[1, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.unique_dealers == 13
@@ -192,6 +199,7 @@ class TestWestRoundRotation:
 
     def test_west_rotation__when_dealer_wins_west_4_without_threshold__should_continue_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[29000, 24000, 24000, 23000])
+
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan, not incremented
         assert new_gs.round_state.dealer_seat == 3
@@ -199,6 +207,7 @@ class TestWestRoundRotation:
 
     def test_west_rotation__when_dealer_wins_west_4_with_threshold__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[30000, 23000, 24000, 23000])
+
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan
         assert check_game_end(new_gs) is True  # threshold reached
@@ -216,6 +225,7 @@ class TestTonpusenSuddenDeath:
         rs = MahjongRoundState(players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
+
         assert check_game_end(gs) is False
 
     def test_tonpusen_sudden_death__when_south_with_threshold__should_end_game(self):
@@ -224,6 +234,7 @@ class TestTonpusenSuddenDeath:
         rs = MahjongRoundState(players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
+
         assert check_game_end(gs) is True
 
     def test_tonpusen_sudden_death__when_past_south_4__should_end_game(self):
@@ -232,4 +243,5 @@ class TestTonpusenSuddenDeath:
         rs = MahjongRoundState(players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=9, settings=settings)
+
         assert check_game_end(gs) is True

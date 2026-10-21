@@ -32,6 +32,7 @@ class TestCreateSession:
     def test_session_store_create_session__when_bot_session_fetched__should_keep_account_type(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
+
         result = store.get_session(session.session_id)
         assert result is not None
         assert result.account_type == AccountType.BOT
@@ -41,6 +42,7 @@ class TestGetSession:
     def test_session_store_get_session__when_valid__should_return_session(self):
         store = AuthSessionStore()
         session = store.create_session(user_id="u1", username="alice")
+
         result = store.get_session(session.session_id)
         assert result is not None
         assert result.user_id == "u1"

@@ -89,7 +89,6 @@ class TestLocalReplayStorageErrorHandling:
         # No target file or leftover temp files
         shard_dir = tmp_path / "ga" / "me"
         assert not (shard_dir / "game_fail.txt.gz").exists()
-
         remaining = list(shard_dir.glob(".replay_*.tmp"))
         assert remaining == []
         # fd was properly closed
@@ -107,7 +106,6 @@ class TestLocalReplayStorageErrorHandling:
 
         shard_dir = tmp_path / "ga" / "me"
         assert not (shard_dir / "game_fail.txt.gz").exists()
-
         remaining = list(shard_dir.glob(".replay_*.tmp"))
         assert remaining == []
 
@@ -132,7 +130,6 @@ class TestLocalReplayStoragePermissions:
         storage = LocalReplayStorage(str(replay_dir))
 
         storage.save_replay("game_1234", "content")
-
         dir_mode = stat.S_IMODE(replay_dir.stat().st_mode)
         assert dir_mode == 0o700
 
@@ -151,7 +148,6 @@ class TestLocalReplayStoragePermissions:
         storage = LocalReplayStorage(str(replay_dir))
 
         storage.save_replay("game_1234", "content")
-
         file_path = replay_dir / "ga" / "me" / "game_1234.txt.gz"
         file_mode = stat.S_IMODE(file_path.stat().st_mode)
         assert file_mode == 0o600

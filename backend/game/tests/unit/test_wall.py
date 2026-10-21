@@ -76,6 +76,7 @@ class TestCreateWall:
 class TestCreateWallFromTiles:
     def test_create_wall_from_tiles__when_given_order__should_preserve_it(self):
         tiles = _make_tile_list()
+
         wall = create_wall_from_tiles(tiles)
         assert wall.live_tiles == tuple(range(122))
         assert wall.dead_wall_tiles == tuple(range(122, 136))
@@ -87,6 +88,7 @@ class TestCreateWallFromTiles:
 
     def test_create_wall_from_tiles__when_created__should_store_ura_dora_eagerly(self):
         tiles = _make_tile_list()
+
         wall = create_wall_from_tiles(tiles)
         dead = wall.dead_wall_tiles
         expected = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
@@ -115,6 +117,7 @@ class TestDealInitialHands:
     def test_deal_initial_hands__when_dealt__should_give_13_tiles_each(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
+
         _new_wall, hands = deal_initial_hands(wall, dealer_seat=0)
         for hand in hands:
             assert len(hand) == 13
@@ -122,6 +125,7 @@ class TestDealInitialHands:
     def test_deal_initial_hands__when_dealer_zero__should_give_dealer_first_four_tiles(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
+
         _, hands = deal_initial_hands(wall, dealer_seat=0)
         first_block = list(range(4))
         for t in first_block:
@@ -130,6 +134,7 @@ class TestDealInitialHands:
     def test_deal_initial_hands__when_nonzero_dealer__should_give_dealer_first_four_tiles(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
+
         _, hands = deal_initial_hands(wall, dealer_seat=2)
         first_block = list(range(4))
         for t in first_block:
@@ -138,6 +143,7 @@ class TestDealInitialHands:
     def test_deal_initial_hands__when_dealt__should_remove_52_tiles_from_live_wall(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
+
         new_wall, _ = deal_initial_hands(wall, dealer_seat=0)
         assert len(new_wall.live_tiles) == len(wall.live_tiles) - 52
 
@@ -149,6 +155,7 @@ class TestDealInitialHands:
 
     def test_deal_initial_hands__when_dealt__should_give_unique_tiles(self):
         wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
+
         _, hands = deal_initial_hands(wall, dealer_seat=0)
         all_dealt = [t for hand in hands for t in hand]
         assert len(all_dealt) == len(set(all_dealt))
@@ -162,18 +169,21 @@ class TestDealInitialHands:
 class TestDrawTile:
     def test_draw_tile__when_wall_has_tiles__should_draw_from_front(self):
         wall = Wall(live_tiles=(10, 20, 30), dead_wall_tiles=())
+
         new_wall, tile = draw_tile(wall)
         assert tile == 10
         assert new_wall.live_tiles == (20, 30)
 
     def test_draw_tile__when_wall_empty__should_return_none(self):
         wall = Wall(live_tiles=(), dead_wall_tiles=())
+
         result_wall, tile = draw_tile(wall)
         assert tile is None
         assert result_wall is wall
 
     def test_draw_tile__when_last_tile__should_empty_wall(self):
         wall = Wall(live_tiles=(42,), dead_wall_tiles=())
+
         new_wall, tile = draw_tile(wall)
         assert tile == 42
         assert new_wall.live_tiles == ()
@@ -184,6 +194,7 @@ class TestDrawFromDeadWall:
         dead = tuple(range(100, 114))
         live = tuple(range(50, 70))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
+
         drawn_tiles = []
         current_wall = wall
         for _ in range(4):
@@ -195,6 +206,7 @@ class TestDrawFromDeadWall:
         dead = tuple(range(14))
         live = tuple(range(14, 24))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
+
         new_wall, _ = draw_from_dead_wall(wall)
         assert len(new_wall.dead_wall_tiles) == 14
         # Last live tile replaces the drawn position (index 13)
@@ -205,6 +217,7 @@ class TestDrawFromDeadWall:
         dead = tuple(range(14))
         live = tuple(range(14, 24))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
+
         new_wall, _ = draw_from_dead_wall(wall)
         assert new_wall.rinshan_draws_count == 1
 
@@ -257,6 +270,7 @@ class TestAddDoraIndicator:
             dead_wall_tiles=dead,
             dora_indicators=(dead[FIRST_DORA_INDEX],),
         )
+
         indicators = [dead[FIRST_DORA_INDEX]]
         current_wall = wall
         for expected_idx in range(FIRST_DORA_INDEX + 1, FIRST_DORA_INDEX + MAX_DORA_INDICATORS):
@@ -402,6 +416,7 @@ class TestCollectUraDoraIndicators:
             dora_indicators=(dead[FIRST_DORA_INDEX],),
             ura_dora_indicators=ura_dora,
         )
+
         # Perform 4 rinshan draws (overwrites positions 13, 12, 11, 10 in dead wall)
         current_wall = wall
         for _ in range(4):
@@ -458,6 +473,7 @@ class TestSplitWallByDice:
 
     def test_split_wall_by_dice__when_split__should_lay_out_dead_wall_stacks(self):
         tiles = _make_tile_list()
+
         _live, dead = _split_wall_by_dice(tiles=tiles, dice=(3, 4), dealer_seat=0)
         expected_tops = [tiles[s * 2] for s in range(44, 51)]
         expected_bottoms = [tiles[s * 2 + 1] for s in range(44, 51)]
@@ -466,6 +482,7 @@ class TestSplitWallByDice:
 
     def test_split_wall_by_dice__when_split__should_order_live_wall_backwards_from_break(self):
         tiles = _make_tile_list()
+
         live, _ = _split_wall_by_dice(tiles=tiles, dice=(3, 4), dealer_seat=0)
         assert live[0] == tiles[43 * 2]  # top of stack 43
         assert live[1] == tiles[43 * 2 + 1]  # bottom of stack 43
@@ -474,6 +491,7 @@ class TestSplitWallByDice:
 
     def test_split_wall_by_dice__when_dice_sum_2__should_wrap_dead_wall_into_next_segment(self):
         tiles = _make_tile_list()
+
         live, dead = _split_wall_by_dice(tiles=tiles, dice=(1, 1), dealer_seat=0)
         dead_stacks = [32, 33, 34, 35, 36, 37, 38]
         expected_tops = [tiles[s * 2] for s in dead_stacks]
@@ -489,6 +507,7 @@ class TestSplitWallByDice:
 
     def test_split_wall_by_dice__when_split__should_contain_every_tile_once(self):
         tiles = _make_tile_list()
+
         live, dead = _split_wall_by_dice(tiles=tiles, dice=(4, 5), dealer_seat=2)
         all_tiles = list(live) + list(dead)
         assert sorted(all_tiles) == list(range(NUM_TILES))

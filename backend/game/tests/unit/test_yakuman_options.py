@@ -46,6 +46,7 @@ class TestDoubleYakumanSetting:
 
         settings = GameSettings(has_double_yakuman=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert result.han == 13
@@ -77,6 +78,7 @@ class TestDoubleYakumanSetting:
 
         settings = GameSettings(has_double_yakuman=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # daisuushii downgraded to 13 han (single yakuman), no tsuuiisou (pair is man, not honor)
@@ -110,6 +112,7 @@ class TestYakumanStacking:
 
         settings = GameSettings(has_double_yakuman=True)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # daisuushii (26 han, double yakuman) + tsuuiisou (13 han, yakuman) = 39 han
@@ -139,6 +142,7 @@ class TestYakumanStacking:
 
         settings = GameSettings(has_double_yakuman=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # daisuushii (13 han, downgraded) + tsuuiisou (13 han) = 26 han (double yakuman)
@@ -167,6 +171,7 @@ class TestYakumanStacking:
 
         settings = GameSettings(has_double_yakuman=True)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert result.han == 39
@@ -196,6 +201,7 @@ class TestKazoeYakuman:
 
         settings = GameSettings(has_kazoe_yakuman=True, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # raw han exceeds kazoe threshold
@@ -222,6 +228,7 @@ class TestKazoeYakuman:
 
         settings = GameSettings(has_kazoe_yakuman=False, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # raw han still exceeds 13 but payment is capped at sanbaiman
@@ -252,6 +259,7 @@ class TestKazoeYakuman:
 
         settings = GameSettings(has_kazoe_yakuman=True, has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result_no_dora = calculate_hand_value(ctx, win_tile)
         assert result_no_dora.error is None
         # 11 han without dora -> sanbaiman-level payment (not yakuman)
@@ -269,8 +277,8 @@ class TestKazoeYakuman:
             discards=(Discard(tile_id=0),),
         )
         player2 = round_state2.players[1]
-
         ctx2 = ScoringContext(player=player2, round_state=round_state2, settings=settings, is_tsumo=True)
+
         result_with_dora = calculate_hand_value(ctx2, win_tile)
         assert result_with_dora.error is None
         # dora pushes hand past kazoe threshold -> yakuman-level payment
@@ -296,6 +304,7 @@ class TestYakumanDoraInteraction:
 
         settings = GameSettings(has_double_yakuman=True)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # han is still 26 (double yakuman), not 26 + 3 dora
@@ -316,6 +325,7 @@ class TestYakumanDoraInteraction:
 
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         yaku_ids = {y.yaku_id for y in result.yaku}
@@ -343,6 +353,7 @@ class TestYakumanDoraInteraction:
 
         settings = GameSettings(has_akadora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # yaku_id 120 = dora should be present

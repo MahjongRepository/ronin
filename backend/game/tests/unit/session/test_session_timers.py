@@ -30,7 +30,6 @@ from .helpers import create_started_game, make_dummy_game_view, make_game_with_p
 class TestSessionManagerTimers:
     async def test_session_timers__when_game_cleaned_up__should_remove_timers_and_lock(self, manager):
         conns = await create_started_game(manager)
-
         assert manager._timer_manager.has_game("game1")
         assert "game1" in manager._game_locks
 
@@ -56,7 +55,6 @@ class TestSessionManagerTimers:
 
         # Remove the game but keep the lock to simulate concurrent cleanup
         manager._games.pop("game1", None)
-
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
@@ -90,7 +88,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-
         await manager._maybe_start_timer(game, [draw_event])
         # timer should have an active task (turn timer started)
         assert timer._active_task is not None
@@ -114,7 +111,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-
         await manager._maybe_start_timer(game, [meld_event])
         # timer should have an active task (turn timer started from pon meld)
         assert timer._active_task is not None
@@ -139,7 +135,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-
         await manager._maybe_start_timer(game, [call_event])
         # timer should have an active task (meld timer started)
         assert timer._active_task is not None
@@ -161,9 +156,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-
         await manager._maybe_start_timer(game, [round_event])
-
         config = TimerConfig()
         assert timer._bank_seconds == initial_bank + config.round_bonus_seconds
 
@@ -188,7 +181,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-
         await manager._maybe_start_timer(game, [round_end_event])
         # timer should have an active task (round advance timer started)
         assert timer._active_task is not None
@@ -214,7 +206,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-
         await manager._maybe_start_timer(game, [game_end_event])
         # timer task should not be started (game ended)
         assert timer._active_task is None
@@ -235,7 +226,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-
         # should return without error
         await manager._maybe_start_timer(game, [generic_event])
 
@@ -260,7 +250,6 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-
         await manager._maybe_start_timer(game, [draw_event])
         assert timer._active_task is None
 
@@ -277,6 +266,7 @@ class TestPerPlayerTimers:
         player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
         game.players[conn1.connection_id] = player1
         game.players[conn2.connection_id] = player2
+
         manager._games["game1"] = game
         manager._players[conn1.connection_id] = player1
         manager._players[conn2.connection_id] = player2
@@ -309,9 +299,7 @@ class TestPerPlayerTimers:
             ),
             target=SeatTarget(seat=0),
         )
-
         await manager._maybe_start_timer(game, [round_event])
-
         config = TimerConfig()
         assert timer0._bank_seconds == initial_bank_0 + config.round_bonus_seconds
         assert timer1._bank_seconds == initial_bank_1 + config.round_bonus_seconds
@@ -347,7 +335,6 @@ class TestPerPlayerTimers:
                 target=SeatTarget(seat=1),
             ),
         ]
-
         await manager._maybe_start_timer(game, call_events)
         # both timers should have active tasks (meld timer started for each)
         assert timer0._active_task is not None

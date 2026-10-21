@@ -132,7 +132,6 @@ class TestMessageRouterBranches:
             raise InvalidDiscardError("tile not in hand")
 
         session_manager.handle_game_action = raise_game_rule_error
-
         await router.handle_message(
             connection,
             {
@@ -159,7 +158,6 @@ class TestMessageRouterBranches:
             raise RuntimeError("unexpected crash")
 
         session_manager.handle_game_action = raise_runtime_error
-
         await router.handle_message(
             connection,
             {

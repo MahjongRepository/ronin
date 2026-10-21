@@ -20,9 +20,11 @@ servers:
     client_url: "http://localhost:8711"
 """
     config_file.write_text(servers_yaml)
+
     static_dir = tmp_path / "public"
     (static_dir / "styles").mkdir(parents=True)
     (static_dir / "styles" / "lobby.css").write_text("/* test */")
+
     # Disable origin checking by default in tests (TestClient doesn't send
     # a matching origin header). Tests that need origin checking should
     # pass ws_allowed_origin explicitly.
@@ -88,6 +90,7 @@ class TestRoomWebSocket:
         room = app.state.room_manager.create_room("ready-room")
         c = TestClient(app)
         register_with_csrf(c, "owner")
+
         # Owner joins first
         with c.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_owner:
             ws_owner.receive_json()  # room_joined
@@ -179,6 +182,7 @@ class TestRoomWebSocket:
             ws.receive_json()  # room_joined
             # Remove room externally (simulates race condition)
             app.state.room_manager._rooms.pop(room_id, None)
+
             ws.send_text(json.dumps({"type": "start_game"}))
             msg = ws.receive_json()
             assert msg["type"] == "error"
@@ -189,6 +193,7 @@ class TestRoomWebSocket:
             ws.receive_json()  # room_joined
             room = app.state.room_manager.get_room(room_id)
             room.transitioning = True
+
             ws.send_text(json.dumps({"type": "start_game"}))
             msg = ws.receive_json()
             assert msg["type"] == "error"
@@ -285,7 +290,6 @@ class TestOwnerChanged:
 
                 # Alice (owner) leaves via leave_room
                 ws_alice.send_text(json.dumps({"type": "leave_room"}))
-
                 # Bob should receive owner_changed then player_left
                 msg1 = ws_bob.receive_json()
                 assert msg1["type"] == "owner_changed"

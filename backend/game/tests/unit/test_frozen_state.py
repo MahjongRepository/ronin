@@ -57,6 +57,7 @@ class TestStateUtilsUpdatePlayer:
 
     def test_update_player__when_score_changed__should_leave_original_state_untouched(self):
         state = self._create_round_state_with_players()
+
         new_state = update_player(state, 0, score=30000)
         assert state.players[0].score == 25000
         assert new_state.players[0].score == 30000
@@ -64,6 +65,7 @@ class TestStateUtilsUpdatePlayer:
 
     def test_update_player__when_multiple_fields__should_apply_all(self):
         state = self._create_round_state_with_players()
+
         new_state = update_player(state, 1, is_riichi=True, is_ippatsu=True, score=24000)
         assert new_state.players[1].is_riichi is True
         assert new_state.players[1].is_ippatsu is True
@@ -80,6 +82,7 @@ class TestStateUtilsTileOperations:
     def test_add_tile_to_player__should_append_tile_without_mutating_original(self):
         state = self._create_round_state_with_tiles()
         new_tile = TilesConverter.string_to_136_array(pin="1")[0]
+
         new_state = add_tile_to_player(state, seat=0, tile_id=new_tile)
         assert len(state.players[0].tiles) == 9
         assert len(new_state.players[0].tiles) == 10
@@ -92,6 +95,7 @@ class TestStateUtilsTurnAdvance:
 
     def test_advance_turn__should_move_to_next_seat_and_count_turn(self):
         state = MahjongRoundState(players=self._players(), current_player_seat=0, turn_count=0)
+
         new_state = advance_turn(state)
         assert state.current_player_seat == 0
         assert state.turn_count == 0
@@ -100,6 +104,7 @@ class TestStateUtilsTurnAdvance:
 
     def test_advance_turn__when_current_seat_is_last__should_wrap_to_seat_zero(self):
         state = MahjongRoundState(players=self._players(), current_player_seat=3, turn_count=10)
+
         new_state = advance_turn(state)
         assert new_state.current_player_seat == 0
         assert new_state.turn_count == 11
@@ -115,6 +120,7 @@ class TestStateUtilsPendingPrompt:
             callers=(1,),
         )
         state = MahjongRoundState(pending_call_prompt=prompt)
+
         new_state = clear_pending_prompt(state)
         assert state.pending_call_prompt is not None
         assert new_state.pending_call_prompt is None
@@ -128,6 +134,7 @@ class TestStateUtilsPendingPrompt:
             callers=(1, 2),
         )
         response = CallResponse(seat=1, action=GameAction.PASS)
+
         new_prompt = add_prompt_response(prompt, response)
         assert len(prompt.responses) == 0
         assert prompt.pending_seats == frozenset({1, 2})
@@ -159,6 +166,7 @@ class TestStateUtilsPlayerFlags:
             for i in range(4)
         )
         state = MahjongRoundState(players=players)
+
         new_state = clear_all_players_ippatsu(state)
         assert state.players[0].is_ippatsu is True
         for i in range(4):
@@ -170,6 +178,7 @@ class TestFrozenMeldScoringIntegration:
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
 
+        discard1 = Discard(tile_id=0, is_tsumogiri=False)
         frozen_meld = FrozenMeld(
             tiles=tuple(haku_tiles),
             meld_type=FrozenMeld.PON,
@@ -178,19 +187,18 @@ class TestFrozenMeldScoringIntegration:
             who=0,
             from_who=1,
         )
-
-        discard1 = Discard(tile_id=0, is_tsumogiri=False)
-
-        players = tuple(
+        players = (
             MahjongPlayer(
-                seat=i,
-                name=f"Player{i}",
-                tiles=tuple(closed_tiles) if i == 0 else (),
-                melds=(frozen_meld,) if i == 0 else (),
+                seat=0,
+                name="Player0",
+                tiles=tuple(closed_tiles),
+                melds=(frozen_meld,),
                 discards=(discard1,),
                 score=25000,
-            )
-            for i in range(4)
+            ),
+            MahjongPlayer(seat=1, name="Player1", discards=(discard1,), score=25000),
+            MahjongPlayer(seat=2, name="Player2", discards=(discard1,), score=25000),
+            MahjongPlayer(seat=3, name="Player3", discards=(discard1,), score=25000),
         )
         round_state = MahjongRoundState(
             players=players,

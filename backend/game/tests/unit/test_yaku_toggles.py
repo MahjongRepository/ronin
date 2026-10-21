@@ -31,6 +31,7 @@ class TestKuitanToggle:
         )
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
+
         assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=True)) is True
 
     def test_kuitan__when_disabled_and_open_tanyao_tsumo__should_reject_declare(self):
@@ -46,12 +47,14 @@ class TestKuitanToggle:
         )
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
+
         assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=False)) is False
 
     def test_kuitan__when_disabled_and_closed_tanyao__should_allow_declare(self):
         tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="23455")
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), score=25000)
         round_state = _make_round_state()
+
         # menzen tsumo is a yaku by itself, so closed tanyao is allowed
         assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=False)) is True
 
@@ -69,6 +72,7 @@ class TestKuitanToggle:
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles + pon_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
         win_tile = TilesConverter.string_to_136_array(sou="55")[1]
+
         assert (
             can_call_ron(
                 player, discarded_tile=win_tile, round_state=round_state, settings=GameSettings(has_kuitan=False)
@@ -92,10 +96,12 @@ class TestIppatsuToggle:
             is_ippatsu=True,
             discards=(Discard(tile_id=discard_tile),),
         )
+
         player = round_state.players[0]
         win_tile = tiles[-1]
         settings = GameSettings(has_ippatsu=True)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # yaku_id 3 = ippatsu
@@ -114,10 +120,12 @@ class TestIppatsuToggle:
             is_ippatsu=True,
             discards=(Discard(tile_id=discard_tile),),
         )
+
         player = round_state.players[0]
         win_tile = tiles[-1]
         settings = GameSettings(has_ippatsu=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert not any(y.yaku_id == 3 for y in result.yaku)
@@ -142,10 +150,12 @@ class TestRenhouToggle:
         tiles = TilesConverter.string_to_136_array(man="234", pin="234", sou="234678", honors="11")
         round_state = self._make_renhou_round_state()
         round_state = update_player(round_state, 1, tiles=tuple(tiles))
+
         player = round_state.players[1]
         win_tile = tiles[-1]
         settings = GameSettings(renhou_value=RenhouValue.NONE)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         # yaku_id 11 = renhou
@@ -155,10 +165,12 @@ class TestRenhouToggle:
         tiles = TilesConverter.string_to_136_array(man="234", pin="234", sou="234678", honors="11")
         round_state = self._make_renhou_round_state()
         round_state = update_player(round_state, 1, tiles=tuple(tiles))
+
         player = round_state.players[1]
         win_tile = tiles[-1]
         settings = GameSettings(renhou_value=RenhouValue.MANGAN)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert any(y.yaku_id == 11 for y in result.yaku)
@@ -206,6 +218,7 @@ class TestRenhouEligibility:
         )
         tile = TilesConverter.string_to_136_array(man="1")[0]
         round_state = update_player(round_state, 1, discards=(Discard(tile_id=tile),))
+
         assert is_renhou(round_state.players[1], round_state) is False
 
     def test_renhou__when_tsumo__should_not_award_yaku(self):
@@ -242,4 +255,5 @@ class TestRenhouEligibility:
         kan_tiles = TilesConverter.string_to_136_array(man="1111")
         closed_kan = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(kan_tiles), opened=False)
         round_state = update_player(round_state, 0, melds=(closed_kan,))
+
         assert is_renhou(round_state.players[1], round_state) is False

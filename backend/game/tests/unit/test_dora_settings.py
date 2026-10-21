@@ -25,16 +25,15 @@ def _dora_han(result, yaku_id):
 
 def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, dead_wall=None):
     dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
+
     if dead_wall is None:
         dead_wall = tuple(range(14))
 
-    players = tuple(
-        create_player(
-            seat=i,
-            tiles=tuple(tiles) if i == 0 else None,
-            is_riichi=is_riichi if i == 0 else False,
-        )
-        for i in range(4)
+    players = (
+        create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi),
+        create_player(seat=1),
+        create_player(seat=2),
+        create_player(seat=3),
     )
     round_state = create_round_state(
         players=players,
@@ -91,12 +90,14 @@ class TestOmoteDoraSetting:
     def test_collect_dora_indicators__when_omote_enabled__should_return_indicators(self):
         settings = GameSettings(has_omote_dora=True)
         round_state = create_round_state(dora_indicators=(10, 20, 30))
+
         result = _collect_dora_indicators(round_state, settings)
         assert result == [10, 20, 30]
 
     def test_collect_dora_indicators__when_omote_disabled__should_return_empty(self):
         settings = GameSettings(has_omote_dora=False)
         round_state = create_round_state(dora_indicators=(10, 20, 30))
+
         result = _collect_dora_indicators(round_state, settings)
         assert result == []
 

@@ -390,7 +390,6 @@ class TestHandleKanImmutable:
         round_state = game_state.round_state
 
         tile_id = TilesConverter.string_to_136_array(man="5")[0]
-
         # give player 1 three 5m tiles + filler for open kan
         player1_tiles = tuple(TilesConverter.string_to_136_array(man="555368", pin="2479", sou="358"))
         round_state = update_player(round_state, 1, tiles=player1_tiles)
@@ -535,7 +534,6 @@ class TestHandlePassImmutable:
     def test_handle_pass__when_riichi_player__should_set_riichi_furiten(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         # set player 1 in riichi
         round_state = update_player(round_state, 1, is_riichi=True)
 

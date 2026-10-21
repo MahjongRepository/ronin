@@ -41,6 +41,7 @@ class TestCreatePendingGame:
 
     async def test_create_pending_game__when_created__should_register_game_and_session(self, manager: SessionManager):
         specs = _make_specs(1)
+
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
         assert manager.get_game("game1") is not None
         assert "game1" in manager._pending_games
@@ -408,6 +409,7 @@ class TestPostGamesEndpoint:
                 "players": [self._signed_player(name="Alice", user_id="u1", game_id="test-game")],
             },
         )
+
         # Duplicate
         response = client.post(
             "/games",
@@ -460,6 +462,7 @@ class TestPostGamesEndpoint:
 
     def test_post_games__when_ticket_game_id_differs__should_return_400(self, client):
         ticket = make_test_game_ticket(username="Alice", room_id="other-game", user_id="u1")
+
         response = client.post(
             "/games",
             json={
@@ -473,6 +476,7 @@ class TestPostGamesEndpoint:
 
     def test_post_games__when_ticket_identity_differs__should_return_400(self, client):
         ticket = make_test_game_ticket(username="Alice", room_id="test-game", user_id="u1")
+
         response = client.post(
             "/games",
             json={
@@ -607,7 +611,6 @@ class TestPendingGameDefensivePaths:
 
         # Manually pop the pending info
         manager._pending_games.pop("game1", None)
-
         # Lock survives because we hold a reference to pending
         async with pending.lock:
             await manager._complete_pending_game("game1")
@@ -625,7 +628,6 @@ class TestPendingGameDefensivePaths:
 
         # Manually remove the game (simulate race condition)
         manager._games.pop("game1", None)
-
         async with pending.lock:
             await manager._complete_pending_game("game1")
 
@@ -642,7 +644,6 @@ class TestPendingGameDefensivePaths:
             pending.timeout_task.cancel()
 
         manager._pending_games.pop("game1", None)
-
         # Manually call the timeout - should be a no-op since pending is gone
         await manager._pending_game_timeout("game1", 0)
 
@@ -701,7 +702,6 @@ class TestPendingGameDefensivePaths:
 
         # Remove game from _games to simulate race
         manager._games.pop("game1", None)
-
         result = manager._validate_join_game(
             connection_id=conn.connection_id, game_id="game1", session_token="ticket-0"
         )
@@ -717,7 +717,6 @@ class TestPendingGameDefensivePaths:
 
         # Remove game from _games to trigger the guard
         manager._games.pop("game1", None)
-
         await manager._register_pending_player(conn, game_id="game1", session_token="ticket-0")
 
     async def test_join_game__when_evicted_connection_rejoins__should_ignore_it_and_keep_new_player(

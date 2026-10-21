@@ -63,6 +63,7 @@ class TestStartingScore:
     def test_starting_score__when_custom__should_apply_to_init_game_players(self):
         seat_configs = [SeatConfig(name=f"P{i}") for i in range(4)]
         wall = list(range(136))
+
         game_state = init_game(seat_configs, settings=GameSettings(starting_score=30000), wall=wall)
         for player in game_state.round_state.players:
             assert player.score == 30000
@@ -72,6 +73,7 @@ class TestStartingScore:
         # Raw scores summing to starting*4 = 80000
         raw = [(0, 35000), (1, 25000), (2, 15000), (3, 5000)]
         settings = GameSettings(starting_score=20000, target_score=30000)
+
         result = calculate_final_scores(raw, settings)
         # 1st: diff=5 + oka=40 + uma=20 = 65
         assert result[0][1] == 65
@@ -81,6 +83,7 @@ class TestTargetScore:
     def test_target_score__when_custom__should_shift_final_scores(self):
         raw = [(0, 40000), (1, 30000), (2, 20000), (3, 10000)]
         settings = GameSettings(target_score=25000, starting_score=25000)
+
         result = calculate_final_scores(raw, settings)
         # target=starting, so oka=0
         # diff from target: +15, +5, -5, -15
@@ -122,6 +125,7 @@ class TestUma:
     def test_uma__when_custom__should_apply_to_final_scores(self):
         raw = [(0, 30000), (1, 30000), (2, 20000), (3, 20000)]
         settings = GameSettings(uma=(30, 10, -10, -30))
+
         result = calculate_final_scores(raw, settings)
         # default oka=20 (target=30000, starting=25000)
         # seat0: diff=0 + oka=20 + uma=30 = 50

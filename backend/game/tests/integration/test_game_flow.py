@@ -34,7 +34,6 @@ class TestGameServiceIntegration:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         actions_processed = 0
-
         # play several discards (AI players will respond automatically)
         for _ in range(10):
             game_state = service.get_game_state("game1")

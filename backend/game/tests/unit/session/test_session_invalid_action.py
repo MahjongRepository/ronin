@@ -16,7 +16,6 @@ DISCARD_ERROR = InvalidGameActionError(action="discard", seat=0, reason="tile no
 class TestSessionManagerInvalidAction:
     async def test_invalid_action__when_player_sends_it__should_close_with_1008(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
@@ -43,7 +42,6 @@ class TestSessionManagerInvalidAction:
 
     async def test_invalid_action__when_player_sends_it__should_broadcast_player_left(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
@@ -56,14 +54,12 @@ class TestSessionManagerInvalidAction:
         assert manager.get_game("game1") is not None
 
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
-
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         # game should be cleaned up
         assert manager.get_game("game1") is None
 
     async def test_invalid_action__when_player_sends_it__should_log_warning(self, manager, caplog):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         with caplog.at_level(logging.WARNING):
@@ -122,7 +118,6 @@ class TestSessionManagerInvalidAction:
 
     async def test_invalid_action__when_ai_replacement_blames_other__should_disconnect_original_offender(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
 
         # AI replacement flow raises InvalidGameActionError blaming a different seat
@@ -142,9 +137,7 @@ class TestSessionManagerInvalidAction:
 
     async def test_invalid_action__when_offender_leaves_afterwards__should_not_replace_again(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
-
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
 
         # player.game_id is now None, so leave_game should return early

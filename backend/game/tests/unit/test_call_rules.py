@@ -49,21 +49,21 @@ def _yaku(*yaku_ids: int) -> list[YakuInfo]:
 
 class TestKuikaeSameTileRestriction:
     def test_kuikae__when_pon__should_forbid_same_tile_type(self):
+        settings = GameSettings(has_kuikae=True)
         man_tiles = TilesConverter.string_to_136_array(man="1115")
         player0_tiles = (man_tiles[0], man_tiles[1], *_PIN_TILES[:7])
+
         players = [
             create_player(seat=0, tiles=player0_tiles),
             create_player(seat=1),
             create_player(seat=2),
             create_player(seat=3),
         ]
-        settings = GameSettings(has_kuikae=True)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
             wall=list(range(10)),
         )
-
         new_state, _meld = call_pon(
             round_state,
             caller_seat=0,
@@ -71,27 +71,26 @@ class TestKuikaeSameTileRestriction:
             tile_id=man_tiles[2],
             settings=settings,
         )
-
         # 1m (tile_34=0) should be forbidden
         man_1m_34 = tile_to_34(man_tiles[0])
         assert man_1m_34 in new_state.players[0].kuikae_tiles
 
     def test_kuikae__when_chi__should_forbid_called_tile_type(self):
+        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
         man_tiles = TilesConverter.string_to_136_array(man="234")
         player1_tiles = (man_tiles[1], man_tiles[2], *_PIN_TILES[:7])
+
         players = [
             create_player(seat=0),
             create_player(seat=1, tiles=player1_tiles),
             create_player(seat=2),
             create_player(seat=3),
         ]
-        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
             wall=list(range(10)),
         )
-
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
@@ -100,7 +99,6 @@ class TestKuikaeSameTileRestriction:
             sequence_tiles=(man_tiles[1], man_tiles[2]),
             settings=settings,
         )
-
         called_34 = tile_to_34(man_tiles[0])
         assert called_34 in new_state.players[1].kuikae_tiles
 
@@ -137,21 +135,21 @@ class TestKuikaeSameTileRestriction:
 
 class TestKuikaeDisabledSetting:
     def test_kuikae__when_disabled_and_pon__should_not_restrict_discard(self):
+        settings = GameSettings(has_kuikae=False)
         man_tiles = TilesConverter.string_to_136_array(man="1115")
         player0_tiles = (man_tiles[0], man_tiles[1], *_PIN_TILES[:7])
+
         players = [
             create_player(seat=0, tiles=player0_tiles),
             create_player(seat=1),
             create_player(seat=2),
             create_player(seat=3),
         ]
-        settings = GameSettings(has_kuikae=False)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
             wall=list(range(10)),
         )
-
         new_state, _meld = call_pon(
             round_state,
             caller_seat=0,
@@ -162,21 +160,21 @@ class TestKuikaeDisabledSetting:
         assert new_state.players[0].kuikae_tiles == ()
 
     def test_kuikae__when_disabled_and_chi__should_not_restrict_discard(self):
+        settings = GameSettings(has_kuikae=False)
         man_tiles = TilesConverter.string_to_136_array(man="234")
         player1_tiles = (man_tiles[1], man_tiles[2], *_PIN_TILES[:7])
+
         players = [
             create_player(seat=0),
             create_player(seat=1, tiles=player1_tiles),
             create_player(seat=2),
             create_player(seat=3),
         ]
-        settings = GameSettings(has_kuikae=False)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
             wall=list(range(10)),
         )
-
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
@@ -204,7 +202,6 @@ class TestKuikaeSujiRestriction:
         )
         # 4m (called tile) and 7m (suji above 6m) should be forbidden
         assert called_34 in forbidden
-
         man_7m_34 = tile_to_34(TilesConverter.string_to_136_array(man="7")[0])
         assert man_7m_34 in forbidden
 
@@ -218,7 +215,6 @@ class TestKuikaeSujiRestriction:
         )
         # 6m (called tile) and 3m (suji below 4m) should be forbidden
         assert called_34 in forbidden
-
         man_3m_34 = tile_to_34(TilesConverter.string_to_136_array(man="3")[0])
         assert man_3m_34 in forbidden
 
@@ -245,21 +241,21 @@ class TestKuikaeSujiRestriction:
         assert forbidden == [called_34]
 
     def test_kuikae_suji__when_suji_disabled_and_chi__should_forbid_only_called_tile(self):
+        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
         man_tiles = TilesConverter.string_to_136_array(man="456")
         player1_tiles = (man_tiles[1], man_tiles[2], *_PIN_TILES[:7])
+
         players = [
             create_player(seat=0),
             create_player(seat=1, tiles=player1_tiles),
             create_player(seat=2),
             create_player(seat=3),
         ]
-        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
             wall=list(range(10)),
         )
-
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
@@ -268,26 +264,25 @@ class TestKuikaeSujiRestriction:
             sequence_tiles=(man_tiles[1], man_tiles[2]),
             settings=settings,
         )
-
         called_34 = tile_to_34(man_tiles[0])
         assert new_state.players[1].kuikae_tiles == (called_34,)
 
     def test_kuikae_suji__when_suji_enabled_and_chi__should_forbid_called_and_suji_tiles(self):
+        settings = GameSettings(has_kuikae=True, has_kuikae_suji=True)
         man_tiles = TilesConverter.string_to_136_array(man="456")
         player1_tiles = (man_tiles[1], man_tiles[2], *_PIN_TILES[:7])
+
         players = [
             create_player(seat=0),
             create_player(seat=1, tiles=player1_tiles),
             create_player(seat=2),
             create_player(seat=3),
         ]
-        settings = GameSettings(has_kuikae=True, has_kuikae_suji=True)
         round_state = create_round_state(
             players=players,
             current_player_seat=0,
             wall=list(range(10)),
         )
-
         new_state, _meld = call_chi(
             round_state,
             caller_seat=1,
@@ -296,7 +291,6 @@ class TestKuikaeSujiRestriction:
             sequence_tiles=(man_tiles[1], man_tiles[2]),
             settings=settings,
         )
-
         called_34 = tile_to_34(man_tiles[0])
         man_7m_34 = tile_to_34(TilesConverter.string_to_136_array(man="7")[0])
         kuikae = new_state.players[1].kuikae_tiles

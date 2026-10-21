@@ -60,7 +60,6 @@ class TestAuthTimeout:
         conn = MockConnection()
         with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0.01):
             manager.register_connection(conn)
-
             # Remove from connections but don't cancel the timeout
             manager._connections.pop(conn.connection_id, None)
 

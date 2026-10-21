@@ -73,6 +73,7 @@ class TestPickBestMeldResponse:
                 MeldCaller(seat=3, call_type=MeldCallType.CHI),
             ),
         )
+
         responses = [
             CallResponse(seat=3, action=GameAction.CALL_CHI),
             CallResponse(seat=1, action=GameAction.CALL_PON),
@@ -92,6 +93,7 @@ class TestPickBestMeldResponse:
                 MeldCaller(seat=2, call_type=MeldCallType.OPEN_KAN),
             ),
         )
+
         responses = [
             CallResponse(seat=1, action=GameAction.CALL_PON),
             CallResponse(seat=2, action=GameAction.CALL_KAN),
@@ -111,6 +113,7 @@ class TestPickBestMeldResponse:
                 MeldCaller(seat=3, call_type=MeldCallType.PON),
             ),
         )
+
         responses = [
             CallResponse(seat=3, action=GameAction.CALL_PON),
             CallResponse(seat=1, action=GameAction.CALL_PON),
@@ -127,6 +130,7 @@ class TestPickBestMeldResponse:
             pending_seats=frozenset(),
             callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
         )
+
         # seat 2 was not a caller, so it should be filtered out
         responses = [
             CallResponse(seat=2, action=GameAction.CALL_PON),
@@ -143,6 +147,7 @@ class TestPickBestMeldResponse:
             # seat 2 is a ron caller (int), not a MeldCaller
             callers=(2,),
         )
+
         responses = [
             CallResponse(seat=2, action=GameAction.CALL_PON),
         ]
@@ -159,6 +164,7 @@ class TestPickBestMeldResponse:
             # seat 1 is ron caller (int), seat 3 is meld caller (chi)
             callers=(1, MeldCaller(seat=3, call_type=MeldCallType.CHI, options=((4, 8),))),
         )
+
         responses = [
             CallResponse(seat=1, action=GameAction.CALL_PON),
             CallResponse(seat=3, action=GameAction.CALL_CHI, sequence_tiles=(4, 8)),
@@ -179,7 +185,6 @@ class TestResolveSingleRon:
         round_state = update_player(round_state, 1, tiles=waiting_tiles)
 
         win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-
         prompt = PendingCallPrompt(
             call_type=CallType.RON,
             tile_id=win_tile,
@@ -211,7 +216,6 @@ class TestResolveDoubleRon:
         round_state = update_player(round_state, 2, tiles=waiting_tiles_2)
 
         win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-
         prompt = PendingCallPrompt(
             call_type=CallType.RON,
             tile_id=win_tile,
@@ -266,6 +270,7 @@ class TestResolveNoPrompt:
     def test_resolve_call_prompt__when_no_prompt__should_return_unchanged_state_without_events(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
+
         result = resolve_call_prompt(round_state, game_state)
         assert len(result.events) == 0
         assert result.new_round_state is round_state
@@ -452,6 +457,7 @@ class TestResolvePonChiMeldResponse:
         pon_pair = TilesConverter.string_to_136_array(man="99")[:2]
         player_tiles = tuple(four_of_kind + other_tiles + pon_pair)
         round_state = update_player(round_state, 0, tiles=player_tiles)
+
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -484,6 +490,7 @@ class TestResolvePonChiMeldResponse:
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="12")
         player_tiles = tuple(chi_tiles + other_tiles)
         round_state = update_player(round_state, 1, tiles=player_tiles)
+
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -514,14 +521,15 @@ class TestMeldPromptFourRiichiAbort:
         # seat 0 is the discarder with pending riichi, seats 1-3 already in riichi
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
-        players = tuple(
+        players = (
             create_player(
-                seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
-                is_riichi=(i in (1, 2, 3)),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
+                seat=0,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
+            ),
+            create_player(seat=1, is_riichi=True),
+            create_player(seat=2, is_riichi=True),
+            create_player(seat=3, is_riichi=True),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -559,13 +567,15 @@ class TestMeldPromptFourRiichiAbort:
     def test_resolve_call_prompt__when_all_pass_on_meld_prompt_with_riichi__should_finalize_riichi(self):
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
-        players = tuple(
+        players = (
             create_player(
-                seat=i,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")) if i == 0 else (),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),) if i == 0 else (),
-            )
-            for i in range(4)
+                seat=0,
+                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
+                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
+            ),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))

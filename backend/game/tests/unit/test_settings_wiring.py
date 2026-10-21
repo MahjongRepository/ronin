@@ -103,6 +103,7 @@ class TestRenchanNagashiMangan:
     def test_renchan__when_nagashi_mangan_and_dealer_tempai_and_renchan_enabled__should_keep_dealer_and_add_honba(self):
         settings = GameSettings(renchan_on_dealer_tenpai_draw=True)
         gs = create_game_state(honba_sticks=1, settings=settings)
+
         result = NagashiManganResult(
             qualifying_seats=[1],
             tempai_seats=[0],
@@ -119,6 +120,7 @@ class TestRenchanNagashiMangan:
     def test_renchan__when_nagashi_mangan_and_dealer_tempai_and_renchan_disabled__should_rotate_and_add_honba(self):
         settings = GameSettings(renchan_on_dealer_tenpai_draw=False)
         gs = create_game_state(honba_sticks=0, settings=settings)
+
         result = NagashiManganResult(
             qualifying_seats=[1],
             tempai_seats=[0],
@@ -137,6 +139,7 @@ class TestRenchanDealerRonDisabled:
     def test_renchan__when_dealer_wins_by_ron_and_renchan_on_win_disabled__should_rotate(self):
         settings = GameSettings(renchan_on_dealer_win=False)
         gs = create_game_state(honba_sticks=0, settings=settings)
+
         result = RonResult(
             winner_seat=0,
             loser_seat=1,
@@ -249,6 +252,7 @@ def _make_kan_test_round_state(
         kandora_immediate_for_closed_kan=kandora_immediate_for_closed_kan,
         kandora_deferred_for_open_kan=kandora_deferred_for_open_kan,
     )
+
     # tile IDs: 0-3 are the same tile_34 (tile 0), 4-7 are tile_34=1
     # give caller 4 copies of tile type 0 (IDs 0,1,2,3) + extra tiles
     caller_tiles = (0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
@@ -283,6 +287,7 @@ def _make_open_kan_test_round_state(
         has_kandora=has_kandora,
         kandora_deferred_for_open_kan=kandora_deferred_for_open_kan,
     )
+
     caller_tiles = (1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     seat0_tiles = (0, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45)
     seat2_tiles = (46, 47, 48, 49, 60, 61, 62, 63, 64, 65, 66, 67, 68)
@@ -319,6 +324,7 @@ def _make_pon_round_state(
         has_kandora=has_kandora,
         kandora_deferred_for_open_kan=kandora_deferred_for_open_kan,
     )
+
     pon_meld = FrozenMeld(
         meld_type=FrozenMeld.PON,
         tiles=(0, 1, 2),
@@ -425,6 +431,7 @@ class TestClosedKanDoraEvents:
     def test_process_closed_kan_call__when_kandora_immediate__should_emit_dora_revealed(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, caller_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
@@ -432,6 +439,7 @@ class TestClosedKanDoraEvents:
     def test_process_closed_kan_call__when_kandora_not_immediate__should_not_emit_dora_revealed(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, caller_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
@@ -441,6 +449,7 @@ class TestOpenKanDoraEvents:
     def test_process_open_kan_call__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, caller_seat=1, discarder_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
@@ -448,6 +457,7 @@ class TestOpenKanDoraEvents:
     def test_process_open_kan_call__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, caller_seat=1, discarder_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
@@ -457,6 +467,7 @@ class TestAddedKanDoraEvents:
     def test_process_added_kan_call__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
@@ -464,6 +475,7 @@ class TestAddedKanDoraEvents:
     def test_process_added_kan_call__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
@@ -478,6 +490,7 @@ class TestChankanDeclineDoraEvents:
     def test_complete_added_kan_after_chankan_decline__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
@@ -485,6 +498,7 @@ class TestChankanDeclineDoraEvents:
     def test_complete_added_kan_after_chankan_decline__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
+
         _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0

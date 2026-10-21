@@ -66,6 +66,7 @@ class TestCalculateHandValue:
         win_tile = tiles[-1]  # 5p
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(0, 1), (27, 2), (120, 1), (121, 2)]
@@ -82,6 +83,7 @@ class TestCalculateHandValue:
         win_tile = tiles[-1]
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(0, 1), (1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
@@ -96,6 +98,7 @@ class TestCalculateHandValue:
         win_tile = tiles[-1]
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
+
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
@@ -845,6 +848,7 @@ class TestHandValueParityBetweenFunctions:
         win_tile = tiles[-1]
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
+
         result_a = calculate_hand_value(ctx, win_tile)
         result_b = calculate_hand_value_with_tiles(ctx, tiles=tiles, win_tile=win_tile)
         assert result_a.han == result_b.han
@@ -909,6 +913,7 @@ class TestCollectUraDoraIndicators:
             dora_indicators=(10,),
         )
         player = create_player(seat=0, is_riichi=True)
+
         result = collect_ura_dora_indicators(player, round_state, settings=settings)
         assert result is None
 
@@ -920,6 +925,7 @@ class TestCollectUraDoraIndicators:
             dora_indicators=(),
         )
         player = create_player(seat=0, is_riichi=True)
+
         result = collect_ura_dora_indicators(player, round_state, settings=settings)
         assert result is None
 
@@ -927,13 +933,11 @@ class TestCollectUraDoraIndicators:
 class TestUraDoraScoringIntegration:
     def _build_game_state(self, *, dead_wall, dora_indicators, tiles, is_riichi):
         dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=tuple(tiles) if i == 0 else None,
-                is_riichi=is_riichi if i == 0 else False,
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
         round_state = create_round_state(
             players=players,
@@ -958,6 +962,7 @@ class TestUraDoraScoringIntegration:
         # ura dora 2: indicator 1s -> ura dora 2s (1 copy in hand = 1 han)
         ura_tile_1 = TilesConverter.string_to_136_array(sou="4")[0]
         ura_tile_2 = TilesConverter.string_to_136_array(sou="1")[0]
+
         dead_wall = [0] * 14
         dead_wall[2] = dora_indicator_1
         dead_wall[3] = dora_indicator_2
@@ -971,6 +976,7 @@ class TestUraDoraScoringIntegration:
             is_riichi=True,
         )
         player = game_state.round_state.players[0]
+
         settings = GameSettings(has_akadora=False, has_kan_uradora=True)
         ctx = ScoringContext(player=player, round_state=game_state.round_state, settings=settings, is_tsumo=True)
         result = calculate_hand_value(ctx, win_tile)

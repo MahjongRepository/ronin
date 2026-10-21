@@ -124,7 +124,6 @@ class MockGameService(GameService):
         players = [
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
         ]
-
         return [
             ServiceEvent(
                 event=EventType.GAME_STARTED,

@@ -22,9 +22,11 @@ servers:
     client_url: "http://localhost:8711"
 """
     config_file.write_text(servers_yaml)
+
     static_dir = tmp_path / "public"
     (static_dir / "styles").mkdir(parents=True)
     (static_dir / "styles" / "lobby.css").write_text("/* test */")
+
     settings_kwargs.setdefault("ws_allowed_origin", None)
     return create_app(
         settings=LobbyServerSettings(

@@ -36,6 +36,7 @@ class TestSignAndVerifyRoundTrip:
     def test_game_ticket__when_signed_and_verified__should_return_same_ticket(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
+
         result = verify_game_ticket(token, SECRET)
         assert result is not None
         assert result.user_id == ticket.user_id
@@ -48,12 +49,14 @@ class TestExpiredTicket:
         past = time.time() - TICKET_TTL_SECONDS - 1
         ticket = _make_ticket(issued_at=past, expires_at=past + TICKET_TTL_SECONDS)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
     def test_game_ticket__when_expiring_at_full_ttl__should_accept(self):
         now = time.time()
         ticket = _make_ticket(issued_at=now, expires_at=now + TICKET_TTL_SECONDS)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is not None
 
 
@@ -62,22 +65,26 @@ class TestTamperedTicket:
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         payload_b64, sig_b64 = token.split(".")
+
         # Decode, tamper, re-encode
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
         payload["username"] = "evil"
         tampered_payload = base64.urlsafe_b64encode(json.dumps(payload, sort_keys=True).encode()).decode()
         tampered_token = f"{tampered_payload}.{sig_b64}"
+
         assert verify_game_ticket(tampered_token, SECRET) is None
 
     def test_game_ticket__when_signature_tampered__should_reject(self):
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         payload_b64, sig_b64 = token.split(".")
+
         # Flip a byte in the signature
         sig_bytes = bytearray(base64.urlsafe_b64decode(sig_b64))
         sig_bytes[0] ^= 0xFF
         tampered_sig = base64.urlsafe_b64encode(bytes(sig_bytes)).decode()
         tampered_token = f"{payload_b64}.{tampered_sig}"
+
         assert verify_game_ticket(tampered_token, SECRET) is None
 
 
@@ -102,6 +109,7 @@ class TestMalformedToken:
         ticket = _make_ticket()
         token = sign_game_ticket(ticket, SECRET)
         payload_b64 = token.split(".")[0]
+
         assert verify_game_ticket(f"{payload_b64}.!!!invalid", SECRET) is None
 
     def test_game_ticket__when_fields_missing__should_reject(self):
@@ -109,6 +117,7 @@ class TestMalformedToken:
         sig = hmac.new(SECRET.encode(), incomplete_payload, hashlib.sha256).digest()
         payload_b64 = base64.urlsafe_b64encode(incomplete_payload).decode()
         sig_b64 = base64.urlsafe_b64encode(sig).decode()
+
         assert verify_game_ticket(f"{payload_b64}.{sig_b64}", SECRET) is None
 
     def test_game_ticket__when_expires_at_not_numeric__should_reject(self):
@@ -125,6 +134,7 @@ class TestMalformedToken:
         sig = hmac.new(SECRET.encode(), payload, hashlib.sha256).digest()
         payload_b64 = base64.urlsafe_b64encode(payload).decode()
         sig_b64 = base64.urlsafe_b64encode(sig).decode()
+
         assert verify_game_ticket(f"{payload_b64}.{sig_b64}", SECRET) is None
 
 
@@ -141,18 +151,21 @@ class TestTemporalValidation:
         future = time.time() + CLOCK_SKEW_SECONDS + 100
         ticket = _make_ticket(issued_at=future, expires_at=future + 3600)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
     def test_game_ticket__when_expires_at_equals_issued_at__should_reject(self):
         now = time.time()
         ticket = _make_ticket(issued_at=now, expires_at=now)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
     def test_game_ticket__when_expires_before_issued__should_reject(self):
         now = time.time()
         ticket = _make_ticket(issued_at=now, expires_at=now - 100)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
     def test_game_ticket__when_lifetime_exceeds_ttl_plus_skew__should_reject(self):
@@ -162,6 +175,7 @@ class TestTemporalValidation:
             expires_at=now + TICKET_TTL_SECONDS + CLOCK_SKEW_SECONDS + 1,
         )
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is None
 
     def test_game_ticket__when_issued_within_clock_skew__should_accept(self):
@@ -169,6 +183,7 @@ class TestTemporalValidation:
         slight_future = now + CLOCK_SKEW_SECONDS - 1
         ticket = _make_ticket(issued_at=slight_future, expires_at=slight_future + 3600)
         token = sign_game_ticket(ticket, SECRET)
+
         assert verify_game_ticket(token, SECRET) is not None
 
     def test_game_ticket__when_issued_at_infinite__should_reject(self):

@@ -32,6 +32,7 @@ def create_pending_game(client, *, game_id: str, num_ai_players: int = 3) -> lis
 
 def join_game_and_start(ws, ticket: str) -> list[dict]:
     send_ws(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+
     messages = []
     while True:
         msg = recv_ws(ws)

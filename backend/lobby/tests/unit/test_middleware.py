@@ -193,6 +193,7 @@ class TestSecurityHeadersMiddlewareViteDev:
 
     def test_security_headers_middleware__when_vite_dev_url_https__should_use_wss(self):
         client = TestClient(_make_security_headers_app(vite_dev_url="https://localhost:5173"))
+
         response = client.get("/items")
         csp = response.headers["content-security-policy"]
         assert "wss://localhost:5173" in csp

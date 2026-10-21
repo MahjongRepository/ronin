@@ -38,7 +38,6 @@ class TestSeatArray:
     def test_lobby_room_seats__when_seat_freed__should_reuse_it_for_next_join(self):
         room = LobbyRoom(room_id="r1")
         room.seats = ["conn-0", "conn-1", "conn-2", "conn-3"]
-
         # Simulate conn-1 leaving seat 1
         room.seats[1] = None
 
@@ -104,6 +103,7 @@ class TestCanStart:
             user_id="u1",
             username="Owner",
         )
+
         assert room.can_start is True
 
     def test_lobby_room_can_start__when_non_owner_not_ready__should_be_false(self):
@@ -122,6 +122,7 @@ class TestCanStart:
             username="Bob",
             ready=False,
         )
+
         assert room.can_start is False
 
     def test_lobby_room_can_start__when_all_non_owners_ready__should_be_true(self):
@@ -140,6 +141,7 @@ class TestCanStart:
             username="Bob",
             ready=True,
         )
+
         assert room.can_start is True
 
     def test_lobby_room_can_start__when_one_of_several_non_owners_not_ready__should_be_false(self):
@@ -218,6 +220,7 @@ class TestGetPlayerInfo:
             username="Owner",
             ready=False,
         )
+
         info = room.get_player_info()
         assert info[0].ready is True
 

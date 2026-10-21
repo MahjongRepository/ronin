@@ -34,6 +34,7 @@ class TestTenhouScoring:
             players_with_open_hands=(),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -62,6 +63,7 @@ class TestTenhouScoring:
             players_with_open_hands=(),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[1],
             round_state=round_state,
@@ -128,6 +130,7 @@ class TestChiihouScoring:
             players_with_open_hands=(),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[1],
             round_state=round_state,
@@ -155,6 +158,7 @@ class TestChiihouScoring:
             players_with_open_hands=(),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -189,6 +193,7 @@ class TestHaiteiRaoyue:
             all_discards=(0, 1, 2, 3),
             wall=[],
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -217,6 +222,7 @@ class TestHaiteiRaoyue:
             all_discards=(0, 1, 2, 3),
             wall=list(range(10)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -246,6 +252,7 @@ class TestHaiteiRaoyue:
             all_discards=(0, 1, 2, 3),
             wall=[],
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -282,6 +289,7 @@ class TestHouteiRaoyui:
             all_discards=(0, 1, 2, 3),
             wall=[],
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -310,6 +318,7 @@ class TestHouteiRaoyui:
             all_discards=(0, 1, 2, 3),
             wall=[],
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -346,6 +355,7 @@ class TestRinshanKaihou:
             all_discards=(0, 1, 2, 3),
             wall=list(range(10)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -375,6 +385,7 @@ class TestRinshanKaihou:
             all_discards=(0, 1, 2, 3),
             wall=list(range(10)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -409,6 +420,7 @@ class TestRyuuiisou:
             all_discards=(0, 1, 2, 3),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -439,6 +451,7 @@ class TestRyuuiisou:
             all_discards=(0, 1, 2, 3),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -485,6 +498,7 @@ class TestRyuuiisou:
             players_with_open_hands=(0,),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -520,6 +534,7 @@ class TestDoubleRiichiScoring:
             all_discards=(0, 1, 2, 3),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -557,6 +572,7 @@ class TestDoubleRiichiScoring:
             all_discards=(0, 1, 2, 3, 4),
             wall=list(range(70)),
         )
+
         ctx = ScoringContext(
             player=round_state.players[0],
             round_state=round_state,
@@ -591,6 +607,7 @@ class TestNagashiManganDetection:
             create_player(seat=3),
         )
         round_state = create_round_state(players=players)
+
         qualifying = check_nagashi_mangan(round_state)
         assert 1 in qualifying
 
@@ -605,6 +622,7 @@ class TestNagashiManganDetection:
             *(create_player(seat=i) for i in range(1, 4)),
         )
         round_state = create_round_state(players=players)
+
         qualifying = check_nagashi_mangan(round_state)
         assert 0 not in qualifying
 
@@ -634,6 +652,7 @@ class TestNagashiManganDetection:
             players=players,
             players_with_open_hands=(1,),
         )
+
         qualifying = check_nagashi_mangan(round_state)
         assert 0 not in qualifying
 
@@ -662,6 +681,7 @@ class TestNagashiManganDetection:
             players=players,
             players_with_open_hands=(0,),
         )
+
         qualifying = check_nagashi_mangan(round_state)
         # player 0 called from player 1, but their OWN discards were not claimed
         assert 0 in qualifying

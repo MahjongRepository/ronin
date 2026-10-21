@@ -83,7 +83,6 @@ class TestPickBestMeldResponse:
             CallResponse(seat=1, action=GameAction.CALL_PON),
             CallResponse(seat=2, action=GameAction.CALL_CHI),
         ]
-
         best = pick_best_meld_response(responses, prompt)
         # pon has higher priority (1) than chi (2)
         assert best is not None
@@ -169,6 +168,7 @@ class TestResolveMeldResponse:
         round_state = update_player(round_state, 1, melds=(kan_meld_1,))
         round_state = update_player(round_state, 2, melds=(kan_meld_2,))
         round_state = update_player(round_state, 3, tiles=player3_tiles)
+
         round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
@@ -349,7 +349,6 @@ class TestHandleKanMultiCaller:
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="5")[0]
-
         player1_tiles = tuple(TilesConverter.string_to_136_array(man="555368", pin="2479", sou="358"))
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
@@ -527,7 +526,6 @@ class TestDiscardPromptValidation:
     def test_discard_prompt__when_ron_caller_sends_meld_action__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
 
         prompt = PendingCallPrompt(
@@ -546,7 +544,6 @@ class TestDiscardPromptValidation:
     def test_discard_prompt__when_seat_not_a_caller__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
 
         # seat 2 is pending but not in callers list (inconsistent state)
@@ -566,7 +563,6 @@ class TestDiscardPromptValidation:
     def test_discard_prompt__when_meld_caller_sends_wrong_action__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
 
         prompt = PendingCallPrompt(
@@ -587,9 +583,7 @@ class TestChankanRiechiFuritenOnPass:
     def test_chankan_pass__when_riichi_player_passes__should_set_riichi_furiten(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
-
         tile_id = round_state.players[0].tiles[0]
-
         # make seat 1 a riichi player
         round_state = update_player(round_state, 1, is_riichi=True)
 

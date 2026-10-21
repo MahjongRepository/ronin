@@ -252,7 +252,6 @@ class TestCheckFourKans:
             player1_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
             player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),),
         )
-
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
@@ -267,7 +266,6 @@ class TestCheckFourKans:
                 self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),
             ),
         )
-
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
@@ -279,7 +277,6 @@ class TestCheckFourKans:
             player1_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),),
             player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
         )
-
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)
@@ -296,7 +293,6 @@ class TestCheckFourKans:
             ),
             player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"), FrozenMeld.KAN),),
         )
-
         settings = GameSettings()
 
         result = check_four_kans(round_state, settings)

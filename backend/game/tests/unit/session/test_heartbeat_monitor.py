@@ -93,7 +93,6 @@ class TestHeartbeatMonitorLoop:
         monitor = HeartbeatMonitor()
         conn = MockConnection()
         monitor.record_connect(conn.connection_id)
-
         # set ping to past timeout
         monitor._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 
@@ -150,7 +149,6 @@ class TestHeartbeatMonitorLoop:
         monitor = HeartbeatMonitor()
         conn = MockConnection()
         monitor.record_connect(conn.connection_id)
-
         # set ping to past timeout
         monitor._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 
@@ -179,7 +177,6 @@ class TestHeartbeatMonitorLoop:
         conn2 = MockConnection()
         monitor.record_connect(conn1.connection_id)
         monitor.record_connect(conn2.connection_id)
-
         # conn1 is stale, conn2 is fresh
         monitor._last_ping[conn1.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
 

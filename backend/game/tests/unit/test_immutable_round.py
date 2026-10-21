@@ -47,6 +47,7 @@ class TestDrawTileImmutable:
 
     def test_draw_tile__when_hand_has_tiles__should_append_tile_to_end_of_hand(self):
         round_state = self._create_round_state()
+
         starting_tiles = tuple(TilesConverter.string_to_136_array(sou="888")[:3])
         players = list(round_state.players)
         players[0] = players[0].model_copy(update={"tiles": starting_tiles})
@@ -150,6 +151,7 @@ class TestDiscardTileImmutable:
         man_8 = TilesConverter.string_to_136_array(man="8888")
         man_9 = TilesConverter.string_to_136_array(man="9999")
         pin_2 = TilesConverter.string_to_136_array(pin="2222")
+
         players = (
             MahjongPlayer(
                 seat=0,
@@ -211,6 +213,7 @@ class TestDiscardTileImmutable:
     def test_discard_tile__when_players_have_ippatsu__should_clear_only_discarders_ippatsu(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
+
         players = list(round_state.players)
         players[0] = players[0].model_copy(update={"is_ippatsu": True})
         players[1] = players[1].model_copy(update={"is_ippatsu": True})
@@ -229,6 +232,7 @@ class TestDiscardTileImmutable:
     def test_discard_tile__when_player_has_rinshan_flag__should_clear_it(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
+
         players = list(round_state.players)
         players[0] = players[0].model_copy(update={"is_rinshan": True})
         round_state = round_state.model_copy(update={"players": tuple(players)})
@@ -241,6 +245,7 @@ class TestDiscardTileImmutable:
     def test_discard_tile__when_tile_forbidden_by_kuikae__should_raise(self):
         round_state = self._create_round_state()
         man_3_copy2 = TilesConverter.string_to_136_array(man="333")[2]
+
         # 3m is tile_34=2, set kuikae to forbid it
         kuikae = tuple(_string_to_34_tiles(man="3"))
         players = list(round_state.players)
@@ -253,6 +258,7 @@ class TestDiscardTileImmutable:
     def test_discard_tile__when_tile_not_forbidden_by_kuikae__should_discard_it(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
+
         # forbid tile_34=2 (3m), but player discards 6m (tile_34=5, not forbidden)
         kuikae = tuple(_string_to_34_tiles(man="3"))
         players = list(round_state.players)
@@ -265,6 +271,7 @@ class TestDiscardTileImmutable:
     def test_discard_tile__when_kuikae_restriction_active__should_clear_it_after_discard(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
+
         kuikae = tuple(_string_to_34_tiles(man="3"))
         players = list(round_state.players)
         players[0] = players[0].model_copy(update={"kuikae_tiles": kuikae})

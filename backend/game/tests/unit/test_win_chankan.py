@@ -27,7 +27,6 @@ class TestIsChankanPossible:
 
         # player 2 tries to add kan of 3p
         kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
         assert 0 in chankan_seats
 
@@ -50,7 +49,6 @@ class TestIsChankanPossible:
 
         # player 2 tries to add kan of 9s (no one waiting on it)
         kan_tile = TilesConverter.string_to_136_array(sou="9")[0]
-
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
         assert chankan_seats == []
 
@@ -81,7 +79,6 @@ class TestIsChankanPossible:
 
         # player 2 tries to add kan of 3p
         kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
         assert 0 not in chankan_seats
 
@@ -103,7 +100,6 @@ class TestIsChankanPossible:
         )
 
         kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
         assert 2 not in chankan_seats
 
@@ -125,7 +121,6 @@ class TestIsChankanPossible:
         )
 
         kan_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
         chankan_seats = is_chankan_possible(round_state, caller_seat=2, kan_tile=kan_tile)
         assert 0 in chankan_seats
         assert 3 in chankan_seats
@@ -210,7 +205,6 @@ class TestChankanWithOpenHand:
             melds=(pon_meld,),
             score=25000,
         )
-
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=2,
@@ -255,7 +249,6 @@ class TestChankanWithOpenHand:
             melds=(pon_meld,),
             score=25000,
         )
-
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=2,

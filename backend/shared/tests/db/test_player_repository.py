@@ -39,6 +39,7 @@ def repo(tmp_path: Path):
 class TestCreateAndRead:
     async def test_player_repository__when_human_created__should_find_by_username(self, repo: SqlitePlayerRepository):
         await repo.create_player(_human())
+
         result = await repo.get_by_username("alice")
         assert result is not None
         assert result.user_id == "u1"
@@ -46,6 +47,7 @@ class TestCreateAndRead:
 
     async def test_player_repository__when_bot_created__should_find_by_api_key_hash(self, repo: SqlitePlayerRepository):
         await repo.create_player(_bot())
+
         result = await repo.get_by_api_key_hash("keyhash1")
         assert result is not None
         assert result.username == "TestBot"
@@ -82,6 +84,7 @@ class TestCaseInsensitiveUsername:
         self, repo: SqlitePlayerRepository
     ):
         await repo.create_player(_human(username="Alice"))
+
         assert await repo.get_by_username("alice") is not None
         assert await repo.get_by_username("ALICE") is not None
         assert await repo.get_by_username("aLiCe") is not None

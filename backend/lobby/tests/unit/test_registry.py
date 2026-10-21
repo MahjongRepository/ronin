@@ -16,6 +16,7 @@ class TestRegistryManagerLoadConfig:
             '  - name: "beta"\n'
             '    url: "http://beta:8002"\n',
         )
+
         manager = RegistryManager(config_path=config)
         servers = manager.get_servers()
         assert len(servers) == 2
@@ -27,6 +28,7 @@ class TestRegistryManagerLoadConfig:
         config.write_text(
             'servers:\n  - name: "game-1"\n    url: "http://game:8711"\n    public_url: "https://example.com"\n',
         )
+
         manager = RegistryManager(config_path=config)
         server = manager.get_servers()[0]
         assert server.url == "http://game:8711"
@@ -35,6 +37,7 @@ class TestRegistryManagerLoadConfig:
     def test_registry_load_config__when_no_public_url__should_fall_back_to_url_for_client_url(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
+
         manager = RegistryManager(config_path=config)
         server = manager.get_servers()[0]
         assert server.client_url == "http://s1:8001"
@@ -46,6 +49,7 @@ class TestRegistryManagerLoadConfig:
     def test_registry_load_config__when_servers_list_empty__should_have_no_servers(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text("servers: []\n")
+
         manager = RegistryManager(config_path=config)
         assert manager.get_servers() == []
 
@@ -54,6 +58,7 @@ class TestRegistryManagerGetServers:
     def test_registry_get_servers__should_return_copy(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
+
         manager = RegistryManager(config_path=config)
         copy = manager.get_servers()
         copy.clear()

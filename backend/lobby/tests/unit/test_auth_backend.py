@@ -121,6 +121,7 @@ class TestSessionCookieAuth:
         session_store: AuthSessionStore,
     ):
         other_session = session_store.create_session(user_id="user-other", username="otheruser")
+
         conn = MagicMock()
         conn.cookies = {"session_id": valid_session.session_id}
         conn.query_params = {"session_id": other_session.session_id}
@@ -249,6 +250,7 @@ class TestAccountTypePropagation:
         session_store: AuthSessionStore,
     ):
         bot_session = session_store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
+
         conn = MagicMock()
         conn.cookies = {"session_id": bot_session.session_id}
         conn.query_params = {}

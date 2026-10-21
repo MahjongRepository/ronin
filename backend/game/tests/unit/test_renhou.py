@@ -37,6 +37,7 @@ class TestIsRenhou:
         # a player called an open meld (pon/chi)
         round_state = self._create_round_state(dealer_seat=0)
         round_state = round_state.model_copy(update={"players_with_open_hands": (2,)})  # seat 2 has open hand
+
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
@@ -46,6 +47,7 @@ class TestIsRenhou:
         kan_tiles = TilesConverter.string_to_136_array(man="1111")
         closed_kan = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(kan_tiles), opened=False)
         round_state = update_player(round_state, 0, melds=(closed_kan,))
+
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
@@ -54,6 +56,7 @@ class TestIsRenhou:
         round_state = self._create_round_state(dealer_seat=0)
         tile = TilesConverter.string_to_136_array(man="1")[0]
         round_state = update_player(round_state, 1, discards=(Discard(tile_id=tile),))
+
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
 
@@ -65,6 +68,7 @@ class TestIsRenhou:
         tile = TilesConverter.string_to_136_array(man="1")[0]
         round_state = update_player(round_state, 0, discards=(Discard(tile_id=tile),))
         round_state = round_state.model_copy(update={"all_discards": (tile,)})
+
         player = round_state.players[1]  # non-dealer, no discards
         assert is_renhou(player, round_state) is True
 

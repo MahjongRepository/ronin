@@ -41,7 +41,6 @@ class TestTurnTimerTurnTimer:
 
         timer.start_turn_timer(on_timeout)
         timer.stop()
-
         await asyncio.sleep(0.05)
         assert callback_called is False
 
@@ -95,7 +94,6 @@ class TestTurnTimerBankEdgeCases:
 
         timer.start_turn_timer(first_callback)
         timer.start_turn_timer(second_callback)
-
         await asyncio.sleep(0.05)
         timer.cancel()
         assert first_called is False
@@ -120,6 +118,7 @@ class TestBaseTimeBehavior:
     async def test_turn_timer__when_acting_within_base_time__should_keep_bank(self):
         config = TimerConfig(base_turn_seconds=1.0, initial_bank_seconds=10.0)
         timer = TurnTimer(config)
+
         timer.start_turn_timer(_noop)
         await asyncio.sleep(0.1)  # well within 1s base time
         timer.stop()
@@ -128,6 +127,7 @@ class TestBaseTimeBehavior:
     async def test_turn_timer__when_acting_after_base_time__should_drain_only_excess(self):
         config = TimerConfig(base_turn_seconds=0.1, initial_bank_seconds=10.0)
         timer = TurnTimer(config)
+
         timer.start_turn_timer(_noop)
         await asyncio.sleep(0.2)  # ~0.1s over base time
         timer.stop()
@@ -158,6 +158,7 @@ class TestBankCap:
             round_bonus_seconds=10.0,
         )
         timer = TurnTimer(config)
+
         timer.add_round_bonus()
         assert timer.bank_seconds == 60.0  # capped, not 65
 
@@ -168,5 +169,6 @@ class TestBankCap:
             round_bonus_seconds=10.0,
         )
         timer = TurnTimer(config)
+
         timer.add_round_bonus()
         assert timer.bank_seconds == 20.0

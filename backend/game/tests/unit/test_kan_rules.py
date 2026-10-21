@@ -191,6 +191,7 @@ class TestFourKansAbort:
             player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
             player0_melds=(kan_meld, kan_meld, kan_meld, kan_meld),
         )
+
         settings = GameSettings()
         assert check_four_kans(round_state, settings) is False
 
@@ -203,6 +204,7 @@ class TestFourKansAbort:
             player1_tiles=TilesConverter.string_to_136_array(man="123", pin="123", sou="123456"),
             player1_melds=(kan_meld_1, kan_meld_1),
         )
+
         settings = GameSettings()
         assert check_four_kans(round_state, settings) is True
 
@@ -238,6 +240,7 @@ class TestFourKansAbort:
             player1_tiles=TilesConverter.string_to_136_array(man="123", pin="123", sou="123456"),
             player1_melds=(shouminkan_meld, shouminkan_meld),
         )
+
         settings = GameSettings()
         assert check_four_kans(round_state, settings) is True
 

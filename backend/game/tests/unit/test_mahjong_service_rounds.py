@@ -183,7 +183,6 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         self, service
     ):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         events: list[ServiceEvent] = []
@@ -321,7 +320,6 @@ class TestMahjongGameServiceProcessPostDiscard:
             _update_player(service, game_id="game1", seat=current_seat, tiles=tuple(list(current_player.tiles)[:13]))
 
         events: list[ServiceEvent] = []
-
         result = await service._process_post_discard("game1", events)
         assert [(e.event, e.target) for e in result] == [(EventType.DRAW, SeatTarget(seat=current_seat))]
 
@@ -378,11 +376,9 @@ class TestMahjongGameServicePostDiscardRoundEnd:
 
     async def test_process_post_discard__when_wall_is_empty__should_emit_round_end(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-
         _update_round_state(service, "game1", wall=Wall())
 
         events: list[ServiceEvent] = []
-
         result = await service._process_post_discard("game1", events)
         round_end = [e for e in result if e.event == EventType.ROUND_END]
         assert len(round_end) == 1
@@ -409,7 +405,6 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         _update_round_state(service, "game1", pending_call_prompt=prompt, wall=Wall())
 
         events: list[ServiceEvent] = []
-
         result = await service._process_post_discard("game1", events)
         assert [e.event for e in result] == [EventType.ROUND_END]
 
@@ -446,7 +441,6 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
 
     async def test_process_ai_player_followup__when_round_finished__should_return_no_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         result = await service._process_ai_player_followup("game1")
@@ -514,7 +508,6 @@ class TestDispatchAIPlayerCallResponseNonNullAction:
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         events: list[ServiceEvent] = []
-
         with patch.object(
             ai_player_controller,
             "get_call_response",
@@ -554,7 +547,6 @@ class TestGameEndCleanupSafety:
             tiles.append(0)
 
         _update_player(service, game_id="game1", seat=player.seat, tiles=tuple(tiles[:14]))
-
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
         tile_id = player.tiles[-1]

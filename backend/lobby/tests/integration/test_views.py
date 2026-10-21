@@ -52,6 +52,7 @@ servers:
     url: "http://localhost:8711"
 """
         config_file.write_text(servers_yaml)
+
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
@@ -76,10 +77,12 @@ servers:
         # Register and login a user for authenticated view tests
         register_with_csrf(c, "viewuser")
         yield c
+
         app.state.db.close()
 
     def test_lobby_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
+
         response = client.get("/")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
@@ -111,6 +114,7 @@ servers:
         room_manager = client.app.state.room_manager
         room_manager.create_room("abc12345-long-id")
         room_manager.join_room(connection_id="conn-1", room_id="abc12345-long-id", user_id="user-1", username="Alice")
+
         response = client.get("/")
         assert "abc12345" in response.text
         assert "1/4" in response.text
@@ -164,14 +168,17 @@ servers:
     def test_play_page__when_assets_missing__should_return_503(self, tmp_path):
         config_file = tmp_path / "servers.yaml"
         config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
+
         game_assets_dir = tmp_path / "dist"
         game_assets_dir.mkdir()
         vite_dir = game_assets_dir / ".vite"
         vite_dir.mkdir()
         (vite_dir / "manifest.json").write_text("{}")
+
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -186,6 +193,7 @@ servers:
         )
         c = TestClient(app)
         register_with_csrf(c, "testuser")
+
         response = c.get("/play/test-game")
         assert response.status_code == 503
         assert "Game client assets not available" in response.text
@@ -201,9 +209,11 @@ servers:
     def test_game_assets_route__when_dir_missing__should_not_mount(self, tmp_path):
         config_file = tmp_path / "servers.yaml"
         config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
+
         nonexistent_dir = tmp_path / "no-such-dir"
         app = create_app(
             settings=LobbyServerSettings(
@@ -231,6 +241,7 @@ servers:
 
     def test_matchmaking_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
+
         response = client.get("/matchmaking")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
@@ -238,6 +249,7 @@ servers:
     def test_room_page__when_room_exists__should_render_room_template(self, client):
         room_manager = client.app.state.room_manager
         room_manager.create_room("test-room-42")
+
         response = client.get("/rooms/test-room-42")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
@@ -247,9 +259,11 @@ servers:
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "cfg.yaml"
         config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "pub"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
+
         app = create_app(
             settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
             auth_settings=AuthSettings(
@@ -263,6 +277,7 @@ servers:
         app.state.room_manager.create_room("fresh-room")
         # Clear the CSRF cookie to simulate a direct visit
         c.cookies.delete(CSRF_COOKIE_NAME)
+
         response = c.get("/rooms/fresh-room")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
@@ -278,9 +293,11 @@ servers:
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "cfg.yaml"
         config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "pub"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
+
         app = create_app(
             settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
             auth_settings=AuthSettings(
@@ -290,6 +307,7 @@ servers:
             ),
         )
         c = TestClient(app)
+
         # Don't register - visit storybook directly (no prior CSRF cookie)
         response = c.get("/storybook")
         assert response.status_code == 200
@@ -313,6 +331,7 @@ class TestViteDevMode:
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "servers.yaml"
         config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "pub"
         static_dir.mkdir()
 
@@ -331,6 +350,7 @@ class TestViteDevMode:
         c = TestClient(app)
         register_with_csrf(c, "viteuser")
         yield c
+
         app.state.db.close()
 
     def test_lobby_page__when_vite_dev_url_set__should_use_vite_dev_urls(self, client):
@@ -353,12 +373,15 @@ class TestHistoryPage:
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "servers.yaml"
         config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
+
         game_assets_dir = tmp_path / "dist"
         game_assets_dir.mkdir()
         _create_vite_manifest(game_assets_dir)
+
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -374,10 +397,12 @@ class TestHistoryPage:
         c = TestClient(app)
         register_with_csrf(c, "gamesuser")
         yield c
+
         app.state.db.close()
 
     def test_history_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
+
         response = client.get("/history")
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
@@ -404,6 +429,7 @@ class TestHistoryPage:
             ],
         )
         asyncio.run(client.app.state.game_repo.create_game(game))
+
         response = client.get("/history")
         assert response.status_code == 200
         assert "abcd1234" in response.text
@@ -455,9 +481,11 @@ class TestHistoryPage:
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
         config_file = tmp_path / "cfg.yaml"
         config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
+
         static_dir = tmp_path / "pub"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
+
         app = create_app(
             settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
             auth_settings=AuthSettings(
@@ -467,6 +495,7 @@ class TestHistoryPage:
             ),
         )
         c = TestClient(app)
+
         response = c.get("/history", follow_redirects=False)
         assert response.status_code == 303
         assert "/login" in response.headers["location"]

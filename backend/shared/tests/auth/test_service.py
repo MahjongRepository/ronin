@@ -89,7 +89,6 @@ class TestRegisterBot:
         assert player.password_hash == "!"
         assert player.api_key_hash is not None
         assert raw_api_key
-
         # The raw key hashes to the stored hash
         expected_hash = hashlib.sha256(raw_api_key.encode()).hexdigest()
         assert player.api_key_hash == expected_hash
@@ -108,6 +107,7 @@ class TestRegisterBot:
 class TestLogin:
     async def test_auth_service_login__when_credentials_valid__should_return_session(self, auth_service):
         await auth_service.register("alice", "password123")
+
         session = await auth_service.login("alice", "password123")
         assert session.username == "alice"
         assert session.session_id

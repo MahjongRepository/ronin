@@ -105,7 +105,6 @@ class TestSessionManagerCloseGameOnError:
 
         # remove the game from the internal mapping to simulate cleanup race
         manager._games.pop("game1", None)
-
         # should return without error
         await manager.close_game_on_error(conns[0])
         # connection should NOT be closed (game is gone)
@@ -131,7 +130,6 @@ class TestSessionManagerCloseGameOnError:
 class TestGameEndFromAction:
     async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
@@ -164,7 +162,6 @@ class TestGameEndFromAction:
 class TestGameEndFromTimeout:
     async def test_game_end__when_timeout_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         manager._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
 
         await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)

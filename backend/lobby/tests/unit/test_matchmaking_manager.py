@@ -70,6 +70,7 @@ class TestTryMatch:
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS - 1):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
+
         assert mgr.try_match() is None
 
     def test_matchmaking_try_match__when_enough_players__should_return_matched_players(self):
@@ -129,6 +130,7 @@ class TestRequeueAtFront:
     def test_matchmaking_requeue__should_place_players_at_front(self):
         mgr = MatchmakingManager()
         mgr.add_player(_make_entry(user_id="u1", connection_id="c1", username="first"))
+
         entry = _make_entry(user_id="u0", connection_id="c0", username="requeued")
         mgr.requeue_at_front([entry])
         assert mgr.queue_size == 2
@@ -145,6 +147,7 @@ class TestRequeueAtFront:
         mgr = MatchmakingManager()
         entry = _make_entry(user_id="u1", connection_id="c1")
         mgr.add_player(entry)
+
         mgr.requeue_at_front([entry])
         assert mgr.queue_size == 1
 

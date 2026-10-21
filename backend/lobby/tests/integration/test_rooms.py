@@ -17,9 +17,11 @@ servers:
     url: "http://localhost:8711"
 """
         config_file.write_text(servers_yaml)
+
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("/* test */")
+
         app = create_app(
             settings=LobbyServerSettings(
                 config_path=config_file,
@@ -35,6 +37,7 @@ servers:
         # Register a user so authenticated endpoints can be tested
         register_with_csrf(c, "apiuser")
         yield c
+
         app.state.db.close()
 
     def test_health_route__should_return_ok_with_version_and_commit(self, client):

@@ -81,6 +81,7 @@ def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockCo
         seat=0,
     )
     game.players[conn.connection_id] = player
+
     manager._games["game1"] = game
     manager._players[conn.connection_id] = player
     manager._connections[conn.connection_id] = conn
@@ -94,7 +95,6 @@ async def disconnect_and_reconnect(
 ) -> tuple[MockConnection, str]:
     player = manager._players[conn.connection_id]
     token = player.session_token
-
     await manager.leave_game(conn, notify_player=False)
 
     new_conn = MockConnection()

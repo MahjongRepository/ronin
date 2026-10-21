@@ -57,6 +57,7 @@ async def _create_started_game_with_collector(
     ticket = make_test_game_ticket(username="Alice", room_id=game_id, user_id="user-0")
     specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
     manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=3)
+
     conn = MockConnection()
     manager.register_connection(conn)
     await manager.join_game(conn, game_id=game_id, session_token=ticket)

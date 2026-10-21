@@ -156,6 +156,7 @@ class TestProcessActionResultRoundEnd:
             target="all",
         )
         result = ActionResult(events=[round_end], needs_post_discard=False)
+
         events = await service._process_action_result_internal("game1", result)
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) == 1
@@ -312,11 +313,10 @@ class TestChankanPromptResolvedPath:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        events: list[ServiceEvent] = []
-
         def mock_dispatch_clearing_prompt(_game_id, _evts):
             _update_round_state(service, "game1", pending_call_prompt=None)
 
+        events: list[ServiceEvent] = []
         with (
             patch.object(
                 service,

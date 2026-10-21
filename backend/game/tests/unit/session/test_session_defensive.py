@@ -26,12 +26,10 @@ class TestSessionManagerDefensiveChecks:
 
     async def test_leave_game__when_game_mapping_missing__should_clear_player_game_and_seat(self, manager):
         conns = await create_started_game(manager)
-
         player = manager._players[conns[0].connection_id]
 
         # remove the game from the internal mapping to simulate the defensive case
         manager._games.pop(player.game_id, None)
-
         # should return without error and clear player game association
         await manager.leave_game(conns[0])
         assert player.game_id is None
@@ -43,7 +41,6 @@ class TestSessionManagerDefensiveChecks:
 
         # remove the game from the internal mapping
         manager._games.pop("game1", None)
-
         # should return silently without error
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert len(conns[0].sent_messages) == 0
@@ -54,7 +51,6 @@ class TestSessionManagerDefensiveChecks:
 
         # remove lock to simulate edge case
         manager._game_locks.pop("game1", None)
-
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
@@ -67,7 +63,6 @@ class TestSessionManagerDefensiveChecks:
 
         # remove the game from the internal mapping
         manager._games.pop("game1", None)
-
         # should return silently without error
         await manager.broadcast_chat(conns[0], "hello")
         assert len(conns[0].sent_messages) == 0
@@ -86,7 +81,6 @@ class TestSessionManagerDefensiveChecks:
         assert not pending.timeout_task.done()
 
         manager.cancel_all_pending_timeouts()
-
         # Allow event loop to process the cancellation
         with contextlib.suppress(asyncio.CancelledError):
             await pending.timeout_task

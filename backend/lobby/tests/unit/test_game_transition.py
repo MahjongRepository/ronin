@@ -20,6 +20,7 @@ class TestSignPlayerTickets:
 
     def test_sign_player_tickets__should_include_player_info_in_specs(self):
         players = [("uid1", "alice", "conn1")]
+
         specs, _ticket_map = sign_player_tickets(players=players, game_id="game-123", ticket_secret="secret")
         assert specs[0]["name"] == "alice"
         assert specs[0]["user_id"] == "uid1"
@@ -27,6 +28,7 @@ class TestSignPlayerTickets:
 
     def test_sign_player_tickets__should_return_payload_dot_signature_tickets(self):
         players = [("uid1", "alice", "conn1")]
+
         _specs, ticket_map = sign_player_tickets(players=players, game_id="game-123", ticket_secret="secret")
         ticket = ticket_map["conn1"]
         # Signed ticket format: base64url(payload).base64url(signature)

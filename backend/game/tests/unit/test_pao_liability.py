@@ -129,6 +129,7 @@ class TestPaoIntegrationWithCallPon:
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(hatsu_tiles), opened=True, who=0),
         )
         player = create_player(seat=0, tiles=tuple(chun_tiles) + tuple(hand_tiles), melds=melds)
+
         players = [player] + [create_player(seat=i) for i in range(1, 4)]
         wall = tuple(TilesConverter.string_to_136_array(man="123456"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333344"))
@@ -150,6 +151,7 @@ class TestPaoIntegrationWithCallPon:
         hand_tiles = TilesConverter.string_to_136_array(pin="12345678")
         melds = (FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),)
         player = create_player(seat=0, tiles=tuple(hatsu_tiles) + tuple(hand_tiles), melds=melds)
+
         players = [player] + [create_player(seat=i) for i in range(1, 4)]
         wall = tuple(TilesConverter.string_to_136_array(man="123456"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333344"))

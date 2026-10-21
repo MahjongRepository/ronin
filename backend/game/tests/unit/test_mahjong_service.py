@@ -71,7 +71,6 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
         ai_player_controller = service._ai_player_controllers["game1"]
         player = _find_player(game_state.round_state, "Alice")
         player_seat = player.seat
-
         assert ai_player_controller.is_ai_player(player_seat) is False
 
         service.replace_with_ai_player("game1", "Alice")
@@ -103,7 +102,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
     async def test_ai_actions_after_replacement__when_round_not_playing__should_return_no_events(self, service):
         await service.start_game("game1", ["Alice"])
-
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         events = await service.process_ai_player_actions_after_replacement("game1", seat=0)
@@ -142,7 +140,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         )
 
         service.replace_with_ai_player("game1", "Alice")
-
         events = await service.process_ai_player_actions_after_replacement("game1", player_seat)
         assert events[0].data == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
@@ -164,7 +161,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         service.replace_with_ai_player("game1", "Alice")
-
         await service.process_ai_player_actions_after_replacement("game1", alice.seat)
         updated_round = service._games["game1"].round_state
         assert updated_round.pending_call_prompt is None
@@ -188,7 +184,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         service.replace_with_ai_player("game1", "Alice")
-
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
         updated_round = service._games["game1"].round_state
         assert updated_round.pending_call_prompt is not None
@@ -213,11 +208,9 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             pending_seats=frozenset({alice.seat}),
             callers=(alice.seat,),
         )
-
         _update_round_state(service, "game1", wall=Wall(), pending_call_prompt=prompt)
 
         service.replace_with_ai_player("game1", "Alice")
-
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) == 1
@@ -324,6 +317,7 @@ class TestMahjongGameServiceUnsupportedSettings:
     async def test_start_game__when_settings_unsupported__should_return_error_event(self):
         settings = GameSettings(has_agariyame=True)
         service = MahjongGameService(settings=settings)
+
         events = await service.start_game("game1", ["Alice"])
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -335,6 +329,7 @@ class TestMahjongGameServiceUnsupportedSettings:
 class TestMahjongGameServiceInvalidSeed:
     async def test_start_game__when_seed_is_malformed__should_return_error_event(self):
         service = MahjongGameService()
+
         events = await service.start_game("game1", ["Alice"], seed="bad-seed")
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -345,6 +340,7 @@ class TestMahjongGameServiceInvalidSeed:
 class TestMahjongGameServiceInvalidSeedType:
     async def test_start_game__when_seed_is_not_a_string__should_return_error_event(self):
         service = MahjongGameService()
+
         events = await service.start_game("game1", ["Alice"], seed=12345)
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -477,7 +473,6 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
         game_state = service._games["game1"]
         current_seat = game_state.round_state.current_player_seat
-
         _update_player(service, game_id="game1", seat=current_seat, tiles=())
 
         events = service.build_draw_event_for_seat("game1", current_seat)

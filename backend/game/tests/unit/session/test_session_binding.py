@@ -8,7 +8,6 @@ from .helpers import create_started_game
 class TestSeatBindingOnStart:
     async def test_session_binding__when_game_starts__should_bind_seat_to_each_session(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
         session1 = manager._session_store._sessions.get(player1.session_token)
@@ -39,7 +38,6 @@ class TestSessionDisconnect:
 
         # simulate game mapping disappearing (race condition / defensive path)
         manager._games.pop("game1", None)
-
         await manager.leave_game(conns[0])
         session = manager._session_store._sessions.get(token)
         assert session is None

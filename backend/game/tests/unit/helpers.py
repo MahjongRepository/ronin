@@ -71,6 +71,7 @@ def _update_player(
     round_state = game_state.round_state
     players = list(round_state.players)
     old_player = players[seat]
+
     new_player = old_player.model_copy(update=updates)
     players[seat] = new_player
     new_round = round_state.model_copy(update={"players": tuple(players)})

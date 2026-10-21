@@ -19,6 +19,7 @@ class TestRoomConnectionManager:
     def test_room_connection_manager_remove__should_return_room_id(self):
         mgr = RoomConnectionManager()
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=_mock_ws())
+
         result = mgr.remove("conn-1")
         assert result == "room-1"
 
@@ -29,6 +30,7 @@ class TestRoomConnectionManager:
     def test_room_connection_manager_remove__when_last_connection__should_drop_room(self):
         mgr = RoomConnectionManager()
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=_mock_ws())
+
         mgr.remove("conn-1")
         # Internal room dict should be cleaned up
         assert "room-1" not in mgr._connections
@@ -42,7 +44,6 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-2", websocket=ws2)
 
         await mgr.broadcast(room_id="room-1", message={"type": "test"})
-
         payload = json.dumps({"type": "test"})
         ws1.send_text.assert_called_once_with(payload)
         ws2.send_text.assert_called_once_with(payload)
@@ -91,7 +92,6 @@ class TestRoomConnectionManager:
     @pytest.mark.asyncio
     async def test_room_connection_manager_send_to__when_connection_unknown__should_return_false(self):
         mgr = RoomConnectionManager()
-
         assert await mgr.send_to("unknown", {"type": "test"}) is False
 
     @pytest.mark.asyncio
@@ -100,6 +100,7 @@ class TestRoomConnectionManager:
         ws = _mock_ws()
         ws.send_text.side_effect = RuntimeError("closed")
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
+
         assert await mgr.send_to("conn-1", {"type": "test"}) is False
 
     @pytest.mark.asyncio
@@ -109,6 +110,7 @@ class TestRoomConnectionManager:
         mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
         # Remove ws from internal connections but keep reverse mapping
         mgr._connections["room-1"].pop("conn-1")
+
         # Should not raise
         await mgr.send_to("conn-1", {"type": "test"})
         ws.send_text.assert_not_called()

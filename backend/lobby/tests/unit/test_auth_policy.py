@@ -211,7 +211,6 @@ class TestValidateRouteAuthPolicy:
             Route("/ok", public_route(_make_handler()), methods=["GET"], name="ok"),
             Route("/bad", _make_handler(), methods=["GET"], name="bad"),
         ]
-
         with pytest.raises(RuntimeError, match="Unclassified routes"):
             validate_route_auth_policy(routes)
 
@@ -220,7 +219,6 @@ class TestValidateRouteAuthPolicy:
             Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
             Mount("/static", app=Starlette(), name="static"),
         ]
-
         validate_route_auth_policy(routes)
 
     def test_validate_route_auth_policy__when_several_routes_unclassified__should_report_all(self):
@@ -228,7 +226,6 @@ class TestValidateRouteAuthPolicy:
             Route("/x", _make_handler(), methods=["GET"], name="x"),
             Route("/y", _make_handler(), methods=["POST"], name="y"),
         ]
-
         with pytest.raises(RuntimeError, match="/x") as exc_info:
             validate_route_auth_policy(routes)
         assert "/y" in str(exc_info.value)
@@ -243,7 +240,6 @@ class TestCollectProtectedApiPaths:
             Route("/", protected_html(_make_handler()), methods=["GET"], name="index"),
             Route("/health", public_route(_make_handler()), methods=["GET"], name="health"),
         ]
-
         result = collect_protected_api_paths(routes)
         assert result == {"/rooms", "/servers", "/api/bot"}
 
@@ -252,6 +248,5 @@ class TestCollectProtectedApiPaths:
             Route("/rooms", protected_api(_make_handler()), methods=["GET"], name="rooms"),
             Mount("/static", app=Starlette(), name="static"),
         ]
-
         result = collect_protected_api_paths(routes)
         assert result == {"/rooms"}

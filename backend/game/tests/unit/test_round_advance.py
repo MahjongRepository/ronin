@@ -60,7 +60,6 @@ class TestRoundAdvanceWaiting:
 
     async def test_round_advance__when_all_players_ai__should_start_next_round_immediately(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-
         service.replace_with_ai_player("game1", "Player")
 
         result = _make_exhaustive_draw_result()
@@ -126,7 +125,6 @@ class TestConfirmRound:
 
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
-
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         events = await service.handle_action(
@@ -171,7 +169,6 @@ class TestRoundAdvanceAIPlayerReplacement:
         await service._handle_round_end("game1", result)
 
         service.replace_with_ai_player("game1", "Alice")
-
         events = await service.process_ai_player_actions_after_replacement("game1", alice.seat)
         assert events == []
         assert service.is_round_advance_pending("game1")
@@ -188,7 +185,6 @@ class TestRoundAdvanceAIPlayerReplacement:
         await service._handle_round_end("game1", result)
 
         service.replace_with_ai_player("game1", "Player")
-
         events = await service.process_ai_player_actions_after_replacement("game1", player.seat)
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) >= 4
@@ -211,7 +207,6 @@ class TestRoundAdvanceCleanup:
 
     async def test_round_end__when_game_ends__should_not_create_pending_advance(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-
         _update_player(service, game_id="game1", seat=0, score=-1000)
 
         result = ExhaustiveDrawResult(
@@ -221,7 +216,6 @@ class TestRoundAdvanceCleanup:
             scores={0: -1000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
-
         events = await service._handle_round_end("game1", result)
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
@@ -286,6 +280,7 @@ class TestRoundAdvanceManager:
 
     def test_confirm_seat__when_seat_confirmed_twice__should_count_once(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
+
         manager.confirm_seat("g1", 0)
         manager.confirm_seat("g1", 0)
         assert manager.get_unconfirmed_seats("g1") == {1}

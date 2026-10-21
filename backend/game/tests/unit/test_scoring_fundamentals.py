@@ -107,6 +107,7 @@ class TestPaymentRoundingUp:
         dummy_discards = TilesConverter.string_to_136_array(man="1112")
         dora_indicators = TilesConverter.string_to_136_array(sou="6")
         dummy_discard = (Discard(tile_id=0),)
+
         players = tuple(
             create_player(seat=i, tiles=tuple(tiles) if i == 0 else None, discards=dummy_discard) for i in range(4)
         )
@@ -122,6 +123,7 @@ class TestPaymentRoundingUp:
 
         settings = GameSettings(has_akadora=False)
         ctx = ScoringContext(player=player, round_state=game_state.round_state, settings=settings, is_tsumo=True)
+
         result = calculate_hand_value(ctx, tiles[-1])
         assert result.error is None
         # 1920 → 2000, 960 → 1000 (ceiling to nearest 100)

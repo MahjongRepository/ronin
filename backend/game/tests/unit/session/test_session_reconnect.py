@@ -54,7 +54,6 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
 
 
 def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLAYING, pending_call_prompt=None):
-
     class _MockRoundState:
         pass
 
@@ -76,7 +75,6 @@ class TestSessionManagerReconnect:
     async def test_reconnect__when_session_disconnected__should_send_game_reconnected_and_notify_others(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_conn, bob_conn = conns
-
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
 
@@ -85,7 +83,6 @@ class TestSessionManagerReconnect:
 
         await manager.leave_game(alice_conn, notify_player=False)
         bob_conn._outbox.clear()
-
         _stub_game_state_for_reconnect(manager)
 
         new_conn = MockConnection()
@@ -160,7 +157,6 @@ class TestSessionManagerReconnect:
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -178,7 +174,6 @@ class TestSessionManagerReconnect:
         alice_token = alice_player.session_token
 
         await manager.leave_game(alice_conn, notify_player=False)
-
         manager._game_locks.pop("game1", None)
 
         new_conn = MockConnection()
@@ -199,11 +194,9 @@ class TestSessionManagerReconnect:
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
 
         await manager.leave_game(alice_conn, notify_player=False)
-
         # override the bank time that leave_game saved
         session = manager._session_store.get_session(alice_token)
         session.remaining_bank_seconds = 1.5
-
         _stub_game_state_for_reconnect(manager)
 
         new_conn = MockConnection()
@@ -287,7 +280,6 @@ class TestReconnectTurnState:
 
         _stub_game_state_for_reconnect(manager, current_seat=0)
         manager._game_service.is_round_advance_pending = lambda gid: False
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -319,7 +311,6 @@ class TestReconnectEdgeCases:
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: None
 
         replace_calls = []
@@ -330,7 +321,6 @@ class TestReconnectEdgeCases:
             return original_replace(game_id, player_name)
 
         manager._game_service.replace_with_ai_player = tracking_replace
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -348,7 +338,6 @@ class TestReconnectEdgeCases:
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         session = manager._session_store.get_session(alice_token)
@@ -377,7 +366,6 @@ class TestReconnectEdgeCases:
         assert alice_conn.connection_id in game.players
 
         _stub_game_state_for_reconnect(manager)
-
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
@@ -401,7 +389,6 @@ class TestReconnectEdgeCases:
         _stub_game_state_for_reconnect(manager)
 
         session = manager._session_store.get_session(alice_token)
-
         # Bypass prevalidation by directly calling reconnect internals:
         # patch _validate_reconnect to return the expected tuple while the
         # session is still marked disconnected, then clear disconnected_at
@@ -417,14 +404,13 @@ class TestReconnectEdgeCases:
             return result
 
         manager._validate_reconnect = patched_validate
-
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-
-        manager._validate_reconnect = original_validate
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert any(m["code"] == SessionErrorCode.RECONNECT_NO_SESSION for m in error_msgs)
+
+        manager._validate_reconnect = original_validate
 
     @pytest.mark.asyncio
     async def test_reconnect__when_connection_removed_before_lock__should_return_silently_without_registering(
@@ -453,16 +439,15 @@ class TestReconnectEdgeCases:
             return result
 
         manager._validate_reconnect = patched_validate
-
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-
-        manager._validate_reconnect = original_validate
         # Should silently return without registering or sending errors
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 0
         assert new_conn.connection_id not in manager._players
+
+        manager._validate_reconnect = original_validate
 
     @pytest.mark.asyncio
     async def test_reconnect__when_game_state_missing__should_send_no_draw_event(self, manager):
@@ -474,7 +459,6 @@ class TestReconnectEdgeCases:
         snapshot = _make_snapshot("game1", seat=0)
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         manager._game_service.get_game_state = lambda gid: None
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -497,7 +481,6 @@ class TestReconnectEdgeCases:
             raise RuntimeError("snapshot failed")
 
         manager._game_service.build_reconnection_snapshot = raise_error
-
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
@@ -506,7 +489,6 @@ class TestReconnectEdgeCases:
             return original_replace(game_id, player_name)
 
         manager._game_service.replace_with_ai_player = tracking_replace
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -545,7 +527,6 @@ class TestReconnectEdgeCases:
             target=SeatTarget(seat=0),
         )
         manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -579,7 +560,6 @@ class TestReconnectEdgeCases:
             target=SeatTarget(seat=0),
         )
         manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-
         await manager.leave_game(alice_conn, notify_player=False)
 
         new_conn = MockConnection()
@@ -632,7 +612,6 @@ class TestMultipleReconnects:
 
             player = manager._players[current_conn.connection_id]
             token = player.session_token
-
             await manager.leave_game(current_conn, notify_player=False)
 
             new_conn = MockConnection()

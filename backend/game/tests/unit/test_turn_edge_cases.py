@@ -30,8 +30,12 @@ class TestKyuushuKyuuhaiDrawPhase:
             TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="123")
             + TilesConverter.string_to_136_array(man="22334"),
         )
-
-        players = tuple(create_player(seat=i, tiles=kyuushu_tiles if i == 0 else ()) for i in range(4))
+        players = (
+            create_player(seat=0, tiles=kyuushu_tiles),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -59,15 +63,16 @@ class TestRiichiFuriten:
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         furiten_discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
             create_player(
-                seat=i,
-                tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()),
-                is_riichi=(i == 1),
-                discards=(Discard(tile_id=furiten_discard_tile),) if i == 1 else (),
-            )
-            for i in range(4)
+                seat=1,
+                tiles=hand_tiles_1,
+                is_riichi=True,
+                discards=(Discard(tile_id=furiten_discard_tile),),
+            ),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -88,14 +93,11 @@ class TestRiichiFuriten:
     def test_riichi_furiten__when_riichi_player_not_furiten__should_offer_ron_prompt(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()),
-                is_riichi=(i == 1),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1, is_riichi=True),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -121,12 +123,12 @@ class TestChiOpportunity:
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="13579", sou="135799")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
-
         discard_tile = TilesConverter.string_to_136_array(man="5")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="6666"))
@@ -154,10 +156,11 @@ class TestFindRonCallers:
     def test_find_ron_callers__when_player_tenpai_on_discard__should_include_player(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -180,10 +183,11 @@ class TestFindRonCallers:
     def test_find_ron_callers__when_multiple_callers__should_sort_by_distance(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles if i in (1, 3) else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles),
+            create_player(seat=2),
+            create_player(seat=3, tiles=hand_tiles),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -210,8 +214,12 @@ class TestSingleRonHandError:
     def test_single_ron__when_hand_result_error__should_raise(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ()) for i in range(4))
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -237,8 +245,12 @@ class TestDoubleRonHandError:
     def test_double_ron__when_hand_result_error__should_raise(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles if i in (1, 2) else ()) for i in range(4))
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=hand_tiles),
+            create_player(seat=2, tiles=hand_tiles),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -263,8 +275,12 @@ class TestDoubleRonHandError:
 class TestTsumoHandError:
     def test_tsumo__when_hand_result_error__should_raise(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles if i == 0 else ()) for i in range(4))
+        players = (
+            create_player(seat=0, tiles=hand_tiles),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -295,16 +311,12 @@ class TestAddedKanChankan:
         )
         fourth_tile = TilesConverter.string_to_136_array(man="1111")[3]
         other_tiles_0 = TilesConverter.string_to_136_array(pin="123456789", sou="11")
-
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="23456789", pin="456", sou="55"))
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(fourth_tile, *other_tiles_0) if i == 0 else (hand_tiles_1 if i == 1 else ()),
-                melds=(pon_meld,) if i == 0 else (),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(fourth_tile, *other_tiles_0), melds=(pon_meld,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -330,12 +342,12 @@ class TestChiSequenceTilesValidation:
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="11")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
-
         discard_tile = TilesConverter.string_to_136_array(man="5")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_1 if i == 1 else ((discard_tile,) if i == 0 else ()))
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=hand_tiles_1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="6666"))
@@ -364,8 +376,12 @@ class TestAbortiveDrawIntegration:
     def test_abortive_draw__when_four_same_winds_discarded__should_abort_four_winds(self):
         east_winds = tuple(TilesConverter.string_to_136_array(honors="1111"))
         discard_tile = east_winds[3]
-
-        players = tuple(create_player(seat=i, tiles=(discard_tile,) if i == 0 else ()) for i in range(4))
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -390,13 +406,11 @@ class TestAbortiveDrawIntegration:
     def test_abortive_draw__when_three_players_ron__should_abort_triple_ron(self):
         tenpai_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=tenpai_hand if i in (1, 2, 3) else ((discard_tile,) if i == 0 else ()),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(discard_tile,)),
+            create_player(seat=1, tiles=tenpai_hand),
+            create_player(seat=2, tiles=tenpai_hand),
+            create_player(seat=3, tiles=tenpai_hand),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -420,9 +434,11 @@ class TestAbortiveDrawIntegration:
     def test_abortive_draw__when_four_players_riichi__should_abort_four_riichi(self):
         hand_tiles_0 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
-
-        players = tuple(
-            create_player(seat=i, tiles=hand_tiles_0 if i == 0 else (), is_riichi=(i in (1, 2, 3))) for i in range(4)
+        players = (
+            create_player(seat=0, tiles=hand_tiles_0),
+            create_player(seat=1, is_riichi=True),
+            create_player(seat=2, is_riichi=True),
+            create_player(seat=3, is_riichi=True),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -453,8 +469,12 @@ class TestDoubleRonScenario:
     def test_double_ron__when_two_players_ron__should_produce_double_ron_result(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = tuple(create_player(seat=i, tiles=hand_tiles if i in (1, 2) else ()) for i in range(4))
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=hand_tiles),
+            create_player(seat=2, tiles=hand_tiles),
+            create_player(seat=3),
+        )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
@@ -485,14 +505,11 @@ class TestAddedKanNormalPath:
         )
         fourth_tile = TilesConverter.string_to_136_array(man="1111")[3]
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="11")
-
-        players = tuple(
-            create_player(
-                seat=i,
-                tiles=(fourth_tile, *other_tiles) if i == 0 else (),
-                melds=(pon_meld,) if i == 0 else (),
-            )
-            for i in range(4)
+        players = (
+            create_player(seat=0, tiles=(fourth_tile, *other_tiles), melds=(pon_meld,)),
+            create_player(seat=1),
+            create_player(seat=2),
+            create_player(seat=3),
         )
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
@@ -519,8 +536,8 @@ class TestMaybeEmitDoraEvent:
             dead_wall=dead_wall,
             dora_indicators=(dead_wall[2],),
         )
-        events = []
 
+        events = []
         _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
         assert events == []
 
@@ -530,8 +547,8 @@ class TestMaybeEmitDoraEvent:
             dead_wall=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3]),
         )
-        events = []
 
+        events = []
         _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
         assert len(events) == 1
         assert events[0].tile_id == dead_wall[3]
@@ -542,8 +559,8 @@ class TestMaybeEmitDoraEvent:
             dead_wall=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3], dead_wall[4]),
         )
-        events = []
 
+        events = []
         _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
         assert len(events) == 2
         assert events[0].tile_id == dead_wall[3]
@@ -554,7 +571,6 @@ class TestValidateRiichiDiscard:
     def test_validate_riichi_discard__when_discard_breaks_tenpai__should_reject(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
         bad_discard = TilesConverter.string_to_136_array(pin="1")[0]
-
         player = create_player(seat=0, tiles=hand_tiles)
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))

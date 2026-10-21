@@ -134,8 +134,8 @@ class TestGameCompletionRecording:
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
-
         manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         game_repo.finish_game.assert_called_once()
         call_args = game_repo.finish_game.call_args
@@ -171,6 +171,7 @@ class TestGameCompletionRecording:
             ),
         ]
         manager_with_repo._game_service.handle_action = AsyncMock(return_value=events)
+
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         call_kwargs = game_repo.finish_game.call_args.kwargs
         standings = call_kwargs["standings"]
@@ -203,6 +204,7 @@ class TestGameCompletionRecording:
         manager_with_repo._game_service.handle_action = AsyncMock(
             return_value=_make_game_end_events(num_rounds=8),
         )
+
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         call_kwargs = game_repo.finish_game.call_args.kwargs
         assert call_kwargs["num_rounds_played"] == 8
@@ -213,8 +215,8 @@ class TestGameCompletionRecording:
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
-
         manager_with_repo._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
+
         await manager_with_repo._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         recorded = game_repo.games["game1"]
         assert recorded["end_reason"] == "completed"
@@ -270,8 +272,8 @@ class TestGameAbandonmentRecording:
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
-
         manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         # finish_game should be called exactly once with "completed".
         # The cleanup path (_cleanup_empty_game) must skip the "abandoned" call
@@ -284,8 +286,8 @@ class TestGameAbandonmentRecording:
         self, manager_with_repo, game_repo
     ):
         conns = await create_started_game(manager_with_repo)
-
         game_repo.finish_game = AsyncMock(side_effect=RuntimeError("DB write failed"))
+
         await manager_with_repo.leave_game(conns[0])
         # game should still be cleaned up despite DB error
         assert manager_with_repo.get_game("game1") is None

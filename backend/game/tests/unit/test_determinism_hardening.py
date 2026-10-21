@@ -25,6 +25,7 @@ class TestPickBestMeldResponseTieBreak:
                 MeldCaller(seat=3, call_type=MeldCallType.PON),
             ),
         )
+
         responses = [
             CallResponse(seat=0, action=GameAction.CALL_PON),
             CallResponse(seat=3, action=GameAction.CALL_PON),

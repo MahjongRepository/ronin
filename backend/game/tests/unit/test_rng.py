@@ -129,6 +129,7 @@ class TestFisherYatesShuffle:
     def test_fisher_yates_shuffle__should_return_permutation(self):
         pcg = PCG64DXSM(state=12345, increment=67890)
         tiles = list(range(NUM_TILES))
+
         shuffled = _fisher_yates_shuffle(tiles, pcg)
         assert sorted(shuffled) == list(range(NUM_TILES))
 
@@ -136,6 +137,7 @@ class TestFisherYatesShuffle:
         tiles = list(range(20))
         pcg1 = PCG64DXSM(state=555, increment=777)
         pcg2 = PCG64DXSM(state=555, increment=777)
+
         assert _fisher_yates_shuffle(tiles, pcg1) == _fisher_yates_shuffle(tiles, pcg2)
 
 
@@ -143,6 +145,7 @@ class TestCreateSeatRng:
     def test_create_seat_rng__when_same_seed__should_sample_same_seats(self):
         rng1 = create_seat_rng(FIXED_SEED)
         rng2 = create_seat_rng(FIXED_SEED)
+
         seats1 = rng1.sample(range(4), 4)
         seats2 = rng2.sample(range(4), 4)
         assert seats1 == seats2

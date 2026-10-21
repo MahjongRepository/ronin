@@ -62,6 +62,7 @@ class TestSetupLogging:
 
     def test_setup_logging__when_log_level_env_set__should_apply_level(self, monkeypatch):
         monkeypatch.setenv("LOG_LEVEL", "debug")
+
         setup_logging()
         root = logging.getLogger()
         assert root.level == logging.DEBUG

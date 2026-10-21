@@ -66,6 +66,7 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
         sm.register_connection(p2_conn)
         p2_session = sm._session_store.create_session(player_name="Player2", game_id="test_game", token="p2-token")
         sm._session_store.bind_seat(p2_session.session_token, 1)
+
         game = sm._games["test_game"]
         p2_player = Player(
             connection=p2_conn,
@@ -99,7 +100,6 @@ class TestWebSocketReconnect:
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -110,7 +110,6 @@ class TestWebSocketReconnect:
                     "game_ticket": ticket,
                 },
             )
-
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.GAME_RECONNECTED
             assert msg["gid"] == "test_game"
@@ -127,7 +126,6 @@ class TestWebSocketReconnect:
                     "game_ticket": "invalid-ticket-string",
                 },
             )
-
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.INVALID_TICKET
@@ -167,7 +165,6 @@ class TestWebSocketReconnect:
                     "game_ticket": ticket,
                 },
             )
-
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
@@ -176,7 +173,6 @@ class TestWebSocketReconnect:
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
         ticket = _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -187,7 +183,6 @@ class TestWebSocketReconnect:
                     "game_ticket": ticket,
                 },
             )
-
             reconnect_msg = recv_ws(ws)
             assert reconnect_msg["type"] == SessionMessageType.GAME_RECONNECTED
 
@@ -199,7 +194,6 @@ class TestWebSocketReconnect:
                     "ti": 0,
                 },
             )
-
             action_msg = recv_ws(ws)
             assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert action_msg["player"] == "Player1"

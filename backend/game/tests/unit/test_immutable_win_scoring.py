@@ -27,6 +27,7 @@ class TestCanCallRonFuritenGuards:
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         dora_tiles = TilesConverter.string_to_136_array(man="1")
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1235")
+
         players_list = list(players)
         players_list[0] = players_list[0].model_copy(update={"tiles": tuple(tiles), "is_riichi": True})
         round_state = MahjongRoundState(
@@ -141,20 +142,17 @@ class TestProcessExhaustiveDrawNagashiTriggered:
         man_1 = TilesConverter.string_to_136_array(man="1")[0]
         man_9 = TilesConverter.string_to_136_array(man="9")[0]
         east = TilesConverter.string_to_136_array(honors="1")[0]
+
         nagashi_discards = (
             Discard(tile_id=man_1),
             Discard(tile_id=man_9),
             Discard(tile_id=east),
         )
-        players = tuple(
-            MahjongPlayer(
-                seat=seat,
-                name=f"Player{seat}",
-                tiles=tempai_hand if seat == 0 else non_tempai_hand,
-                score=25000,
-                discards=nagashi_discards if seat == 0 else (),
-            )
-            for seat in range(4)
+        players = (
+            MahjongPlayer(seat=0, name="Player0", tiles=tempai_hand, score=25000, discards=nagashi_discards),
+            MahjongPlayer(seat=1, name="Player1", tiles=non_tempai_hand, score=25000),
+            MahjongPlayer(seat=2, name="Player2", tiles=non_tempai_hand, score=25000),
+            MahjongPlayer(seat=3, name="Player3", tiles=non_tempai_hand, score=25000),
         )
         round_state = MahjongRoundState(players=players, wall=Wall(), dealer_seat=1)
         game_state = MahjongGameState(round_state=round_state)

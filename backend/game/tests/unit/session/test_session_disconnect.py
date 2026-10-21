@@ -111,7 +111,6 @@ class TestSessionManagerDisconnect:
 
         player = manager._players.get(conns[0].connection_id)
         token = player.session_token
-
         # remove the game lock to simulate the startup window where
         # game.started is True but the lock hasn't been created yet
         manager._game_locks.pop("game1", None)
@@ -140,7 +139,6 @@ class TestLockBoundaryRaces:
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         execution_order = []
-
         original_handle = manager._game_service.handle_action
         original_replace = manager._game_service.replace_with_ai_player
         original_process = manager._game_service.process_ai_player_actions_after_replacement
@@ -175,7 +173,6 @@ class TestLockBoundaryRaces:
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         execution_order = []
-
         original_timeout = manager._game_service.handle_timeout
         original_replace = manager._game_service.replace_with_ai_player
         original_process = manager._game_service.process_ai_player_actions_after_replacement

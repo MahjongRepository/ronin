@@ -24,16 +24,15 @@ def _dora_han(result, yaku_id):
 
 def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, dead_wall=None):
     tenhou_blocking_discards = TilesConverter.string_to_136_array(man="1112")
+
     if dead_wall is None:
         dead_wall = tuple(range(14))
 
-    players = tuple(
-        create_player(
-            seat=i,
-            tiles=tuple(tiles) if i == 0 else None,
-            is_riichi=is_riichi if i == 0 else False,
-        )
-        for i in range(4)
+    players = (
+        create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi),
+        create_player(seat=1),
+        create_player(seat=2),
+        create_player(seat=3),
     )
     round_state = create_round_state(
         players=players,
@@ -192,7 +191,6 @@ class TestRedFiveAkadora:
         # Use 'r' to explicitly request the red five tile (tile ID 16)
         tiles = TilesConverter.string_to_136_array(man="1134r678", pin="123", sou="789", has_aka_dora=True)
         win_tile = tiles[-1]
-
         # Indicator not pointing to 5m (1s indicator -> dora is 2s)
         indicator = TilesConverter.string_to_136_array(sou="1")
 
@@ -212,7 +210,6 @@ class TestRedFiveAkadora:
         # Hand with red 5m: 11m 34r(5red)m 678m 123p 789s (using 'r' for red tile)
         tiles = TilesConverter.string_to_136_array(man="1134r678", pin="123", sou="789", has_aka_dora=True)
         win_tile = tiles[-1]
-
         # Indicator: 4m -> dora is 5m
         # Red 5m = 1 (aka dora) + 1 (indicator dora) = total 2 dora across two yaku types
         indicator = TilesConverter.string_to_136_array(man="4")
@@ -236,7 +233,6 @@ class TestRedFiveAkadora:
         # Even though tile ID 16 (red 5m) is in the hand, aka dora is disabled
         tiles = TilesConverter.string_to_136_array(man="1134r678", pin="123", sou="789", has_aka_dora=True)
         win_tile = tiles[-1]
-
         indicator = TilesConverter.string_to_136_array(sou="1")
 
         settings = GameSettings(has_akadora=False)
@@ -262,7 +258,6 @@ class TestRedFiveAkadora:
             has_aka_dora=True,
         )
         win_tile = tiles[-1]
-
         # Indicator not pointing to any 5
         indicator = TilesConverter.string_to_136_array(man="1")
 
@@ -290,6 +285,7 @@ class TestUraDoraRevelation:
             dora_indicators=(dead_wall[2],),
         )
         player = create_player(seat=0, is_riichi=True, is_daburi=True)
+
         result = collect_ura_dora_indicators(player, round_state, settings=settings)
         assert result == [dead_wall[7]]
 
