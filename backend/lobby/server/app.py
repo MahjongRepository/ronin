@@ -216,7 +216,6 @@ def create_app(
 
     # Initialize database and auth components
     db = Database(auth_settings.database_path)
-    db.connect()
 
     player_repo = SqlitePlayerRepository(db)
     game_repo = SqliteGameRepository(db)
@@ -226,14 +225,16 @@ def create_app(
     auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
 
     @contextlib.asynccontextmanager
-    async def lifespan(_app: Starlette) -> AsyncGenerator[None]:  # pragma: no cover
-        session_store.start_cleanup()
-        room_manager.start_reaper()
-        yield
-
-        await room_manager.stop_reaper()
-        await session_store.stop_cleanup()
-        db.close()
+    async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
+        try:
+            db.connect()
+            session_store.start_cleanup()
+            room_manager.start_reaper()
+            yield
+        finally:
+            await room_manager.stop_reaper()
+            await session_store.stop_cleanup()
+            db.close()
 
     app = Starlette(
         routes=routes,

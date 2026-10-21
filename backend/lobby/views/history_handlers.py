@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
+from shared.dal.models import GameEndReason
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -58,7 +59,7 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
         if game.ended_at:
             duration_label = _format_duration(game.started_at, game.ended_at)
 
-        status = "completed" if game.end_reason == "completed" else "active"
+        status = "completed" if game.end_reason == GameEndReason.COMPLETED else "active"
         result.append(
             {
                 "game": game,
@@ -80,7 +81,7 @@ async def history_page(request: Request) -> Response:
     game_repo = request.app.state.game_repo
 
     games = await game_repo.get_recent_games(limit=20)
-    completed_games = [g for g in games if g.end_reason == "completed"]
+    completed_games = [g for g in games if g.end_reason == GameEndReason.COMPLETED]
     display_games = _prepare_history_for_display(completed_games)
 
     csrf_token, is_new = get_or_create_csrf_token(request)

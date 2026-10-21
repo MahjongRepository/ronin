@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import time
 from typing import TYPE_CHECKING
 
 import structlog
 
 from lobby.rooms.models import LobbyPlayer, LobbyRoom
+from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -236,10 +236,7 @@ class LobbyRoomManager:
         Cancel the reaper task.
         """
         if self._reaper_task is not None:
-            self._reaper_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._reaper_task
-
+            await cancel_and_wait([self._reaper_task])
             self._reaper_task = None
 
     async def _reaper_loop(self) -> None:  # pragma: no cover — long-running background loop

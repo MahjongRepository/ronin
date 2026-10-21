@@ -1,14 +1,20 @@
+import asyncio
 from typing import TYPE_CHECKING
 
 from game.logic.enums import WindName
 from game.logic.settings import NUM_PLAYERS
+from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import GameView, PlayerView
 from game.messaging.types import SessionMessageType
 from game.session.models import Game, Player, PlayerSpec
+from game.session.timer_manager import TimerFiring
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection
+from game.tests.unit.helpers import _update_player, _update_round_state
 
 if TYPE_CHECKING:
+    from game.logic.enums import TimeoutType
+    from game.logic.mahjong_service import MahjongGameService
     from game.session.manager import SessionManager
 
 
@@ -104,3 +110,32 @@ async def disconnect_and_reconnect(
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
 
     return new_conn, token
+
+
+async def wait_for_background_tasks(manager: SessionManager) -> None:
+    while manager._background_tasks:
+        await asyncio.wait(set(manager._background_tasks))
+
+
+def fire_turn_timer_now(manager: SessionManager, *, game_id: str, seat: int) -> asyncio.Task[None]:
+    timer = manager._timer_manager.get_timer(game_id, seat)
+    assert timer is not None
+    configured = timer._config
+    timer._config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0)
+    timer._bank_seconds = 0
+    manager._timer_manager.start_turn_timer(game_id, seat)
+    timer._config = configured
+    assert timer.task is not None
+    return timer.task
+
+
+def arrange_final_discard(engine: MahjongGameService, *, game_id: str, seat: int) -> None:
+    _update_player(engine, game_id=game_id, seat=seat, score=-1000)
+    wall = engine._games[game_id].round_state.wall
+    _update_round_state(engine, game_id, wall=wall.model_copy(update={"live_tiles": ()}))
+
+
+async def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
+    timer = manager._timer_manager.get_timer(game_id, seat) or TurnTimer()
+    firing = TimerFiring(timer=timer, generation=timer.generation)
+    await manager._handle_timeout(game_id, timeout_type, seat, firing)

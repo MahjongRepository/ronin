@@ -5,7 +5,7 @@ import pytest
 from game.logic.enums import TimeoutType
 from game.logic.timer import TimerConfig
 from game.session.models import Game, Player
-from game.session.timer_manager import TimerManager
+from game.session.timer_manager import TimerFiring, TimerManager
 from game.tests.mocks import MockConnection
 
 
@@ -16,7 +16,7 @@ def timeout_log():
 
 @pytest.fixture
 def timer_manager(timeout_log):
-    async def on_timeout(game_id: str, timeout_type: TimeoutType, seat: int) -> None:
+    async def on_timeout(game_id: str, timeout_type: TimeoutType, seat: int, _firing: TimerFiring) -> None:
         timeout_log.append((game_id, timeout_type, seat))
 
     return TimerManager(on_timeout=on_timeout)
@@ -235,7 +235,7 @@ class TestTimerManagerStartRoundAdvance:
         # directly start a fixed timer with short duration
         timer.start_fixed_timer(
             0.01,
-            lambda: timer_manager._on_timeout("g1", TimeoutType.ROUND_ADVANCE, 0),
+            lambda: timer_manager._run_callback("g1", TimeoutType.ROUND_ADVANCE, 0, timer),
         )
         await asyncio.sleep(0.1)
         assert len(timeout_log) == 1

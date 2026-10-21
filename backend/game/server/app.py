@@ -152,7 +152,6 @@ def create_app(
 
     if session_manager is None:
         db = Database(settings.database_path)
-        db.connect()
         owned_db = db
         game_repository = SqliteGameRepository(db)
 
@@ -179,11 +178,17 @@ def create_app(
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
-        yield
-        session_manager.cancel_all_pending_timeouts()
-        session_manager.cancel_all_auth_timeouts()
-        if owned_db is not None:
-            owned_db.close()
+        try:
+            if owned_db is not None:
+                owned_db.connect()
+
+            yield
+        finally:
+            try:
+                await session_manager.shutdown()
+            finally:
+                if owned_db is not None:
+                    owned_db.close()
 
     app = Starlette(routes=routes, lifespan=lifespan)
     app.add_middleware(

@@ -164,9 +164,13 @@ class MessageRouter:
             await connection.send_message(
                 ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump(),
             )
-        except Exception:
-            logger.exception("fatal error during game action")
-            await self._session_manager.close_game_on_error(connection)
+        except Exception as exc:
+            game = self._session_manager.get_connection_game(connection)
+            if game is None:
+                logger.exception("fatal error during game action outside a game")
+                return
+
+            self._session_manager.fail_game(game, reason="game action failed", exc=exc)
 
     async def handle_connect(self, connection: ConnectionProtocol) -> None:
         self._session_manager.register_connection(connection)

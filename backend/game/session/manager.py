@@ -36,10 +36,13 @@ from game.session.broadcast import broadcast_to_players
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
 from game.session.session_store import SessionStore
-from game.session.timer_manager import TimerManager
-from shared.dal.models import PlayedGame, PlayedGameStanding
+from game.session.timer_manager import TimerFiring, TimerManager
+from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
     from game.logic.events import ServiceEvent
     from game.logic.service import GameService
     from game.messaging.protocol import ConnectionProtocol
@@ -90,6 +93,16 @@ class SessionManager:
 
         self._heartbeat = HeartbeatMonitor()
         self._auth_timeouts: dict[str, asyncio.Task[None]] = {}  # connection_id -> timeout task
+        self._background_tasks: set[asyncio.Task[None]] = set()
+
+    def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
+        """
+        Start a background task the manager owns until it finishes; shutdown waits for it.
+        """
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     def _get_game_lock(self, game_id: str) -> asyncio.Lock | None:
         """
@@ -104,11 +117,11 @@ class SessionManager:
         # a running event loop. In production, register_connection is always
         # called from within the ASGI event loop.
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             return
 
-        self._auth_timeouts[connection.connection_id] = loop.create_task(self._auth_timeout(connection))
+        self._auth_timeouts[connection.connection_id] = self._spawn(self._auth_timeout(connection))
 
     def unregister_connection(self, connection: ConnectionProtocol) -> None:
         self._connections.pop(connection.connection_id, None)
@@ -118,6 +131,16 @@ class SessionManager:
 
     def get_game(self, game_id: str) -> Game | None:
         return self._games.get(game_id)
+
+    def get_connection_game(self, connection: ConnectionProtocol) -> Game | None:
+        """
+        Return the game the connection's player is in, or None.
+        """
+        player = self._players.get(connection.connection_id)
+        if player is None or player.game_id is None:
+            return None
+
+        return self._games.get(player.game_id)
 
     @property
     def game_count(self) -> int:
@@ -180,7 +203,7 @@ class SessionManager:
     async def _record_game_finish(
         self,
         game_id: str,
-        end_reason: str,
+        end_reason: GameEndReason,
         game_ended_event: GameEndedEvent | None = None,
     ) -> None:
         """
@@ -373,12 +396,8 @@ class SessionManager:
         """
         if game.is_empty and self._games.pop(game_id, None) is not None:
             logger.info("game is empty, cleaning up")
-            pending = self._pending_games.pop(game_id, None)
-            if pending and pending.timeout_task:
-                pending.timeout_task.cancel()
-
             if game.started and not game.ended:
-                await self._record_game_finish(game_id=game_id, end_reason="abandoned")
+                await self._record_game_finish(game_id=game_id, end_reason=GameEndReason.ABANDONED)
 
             self._session_store.cleanup_game(game_id)
             self._timer_manager.cleanup_game(game_id)
@@ -561,6 +580,9 @@ class SessionManager:
         game_ended = False
         game_end_events: list[ServiceEvent] = []
         async with lock:
+            if game.ended:
+                return
+
             try:
                 events = await self._game_service.handle_action(
                     game_id=game_id,
@@ -640,6 +662,14 @@ class SessionManager:
                 # for the lock. The timeout removes the connection from
                 # _connections before closing, so this identity check fails.
                 if self._connections.get(connection.connection_id) is not connection:
+                    return
+
+                if game.ended:
+                    await self._send_error(
+                        connection,
+                        code=SessionErrorCode.RECONNECT_GAME_GONE,
+                        message="Game has ended",
+                    )
                     return
 
                 # Revalidate session state inside the lock to guard against a
@@ -926,8 +956,8 @@ class SessionManager:
         )
         self._pending_games[game_id] = pending
 
-        pending.timeout_task = asyncio.create_task(
-            self._pending_game_timeout(game_id, game.settings.pending_game_timeout_seconds),
+        pending.timeout_task = self._spawn(
+            self._pending_game_timeout(game, game.settings.pending_game_timeout_seconds),
         )
         logger.info("pending game created", game_id=game_id, expected_count=expected_count)
 
@@ -1099,61 +1129,56 @@ class SessionManager:
         if pending is None:
             return  # already started
 
-        if pending.timeout_task is not None:
-            pending.timeout_task.cancel()
-
         game = self._games.get(game_id)
         if game is None:
             return
 
-        # Use all expected human names for game start (including never-connected players)
-        all_human_names = [spec.name for spec in pending.player_specs]
-        user_ids_by_name = {spec.name: spec.user_id for spec in pending.player_specs}
-        await self._start_mahjong_game(
-            game,
-            player_names_override=all_human_names,
-            user_ids_by_name=user_ids_by_name,
-        )
-
-        # After game start, bind seats and mark disconnected for never-connected players
-        # so they can reclaim their seat via RECONNECT
-        if game.started:
-            connected_names = set(game.player_names)
-            name_to_token = {spec.name: spec.game_ticket for spec in pending.player_specs}
-            for spec in pending.player_specs:
-                if spec.name not in connected_names:
-                    seat = self._game_service.get_player_seat(game_id, spec.name)
-                    if seat is not None:
-                        self._session_store.bind_seat(name_to_token[spec.name], seat)
-                        self._session_store.mark_disconnected(name_to_token[spec.name])
-
+        await self._start_mahjong_game(game, pending.player_specs)
         logger.info("pending game completed", game_id=game_id)
 
-    async def _pending_game_timeout(self, game_id: str, timeout_seconds: float) -> None:
+    async def _pending_game_timeout(self, game: Game, timeout_seconds: float) -> None:
         """
         Timeout for pending game: start with AI substitutes for missing players.
+
+        After its sleep the task detaches itself from the pending game, so the completion it runs (or a final join
+        racing it) never cancels it. Any unexpected error ends the game through fail_game.
         """
         await asyncio.sleep(timeout_seconds)
 
+        game_id = game.game_id
         pending = self._pending_games.get(game_id)
-        if pending is None:
+        if pending is None or self._games.get(game_id) is not game:
             return
 
-        async with pending.lock:
-            if pending.connected_count == 0:
-                logger.warning(
-                    "no players connected before timeout, cancelling game",
-                    game_id=game_id,
-                    expected=pending.expected_count,
-                )
-                self._pending_games.pop(game_id, None)
-                game = self._games.pop(game_id, None)
-                if game is not None:
-                    self._session_store.cleanup_game(game_id)
+        pending.timeout_task = None
+        try:
+            async with pending.lock:
+                await self._resolve_pending_timeout(game, pending)
+        except Exception as exc:  # noqa: BLE001
+            self.fail_game(game, reason="pending game timeout failed", exc=exc)
 
-                return
+    async def _resolve_pending_timeout(self, game: Game, pending: PendingGameInfo) -> None:
+        """
+        Start the pending game with AI substitutes, or cancel it when nobody joined.
 
-            await self._complete_pending_game(game_id)
+        Caller must hold the pending game's lock.
+        """
+        game_id = game.game_id
+        if self._pending_games.get(game_id) is not pending:
+            return
+
+        if pending.connected_count == 0:
+            logger.warning(
+                "no players connected before timeout, cancelling game",
+                game_id=game_id,
+                expected=pending.expected_count,
+            )
+            self._pending_games.pop(game_id, None)
+            self._games.pop(game_id, None)
+            self._session_store.cleanup_game(game_id)
+            return
+
+        await self._complete_pending_game(game_id)
 
     def is_in_active_game(self, connection_id: str) -> bool:
         player = self._players.get(connection_id)
@@ -1166,22 +1191,21 @@ class SessionManager:
         """
         return sum(1 for g in self._games.values() if g.started)
 
-    def cancel_all_pending_timeouts(self) -> None:
+    async def shutdown(self) -> None:
         """
-        Cancel all pending game timeout tasks (for clean shutdown).
-        """
-        for pending in self._pending_games.values():
-            if pending.timeout_task is not None:
-                pending.timeout_task.cancel()
+        Stop every background task before the server's resources close.
 
-    def cancel_all_auth_timeouts(self) -> None:
+        Sleeping pending, auth and turn timers and the heartbeat loops are cancelled; a task already past its sleep (a
+        pending game completing, an auth close, a timer callback or a failed game's finalizer) is awaited, so its replay
+        save, database write and socket closes finish first. Games still running are not recorded as ended.
         """
-        Cancel all auth timeout tasks (for clean shutdown).
-        """
-        for task in self._auth_timeouts.values():
-            task.cancel()
-
+        sleeping = [pending.timeout_task for pending in self._pending_games.values() if pending.timeout_task]
+        sleeping.extend(self._auth_timeouts.values())
         self._auth_timeouts.clear()
+        await cancel_and_wait(sleeping, finalizing=list(self._background_tasks))
+        await self._timer_manager.shutdown()
+        await self._heartbeat.shutdown()
+        await cancel_and_wait([], finalizing=list(self._background_tasks))
 
     def _cancel_auth_timeout(self, connection_id: str) -> None:
         """
@@ -1194,14 +1218,22 @@ class SessionManager:
     async def _auth_timeout(self, connection: ConnectionProtocol) -> None:
         """
         Close an unauthenticated connection after a timeout.
-        """
-        try:
-            await asyncio.sleep(_AUTH_TIMEOUT_SECONDS)
-        except asyncio.CancelledError:
-            return
 
+        The task detaches itself from `_auth_timeouts` after its sleep, so cancel paths leave the close alone. An
+        unexpected error is logged and the connection closed with 1011: there is no game to fail yet.
+        """
+        await asyncio.sleep(_AUTH_TIMEOUT_SECONDS)
+
+        self._auth_timeouts.pop(connection.connection_id, None)
+        try:
+            await self._close_unauthenticated(connection)
+        except Exception:
+            logger.exception("auth timeout failed", connection_id=connection.connection_id)
+            with contextlib.suppress(RuntimeError, OSError):
+                await connection.close(code=1011, reason="internal_error")
+
+    async def _close_unauthenticated(self, connection: ConnectionProtocol) -> None:
         cid = connection.connection_id
-        self._auth_timeouts.pop(cid, None)
 
         # Connection already authenticated or removed
         if cid in self._players or cid not in self._connections:
@@ -1218,39 +1250,25 @@ class SessionManager:
         with contextlib.suppress(RuntimeError, OSError, ConnectionError):
             await connection.close(code=4001, reason="auth_timeout")
 
-    def _is_game_alive(self, game: Game, *, allow_empty: bool = False) -> bool:
+    def _is_game_alive(self, game: Game) -> bool:
         """
-        Check if a game is still tracked (and has connected players unless allow_empty).
+        Check if this game object is still the one tracked under its id.
         """
-        if self._games.get(game.game_id) is not game:  # pragma: no cover — race condition guard
-            return False
+        return self._games.get(game.game_id) is game
 
-        return allow_empty or not game.is_empty
-
-    async def _start_mahjong_game(
-        self,
-        game: Game,
-        player_names_override: list[str] | None = None,
-        user_ids_by_name: dict[str, str] | None = None,
-    ) -> None:
+    async def _start_mahjong_game(self, game: Game, player_specs: list[PlayerSpec]) -> None:
         """
-        Start the mahjong game.
+        Start the mahjong game for every expected human, connected or not.
 
-        If player_names_override is provided, use those names instead of game.player_names. This supports pending games
-        where not all expected players may have connected yet.
+        The game may legitimately have no connected player yet (all seats then go to AI substitutes), so the liveness
+        checks allow an empty game. Every expected human's seat is bound while the engine still knows them as human; an
+        absent one is marked disconnected, so it can RECONNECT, and then replaced by an AI player.
         """
-        allow_empty = player_names_override is not None
-        # Guard: if all players disconnected while the pending game was being
-        # completed, leave_game may have already cleaned the game out of _games.
-        # Starting a game that is no longer tracked would leak locks, heartbeat
-        # tasks, and service state. When player_names_override is provided
-        # (pending game), skip the "has players" check since the game may
-        # legitimately have 0 connected players (all will be AI substitutes).
-        if not self._is_game_alive(game, allow_empty=allow_empty):  # pragma: no cover — race condition guard
+        if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             return
 
         game.started = True
-        player_names = player_names_override if player_names_override is not None else game.player_names
+        player_names = [spec.name for spec in player_specs]
         events = await self._game_service.start_game(game.game_id, player_names, settings=game.settings)
         # if startup failed (e.g. unsupported settings), rollback and broadcast error
         if any(isinstance(e.data, ErrorEvent) for e in events):
@@ -1261,68 +1279,71 @@ class SessionManager:
         # Second liveness check: if all players disconnected during the
         # start_game await, leave_game may have cleaned the game from _games.
         # Clean up the service state that start_game just created and bail out.
-        if not self._is_game_alive(game, allow_empty=allow_empty):  # pragma: no cover — race condition guard
+        if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             self._game_service.cleanup_game(game.game_id)
             return
 
         self._start_replay_collection(game.game_id)
-        await self._record_game_start(game, user_ids_by_name=user_ids_by_name)
+        await self._record_game_start(game, user_ids_by_name={spec.name: spec.user_id for spec in player_specs})
 
         # Third liveness check: if all players disconnected during the
         # _record_game_start await, _cleanup_empty_game already removed
         # the game and cleaned up service/replay state. Bail out to
         # avoid creating stale lock/timer/heartbeat entries.
-        if not self._is_game_alive(game, allow_empty=allow_empty):  # pragma: no cover — race condition guard
+        if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             return
 
-        # assign seats to session players still connected after the await
-        for player in game.players.values():
-            seat = self._game_service.get_player_seat(game.game_id, player.name)
-            if seat is not None:
-                player.seat = seat
-                self._session_store.bind_seat(player.session_token, seat)
+        absent_seats = self._bind_seats(game, player_specs)
 
-        # create per-player timers and lock for this game
         seats = [p.seat for p in game.players.values() if p.seat is not None]
         timer_config = TimerConfig.from_settings(game.settings)
         self._timer_manager.create_timers(game_id=game.game_id, seats=seats, config=timer_config)
         self._game_locks[game.game_id] = asyncio.Lock()
-        self._heartbeat.start_for_game(game.game_id, self.get_game)
+        self._heartbeat.start_for_game(
+            game.game_id,
+            self.get_game,
+            on_error=lambda exc: self.fail_game(game, reason="heartbeat loop failed", exc=exc),
+        )
 
-        game_end_events: list[ServiceEvent] = []
         async with self._game_locks[game.game_id]:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
-            ai_events = await self._replace_disconnected_players(game, player_names)
-            if self._has_game_ended(ai_events):  # pragma: no cover — rare: game ends during AI replacement at start
-                game_end_events = ai_events
+            ai_events = await self._replace_absent_players(game, absent_seats)
 
-        # Close connections outside the lock
-        if game_end_events:  # pragma: no cover
-            await self._close_connections_on_game_end(game, game_end_events)
+        await self._close_connections_on_game_end(game, ai_events)
 
-    async def _replace_disconnected_players(
-        self,
-        game: Game,
-        original_player_names: list[str],
-    ) -> list[ServiceEvent]:
+    def _bind_seats(self, game: Game, player_specs: list[PlayerSpec]) -> dict[str, int]:
         """
-        Replace players who disconnected during start_game or subsequent broadcasts.
+        Bind every expected human's session to its seat; return the seats of those not connected, by name.
 
-        Called under the per-game lock. Players who left before seats/locks were set up could not be replaced by
-        leave_game, so handle them here. Returns events that may contain a GameEndedEvent (caller handles connection
-        closing outside the lock).
+        Must run before any AI replacement: the engine finds a seat by name only while its player is human.
+        """
+        connected = {player.session_token: player for player in game.players.values()}
+        absent_seats: dict[str, int] = {}
+        for spec in player_specs:
+            seat = self._game_service.get_player_seat(game.game_id, spec.name)
+            player = connected.get(spec.game_ticket)
+            if seat is not None and player is not None:
+                player.seat = seat
+                self._session_store.bind_seat(spec.game_ticket, seat)
+            elif seat is not None:
+                self._session_store.bind_seat(spec.game_ticket, seat)
+                self._session_store.mark_disconnected(spec.game_ticket)
+                absent_seats[spec.name] = seat
+
+        return absent_seats
+
+    async def _replace_absent_players(self, game: Game, absent_seats: dict[str, int]) -> list[ServiceEvent]:
+        """
+        Seat AI players for the humans absent at start (never connected, or left before the lock existed).
+
+        Called under the per-game lock. Returns the AI events, which may end the game; a replacement after that is a no-
+        op on the finished engine state.
         """
         all_events: list[ServiceEvent] = []
-        connected_names = set(game.player_names)
-        for name in original_player_names:
-            if name not in connected_names and not game.is_empty:
-                seat = self._game_service.get_player_seat(game.game_id, name)
-                if seat is not None:
-                    ai_events = await self._replace_with_ai_player(game, player_name=name, seat=seat)
-                    all_events.extend(ai_events)
-                    if self._has_game_ended(ai_events):  # pragma: no cover — rare: game ends during AI replacement
-                        return all_events  # pragma: no cover
+        for name, seat in absent_seats.items():
+            if not game.is_empty:
+                all_events.extend(await self._replace_with_ai_player(game, player_name=name, seat=seat))
 
         return all_events
 
@@ -1415,24 +1436,73 @@ class SessionManager:
                 if self._get_player_at_seat(game, seat) is not None:
                     self._timer_manager.start_meld_timer(game.game_id, seat)
 
-    async def close_game_on_error(self, connection: ConnectionProtocol) -> None:
+    def fail_game(self, game: Game, *, reason: str, exc: BaseException | None = None) -> bool:
         """
-        Close all player connections after an unrecoverable error.
+        End a game on a server fault.
 
-        The WebSocket disconnect handlers will clean up session state (remove players, clean up empty game) when
-        connections close.
+        Callable from any context: under the game lock or a pending lock, from a background task, before a connection
+        is registered, before the game started. Synchronously, before anything can suspend, the game is marked ended
+        and dropped from the registry with its pending entry, sleeping timers, lock, engine state and sessions, so a
+        new action, timeout, join or reconnect finds no game and no other path can finalize it. An action, timeout or
+        reconnect already waiting on the game lock checks `ended` and stops; a leave already waiting still removes its
+        player and may broadcast `player_left` before the internal error. The effects run in a background finalizer
+        the manager owns, with no lock held: record `end_reason="error"`, save whatever replay history exists, send
+        every connected player an `internal_error` session error, close with 1011. The current task is never cancelled
+        or awaited.
+
+        Returns True when this call ended the game; False when it had already ended or is not this registered game (a
+        reused game id), which makes it idempotent. Either way the caller skips its normal broadcast and timers.
         """
-        player = self._players.get(connection.connection_id)
-        if player is None or player.game_id is None:
-            return
+        game_id = game.game_id
+        logger.error("game failed", game_id=game_id, reason=reason, exc_info=exc)
+        if game.ended or self._games.get(game_id) is not game:
+            return False
 
-        game = self._games.get(player.game_id)
-        if game is None:
-            return
+        game.ended = True
+        self._games.pop(game_id)
+        pending = self._pending_games.pop(game_id, None)
+        if pending is not None and pending.timeout_task is not None:
+            pending.timeout_task.cancel()
 
-        for p in list(game.players.values()):
-            with contextlib.suppress(RuntimeError, OSError):
-                await p.connection.close(code=1011, reason="internal_error")
+        self._timer_manager.cleanup_game(game_id)
+        self._game_locks.pop(game_id, None)
+        self._game_service.cleanup_game(game_id)
+        self._session_store.cleanup_game(game_id)
+        self._spawn(self._finish_failed_game(game, list(game.players.values())))
+        return True
+
+    async def _finish_failed_game(self, game: Game, players: list[Player]) -> None:
+        """
+        Run the effects of fail_game: finish record, replay, internal error to every player, close with 1011.
+
+        Each step is its own error boundary: an unexpected failure is logged at error level and the steps after it,
+        down to the last player's close, still run.
+        """
+        game_id = game.game_id
+        await self._heartbeat.stop_for_game(game_id)
+        if game.started:
+            await self._record_game_finish(game_id=game_id, end_reason=GameEndReason.ERROR)
+
+        try:
+            if self._replay_collector:
+                await self._replay_collector.save_and_cleanup(game_id)
+        except Exception:
+            logger.exception("failed to save the replay of a failed game", game_id=game_id)
+
+        for player in players:
+            await self._close_with_internal_error(player.connection)
+
+    async def _close_with_internal_error(self, connection: ConnectionProtocol) -> None:
+        message = ErrorMessage(code=SessionErrorCode.INTERNAL_ERROR, message="The game ended on a server error")
+        try:
+            try:
+                await connection.send_message(message.model_dump())
+            finally:
+                await connection.close(code=1011, reason="internal_error")
+        except RuntimeError, OSError:
+            logger.info("connection already gone while failing its game", connection_id=connection.connection_id)
+        except Exception:
+            logger.exception("failed to close a connection of a failed game", connection_id=connection.connection_id)
 
     async def _close_connections_on_game_end(self, game: Game, events: list[ServiceEvent]) -> None:
         """
@@ -1455,7 +1525,7 @@ class SessionManager:
         )
         await self._record_game_finish(
             game_id=game.game_id,
-            end_reason="completed",
+            end_reason=GameEndReason.COMPLETED,
             game_ended_event=game_ended_event,
         )
 
@@ -1479,7 +1549,28 @@ class SessionManager:
     def _has_error_events(self, events: list[ServiceEvent]) -> bool:
         return any(isinstance(event.data, ErrorEvent) for event in events)
 
-    async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
+    async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType, seat: int, firing: TimerFiring) -> None:
+        """
+        Run a fired timer's default action; any unexpected error ends the game through fail_game.
+        """
+        game = self._games.get(game_id)
+        if game is None:
+            return
+
+        try:
+            await self._process_timeout(game, timeout_type=timeout_type, seat=seat, firing=firing)
+        except Exception as exc:  # noqa: BLE001
+            self.fail_game(game, reason=f"{timeout_type} timeout failed", exc=exc)
+
+    async def _process_timeout(
+        self,
+        game: Game,
+        *,
+        timeout_type: TimeoutType,
+        seat: int,
+        firing: TimerFiring,
+    ) -> None:
+        game_id = game.game_id
         lock = self._get_game_lock(game_id)
         if lock is None:
             return
@@ -1487,8 +1578,8 @@ class SessionManager:
         offender_connection: ConnectionProtocol | None = None
         game_end_events: list[ServiceEvent] = []
         async with lock:
-            game = self._games.get(game_id)
-            if game is None:
+            superseded = self._timer_manager.is_superseded(game_id, seat, firing)
+            if game.ended or self._games.get(game_id) is not game or superseded:
                 return
 
             player = self._get_player_at_seat(game, seat)

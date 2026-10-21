@@ -3,16 +3,17 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
+from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
-from game.messaging.types import SessionErrorCode
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.app import create_app
 from game.server.router import MessageRouter
 from game.server.types import CreateGameRequest, PlayerSpec
 from game.session.manager import SessionManager
-from game.session.models import Player
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
+from game.wire.events import EVENT_TYPE_INT
 
 
 def _make_specs(count: int = 1) -> list[PlayerSpec]:
@@ -187,26 +188,32 @@ class TestPendingGameTimeout:
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_pending_game_timeout__when_some_players_connected__should_start_game_with_ai(
-        self, manager: SessionManager
+    async def test_pending_game_timeout__when_a_human_never_connected__should_start_and_let_that_seat_reconnect(
+        self, seeded_engine, short_pending_timeout
     ):
-        specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
-
+        manager = SessionManager(seeded_engine)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2), num_ai_players=2)
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
-        pending = manager._pending_games.get("game1")
-        assert pending is not None
-        assert pending.timeout_task is not None
+        timeout_task = manager._pending_games["game1"].timeout_task
+        assert timeout_task is not None
 
-        # Cancel the real timeout and trigger manually with a short duration
-        pending.timeout_task.cancel()
-        await manager._pending_game_timeout("game1", 0)
-        game = manager.get_game("game1")
-        assert game is not None
-        assert game.started is True
-        assert "game1" not in manager._pending_games
+        await timeout_task
+        game_started = [m for m in conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.GAME_STARTED]]
+        assert len(game_started) == 1
+        connected_seat = manager._session_store.get_session("ticket-0").seat
+        absent_session = manager._session_store.get_session("ticket-1")
+        assert absent_session.seat is not None
+        assert absent_session.seat != connected_seat
+        assert absent_session.disconnected_at is not None
+
+        reconnecting = MockConnection()
+        manager.register_connection(reconnecting)
+        await manager.reconnect(reconnecting, game_id="game1", session_token="ticket-1")
+        reconnected = [m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
+        assert len(reconnected) == 1
+        assert reconnected[0]["s"] == absent_session.seat
 
     async def test_pending_game_timeout__when_all_players_connect__should_cancel_timeout_task(
         self, manager: SessionManager
@@ -226,17 +233,14 @@ class TestPendingGameTimeout:
         assert timeout_task.done()
 
     async def test_pending_game_timeout__when_no_players_connected__should_cancel_game_and_sessions(
-        self, manager: SessionManager
+        self, manager: SessionManager, short_pending_timeout
     ):
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-        # Cancel the real timeout and trigger manually with a short duration
-        pending = manager._pending_games.get("game1")
-        assert pending is not None
-        assert pending.timeout_task is not None
+        timeout_task = manager._pending_games["game1"].timeout_task
+        assert timeout_task is not None
 
-        pending.timeout_task.cancel()
-        await manager._pending_game_timeout("game1", 0)
+        await timeout_task
         # Game should be cleaned up, not started
         assert manager.get_game("game1") is None
         assert "game1" not in manager._pending_games
@@ -638,14 +642,12 @@ class TestPendingGameDefensivePaths:
         specs = _make_specs(1)
         manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
 
-        # Cancel the real timeout and manually remove pending info
-        pending = manager._pending_games.get("game1")
-        if pending and pending.timeout_task:
-            pending.timeout_task.cancel()
+        game = manager.get_game("game1")
+        pending = manager._pending_games.pop("game1")
+        pending.timeout_task.cancel()
 
-        manager._pending_games.pop("game1", None)
-        # Manually call the timeout - should be a no-op since pending is gone
-        await manager._pending_game_timeout("game1", 0)
+        await manager._pending_game_timeout(game, 0)
+        assert game.started is False
 
     async def test_validate_join_game__when_game_started_meanwhile__should_return_already_started(
         self, manager: SessionManager
@@ -665,31 +667,6 @@ class TestPendingGameDefensivePaths:
         )
         assert result is not None
         assert result[0] == SessionErrorCode.JOIN_GAME_ALREADY_STARTED
-
-    async def test_cleanup_empty_game__when_pending_info_lingers__should_remove_pending_game(
-        self, manager: SessionManager
-    ):
-        specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
-        # Simulate: game started but pending state still lingering (shouldn't happen
-        # normally, but _cleanup_empty_game defensively handles it)
-        game = manager.get_game("game1")
-        assert game is not None
-        game.started = True
-
-        # Manually add a player to make it non-empty, then remove to trigger cleanup
-        conn = MockConnection()
-        manager.register_connection(conn)
-        player = Player(connection=conn, name="P", session_token="tok", game_id="game1")
-        manager._players[conn.connection_id] = player
-        game.players[conn.connection_id] = player
-
-        # Now remove player (makes game empty) and run cleanup
-        game.players.pop(conn.connection_id)
-        assert game.is_empty
-
-        await manager._cleanup_empty_game("game1", game)
-        assert "game1" not in manager._pending_games
 
     async def test_validate_join_game__when_game_removed_meanwhile__should_return_not_found(
         self, manager: SessionManager

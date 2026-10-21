@@ -33,12 +33,10 @@ servers:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-        # Register a user so authenticated endpoints can be tested
-        register_with_csrf(c, "apiuser")
-        yield c
-
-        app.state.db.close()
+        with TestClient(app) as c:
+            # Register a user so authenticated endpoints can be tested
+            register_with_csrf(c, "apiuser")
+            yield c
 
     def test_health_route__should_return_ok_with_version_and_commit(self, client):
         response = client.get("/health")

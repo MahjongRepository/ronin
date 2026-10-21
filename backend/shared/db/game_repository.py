@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from shared.dal.game_repository import GameRepository
-from shared.dal.models import PlayedGame, PlayedGameStanding
+from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -55,7 +55,7 @@ class SqliteGameRepository(GameRepository):
         self,
         game_id: str,
         ended_at: datetime,
-        end_reason: str = "completed",
+        end_reason: GameEndReason,
         num_rounds_played: int | None = None,
         standings: list[PlayedGameStanding] | None = None,
     ) -> None:

@@ -28,6 +28,7 @@ class SessionErrorCode(StrEnum):
     GAME_NOT_STARTED = "game_not_started"
     INVALID_MESSAGE = "invalid_message"
     ACTION_FAILED = "action_failed"
+    INTERNAL_ERROR = "internal_error"
     RECONNECT_NO_SESSION = "reconnect_no_session"
     RECONNECT_NO_SEAT = "reconnect_no_seat"
     RECONNECT_GAME_GONE = "reconnect_game_gone"

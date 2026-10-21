@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from shared.dal.models import PlayedGame, PlayedGameStanding
+    from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 
 class GameRepository(ABC):
@@ -22,7 +22,7 @@ class GameRepository(ABC):
         self,
         game_id: str,
         ended_at: datetime,
-        end_reason: str = "completed",
+        end_reason: GameEndReason,
         num_rounds_played: int | None = None,
         standings: list[PlayedGameStanding] | None = None,
     ) -> None: ...

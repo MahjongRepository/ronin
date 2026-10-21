@@ -73,12 +73,10 @@ servers:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-        # Register and login a user for authenticated view tests
-        register_with_csrf(c, "viewuser")
-        yield c
-
-        app.state.db.close()
+        with TestClient(app) as c:
+            # Register and login a user for authenticated view tests
+            register_with_csrf(c, "viewuser")
+            yield c
 
     def test_lobby_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
@@ -191,14 +189,12 @@ servers:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-        register_with_csrf(c, "testuser")
+        with TestClient(app) as c:
+            register_with_csrf(c, "testuser")
 
-        response = c.get("/play/test-game")
-        assert response.status_code == 503
-        assert "Game client assets not available" in response.text
-
-        app.state.db.close()
+            response = c.get("/play/test-game")
+            assert response.status_code == 503
+            assert "Game client assets not available" in response.text
 
     def test_game_assets_route__when_asset_requested__should_serve_it(self, client):
         response = client.get("/game-assets/assets/game-abc123.js")
@@ -229,8 +225,6 @@ servers:
         )
         route_names = {r.name for r in app.routes}
         assert "game_assets" not in route_names
-
-        app.state.db.close()
 
     def test_matchmaking_page__when_visited__should_return_html(self, client):
         response = client.get("/matchmaking")
@@ -272,17 +266,15 @@ servers:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-        register_with_csrf(c, "roomuser")
-        app.state.room_manager.create_room("fresh-room")
-        # Clear the CSRF cookie to simulate a direct visit
-        c.cookies.delete(CSRF_COOKIE_NAME)
+        with TestClient(app) as c:
+            register_with_csrf(c, "roomuser")
+            app.state.room_manager.create_room("fresh-room")
+            # Clear the CSRF cookie to simulate a direct visit
+            c.cookies.delete(CSRF_COOKIE_NAME)
 
-        response = c.get("/rooms/fresh-room")
-        assert response.status_code == 200
-        assert CSRF_COOKIE_NAME in response.cookies
-
-        app.state.db.close()
+            response = c.get("/rooms/fresh-room")
+            assert response.status_code == 200
+            assert CSRF_COOKIE_NAME in response.cookies
 
     def test_room_page__when_room_not_found__should_redirect_to_lobby(self, client):
         response = client.get("/rooms/nonexistent-room", follow_redirects=False)
@@ -306,14 +298,11 @@ servers:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-
-        # Don't register - visit storybook directly (no prior CSRF cookie)
-        response = c.get("/storybook")
-        assert response.status_code == 200
-        assert CSRF_COOKIE_NAME in response.cookies
-
-        app.state.db.close()
+        with TestClient(app) as c:
+            # Don't register - visit storybook directly (no prior CSRF cookie)
+            response = c.get("/storybook")
+            assert response.status_code == 200
+            assert CSRF_COOKIE_NAME in response.cookies
 
     def test_storybook_page__when_visited__should_return_html(self, client):
         response = client.get("/storybook")
@@ -347,11 +336,9 @@ class TestViteDevMode:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-        register_with_csrf(c, "viteuser")
-        yield c
-
-        app.state.db.close()
+        with TestClient(app) as c:
+            register_with_csrf(c, "viteuser")
+            yield c
 
     def test_lobby_page__when_vite_dev_url_set__should_use_vite_dev_urls(self, client):
         response = client.get("/")
@@ -394,11 +381,9 @@ class TestHistoryPage:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-        register_with_csrf(c, "gamesuser")
-        yield c
-
-        app.state.db.close()
+        with TestClient(app) as c:
+            register_with_csrf(c, "gamesuser")
+            yield c
 
     def test_history_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
@@ -494,10 +479,7 @@ class TestHistoryPage:
                 cookie_secure=False,
             ),
         )
-        c = TestClient(app)
-
-        response = c.get("/history", follow_redirects=False)
-        assert response.status_code == 303
-        assert "/login" in response.headers["location"]
-
-        app.state.db.close()
+        with TestClient(app) as c:
+            response = c.get("/history", follow_redirects=False)
+            assert response.status_code == 303
+            assert "/login" in response.headers["location"]

@@ -17,6 +17,16 @@ class PlayedGameStanding(BaseModel, frozen=True):
     final_score: int | None = None  # uma/oka-adjusted score (e.g. +30); None while in progress
 
 
+class GameEndReason(StrEnum):
+    """
+    Why a played game ended: played to the end, left by its last human, or failed on a server error.
+    """
+
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+    ERROR = "error"
+
+
 class PlayedGame(BaseModel, frozen=True):
     """
     Record of a played game persisted to storage.
@@ -25,7 +35,7 @@ class PlayedGame(BaseModel, frozen=True):
     game_id: str
     started_at: datetime
     ended_at: datetime | None = None
-    end_reason: str | None = None  # "completed" | "abandoned"
+    end_reason: GameEndReason | None = None
     game_type: str = ""  # "hanchan" | "tonpusen" (from GameSettings.game_type)
     num_rounds_played: int | None = None  # total rounds played (only set at game end)
     # at start: seat order with names/seats/user_ids; at end: placement order with scores

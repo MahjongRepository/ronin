@@ -58,15 +58,13 @@ def _make_mock_entry(user_id: str, username: str, connection_id: str) -> QueueEn
 class TestMatchmakingWebSocket:
     @pytest.fixture
     def app(self, tmp_path):
-        app = _make_app(tmp_path)
-        yield app
-        app.state.db.close()
+        return _make_app(tmp_path)
 
     @pytest.fixture
     def client(self, app):
-        c = TestClient(app)
-        register_with_csrf(c, "player1")
-        return c
+        with TestClient(app) as c:
+            register_with_csrf(c, "player1")
+            yield c
 
     def test_matchmaking_websocket__when_authenticated_client_connects__should_send_queue_joined(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
@@ -140,9 +138,8 @@ class TestMatchmakingUnauthenticated:
     @pytest.fixture
     def unauthenticated_client(self, tmp_path):
         app = _make_app(tmp_path)
-        c = TestClient(app)
-        yield c
-        app.state.db.close()
+        with TestClient(app) as c:
+            yield c
 
     def test_matchmaking_websocket__when_unauthenticated__should_reject_connection(self, unauthenticated_client):
         with (
@@ -155,15 +152,13 @@ class TestMatchmakingUnauthenticated:
 class TestMatchmakingOriginCheck:
     @pytest.fixture
     def app_with_origin(self, tmp_path):
-        app = _make_app(tmp_path, ws_allowed_origin="http://localhost:3000")
-        yield app
-        app.state.db.close()
+        return _make_app(tmp_path, ws_allowed_origin="http://localhost:3000")
 
     @pytest.fixture
     def client_with_origin(self, app_with_origin):
-        c = TestClient(app_with_origin)
-        register_with_csrf(c, "player1")
-        return c
+        with TestClient(app_with_origin) as c:
+            register_with_csrf(c, "player1")
+            yield c
 
     def test_matchmaking_websocket__when_origin_allowed__should_connect(self, client_with_origin):
         with client_with_origin.websocket_connect(
@@ -187,15 +182,13 @@ class TestMatchmakingOriginCheck:
 class TestMatchmakingGameTransition:
     @pytest.fixture
     def app(self, tmp_path):
-        app = _make_app(tmp_path)
-        yield app
-        app.state.db.close()
+        return _make_app(tmp_path)
 
     @pytest.fixture
     def client(self, app):
-        c = TestClient(app)
-        register_with_csrf(c, "player4")
-        return c
+        with TestClient(app) as c:
+            register_with_csrf(c, "player4")
+            yield c
 
     def _set_servers_healthy(self, app):
         for server in app.state.registry._servers:

@@ -7,37 +7,9 @@ from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
 from game.logic.types import PlayerStanding
 from game.session.manager import SessionManager
-from game.tests.mocks import MockGameService
+from game.tests.mocks import MockGameRepository, MockGameService
 
-from .helpers import create_started_game
-
-
-class MockGameRepository:
-    def __init__(self) -> None:
-        self.games: dict[str, dict] = {}
-        self.stored_games: dict[str, object] = {}  # game_id -> PlayedGame
-        self.create_game = AsyncMock(side_effect=self._create_game)
-        self.finish_game = AsyncMock(side_effect=self._finish_game)
-        self.get_game = AsyncMock(side_effect=self._get_game)
-
-    async def _create_game(self, game):
-        self.stored_games[game.game_id] = game
-        self.games[game.game_id] = {
-            "game_id": game.game_id,
-            "started_at": game.started_at,
-            "ended_at": None,
-            "end_reason": None,
-        }
-
-    async def _finish_game(self, game_id, ended_at, end_reason="completed", num_rounds_played=None, standings=None):
-        if game_id in self.games and self.games[game_id]["ended_at"] is None:
-            self.games[game_id]["ended_at"] = ended_at
-            self.games[game_id]["end_reason"] = end_reason
-            self.games[game_id]["num_rounds_played"] = num_rounds_played
-            self.games[game_id]["standings"] = standings
-
-    async def _get_game(self, game_id):
-        return self.stored_games.get(game_id)
+from .helpers import create_started_game, run_timeout
 
 
 @pytest.fixture
@@ -217,7 +189,7 @@ class TestGameCompletionRecording:
         )
         manager_with_repo._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
 
-        await manager_with_repo._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
+        await run_timeout(manager_with_repo, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         recorded = game_repo.games["game1"]
         assert recorded["end_reason"] == "completed"
 

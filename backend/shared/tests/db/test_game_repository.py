@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from shared.dal.models import PlayedGame, PlayedGameStanding
+from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.db.connection import Database
 from shared.db.game_repository import SqliteGameRepository
 
@@ -62,7 +62,7 @@ class TestFinishGame:
     ):
         await repo.create_game(_game())
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game(game_id="g1", ended_at=end_time, end_reason="completed")
+        await repo.finish_game(game_id="g1", ended_at=end_time, end_reason=GameEndReason.COMPLETED)
 
         result = await repo.get_game("g1")
         assert result is not None
@@ -72,10 +72,10 @@ class TestFinishGame:
     async def test_game_repository__when_game_already_ended__should_keep_original_end(self, repo: SqliteGameRepository):
         await repo.create_game(_game())
         first_end = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game(game_id="g1", ended_at=first_end, end_reason="completed")
+        await repo.finish_game(game_id="g1", ended_at=first_end, end_reason=GameEndReason.COMPLETED)
 
         second_end = datetime(2025, 1, 15, 14, 0, 0, tzinfo=UTC)
-        await repo.finish_game(game_id="g1", ended_at=second_end, end_reason="abandoned")
+        await repo.finish_game(game_id="g1", ended_at=second_end, end_reason=GameEndReason.ABANDONED)
 
         # Original end state is preserved
         result = await repo.get_game("g1")
@@ -92,7 +92,13 @@ class TestFinishGame:
         ]
         await repo.create_game(_game())
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game(game_id="g1", ended_at=end_time, num_rounds_played=8, standings=standings)
+        await repo.finish_game(
+            game_id="g1",
+            ended_at=end_time,
+            end_reason=GameEndReason.COMPLETED,
+            num_rounds_played=8,
+            standings=standings,
+        )
 
         result = await repo.get_game("g1")
         assert result is not None
@@ -110,7 +116,7 @@ class TestFinishGame:
         )
         await repo.create_game(game)
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game(game_id="g1", ended_at=end_time, end_reason="abandoned")
+        await repo.finish_game(game_id="g1", ended_at=end_time, end_reason=GameEndReason.ABANDONED)
 
         result = await repo.get_game("g1")
         assert result is not None
@@ -125,7 +131,7 @@ class TestFinishGame:
     ):
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
         with caplog.at_level(logging.WARNING):
-            await repo.finish_game(game_id="nonexistent", ended_at=end_time)
+            await repo.finish_game(game_id="nonexistent", ended_at=end_time, end_reason=GameEndReason.COMPLETED)
 
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert [r.msg["event"] for r in warning_records] == ["finish_game had no effect (not found or already ended)"]

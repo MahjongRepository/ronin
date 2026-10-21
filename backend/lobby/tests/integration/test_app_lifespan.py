@@ -1,0 +1,48 @@
+import pytest
+from starlette.testclient import TestClient
+
+from lobby.rooms.manager import LobbyRoomManager
+from lobby.server.app import create_app
+from lobby.settings import LobbyServerSettings
+from shared.auth.settings import AuthSettings
+
+
+@pytest.fixture
+def app(tmp_path):
+    config_file = tmp_path / "servers.yaml"
+    config_file.write_text("servers: []\n")
+    static_dir = tmp_path / "public"
+    static_dir.mkdir()
+    return create_app(
+        settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+        auth_settings=AuthSettings(
+            game_ticket_secret="test-secret",
+            database_path=str(tmp_path / "test.db"),
+            cookie_secure=False,
+        ),
+    )
+
+
+class TestLobbyLifespan:
+    def test_lobby_lifespan__when_startup_step_fails__should_close_database_and_stop_cleanup(self, app, monkeypatch):
+        def fail_to_start_reaper(_self):
+            raise RuntimeError("reaper failed to start")
+
+        monkeypatch.setattr(LobbyRoomManager, "start_reaper", fail_to_start_reaper)
+
+        with pytest.raises(RuntimeError, match="reaper failed to start"), TestClient(app):
+            pass
+
+        assert app.state.db._conn is None
+        assert app.state.auth_service._session_store._cleanup_task is None
+
+    def test_lobby_lifespan__when_reaper_died__should_still_close_database(self, app, monkeypatch):
+        async def crashing_reaper_loop(_self):
+            raise RuntimeError("reaper crashed")
+
+        monkeypatch.setattr(LobbyRoomManager, "_reaper_loop", crashing_reaper_loop)
+
+        with TestClient(app) as client:
+            assert client.get("/health").status_code == 200
+
+        assert app.state.db._conn is None

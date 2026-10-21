@@ -129,9 +129,8 @@ def _insert_human_with_key(client, user_id: str, username: str, raw_key: str) ->
 class TestAuthEndpoints:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_register_route__when_get__should_render_form_with_confirm_password(self, client):
         response = client.get("/register")
@@ -271,10 +270,9 @@ class TestAuthEndpoints:
 class TestCreateRoomRedirect:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        _register_user(c, username="gameuser")
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            _register_user(c, username="gameuser")
+            yield c
 
     def test_create_room_route__when_posted__should_redirect_to_room_page(self, client):
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
@@ -300,10 +298,9 @@ class TestCreateRoomRedirect:
 class TestJoinRoomRedirect:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        _register_user(c, username="joinuser")
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            _register_user(c, username="joinuser")
+            yield c
 
     def test_join_room_route__when_room_exists__should_redirect_to_room_page(self, client):
         room_manager = client.app.state.room_manager
@@ -330,9 +327,8 @@ class TestJoinRoomRedirect:
 class TestBotAuth:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_bot_auth_route__when_key_and_room_valid__should_return_room_info_and_bot_session(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
@@ -422,9 +418,8 @@ class TestBotAuth:
 class TestBotCreateRoom:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_bot_create_room_route__when_key_valid__should_create_room_with_four_ai_seats(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
@@ -525,9 +520,8 @@ class TestBotCreateRoom:
 class TestBotOnlyRoutes:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_bot_auth_route__when_human_session__should_return_403(self, client):
         _register_user(client, username="humanuser")
@@ -568,9 +562,8 @@ class TestBotOnlyRoutes:
 class TestApiKeyProtectedEndpoints:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_servers_route__when_api_key_valid__should_list_servers(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-srv-id", username="ServerBot")
@@ -594,9 +587,8 @@ class TestApiKeyProtectedEndpoints:
 class TestCsrfProtection:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_csrf_protection__when_login_post_has_no_token__should_return_403(self, client):
         response = client.post("/login", data={"username": "a", "password": "b"})
@@ -662,9 +654,8 @@ class TestCsrfProtection:
 class TestBotMatchmakingAuth:
     @pytest.fixture
     def client(self, tmp_path):
-        c = _make_client(tmp_path)
-        yield c
-        c.app.state.db.close()
+        with _make_client(tmp_path) as c:
+            yield c
 
     def test_bot_matchmaking_join_route__when_key_valid__should_return_bot_session_and_ws_url(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-mm-id", username="MatchBot")

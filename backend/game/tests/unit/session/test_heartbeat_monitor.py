@@ -1,11 +1,27 @@
 import asyncio
-import contextlib
 import time
 from unittest.mock import AsyncMock, patch
 
 from game.session.heartbeat import HEARTBEAT_TIMEOUT, HeartbeatMonitor
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection
+
+
+def _resolve_once(game: Game):
+    resolved: list[Game] = []
+
+    def get_game(_game_id: str) -> Game | None:
+        if resolved:
+            return None
+
+        resolved.append(game)
+        return game
+
+    return get_game
+
+
+def _fail_on_loop_error(exc: Exception) -> None:
+    raise AssertionError("heartbeat loop failed") from exc
 
 
 class TestHeartbeatMonitorRecordConnect:
@@ -46,7 +62,7 @@ class TestHeartbeatMonitorTaskManagement:
         def get_game(_game_id):
             return None  # will cause loop to exit
 
-        monitor.start_for_game("game1", get_game)
+        monitor.start_for_game("game1", get_game, on_error=_fail_on_loop_error)
         assert "game:game1" in monitor._tasks
         assert monitor._tasks.get("game:game1") is not None
 
@@ -59,12 +75,12 @@ class TestHeartbeatMonitorTaskManagement:
         def get_game(_game_id):
             return None
 
-        monitor.start_for_game("game1", get_game)
+        monitor.start_for_game("game1", get_game, on_error=_fail_on_loop_error)
         first_task = monitor._tasks.get("game:game1")
         assert first_task is not None
 
         # start again with the same game_id
-        monitor.start_for_game("game1", get_game)
+        monitor.start_for_game("game1", get_game, on_error=_fail_on_loop_error)
         second_task = monitor._tasks.get("game:game1")
         assert second_task is not first_task
 
@@ -81,7 +97,7 @@ class TestHeartbeatMonitorTaskManagement:
         def get_game(_game_id):
             return None
 
-        monitor.start_for_game("game1", get_game)
+        monitor.start_for_game("game1", get_game, on_error=_fail_on_loop_error)
         assert "game:game1" in monitor._tasks
 
         await monitor.stop_for_game("game1")
@@ -89,6 +105,20 @@ class TestHeartbeatMonitorTaskManagement:
 
 
 class TestHeartbeatMonitorLoop:
+    async def test_heartbeat_monitor__when_loop_raises__should_hand_error_to_on_error_and_end(self):
+        monitor = HeartbeatMonitor()
+        loop_errors: list[Exception] = []
+
+        def get_game(_game_id):
+            raise ValueError("resolver broke")
+
+        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock):
+            await monitor._check_loop(
+                entity_id="game1", entity_type="game", get_entity=get_game, on_error=loop_errors.append
+            )
+
+        assert [str(e) for e in loop_errors] == ["resolver broke"]
+
     async def test_heartbeat_monitor__when_connection_stale__should_close_with_heartbeat_timeout(self):
         monitor = HeartbeatMonitor()
         conn = MockConnection()
@@ -100,13 +130,10 @@ class TestHeartbeatMonitorLoop:
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
         game.players[conn.connection_id] = player
 
-        def get_game(game_id):
-            return game if game_id == "game1" else None
-
-        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError()]
-            with contextlib.suppress(asyncio.CancelledError):
-                await monitor._check_loop(entity_id="game1", entity_type="game", get_entity=get_game)
+        with patch("game.session.heartbeat.HEARTBEAT_CHECK_INTERVAL", 0):
+            await monitor._check_loop(
+                entity_id="game1", entity_type="game", get_entity=_resolve_once(game), on_error=_fail_on_loop_error
+            )
 
         assert conn.is_closed
         assert conn._close_code == 1000
@@ -121,13 +148,10 @@ class TestHeartbeatMonitorLoop:
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
         game.players[conn.connection_id] = player
 
-        def get_game(game_id):
-            return game if game_id == "game1" else None
-
-        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError()]
-            with contextlib.suppress(asyncio.CancelledError):
-                await monitor._check_loop(entity_id="game1", entity_type="game", get_entity=get_game)
+        with patch("game.session.heartbeat.HEARTBEAT_CHECK_INTERVAL", 0):
+            await monitor._check_loop(
+                entity_id="game1", entity_type="game", get_entity=_resolve_once(game), on_error=_fail_on_loop_error
+            )
 
         assert not conn.is_closed
 
@@ -140,7 +164,9 @@ class TestHeartbeatMonitorLoop:
         with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             mock_sleep.return_value = None
             # should exit cleanly
-            await monitor._check_loop(entity_id="game1", entity_type="game", get_entity=get_game)
+            await monitor._check_loop(
+                entity_id="game1", entity_type="game", get_entity=get_game, on_error=_fail_on_loop_error
+            )
 
         # verify sleep was called (loop attempted one iteration)
         mock_sleep.assert_called_once()
@@ -156,20 +182,16 @@ class TestHeartbeatMonitorLoop:
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
         game.players[conn.connection_id] = player
 
-        def get_game(game_id):
-            return game if game_id == "game1" else None
-
         # make close raise a ConnectionError
         failing_close = AsyncMock(side_effect=ConnectionError("connection lost"))
         conn.close = failing_close
 
-        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError()]
-            with contextlib.suppress(asyncio.CancelledError):
-                await monitor._check_loop(entity_id="game1", entity_type="game", get_entity=get_game)
+        with patch("game.session.heartbeat.HEARTBEAT_CHECK_INTERVAL", 0):
+            await monitor._check_loop(
+                entity_id="game1", entity_type="game", get_entity=_resolve_once(game), on_error=_fail_on_loop_error
+            )
 
         failing_close.assert_awaited_once_with(code=1000, reason="heartbeat_timeout")
-        assert mock_sleep.await_count == 2
 
     async def test_heartbeat_monitor__when_one_of_two_connections_stale__should_close_only_stale_one(self):
         monitor = HeartbeatMonitor()
@@ -186,13 +208,10 @@ class TestHeartbeatMonitorLoop:
         game.players[conn1.connection_id] = player1
         game.players[conn2.connection_id] = player2
 
-        def get_game(game_id):
-            return game if game_id == "game1" else None
-
-        with patch("game.session.heartbeat.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError()]
-            with contextlib.suppress(asyncio.CancelledError):
-                await monitor._check_loop(entity_id="game1", entity_type="game", get_entity=get_game)
+        with patch("game.session.heartbeat.HEARTBEAT_CHECK_INTERVAL", 0):
+            await monitor._check_loop(
+                entity_id="game1", entity_type="game", get_entity=_resolve_once(game), on_error=_fail_on_loop_error
+            )
 
         assert conn1.is_closed
         assert not conn2.is_closed

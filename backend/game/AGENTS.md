@@ -48,9 +48,15 @@ Mandatory for all game server code; review must catch violations.
   on untrusted input; handle `ClientDisconnect`.
 * Validate the WebSocket `game_id` path parameter against `_GAME_ID_PATTERN` and
   `_MAX_GAME_ID_LENGTH` before accepting.
-* Every background task is cancelled on teardown. Server shutdown calls
-  `cancel_all_pending_timeouts()` and `cancel_all_auth_timeouts()`; a game's turn timers and
-  heartbeat are cancelled when the game is cleaned up. A new kind of task joins one of those paths.
+* Every background task has an owner and an exception boundary. A sleeping pending, auth or turn
+  timer is cancelled when its game or connection goes; once it fires it detaches itself, so no
+  cancel path cancels it while it finishes a game, and a fired timer that a stop, cancel or re-arm
+  superseded while it waited for the game lock drops its default action. Heartbeat loops are
+  cancelled whenever their game goes, even mid-close. The app lifespan opens the database and, on
+  the way out, awaits `SessionManager.shutdown()` (sleeping tasks and heartbeats cancelled, fired
+  ones awaited) before closing it. An unexpected error in a task that has a game ends that game
+  through `fail_game`; the auth timeout, which has none, logs and closes the socket. A new kind of
+  task joins these paths.
 * Concealed hand tiles are logged at DEBUG only; game tickets and session tokens are never logged at
   INFO or above.
 

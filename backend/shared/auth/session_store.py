@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import time
 from uuid import uuid4
 
@@ -7,6 +6,7 @@ import structlog
 
 from shared.auth.models import AuthSession
 from shared.dal.models import AccountType
+from shared.tasks import cancel_and_wait
 
 CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
 DEFAULT_SESSION_TTL_SECONDS = 86400  # 24 hours
@@ -99,10 +99,7 @@ class AuthSessionStore:
         Stop the periodic cleanup background task.
         """
         if self._cleanup_task is not None:
-            self._cleanup_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._cleanup_task
-
+            await cancel_and_wait([self._cleanup_task])
             self._cleanup_task = None
 
     async def _cleanup_loop(self) -> None:

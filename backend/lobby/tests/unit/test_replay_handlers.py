@@ -48,8 +48,8 @@ class TestReplayContent:
     @pytest.fixture
     def setup(self, tmp_path):
         client, replay_dir = _make_client(tmp_path)
-        yield client, replay_dir
-        client.app.state.db.close()
+        with client:
+            yield client, replay_dir
 
     def test_replay_route__when_replay_exists__should_return_200_with_content(self, setup):
         client, replay_dir = setup

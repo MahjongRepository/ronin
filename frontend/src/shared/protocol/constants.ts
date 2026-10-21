@@ -177,6 +177,7 @@ export const SESSION_ERROR_CODE = {
     ACTION_FAILED: "action_failed",
     ALREADY_IN_GAME: "already_in_game",
     GAME_NOT_STARTED: "game_not_started",
+    INTERNAL_ERROR: "internal_error",
     INVALID_MESSAGE: "invalid_message",
     INVALID_TICKET: "invalid_ticket",
     JOIN_GAME_ALREADY_STARTED: "join_game_already_started",

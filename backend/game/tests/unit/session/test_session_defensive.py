@@ -1,5 +1,3 @@
-import asyncio
-import contextlib
 from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, GameErrorCode
@@ -67,7 +65,7 @@ class TestSessionManagerDefensiveChecks:
         await manager.broadcast_chat(conns[0], "hello")
         assert len(conns[0].sent_messages) == 0
 
-    async def test_cancel_all_pending_timeouts__when_game_pending__should_cancel_timeout_task(self):
+    async def test_shutdown__when_game_pending__should_cancel_timeout_task(self):
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
@@ -80,11 +78,7 @@ class TestSessionManagerDefensiveChecks:
         assert pending.timeout_task is not None
         assert not pending.timeout_task.done()
 
-        manager.cancel_all_pending_timeouts()
-        # Allow event loop to process the cancellation
-        with contextlib.suppress(asyncio.CancelledError):
-            await pending.timeout_task
-
+        await manager.shutdown()
         assert pending.timeout_task.cancelled()
 
     async def test_join_game__when_start_game_returns_error__should_roll_back_started_flag(self):

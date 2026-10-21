@@ -99,19 +99,26 @@ class TestTurnTimerBankEdgeCases:
         assert first_called is False
 
 
-class TestTimerCallbackException:
-    async def test_turn_timer__when_callback_raises__should_complete_without_propagating(self):
-        timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.01))
+class TestTimerCallbackOwnership:
+    async def test_turn_timer__when_callback_restarts_its_own_timer__should_finish_and_keep_the_successor(self):
+        timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0))
+        finished: list[str] = []
 
-        async def failing_callback():
-            raise RuntimeError("callback failed")
+        async def restart_then_suspend():
+            timer.start_meld_timer(_noop)
+            await asyncio.sleep(0)
+            finished.append("callback")
 
-        timer.start_turn_timer(failing_callback)
-        # wait for timer to fire and handle the exception
-        await asyncio.sleep(0.05)
-        # timer should complete without raising
-        assert timer._active_task is not None
-        assert timer._active_task.done()
+        timer.start_turn_timer(restart_then_suspend)
+        fired = timer.task
+        assert fired is not None
+
+        await fired
+        assert finished == ["callback"]
+        assert timer.task is not None
+        assert timer.task is not fired
+        assert not timer.task.done()
+        timer.cancel()
 
 
 class TestBaseTimeBehavior:

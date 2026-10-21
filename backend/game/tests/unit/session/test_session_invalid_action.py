@@ -8,7 +8,7 @@ from game.messaging.types import SessionMessageType
 from game.tests.mocks import MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game
+from .helpers import create_started_game, run_timeout
 
 DISCARD_ERROR = InvalidGameActionError(action="discard", seat=0, reason="tile not in hand")
 
@@ -176,7 +176,7 @@ class TestTimeoutInvalidActionHandling:
         error = InvalidGameActionError(action="pass", seat=0, reason="resolution failed on bad data")
         manager._game_service.handle_timeout = AsyncMock(side_effect=error)
 
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
         # offender (seat 0) should be disconnected
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
@@ -201,7 +201,7 @@ class TestTimeoutInvalidActionHandling:
             side_effect=ai_replacement_error,
         )
 
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
         # original offender (seat 0) should still be disconnected
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
@@ -214,6 +214,6 @@ class TestTimeoutInvalidActionHandling:
         error = InvalidGameActionError(action="pass", seat=0, reason="resolution error")
         manager._game_service.handle_timeout = AsyncMock(side_effect=error)
 
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
         assert conns[0].is_closed
         assert manager.get_game("game1") is None

@@ -4,10 +4,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
-import structlog
 from pydantic import BaseModel
-
-logger = structlog.get_logger()
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -53,6 +50,22 @@ class TurnTimer:
         self._bank_seconds: float = bank_seconds if bank_seconds is not None else self._config.initial_bank_seconds
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
+        self._generation = 0
+
+    @property
+    def task(self) -> asyncio.Task[None] | None:
+        """
+        The sleeping timer task, or None once it fired or was cancelled.
+        """
+        return self._active_task
+
+    @property
+    def generation(self) -> int:
+        """
+        Arm count, bumped by every start, stop and cancel: a fired callback whose captured value no longer matches was
+        superseded while it waited.
+        """
+        return self._generation
 
     @property
     def bank_seconds(self) -> float:
@@ -102,10 +115,7 @@ class TurnTimer:
 
     def consume_bank(self) -> None:
         """
-        Deduct elapsed bank time without cancelling the task.
-
-        Used by timeout callbacks that execute within the timer task itself, where cancelling the task would abort the
-        callback.
+        Deduct elapsed bank time without touching the task (for the timeout callback of this timer).
         """
         self._deduct_bank_time()
 
@@ -117,6 +127,7 @@ class TurnTimer:
             self._active_task.cancel()
 
         self._active_task = None
+        self._generation += 1
 
     def _deduct_bank_time(self) -> None:
         if self._turn_start_time is not None:
@@ -126,10 +137,14 @@ class TurnTimer:
             self._turn_start_time = None
 
     async def _run_timer(self, seconds: float, on_timeout: Callable[[], Awaitable[None]]) -> None:
-        try:
-            await asyncio.sleep(seconds)
-            await on_timeout()
-        except asyncio.CancelledError:
-            pass
-        except (RuntimeError, OSError, ConnectionError, ValueError):  # fmt: skip
-            logger.exception("timer callback failed")
+        """
+        Sleep, then detach this task from the timer and run the callback.
+
+        Detaching first keeps the callback safe from its own timer: a cancel, stop or restart of this seat inside the
+        callback finds no active task, and a timer the callback arms stays armed. Such a cancel still bumps
+        `generation`, which is how a callback still waiting to act learns it was superseded. The callback owns its
+        errors.
+        """
+        await asyncio.sleep(seconds)
+        self._active_task = None
+        await on_timeout()

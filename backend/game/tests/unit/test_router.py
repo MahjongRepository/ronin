@@ -11,6 +11,7 @@ from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
+from game.tests.unit.session.helpers import wait_for_background_tasks
 
 
 async def _setup_player_in_game(session_manager, connection):
@@ -146,7 +147,7 @@ class TestMessageRouterBranches:
         assert response["code"] == SessionErrorCode.ACTION_FAILED
         assert response["message"] == "tile not in hand"
 
-    async def test_message_router__when_unexpected_exception_raised__should_close_connection(self, setup):
+    async def test_message_router__when_game_action_raises_unexpectedly__should_fail_the_players_game(self, setup):
         router, connection, session_manager = setup
         await _setup_player_in_game(session_manager, connection)
 
@@ -166,4 +167,7 @@ class TestMessageRouterBranches:
                 "ti": 0,
             },
         )
-        assert connection.is_closed
+        await wait_for_background_tasks(session_manager)
+        assert session_manager.get_game("game1") is None
+        assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert connection._close_code == 1011

@@ -6,6 +6,8 @@ from typing import Any, Protocol
 
 import structlog
 
+from shared.tasks import cancel_and_wait
+
 HEARTBEAT_CHECK_INTERVAL = 5  # seconds between heartbeat checks
 HEARTBEAT_TIMEOUT = 30  # seconds before disconnecting an idle client
 
@@ -24,6 +26,8 @@ class _HasPlayers(Protocol):
 # Callback that resolves a game by ID.
 # Returns an object with a `.players` dict or None if the game is gone.
 EntityResolver = Callable[[str], _HasPlayers | None]
+
+LoopErrorHandler = Callable[[Exception], object]
 
 
 class HeartbeatMonitor:
@@ -57,11 +61,17 @@ class HeartbeatMonitor:
         if connection_id in self._last_ping:
             self._last_ping[connection_id] = time.monotonic()
 
-    def start_for_game(self, game_id: str, get_game: EntityResolver) -> None:
+    def start_for_game(self, game_id: str, get_game: EntityResolver, on_error: LoopErrorHandler) -> None:
         """
-        Start the heartbeat monitor for a game.
+        Start the heartbeat monitor for a game; an unexpected error in its loop goes to on_error.
         """
-        self._start(key=f"game:{game_id}", entity_id=game_id, entity_type="game", get_entity=get_game)
+        self._start(
+            key=f"game:{game_id}",
+            entity_id=game_id,
+            entity_type="game",
+            get_entity=get_game,
+            on_error=on_error,
+        )
 
     async def stop_for_game(self, game_id: str) -> None:
         """
@@ -69,36 +79,61 @@ class HeartbeatMonitor:
         """
         await self._stop(f"game:{game_id}")
 
-    def _start(self, key: str, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
+    async def shutdown(self) -> None:
+        """
+        Cancel every check loop and wait for them to finish.
+        """
+        tasks = list(self._tasks.values())
+        self._tasks.clear()
+        await cancel_and_wait(tasks)
+
+    def _start(
+        self,
+        key: str,
+        entity_id: str,
+        entity_type: str,
+        get_entity: EntityResolver,
+        on_error: LoopErrorHandler,
+    ) -> None:
         existing = self._tasks.get(key)
         if existing is not None and not existing.done():
             existing.cancel()
 
         self._tasks[key] = asyncio.create_task(
-            self._check_loop(entity_id=entity_id, entity_type=entity_type, get_entity=get_entity)
+            self._check_loop(entity_id=entity_id, entity_type=entity_type, get_entity=get_entity, on_error=on_error)
         )
 
     async def _stop(self, key: str) -> None:
         task = self._tasks.pop(key, None)
         if task is not None:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+            await cancel_and_wait([task])
 
-    async def _check_loop(self, entity_id: str, entity_type: str, get_entity: EntityResolver) -> None:
+    async def _check_loop(
+        self,
+        entity_id: str,
+        entity_type: str,
+        get_entity: EntityResolver,
+        on_error: LoopErrorHandler,
+    ) -> None:
         """
-        Periodically check for stale connections in a game.
+        Periodically check for stale connections in a game, handing any unexpected error to on_error.
         """
-        while True:
-            await asyncio.sleep(HEARTBEAT_CHECK_INTERVAL)
-            entity = get_entity(entity_id)
-            if entity is None:
-                return
+        try:
+            while True:
+                await asyncio.sleep(HEARTBEAT_CHECK_INTERVAL)
+                entity = get_entity(entity_id)
+                if entity is None:
+                    return
 
-            now = time.monotonic()
-            for player in list(entity.players.values()):
-                last_ping = self._last_ping.get(player.connection_id)
-                if last_ping is not None and now - last_ping > HEARTBEAT_TIMEOUT:
-                    logger.info("heartbeat timeout, disconnecting", entity_type=entity_type, entity_id=entity_id)
-                    with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-                        await player.connection.close(code=1000, reason="heartbeat_timeout")
+                await self._close_stale_connections(entity, entity_id=entity_id, entity_type=entity_type)
+        except Exception as exc:  # noqa: BLE001
+            on_error(exc)
+
+    async def _close_stale_connections(self, entity: _HasPlayers, *, entity_id: str, entity_type: str) -> None:
+        now = time.monotonic()
+        for player in list(entity.players.values()):
+            last_ping = self._last_ping.get(player.connection_id)
+            if last_ping is not None and now - last_ping > HEARTBEAT_TIMEOUT:
+                logger.info("heartbeat timeout, disconnecting", entity_type=entity_type, entity_id=entity_id)
+                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+                    await player.connection.close(code=1000, reason="heartbeat_timeout")

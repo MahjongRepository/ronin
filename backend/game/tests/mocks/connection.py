@@ -36,7 +36,7 @@ class MockConnection(ConnectionProtocol):
         if self._closed:
             raise RuntimeError("Connection is closed")
 
-        # decode and store for test inspection
+        await asyncio.sleep(0)
         self._outbox.append(decode(data))
 
     async def receive_bytes(self) -> bytes:
@@ -46,6 +46,7 @@ class MockConnection(ConnectionProtocol):
         return await self._inbox.get()
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
+        await asyncio.sleep(0)
         self._closed = True
         self._close_code = code
         self._close_reason = reason

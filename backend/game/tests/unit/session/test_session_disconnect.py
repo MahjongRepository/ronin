@@ -7,7 +7,7 @@ from game.messaging.types import SessionMessageType
 from game.tests.mocks import MockConnection, MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game
+from .helpers import create_started_game, run_timeout
 
 
 class TestSessionManagerDisconnect:
@@ -101,7 +101,7 @@ class TestSessionManagerDisconnect:
 
         # stale timeout fires for Alice's old seat (seat 0)
         # should be a no-op because _get_player_at_seat returns None for seat 0
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         assert len(conns[1].sent_messages) == 0
 
     async def test_disconnect__when_game_lock_missing__should_skip_ai_replacement_and_mark_session_disconnected(
@@ -198,7 +198,7 @@ class TestLockBoundaryRaces:
 
         # run timeout and leave concurrently
         await asyncio.gather(
-            manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=1),
+            run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=1),
             manager.leave_game(conns[0]),
         )
         assert execution_order == ["timeout_start", "timeout_end", "replace_start", "process_ai_player"]

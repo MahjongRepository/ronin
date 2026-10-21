@@ -1,4 +1,6 @@
 import asyncio
+import threading
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 from game.logic.enums import CallType, GameAction, MeldViewType, TimeoutType
@@ -20,11 +22,27 @@ from game.logic.types import (
     PlayerStanding,
     TenpaiHand,
 )
+from game.messaging.types import SessionErrorCode
+from game.session.manager import SessionManager
 from game.session.models import Game, Player
-from game.tests.mocks import MockConnection, MockResultEvent
+from game.session.replay_collector import ReplayCollector
+from game.tests.mocks import MockConnection, MockGameRepository, MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
+from shared.dal.models import GameEndReason
+from shared.storage import LocalReplayStorage, replay_file_path
 
-from .helpers import create_started_game, make_dummy_game_view, make_game_with_player
+from .helpers import (
+    arrange_final_discard,
+    create_started_game,
+    fire_turn_timer_now,
+    make_dummy_game_view,
+    make_game_with_player,
+    run_timeout,
+    wait_for_background_tasks,
+)
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestSessionManagerTimers:
@@ -41,13 +59,13 @@ class TestSessionManagerTimers:
         conns = await create_started_game(manager)
         conns[0]._outbox.clear()
 
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         timeout_msgs = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(timeout_msgs) == 1
 
     async def test_handle_timeout__when_game_missing__should_not_raise(self, manager):
         # should not raise
-        await manager._handle_timeout(game_id="nonexistent", timeout_type=TimeoutType.TURN, seat=0)
+        await run_timeout(manager, game_id="nonexistent", timeout_type=TimeoutType.TURN, seat=0)
 
     async def test_handle_timeout__when_game_removed_under_lock__should_broadcast_nothing(self, manager):
         conns = await create_started_game(manager)
@@ -55,7 +73,7 @@ class TestSessionManagerTimers:
 
         # Remove the game but keep the lock to simulate concurrent cleanup
         manager._games.pop("game1", None)
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
 
@@ -66,7 +84,7 @@ class TestSessionManagerTimers:
         manager._game_locks.pop("game1", None)
         conns[0]._outbox.clear()
 
-        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
 
@@ -430,3 +448,114 @@ class TestPerPlayerTimers:
         assert timer1._active_task is not None
 
         timer1.cancel()
+
+
+class _GatedReplayStorage(LocalReplayStorage):
+    def __init__(self, replay_dir: Path) -> None:
+        super().__init__(replay_dir)
+        self.save_started = threading.Event()
+        self.may_finish = threading.Event()
+
+    def save_replay(self, game_id: str, content: str) -> None:
+        self.save_started.set()
+        self.may_finish.wait(timeout=5)
+        super().save_replay(game_id, content)
+
+
+async def _yield_until(condition) -> None:
+    for _ in range(100):
+        if condition():
+            return
+
+        await asyncio.sleep(0)
+
+    raise AssertionError("condition never held")
+
+
+class TestTimerCallbackLifecycle:
+    async def test_turn_timeout__when_fired_while_the_players_own_discard_holds_the_lock__should_not_act_again(
+        self, seeded_engine
+    ):
+        manager = SessionManager(seeded_engine)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        drawn_tile = seeded_engine.get_game_state("game1").round_state.players[alice_seat].tiles[-1]
+        lock = manager._game_locks["game1"]
+        await lock.acquire()
+
+        discard = asyncio.create_task(
+            manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile})
+        )
+        fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
+        await _yield_until(lambda: len(lock._waiters or ()) == 2)
+        lock.release()
+        await discard
+        await fired
+        assert len(seeded_engine.get_game_state("game1").round_state.players[alice_seat].discards) == 1
+        assert manager._timer_manager.get_timer("game1", alice_seat).task is not None
+
+        await manager.shutdown()
+
+    async def test_turn_timeout__when_ai_turns_lead_back_to_the_human__should_keep_the_successor_timer_armed(
+        self, seeded_engine
+    ):
+        manager = SessionManager(seeded_engine)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        timer = manager._timer_manager.get_timer("game1", alice_seat)
+
+        fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
+        await fired
+        draws_after_timeout = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        assert len(draws_after_timeout) == 1
+        assert timer.task is not None
+        assert timer.task is not fired
+        assert not timer.task.done()
+
+        await manager.shutdown()
+
+    async def test_turn_timeout__when_callback_raises__should_fail_the_game_instead_of_stalling(
+        self, seeded_engine, tmp_path
+    ):
+        game_repo = MockGameRepository()
+        manager = SessionManager(
+            seeded_engine,
+            replay_collector=ReplayCollector(LocalReplayStorage(tmp_path)),
+            game_repository=game_repo,
+        )
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        seeded_engine.handle_timeout = AsyncMock(side_effect=RuntimeError("engine fault"))
+
+        await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
+        await wait_for_background_tasks(manager)
+        assert manager.get_game("game1") is None
+        assert game_repo.games["game1"]["end_reason"] == GameEndReason.ERROR
+        assert replay_file_path(tmp_path, "game1").exists()
+        for conn in conns:
+            assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+            assert conn._close_code == 1011
+
+    async def test_shutdown__when_timer_callback_suspended_in_game_end__should_wait_for_it_and_leave_no_task(
+        self, seeded_engine, tmp_path
+    ):
+        game_repo = MockGameRepository()
+        storage = _GatedReplayStorage(tmp_path)
+        manager = SessionManager(seeded_engine, replay_collector=ReplayCollector(storage), game_repository=game_repo)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
+        assert await asyncio.to_thread(storage.save_started.wait, 5)
+
+        shutdown = asyncio.create_task(manager.shutdown())
+        await _yield_until(lambda: not manager._timer_manager._timers)
+        assert not shutdown.done()
+
+        storage.may_finish.set()
+        await shutdown
+        assert fired.done()
+        assert not fired.cancelled()
+        assert game_repo.games["game1"]["end_reason"] == GameEndReason.COMPLETED
+        assert conns[0]._close_code == 1000
+        assert [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()] == []

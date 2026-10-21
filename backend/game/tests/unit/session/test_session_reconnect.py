@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from game.logic.enums import GameAction, PlayerAction, RoundPhase, WindName
+from game.logic.enums import GameAction, PlayerAction, RoundPhase, TimeoutType, WindName
 from game.logic.events import (
     DrawEvent,
     EventType,
@@ -21,7 +21,12 @@ from game.session.manager import SessionManager
 from game.session.models import SessionData
 from game.session.replay_collector import ReplayCollector
 from game.tests.mocks import MockConnection, MockGameService
-from game.tests.unit.session.helpers import create_started_game, disconnect_and_reconnect
+from game.tests.unit.session.helpers import (
+    arrange_final_discard,
+    create_started_game,
+    disconnect_and_reconnect,
+    run_timeout,
+)
 from game.wire.compact import encode_draw
 from game.wire.events import EVENT_TYPE_INT
 
@@ -567,6 +572,24 @@ class TestReconnectEdgeCases:
         await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
         draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draw_msgs) == 0
+
+
+class TestReconnectToEndedGame:
+    async def test_reconnect__when_game_ended_while_player_was_away__should_refuse_with_game_gone(self, seeded_engine):
+        manager = SessionManager(seeded_engine)
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        bob_token = manager._players[conns[1].connection_id].session_token
+        await manager.leave_game(conns[1], notify_player=False)
+        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
+        assert manager.get_game("game1").ended is True
+
+        reconnecting = MockConnection()
+        manager.register_connection(reconnecting)
+        await manager.reconnect(reconnecting, game_id="game1", session_token=bob_token)
+        assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_GAME_GONE]
+        assert manager._session_store.get_session(bob_token).disconnected_at is not None
 
 
 class TestReconnectThenPlay:
