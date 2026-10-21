@@ -1,5 +1,3 @@
-"""Tests for AuthSessionStore."""
-
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +9,7 @@ from shared.auth.session_store import AuthSessionStore
 
 
 class TestCreateSession:
-    def test_creates_session_with_correct_fields(self):
+    def test_session_store_create_session__when_called__should_set_fields_and_future_expiry(self):
         store = AuthSessionStore()
         session = store.create_session("user-1", "alice")
 
@@ -20,19 +18,19 @@ class TestCreateSession:
         assert session.session_id
         assert session.expires_at > session.created_at
 
-    def test_stores_human_account_type_by_default(self):
+    def test_session_store_create_session__when_no_account_type__should_default_to_human(self):
         store = AuthSessionStore()
         session = store.create_session("user-1", "alice")
 
         assert session.account_type == AccountType.HUMAN
 
-    def test_stores_bot_account_type(self):
+    def test_session_store_create_session__when_bot__should_store_bot_account_type(self):
         store = AuthSessionStore()
         session = store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
 
         assert session.account_type == AccountType.BOT
 
-    def test_get_session_returns_account_type(self):
+    def test_session_store_create_session__when_bot_session_fetched__should_keep_account_type(self):
         store = AuthSessionStore()
         session = store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
 
@@ -42,7 +40,7 @@ class TestCreateSession:
 
 
 class TestGetSession:
-    def test_retrieves_valid_session(self):
+    def test_session_store_get_session__when_valid__should_return_session(self):
         store = AuthSessionStore()
         session = store.create_session("u1", "alice")
 
@@ -50,11 +48,11 @@ class TestGetSession:
         assert result is not None
         assert result.user_id == "u1"
 
-    def test_returns_none_for_unknown_id(self):
+    def test_session_store_get_session__when_unknown_id__should_return_none(self):
         store = AuthSessionStore()
         assert store.get_session("nonexistent") is None
 
-    def test_returns_none_and_removes_expired_session(self):
+    def test_session_store_get_session__when_expired__should_return_none_and_remove_it(self):
         store = AuthSessionStore()
         session = store.create_session("u1", "alice", ttl_seconds=0)
 
@@ -69,20 +67,20 @@ class TestGetSession:
 
 
 class TestDeleteSession:
-    def test_removes_existing_session(self):
+    def test_session_store_delete_session__when_existing__should_remove_it(self):
         store = AuthSessionStore()
         session = store.create_session("u1", "alice")
 
         store.delete_session(session.session_id)
         assert store.get_session(session.session_id) is None
 
-    def test_ignores_unknown_session(self):
+    def test_session_store_delete_session__when_unknown__should_not_raise(self):
         store = AuthSessionStore()
         store.delete_session("nonexistent")  # should not raise
 
 
 class TestCleanupExpired:
-    def test_removes_expired_sessions(self):
+    def test_session_store_cleanup_expired__when_some_expired__should_remove_only_expired(self):
         store = AuthSessionStore()
         store.create_session("u1", "alice", ttl_seconds=0)
         store.create_session("u2", "bob", ttl_seconds=0)
@@ -95,7 +93,7 @@ class TestCleanupExpired:
         assert removed == 2
         assert store.get_session(active.session_id) is not None
 
-    def test_returns_zero_when_nothing_expired(self):
+    def test_session_store_cleanup_expired__when_none_expired__should_return_zero(self):
         store = AuthSessionStore()
         store.create_session("u1", "alice", ttl_seconds=3600)
 
@@ -104,7 +102,7 @@ class TestCleanupExpired:
 
 
 class TestCleanupLifecycle:
-    async def test_start_and_stop_cleanup(self):
+    async def test_session_store_cleanup__when_started_and_stopped__should_manage_task(self):
         store = AuthSessionStore()
         store.start_cleanup()
         assert store._cleanup_task is not None
@@ -113,7 +111,7 @@ class TestCleanupLifecycle:
         await store.stop_cleanup()
         assert store._cleanup_task is None
 
-    async def test_start_is_idempotent(self):
+    async def test_session_store_cleanup__when_started_twice__should_keep_same_task(self):
         store = AuthSessionStore()
         store.start_cleanup()
         task1 = store._cleanup_task
@@ -124,11 +122,11 @@ class TestCleanupLifecycle:
         assert task1 is task2
         await store.stop_cleanup()
 
-    async def test_stop_without_start_is_safe(self):
+    async def test_session_store_cleanup__when_stopped_without_start__should_not_raise(self):
         store = AuthSessionStore()
         await store.stop_cleanup()  # should not raise
 
-    async def test_cleanup_loop_runs_periodically(self):
+    async def test_session_store_cleanup__when_running__should_call_cleanup_periodically(self):
         store = AuthSessionStore()
         store.create_session("u1", "alice", ttl_seconds=0)
 

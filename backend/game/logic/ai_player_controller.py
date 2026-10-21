@@ -1,10 +1,3 @@
-"""
-AI player controller as a pure decision-maker.
-
-Provides AI player identification and decision methods.
-Orchestration is handled by MahjongGameService.
-"""
-
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import CallType, GameAction, KanType, MeldCallType, PlayerAction
@@ -20,8 +13,8 @@ class AIPlayerController:
     """
     Decision-maker for AI players.
 
-    Provides methods to check AI player identity and get AI player decisions
-    for turn actions and call responses. Does not orchestrate game flow.
+    Provides methods to check AI player identity and get AI player decisions for turn actions and call responses. Does
+    not orchestrate game flow.
     """
 
     def __init__(self, ai_players: dict[int, AIPlayer]) -> None:
@@ -31,20 +24,28 @@ class AIPlayerController:
         return self._ai_players.get(seat)
 
     def is_ai_player(self, seat: int) -> bool:
-        """Check if a seat is occupied by an AI player."""
+        """
+        Check if a seat is occupied by an AI player.
+        """
         return seat in self._ai_players
 
     def add_ai_player(self, seat: int, ai_player: AIPlayer) -> None:
-        """Register an AI player at a seat (replacing a disconnected player)."""
+        """
+        Register an AI player at a seat (replacing a disconnected player).
+        """
         self._ai_players[seat] = ai_player
 
     def remove_ai_player(self, seat: int) -> None:
-        """Remove an AI player from a seat (for reconnection)."""
+        """
+        Remove an AI player from a seat (for reconnection).
+        """
         self._ai_players.pop(seat, None)
 
     @property
     def ai_player_seats(self) -> set[int]:
-        """Return the set of seats occupied by AI players."""
+        """
+        Return the set of seats occupied by AI players.
+        """
         return set(self._ai_players.keys())
 
     def get_turn_action(

@@ -1,5 +1,3 @@
-"""History page handler and game data transformation."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -20,7 +18,9 @@ SECONDS_PER_MINUTE = 60
 
 
 def _format_duration(started_at: datetime, ended_at: datetime) -> str:
-    """Format game duration as a human-readable string (e.g. '5m 30s', '1h 12m', '45s')."""
+    """
+    Format game duration as a human-readable string (e.g. '5m 30s', '1h 12m', '45s').
+    """
     seconds = max(int((ended_at - started_at).total_seconds()), 0)
     if seconds >= SECONDS_PER_HOUR:
         h = seconds // SECONDS_PER_HOUR
@@ -34,7 +34,9 @@ def _format_duration(started_at: datetime, ended_at: datetime) -> str:
 
 
 def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
-    """Transform played games into template-friendly view models."""
+    """
+    Transform played games into template-friendly view models.
+    """
     result = []
     for game in games:
         # Completed games: standings in placement order from game logic, standings[0] is winner

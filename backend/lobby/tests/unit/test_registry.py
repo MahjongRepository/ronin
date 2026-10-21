@@ -7,7 +7,7 @@ from lobby.registry.manager import RegistryManager
 
 
 class TestRegistryManagerLoadConfig:
-    def test_loads_servers_from_yaml(self, tmp_path):
+    def test_registry_load_config__should_load_servers_from_yaml(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text(
             "servers:\n"
@@ -22,7 +22,7 @@ class TestRegistryManagerLoadConfig:
         assert servers[0].name == "alpha"
         assert servers[1].url == "http://beta:8002"
 
-    def test_loads_public_url_from_yaml(self, tmp_path):
+    def test_registry_load_config__should_load_public_url_from_yaml(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text(
             'servers:\n  - name: "game-1"\n    url: "http://game:8711"\n    public_url: "https://example.com"\n',
@@ -32,18 +32,18 @@ class TestRegistryManagerLoadConfig:
         assert server.url == "http://game:8711"
         assert server.client_url == "https://example.com"
 
-    def test_client_url_falls_back_to_url_when_no_public_url(self, tmp_path):
+    def test_registry_load_config__when_no_public_url__should_fall_back_to_url_for_client_url(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
         manager = RegistryManager(config_path=config)
         server = manager.get_servers()[0]
         assert server.client_url == "http://s1:8001"
 
-    def test_missing_config_file_results_in_no_servers(self, tmp_path):
+    def test_registry_load_config__when_file_missing__should_have_no_servers(self, tmp_path):
         manager = RegistryManager(config_path=tmp_path / "nonexistent.yaml")
         assert manager.get_servers() == []
 
-    def test_empty_servers_list_in_yaml(self, tmp_path):
+    def test_registry_load_config__when_servers_list_empty__should_have_no_servers(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text("servers: []\n")
         manager = RegistryManager(config_path=config)
@@ -51,7 +51,7 @@ class TestRegistryManagerLoadConfig:
 
 
 class TestRegistryManagerGetServers:
-    def test_returns_copy_not_reference(self, tmp_path):
+    def test_registry_get_servers__should_return_copy(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
         manager = RegistryManager(config_path=config)
@@ -61,7 +61,7 @@ class TestRegistryManagerGetServers:
 
 
 class TestRegistryManagerGetHealthyServers:
-    def test_filters_unhealthy_servers(self, tmp_path):
+    def test_registry_get_healthy_servers__should_exclude_unhealthy_servers(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text(
             'servers:\n  - name: "up"\n    url: "http://up:8001"\n  - name: "down"\n    url: "http://down:8002"\n',
@@ -79,7 +79,7 @@ class TestRegistryManagerGetHealthyServers:
 
 class TestRegistryManagerCheckHealth:
     @pytest.mark.asyncio
-    async def test_marks_server_healthy_on_200(self, tmp_path):
+    async def test_registry_check_health__when_status_200__should_mark_server_healthy(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
         manager = RegistryManager(config_path=config)
@@ -97,7 +97,7 @@ class TestRegistryManagerCheckHealth:
         assert manager._servers[0].healthy is True
 
     @pytest.mark.asyncio
-    async def test_marks_server_unhealthy_on_non_200(self, tmp_path):
+    async def test_registry_check_health__when_status_not_200__should_mark_server_unhealthy(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
         manager = RegistryManager(config_path=config)
@@ -116,7 +116,7 @@ class TestRegistryManagerCheckHealth:
         assert manager._servers[0].healthy is False
 
     @pytest.mark.asyncio
-    async def test_marks_server_unhealthy_on_connection_error(self, tmp_path):
+    async def test_registry_check_health__when_connection_fails__should_mark_server_unhealthy(self, tmp_path):
         config = tmp_path / "servers.yaml"
         config.write_text('servers:\n  - name: "s1"\n    url: "http://s1:8001"\n')
         manager = RegistryManager(config_path=config)

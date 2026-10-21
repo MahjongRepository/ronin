@@ -1,11 +1,3 @@
-"""
-Register a bot account and print the API key.
-
-Usage: python -m scripts.register_bot <bot_name>
-
-The API key is printed once and never stored. Save it securely.
-"""
-
 import asyncio
 import os
 import sys

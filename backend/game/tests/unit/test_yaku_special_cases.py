@@ -1,8 +1,3 @@
-"""
-Verifies tenhou, chiihou, haitei, houtei, rinshan kaihou, ryuuiisou,
-double riichi, and nagashi mangan detection and scoring.
-"""
-
 from __future__ import annotations
 
 from mahjong.tile import TilesConverter
@@ -23,10 +18,7 @@ from game.tests.conftest import create_game_state, create_player, create_round_s
 
 
 class TestTenhouScoring:
-    """Tenhou yakuman is correctly passed to the scoring engine."""
-
-    def test_tenhou_dealer_tsumo_is_yakuman(self):
-        """Dealer winning by tsumo on initial draw scores as yakuman (tenhou)."""
+    def test_tenhou__when_dealer_tsumo_on_first_draw__should_score_yakuman(self):
         # 1-9m 1-5p pinfu hand for the dealer
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(seat=0, tiles=tiles)
@@ -54,8 +46,7 @@ class TestTenhouScoring:
         assert any(y.yaku_id == 115 for y in result.yaku)
         assert result.han >= 13
 
-    def test_tenhou_not_awarded_for_non_dealer(self):
-        """Non-dealer tsumo on first draw does not score tenhou."""
+    def test_tenhou__when_non_dealer__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(seat=1, tiles=tiles)
         players = (
@@ -87,15 +78,7 @@ class TestTenhouScoring:
 
 
 class TestChiihouBugFix:
-    """Chiihou correctly checks player's own discards, not all_discards.
-
-    Bug: the old check used len(round_state.all_discards) == 0, which was
-    unreachable in normal play because the dealer always discards before
-    any non-dealer draws. Fixed to check len(player.discards) == 0.
-    """
-
-    def test_chiihou_detected_even_with_dealer_discard_in_all_discards(self):
-        """Non-dealer's first draw qualifies for chiihou even after dealer has discarded."""
+    def test_chiihou__when_dealer_discard_in_all_discards__should_still_detect(self):
         player = create_player(seat=1, tiles=[])
         players = (
             create_player(seat=0, discards=(Discard(tile_id=0),)),
@@ -112,8 +95,7 @@ class TestChiihouBugFix:
         # player has no discards (first draw), even though all_discards is non-empty
         assert is_chiihou(round_state.players[1], round_state) is True
 
-    def test_chiihou_blocked_when_player_has_discarded(self):
-        """Non-dealer who already discarded cannot claim chiihou."""
+    def test_chiihou__when_player_has_discarded__should_not_detect(self):
         player = create_player(seat=1, discards=(Discard(tile_id=5),))
         players = (
             create_player(seat=0),
@@ -130,10 +112,7 @@ class TestChiihouBugFix:
 
 
 class TestChiihouScoring:
-    """Chiihou yakuman flows through the scoring engine correctly."""
-
-    def test_chiihou_non_dealer_tsumo_is_yakuman(self):
-        """Non-dealer winning by tsumo on first draw scores as yakuman (chiihou)."""
+    def test_chiihou__when_non_dealer_tsumo_on_first_draw__should_score_yakuman(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(seat=1, tiles=tiles)
         players = (
@@ -161,8 +140,7 @@ class TestChiihouScoring:
         assert any(y.yaku_id == 116 for y in result.yaku)
         assert result.han >= 13
 
-    def test_chiihou_not_awarded_for_dealer(self):
-        """Dealer never qualifies for chiihou (tenhou instead)."""
+    def test_chiihou__when_dealer__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(seat=0, tiles=tiles)
         players = (
@@ -193,10 +171,7 @@ class TestChiihouScoring:
 
 
 class TestHaiteiRaoyue:
-    """Haitei: tsumo win on last wall tile (1 han)."""
-
-    def test_haitei_awarded_on_last_tile_tsumo(self):
-        """Tsumo on an empty wall awards haitei yaku (id=6)."""
+    def test_haitei__when_tsumo_on_last_tile__should_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -224,8 +199,7 @@ class TestHaiteiRaoyue:
         assert result.error is None
         assert any(y.yaku_id == 6 for y in result.yaku)
 
-    def test_haitei_not_awarded_when_wall_has_tiles(self):
-        """Tsumo with tiles remaining in wall does not award haitei."""
+    def test_haitei__when_wall_has_tiles__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -253,8 +227,7 @@ class TestHaiteiRaoyue:
         assert result.error is None
         assert not any(y.yaku_id == 6 for y in result.yaku)
 
-    def test_haitei_not_awarded_on_ron(self):
-        """Ron on last discard does not award haitei (that would be houtei)."""
+    def test_haitei__when_ron__should_award_houtei_instead(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -290,10 +263,7 @@ class TestHaiteiRaoyue:
 
 
 class TestHouteiRaoyui:
-    """Houtei: ron win on last discard (1 han)."""
-
-    def test_houtei_awarded_on_last_discard_ron(self):
-        """Ron on an empty wall awards houtei yaku (id=7)."""
+    def test_houtei__when_ron_on_last_discard__should_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -322,8 +292,7 @@ class TestHouteiRaoyui:
         assert result.error is None
         assert any(y.yaku_id == 7 for y in result.yaku)
 
-    def test_houtei_not_awarded_on_tsumo(self):
-        """Tsumo on last tile does not award houtei (that would be haitei)."""
+    def test_houtei__when_tsumo__should_award_haitei_instead(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -358,10 +327,7 @@ class TestHouteiRaoyui:
 
 
 class TestRinshanKaihou:
-    """Rinshan kaihou: tsumo win on dead wall replacement tile (1 han)."""
-
-    def test_rinshan_awarded_when_flag_set(self):
-        """Tsumo with is_rinshan=True awards rinshan kaihou (yaku_id=5)."""
+    def test_rinshan__when_rinshan_flag_set__should_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -390,8 +356,7 @@ class TestRinshanKaihou:
         assert result.error is None
         assert any(y.yaku_id == 5 for y in result.yaku)
 
-    def test_rinshan_not_awarded_when_flag_clear(self):
-        """Tsumo without is_rinshan does not award rinshan kaihou."""
+    def test_rinshan__when_rinshan_flag_clear__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -425,10 +390,7 @@ class TestRinshanKaihou:
 
 
 class TestRyuuiisou:
-    """Ryuuiisou: yakuman with only green tiles (2,3,4,6,8 sou + hatsu)."""
-
-    def test_ryuuiisou_with_hatsu(self):
-        """All-green hand with hatsu scores as yakuman (yaku_id=105)."""
+    def test_ryuuiisou__when_hand_has_hatsu__should_score_yakuman(self):
         # 222s 333s 444s 666z + 66s pair = 14 tiles, all green
         tiles = TilesConverter.string_to_136_array(sou="22233344466", honors="666")
         player = create_player(
@@ -458,8 +420,7 @@ class TestRyuuiisou:
         assert any(y.yaku_id == 105 for y in result.yaku)
         assert result.han >= 13
 
-    def test_ryuuiisou_without_hatsu(self):
-        """All-green hand without hatsu still scores as yakuman."""
+    def test_ryuuiisou__when_hand_lacks_hatsu__should_score_yakuman(self):
         # 222s 333s 444s 666s + 88s pair = 14 tiles, all green, no hatsu
         tiles = TilesConverter.string_to_136_array(sou="22233344466688")
         player = create_player(
@@ -490,8 +451,7 @@ class TestRyuuiisou:
         assert any(y.yaku_id == 105 for y in result.yaku)
         assert result.han >= 13
 
-    def test_ryuuiisou_open_hand(self):
-        """Ryuuiisou is valid in open hands (han_open=13)."""
+    def test_ryuuiisou__when_hand_is_open__should_score_yakuman(self):
         # open pon of hatsu (666z) + closed 222s 333s 444s + 88s pair = 14 tiles
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
         closed_tiles = TilesConverter.string_to_136_array(sou="22233344488")
@@ -540,10 +500,7 @@ class TestRyuuiisou:
 
 
 class TestDoubleRiichiScoring:
-    """Double riichi: 2 han on first uninterrupted discard."""
-
-    def test_double_riichi_scores_2_han(self):
-        """Double riichi awards yaku_id=8 with 2 han in scoring."""
+    def test_double_riichi__when_declared_on_first_turn__should_score_2_han(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -577,8 +534,7 @@ class TestDoubleRiichiScoring:
         daburi_yaku = next(y for y in result.yaku if y.yaku_id == 8)
         assert daburi_yaku.han == 2
 
-    def test_regular_riichi_does_not_score_double_riichi(self):
-        """Regular riichi (not first turn) does not award double riichi."""
+    def test_double_riichi__when_regular_riichi__should_not_score_double(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         player = create_player(
             seat=0,
@@ -618,10 +574,7 @@ class TestDoubleRiichiScoring:
 
 
 class TestNagashiManganDetection:
-    """Check nagashi mangan qualification logic."""
-
-    def test_player_with_all_terminal_honor_discards_qualifies(self):
-        """Player whose discards are all terminals/honors and none claimed qualifies."""
+    def test_nagashi_mangan__when_all_discards_terminal_or_honor__should_qualify(self):
         # terminals: 1m(0), 9m(32), 1p(36), 9p(68), honors: E(108)
         discards = (
             Discard(tile_id=0),  # 1m
@@ -641,8 +594,7 @@ class TestNagashiManganDetection:
         qualifying = check_nagashi_mangan(round_state)
         assert 1 in qualifying
 
-    def test_player_with_non_terminal_discard_fails(self):
-        """Player with a simple tile in discards does not qualify."""
+    def test_nagashi_mangan__when_non_terminal_discard__should_not_qualify(self):
         discards = (
             Discard(tile_id=0),  # 1m (terminal)
             Discard(tile_id=4),  # 2m (NOT terminal)
@@ -656,8 +608,7 @@ class TestNagashiManganDetection:
         qualifying = check_nagashi_mangan(round_state)
         assert 0 not in qualifying
 
-    def test_player_whose_discard_was_claimed_fails(self):
-        """Player whose discard was called by an opponent does not qualify."""
+    def test_nagashi_mangan__when_discard_was_claimed__should_not_qualify(self):
         discards = (
             Discard(tile_id=0),  # 1m
             Discard(tile_id=108),  # East
@@ -686,8 +637,7 @@ class TestNagashiManganDetection:
         qualifying = check_nagashi_mangan(round_state)
         assert 0 not in qualifying
 
-    def test_player_calling_others_tiles_can_still_qualify(self):
-        """Player who called another player's discard can still qualify for nagashi."""
+    def test_nagashi_mangan__when_player_called_others_tiles__should_still_qualify(self):
         # player 0 has all terminal discards, and called a pon from player 1
         discards = (
             Discard(tile_id=0),  # 1m
@@ -716,8 +666,7 @@ class TestNagashiManganDetection:
         # player 0 called from player 1, but their OWN discards were not claimed
         assert 0 in qualifying
 
-    def test_nagashi_disabled_by_setting(self):
-        """When has_nagashi_mangan=False, nagashi is not checked during exhaustive draw."""
+    def test_nagashi_mangan__when_disabled_by_setting__should_produce_regular_draw_result(self):
         discards = (
             Discard(tile_id=0),
             Discard(tile_id=32),
@@ -737,10 +686,7 @@ class TestNagashiManganDetection:
 
 
 class TestNagashiManganPayments:
-    """Nagashi mangan uses configurable payment amounts and no honba bonus."""
-
-    def test_custom_payment_amounts(self):
-        """Custom dealer/non-dealer payment amounts are used."""
+    def test_nagashi_mangan_payment__when_custom_amounts__should_use_them(self):
         settings = GameSettings(
             nagashi_mangan_dealer_payment=6000,
             nagashi_mangan_non_dealer_payment=3000,
@@ -762,8 +708,7 @@ class TestNagashiManganPayments:
         assert result.score_changes[2] == -3000  # non-dealer pays 3000
         assert result.score_changes[3] == -3000  # non-dealer pays 3000
 
-    def test_no_honba_bonus_in_nagashi_mangan(self):
-        """Nagashi mangan does not add honba bonus to payments."""
+    def test_nagashi_mangan_payment__when_honba__should_not_add_bonus(self):
         players = tuple(create_player(seat=i) for i in range(4))
         round_state = create_round_state(players=players, dealer_seat=0)
         game_state = create_game_state(

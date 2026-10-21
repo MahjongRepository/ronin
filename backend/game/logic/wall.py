@@ -1,23 +1,3 @@
-"""
-Wall state and operations for Mahjong.
-
-The Wall encapsulates all tile wall mechanics: the live wall for drawing,
-the dead wall for replacement draws and dora indicators, and dora management.
-
-Dead wall layout (14 tiles as 7 stacks of 2):
-  top row:    [0] [1] [2] [3] [4] [5] [6]
-  bottom row: [7] [8] [9] [10] [11] [12] [13]
-
-  Dora indicators: top row indices 2, 3, 4, 5, 6
-  Ura dora: bottom row indices 7, 8, 9, 10, 11
-  Replacement draws: indices 13, 12, 11, 10 (drawn right-to-left)
-
-Note: Rinshan replacement draws (indices 10-13) overlap with ura dora positions
-(indices 10-11). The ura dora tiles are captured eagerly into the
-ura_dora_indicators tuple at wall creation to prevent corruption when
-replenishment overwrites those positions.
-"""
-
 from pydantic import BaseModel, ConfigDict
 
 from game.logic.exceptions import InvalidActionError
@@ -44,7 +24,9 @@ LIVE_WALL_STACKS = TOTAL_STACKS - DEAD_WALL_STACKS  # 61
 
 
 class WallBreakInfo(BaseModel):
-    """Computed wall break position from dice roll."""
+    """
+    Computed wall break position from dice roll.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -54,7 +36,9 @@ class WallBreakInfo(BaseModel):
 
 
 class Wall(BaseModel):
-    """Immutable wall state for a mahjong round."""
+    """
+    Immutable wall state for a mahjong round.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -68,11 +52,11 @@ class Wall(BaseModel):
 
 
 def _extract_ura_dora(dead_wall_tiles: tuple[int, ...]) -> tuple[int, ...]:
-    """Extract ura dora tiles from the dead wall at creation time.
+    """
+    Extract ura dora tiles from the dead wall at creation time.
 
-    Captures tiles at bottom-row positions 7-11, corresponding to the
-    dora indicator positions 2-6. Stored eagerly because rinshan
-    replacement draws can overwrite positions 10-11.
+    Captures tiles at bottom-row positions 7-11, corresponding to the dora indicator positions 2-6. Stored eagerly
+    because rinshan replacement draws can overwrite positions 10-11.
     """
     ura_end = URA_DORA_START_INDEX + MAX_DORA_INDICATORS
     return tuple(dead_wall_tiles[i] for i in range(URA_DORA_START_INDEX, min(ura_end, len(dead_wall_tiles))))
@@ -143,8 +127,8 @@ def create_wall(seed: str, round_number: int, dealer_seat: int) -> Wall:
     """
     Generate a shuffled wall with dice-determined break position.
 
-    Shuffle tiles, roll dice, compute break position from dice + dealer_seat,
-    then split tiles into live wall and dead wall based on the break.
+    Shuffle tiles, roll dice, compute break position from dice + dealer_seat, then split tiles into live wall and dead
+    wall based on the break.
     """
     shuffled, dice = generate_shuffled_wall_and_dice(seed, round_number)
     live_tiles, dead_wall_tiles = _split_wall_by_dice(shuffled, dice, dealer_seat)
@@ -225,7 +209,11 @@ def deal_initial_hands(wall: Wall, dealer_seat: int) -> tuple[Wall, list[list[in
 
 
 def draw_tile(wall: Wall) -> tuple[Wall, int | None]:
-    """Draw from front of live wall. Returns (new_wall, tile) or (wall, None) if empty."""
+    """
+    Draw from front of live wall.
+
+    Returns (new_wall, tile) or (wall, None) if empty.
+    """
     if not wall.live_tiles:
         return wall, None
     tile = wall.live_tiles[0]
@@ -266,7 +254,9 @@ def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
 
 
 def add_dora_indicator(wall: Wall) -> tuple[Wall, int]:
-    """Reveal the next dora indicator from dead wall."""
+    """
+    Reveal the next dora indicator from dead wall.
+    """
     current_count = len(wall.dora_indicators)
     if current_count >= MAX_DORA_INDICATORS:
         raise InvalidActionError(f"Cannot add more than {MAX_DORA_INDICATORS} dora indicators")
@@ -280,7 +270,11 @@ def add_dora_indicator(wall: Wall) -> tuple[Wall, int]:
 
 
 def reveal_pending_dora(wall: Wall) -> tuple[Wall, list[int]]:
-    """Reveal all pending dora indicators. Resets pending count to 0."""
+    """
+    Reveal all pending dora indicators.
+
+    Resets pending count to 0.
+    """
     if wall.pending_dora_count == 0:
         return wall, []
 
@@ -295,7 +289,9 @@ def reveal_pending_dora(wall: Wall) -> tuple[Wall, list[int]]:
 
 
 def increment_pending_dora(wall: Wall) -> Wall:
-    """Increment pending dora count by 1 (for deferred kan dora)."""
+    """
+    Increment pending dora count by 1 (for deferred kan dora).
+    """
     total = len(wall.dora_indicators) + wall.pending_dora_count + 1
     if total > MAX_DORA_INDICATORS:
         raise InvalidActionError(
@@ -306,12 +302,16 @@ def increment_pending_dora(wall: Wall) -> Wall:
 
 
 def is_wall_exhausted(wall: Wall) -> bool:
-    """Check if live wall is empty."""
+    """
+    Check if live wall is empty.
+    """
     return len(wall.live_tiles) == 0
 
 
 def tiles_remaining(wall: Wall) -> int:
-    """Count tiles remaining in live wall."""
+    """
+    Count tiles remaining in live wall.
+    """
     return len(wall.live_tiles)
 
 
@@ -319,11 +319,10 @@ def collect_ura_dora_indicators(wall: Wall, *, include_kan_ura: bool) -> list[in
     """
     Get ura dora indicator tile IDs for riichi winners.
 
-    Uses the eagerly stored ura_dora_indicators tuple (captured at wall
-    creation) so that rinshan replenishment cannot corrupt the values.
+    Uses the eagerly stored ura_dora_indicators tuple (captured at wall creation) so that rinshan replenishment cannot
+    corrupt the values.
 
-    When include_kan_ura is False, return only 1 ura dora indicator.
-    When True, return one per revealed dora indicator.
+    When include_kan_ura is False, return only 1 ura dora indicator. When True, return one per revealed dora indicator.
     Returns empty list if no ura dora or dora indicators are available.
     """
     if not wall.ura_dora_indicators or not wall.dora_indicators:

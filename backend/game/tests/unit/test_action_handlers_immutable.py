@@ -1,10 +1,3 @@
-"""
-Unit tests for immutable action handlers.
-
-Tests verify that the immutable handler functions return
-new state objects and produce the expected events.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
@@ -75,14 +68,13 @@ def _default_seat_configs() -> list[SeatConfig]:
 
 
 def _create_frozen_game_state() -> MahjongGameState:
-    """Create a frozen game state for testing with dealer at seat 0."""
     game_state = init_game(_default_seat_configs(), wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
 
 class TestHandleDiscardImmutable:
-    def test_handle_discard_returns_new_state(self):
+    def test_handle_discard__should_remove_tile_in_new_state_and_emit_discard_event(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
         tile_to_discard = round_state.players[0].tiles[0]
@@ -111,7 +103,6 @@ class TestHandleDiscardImmutable:
 
 class TestHandleRiichiImmutable:
     def _create_riichi_hand(self) -> MahjongGameState:
-        """Create a state where player can declare riichi."""
         # use a different seed to get a riichi-able hand
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
@@ -121,8 +112,7 @@ class TestHandleRiichiImmutable:
         new_round_state = update_player(new_round_state, 0, tiles=tuple(tenpai_tiles[:14]), score=26000)
         return game_state.model_copy(update={"round_state": new_round_state})
 
-    def test_handle_riichi_success(self):
-        """Test successful riichi declaration."""
+    def test_handle_riichi__when_valid__should_emit_riichi_discard(self):
         game_state = self._create_riichi_hand()
         round_state = game_state.round_state
 
@@ -146,7 +136,7 @@ class TestHandleRiichiImmutable:
         assert discard_events[0].tile_id == tile_to_discard
         assert discard_events[0].is_riichi is True
 
-    def test_handle_riichi_wrong_turn(self):
+    def test_handle_riichi__when_not_players_turn__should_emit_not_your_turn_error(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -161,7 +151,6 @@ class TestHandleRiichiImmutable:
 
 class TestHandleTsumoImmutable:
     def _create_winning_game_state(self) -> MahjongGameState:
-        """Create a game state where player 0 has a winning hand."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -171,8 +160,7 @@ class TestHandleTsumoImmutable:
         round_state = update_player(round_state, 0, tiles=winning_tiles)
         return game_state.model_copy(update={"round_state": round_state})
 
-    def test_handle_tsumo_success(self):
-        """Test successful tsumo declaration."""
+    def test_handle_tsumo__when_valid__should_end_round_with_tsumo(self):
         game_state = self._create_winning_game_state()
         round_state = game_state.round_state
 
@@ -189,7 +177,6 @@ class TestHandleRonImmutable:
         self,
         pending_seats: frozenset[int] = frozenset({1, 2}),
     ) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with pending ron prompt for multiple seats."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -205,7 +192,6 @@ class TestHandleRonImmutable:
         return round_state, game_state
 
     def _create_ron_opportunity(self) -> tuple[MahjongGameState, int, int]:
-        """Create a game state where player 1 can ron on player 0's discard."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -218,8 +204,7 @@ class TestHandleRonImmutable:
 
         return game_state, win_tile, 0
 
-    def test_handle_ron_success(self):
-        """Test successful ron call."""
+    def test_handle_ron__when_valid__should_end_round_with_ron(self):
         game_state, win_tile, discarder_seat = self._create_ron_opportunity()
         round_state = game_state.round_state
 
@@ -241,8 +226,7 @@ class TestHandleRonImmutable:
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.RON
 
-    def test_handle_ron_adds_response_waiting_for_others(self):
-        """Test that ron adds response and waits when other callers are pending."""
+    def test_handle_ron__when_other_callers_pending__should_record_response_and_wait(self):
         round_state, game_state = self._create_ron_prompt_state(frozenset({1, 2}))
 
         result = handle_ron(round_state, game_state, seat=1)
@@ -263,7 +247,6 @@ class TestHandleRonImmutable:
 
 class TestHandlePonImmutable:
     def _create_pon_opportunity(self) -> tuple[MahjongGameState, int]:
-        """Create a game state where player 1 can pon."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -278,8 +261,7 @@ class TestHandlePonImmutable:
 
         return game_state, tile_to_pon
 
-    def test_handle_pon_success(self):
-        """Test successful pon call."""
+    def test_handle_pon__when_valid__should_emit_pon_meld_without_draw(self):
         game_state, tile_to_pon = self._create_pon_opportunity()
         round_state = game_state.round_state
 
@@ -309,7 +291,6 @@ class TestHandlePonImmutable:
 
 class TestHandleChiImmutable:
     def _create_chi_opportunity(self) -> tuple[MahjongGameState, int, tuple[int, int]]:
-        """Create a game state where player 1 can chi."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -324,8 +305,7 @@ class TestHandleChiImmutable:
         game_state = game_state.model_copy(update={"round_state": round_state})
         return game_state, tile_to_chi, (seq_tiles[0], seq_tiles[1])
 
-    def test_handle_chi_success(self):
-        """Test successful chi call."""
+    def test_handle_chi__when_valid__should_emit_chi_meld_without_draw(self):
         game_state, tile_to_chi, sequence_tiles = self._create_chi_opportunity()
         round_state = game_state.round_state
 
@@ -356,7 +336,7 @@ class TestHandleChiImmutable:
         draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
         assert len(draw_events) == 0
 
-    def test_handle_chi_no_prompt(self):
+    def test_handle_chi__when_no_prompt__should_emit_invalid_chi_error(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -375,7 +355,6 @@ class TestHandleChiImmutable:
 
 class TestHandleKanImmutable:
     def _create_closed_kan_opportunity(self) -> tuple[MahjongGameState, int]:
-        """Create a game state where player 0 can closed kan."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -387,8 +366,7 @@ class TestHandleKanImmutable:
         game_state = game_state.model_copy(update={"round_state": round_state})
         return game_state, TilesConverter.string_to_136_array(man="1")[0]
 
-    def test_handle_kan_success(self):
-        """Test successful closed kan."""
+    def test_handle_kan__when_closed_kan__should_emit_closed_kan_meld(self):
         game_state, tile_id = self._create_closed_kan_opportunity()
         round_state = game_state.round_state
 
@@ -404,7 +382,7 @@ class TestHandleKanImmutable:
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
 
-    def test_handle_kan_wrong_turn_closed(self):
+    def test_handle_kan__when_closed_kan_out_of_turn__should_emit_not_your_turn_error(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -421,7 +399,6 @@ class TestHandleKanImmutable:
         assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
 
     def _create_open_kan_opportunity(self) -> tuple[MahjongGameState, int]:
-        """Create a game state where player 1 can open kan after player 0 discards."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -434,8 +411,7 @@ class TestHandleKanImmutable:
 
         return game_state, tile_id
 
-    def test_handle_open_kan_success(self):
-        """Open kan through pending prompt records intent and resolves."""
+    def test_handle_kan__when_open_kan__should_emit_open_kan_meld(self):
         game_state, tile_id = self._create_open_kan_opportunity()
         round_state = game_state.round_state
 
@@ -466,7 +442,6 @@ class TestHandleKanImmutable:
 
 class TestHandleKyuushuImmutable:
     def _create_kyuushu_opportunity(self) -> MahjongGameState:
-        """Create a game state where player 0 can call kyuushu kyuuhai."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -482,7 +457,7 @@ class TestHandleKyuushuImmutable:
         round_state, _tile = draw_tile(round_state)
         return game_state.model_copy(update={"round_state": round_state})
 
-    def test_handle_kyuushu_success(self):
+    def test_handle_kyuushu__when_valid__should_end_round_with_nine_terminals(self):
         game_state = self._create_kyuushu_opportunity()
         round_state = game_state.round_state
 
@@ -499,7 +474,6 @@ class TestHandleKyuushuImmutable:
 
 class TestHandlePassImmutable:
     def _create_pass_prompt_state(self) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with pending prompt that can be passed."""
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -515,7 +489,6 @@ class TestHandlePassImmutable:
         return round_state, game_state
 
     def _create_four_riichi_state(self) -> tuple[MahjongRoundState, MahjongGameState, int]:
-        """Create state where passing finalizes 4th riichi (triggers abortive draw)."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -550,8 +523,7 @@ class TestHandlePassImmutable:
 
         return round_state, game_state, tile_to_discard
 
-    def test_handle_pass_four_riichi_abortive_draw(self):
-        """Pass finalizing 4th riichi triggers four riichi abortive draw."""
+    def test_handle_pass__when_fourth_riichi__should_end_round_with_four_riichi_draw(self):
         round_state, game_state, _tile = self._create_four_riichi_state()
 
         # handle_pass should finalize riichi and detect four riichi
@@ -565,7 +537,7 @@ class TestHandlePassImmutable:
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
         assert result.new_round_state.phase == RoundPhase.FINISHED
 
-    def test_handle_pass_applies_furiten(self):
+    def test_handle_pass__when_ron_available__should_apply_temporary_furiten(self):
         round_state, game_state = self._create_pass_prompt_state()
         original_furiten = round_state.players[1].is_temporary_furiten
 
@@ -577,8 +549,7 @@ class TestHandlePassImmutable:
         # original should be unchanged
         assert round_state.players[1].is_temporary_furiten == original_furiten
 
-    def test_handle_pass_riichi_player_sets_riichi_furiten(self):
-        """Test that passing on ron while in riichi sets riichi furiten."""
+    def test_handle_pass__when_riichi_player__should_set_riichi_furiten(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -604,8 +575,7 @@ class TestHandlePassImmutable:
 
 
 class TestResolveCallPromptImmutable:
-    def test_resolve_with_all_passes_on_meld_prompt(self):
-        """Test that prompt with no responses advances to next turn."""
+    def test_resolve_call_prompt__when_all_pass_on_meld_prompt__should_clear_prompt(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -631,12 +601,9 @@ class TestResolveCallPromptImmutable:
 
 
 class TestResolveMeldResponseImmutable:
-    """Tests for _resolve_meld_response via resolve_call_prompt."""
-
     def _create_pon_prompt_with_response(
         self,
     ) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with a pon response ready to resolve."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
 
@@ -660,8 +627,7 @@ class TestResolveMeldResponseImmutable:
         game_state = game_state.model_copy(update={"round_state": new_round_state})
         return new_round_state, game_state
 
-    def test_resolve_pon_response(self):
-        """Test resolving a pon call creates meld event and updates state."""
+    def test_resolve_meld_response__when_pon__should_emit_pon_meld(self):
         round_state, game_state = self._create_pon_prompt_with_response()
 
         result = resolve_call_prompt(round_state, game_state)
@@ -676,7 +642,6 @@ class TestResolveMeldResponseImmutable:
 
 class TestCompleteAddedKanAfterChankanDeclineImmutable:
     def _create_added_kan_state(self) -> tuple[MahjongRoundState, MahjongGameState, int]:
-        """Create state where a player has pon and can upgrade to kan."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
         player = new_round_state.players[0]
@@ -700,7 +665,7 @@ class TestCompleteAddedKanAfterChankanDeclineImmutable:
         game_state = game_state.model_copy(update={"round_state": new_round_state})
         return new_round_state, game_state, fourth_tile
 
-    def test_complete_added_kan_returns_new_state(self):
+    def test_complete_added_kan__should_return_new_state_with_added_kan_meld(self):
         round_state, game_state, tile_id = self._create_added_kan_state()
 
         new_round_state, new_game_state, events = complete_added_kan_after_chankan_decline(
@@ -719,12 +684,9 @@ class TestCompleteAddedKanAfterChankanDeclineImmutable:
 
 
 class TestResolveOpenKanResponseImmutable:
-    """Tests for open kan resolution that draws from dead wall."""
-
     def _create_open_kan_prompt(
         self,
     ) -> tuple[MahjongRoundState, MahjongGameState]:
-        """Create state with open kan response ready to resolve."""
         game_state = init_game(_default_seat_configs(), wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
 
@@ -748,8 +710,7 @@ class TestResolveOpenKanResponseImmutable:
         game_state = game_state.model_copy(update={"round_state": new_round_state})
         return new_round_state, game_state
 
-    def test_resolve_open_kan_response(self):
-        """Test resolving an open kan call draws from dead wall and creates events."""
+    def test_resolve_open_kan_response__should_emit_open_kan_meld_and_rinshan_draw(self):
         round_state, game_state = self._create_open_kan_prompt()
 
         result = resolve_call_prompt(round_state, game_state)

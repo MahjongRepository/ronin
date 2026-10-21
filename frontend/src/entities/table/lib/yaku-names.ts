@@ -1,5 +1,3 @@
-// Yaku ID → English name mapping for the mahjong Python library.
-// IDs 0–11: situational, 12–39: hand patterns, 100–119: yakuman, 120–122: dora.
 // eslint-disable-next-line sort-keys -- numeric ID order is more readable than string sort
 const YAKU_NAMES: Record<number, string> = {
     // Situational yaku

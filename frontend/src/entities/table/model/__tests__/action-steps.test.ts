@@ -3,7 +3,6 @@ import { describe, expect, test } from "vitest";
 import { type ActionStep, buildActionSteps } from "@/entities/table/model/action-steps";
 import { type ReplayEvent } from "@/entities/table/model/types";
 
-/** Creates a minimal ReplayEvent with only the type field set. */
 function event(type: ReplayEvent["type"]): ReplayEvent {
     return { type } as ReplayEvent;
 }

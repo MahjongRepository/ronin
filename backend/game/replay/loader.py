@@ -1,14 +1,3 @@
-"""Replay loader: parse ReplayCollector event-log format into ReplayInput.
-
-The ReplayCollector writes gameplay events as newline-delimited JSON objects.
-This module reads that format, extracts player actions from the event
-stream, and constructs a validated ReplayInput for the replay runner.
-
-Event types that represent player actions are mapped via an explicit allowlist.
-Unknown event types raise ReplayLoadError to surface new action-producing
-events rather than silently dropping them.
-"""
-
 from __future__ import annotations
 
 import gzip
@@ -47,11 +36,14 @@ _NON_ACTION_EVENTS = frozenset(
 
 
 class ReplayLoadError(Exception):
-    """Raised when a replay file cannot be loaded or parsed."""
+    """
+    Raised when a replay file cannot be loaded or parsed.
+    """
 
 
 def _validate_version_tag(tag: dict[str, Any]) -> str:
-    """Validate the version tag (first line of the replay file).
+    """
+    Validate the version tag (first line of the replay file).
 
     Return the version string.
     """
@@ -64,7 +56,8 @@ def _validate_version_tag(tag: dict[str, Any]) -> str:
 
 
 def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[str, Any]]]:
-    """Validate and extract fields from the game_started event.
+    """
+    Validate and extract fields from the game_started event.
 
     Returns (seed, rng_version, players).
     """
@@ -96,7 +89,9 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
 
 
 def load_replay_from_string(content: str) -> ReplayInput:
-    """Parse newline-delimited JSON objects into ReplayInput."""
+    """
+    Parse newline-delimited JSON objects into ReplayInput.
+    """
     content = content.strip()
     if not content:
         raise ReplayLoadError("Empty replay content")
@@ -133,7 +128,8 @@ def load_replay_from_string(content: str) -> ReplayInput:
 
 
 def load_replay_from_file(path: str | Path) -> ReplayInput:
-    """Load a replay from a file path.
+    """
+    Load a replay from a file path.
 
     Supports both plain text and gzip-compressed (.gz) replay files.
     """
@@ -150,7 +146,9 @@ def load_replay_from_file(path: str | Path) -> ReplayInput:
 
 
 def _extract_seat_to_name(players: list[dict[str, Any]]) -> dict[int, str]:
-    """Extract seat-to-name mapping from game_started players, validating structure."""
+    """
+    Extract seat-to-name mapping from game_started players, validating structure.
+    """
     seat_to_name: dict[int, str] = {}
     for i, player in enumerate(players):
         if not isinstance(player, dict):
@@ -172,7 +170,8 @@ def _reconstruct_input_order(
     seed: str,
     seat_to_name: dict[int, str],
 ) -> tuple[str, str, str, str]:
-    """Reconstruct the original player name input order from the seed.
+    """
+    Reconstruct the original player name input order from the seed.
 
     During replay, fill_seats receives all 4 names (human + AI) and calls
     rng.sample(range(4), 4) to assign seats. This function inverts that
@@ -195,11 +194,12 @@ def _extract_action(
     event: dict[str, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
-    """Extract player action(s) from a single event-log entry.
+    """
+    Extract player action(s) from a single event-log entry.
 
-    Return a list of ReplayInputEvent (usually one, two for double_ron),
-    or None if the event does not represent a player action.
-    Raise ReplayLoadError for unknown event types.
+    Return a list of ReplayInputEvent (usually one, two for double_ron), or None if the event does not represent a
+    player action. Raise ReplayLoadError for unknown event types, so a new action-producing event fails loudly instead
+    of being silently dropped from the replay.
     """
     event_type = event.get("t")
     if event_type is None:
@@ -223,7 +223,9 @@ def _extract_action(
 
 
 def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
-    """Parse a discard event from packed integer encoding."""
+    """
+    Parse a discard event from packed integer encoding.
+    """
     d = event.get("d")
     if d is None:
         raise ReplayLoadError("discard event missing 'd' field")
@@ -244,7 +246,9 @@ def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> Repla
 
 
 def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
-    """Parse a compact meld event {"t": 0, "m": <IMME_int>} into a call action."""
+    """
+    Parse a compact meld event {"t": 0, "m": <IMME_int>} into a call action.
+    """
     imme_value = event.get("m")
     if imme_value is None:
         raise ReplayLoadError("Compact meld event missing 'm' field")
@@ -273,7 +277,9 @@ def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> 
 
 
 def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
-    """Parse a chi action from a decoded MeldData dict."""
+    """
+    Parse a chi action from a decoded MeldData dict.
+    """
     called_tile_id = meld_data["called_tile_id"]
     tile_ids = meld_data["tile_ids"]
     sequence_tiles = [t for t in tile_ids if t != called_tile_id]
@@ -285,7 +291,9 @@ def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 
 def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
-    """Parse a pon action from a decoded MeldData dict."""
+    """
+    Parse a pon action from a decoded MeldData dict.
+    """
     called_tile_id = meld_data["called_tile_id"]
     return ReplayInputEvent(
         player_name=player_name,
@@ -295,7 +303,9 @@ def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 
 def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
-    """Parse a kan action from a decoded MeldData dict."""
+    """
+    Parse a kan action from a decoded MeldData dict.
+    """
     meld_type = meld_data["meld_type"]
     kan_type_map = {"open_kan": "open", "closed_kan": "closed", "added_kan": "added"}
     kan_type = kan_type_map[meld_type]
@@ -313,7 +323,9 @@ def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
 
 
 def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
-    """Parse a round_end event into player action(s), if any."""
+    """
+    Parse a round_end event into player action(s), if any.
+    """
     result_type = event.get("rt")
 
     if result_type == WireRoundResultType.TSUMO:
@@ -331,7 +343,9 @@ def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> lis
 
 
 def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
-    """Parse a tsumo round_end result."""
+    """
+    Parse a tsumo round_end result.
+    """
     try:
         winner_seat = result["ws"]
         player_name = seat_to_name[winner_seat]
@@ -341,7 +355,9 @@ def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str])
 
 
 def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
-    """Parse a ron round_end result."""
+    """
+    Parse a ron round_end result.
+    """
     try:
         winner_seat = result["ws"]
         player_name = seat_to_name[winner_seat]
@@ -354,7 +370,9 @@ def _parse_double_ron_round_end(
     result: dict[str, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
-    """Parse a double_ron round_end result."""
+    """
+    Parse a double_ron round_end result.
+    """
     winners = result.get("wn", [])
     if not winners:
         raise ReplayLoadError("double_ron round_end must have at least one winner")
@@ -374,7 +392,9 @@ def _parse_abortive_draw_round_end(
     result: dict[str, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
-    """Parse an abortive_draw round_end result."""
+    """
+    Parse an abortive_draw round_end result.
+    """
     reason = result.get("rn")
     if reason != "nine_terminals":
         # Other abortive draws (four_riichi, etc.) are not player actions

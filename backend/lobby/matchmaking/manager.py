@@ -1,5 +1,3 @@
-"""Matchmaking queue manager."""
-
 from __future__ import annotations
 
 import asyncio
@@ -12,10 +10,10 @@ logger = structlog.get_logger()
 
 
 class MatchmakingManager:
-    """Manage the matchmaking queue.
+    """
+    Manage the matchmaking queue.
 
-    Pure state management -- no WebSocket I/O. The WebSocket handler
-    calls manager methods and handles responses.
+    Pure state management -- no WebSocket I/O. The WebSocket handler calls manager methods and handles responses.
     """
 
     def __init__(self) -> None:
@@ -25,7 +23,8 @@ class MatchmakingManager:
         self._lock = asyncio.Lock()
 
     def add_player(self, entry: QueueEntry) -> None:
-        """Add a player to the matchmaking queue.
+        """
+        Add a player to the matchmaking queue.
 
         Caller must hold self._lock.
         """
@@ -35,7 +34,8 @@ class MatchmakingManager:
         self._user_ids.add(entry.user_id)
 
     def remove_player(self, connection_id: str) -> None:
-        """Remove a player from the queue by connection_id.
+        """
+        Remove a player from the queue by connection_id.
 
         Caller must hold self._lock.
         """
@@ -46,7 +46,8 @@ class MatchmakingManager:
                 return
 
     def try_match(self) -> list[QueueEntry] | None:
-        """Pop MATCHMAKING_SEATS players if enough in queue, else None.
+        """
+        Pop MATCHMAKING_SEATS players if enough in queue, else None.
 
         Caller must hold self._lock.
         """
@@ -60,10 +61,10 @@ class MatchmakingManager:
         return None
 
     def requeue_at_front(self, entries: list[QueueEntry]) -> None:
-        """Re-insert entries at the front of the queue.
+        """
+        Re-insert entries at the front of the queue.
 
-        Used when game creation fails after popping a match.
-        Caller must hold self._lock.
+        Used when game creation fails after popping a match. Caller must hold self._lock.
         """
         for entry in reversed(entries):
             self._in_flight.discard(entry.user_id)
@@ -80,17 +81,18 @@ class MatchmakingManager:
         return len(self._queue)
 
     def get_queue_entries(self) -> list[QueueEntry]:
-        """Return a snapshot of current queue entries.
+        """
+        Return a snapshot of current queue entries.
 
         Caller must hold self._lock.
         """
         return list(self._queue)
 
     def clear_in_flight(self, user_ids: set[str]) -> None:
-        """Remove user IDs from the in-flight set.
+        """
+        Remove user IDs from the in-flight set.
 
-        Called after match resolution for users not being requeued.
-        Caller must hold self._lock.
+        Called after match resolution for users not being requeued. Caller must hold self._lock.
         """
         self._in_flight -= user_ids
 

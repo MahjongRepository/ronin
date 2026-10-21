@@ -1,5 +1,3 @@
-"""Tests for lobby handler utility functions."""
-
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -11,24 +9,24 @@ from shared.dal.models import PlayedGame, PlayedGameStanding
 
 
 class TestLoadViteManifest:
-    def test_missing_manifest_returns_empty_dict(self, tmp_path):
+    def test_load_vite_manifest__when_manifest_missing__should_return_empty_dict(self, tmp_path):
         assert load_vite_manifest(str(tmp_path)) == {}
 
-    def test_malformed_json_raises_value_error(self, tmp_path):
+    def test_load_vite_manifest__when_json_malformed__should_raise_value_error(self, tmp_path):
         vite_dir = tmp_path / ".vite"
         vite_dir.mkdir()
         (vite_dir / "manifest.json").write_text("not valid json{{{")
         with pytest.raises(ValueError, match=r"Malformed manifest\.json"):
             load_vite_manifest(str(tmp_path))
 
-    def test_non_dict_json_raises_type_error(self, tmp_path):
+    def test_load_vite_manifest__when_json_not_object__should_raise_type_error(self, tmp_path):
         vite_dir = tmp_path / ".vite"
         vite_dir.mkdir()
         (vite_dir / "manifest.json").write_text('["not", "a", "dict"]')
         with pytest.raises(TypeError, match=r"must be a JSON object"):
             load_vite_manifest(str(tmp_path))
 
-    def test_valid_manifest_returns_dict(self, tmp_path):
+    def test_load_vite_manifest__when_manifest_valid__should_return_dict(self, tmp_path):
         vite_dir = tmp_path / ".vite"
         vite_dir.mkdir()
         manifest = {"src/index.ts": {"file": "assets/game-abc.js", "isEntry": True}}
@@ -37,10 +35,10 @@ class TestLoadViteManifest:
 
 
 class TestResolveViteAssetUrls:
-    def test_empty_manifest(self):
+    def test_resolve_vite_asset_urls__when_manifest_empty__should_return_empty_dict(self):
         assert resolve_vite_asset_urls({}) == {}
 
-    def test_full_manifest(self):
+    def test_resolve_vite_asset_urls__when_full_manifest__should_resolve_game_and_lobby_urls(self):
         manifest = {
             "src/index.ts": {
                 "file": "assets/game-abc123.js",
@@ -59,8 +57,7 @@ class TestResolveViteAssetUrls:
         assert urls["lobby_js"] == "/game-assets/assets/lobby-ghi789.js"
         assert urls["lobby_css"] == "/game-assets/assets/lobby-jkl012.css"
 
-    def test_lobby_entry_css_extracted(self):
-        """Lobby entry produces both JS and extracted CSS."""
+    def test_resolve_vite_asset_urls__when_lobby_entry_only__should_resolve_lobby_js_and_css(self):
         manifest = {
             "src/lobby/index.ts": {
                 "file": "assets/lobby-abc123.js",
@@ -72,16 +69,14 @@ class TestResolveViteAssetUrls:
         assert urls["lobby_js"] == "/game-assets/assets/lobby-abc123.js"
         assert urls["lobby_css"] == "/game-assets/assets/lobby-def456.css"
 
-    def test_partial_manifest_no_file_key(self):
-        """Entry without 'file' key is skipped gracefully (no KeyError)."""
+    def test_resolve_vite_asset_urls__when_entry_has_no_file__should_omit_game_js(self):
         manifest = {
             "src/index.ts": {"isEntry": True},
         }
         urls = resolve_vite_asset_urls(manifest)
         assert "game_js" not in urls
 
-    def test_partial_manifest_missing_entries(self):
-        """Only present entries are resolved."""
+    def test_resolve_vite_asset_urls__when_lobby_entry_missing__should_omit_lobby_urls(self):
         manifest = {
             "src/index.ts": {
                 "file": "assets/game.js",
@@ -96,23 +91,23 @@ class TestResolveViteAssetUrls:
 
 
 class TestFormatDuration:
-    def test_seconds_only(self):
+    def test_format_duration__when_under_a_minute__should_show_seconds(self):
         now = datetime.now(UTC)
         assert _format_duration(now - timedelta(seconds=45), now) == "45s"
 
-    def test_zero_seconds(self):
+    def test_format_duration__when_zero__should_show_0s(self):
         now = datetime.now(UTC)
         assert _format_duration(now, now) == "0s"
 
-    def test_minutes_and_seconds(self):
+    def test_format_duration__when_minutes_and_seconds__should_show_both(self):
         now = datetime.now(UTC)
         assert _format_duration(now - timedelta(minutes=5, seconds=30), now) == "5m 30s"
 
-    def test_exact_minutes(self):
+    def test_format_duration__when_exact_minutes__should_show_zero_seconds(self):
         now = datetime.now(UTC)
         assert _format_duration(now - timedelta(minutes=10), now) == "10m 0s"
 
-    def test_hours_and_minutes(self):
+    def test_format_duration__when_over_an_hour__should_show_hours_and_minutes(self):
         now = datetime.now(UTC)
         assert _format_duration(now - timedelta(hours=1, minutes=12), now) == "1h 12m"
 
@@ -127,8 +122,7 @@ def _make_standing(
 
 
 class TestPrepareGamesForDisplay:
-    def test_completed_game_identifies_winner(self):
-        """First player in standings (placement order) is marked as winner."""
+    def test_prepare_history_for_display__when_game_completed__should_mark_winner_and_labels(self):
         now = datetime.now(UTC)
         game = PlayedGame(
             game_id="game-1",
@@ -156,8 +150,7 @@ class TestPrepareGamesForDisplay:
         assert entry["game_type_label"] == "南"
         assert entry["duration_label"] == "30m 0s"
 
-    def test_in_progress_game_has_no_winner(self):
-        """Games without scores (in progress) have no winner and active status."""
+    def test_prepare_history_for_display__when_game_in_progress__should_have_no_winner(self):
         now = datetime.now(UTC)
         game = PlayedGame(
             game_id="game-2",
@@ -173,8 +166,7 @@ class TestPrepareGamesForDisplay:
         assert entry["status"] == "active"
         assert entry["duration_label"] is None
 
-    def test_abandoned_game_status(self):
-        """Abandoned games show 'active' status and preserve standings without scores."""
+    def test_prepare_history_for_display__when_game_abandoned__should_show_active_status(self):
         now = datetime.now(UTC)
         game = PlayedGame(
             game_id="game-3",
@@ -189,20 +181,19 @@ class TestPrepareGamesForDisplay:
         assert all(not p["is_winner"] for p in entry["players"])
         assert entry["duration_label"] == "5m 0s"
 
-    def test_tonpusen_game_type_label(self):
+    def test_prepare_history_for_display__when_tonpusen__should_label_east(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="tonpusen")
         result = _prepare_history_for_display([game])
         assert result[0]["game_type_label"] == "東"
 
-    def test_unknown_game_type_label_is_empty(self):
+    def test_prepare_history_for_display__when_game_type_unknown__should_use_empty_label(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="")
         result = _prepare_history_for_display([game])
         assert result[0]["game_type_label"] == ""
 
-    def test_short_duration_shows_seconds(self):
-        """Games lasting under 60 seconds display in seconds."""
+    def test_prepare_history_for_display__when_game_under_a_minute__should_show_seconds(self):
         now = datetime.now(UTC)
         game = PlayedGame(
             game_id="g",
@@ -213,8 +204,7 @@ class TestPrepareGamesForDisplay:
         result = _prepare_history_for_display([game])
         assert result[0]["duration_label"] == "30s"
 
-    def test_empty_standings_produces_no_players(self):
-        """Games with no standings (e.g. game state was unavailable) produce an empty players list."""
+    def test_prepare_history_for_display__when_standings_empty__should_have_no_players(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, standings=[])
         result = _prepare_history_for_display([game])

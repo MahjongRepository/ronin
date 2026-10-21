@@ -1,10 +1,3 @@
-"""
-Tests for unified DISCARD prompt adjudication.
-
-Covers the core scenarios where a single discard creates ONE prompt
-containing both ron and meld callers, ensuring priority-based resolution.
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -32,17 +25,13 @@ from game.tests.conftest import create_game_state, create_player, create_round_s
 
 
 def _make_wall_and_dead_wall():
-    """Create standard wall and dead wall for testing."""
     wall = tuple(TilesConverter.string_to_136_array(man="5555"))
     dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
     return wall, dead_wall
 
 
 class TestRonPlusMeldCallersRonWins:
-    """Scenario 1: Ron + meld callers, ron wins."""
-
-    def test_ron_caller_wins_over_meld_caller(self):
-        """Player A discards, B can ron, C can pon -> B calls ron -> ron resolves."""
+    def test_discard_claim__when_ron_and_meld_callers__should_resolve_ron(self):
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
@@ -98,10 +87,7 @@ class TestRonPlusMeldCallersRonWins:
 
 
 class TestRonPassMeldClaims:
-    """Scenario 2: Ron caller passes, meld caller claims."""
-
-    def test_ron_passes_meld_claims_pon(self):
-        """Player A discards, B can ron, C can pon -> B passes, C calls pon -> pon executes."""
+    def test_discard_claim__when_ron_caller_passes_and_pon_claimed__should_execute_pon(self):
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
@@ -157,10 +143,7 @@ class TestRonPassMeldClaims:
 
 
 class TestAllCallersPass:
-    """Scenario 3: Ron and meld callers both pass -> turn advances."""
-
-    def test_all_pass_advances_turn(self):
-        """Player A discards, B can ron, C can pon -> both pass -> turn advances."""
+    def test_discard_claim__when_all_callers_pass__should_advance_turn(self):
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
@@ -208,10 +191,7 @@ class TestAllCallersPass:
 
 
 class TestMultipleRonPlusMeld:
-    """Scenario 4: Two ron callers + meld caller -> ron wins."""
-
-    def test_two_ron_plus_meld_ron_wins(self):
-        """Two ron callers and one meld caller on DISCARD prompt -> double ron resolves."""
+    def test_discard_claim__when_two_ron_callers_and_meld_caller__should_resolve_double_ron(self):
         ron_hand_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         ron_hand_2 = tuple(TilesConverter.string_to_136_array(sou="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
@@ -256,10 +236,7 @@ class TestMultipleRonPlusMeld:
 
 
 class TestAllRonPassMeldWins:
-    """Scenario 5: All ron callers pass -> highest-priority meld wins."""
-
-    def test_ron_passes_pon_wins_over_chi(self):
-        """Ron caller passes, pon and chi compete -> pon wins."""
+    def test_discard_claim__when_ron_callers_pass_and_pon_and_chi_claimed__should_execute_pon(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
         chi_tiles = TilesConverter.string_to_136_array(pin="24")
@@ -310,10 +287,7 @@ class TestAllRonPassMeldWins:
 
 
 class TestDualEligibleSeatRonDominant:
-    """Scenario 6: Seat is both ron and meld eligible -> ron-dominant policy."""
-
-    def test_dual_eligible_seat_gets_ron_only(self):
-        """Seat eligible for both ron AND pon gets only ron option."""
+    def test_discard_claim__when_seat_eligible_for_ron_and_meld__should_offer_ron_only(self):
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -348,8 +322,7 @@ class TestDualEligibleSeatRonDominant:
         assert len(seat1_callers) >= 1
         assert len(seat1_melds) == 0
 
-    def test_pon_rejected_for_ron_caller(self):
-        """CALL_PON is rejected for a seat that is a ron caller on a DISCARD prompt."""
+    def test_discard_claim__when_ron_caller_responds_pon__should_reject(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
@@ -378,10 +351,7 @@ class TestDualEligibleSeatRonDominant:
 
 
 class TestDualEligibleSeatPassFuriten:
-    """Scenario 7: Dual-eligible seat passes -> furiten applied."""
-
-    def test_pass_on_ron_eligible_discard_applies_furiten(self):
-        """Seat passing on a DISCARD prompt where it's a ron caller gets furiten."""
+    def test_discard_claim__when_pass_on_ron_eligible_discard__should_apply_furiten(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
@@ -409,8 +379,7 @@ class TestDualEligibleSeatPassFuriten:
 
         assert result.new_round_state.players[1].is_temporary_furiten is True
 
-    def test_pass_on_meld_only_no_furiten(self):
-        """Seat passing on a DISCARD prompt where it's only a meld caller does NOT get furiten."""
+    def test_discard_claim__when_pass_on_meld_only_discard__should_not_apply_furiten(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
@@ -440,10 +409,7 @@ class TestDualEligibleSeatPassFuriten:
 
 
 class TestRiichiFinalizationAfterRonPass:
-    """Scenario 8: Riichi finalization after ron pass + meld claim."""
-
-    def test_riichi_finalized_before_meld_execution(self):
-        """Riichi is finalized when ron passes and meld claims on a riichi discard."""
+    def test_discard_claim__when_riichi_discard_claimed_by_meld__should_finalize_riichi_first(self):
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
         pon_tiles = TilesConverter.string_to_136_array(sou="55")
         other_tiles = TilesConverter.string_to_136_array(man="123456789", pin="11")
@@ -498,10 +464,7 @@ class TestRiichiFinalizationAfterRonPass:
 
 
 class TestFourRiichiAbortAfterRonPass:
-    """Scenario 9: Four riichi abort after ron pass."""
-
-    def test_four_riichi_abort_on_discard_resolution(self):
-        """All 4 in riichi, ron opportunity -> ron passes -> riichi finalized -> four riichi abort."""
+    def test_discard_claim__when_fourth_riichi_discard_unclaimed__should_abort_four_riichi(self):
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
         players = tuple(
@@ -547,10 +510,7 @@ class TestFourRiichiAbortAfterRonPass:
 
 
 class TestHandleRonOnDiscardPrompt:
-    """Verify handle_ron works correctly with DISCARD prompt type."""
-
-    def test_handle_ron_on_discard_prompt(self):
-        """handle_ron succeeds for a ron caller on a DISCARD prompt."""
+    def test_discard_claim__when_ron_called_with_other_callers_pending__should_record_response_and_keep_prompt(self):
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -592,10 +552,7 @@ class TestHandleRonOnDiscardPrompt:
 
 
 class TestHandlePassThenResolve:
-    """End-to-end handle_pass flow through resolution on DISCARD prompt."""
-
-    def test_pass_from_both_callers_resolves(self):
-        """Both callers pass on DISCARD prompt -> resolves to all-passed."""
+    def test_discard_claim__when_both_callers_pass__should_clear_prompt_and_advance_turn(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
@@ -632,15 +589,7 @@ class TestHandlePassThenResolve:
 
 
 class TestLastDiscardRestriction:
-    """Last discard restriction: only ron allowed when live wall is empty.
-
-    When the live wall has 0 tiles after a player draws (last tile drawn),
-    the resulting discard cannot be called for chi, pon, or kan. Only ron
-    (Houtei Raoyui) is permitted.
-    """
-
-    def test_pon_blocked_on_last_discard(self):
-        """Pon is not offered when the live wall is empty."""
+    def test_discard_claim__when_last_discard__should_block_pon(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         pon_tiles = TilesConverter.string_to_136_array(pin="33")
         # tiles that do NOT form a winning hand with pin333
@@ -672,8 +621,7 @@ class TestLastDiscardRestriction:
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 0
 
-    def test_chi_blocked_on_last_discard(self):
-        """Chi is not offered when the live wall is empty."""
+    def test_discard_claim__when_last_discard__should_block_chi(self):
         discard_tile = TilesConverter.string_to_136_array(pin="5")[0]
         chi_tiles = TilesConverter.string_to_136_array(pin="46")
         # tiles that do NOT form a winning hand with pin456
@@ -704,8 +652,7 @@ class TestLastDiscardRestriction:
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
         assert len(call_prompts) == 0
 
-    def test_ron_allowed_on_last_discard(self):
-        """Ron (Houtei) is still allowed when the live wall is empty."""
+    def test_discard_claim__when_last_discard__should_allow_ron(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
 
@@ -739,8 +686,7 @@ class TestLastDiscardRestriction:
         for caller in prompt.callers:
             assert isinstance(caller, int), f"expected ron caller (int), got MeldCaller: {caller}"
 
-    def test_pon_and_ron_on_last_discard_only_ron_offered(self):
-        """When both pon and ron are possible on last discard, only ron caller is in the prompt."""
+    def test_discard_claim__when_last_discard_pon_and_ron_possible__should_offer_ron_only(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         pon_tiles = TilesConverter.string_to_136_array(pin="33")

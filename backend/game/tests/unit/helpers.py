@@ -41,7 +41,6 @@ def _string_to_136_tile(
 
 
 def _find_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
-    """Find a player by name."""
     for player in round_state.players:
         if player.name == name:
             return player
@@ -53,12 +52,6 @@ def _update_round_state(
     game_id: str,
     **updates: object,
 ) -> MahjongRoundState:
-    """
-    Update round state for testing with frozen state.
-
-    Creates a new frozen round state with the given updates and assigns it to the game.
-    Returns the new round state.
-    """
     game_state = service._games[game_id]
     new_round = game_state.round_state.model_copy(update=updates)
     new_game = game_state.model_copy(update={"round_state": new_round})
@@ -72,12 +65,6 @@ def _update_player(
     seat: int,
     **updates: object,
 ) -> MahjongPlayer:
-    """
-    Update a player's state for testing with frozen state.
-
-    Creates a new frozen player with the given updates and assigns it to the game.
-    Returns the new player.
-    """
     game_state = service._games[game_id]
     round_state = game_state.round_state
     players = list(round_state.players)

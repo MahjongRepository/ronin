@@ -1,5 +1,3 @@
-"""Tests for the scoped HTTPException handler that returns JSON for protected API auth errors."""
-
 from __future__ import annotations
 
 from starlette.exceptions import HTTPException
@@ -11,8 +9,6 @@ _auth_error_handler = _make_auth_error_handler({"/rooms", "/servers", "/rooms/",
 
 
 def _make_request(path: str = "/rooms") -> object:
-    """Build a minimal fake request with a url.path attribute."""
-
     class FakeURL:
         def __init__(self, path: str) -> None:
             self.path = path
@@ -25,7 +21,7 @@ def _make_request(path: str = "/rooms") -> object:
 
 
 class TestAuthErrorHandler:
-    async def test_401_on_rooms_returns_json(self) -> None:
+    async def test_auth_error_handler__when_401_on_rooms__should_return_json(self) -> None:
         request = _make_request("/rooms")
         exc = HTTPException(status_code=401)
 
@@ -35,7 +31,7 @@ class TestAuthErrorHandler:
         assert result.status_code == 401
         assert result.body == b'{"error":"Authentication required"}'
 
-    async def test_401_on_non_api_path_returns_plain_text(self) -> None:
+    async def test_auth_error_handler__when_401_on_non_api_path__should_return_plain_text(self) -> None:
         request = _make_request("/some-other-page")
         exc = HTTPException(status_code=401)
 
@@ -44,7 +40,7 @@ class TestAuthErrorHandler:
         assert isinstance(result, PlainTextResponse)
         assert result.status_code == 401
 
-    async def test_404_returns_plain_text(self) -> None:
+    async def test_auth_error_handler__when_404__should_return_plain_text(self) -> None:
         request = _make_request("/rooms")
         exc = HTTPException(status_code=404, detail="Not Found")
 
@@ -54,7 +50,7 @@ class TestAuthErrorHandler:
         assert result.status_code == 404
         assert result.body == b"Not Found"
 
-    async def test_204_returns_empty_response(self) -> None:
+    async def test_auth_error_handler__when_204__should_return_empty_response(self) -> None:
         request = _make_request("/rooms")
         exc = HTTPException(status_code=204)
 

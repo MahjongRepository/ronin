@@ -1,5 +1,3 @@
-"""WebSocket handler for matchmaking queue."""
-
 from __future__ import annotations
 
 import contextlib
@@ -27,7 +25,9 @@ logger = structlog.get_logger()
 
 
 class _MatchmakingContext:
-    """Bundles per-connection state extracted from app.state."""
+    """
+    Bundles per-connection state extracted from app.state.
+    """
 
     __slots__ = (
         "auth_settings",
@@ -52,7 +52,9 @@ class _MatchmakingContext:
 
 
 async def matchmaking_websocket(websocket: WebSocket) -> None:
-    """Handle a WebSocket connection for matchmaking."""
+    """
+    Handle a WebSocket connection for matchmaking.
+    """
     if not check_origin(websocket):
         await websocket.close(code=4003, reason="forbidden_origin")
         return
@@ -78,11 +80,11 @@ async def matchmaking_websocket(websocket: WebSocket) -> None:
 
 
 async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> bool:
-    """Attempt to join the matchmaking queue.
+    """
+    Attempt to join the matchmaking queue.
 
-    Return True if the player should enter the message loop (queued or re-queued
-    after match failure). Return False if the connection was rejected or a game
-    was successfully created.
+    Return True if the player should enter the message loop (queued or re-queued after match failure). Return False if
+    the connection was rejected or a game was successfully created.
     """
     log = logger.bind(username=ctx.username, connection_id=ctx.connection_id)
 
@@ -152,7 +154,9 @@ async def _message_loop(websocket: WebSocket) -> None:
 
 
 async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> None:
-    """Create a game for matched players and send game_starting to each."""
+    """
+    Create a game for matched players and send game_starting to each.
+    """
     game_id = str(uuid.uuid4())
     log = logger.bind(game_id=game_id)
 
@@ -229,7 +233,10 @@ async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> 
 
 
 async def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | None = None) -> None:
-    """Send queue_update to all players currently in the queue."""
+    """
+    Send queue_update to all players currently in the queue.
+    """
+
     async with ctx.matchmaking_manager.lock:
         queue_size = ctx.matchmaking_manager.queue_size
         entries = ctx.matchmaking_manager.get_queue_entries()
@@ -243,7 +250,10 @@ async def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | No
 
 
 async def _cleanup_connection(ctx: _MatchmakingContext) -> None:
-    """Remove player from queue on disconnect."""
+    """
+    Remove player from queue on disconnect.
+    """
+
     async with ctx.matchmaking_manager.lock:
         ctx.matchmaking_manager.remove_player(ctx.connection_id)
 

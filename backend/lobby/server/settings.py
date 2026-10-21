@@ -1,5 +1,3 @@
-"""Lobby server configuration via environment variables."""
-
 from pathlib import Path
 from typing import TYPE_CHECKING
 

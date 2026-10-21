@@ -1,9 +1,3 @@
-"""
-AI player decision making for mahjong game.
-
-Tsumogiri AI player: always discards the last drawn tile and passes on all calls.
-"""
-
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -18,7 +12,9 @@ if TYPE_CHECKING:
 
 
 class AIPlayerStrategy(Enum):
-    """Available AI player strategies."""
+    """
+    Available AI player strategies.
+    """
 
     TSUMOGIRI = "tsumogiri"
 
@@ -27,9 +23,8 @@ class AIPlayer:
     """
     AI player with configurable decision-making strategy.
 
-    All decision methods are on this class so subclasses or alternative strategies
-    can override them. The base implementation is tsumogiri: always discard the
-    last drawn tile and pass on all call opportunities.
+    All decision methods are on this class so subclasses or alternative strategies can override them. The base
+    implementation is tsumogiri: always discard the last drawn tile and pass on all call opportunities.
     """
 
     def __init__(self, strategy: AIPlayerStrategy = AIPlayerStrategy.TSUMOGIRI) -> None:
@@ -41,7 +36,9 @@ class AIPlayer:
         discarded_tile: int,
         round_state: MahjongRoundState,
     ) -> bool:
-        """Decide whether to call pon on a discarded tile."""
+        """
+        Decide whether to call pon on a discarded tile.
+        """
         return False
 
     def should_call_chi(
@@ -65,7 +62,9 @@ class AIPlayer:
         tile_34: int,
         round_state: MahjongRoundState,
     ) -> bool:
-        """Decide whether to call kan."""
+        """
+        Decide whether to call kan.
+        """
         return False
 
     def should_call_ron(
@@ -74,7 +73,9 @@ class AIPlayer:
         discarded_tile: int,
         round_state: MahjongRoundState,
     ) -> bool:
-        """Decide whether to call ron on a discarded tile."""
+        """
+        Decide whether to call ron on a discarded tile.
+        """
         return False
 
     def select_discard(

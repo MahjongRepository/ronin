@@ -28,8 +28,7 @@ from .helpers import create_started_game, make_dummy_game_view, make_game_with_p
 
 
 class TestSessionManagerTimers:
-    async def test_game_cleanup_removes_timer_and_lock(self, manager):
-        """Leaving a game cleans up timer and lock."""
+    async def test_session_timers__when_game_cleaned_up__should_remove_timers_and_lock(self, manager):
         conns = await create_started_game(manager, "game1")
 
         assert manager._timer_manager.has_game("game1")
@@ -39,8 +38,7 @@ class TestSessionManagerTimers:
         assert not manager._timer_manager.has_game("game1")
         assert "game1" not in manager._game_locks
 
-    async def test_turn_timeout_broadcasts_events(self, manager):
-        """Turn timeout triggers handle_timeout and broadcasts result events."""
+    async def test_handle_timeout__when_turn_times_out__should_broadcast_resulting_events(self, manager):
         conns = await create_started_game(manager, "game1")
         conns[0]._outbox.clear()
 
@@ -49,13 +47,11 @@ class TestSessionManagerTimers:
         timeout_msgs = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(timeout_msgs) == 1
 
-    async def test_timeout_on_missing_game_does_nothing(self, manager):
-        """Timeout on a non-existent game is silently ignored."""
+    async def test_handle_timeout__when_game_missing__should_not_raise(self, manager):
         # should not raise
         await manager._handle_timeout("nonexistent", TimeoutType.TURN, seat=0)
 
-    async def test_handle_timeout_returns_when_game_removed_under_lock(self, manager):
-        """_handle_timeout returns silently when game is removed after lock is acquired."""
+    async def test_handle_timeout__when_game_removed_under_lock__should_broadcast_nothing(self, manager):
         conns = await create_started_game(manager, "game1")
         conns[0]._outbox.clear()
 
@@ -67,8 +63,7 @@ class TestSessionManagerTimers:
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
 
-    async def test_timeout_on_game_without_lock_does_nothing(self, manager):
-        """Timeout when lock has been cleaned up is silently ignored."""
+    async def test_handle_timeout__when_game_lock_missing__should_broadcast_nothing(self, manager):
         conns = await create_started_game(manager, "game1")
 
         # remove lock to simulate cleanup race
@@ -82,10 +77,7 @@ class TestSessionManagerTimers:
 
 
 class TestSessionManagerTimerIntegration:
-    """Tests for timer integration methods."""
-
-    async def test_maybe_start_timer_with_draw_event(self, manager):
-        """_maybe_start_timer starts a turn timer when DrawEvent targets the player."""
+    async def test_maybe_start_timer__when_draw_event__should_start_turn_timer(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
@@ -108,8 +100,7 @@ class TestSessionManagerTimerIntegration:
         assert timer._active_task is not None
         timer.cancel()
 
-    async def test_maybe_start_timer_with_pon_meld_event(self, manager):
-        """_maybe_start_timer starts a turn timer when pon MeldEvent targets the caller."""
+    async def test_maybe_start_timer__when_pon_meld_event__should_start_turn_timer(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
@@ -133,8 +124,7 @@ class TestSessionManagerTimerIntegration:
         assert timer._active_task is not None
         timer.cancel()
 
-    async def test_maybe_start_timer_with_call_prompt_event(self, manager):
-        """_maybe_start_timer starts a meld timer when per-seat CallPromptEvent targets the player."""
+    async def test_maybe_start_timer__when_call_prompt_event__should_start_meld_timer(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
@@ -159,8 +149,7 @@ class TestSessionManagerTimerIntegration:
         assert timer._active_task is not None
         timer.cancel()
 
-    async def test_maybe_start_timer_with_round_started_event(self, manager):
-        """_maybe_start_timer adds round bonus to all player timers when RoundStartedEvent is present."""
+    async def test_maybe_start_timer__when_round_started_event__should_add_round_bonus_to_bank(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
@@ -181,8 +170,7 @@ class TestSessionManagerTimerIntegration:
         config = TimerConfig()
         assert timer._bank_seconds == initial_bank + config.round_bonus_seconds
 
-    async def test_maybe_start_timer_with_round_end_event(self, manager):
-        """_maybe_start_timer starts fixed round-advance timers when RoundEndEvent is present."""
+    async def test_maybe_start_timer__when_round_end_event__should_start_fixed_round_advance_timer(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
@@ -212,8 +200,7 @@ class TestSessionManagerTimerIntegration:
         assert timer._turn_start_time is None
         timer.cancel()
 
-    async def test_maybe_start_timer_with_game_ended_event(self, manager):
-        """_maybe_start_timer returns early and cleans up timers when GameEndedEvent is present."""
+    async def test_maybe_start_timer__when_game_end_event__should_not_start_timer(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         timer = TurnTimer()
         manager._timer_manager._timers["game1"] = {0: timer}
@@ -236,8 +223,7 @@ class TestSessionManagerTimerIntegration:
         # timer task should not be started (game ended)
         assert timer._active_task is None
 
-    async def test_maybe_start_timer_returns_when_timer_is_none(self, manager):
-        """_maybe_start_timer returns early when no timer exists for the game."""
+    async def test_maybe_start_timer__when_game_has_no_timers__should_not_raise(self, manager):
         game, _player, _conn = make_game_with_player(manager)
         # do not set up a timer for the game
 
@@ -257,8 +243,7 @@ class TestSessionManagerTimerIntegration:
         # should return without error
         await manager._maybe_start_timer(game, [generic_event])
 
-    async def test_maybe_start_timer_no_connected_player_at_seat(self, manager):
-        """_maybe_start_timer does not start timer when no connected player is at the target seat."""
+    async def test_maybe_start_timer__when_no_player_at_event_seat__should_not_start_timer(self, manager):
         game = Game(game_id="game1")
         conn = MockConnection()
         # player at seat 1, but draw event targets seat 0 (no player there)
@@ -285,13 +270,10 @@ class TestSessionManagerTimerIntegration:
 
 
 class TestPerPlayerTimers:
-    """Tests for per-player timer independence."""
-
     def _make_pvp_game_with_two_players(
         self,
         manager,
     ) -> tuple[Game, Player, Player, MockConnection, MockConnection]:
-        """Create a game with two players at seats 0 and 1."""
         conn1 = MockConnection()
         conn2 = MockConnection()
         game = Game(game_id="game1")
@@ -306,16 +288,14 @@ class TestPerPlayerTimers:
         manager._connections[conn2.connection_id] = conn2
         return game, player1, player2, conn1, conn2
 
-    async def test_pvp_game_creates_timer_per_player(self, manager):
-        """PVP game with 4 players creates a timer for each player."""
+    async def test_per_player_timers__when_four_humans_start_game__should_create_timer_per_seat(self, manager):
         await create_started_game(manager, "game1", num_ai_players=0, player_names=["P0", "P1", "P2", "P3"])
 
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
             assert timer is not None
 
-    async def test_round_bonus_added_to_all_player_timers(self, manager):
-        """Round bonus is added to all player timers when round starts."""
+    async def test_per_player_timers__when_round_started__should_add_round_bonus_to_every_timer(self, manager):
         game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
@@ -341,8 +321,7 @@ class TestPerPlayerTimers:
         assert timer0._bank_seconds == initial_bank_0 + config.round_bonus_seconds
         assert timer1._bank_seconds == initial_bank_1 + config.round_bonus_seconds
 
-    async def test_multiple_meld_timers_for_multiple_callers(self, manager):
-        """When 2+ players can call the same discard, each gets their own meld timer."""
+    async def test_per_player_timers__when_call_prompts_for_two_seats__should_start_meld_timer_for_each(self, manager):
         game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
@@ -382,8 +361,7 @@ class TestPerPlayerTimers:
         timer0.cancel()
         timer1.cancel()
 
-    async def test_sibling_meld_timer_cancellation(self, manager):
-        """When one caller acts, other callers' meld timers are cancelled."""
+    async def test_per_player_timers__when_one_caller_acts__should_cancel_sibling_meld_timer(self, manager):
         game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()
@@ -425,8 +403,9 @@ class TestPerPlayerTimers:
         # seat 0's timer should be stopped (bank time deducted), seat 1's cancelled
         assert timer1._active_task is None
 
-    async def test_partial_pass_stops_acting_player_timer(self, manager):
-        """When a pass returns empty events (other callers pending), the passer's timer is stopped."""
+    async def test_per_player_timers__when_one_caller_passes_and_others_pending__should_stop_only_their_timer(
+        self, manager
+    ):
         game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_players(manager)
         timer0 = TurnTimer()
         timer1 = TurnTimer()

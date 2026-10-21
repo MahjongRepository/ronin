@@ -1,5 +1,3 @@
-"""Room manager for the lobby server."""
-
 from __future__ import annotations
 
 import asyncio
@@ -18,10 +16,10 @@ logger = structlog.get_logger()
 
 
 class LobbyRoomManager:
-    """Manages pre-game rooms on the lobby server.
+    """
+    Manages pre-game rooms on the lobby server.
 
-    Purely state management — no WebSocket I/O. The WebSocket handler calls
-    manager methods and sends responses.
+    Purely state management — no WebSocket I/O. The WebSocket handler calls manager methods and sends responses.
     """
 
     def __init__(
@@ -36,7 +34,9 @@ class LobbyRoomManager:
         self._reaper_task: asyncio.Task[None] | None = None
 
     def create_room(self, room_id: str, *, min_human_players: int = 1) -> LobbyRoom:
-        """Create a new room with 4 bot seats."""
+        """
+        Create a new room with 4 bot seats.
+        """
         room = LobbyRoom(room_id=room_id, min_human_players=min_human_players)
         self._rooms[room_id] = room
         logger.info("room created", room_id=room_id, min_human_players=min_human_players)
@@ -49,7 +49,8 @@ class LobbyRoomManager:
         user_id: str,
         username: str,
     ) -> dict | str:
-        """Join a room, taking the first available bot seat.
+        """
+        Join a room, taking the first available bot seat.
 
         Returns room state dict on success, or error string on failure.
         """
@@ -89,7 +90,9 @@ class LobbyRoomManager:
         }
 
     def leave_room(self, connection_id: str) -> str | None:
-        """Remove a player from their room, restoring their seat to a bot."""
+        """
+        Remove a player from their room, restoring their seat to a bot.
+        """
         room_id = self._player_rooms.pop(connection_id, None)
         if room_id is None:
             return None
@@ -116,9 +119,10 @@ class LobbyRoomManager:
         return room_id
 
     def set_ready(self, connection_id: str, *, ready: bool) -> tuple[str, bool] | str:
-        """Set ready state. Returns (room_id, can_start) or error string.
+        """
+        Set ready state.
 
-        Owner cannot set ready — they use start_game instead.
+        Returns (room_id, can_start) or error string.         Owner cannot set ready — they use start_game instead.
         """
         room_id = self._player_rooms.get(connection_id)
         if room_id is None:
@@ -162,7 +166,9 @@ class LobbyRoomManager:
         return None
 
     def clear_transitioning(self, room_id: str) -> None:
-        """Reset transitioning flag and all ready states on POST /games failure."""
+        """
+        Reset transitioning flag and all ready states on POST /games failure.
+        """
         room = self._rooms.get(room_id)
         if room is None:
             return
@@ -174,7 +180,9 @@ class LobbyRoomManager:
         return self._rooms.get(room_id)
 
     def get_rooms_info(self) -> list[dict]:
-        """Return room info for the lobby listing page."""
+        """
+        Return room info for the lobby listing page.
+        """
         return [
             {
                 "room_id": room.room_id,
@@ -187,24 +195,32 @@ class LobbyRoomManager:
         ]
 
     def has_user_in_any_room(self, user_id: str) -> bool:
-        """Check if a user is in any active room."""
+        """
+        Check if a user is in any active room.
+        """
         return any(room.has_user(user_id) for room in self._rooms.values())
 
     def remove_room(self, room_id: str) -> None:
-        """Remove a room after game starts successfully."""
+        """
+        Remove a room after game starts successfully.
+        """
         room = self._rooms.pop(room_id, None)
         if room is not None:
             for conn_id in list(room.players):
                 self._player_rooms.pop(conn_id, None)
 
     def start_reaper(self) -> None:
-        """Start the periodic room reaper task."""
+        """
+        Start the periodic room reaper task.
+        """
         if self._reaper_task is not None:
             return
         self._reaper_task = asyncio.create_task(self._reaper_loop())
 
     async def stop_reaper(self) -> None:
-        """Cancel the reaper task."""
+        """
+        Cancel the reaper task.
+        """
         if self._reaper_task is not None:
             self._reaper_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -212,13 +228,17 @@ class LobbyRoomManager:
             self._reaper_task = None
 
     async def _reaper_loop(self) -> None:  # pragma: no cover — long-running background loop
-        """Periodically remove expired rooms."""
+        """
+        Periodically remove expired rooms.
+        """
         while True:
             await asyncio.sleep(30)
             await self._reap_expired_rooms()
 
     async def _reap_expired_rooms(self) -> None:
-        """Remove rooms that have exceeded their TTL."""
+        """
+        Remove rooms that have exceeded their TTL.
+        """
         now = time.monotonic()
         expired: list[tuple[str, list[str]]] = []
 

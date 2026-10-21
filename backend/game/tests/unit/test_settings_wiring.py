@@ -1,12 +1,3 @@
-"""
-Covers:
-- Settings validation (unsupported values fail fast)
-- Renchan behavior with nagashi mangan
-- game_type (tonpusen vs hanchan) enchousen extensions
-- enchousen (none vs sudden death)
-- Kan dora timing settings
-"""
-
 import pytest
 
 from game.logic.call_resolution import complete_added_kan_after_chankan_decline
@@ -48,62 +39,62 @@ _OTHER_HAND = (20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32)
 
 
 class TestValidateSettings:
-    def test_default_settings_pass_validation(self):
+    def test_validate_settings__when_defaults__should_pass(self):
         validate_settings(GameSettings())
 
-    def test_renhou_baiman_raises(self):
+    def test_validate_settings__when_renhou_baiman__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
             validate_settings(GameSettings(renhou_value=RenhouValue.BAIMAN))
 
-    def test_tie_break_by_seat_order_false_raises(self):
+    def test_validate_settings__when_tie_break_by_seat_order_false__should_raise_naming_it(self):
         with pytest.raises(UnsupportedSettingsError, match="tie_break_by_seat_order=False"):
             validate_settings(GameSettings(tie_break_by_seat_order=False))
 
-    def test_multiple_unsupported_values_reports_all(self):
+    def test_validate_settings__when_several_unsupported_values__should_report_all(self):
         with pytest.raises(UnsupportedSettingsError, match=r"has_agariyame.*renhou_value=BAIMAN"):
             validate_settings(GameSettings(has_agariyame=True, renhou_value=RenhouValue.BAIMAN))
 
-    def test_renhou_mangan_passes(self):
+    def test_validate_settings__when_renhou_mangan__should_pass(self):
         validate_settings(GameSettings(renhou_value=RenhouValue.MANGAN))
 
-    def test_uma_valid_passes(self):
+    def test_validate_settings__when_uma_valid__should_pass(self):
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))
 
-    def test_base_turn_seconds_negative_raises(self):
+    def test_validate_settings__when_base_turn_seconds_negative__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="base_turn_seconds must be non-negative"):
             validate_settings(GameSettings(base_turn_seconds=-1))
 
-    def test_base_turn_seconds_zero_passes(self):
+    def test_validate_settings__when_base_turn_seconds_zero__should_pass(self):
         validate_settings(GameSettings(base_turn_seconds=0))
 
-    def test_initial_bank_seconds_zero_raises(self):
+    def test_validate_settings__when_initial_bank_seconds_zero__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
             validate_settings(GameSettings(initial_bank_seconds=0))
 
-    def test_max_bank_below_initial_raises(self):
+    def test_validate_settings__when_max_bank_below_initial_bank__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="max_bank_seconds must be >= initial_bank_seconds"):
             validate_settings(GameSettings(max_bank_seconds=5, initial_bank_seconds=20))
 
-    def test_round_bonus_seconds_negative_raises(self):
+    def test_validate_settings__when_round_bonus_seconds_negative__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="round_bonus_seconds must be non-negative"):
             validate_settings(GameSettings(round_bonus_seconds=-1))
 
-    def test_round_bonus_seconds_zero_passes(self):
+    def test_validate_settings__when_round_bonus_seconds_zero__should_pass(self):
         validate_settings(GameSettings(round_bonus_seconds=0))
 
-    def test_meld_decision_seconds_zero_raises(self):
+    def test_validate_settings__when_meld_decision_seconds_zero__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="meld_decision_seconds must be positive"):
             validate_settings(GameSettings(meld_decision_seconds=0))
 
-    def test_round_advance_timeout_seconds_zero_raises(self):
+    def test_validate_settings__when_round_advance_timeout_seconds_zero__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="round_advance_timeout_seconds must be positive"):
             validate_settings(GameSettings(round_advance_timeout_seconds=0))
 
-    def test_pending_game_timeout_seconds_zero_raises(self):
+    def test_validate_settings__when_pending_game_timeout_seconds_zero__should_raise(self):
         with pytest.raises(UnsupportedSettingsError, match="pending_game_timeout_seconds must be positive"):
             validate_settings(GameSettings(pending_game_timeout_seconds=0))
 
-    def test_init_game_validates_settings(self):
+    def test_init_game__when_settings_unsupported__should_raise(self):
         configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
             init_game(configs, settings=GameSettings(has_agariyame=True))
@@ -115,9 +106,7 @@ class TestValidateSettings:
 
 
 class TestRenchanNagashiMangan:
-    """Renchan settings with nagashi mangan (not covered by test_dealer_rotation)."""
-
-    def test_renchan_nagashi_mangan_dealer_tenpai_no_rotation(self):
+    def test_renchan__when_nagashi_mangan_and_dealer_tempai_and_renchan_enabled__should_keep_dealer_and_add_honba(self):
         settings = GameSettings(renchan_on_dealer_tenpai_draw=True)
         gs = create_game_state(honba_sticks=1, settings=settings)
         result = NagashiManganResult(
@@ -133,7 +122,7 @@ class TestRenchanNagashiMangan:
         assert honba == 2
         assert should_rotate is False
 
-    def test_no_renchan_nagashi_mangan_dealer_tenpai_rotates(self):
+    def test_renchan__when_nagashi_mangan_and_dealer_tempai_and_renchan_disabled__should_rotate_and_add_honba(self):
         settings = GameSettings(renchan_on_dealer_tenpai_draw=False)
         gs = create_game_state(honba_sticks=0, settings=settings)
         result = NagashiManganResult(
@@ -151,9 +140,7 @@ class TestRenchanNagashiMangan:
 
 
 class TestRenchanDealerRonDisabled:
-    """Verify renchan_on_dealer_win=False applies to ron (not just tsumo)."""
-
-    def test_no_renchan_dealer_ron_win_rotates(self):
+    def test_renchan__when_dealer_wins_by_ron_and_renchan_on_win_disabled__should_rotate(self):
         settings = GameSettings(renchan_on_dealer_win=False)
         gs = create_game_state(honba_sticks=0, settings=settings)
         result = RonResult(
@@ -178,13 +165,6 @@ class TestRenchanDealerRonDisabled:
 
 
 class TestGameTypeEnchousenExtensions:
-    """Test enchousen extension and terminal conditions for tonpusen and hanchan.
-
-    Basic game-end-after-primary-wind tests are in test_game_structure.py.
-    These tests focus on enchousen extension when no one reaches target score,
-    and the hard cap of the next wind.
-    """
-
     def _game_state(
         self,
         unique_dealers: int = 1,
@@ -202,15 +182,15 @@ class TestGameTypeEnchousenExtensions:
             settings=settings,
         )
 
-    def test_tonpusen_east_complete_no_winner_continues_to_south(self):
+    def test_check_game_end__when_tonpusen_east_complete_without_winner__should_continue(self):
         gs = self._game_state(unique_dealers=5, player_scores=[25000, 25000, 25000, 25000])
         assert check_game_end(gs) is False
 
-    def test_tonpusen_south_complete_ends(self):
+    def test_check_game_end__when_tonpusen_south_complete__should_end(self):
         gs = self._game_state(unique_dealers=9)
         assert check_game_end(gs) is True
 
-    def test_hanchan_south_complete_no_winner_continues_to_west(self):
+    def test_check_game_end__when_hanchan_south_complete_without_winner__should_continue(self):
         gs = self._game_state(
             unique_dealers=9,
             player_scores=[25000, 25000, 25000, 25000],
@@ -218,7 +198,7 @@ class TestGameTypeEnchousenExtensions:
         )
         assert check_game_end(gs) is False
 
-    def test_hanchan_west_complete_ends(self):
+    def test_check_game_end__when_hanchan_west_complete__should_end(self):
         gs = self._game_state(unique_dealers=13, game_type=GameType.HANCHAN)
         assert check_game_end(gs) is True
 
@@ -229,8 +209,6 @@ class TestGameTypeEnchousenExtensions:
 
 
 class TestEnchousenNone:
-    """Verify EnchousenType.NONE forces game end after primary wind."""
-
     def _game_state(
         self,
         unique_dealers: int = 1,
@@ -247,11 +225,11 @@ class TestEnchousenNone:
             settings=settings,
         )
 
-    def test_enchousen_none_hanchan_ends_after_south(self):
+    def test_check_game_end__when_enchousen_none_and_hanchan_south_complete__should_end(self):
         gs = self._game_state(unique_dealers=9, enchousen=EnchousenType.NONE)
         assert check_game_end(gs) is True
 
-    def test_enchousen_none_tonpusen_ends_after_east(self):
+    def test_check_game_end__when_enchousen_none_and_tonpusen_east_complete__should_end(self):
         gs = self._game_state(
             unique_dealers=5,
             enchousen=EnchousenType.NONE,
@@ -272,11 +250,6 @@ def _make_kan_test_round_state(
     kandora_immediate_for_closed_kan: bool = True,
     kandora_deferred_for_open_kan: bool = True,
 ) -> tuple[MahjongRoundState, GameSettings]:
-    """Create a round state suitable for kan dora timing tests.
-
-    Sets up a round with tiles for kan operations and a dead wall.
-    Returns (round_state, settings).
-    """
     settings = GameSettings(
         has_kandora=has_kandora,
         kandora_immediate_for_closed_kan=kandora_immediate_for_closed_kan,
@@ -312,11 +285,6 @@ def _make_open_kan_test_round_state(
     has_kandora: bool = True,
     kandora_deferred_for_open_kan: bool = True,
 ) -> tuple[MahjongRoundState, GameSettings]:
-    """Create a round state where seat 1 can call open kan on tile 0.
-
-    Seat 1 has 3 copies of tile_34=0 (tile IDs 1,2,3).
-    Returns (round_state, settings).
-    """
     settings = GameSettings(
         has_kandora=has_kandora,
         kandora_deferred_for_open_kan=kandora_deferred_for_open_kan,
@@ -353,10 +321,6 @@ def _make_pon_round_state(
     kandora_deferred_for_open_kan: bool = True,
     has_kandora: bool = True,
 ) -> tuple[MahjongRoundState, GameSettings]:
-    """Create a round state where seat 0 has a pon and the 4th tile in hand.
-
-    Returns (round_state, settings).
-    """
     settings = GameSettings(
         has_kandora=has_kandora,
         kandora_deferred_for_open_kan=kandora_deferred_for_open_kan,
@@ -392,18 +356,18 @@ def _make_pon_round_state(
 
 
 class TestHasKandora:
-    def test_closed_kan_with_kandora_reveals_dora(self):
+    def test_call_closed_kan__when_kandora_enabled__should_reveal_dora(self):
         rs, settings = _make_kan_test_round_state(has_kandora=True)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 2
 
-    def test_closed_kan_without_kandora_no_dora(self):
+    def test_call_closed_kan__when_kandora_disabled__should_not_reveal_or_defer_dora(self):
         rs, settings = _make_kan_test_round_state(has_kandora=False)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 0
 
-    def test_open_kan_without_kandora_no_pending_dora(self):
+    def test_call_open_kan__when_kandora_disabled__should_not_reveal_or_defer_dora(self):
         rs, settings = _make_open_kan_test_round_state(has_kandora=False)
         new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 1
@@ -411,13 +375,13 @@ class TestHasKandora:
 
 
 class TestKandoraImmediateForClosedKan:
-    def test_immediate_true_reveals_dora_immediately(self):
+    def test_call_closed_kan__when_kandora_immediate__should_reveal_dora_at_once(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 2
         assert new_rs.wall.pending_dora_count == 0
 
-    def test_immediate_false_defers_dora(self):
+    def test_call_closed_kan__when_kandora_not_immediate__should_defer_dora(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
         new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 1
@@ -425,13 +389,13 @@ class TestKandoraImmediateForClosedKan:
 
 
 class TestKandoraDeferredForOpenKan:
-    def test_deferred_true_defers_dora(self):
+    def test_call_open_kan__when_kandora_deferred__should_defer_dora(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
         new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 1
 
-    def test_deferred_false_reveals_immediately(self):
+    def test_call_open_kan__when_kandora_not_deferred__should_reveal_dora_at_once(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
         new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
         assert len(new_rs.wall.dora_indicators) == 2
@@ -439,19 +403,19 @@ class TestKandoraDeferredForOpenKan:
 
 
 class TestKandoraTimingAddedKan:
-    def test_added_kan_deferred_true(self):
+    def test_call_added_kan__when_kandora_deferred__should_defer_dora(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         new_rs, _meld = call_added_kan(rs, 0, 3, settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 1
 
-    def test_added_kan_deferred_false_reveals_immediately(self):
+    def test_call_added_kan__when_kandora_not_deferred__should_reveal_dora_at_once(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         new_rs, _meld = call_added_kan(rs, 0, 3, settings)
         assert len(new_rs.wall.dora_indicators) == 2
         assert new_rs.wall.pending_dora_count == 0
 
-    def test_added_kan_no_kandora(self):
+    def test_call_added_kan__when_kandora_disabled__should_not_reveal_or_defer_dora(self):
         rs, settings = _make_pon_round_state(has_kandora=False)
         new_rs, _meld = call_added_kan(rs, 0, 3, settings)
         assert len(new_rs.wall.dora_indicators) == 1
@@ -464,14 +428,14 @@ class TestKandoraTimingAddedKan:
 
 
 class TestClosedKanDoraEvents:
-    def test_immediate_emits_dora_event(self):
+    def test_process_closed_kan_call__when_kandora_immediate__should_emit_dora_revealed(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, 0, 0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
-    def test_deferred_no_dora_event(self):
+    def test_process_closed_kan_call__when_kandora_not_immediate__should_not_emit_dora_revealed(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, 0, 0)
@@ -480,14 +444,14 @@ class TestClosedKanDoraEvents:
 
 
 class TestOpenKanDoraEvents:
-    def test_deferred_no_immediate_dora_event(self):
+    def test_process_open_kan_call__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, 1, 0, 0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
-    def test_immediate_emits_dora_event(self):
+    def test_process_open_kan_call__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, 1, 0, 0)
@@ -496,14 +460,14 @@ class TestOpenKanDoraEvents:
 
 
 class TestAddedKanDoraEvents:
-    def test_deferred_no_immediate_dora_event(self):
+    def test_process_added_kan_call__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, 0, 3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
-    def test_immediate_emits_dora_event(self):
+    def test_process_added_kan_call__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, 0, 3)
@@ -517,16 +481,14 @@ class TestAddedKanDoraEvents:
 
 
 class TestChankanDeclineDoraEvents:
-    def test_chankan_decline_immediate_emits_dora_event(self):
-        """When chankan is declined and dora is immediate, emit DoraRevealedEvent."""
+    def test_complete_added_kan_after_chankan_decline__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, 0, 3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
-    def test_chankan_decline_deferred_no_dora_event(self):
-        """When chankan is declined and dora is deferred, no DoraRevealedEvent."""
+    def test_complete_added_kan_after_chankan_decline__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
         _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, 0, 3)

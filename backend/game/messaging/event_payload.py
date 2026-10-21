@@ -1,10 +1,3 @@
-"""Centralized event payload shaping for wire and replay serialization.
-
-Defines helpers that produce the canonical dict shape for ServiceEvent payloads.
-Both the session broadcaster and the replay collector reuse these helpers so
-serialization logic is defined once.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -30,7 +23,8 @@ if set(EVENT_TYPE_INT.keys()) != set(EventType):
 
 
 def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
-    """Return the wire-format dict for a ServiceEvent payload.
+    """
+    Return the wire-format dict for a ServiceEvent payload.
 
     Shape: {"t": <int>, **data_fields} with internal-only fields
     ("type" and "target" on the domain model) excluded.
@@ -80,10 +74,10 @@ _ROUND_RESULT_TYPE_TO_WIRE: dict[str, int] = {
 
 
 def _flatten_round_end(payload: dict[str, Any]) -> None:
-    """Flatten the nested result dict into the top-level round_end payload.
+    """
+    Flatten the nested result dict into the top-level round_end payload.
 
-    Convert {"t": 4, "result": {"type": "tsumo", ...}}
-    into    {"t": 4, "rt": 0, ...}.
+    Convert {"t": 4, "result": {"type": "tsumo", ...}} into    {"t": 4, "rt": 0, ...}.
     """
     result = payload.pop("result")
     result_type = result.pop("type")
@@ -92,7 +86,8 @@ def _flatten_round_end(payload: dict[str, Any]) -> None:
 
 
 def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Shape a CallPromptEvent payload for the wire.
+    """
+    Shape a CallPromptEvent payload for the wire.
 
     For ron/chankan: drop callers (recipient is implied by routing target).
     For meld: replace callers with available_calls containing only the

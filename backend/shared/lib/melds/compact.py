@@ -1,82 +1,3 @@
-"""Compact meld encoding/decoding using IMME (Integer-Mapped Meld Encoding).
-
-Encode each meld as a single integer. The encoding is lossless: decode(encode(meld))
-reproduces every field of the original MeldData.
-
-No external dependencies — this module can be used standalone in any project
-that communicates with the protocol.
-
-Tile representation
--------------------
-Mahjong uses 136 physical tiles: 34 tile types x 4 copies each.
-
-    tile_id  = tile_34 * 4 + copy        (136-format, 0-135)
-    tile_34  = tile_id // 4              (34-format,  0-33)
-    copy     = tile_id % 4               (physical copy, 0-3)
-
-Tile types in 34-format:
-    Man (characters): 0-8, Pin (circles): 9-17, Sou (bamboo): 18-26
-    Honors: E=27, S=28, W=29, N=30, Haku=31, Hatsu=32, Chun=33
-
-Integer layout
---------------
-Every IMME value is structured as:
-
-    value = meld_index * 4 + caller_seat
-
-caller_seat (0-3) is always in the lowest 2 bits. meld_index falls into
-one of five contiguous ranges that determine the meld type:
-
-    Type         Offset   Count   Range
-    ----         ------   -----   -----
-    Chi             0     4032       0 ..  4031
-    Pon          4032     1224    4032 ..  5255
-    Shouminkan   5256      408    5256 ..  5663
-    Daiminkan    5664      408    5664 ..  6071
-    Ankan        6072       34    6072 ..  6105
-
-Total: 6106 meld indices x 4 seats = 24424 values (fits in 15 bits).
-
-Per-type encoding formulas
---------------------------
-Chi (3 consecutive numbered tiles, called from kamicha):
-
-    base_index  = suit_index * 7 + start_in_suit     (0-20: 3 suits x 7 sequences)
-    copy_index  = copy_lo * 16 + copy_mid * 4 + copy_hi   (0-63: 4^3 copy combos)
-    called_pos  = 0-2  (which of the 3 sorted tiles was the called discard)
-    meld_index  = (base_index * 64 + copy_index) * 3 + called_pos
-
-Pon (3 identical tiles, called from any opponent):
-
-    tile_34      = 0-33
-    missing_copy = 0-3  (which of the 4 physical copies is absent)
-    called_pos   = 0-2  (index of the called tile in sorted tile_ids)
-    from_offset  = (from_seat - caller_seat) % 4 - 1   (0-2)
-    pon_index    = ((tile_34 * 4 + missing_copy) * 3 + called_pos) * 3 + from_offset
-    meld_index   = PON_OFFSET + pon_index
-
-Shouminkan / Daiminkan (open kan, all 4 copies):
-
-    tile_34      = 0-33
-    called_copy  = 0-3  (which physical copy was the called discard)
-    from_offset  = 0-2  (same as pon)
-    local_index  = (tile_34 * 4 + called_copy) * 3 + from_offset
-    meld_index   = <TYPE_OFFSET> + local_index
-
-Ankan (closed kan, all 4 copies from hand, no opponent):
-
-    tile_34      = 0-33
-    meld_index   = ANKAN_OFFSET + tile_34
-
-Game event envelope
--------------------
-For network transport, the IMME integer is wrapped in a dict:
-
-    {"t": 0, "m": <imme_int>}
-
-"t" is the event type (0 = meld). "m" is the IMME-encoded integer.
-"""
-
 from typing import Literal, TypedDict
 
 # ---------------------------------------------------------------------------
@@ -87,7 +8,8 @@ type MeldType = Literal["chi", "pon", "added_kan", "open_kan", "closed_kan"]
 
 
 class MeldData(TypedDict):
-    """Wire-format representation of a mahjong meld.
+    """
+    Wire-format representation of a mahjong meld.
 
     Attributes:
         type: Always ``"meld"``.
@@ -132,7 +54,9 @@ EVENT_TYPE_MELD = 0
 
 
 def encode_meld_compact(meld: MeldData) -> int:
-    """Encode a meld as a single IMME integer (no event envelope)."""
+    """
+    Encode a meld as a single IMME integer (no event envelope).
+    """
     caller_seat = meld.get("caller_seat")
     if not _is_strict_int(caller_seat) or caller_seat not in _VALID_SEATS:
         msg = f"caller_seat must be an integer 0-3, got {caller_seat!r}"
@@ -146,7 +70,9 @@ def encode_meld_compact(meld: MeldData) -> int:
 
 
 def decode_meld_compact(value: int) -> MeldData:
-    """Decode an IMME integer back to a MeldData dict."""
+    """
+    Decode an IMME integer back to a MeldData dict.
+    """
     if not _is_strict_int(value):
         msg = f"Expected integer, got {type(value).__name__}"
         raise TypeError(msg)
@@ -177,12 +103,16 @@ def decode_meld_compact(value: int) -> MeldData:
 
 
 def encode_game_event(meld: MeldData) -> dict[str, int]:
-    """Encode a meld as a game event: ``{"t": 0, "m": <IMME_int>}``."""
+    """
+    Encode a meld as a game event: ``{"t": 0, "m": <IMME_int>}``.
+    """
     return {"t": EVENT_TYPE_MELD, "m": encode_meld_compact(meld)}
 
 
 def decode_game_event(event: dict[str, int]) -> MeldData:
-    """Decode a game event ``{"t": int, "m": int}`` back to a MeldData."""
+    """
+    Decode a game event ``{"t": int, "m": int}`` back to a MeldData.
+    """
     event_type = event["t"]
     if event_type != EVENT_TYPE_MELD:
         msg = f"Unsupported event type: {event_type}"
@@ -208,16 +138,18 @@ _CALLED_COPIES = 4
 
 
 def _is_strict_int(value: object) -> bool:
-    """Return True if value is an int but not a bool."""
+    """
+    Return True if value is an int but not a bool.
+    """
     return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _validate_from_offset(from_seat: int, caller_seat: int) -> int:
-    """Compute and validate from_offset for open melds.
+    """
+    Compute and validate from_offset for open melds.
 
-    from_offset encodes the relative seat distance (1, 2, or 3 steps clockwise)
-    as 0, 1, or 2. A player cannot call their own discard, so from_seat must
-    differ from caller_seat. Both seats must be in range 0-3.
+    from_offset encodes the relative seat distance (1, 2, or 3 steps clockwise) as 0, 1, or 2. A player cannot call
+    their own discard, so from_seat must differ from caller_seat. Both seats must be in range 0-3.
     """
     if not _is_strict_int(from_seat) or from_seat not in _VALID_SEATS:
         msg = f"from_seat must be an integer 0-3, got {from_seat!r}"

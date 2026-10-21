@@ -1,13 +1,3 @@
-"""Domain event models and service event transport container.
-
-Domain event classes are the canonical event types for the game logic layer.
-ServiceEvent is the transport wrapper used to route events to clients.
-convert_events() maps domain events into ServiceEvent containers with typed
-routing targets.
-
-All layers import exclusively from this module for event types.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -35,12 +25,16 @@ from game.logic.types import (
 
 @dataclass(frozen=True)
 class BroadcastTarget:
-    """Event should be sent to all players in the game."""
+    """
+    Event should be sent to all players in the game.
+    """
 
 
 @dataclass(frozen=True)
 class SeatTarget:
-    """Event should be sent to a specific seat."""
+    """
+    Event should be sent to a specific seat.
+    """
 
     seat: int
 
@@ -52,7 +46,9 @@ _BROADCAST = BroadcastTarget()
 
 
 def parse_event_target(value: str) -> EventTarget:
-    """Parse a string target into a typed EventTarget."""
+    """
+    Parse a string target into a typed EventTarget.
+    """
     if value == "all":
         return BroadcastTarget()
     if value.startswith("seat_"):
@@ -69,7 +65,9 @@ def parse_event_target(value: str) -> EventTarget:
 
 
 class EventType(StrEnum):
-    """Types of game events."""
+    """
+    Types of game events.
+    """
 
     DRAW = "draw"
     DISCARD = "discard"
@@ -91,7 +89,9 @@ class EventType(StrEnum):
 
 
 class GameEvent(BaseModel):
-    """Base class for all domain game events."""
+    """
+    Base class for all domain game events.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -100,7 +100,9 @@ class GameEvent(BaseModel):
 
 
 class DrawEvent(GameEvent):
-    """Event sent to a player when they draw a tile."""
+    """
+    Event sent to a player when they draw a tile.
+    """
 
     type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
@@ -109,7 +111,9 @@ class DrawEvent(GameEvent):
 
 
 class DiscardEvent(GameEvent):
-    """Event broadcast when a player discards a tile."""
+    """
+    Event broadcast when a player discards a tile.
+    """
 
     type: Literal[EventType.DISCARD] = EventType.DISCARD
     target: str = "all"
@@ -120,7 +124,9 @@ class DiscardEvent(GameEvent):
 
 
 class MeldEvent(GameEvent):
-    """Event broadcast when a player calls a meld (pon, chi, kan)."""
+    """
+    Event broadcast when a player calls a meld (pon, chi, kan).
+    """
 
     type: Literal[EventType.MELD] = EventType.MELD
     target: str = "all"
@@ -132,7 +138,9 @@ class MeldEvent(GameEvent):
 
 
 class CallPromptEvent(GameEvent):
-    """Event sent to players who can respond to a call opportunity."""
+    """
+    Event sent to players who can respond to a call opportunity.
+    """
 
     type: Literal[EventType.CALL_PROMPT] = EventType.CALL_PROMPT
     call_type: WireCallTypeField = Field(serialization_alias="clt")
@@ -142,21 +150,27 @@ class CallPromptEvent(GameEvent):
 
 
 class RoundEndEvent(GameEvent):
-    """Event broadcast when a round ends."""
+    """
+    Event broadcast when a round ends.
+    """
 
     type: Literal[EventType.ROUND_END] = EventType.ROUND_END
     result: RoundResult
 
 
 class RiichiDeclaredEvent(GameEvent):
-    """Event broadcast when a player declares riichi."""
+    """
+    Event broadcast when a player declares riichi.
+    """
 
     type: Literal[EventType.RIICHI_DECLARED] = EventType.RIICHI_DECLARED
     seat: int = Field(serialization_alias="s")
 
 
 class DoraRevealedEvent(GameEvent):
-    """Event broadcast when a new dora indicator is revealed (after kan)."""
+    """
+    Event broadcast when a new dora indicator is revealed (after kan).
+    """
 
     type: Literal[EventType.DORA_REVEALED] = EventType.DORA_REVEALED
     target: str = "all"
@@ -164,7 +178,9 @@ class DoraRevealedEvent(GameEvent):
 
 
 class ErrorEvent(GameEvent):
-    """Event sent to a player when an error occurs."""
+    """
+    Event sent to a player when an error occurs.
+    """
 
     type: Literal[EventType.ERROR] = EventType.ERROR
     code: GameErrorCode = Field(serialization_alias="cd")
@@ -172,7 +188,9 @@ class ErrorEvent(GameEvent):
 
 
 class GameStartedEvent(GameEvent):
-    """Event broadcast to all players when the game starts."""
+    """
+    Event broadcast to all players when the game starts.
+    """
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
     target: str = "all"
@@ -183,7 +201,9 @@ class GameStartedEvent(GameEvent):
 
 
 class RoundStartedEvent(GameEvent):
-    """Event sent to each player when a new round starts."""
+    """
+    Event sent to each player when a new round starts.
+    """
 
     type: Literal[EventType.ROUND_STARTED] = EventType.ROUND_STARTED
     seat: int = Field(serialization_alias="s")
@@ -200,7 +220,9 @@ class RoundStartedEvent(GameEvent):
 
 
 class GameEndedEvent(GameEvent):
-    """Event sent when the entire game ends."""
+    """
+    Event sent when the entire game ends.
+    """
 
     type: Literal[EventType.GAME_END] = EventType.GAME_END
     winner_seat: int = Field(serialization_alias="ws")
@@ -209,7 +231,9 @@ class GameEndedEvent(GameEvent):
 
 
 class FuritenEvent(GameEvent):
-    """Event sent to a player when their furiten state changes."""
+    """
+    Event sent to a player when their furiten state changes.
+    """
 
     type: Literal[EventType.FURITEN] = EventType.FURITEN
     is_furiten: bool = Field(serialization_alias="f")
@@ -237,7 +261,8 @@ Event = (
 
 
 class ServiceEvent(BaseModel):
-    """Event transport container for game service layer.
+    """
+    Event transport container for game service layer.
 
     Uses typed internal targets (BroadcastTarget / SeatTarget) for routing.
     """
@@ -263,7 +288,9 @@ class ServiceEvent(BaseModel):
 
 
 def _get_unique_caller_seats(callers: list[int | MeldCaller]) -> list[int]:
-    """Extract unique seat numbers from callers list."""
+    """
+    Extract unique seat numbers from callers list.
+    """
     seen: set[int] = set()
     seats: list[int] = []
     for caller in callers:
@@ -275,12 +302,15 @@ def _get_unique_caller_seats(callers: list[int | MeldCaller]) -> list[int]:
 
 
 def _filter_callers_for_seat(callers: list[int | MeldCaller], seat: int) -> list[int | MeldCaller]:
-    """Filter callers list to only include entries for the given seat."""
+    """
+    Filter callers list to only include entries for the given seat.
+    """
     return [c for c in callers if (isinstance(c, int) and c == seat) or (isinstance(c, MeldCaller) and c.seat == seat)]
 
 
 def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPromptEvent:
-    """Split a DISCARD prompt into one per-seat event.
+    """
+    Split a DISCARD prompt into one per-seat event.
 
     Ron-dominant: if seat has both ron and meld entries, produce a RON prompt.
     """
@@ -308,14 +338,14 @@ def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPro
 
 
 def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
-    """Convert typed events to service events with typed targets.
+    """
+    Convert typed events to service events with typed targets.
 
-    CallPromptEvent is split into per-caller-seat events with callers filtered
-    to only the recipient's entries. Each ServiceEvent carries a distinct
-    CallPromptEvent instance (no shared mutable data).
+    CallPromptEvent is split into per-caller-seat events with callers filtered to only the recipient's entries. Each
+    ServiceEvent carries a distinct CallPromptEvent instance (no shared mutable data).
 
-    DISCARD prompts are split per-seat with the appropriate call_type
-    for each seat (RON for ron callers, MELD for meld callers).
+    DISCARD prompts are split per-seat with the appropriate call_type for each seat (RON for ron callers, MELD for meld
+    callers).
     """
     # Use model_construct to skip redundant Pydantic validation on every
     # ServiceEvent. The event/data.type consistency is guaranteed by
@@ -359,7 +389,9 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
 
 
 def extract_round_result(events: list[ServiceEvent]) -> RoundResult | None:
-    """Extract the round result from a list of service events."""
+    """
+    Extract the round result from a list of service events.
+    """
     for event in events:
         if event.event == EventType.ROUND_END and isinstance(event.data, RoundEndEvent):
             return event.data.result

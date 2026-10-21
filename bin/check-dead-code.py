@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Find production definitions (top-level and class methods) that are only referenced in tests or not referenced at all.
-
-Neither vulture nor deadcode handles these cases: vulture treats all files equally
-(no prod vs test distinction), and deadcode crashes on Python 3.14 (uses removed ast.Str).
-"""
 
 import ast
 import importlib
@@ -353,6 +348,12 @@ def _resolve_live_definitions(
 
 
 def find_dead_code(src: Path) -> DeadCodeReport:
+    """
+    Find production definitions (top-level and class methods) referenced only from tests or not at all.
+
+    A custom scan because neither vulture nor deadcode covers this: vulture treats all files equally (no production vs
+    test distinction), and deadcode crashes on Python 3.14 (it uses the removed ast.Str).
+    """
     scan = _collect_production_scan(src)
     test_refs = _collect_references(src, test_files=True)
     live = _resolve_live_definitions(

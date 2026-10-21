@@ -1,10 +1,3 @@
-"""
-Win detection for Mahjong game.
-
-Handles checking for winning conditions (tsumo, ron) and furiten detection.
-Scoring functions are in the scoring module.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -42,9 +35,8 @@ def all_player_tiles(player: MahjongPlayer) -> list[int]:
     """
     Build a complete 136-format tile list from closed hand tiles and meld tiles.
 
-    The mahjong library expects ALL tiles (closed + open melds) to be passed to
-    HandCalculator.estimate_hand_value and Agari.is_agari.
-    Meld tiles that already exist in player.tiles are not double-counted.
+    The mahjong library expects ALL tiles (closed + open melds) to be passed to HandCalculator.estimate_hand_value and
+    Agari.is_agari. Meld tiles that already exist in player.tiles are not double-counted.
     """
     hand_ids = set(player.tiles)
     all_tiles = list(player.tiles)
@@ -60,8 +52,8 @@ def all_tiles_from_hand_and_melds(
     """
     Build a complete 136-format tile list from explicit hand tiles and melds.
 
-    Accepts hand tiles and melds directly rather than reading from a player object.
-    Meld tiles that already exist in hand_tiles are not double-counted.
+    Accepts hand tiles and melds directly rather than reading from a player object. Meld tiles that already exist in
+    hand_tiles are not double-counted.
     """
     hand_ids = set(hand_tiles)
     all_tiles = list(hand_tiles)
@@ -74,8 +66,8 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     """
     Check if the player's hand is a winning hand (agari).
 
-    Uses the mahjong library's Agari class to determine if the hand
-    can form 4 melds + 1 pair (or special hands like kokushi/chiitoitsu).
+    Uses the mahjong library's Agari class to determine if the hand can form 4 melds + 1 pair (or special hands like
+    kokushi/chiitoitsu).
     """
     # Build tiles_34 directly from closed hand + meld tiles, avoiding
     # intermediate list creation and redundant hand_to_34_array validation.
@@ -122,8 +114,8 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     """
     Find all tiles that would complete the player's hand.
 
-    Uses shanten calculator to identify which tiles would bring shanten to -1 (agari).
-    Returns a set of tile_34 values (0-33) that complete the hand.
+    Uses shanten calculator to identify which tiles would bring shanten to -1 (agari). Returns a set of tile_34 values
+    (0-33) that complete the hand.
     """
     # shanten operates on closed hand tiles only.
     # Tile count can be invalid for calculate_replacement_number: empty hands
@@ -168,8 +160,8 @@ def is_furiten(player: MahjongPlayer) -> bool:
     """
     Check if player is in furiten state.
 
-    A player is furiten if any of their waiting tiles appears in their own discards.
-    Furiten players can still win by tsumo but cannot win by ron.
+    A player is furiten if any of their waiting tiles appears in their own discards. Furiten players can still win by
+    tsumo but cannot win by ron.
     """
     waiting_tiles = get_waiting_tiles(player)
 
@@ -189,8 +181,8 @@ def is_effective_furiten(player: MahjongPlayer) -> bool:
     """
     Check if player is in any form of furiten state.
 
-    Combines temporary furiten, riichi furiten, and discard furiten.
-    Short-circuits on cheap boolean flags before computing expensive discard furiten.
+    Combines temporary furiten, riichi furiten, and discard furiten. Short-circuits on cheap boolean flags before
+    computing expensive discard furiten.
     """
     if player.is_temporary_furiten:
         return True
@@ -243,8 +235,8 @@ def _melds_to_34_sets(melds: tuple[FrozenMeld, ...]) -> list[list[int]] | None:
     """
     Convert melds to 34-format sets for agari check.
 
-    Returns a list of lists, where each inner list contains the tile_34 indices
-    of the meld tiles. Returns None if no melds.
+    Returns a list of lists, where each inner list contains the tile_34 indices of the meld tiles. Returns None if no
+    melds.
     """
     if not melds:
         return None
@@ -270,15 +262,16 @@ def is_houtei(round_state: MahjongRoundState) -> bool:
     """
     Check wall exhaustion prerequisite for houtei (last discard).
 
-    Houtei raoyui is a yaku for winning by ron on the last discard of the game.
-    This only checks the wall condition; the caller must ensure the context is
-    a ron (not tsumo) to correctly award the yaku.
+    Houtei raoyui is a yaku for winning by ron on the last discard of the game. This only checks the wall condition; the
+    caller must ensure the context is a ron (not tsumo) to correctly award the yaku.
     """
     return is_wall_exhausted(round_state.wall)
 
 
 def _no_calls_from_any_player(round_state: MahjongRoundState) -> bool:
-    """Check that no calls (including closed kans) have been made by any player."""
+    """
+    Check that no calls (including closed kans) have been made by any player.
+    """
     if round_state.players_with_open_hands:
         return False
     return not any(p.melds for p in round_state.players)
@@ -349,11 +342,11 @@ def _find_chankan_seats(
     *,
     extra_filter: Callable[[MahjongPlayer], bool] | None = None,
 ) -> list[int]:
-    """Find seats eligible for chankan (robbing a kan) on the given tile.
+    """
+    Find seats eligible for chankan (robbing a kan) on the given tile.
 
-    Iterates all seats except the caller, filtering by waiting tiles and
-    furiten status. An optional extra_filter predicate (e.g. kokushi tenpai
-    check) can restrict eligibility further.
+    Iterates all seats except the caller, filtering by waiting tiles and furiten status. An optional extra_filter
+    predicate (e.g. kokushi tenpai check) can restrict eligibility further.
     """
     kan_tile_34 = tile_to_34(kan_tile)
     chankan_seats = []
@@ -390,16 +383,18 @@ def _find_chankan_seats(
 
 
 def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_tile: int) -> list[int]:
-    """Find seats that can ron on an added kan (chankan).
+    """
+    Find seats that can ron on an added kan (chankan).
 
-    When a player upgrades a pon to a kan (added/shouminkan), other players
-    who are waiting on that tile can declare ron (chankan).
+    When a player upgrades a pon to a kan (added/shouminkan), other players who are waiting on that tile can declare ron
+    (chankan).
     """
     return _find_chankan_seats(round_state, caller_seat, kan_tile)
 
 
 def is_kokushi_tenpai(player: MahjongPlayer) -> bool:
-    """Check if a player's hand is specifically kokushi musou tenpai.
+    """
+    Check if a player's hand is specifically kokushi musou tenpai.
 
     Kokushi requires a closed hand (no melds) with 12 or 13 of the 13
     terminal/honor tile types.  Tenpai forms:
@@ -428,7 +423,8 @@ def is_kokushi_chankan_possible(
     caller_seat: int,
     kan_tile: int,
 ) -> list[int]:
-    """Find seats that can rob a closed kan (ankan) with kokushi musou.
+    """
+    Find seats that can rob a closed kan (ankan) with kokushi musou.
 
     Only kokushi musou may rob a concealed quad; no other hand qualifies.
     """
@@ -439,8 +435,7 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
     """
     Check if the given tiles form a winning hand (agari).
 
-    Uses a local tile list instead of mutating player.tiles.
-    Used for ron/tsumo checks.
+    Uses a local tile list instead of mutating player.tiles. Used for ron/tsumo checks.
     """
     # Build tiles_34 directly from tiles (closed hand + win tile) + meld tiles,
     # avoiding intermediate list creation and redundant hand_to_34_array validation.

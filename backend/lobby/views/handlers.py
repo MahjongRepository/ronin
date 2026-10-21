@@ -1,5 +1,3 @@
-"""Lobby and room page handlers."""
-
 from __future__ import annotations
 
 import uuid
@@ -24,7 +22,9 @@ def _render_lobby_with_error(
     username: str,
     error: str,
 ) -> Response:
-    """Render the lobby page with an error message."""
+    """
+    Render the lobby page with an error message.
+    """
     csrf_token, is_new = get_or_create_csrf_token(request)
     response = templates.TemplateResponse(
         request,

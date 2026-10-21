@@ -1,8 +1,3 @@
-"""Tests for session token integration with SessionManager.
-
-Verify seat binding on start, disconnect marking on leave, and cleanup on game end.
-"""
-
 from game.logic.exceptions import InvalidGameActionError
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection
@@ -11,8 +6,7 @@ from .helpers import create_started_game
 
 
 class TestSeatBindingOnStart:
-    async def test_game_start_binds_seat_to_session(self, manager):
-        """After game starts, session data has the assigned seat number."""
+    async def test_session_binding__when_game_starts__should_bind_seat_to_each_session(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
@@ -27,8 +21,7 @@ class TestSeatBindingOnStart:
 
 
 class TestSessionDisconnect:
-    async def test_leave_started_game_marks_session_disconnected(self, manager):
-        """Leaving a started game marks the session as disconnected (not removed)."""
+    async def test_session_binding__when_player_leaves_started_game__should_mark_session_disconnected(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
@@ -40,8 +33,7 @@ class TestSessionDisconnect:
         assert session is not None
         assert session.disconnected_at is not None
 
-    async def test_leave_game_missing_game_removes_session(self, manager):
-        """When player.game_id is set but game mapping is missing, session is removed."""
+    async def test_session_binding__when_game_missing_on_leave__should_remove_session(self, manager):
         conns = await create_started_game(manager, "game1")
 
         player = manager._players.get(conns[0].connection_id)
@@ -57,8 +49,7 @@ class TestSessionDisconnect:
 
 
 class TestSessionCleanup:
-    async def test_game_cleanup_removes_all_sessions(self, manager):
-        """When the last player leaves and game is cleaned up, all sessions are removed."""
+    async def test_session_binding__when_all_players_leave__should_remove_sessions_and_game(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
@@ -76,8 +67,7 @@ class TestSessionCleanup:
 
 
 class TestInvalidActionSessionTracking:
-    async def test_invalid_action_marks_session_disconnected(self, manager):
-        """_handle_invalid_action marks the offender's session as disconnected."""
+    async def test_session_binding__when_invalid_action_handled__should_mark_session_disconnected(self, manager):
         conn = MockConnection()
         manager.register_connection(conn)
         game_obj = Game(game_id="game1")

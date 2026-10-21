@@ -1,5 +1,3 @@
-"""Typed client-to-server message models for the lobby WebSocket protocol."""
-
 from __future__ import annotations
 
 import json
@@ -52,7 +50,9 @@ _lobby_message_adapter: TypeAdapter[LobbyClientMessage] = TypeAdapter(LobbyClien
 def parse_lobby_message(
     raw: str,
 ) -> LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage | LobbyStartGameMessage:
-    """Parse and validate a raw JSON string into a typed lobby message."""
+    """
+    Parse and validate a raw JSON string into a typed lobby message.
+    """
     byte_len = len(raw.encode("utf-8"))
     if byte_len > _MAX_WS_MESSAGE_SIZE:
         raise ValueError(f"Message too large ({byte_len} bytes, max {_MAX_WS_MESSAGE_SIZE})")

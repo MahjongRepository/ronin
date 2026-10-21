@@ -1,5 +1,3 @@
-"""Shared game transition logic for creating games on the game server."""
-
 from __future__ import annotations
 
 from http import HTTPStatus
@@ -26,7 +24,11 @@ async def create_game_on_server(
     num_ai_players: int,
     registry: RegistryManager,
 ) -> str:
-    """Call POST /games on a game server. Return the game server WebSocket URL."""
+    """
+    Call POST /games on a game server.
+
+    Return the game server WebSocket URL.
+    """
     await registry.check_health()
     healthy_servers = registry.get_healthy_servers()
     if not healthy_servers:
@@ -59,7 +61,8 @@ def sign_player_tickets(
     game_id: str,
     ticket_secret: str,
 ) -> tuple[list[dict], dict[str, str]]:
-    """Sign game tickets for a list of players.
+    """
+    Sign game tickets for a list of players.
 
     Args:
         players: List of (user_id, username, connection_id) tuples.

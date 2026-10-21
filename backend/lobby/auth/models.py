@@ -1,5 +1,3 @@
-"""User model for Starlette AuthenticationMiddleware integration."""
-
 from __future__ import annotations
 
 from starlette.authentication import BaseUser
@@ -8,7 +6,8 @@ from shared.auth.models import AccountType
 
 
 class AuthenticatedPlayer(BaseUser):
-    """Authenticated user for Starlette's request.user.
+    """
+    Authenticated user for Starlette's request.user.
 
     Created by the auth backend from either a session cookie or an API key.
     """

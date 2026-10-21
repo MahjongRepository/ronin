@@ -1,5 +1,3 @@
-"""Replay API handler for serving gzip-compressed replay files."""
-
 from __future__ import annotations
 
 import asyncio
@@ -25,10 +23,11 @@ _NOT_FOUND = Response("Not found", status_code=404, media_type="text/plain")
 
 
 def _load_replay(replay_dir_str: str, game_id: str) -> bytes | None:
-    """Resolve paths and read a gzip-compressed replay file.
+    """
+    Resolve paths and read a gzip-compressed replay file.
 
-    Return the raw gzip bytes, or None if the file is missing, too large,
-    or the game_id resolves outside the replay directory.
+    Return the raw gzip bytes, or None if the file is missing, too large, or the game_id resolves outside the replay
+    directory.
     """
     replay_dir = Path(replay_dir_str).resolve()
     target = replay_file_path(replay_dir, game_id).resolve()
@@ -49,7 +48,9 @@ def _load_replay(replay_dir_str: str, game_id: str) -> bytes | None:
 
 
 async def replay_content(request: Request) -> Response:
-    """GET /api/replays/{game_id} — serve a gzip-compressed replay file."""
+    """
+    GET /api/replays/{game_id} — serve a gzip-compressed replay file.
+    """
     game_id = request.path_params["game_id"]
 
     if (

@@ -1,7 +1,3 @@
-"""
-Tests for MessagePack encoder module.
-"""
-
 import msgpack
 import pytest
 
@@ -11,12 +7,12 @@ from game.messaging.encoder import MAX_BUFFER_LEN, DecodeError, decode, encode
 
 
 class TestRoundTrip:
-    def test_round_trip_simple_event(self) -> None:
+    def test_encode_decode__when_simple_event__should_round_trip(self) -> None:
         data = {"type": EventType.DRAW, "seat": 0, "tile_id": 42, "target": "seat_0"}
 
         assert decode(encode(data)) == data
 
-    def test_round_trip_call_prompt_event(self) -> None:
+    def test_encode_decode__when_call_prompt_event__should_round_trip(self) -> None:
         data = {
             "type": EventType.CALL_PROMPT,
             "call_type": CallType.MELD,
@@ -31,7 +27,7 @@ class TestRoundTrip:
 
         assert decode(encode(data)) == data
 
-    def test_round_trip_with_none_values(self) -> None:
+    def test_encode_decode__when_none_values__should_round_trip(self) -> None:
         data = {
             "type": EventType.MELD,
             "meld_type": MeldViewType.CLOSED_KAN,
@@ -45,7 +41,7 @@ class TestRoundTrip:
 
 
 class TestIntegerKeyConversion:
-    def test_encode_converts_integer_keys_to_strings(self) -> None:
+    def test_encode__when_integer_keys__should_convert_to_strings(self) -> None:
         data = {
             "type": "round_result",
             "score_changes": {0: -1000, 1: 0, 2: 0, 3: 1000},
@@ -57,7 +53,7 @@ class TestIntegerKeyConversion:
             "score_changes": {"0": -1000, "1": 0, "2": 0, "3": 1000},
         }
 
-    def test_encode_converts_nested_integer_keys(self) -> None:
+    def test_encode__when_nested_integer_keys__should_convert_to_strings(self) -> None:
         data = {
             "result": {
                 "score_changes": {0: 8000, 1: -8000, 2: 0, 3: 0},
@@ -71,7 +67,7 @@ class TestIntegerKeyConversion:
             },
         }
 
-    def test_encode_converts_integer_keys_inside_list(self) -> None:
+    def test_encode__when_integer_keys_inside_list__should_convert_to_strings(self) -> None:
         data = {
             "results": [{0: 100, 1: -100}],
         }
@@ -83,27 +79,23 @@ class TestIntegerKeyConversion:
 
 
 class TestDecodeErrors:
-    def test_invalid_msgpack_data_raises_decode_error(self) -> None:
-        """Decoding invalid bytes raises DecodeError."""
+    def test_decode__when_invalid_msgpack__should_raise_decode_error(self) -> None:
         with pytest.raises(DecodeError, match="failed to decode"):
             decode(b"\xff\xff\xff")
 
-    def test_non_dict_result_raises_decode_error(self) -> None:
-        """Decoding valid msgpack that is not a dict raises DecodeError."""
+    def test_decode__when_result_not_dict__should_raise_decode_error(self) -> None:
         data = msgpack.packb([1, 2, 3])
 
         with pytest.raises(DecodeError, match="expected dict, got list"):
             decode(data)
 
-    def test_oversized_payload_rejected(self) -> None:
-        """Payloads exceeding MAX_BUFFER_LEN are rejected before deserialization."""
+    def test_decode__when_payload_oversized__should_raise_decode_error(self) -> None:
         oversized = b"\x00" * (MAX_BUFFER_LEN + 1)
 
         with pytest.raises(DecodeError, match="payload too large"):
             decode(oversized)
 
-    def test_payload_at_limit_accepted(self) -> None:
-        """Payloads exactly at MAX_BUFFER_LEN are accepted for deserialization."""
+    def test_decode__when_payload_at_limit__should_accept(self) -> None:
         data = msgpack.packb({"key": "x" * 100})
         assert len(data) <= MAX_BUFFER_LEN
         result = decode(data)

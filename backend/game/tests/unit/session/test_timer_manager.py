@@ -1,5 +1,3 @@
-"""Unit tests for TimerManager in isolation."""
-
 import asyncio
 
 import pytest
@@ -13,7 +11,6 @@ from game.tests.mocks import MockConnection
 
 @pytest.fixture
 def timeout_log():
-    """Accumulator for timeout callbacks."""
     return []
 
 
@@ -26,8 +23,7 @@ def timer_manager(timeout_log):
 
 
 class TestTimerManagerCreate:
-    def test_create_timers(self, timer_manager):
-        """create_timers sets up timer instances for the given seats."""
+    def test_timer_manager__when_timers_created__should_register_only_given_seats(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1, 2])
         assert timer_manager.has_game("g1")
         for seat in [0, 1, 2]:
@@ -37,10 +33,10 @@ class TestTimerManagerCreate:
 
 
 class TestTimerManagerRemove:
-    def test_remove_timer_returns_none_for_missing_game(self, timer_manager):
+    def test_timer_manager__when_removing_timer_of_unknown_game__should_return_none(self, timer_manager):
         assert timer_manager.remove_timer("unknown", 0) is None
 
-    def test_remove_timer_returns_and_removes(self, timer_manager):
+    def test_timer_manager__when_timer_removed__should_return_it_and_keep_other_seats(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1])
         timer = timer_manager.remove_timer("g1", 0)
         assert timer is not None
@@ -51,14 +47,14 @@ class TestTimerManagerRemove:
 
 
 class TestTimerManagerCleanup:
-    def test_cleanup_game_removes_all_timers(self, timer_manager):
+    def test_timer_manager__when_game_cleaned_up__should_remove_all_timers(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1, 2, 3])
         timer_manager.cleanup_game("g1")
         assert not timer_manager.has_game("g1")
         for seat in range(4):
             assert timer_manager.get_timer("g1", seat) is None
 
-    async def test_cleanup_cancels_active_timers(self, timer_manager):
+    async def test_timer_manager__when_game_cleaned_up__should_cancel_active_timers(self, timer_manager):
         timer_manager.create_timers("g1", [0])
         timer = timer_manager.get_timer("g1", 0)
         # start a turn timer to make it active
@@ -71,7 +67,7 @@ class TestTimerManagerCleanup:
 
 
 class TestTimerManagerStop:
-    async def test_stop_player_timer(self, timer_manager):
+    async def test_timer_manager__when_player_timer_stopped__should_cancel_active_task(self, timer_manager):
         timer_manager.create_timers("g1", [0])
         timer = timer_manager.get_timer("g1", 0)
         timer_manager.start_turn_timer("g1", 0)
@@ -83,7 +79,7 @@ class TestTimerManagerStop:
 
 
 class TestTimerManagerCancel:
-    async def test_cancel_other_timers(self, timer_manager):
+    async def test_timer_manager__when_cancelling_other_timers__should_keep_excluded_seat_active(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1, 2])
         # start meld timers for all seats
         for seat in [0, 1, 2]:
@@ -97,7 +93,7 @@ class TestTimerManagerCancel:
         assert timer_manager.get_timer("g1", 2)._active_task is None
         timer_manager.get_timer("g1", 1).cancel()
 
-    async def test_cancel_all(self, timer_manager):
+    async def test_timer_manager__when_cancel_all__should_cancel_tasks_and_keep_game_registered(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1])
         timer_manager.start_turn_timer("g1", 0)
         timer_manager.start_meld_timer("g1", 1)
@@ -111,7 +107,7 @@ class TestTimerManagerCancel:
 
 
 class TestTimerManagerBank:
-    async def test_consume_bank(self, timer_manager):
+    async def test_timer_manager__when_bank_consumed__should_not_increase_bank_seconds(self, timer_manager):
         timer_manager.create_timers("g1", [0])
         timer = timer_manager.get_timer("g1", 0)
         initial_bank = timer._bank_seconds
@@ -124,7 +120,7 @@ class TestTimerManagerBank:
         assert timer._bank_seconds <= initial_bank
         timer.cancel()
 
-    def test_add_round_bonus(self, timer_manager):
+    def test_timer_manager__when_round_bonus_added__should_increase_every_seats_bank(self, timer_manager):
         timer_manager.create_timers("g1", [0, 1])
         timer0 = timer_manager.get_timer("g1", 0)
         timer1 = timer_manager.get_timer("g1", 1)
@@ -138,7 +134,7 @@ class TestTimerManagerBank:
 
 
 class TestTimerManagerStartTurn:
-    async def test_start_turn_timer(self, timer_manager):
+    async def test_timer_manager__when_turn_timer_started__should_have_active_task(self, timer_manager):
         timer_manager.create_timers("g1", [0])
         timer = timer_manager.get_timer("g1", 0)
 
@@ -146,8 +142,7 @@ class TestTimerManagerStartTurn:
         assert timer._active_task is not None
         timer.cancel()
 
-    async def test_turn_timer_fires_callback(self, timer_manager, timeout_log):
-        """Turn timer timeout invokes the on_timeout callback with correct args."""
+    async def test_timer_manager__when_turn_timer_expires__should_report_turn_timeout(self, timer_manager, timeout_log):
         config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.01)
         timer_manager.create_timers("g1", [0], config=config)
 
@@ -160,7 +155,7 @@ class TestTimerManagerStartTurn:
 
 
 class TestTimerManagerStartMeld:
-    async def test_start_meld_timer(self, timer_manager):
+    async def test_timer_manager__when_meld_timer_started__should_have_active_task(self, timer_manager):
         timer_manager.create_timers("g1", [0])
         timer = timer_manager.get_timer("g1", 0)
 
@@ -168,8 +163,7 @@ class TestTimerManagerStartMeld:
         assert timer._active_task is not None
         timer.cancel()
 
-    async def test_meld_timer_fires_callback(self, timer_manager, timeout_log):
-        """Meld timer timeout invokes the on_timeout callback with MELD type."""
+    async def test_timer_manager__when_meld_timer_expires__should_report_meld_timeout(self, timer_manager, timeout_log):
         timer_manager.create_timers("g1", [0])
         # meld timer uses fixed duration from config -- default is 2 seconds
         # override to be very short
@@ -184,8 +178,9 @@ class TestTimerManagerStartMeld:
 
 
 class TestTimerManagerStartRoundAdvance:
-    async def test_start_round_advance_timers(self, timer_manager):
-        """start_round_advance_timers starts fixed-duration timers for each connected player."""
+    async def test_timer_manager__when_round_advance_timers_started__should_start_fixed_timers_for_seated_players(
+        self, timer_manager
+    ):
         conn1 = MockConnection()
         conn2 = MockConnection()
         game = Game(game_id="g1")
@@ -207,8 +202,7 @@ class TestTimerManagerStartRoundAdvance:
         timer0.cancel()
         timer1.cancel()
 
-    def test_start_round_advance_timers_skips_unseated_players(self, timer_manager):
-        """start_round_advance_timers skips players without a seat."""
+    def test_timer_manager__when_player_unseated_at_round_advance__should_not_start_timer(self, timer_manager):
         conn = MockConnection()
         game = Game(game_id="g1")
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=None)
@@ -220,8 +214,7 @@ class TestTimerManagerStartRoundAdvance:
         timer = timer_manager.get_timer("g1", 0)
         assert timer._active_task is None
 
-    def test_start_round_advance_timers_noop_for_missing_game(self, timer_manager):
-        """start_round_advance_timers does nothing if no timers exist for the game."""
+    def test_timer_manager__when_round_advance_started_without_timers__should_not_raise(self, timer_manager):
         conn = MockConnection()
         game = Game(game_id="g1")
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=0)
@@ -229,8 +222,9 @@ class TestTimerManagerStartRoundAdvance:
         # no timers created
         timer_manager.start_round_advance_timers(game)
 
-    async def test_round_advance_timer_fires_callback(self, timer_manager, timeout_log):
-        """Round advance timer fires callback with ROUND_ADVANCE type."""
+    async def test_timer_manager__when_round_advance_timer_expires__should_report_round_advance_timeout(
+        self, timer_manager, timeout_log
+    ):
         conn = MockConnection()
         game = Game(game_id="g1")
         player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="g1", seat=0)

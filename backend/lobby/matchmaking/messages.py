@@ -1,5 +1,3 @@
-"""Typed client-to-server message models for the matchmaking WebSocket protocol."""
-
 from __future__ import annotations
 
 import json
@@ -18,7 +16,9 @@ _matchmaking_message_adapter: TypeAdapter[MatchmakingPingMessage] = TypeAdapter(
 
 
 def parse_matchmaking_message(raw: str) -> MatchmakingPingMessage:
-    """Parse and validate a raw JSON string into a typed matchmaking message."""
+    """
+    Parse and validate a raw JSON string into a typed matchmaking message.
+    """
     byte_len = len(raw.encode("utf-8"))
     if byte_len > _MAX_WS_MESSAGE_SIZE:
         raise ValueError(f"Message too large ({byte_len} bytes, max {_MAX_WS_MESSAGE_SIZE})")

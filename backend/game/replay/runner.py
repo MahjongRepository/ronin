@@ -1,11 +1,3 @@
-"""
-Replay runner: feeds recorded actions through ReplayServiceProtocol and captures trace.
-
-Uses MahjongGameService as a black-box engine through its public API.
-AI player determinism contract: AI player strategies must be deterministic given the same state.
-Currently only TSUMOGIRI exists (always discards last drawn tile).
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -38,7 +30,9 @@ if TYPE_CHECKING:
 
 
 class ReplayServiceProtocol(Protocol):
-    """Replay-facing protocol for game service interaction."""
+    """
+    Replay-facing protocol for game service interaction.
+    """
 
     async def start_game(
         self,
@@ -74,7 +68,9 @@ _CALL_RESPONSE_ACTIONS = frozenset(
 
 @dataclass(frozen=True)
 class ReplayOptions:
-    """Configuration for a replay run."""
+    """
+    Configuration for a replay run.
+    """
 
     game_id: str = ""
     strict: bool = True
@@ -85,7 +81,9 @@ class ReplayOptions:
 
 @dataclass(frozen=True)
 class _ReplayRunContext:
-    """Bundle service + options for internal replay functions."""
+    """
+    Bundle service + options for internal replay functions.
+    """
 
     service: ReplayServiceProtocol
     opts: ReplayOptions
@@ -104,8 +102,7 @@ def run_replay(
     """
     Sync wrapper for non-async contexts.
 
-    Raises RuntimeError if called inside an active event loop
-    (use run_replay_async instead).
+    Raises RuntimeError if called inside an active event loop (use run_replay_async instead).
     """
     try:
         asyncio.get_running_loop()
@@ -125,8 +122,8 @@ async def run_replay_async(
     """
     Run a deterministic replay through the game service.
 
-    Feed replay input events through the service and capture a full trace
-    with state_before/state_after for each transition.
+    Feed replay input events through the service and capture a full trace with state_before/state_after for each
+    transition.
     """
     resolved_opts = opts or ReplayOptions()
     if not resolved_opts.game_id:
@@ -151,7 +148,9 @@ async def _execute_replay(
     ctx: _ReplayRunContext,
     replay: ReplayInput,
 ) -> ReplayTrace:
-    """Core replay execution loop."""
+    """
+    Core replay execution loop.
+    """
     opts = ctx.opts
     service = ctx.service
 
@@ -238,11 +237,11 @@ def _check_startup_errors(events: list[ServiceEvent], strict: bool) -> None:  # 
 
 
 def _reject_manual_confirm_rounds(replay: ReplayInput) -> None:
-    """Reject CONFIRM_ROUND events in input when auto_confirm_rounds is enabled.
+    """
+    Reject CONFIRM_ROUND events in input when auto_confirm_rounds is enabled.
 
-    When auto_confirm_rounds=True, the runner injects synthetic CONFIRM_ROUND
-    steps automatically. Manual CONFIRM_ROUND events in the input would conflict
-    and produce duplicate confirmation errors.
+    When auto_confirm_rounds=True, the runner injects synthetic CONFIRM_ROUND steps automatically. Manual CONFIRM_ROUND
+    events in the input would conflict and produce duplicate confirmation errors.
     """
     confirm_indices = [i for i, event in enumerate(replay.events) if event.action == GameAction.CONFIRM_ROUND]
     if confirm_indices:
@@ -254,11 +253,11 @@ def _reject_manual_confirm_rounds(replay: ReplayInput) -> None:
 
 
 def _reject_manual_pass(replay: ReplayInput) -> None:
-    """Reject PASS events in input when auto_pass_calls is enabled.
+    """
+    Reject PASS events in input when auto_pass_calls is enabled.
 
-    When auto_pass_calls=True, the runner injects synthetic PASS steps
-    automatically. Manual PASS events in the input would conflict and produce
-    duplicate pass errors.
+    When auto_pass_calls=True, the runner injects synthetic PASS steps automatically. Manual PASS events in the input
+    would conflict and produce duplicate pass errors.
     """
     pass_indices = [i for i, event in enumerate(replay.events) if event.action == GameAction.PASS]
     if pass_indices:
@@ -291,7 +290,9 @@ async def _process_input_event(
     steps: list[ReplayStep],
     step_count: int,
 ) -> int:
-    """Process one player input event and append to steps."""
+    """
+    Process one player input event and append to steps.
+    """
     state_before = _require_state(ctx.service, ctx.opts.game_id, "game state disappeared before replay action")
 
     try:
@@ -333,7 +334,9 @@ async def _maybe_confirm_round(
     steps: list[ReplayStep],
     step_count: int,
 ) -> int:
-    """Inject round confirmations if a round advance is pending."""
+    """
+    Inject round confirmations if a round advance is pending.
+    """
     if ctx.opts.auto_confirm_rounds and ctx.service.is_round_advance_pending(ctx.opts.game_id):
         step_count = await _inject_round_confirmations(ctx, steps, step_count)
         _check_step_limit(step_count, ctx.opts.max_steps)
@@ -345,7 +348,9 @@ async def _inject_round_confirmations(
     steps: list[ReplayStep],
     step_count: int,
 ) -> int:
-    """Inject synthetic CONFIRM_ROUND steps for all pending players."""
+    """
+    Inject synthetic CONFIRM_ROUND steps for all pending players.
+    """
     game_id = ctx.opts.game_id
     for player_name in ctx.service.get_pending_round_advance_player_names(game_id):
         _check_step_limit(step_count, ctx.opts.max_steps)
@@ -397,7 +402,8 @@ async def _handle_auto_pass_for_input(
     steps: list[ReplayStep],
     step_count: int,
 ) -> int:
-    """Handle auto-pass logic before processing an input event.
+    """
+    Handle auto-pass logic before processing an input event.
 
     If a call prompt is pending:
     - If the input is a call response from a pending seat, skip that seat
@@ -425,7 +431,8 @@ async def _inject_pass_calls(
     *,
     exclude_seats: frozenset[int] = frozenset(),
 ) -> int:
-    """Inject synthetic PASS steps for pending call prompt seats.
+    """
+    Inject synthetic PASS steps for pending call prompt seats.
 
     exclude_seats: seats to skip (e.g., the seat of the next input event
     that is itself a call response).

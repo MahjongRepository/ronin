@@ -1,7 +1,3 @@
-"""
-Round initialization and management for Mahjong game.
-"""
-
 from __future__ import annotations
 
 import structlog
@@ -46,10 +42,9 @@ def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
     """
     Find waiting tiles based on hand tiles only (ignoring melds for agari check).
 
-    Uses agari.is_agari without open_sets since the mahjong library's agari
-    checker expects meld tiles to be included in the tiles_34 array when
-    open_sets is provided. For tenpai/karaten checks, we only have hand tiles
-    (excluding melds), so passing None is correct.
+    Uses agari.is_agari without open_sets since the mahjong library's agari checker expects meld tiles to be included in
+    the tiles_34 array when open_sets is provided. For tenpai/karaten checks, we only have hand tiles (excluding melds),
+    so passing None is correct.
     """
     tiles_34 = hand_to_34_array(tiles)
     waiting = set()
@@ -70,8 +65,7 @@ def draw_tile(
     """
     Draw a tile from the wall for the current player.
 
-    Returns (new_round_state, drawn_tile).
-    Returns (unchanged_state, None) if wall is empty.
+    Returns (new_round_state, drawn_tile). Returns (unchanged_state, None) if wall is empty.
     """
     new_wall, tile = wall_ops.draw_tile(round_state.wall)
     if tile is None:
@@ -92,8 +86,7 @@ def discard_tile(
     """
     Discard a tile from a player's hand.
 
-    Returns (new_round_state, discard_record).
-    Raises InvalidDiscardError if tile not in hand or violates kuikae.
+    Returns (new_round_state, discard_record). Raises InvalidDiscardError if tile not in hand or violates kuikae.
     """
     player = round_state.players[seat]
 
@@ -153,8 +146,8 @@ def add_dora_indicator(
     """
     Reveal the next dora indicator from dead wall.
 
-    Called after a kan is declared. Returns (new_state, new_indicator_tile_id).
-    Dora indicators are at dead wall indices 2, 3, 4, 5, 6.
+    Called after a kan is declared. Returns (new_state, new_indicator_tile_id). Dora indicators are at dead wall indices
+    2, 3, 4, 5, 6.
     """
     new_wall, indicator = wall_ops.add_dora_indicator(round_state.wall)
     new_state = round_state.model_copy(update={"wall": new_wall})
@@ -167,9 +160,8 @@ def reveal_pending_dora(
     """
     Reveal any pending dora indicators queued by open/added kan.
 
-    Called after a discard to implement the rule that open and added kan
-    dora indicators are revealed after the replacement tile is discarded,
-    not immediately when the kan is declared.
+    Called after a discard to implement the rule that open and added kan dora indicators are revealed after the
+    replacement tile is discarded, not immediately when the kan is declared.
 
     Returns (new_state, list_of_newly_revealed_dora_indicator_tile_ids).
     """
@@ -184,10 +176,8 @@ def draw_from_dead_wall(
     """
     Draw a replacement tile from the dead wall after kan.
 
-    After drawing, replenishes the dead wall by moving the last tile
-    from the live wall to maintain 14 dead wall tiles.
-    Sets the player's is_rinshan flag to True.
-    Returns (new_state, drawn_tile).
+    After drawing, replenishes the dead wall by moving the last tile from the live wall to maintain 14 dead wall tiles.
+    Sets the player's is_rinshan flag to True. Returns (new_state, drawn_tile).
     """
     new_wall, tile = wall_ops.draw_from_dead_wall(round_state.wall)
 
@@ -217,7 +207,6 @@ def is_tempai(
 
     Returns:
         True if the hand is in tenpai, False otherwise.
-
     """
     tiles_list = list(tiles)
 
@@ -263,9 +252,8 @@ def _is_pure_karaten(
     """
     Check if all winning tiles are entirely in the player's own hand + melds.
 
-    Uses local tile and meld lists rather than player object.
-    Pure karaten means the player holds all 4 copies of every tile they are
-    waiting on. This is not considered valid tenpai.
+    Uses local tile and meld lists rather than player object. Pure karaten means the player holds all 4 copies of every
+    tile they are waiting on. This is not considered valid tenpai.
     """
     waiting = _get_hand_waiting_tiles(tiles)
     if not waiting:

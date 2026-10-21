@@ -1,5 +1,3 @@
-"""Root conftest: load test environment variables and configure structlog for tests."""
-
 from pathlib import Path
 
 import pytest
@@ -28,7 +26,6 @@ structlog.configure(
 
 @pytest.fixture(autouse=True)
 def _clear_log_context():
-    """Prevent context leaking between tests."""
     structlog.contextvars.clear_contextvars()
     yield
     structlog.contextvars.clear_contextvars()

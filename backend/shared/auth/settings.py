@@ -1,5 +1,3 @@
-"""Auth settings shared between lobby and game server."""
-
 from pydantic import Field
 from pydantic_settings import BaseSettings
 

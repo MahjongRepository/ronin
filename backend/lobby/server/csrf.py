@@ -1,10 +1,3 @@
-"""CSRF protection helpers using the double-submit cookie pattern.
-
-Provides token generation, cookie management, and validation for
-state-changing HTML form routes. Bot API routes (JSON + API key)
-are exempt since they don't use cookies for authentication.
-"""
-
 from __future__ import annotations
 
 import secrets
@@ -22,7 +15,8 @@ CSRF_FORM_FIELD = "csrf_token"
 
 
 def get_or_create_csrf_token(request: Request) -> tuple[str, bool]:
-    """Return the CSRF token from the cookie, or generate a new one.
+    """
+    Return the CSRF token from the cookie, or generate a new one.
 
     Returns (token, is_new) where is_new indicates a cookie must be set.
     """
@@ -33,7 +27,9 @@ def get_or_create_csrf_token(request: Request) -> tuple[str, bool]:
 
 
 def set_csrf_cookie(response: Response, token: str, *, cookie_secure: bool) -> None:
-    """Set the CSRF token cookie on the response."""
+    """
+    Set the CSRF token cookie on the response.
+    """
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=token,
@@ -45,9 +41,11 @@ def set_csrf_cookie(response: Response, token: str, *, cookie_secure: bool) -> N
 
 
 def validate_csrf(request: Request, form_data: FormData) -> PlainTextResponse | None:
-    """Check that the form CSRF token matches the cookie token.
+    """
+    Check that the form CSRF token matches the cookie token.
 
-    Returns a 403 response on failure, or None if the token is valid.
+    Returns a 403 response on failure, or None if the token is valid. Bot API routes (JSON + API key) skip this check:
+    they do not authenticate with cookies.
     """
     cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
     if not cookie_token:

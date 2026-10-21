@@ -1,5 +1,3 @@
-"""Tests for replay runner: async/sync APIs, service protocol, lifecycle."""
-
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -44,17 +42,11 @@ def _build_replay(
     player_names: tuple[str, str, str, str] = PLAYER_NAMES,
     actions: tuple[tuple[str, GameAction, dict[str, Any]], ...] = (),
 ) -> ReplayInput:
-    """Helper to build ReplayInput from tuples."""
     events = tuple(ReplayInputEvent(player_name=name, action=action, data=data) for name, action, data in actions)
     return ReplayInput(seed=seed, player_names=player_names, events=events)
 
 
 class _StubService:
-    """Base stub implementing ReplayServiceProtocol with a real inner service.
-
-    Subclasses override specific methods to inject test behavior.
-    """
-
     def __init__(self) -> None:
         self._inner = MahjongGameService(auto_cleanup=False)
 
@@ -92,7 +84,6 @@ class _StubService:
 
 
 async def _async_probe_current_player_discard() -> tuple[str, int]:
-    """Async version of probe for current player name and valid tile."""
     svc = MahjongGameService(auto_cleanup=False)
     await svc.start_game("probe", list(PLAYER_NAMES), seed=SEED)
     state = svc.get_game_state("probe")
@@ -103,8 +94,7 @@ async def _async_probe_current_player_discard() -> tuple[str, int]:
     return player.name, player.tiles[-1]
 
 
-async def test_run_replay_async_basic_discard():
-    """run_replay_async starts a game and processes a single discard."""
+async def test_run_replay_async__when_discard_input__should_trace_discard_step():
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
@@ -120,8 +110,7 @@ async def test_run_replay_async_basic_discard():
     assert trace.steps[0].state_after != trace.steps[0].state_before
 
 
-async def test_run_replay_async_strict_mode_error_detection():
-    """Strict mode raises ReplayError on invalid actions."""
+async def test_run_replay_async__when_strict_and_action_invalid__should_raise_replay_error():
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
 
     with pytest.raises(ReplayError) as exc_info:
@@ -130,8 +119,7 @@ async def test_run_replay_async_strict_mode_error_detection():
     assert exc_info.value.event.player_name == "Bob"
 
 
-async def test_run_replay_async_nonstrict_invalid_action_continues():
-    """Non-strict mode converts invalid action errors to error event step."""
+async def test_run_replay_async__when_non_strict_and_action_invalid__should_record_error_step():
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
 
     trace = await run_replay_async(replay, ReplayOptions(strict=False))
@@ -140,13 +128,7 @@ async def test_run_replay_async_nonstrict_invalid_action_continues():
     assert len(error_events) == 1
 
 
-async def test_run_replay_async_raised_invalid_action_error():
-    """Runner wraps InvalidGameActionError from handle_action into ReplayError/error event.
-
-    Covers the except InvalidGameActionError path in _process_input_event,
-    where the service raises instead of returning an error event.
-    Strict mode raises ReplayError; non-strict mode converts to an error event step.
-    """
+async def test_run_replay_async__when_service_raises_invalid_action__should_raise_or_record_by_strictness():
 
     class RaisingService(_StubService):
         async def handle_action(
@@ -173,8 +155,7 @@ async def test_run_replay_async_raised_invalid_action_error():
     assert error_events[0].data.code == GameErrorCode.INVALID_ACTION
 
 
-async def test_run_replay_async_service_factory():
-    """Runner works with a custom protocol-compatible factory."""
+async def test_run_replay_async__when_service_factory_given__should_use_it_and_clean_up():
     factory_called = False
     cleanup_called = False
 
@@ -196,8 +177,7 @@ async def test_run_replay_async_service_factory():
     assert cleanup_called
 
 
-async def test_run_replay_async_cleanup_always_called():
-    """Runner calls cleanup_game on both success and error."""
+async def test_run_replay_async__when_replay_succeeds_or_fails__should_clean_up_game():
     cleanup_calls: list[str] = []
 
     class TrackingService(MahjongGameService):
@@ -224,31 +204,27 @@ async def test_run_replay_async_cleanup_always_called():
     assert len(cleanup_calls) == 1
 
 
-def test_run_replay_sync():
-    """run_replay works in sync context."""
+def test_run_replay__should_return_trace_with_seed():
     replay = _build_replay()
     trace = run_replay(replay)
     assert isinstance(trace, ReplayTrace)
     assert trace.seed == SEED
 
 
-async def test_run_replay_sync_raises_in_async_context():
-    """run_replay raises RuntimeError when called from async context."""
+async def test_run_replay__when_called_in_async_context__should_raise():
     replay = _build_replay()
     with pytest.raises(RuntimeError, match="cannot be used in async context"):
         run_replay(replay)
 
 
-async def test_run_replay_async_max_steps_limit():
-    """Runner raises ReplayStepLimitError when max_steps exceeded."""
+async def test_run_replay_async__when_max_steps_zero__should_raise_step_limit_error():
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
     with pytest.raises(ReplayStepLimitError, match="exceeded 0 steps"):
         await run_replay_async(replay, ReplayOptions(max_steps=0))
 
 
-async def test_run_replay_async_seat_by_player():
-    """ReplayTrace includes seat_by_player mapping."""
+async def test_run_replay_async__should_map_every_player_to_a_seat():
     replay = _build_replay()
     trace = await run_replay_async(replay)
     assert len(trace.seat_by_player) == 4
@@ -257,8 +233,7 @@ async def test_run_replay_async_seat_by_player():
         assert trace.seat_by_player[name] in range(4)
 
 
-async def test_run_replay_async_input_after_game_end_strict():
-    """Strict mode raises ReplayInputAfterGameEndError on extra input after game end."""
+async def test_run_replay_async__when_strict_and_input_after_game_end__should_raise():
 
     class FinishedService(_StubService):
         async def start_game(
@@ -283,8 +258,7 @@ async def test_run_replay_async_input_after_game_end_strict():
         await run_replay_async(replay, service_factory=FinishedService)
 
 
-async def test_run_replay_async_input_after_game_end_non_strict():
-    """Non-strict mode stops cleanly on extra input after game end."""
+async def test_run_replay_async__when_non_strict_and_input_after_game_end__should_skip_input():
 
     class FinishedService(_StubService):
         async def start_game(
@@ -310,8 +284,7 @@ async def test_run_replay_async_input_after_game_end_non_strict():
     assert len(trace.steps) == 0
 
 
-async def test_run_replay_async_startup_error_strict():
-    """Strict mode raises ReplayStartupError when startup has errors."""
+async def test_run_replay_async__when_strict_and_startup_emits_error__should_raise_startup_error():
 
     class ErrorStartupService(_StubService):
         async def start_game(
@@ -340,8 +313,7 @@ async def test_run_replay_async_startup_error_strict():
         await run_replay_async(replay, service_factory=ErrorStartupService)
 
 
-async def test_run_replay_async_startup_error_non_strict():
-    """Non-strict mode ignores startup errors."""
+async def test_run_replay_async__when_non_strict_and_startup_emits_error__should_return_trace():
 
     class ErrorStartupService(_StubService):
         async def start_game(
@@ -370,8 +342,7 @@ async def test_run_replay_async_startup_error_non_strict():
     assert isinstance(trace, ReplayTrace)
 
 
-async def test_run_replay_async_invariant_error_missing_state():
-    """Runner raises ReplayInvariantError when game state disappears."""
+async def test_run_replay_async__when_game_state_disappears__should_raise_invariant_error():
 
     class DisappearingStateService(_StubService):
         async def handle_action(
@@ -389,8 +360,7 @@ async def test_run_replay_async_invariant_error_missing_state():
         await run_replay_async(replay, ReplayOptions(strict=False), service_factory=DisappearingStateService)
 
 
-async def test_run_replay_async_round_advance_injection():
-    """Runner injects synthetic CONFIRM_ROUND steps for pending round advances."""
+async def test_round_confirmation__when_round_advance_pending__should_inject_synthetic_confirm_steps():
 
     class RoundAdvanceService(_StubService):
         def __init__(self) -> None:
@@ -452,8 +422,7 @@ async def test_run_replay_async_round_advance_injection():
     assert len(synthetic_confirm_steps) > 0
 
 
-async def test_run_replay_async_round_confirm_error_in_strict_mode():
-    """Strict mode raises ReplayError when synthetic confirm_round returns errors."""
+async def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():
 
     class ConfirmErrorService(_StubService):
         def __init__(self) -> None:
@@ -501,18 +470,9 @@ async def test_run_replay_async_round_confirm_error_in_strict_mode():
         await run_replay_async(replay, service_factory=ConfirmErrorService)
 
 
-async def test_step_limit_enforced_after_round_confirmations():
-    """Step limit is enforced after synthetic round confirmations complete, before the next user input.
-
-    This specifically tests the post-injection check in _execute_replay (line 169),
-    not the per-confirmation check inside _inject_round_confirmations.
-    With 2 pending players and max_steps=3: 1 discard + 2 confirms = 3 steps,
-    which hits the limit after confirmations complete but before the second discard.
-    """
+async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise_before_next_input():
 
     class RoundAdvanceService(_StubService):
-        """Service that reports a round advance pending after the first action."""
-
         def __init__(self) -> None:
             super().__init__()
             self._advance_pending = False
@@ -553,16 +513,14 @@ async def test_step_limit_enforced_after_round_confirmations():
         await run_replay_async(replay, ReplayOptions(max_steps=3, strict=False), service_factory=RoundAdvanceService)
 
 
-async def test_reject_confirm_round_in_events_with_auto_confirm():
-    """Runner rejects CONFIRM_ROUND events in input when auto_confirm_rounds=True."""
+async def test_auto_confirm_rounds__when_input_has_confirm_round__should_raise_load_error():
     replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
 
     with pytest.raises(ReplayLoadError, match=r"CONFIRM_ROUND.*auto_confirm_rounds=True"):
         await run_replay_async(replay)
 
 
-async def test_allow_confirm_round_in_events_without_auto_confirm():
-    """Runner allows CONFIRM_ROUND events in input when auto_confirm_rounds=False."""
+async def test_auto_confirm_rounds__when_disabled_and_input_has_confirm_round__should_run_it_as_game_action():
     replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
 
     # This should not raise ValueError; it may raise ReplayError due to
@@ -571,12 +529,9 @@ async def test_allow_confirm_round_in_events_without_auto_confirm():
         await run_replay_async(replay, ReplayOptions(auto_confirm_rounds=False))
 
 
-async def test_auto_pass_calls_injects_synthetic_pass_steps():
-    """Runner injects synthetic PASS steps when call prompt is pending."""
+async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other_seats():
 
     class CallPromptService(_StubService):
-        """Service that reports a call prompt pending after the first discard."""
-
         def __init__(self) -> None:
             super().__init__()
             self._inject_prompt = False
@@ -643,16 +598,14 @@ async def test_auto_pass_calls_injects_synthetic_pass_steps():
         assert step.input_event.action == GameAction.PASS
 
 
-async def test_reject_pass_in_events_with_auto_pass():
-    """Runner rejects PASS events in input when auto_pass_calls=True."""
+async def test_auto_pass_calls__when_input_has_pass__should_raise_load_error():
     replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
 
     with pytest.raises(ReplayLoadError, match=r"PASS.*auto_pass_calls=True"):
         await run_replay_async(replay)
 
 
-async def test_allow_pass_in_events_without_auto_pass():
-    """Runner allows PASS events in input when auto_pass_calls=False."""
+async def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_game_action():
     replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
 
     # This should not raise ValueError; it may raise ReplayError due to
@@ -664,8 +617,7 @@ async def test_allow_pass_in_events_without_auto_pass():
         )
 
 
-async def test_auto_pass_excludes_call_response_seat():
-    """When input is a call response (e.g. PON), auto-pass skips that player's seat."""
+async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_others():
     # Discover actual seat assignments (seed-dependent)
     svc_probe = MahjongGameService(auto_cleanup=False)
     await svc_probe.start_game("probe-seats", list(PLAYER_NAMES), seed=SEED)
@@ -683,8 +635,6 @@ async def test_auto_pass_excludes_call_response_seat():
     discarder_seat = name_to_seat[discarder]
 
     class CallResponseService(_StubService):
-        """Service that simulates call prompt then PON response."""
-
         def __init__(self) -> None:
             super().__init__()
             self._pass_calls: list[str] = []
@@ -768,12 +718,9 @@ async def test_auto_pass_excludes_call_response_seat():
     assert synthetic_steps[0].input_event.action == GameAction.PASS
 
 
-async def test_auto_pass_strict_mode_error():
-    """Strict mode raises ReplayError when synthetic PASS returns errors."""
+async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_replay_error():
 
     class PassErrorService(_StubService):
-        """Service that returns an error for PASS actions."""
-
         def __init__(self) -> None:
             super().__init__()
 
@@ -836,17 +783,9 @@ async def test_auto_pass_strict_mode_error():
         )
 
 
-async def test_trailing_auto_pass_after_all_input_events():
-    """Trailing auto-pass fires when the last input event leaves a call prompt pending.
-
-    The trailing _inject_pass_calls block in _execute_replay runs after the
-    input event loop, handling call prompts that are still pending when no
-    further input events remain.
-    """
+async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_remaining_seats():
 
     class TrailingPromptService(_StubService):
-        """Service that injects a call prompt after the last discard but has no more input."""
-
         def __init__(self) -> None:
             super().__init__()
             self._pass_calls: list[str] = []
@@ -916,8 +855,7 @@ async def test_trailing_auto_pass_after_all_input_events():
     assert len(svc_instance._pass_calls) == 3
 
 
-async def test_run_replay_async_rng_version_passthrough():
-    """ReplayTrace.rng_version is set from ReplayInput.rng_version, not the default."""
+async def test_run_replay_async__when_replay_has_rng_version__should_carry_it_to_trace():
     custom_version = "test-rng-v99"
     replay = _build_replay()
     replay = replay.model_copy(update={"rng_version": custom_version})
@@ -926,12 +864,9 @@ async def test_run_replay_async_rng_version_passthrough():
     assert trace.rng_version != RNG_VERSION
 
 
-async def test_game_end_after_auto_pass_stops_before_next_input_strict():
-    """Strict mode raises ReplayInputAfterGameEndError when auto-pass ends the game."""
+async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_input_after_game_end():
 
     class GameEndingPassService(_StubService):
-        """Service where auto-pass resolves a prompt and ends the game."""
-
         def __init__(self) -> None:
             super().__init__()
             self._pass_count = 0
@@ -998,12 +933,9 @@ async def test_game_end_after_auto_pass_stops_before_next_input_strict():
         )
 
 
-async def test_game_end_after_auto_pass_stops_before_next_input_nonstrict():
-    """Non-strict mode stops cleanly when auto-pass ends the game before next input."""
+async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip_later_inputs():
 
     class GameEndingPassService(_StubService):
-        """Service where a discard creates a call prompt and PASS ends the game."""
-
         def __init__(self) -> None:
             super().__init__()
 
@@ -1071,21 +1003,9 @@ async def test_game_end_after_auto_pass_stops_before_next_input_nonstrict():
     assert non_synthetic[0].input_event.action == GameAction.DISCARD
 
 
-async def test_auto_pass_early_break_when_prompt_resolves():
-    """Auto-pass loop breaks early when an earlier PASS resolves the entire call prompt.
-
-    Covers the defensive break in _inject_pass_calls when prompt becomes None mid-loop.
-    When a call prompt has multiple pending seats but resolves fully on the first PASS,
-    the remaining seats should not receive PASS actions.
-    """
+async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_passing():
 
     class EarlyResolveService(_StubService):
-        """Service where the first PASS clears the entire call prompt (no remaining seats).
-
-        Overrides handle_action for both PASS and DISCARD to prevent the real service
-        from creating additional call prompts during the discard step.
-        """
-
         def __init__(self) -> None:
             super().__init__()
             self._pass_count = 0

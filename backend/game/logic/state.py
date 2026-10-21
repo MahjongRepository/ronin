@@ -1,9 +1,3 @@
-"""
-Game state models for Mahjong.
-
-Uses frozen Pydantic models for immutable state management.
-"""
-
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,7 +14,9 @@ _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
 
 
 class Discard(BaseModel):
-    """Immutable discard record."""
+    """
+    Immutable discard record.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -30,7 +26,9 @@ class Discard(BaseModel):
 
 
 class CallResponse(BaseModel):
-    """Immutable call response record."""
+    """
+    Immutable call response record.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -43,8 +41,7 @@ class PendingCallPrompt(BaseModel):
     """
     Immutable pending call prompt.
 
-    Uses frozenset for pending_seats and tuple for responses/callers
-    to ensure complete immutability.
+    Uses frozenset for pending_seats and tuple for responses/callers to ensure complete immutability.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -82,12 +79,16 @@ class MahjongPlayer(BaseModel):
     score: int
 
     def has_open_melds(self) -> bool:
-        """Check if player has any open melds (excluding closed kans)."""
+        """
+        Check if player has any open melds (excluding closed kans).
+        """
         return any(meld.opened for meld in self.melds)
 
 
 class MahjongRoundState(BaseModel):
-    """Immutable round state."""
+    """
+    Immutable round state.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -128,7 +129,9 @@ class MahjongGameState(BaseModel):
 
 
 def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
-    """Return the round-start view for a specific player."""
+    """
+    Return the round-start view for a specific player.
+    """
     round_state = game_state.round_state
 
     players_view: list[PlayerView] = []
@@ -166,7 +169,9 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
 
 
 def wind_name(wind: int) -> WindName:
-    """Convert wind index to name."""
+    """
+    Convert wind index to name.
+    """
     return _WIND_NAMES[wind] if 0 <= wind < len(_WIND_NAMES) else WindName.UNKNOWN
 
 
@@ -174,8 +179,8 @@ def seat_to_wind(seat: int, dealer_seat: int) -> int:
     """
     Calculate player's wind tile constant based on seat position relative to dealer.
 
-    Dealer is always East, and winds rotate counter-clockwise from there.
-    Returns the wind tile constant (27-30) for use with mahjong library HandConfig.
+    Dealer is always East, and winds rotate counter-clockwise from there. Returns the wind tile constant (27-30) for use
+    with mahjong library HandConfig.
     """
     relative_position = (seat - dealer_seat) % NUM_PLAYERS
     return WINDS_34[relative_position]

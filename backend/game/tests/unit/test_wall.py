@@ -1,10 +1,3 @@
-"""
-Unit tests for Wall model and wall operations.
-
-Covers wall creation, dealing, drawing, dora management, ura dora collection,
-and edge cases.
-"""
-
 import pytest
 
 from game.logic.exceptions import InvalidActionError
@@ -35,52 +28,44 @@ FIXED_SEED = "ab" * SEED_BYTES
 
 
 def _make_tile_list() -> list[int]:
-    """Create a standard 0-135 tile list for testing."""
     return list(range(NUM_TILES))
 
 
 class TestCreateWall:
-    def test_has_correct_sizes(self):
-        """Live wall = 122 tiles, dead wall = 14 tiles, 1 initial dora indicator."""
+    def test_create_wall__when_created__should_split_live_dead_and_one_dora(self):
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         assert len(wall.live_tiles) == NUM_TILES - DEAD_WALL_SIZE
         assert len(wall.dead_wall_tiles) == DEAD_WALL_SIZE
         assert len(wall.dora_indicators) == 1
 
-    def test_all_tiles_present(self):
-        """All 136 tile IDs present across live + dead wall."""
+    def test_create_wall__when_created__should_contain_every_tile_once(self):
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         all_tiles = list(wall.live_tiles) + list(wall.dead_wall_tiles)
         assert sorted(all_tiles) == list(range(NUM_TILES))
 
-    def test_initial_dora_from_dead_wall(self):
-        """Initial dora indicator is dead wall tile at FIRST_DORA_INDEX."""
+    def test_create_wall__when_created__should_take_initial_dora_from_dead_wall(self):
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         assert wall.dora_indicators[0] == wall.dead_wall_tiles[FIRST_DORA_INDEX]
 
-    def test_ura_dora_stored_eagerly(self):
-        """Ura dora indicators are captured from dead wall at creation time."""
+    def test_create_wall__when_created__should_store_ura_dora_eagerly(self):
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         assert len(wall.ura_dora_indicators) == MAX_DORA_INDICATORS
         for i in range(MAX_DORA_INDICATORS):
             assert wall.ura_dora_indicators[i] == wall.dead_wall_tiles[URA_DORA_START_INDEX + i]
 
-    def test_deterministic(self):
-        """Same seed + round produces the same wall."""
+    def test_create_wall__when_same_inputs__should_produce_same_wall(self):
         wall1 = create_wall(FIXED_SEED, 0, dealer_seat=0)
         wall2 = create_wall(FIXED_SEED, 0, dealer_seat=0)
         assert wall1 == wall2
 
-    def test_different_inputs_produce_different_walls(self):
-        """Different seed or round produces different walls."""
+    def test_create_wall__when_different_inputs__should_produce_different_walls(self):
         wall1 = create_wall(FIXED_SEED, 0, dealer_seat=0)
         wall2 = create_wall("cd" * SEED_BYTES, 0, dealer_seat=0)
         wall3 = create_wall(FIXED_SEED, 1, dealer_seat=0)
         assert wall1.live_tiles != wall2.live_tiles
         assert wall1.live_tiles != wall3.live_tiles
 
-    def test_different_dealer_seats_different_splits(self):
-        """Same seed+round but different dealer_seat produces different live/dead wall."""
+    def test_create_wall__when_different_dealer_seats__should_split_differently(self):
         wall0 = create_wall(FIXED_SEED, 0, dealer_seat=0)
         wall1 = create_wall(FIXED_SEED, 0, dealer_seat=1)
         # Dice are the same (same RNG stream), but break position differs
@@ -89,39 +74,36 @@ class TestCreateWall:
 
 
 class TestCreateWallFromTiles:
-    def test_explicit_tile_order_preserved(self):
-        """Tile positions match the input order."""
+    def test_create_wall_from_tiles__when_given_order__should_preserve_it(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         assert wall.live_tiles == tuple(range(122))
         assert wall.dead_wall_tiles == tuple(range(122, 136))
 
-    def test_initial_dora_indicator(self):
-        """Dora indicator set from dead wall index 2."""
+    def test_create_wall_from_tiles__when_created__should_set_initial_dora(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         assert wall.dora_indicators == (tiles[-DEAD_WALL_SIZE + FIRST_DORA_INDEX],)
 
-    def test_ura_dora_stored_eagerly(self):
-        """Ura dora indicators captured from dead wall positions 7-11."""
+    def test_create_wall_from_tiles__when_created__should_store_ura_dora_eagerly(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         dead = wall.dead_wall_tiles
         expected = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
         assert wall.ura_dora_indicators == expected
 
-    def test_wrong_tile_count(self):
+    def test_create_wall_from_tiles__when_wrong_tile_count__should_raise(self):
         with pytest.raises(ValueError, match="Expected 136"):
             create_wall_from_tiles(list(range(10)))
         with pytest.raises(ValueError, match="Expected 136"):
             create_wall_from_tiles(list(range(200)))
 
-    def test_duplicate_tiles(self):
+    def test_create_wall_from_tiles__when_duplicate_tiles__should_raise(self):
         tiles = [0] * NUM_TILES
         with pytest.raises(ValueError, match="unique"):
             create_wall_from_tiles(tiles)
 
-    def test_out_of_range_tile_ids(self):
+    def test_create_wall_from_tiles__when_tile_id_out_of_range__should_raise(self):
         tiles = list(range(NUM_TILES))
         tiles[0] = 999
         with pytest.raises(ValueError, match="integers in"):
@@ -129,16 +111,14 @@ class TestCreateWallFromTiles:
 
 
 class TestDealInitialHands:
-    def test_tile_counts(self):
-        """Each player gets 13 tiles."""
+    def test_deal_initial_hands__when_dealt__should_give_13_tiles_each(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         _new_wall, hands = deal_initial_hands(wall, dealer_seat=0)
         for hand in hands:
             assert len(hand) == 13
 
-    def test_dealing_order(self):
-        """Dealer (seat 0) gets tiles first in each dealing block."""
+    def test_deal_initial_hands__when_dealer_zero__should_give_dealer_first_four_tiles(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         _, hands = deal_initial_hands(wall, dealer_seat=0)
@@ -146,8 +126,7 @@ class TestDealInitialHands:
         for t in first_block:
             assert t in hands[0]
 
-    def test_dealing_order_with_nonzero_dealer(self):
-        """Dealing starts from the dealer seat, wrapping around."""
+    def test_deal_initial_hands__when_nonzero_dealer__should_give_dealer_first_four_tiles(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         _, hands = deal_initial_hands(wall, dealer_seat=2)
@@ -155,51 +134,44 @@ class TestDealInitialHands:
         for t in first_block:
             assert t in hands[2]
 
-    def test_reduces_live_wall(self):
-        """52 tiles (4 players x 13) removed from live wall."""
+    def test_deal_initial_hands__when_dealt__should_remove_52_tiles_from_live_wall(self):
         tiles = _make_tile_list()
         wall = create_wall_from_tiles(tiles)
         new_wall, _ = deal_initial_hands(wall, dealer_seat=0)
         assert len(new_wall.live_tiles) == len(wall.live_tiles) - 52
 
-    def test_hands_are_sorted(self):
-        """Each dealt hand is sorted by tile ID."""
+    def test_deal_initial_hands__when_dealt__should_sort_hands(self):
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         _, hands = deal_initial_hands(wall, dealer_seat=0)
         for hand in hands:
             assert hand == sorted(hand)
 
-    def test_all_dealt_tiles_unique(self):
-        """No duplicate tiles across all dealt hands."""
+    def test_deal_initial_hands__when_dealt__should_give_unique_tiles(self):
         wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
         _, hands = deal_initial_hands(wall, dealer_seat=0)
         all_dealt = [t for hand in hands for t in hand]
         assert len(all_dealt) == len(set(all_dealt))
 
-    def test_insufficient_tiles(self):
-        """Raises ValueError if live wall has fewer than 52 tiles."""
+    def test_deal_initial_hands__when_live_wall_too_short__should_raise(self):
         wall = Wall(live_tiles=tuple(range(10)), dead_wall_tiles=tuple(range(14)))
         with pytest.raises(ValueError, match="need at least"):
             deal_initial_hands(wall, dealer_seat=0)
 
 
 class TestDrawTile:
-    def test_from_front(self):
-        """Draws the first tile from the live wall."""
+    def test_draw_tile__when_wall_has_tiles__should_draw_from_front(self):
         wall = Wall(live_tiles=(10, 20, 30), dead_wall_tiles=())
         new_wall, tile = draw_tile(wall)
         assert tile == 10
         assert new_wall.live_tiles == (20, 30)
 
-    def test_empty_wall(self):
-        """Returns None when live wall is empty."""
+    def test_draw_tile__when_wall_empty__should_return_none(self):
         wall = Wall(live_tiles=(), dead_wall_tiles=())
         result_wall, tile = draw_tile(wall)
         assert tile is None
         assert result_wall is wall
 
-    def test_last_tile(self):
-        """Drawing the last tile leaves an empty live wall."""
+    def test_draw_tile__when_last_tile__should_empty_wall(self):
         wall = Wall(live_tiles=(42,), dead_wall_tiles=())
         new_wall, tile = draw_tile(wall)
         assert tile == 42
@@ -207,8 +179,7 @@ class TestDrawTile:
 
 
 class TestDrawFromDeadWall:
-    def test_successive_draws_follow_right_to_left_order(self):
-        """Rinshan draws proceed right-to-left: indices 13, 12, 11, 10."""
+    def test_draw_from_dead_wall__when_successive_draws__should_follow_right_to_left_order(self):
         dead = tuple(range(100, 114))
         live = tuple(range(50, 70))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
@@ -219,8 +190,7 @@ class TestDrawFromDeadWall:
             drawn_tiles.append(tile)
         assert drawn_tiles == [dead[13], dead[12], dead[11], dead[10]]
 
-    def test_replenishes(self):
-        """Dead wall size is maintained by placing live tile at the drawn position."""
+    def test_draw_from_dead_wall__when_drawn__should_replenish_from_live_wall(self):
         dead = tuple(range(14))
         live = tuple(range(14, 24))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
@@ -230,8 +200,7 @@ class TestDrawFromDeadWall:
         assert new_wall.dead_wall_tiles[13] == 23
         assert len(new_wall.live_tiles) == len(live) - 1
 
-    def test_increments_rinshan_draws_count(self):
-        """Each draw increments the rinshan draw counter."""
+    def test_draw_from_dead_wall__when_drawn__should_increment_rinshan_draws_count(self):
         dead = tuple(range(14))
         live = tuple(range(14, 24))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
@@ -240,22 +209,19 @@ class TestDrawFromDeadWall:
         new_wall2, _ = draw_from_dead_wall(new_wall)
         assert new_wall2.rinshan_draws_count == 2
 
-    def test_empty_live_wall_raises(self):
-        """Raises InvalidActionError when live wall is empty (cannot replenish)."""
+    def test_draw_from_dead_wall__when_live_wall_empty__should_raise(self):
         dead = tuple(range(14))
         wall = Wall(live_tiles=(), dead_wall_tiles=dead)
         with pytest.raises(InvalidActionError, match="live wall is empty"):
             draw_from_dead_wall(wall)
 
-    def test_no_rinshan_positions_available(self):
-        """Raises InvalidActionError when all 4 rinshan draws are exhausted."""
+    def test_draw_from_dead_wall__when_no_rinshan_positions_left__should_raise(self):
         dead = tuple(range(14))
         wall = Wall(live_tiles=(1, 2, 3), dead_wall_tiles=dead, rinshan_draws_count=4)
         with pytest.raises(InvalidActionError, match="No more rinshan"):
             draw_from_dead_wall(wall)
 
-    def test_dead_wall_size_maintained_after_all_four_kan_draws(self):
-        """Dead wall remains exactly 14 tiles after all 4 rinshan draws."""
+    def test_draw_from_dead_wall__when_four_kan_draws__should_keep_dead_wall_size(self):
         dead = tuple(range(100, 114))
         live = tuple(range(50, 70))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
@@ -268,8 +234,7 @@ class TestDrawFromDeadWall:
         # live wall lost exactly 4 tiles (one per replenishment)
         assert len(current_wall.live_tiles) == len(live) - 4
 
-    def test_dora_and_ura_positions_unaffected(self):
-        """Dora (indices 2-6) and ura dora (indices 7-9) remain stable after rinshan draws."""
+    def test_draw_from_dead_wall__when_drawn__should_leave_dora_and_ura_positions(self):
         dead = tuple(range(100, 114))
         live = tuple(range(50, 70))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
@@ -282,8 +247,7 @@ class TestDrawFromDeadWall:
 
 
 class TestAddDoraIndicator:
-    def test_positions(self):
-        """Dora indicators come from dead wall indices 2, 3, 4, 5, 6."""
+    def test_add_dora_indicator__when_added__should_take_successive_dead_wall_positions(self):
         dead = tuple(range(100, 114))
         wall = Wall(
             live_tiles=(),
@@ -299,8 +263,7 @@ class TestAddDoraIndicator:
 
         assert len(indicators) == MAX_DORA_INDICATORS
 
-    def test_max_exceeded(self):
-        """Raises InvalidActionError when max dora indicators reached."""
+    def test_add_dora_indicator__when_max_indicators_revealed__should_raise(self):
         dead = tuple(range(100, 114))
         wall = Wall(
             live_tiles=(),
@@ -310,8 +273,7 @@ class TestAddDoraIndicator:
         with pytest.raises(InvalidActionError, match="Cannot add more"):
             add_dora_indicator(wall)
 
-    def test_short_dead_wall_raises(self):
-        """Raises InvalidActionError when dead wall lacks the next indicator position."""
+    def test_add_dora_indicator__when_dead_wall_too_short__should_raise(self):
         dead = (50, 51, 52)
         wall = Wall(
             live_tiles=(),
@@ -323,8 +285,7 @@ class TestAddDoraIndicator:
 
 
 class TestRevealPendingDora:
-    def test_reveals_correct_count(self):
-        """Reveals the exact number of pending dora and resets count to 0."""
+    def test_reveal_pending_dora__when_pending__should_reveal_count_and_clear_pending(self):
         dead = tuple(range(100, 114))
         wall = Wall(
             live_tiles=(),
@@ -337,8 +298,7 @@ class TestRevealPendingDora:
         assert new_wall.pending_dora_count == 0
         assert len(new_wall.dora_indicators) == 3  # 1 initial + 2 revealed
 
-    def test_none_pending(self):
-        """No-op when no pending dora."""
+    def test_reveal_pending_dora__when_none_pending__should_return_same_wall(self):
         dead = tuple(range(100, 114))
         wall = Wall(
             live_tiles=(),
@@ -350,8 +310,7 @@ class TestRevealPendingDora:
         assert revealed == []
         assert result_wall is wall
 
-    def test_revealed_values_match_dead_wall_positions(self):
-        """Revealed dora indicators come from the correct dead wall positions."""
+    def test_reveal_pending_dora__when_pending__should_match_dead_wall_positions(self):
         dead = tuple(range(100, 114))
         wall = Wall(
             live_tiles=(),
@@ -364,13 +323,12 @@ class TestRevealPendingDora:
 
 
 class TestIncrementPendingDora:
-    def test_increments_by_one(self):
+    def test_increment_pending_dora__when_called__should_add_one(self):
         wall = Wall(pending_dora_count=0)
         new_wall = increment_pending_dora(wall)
         assert new_wall.pending_dora_count == 1
 
-    def test_rejects_exceeding_max_dora(self):
-        """Raises InvalidActionError when total dora would exceed MAX_DORA_INDICATORS."""
+    def test_increment_pending_dora__when_total_exceeds_max__should_raise(self):
         dead = tuple(range(100, 114))
         wall = Wall(
             dead_wall_tiles=dead,
@@ -387,8 +345,7 @@ class TestIncrementPendingDora:
 
 
 class TestCollectUraDoraIndicators:
-    def test_basic_ura_dora(self):
-        """Collects ura dora from eagerly stored ura_dora_indicators."""
+    def test_collect_ura_dora__when_no_kan_ura__should_return_first_indicator(self):
         dead = tuple(range(100, 114))
         ura_dora = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
         wall = Wall(
@@ -400,8 +357,7 @@ class TestCollectUraDoraIndicators:
         ura = collect_ura_dora_indicators(wall, include_kan_ura=False)
         assert ura == [dead[URA_DORA_START_INDEX]]
 
-    def test_with_kan_ura(self):
-        """With kan ura, returns one per revealed dora indicator."""
+    def test_collect_ura_dora__when_kan_ura_included__should_match_dora_count(self):
         dead = tuple(range(100, 114))
         ura_dora = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
         wall = Wall(
@@ -415,14 +371,12 @@ class TestCollectUraDoraIndicators:
         for i in range(3):
             assert ura[i] == dead[URA_DORA_START_INDEX + i]
 
-    def test_empty_ura_dora_indicators(self):
-        """Returns empty list when ura_dora_indicators is empty."""
+    def test_collect_ura_dora__when_no_indicators__should_return_empty(self):
         wall = Wall(live_tiles=(), dead_wall_tiles=(), dora_indicators=())
         ura = collect_ura_dora_indicators(wall, include_kan_ura=True)
         assert ura == []
 
-    def test_short_ura_dora(self):
-        """Handles case where fewer ura dora than dora indicators are available."""
+    def test_collect_ura_dora__when_fewer_ura_than_dora__should_return_available(self):
         dead = tuple(range(100, 108))
         ura_dora = (dead[URA_DORA_START_INDEX],)  # only 1 ura dora available
         wall = Wall(
@@ -435,8 +389,7 @@ class TestCollectUraDoraIndicators:
         assert len(ura) == 1
         assert ura[0] == dead[URA_DORA_START_INDEX]
 
-    def test_ura_dora_survives_rinshan_draws(self):
-        """Ura dora values are correct even after rinshan draws overwrite dead wall positions."""
+    def test_collect_ura_dora__when_rinshan_drawn__should_keep_ura_indicators(self):
         dead = tuple(range(100, 114))
         live = tuple(range(50, 70))
         ura_dora = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
@@ -468,15 +421,13 @@ class TestCollectUraDoraIndicators:
 
 
 class TestComputeWallBreakInfo:
-    def test_target_seat_for_dice_sums(self):
-        """Verify target seat for representative dice sums with dealer 0."""
+    def test_compute_wall_break_info__when_dice_sums_vary__should_pick_target_seat(self):
         # sum 2 (min), sum 7 (mid), sum 12 (max)
         assert compute_wall_break_info((1, 1), dealer_seat=0).target_seat == 1
         assert compute_wall_break_info((3, 4), dealer_seat=0).target_seat == 2
         assert compute_wall_break_info((6, 6), dealer_seat=0).target_seat == 3
 
-    def test_rotated_dealer(self):
-        """dealer_seat != 0 rotates targets correctly."""
+    def test_compute_wall_break_info__when_dealer_rotated__should_offset_target_seat(self):
         # dealer=1, sum=5 -> target = (1+5-1)%4 = 1 (dealer itself)
         info = compute_wall_break_info((2, 3), dealer_seat=1)
         assert info.target_seat == 1
@@ -484,8 +435,7 @@ class TestComputeWallBreakInfo:
         info = compute_wall_break_info((1, 1), dealer_seat=2)
         assert info.target_seat == 3
 
-    def test_break_stack_values(self):
-        """Specific break_stack values for known dice+dealer combos."""
+    def test_compute_wall_break_info__when_dice_sums_vary__should_pick_break_stack(self):
         info = compute_wall_break_info((3, 4), dealer_seat=0)
         assert info.break_stack == 44
         info = compute_wall_break_info((1, 1), dealer_seat=0)
@@ -495,13 +445,11 @@ class TestComputeWallBreakInfo:
 
 
 class TestSplitWallByDice:
-    def test_rejects_wrong_tile_count(self):
-        """Raises ValueError when tile count is not 136."""
+    def test_split_wall_by_dice__when_wrong_tile_count__should_raise(self):
         with pytest.raises(ValueError, match="Expected 136"):
             _split_wall_by_dice(list(range(100)), (3, 4), dealer_seat=0)
 
-    def test_dead_wall_layout(self):
-        """Dead wall tuple has correct layout: indices 0-6 = tops, indices 7-13 = bottoms."""
+    def test_split_wall_by_dice__when_split__should_lay_out_dead_wall_stacks(self):
         tiles = _make_tile_list()
         _live, dead = _split_wall_by_dice(tiles, (3, 4), dealer_seat=0)
         expected_tops = [tiles[s * 2] for s in range(44, 51)]
@@ -509,8 +457,7 @@ class TestSplitWallByDice:
         assert list(dead[:7]) == expected_tops
         assert list(dead[7:]) == expected_bottoms
 
-    def test_live_wall_order(self):
-        """Live wall tiles follow dealing order: stack left of break going counter-clockwise."""
+    def test_split_wall_by_dice__when_split__should_order_live_wall_backwards_from_break(self):
         tiles = _make_tile_list()
         live, _ = _split_wall_by_dice(tiles, (3, 4), dealer_seat=0)
         assert live[0] == tiles[43 * 2]  # top of stack 43
@@ -518,8 +465,7 @@ class TestSplitWallByDice:
         assert live[2] == tiles[42 * 2]  # top of stack 42
         assert live[3] == tiles[42 * 2 + 1]  # bottom of stack 42
 
-    def test_wrapping(self):
-        """dice_sum=2 causes dead wall to wrap from one player's segment to next."""
+    def test_split_wall_by_dice__when_dice_sum_2__should_wrap_dead_wall_into_next_segment(self):
         tiles = _make_tile_list()
         live, dead = _split_wall_by_dice(tiles, (1, 1), dealer_seat=0)
         dead_stacks = [32, 33, 34, 35, 36, 37, 38]
@@ -527,16 +473,14 @@ class TestSplitWallByDice:
         assert list(dead[:7]) == expected_tops
         assert live[0] == tiles[31 * 2]
 
-    def test_sizes(self):
-        """Live wall always 122, dead wall always 14 regardless of dice."""
+    def test_split_wall_by_dice__when_split__should_size_live_and_dead_walls(self):
         tiles = _make_tile_list()
         for dice in [(1, 1), (3, 4), (6, 6)]:
             live, dead = _split_wall_by_dice(tiles, dice, dealer_seat=0)
             assert len(live) == LIVE_WALL_STACKS * 2
             assert len(dead) == DEAD_WALL_STACKS * 2
 
-    def test_all_tiles_present(self):
-        """Union of live + dead wall contains all 136 tile IDs."""
+    def test_split_wall_by_dice__when_split__should_contain_every_tile_once(self):
         tiles = _make_tile_list()
         live, dead = _split_wall_by_dice(tiles, (4, 5), dealer_seat=2)
         all_tiles = list(live) + list(dead)

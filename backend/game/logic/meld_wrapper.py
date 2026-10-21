@@ -1,9 +1,3 @@
-"""
-Immutable meld representation for frozen state.
-
-Wraps the external mahjong.meld.Meld class to provide true immutability.
-"""
-
 from __future__ import annotations
 
 from typing import ClassVar, Literal
@@ -25,8 +19,7 @@ class FrozenMeld(BaseModel):
     """
     Immutable representation of a meld.
 
-    Converts to mahjong.meld.Meld at boundaries.
-    Provides the same interface as Meld for compatibility.
+    Converts to mahjong.meld.Meld at boundaries. Provides the same interface as Meld for compatibility.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -68,11 +61,15 @@ class FrozenMeld(BaseModel):
 
     @property
     def type(self) -> str:
-        """Alias for meld_type to match Meld interface."""
+        """
+        Alias for meld_type to match Meld interface.
+        """
         return self.meld_type
 
     def to_meld(self) -> Meld:
-        """Convert to mahjong.meld.Meld for library compatibility."""
+        """
+        Convert to mahjong.meld.Meld for library compatibility.
+        """
         return Meld(
             meld_type=self.meld_type,
             tiles=self.tiles,
@@ -84,7 +81,9 @@ class FrozenMeld(BaseModel):
 
 
 def frozen_melds_to_melds(melds: tuple[FrozenMeld, ...]) -> list[Meld] | None:
-    """Convert FrozenMeld tuple to Meld list for external library compatibility."""
+    """
+    Convert FrozenMeld tuple to Meld list for external library compatibility.
+    """
     if not melds:
         return None
     return [m.to_meld() for m in melds]

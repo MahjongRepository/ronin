@@ -1,26 +1,3 @@
-"""
-Tenhou XML replay format converter.
-
-All rights related to tenhou XML replay format are reserved by tenhou.net.
-This converter is not affiliated with tenhou.net.
-
-Convert Ronin replay files to tenhou.net XML format.
-We need that compatibility with services that use tenhou XML as a common replay format.
-
-Load all files from data/replays/ and write tenhou XML files to data/tenhou_replays/.
-
-Replay files use the compact wire format with integer event types and short field aliases:
-- GAME_STARTED (t=8): game ID, player names, seed
-- ROUND_STARTED (t=9, merged): all players' tiles, dora indicators, round metadata, scores
-- DRAW (t=1): packed seat+tile_id in "d" field
-- DISCARD (t=2): packed seat+tile_id+flags in "d" field
-- RIICHI_DECLARED (t=5): seat that declared riichi (score deduction)
-- MELD (t=0): compact IMME-encoded meld integer in "m" field
-- DORA_REVEALED (t=6): single revealed dora tile_id after kan
-- ROUND_END (t=4): round result with winner closed_tiles/melds/win_tile embedded
-- GAME_END (t=10): final standings with scores and placement deltas
-"""
-
 import gzip
 import json
 from pathlib import Path
@@ -191,10 +168,10 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
 
 
 def build_yaku_string(yaku_list: list[dict[str, Any]]) -> str:
-    """Build tenhou yaku string from per-yaku breakdown in replay data.
+    """
+    Build tenhou yaku string from per-yaku breakdown in replay data.
 
-    Each yaku dict contains yi (yaku_id) and han, which are passed through
-    with only an ID translation to tenhou format.
+    Each yaku dict contains yi (yaku_id) and han, which are passed through with only an ID translation to tenhou format.
     """
     parts = []
     for yaku in yaku_list:
@@ -205,10 +182,11 @@ def build_yaku_string(yaku_list: list[dict[str, Any]]) -> str:
 
 
 def _format_sc(scores: dict[str, int], score_changes: dict[str, int]) -> str:
-    """Format the sc attribute: 'score0,change0,score1,change1,...' (in hundreds).
+    """
+    Format the sc attribute: 'score0,change0,score1,change1,...' (in hundreds).
 
-    Both scores and score_changes are dicts with string keys in wire format
-    (already divided by WIRE_SCORE_DIVISOR, i.e. in hundreds).
+    Both scores and score_changes are dicts with string keys in wire format (already divided by WIRE_SCORE_DIVISOR, i.e.
+    in hundreds).
     """
     parts = []
     for i in range(4):
@@ -222,11 +200,11 @@ def _hand_payment_from_winner_change(
     winner_change_wire: int,
     riichi_sticks_collected: int,
 ) -> int:
-    """Compute the hand payment for the tenhou ten attribute.
+    """
+    Compute the hand payment for the tenhou ten attribute.
 
-    winner_change_wire is in wire format (divided by WIRE_SCORE_DIVISOR).
-    Tenhou ten uses full points (not hundreds), so convert back.
-    Tenhou ten includes honba but excludes riichi.
+    winner_change_wire is in wire format (divided by WIRE_SCORE_DIVISOR). Tenhou ten uses full points (not hundreds), so
+    convert back. Tenhou ten includes honba but excludes riichi.
     """
     riichi_bonus = riichi_sticks_collected * 1000
     return winner_change_wire * WIRE_SCORE_DIVISOR - riichi_bonus
@@ -252,7 +230,9 @@ def _compute_limit(han: int) -> int:
 
 
 def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
-    """Format the doraHaiUra attribute, or empty string when absent."""
+    """
+    Format the doraHaiUra attribute, or empty string when absent.
+    """
     if not ura_dora_indicators:
         return ""
     ura_string = ",".join(str(d) for d in ura_dora_indicators)
@@ -260,6 +240,12 @@ def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
 
 
 class TenhouConverter:
+    """
+    Convert a Ronin replay event log to tenhou.net XML, the common replay format of other mahjong services.
+
+    The tenhou XML replay format belongs to tenhou.net; this converter is not affiliated with tenhou.net.
+    """
+
     def __init__(self, events: list[dict[str, Any]]) -> None:
         self.events = events
         self.tags: list[str] = []
@@ -284,7 +270,9 @@ class TenhouConverter:
 
     @property
     def _total_riichi_sticks(self) -> int:
-        """Riichi sticks on the table: carryovers from previous rounds plus deposits this round."""
+        """
+        Riichi sticks on the table: carryovers from previous rounds plus deposits this round.
+        """
         return self.table_riichi_sticks + self._round_riichi_count
 
     def convert(self) -> str:
@@ -453,7 +441,9 @@ class TenhouConverter:
         self._update_scores_from_round_end(event)
 
     def _update_scores_from_round_end(self, event: dict[str, Any]) -> None:
-        """Update tracked scores from round_end scores and score_changes."""
+        """
+        Update tracked scores from round_end scores and score_changes.
+        """
         scores = event.get("scs", {})
         changes = event.get("sch", {})
         for i in range(4):
@@ -496,7 +486,9 @@ class TenhouConverter:
         )
 
     def _emit_double_ron(self, result: dict[str, Any]) -> None:
-        """Emit one AGARI tag per winner in a double-ron."""
+        """
+        Emit one AGARI tag per winner in a double-ron.
+        """
         loser = result["ls"]
         winning_tile = result["wt"]
         sc_string = _format_sc(result["scs"], result["sch"])

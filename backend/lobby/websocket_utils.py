@@ -1,5 +1,3 @@
-"""Shared WebSocket utilities for lobby handlers."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,7 +9,9 @@ if TYPE_CHECKING:
 
 
 def check_origin(websocket: WebSocket) -> bool:
-    """Verify the WebSocket origin header against the allowed origin setting."""
+    """
+    Verify the WebSocket origin header against the allowed origin setting.
+    """
     settings: LobbyServerSettings = websocket.app.state.settings
     ws_allowed_origin = settings.ws_allowed_origin
     if not ws_allowed_origin:

@@ -1,8 +1,3 @@
-// Zod schemas for call prompt event variants (t=3).
-// Three variants based on `clt` field: ron (0), meld (1), chankan (2).
-// Manual dispatch via parseCallPrompt() since Zod discriminatedUnion
-// doesn't work with .transform().
-
 import { z } from "zod";
 
 import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
@@ -93,6 +88,7 @@ export type ChankanPromptEvent = z.output<typeof chankanPromptSchema>;
 export type MeldPromptEvent = z.output<typeof meldPromptSchema>;
 export type CallPromptEvent = RonPromptEvent | ChankanPromptEvent | MeldPromptEvent;
 
+/** Dispatch on `clt` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
 export function parseCallPrompt(raw: Record<string, unknown>): CallPromptEvent {
     const { clt } = raw;
     switch (clt) {

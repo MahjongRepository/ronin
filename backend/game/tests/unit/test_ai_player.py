@@ -1,7 +1,3 @@
-"""
-Unit tests for AI player decision making.
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -15,7 +11,6 @@ from game.tests.unit.helpers import _string_to_34_tile
 def _make_round_state(
     tiles: list[int],
 ) -> tuple[MahjongPlayer, MahjongRoundState]:
-    """Create a player and round state for testing."""
     player = MahjongPlayer(
         seat=0,
         name="AI",
@@ -31,9 +26,7 @@ def _make_round_state(
 
 
 class TestTsumogiriPassesOnAllCalls:
-    """Tsumogiri AI declines every call opportunity."""
-
-    def test_passes_on_pon(self):
+    def test_tsumogiri_ai__when_pon_offered__should_pass(self):
         ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         tiles = TilesConverter.string_to_136_array(man="1123456789", pin="123")
         player, rs = _make_round_state(tiles)
@@ -41,7 +34,7 @@ class TestTsumogiriPassesOnAllCalls:
 
         assert ai.should_call_pon(player, discarded_tile=discarded, round_state=rs) is False
 
-    def test_passes_on_chi(self):
+    def test_tsumogiri_ai__when_chi_offered__should_pass(self):
         ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         tiles = TilesConverter.string_to_136_array(man="12", pin="1", sou="1")
         player, rs = _make_round_state(tiles)
@@ -57,7 +50,7 @@ class TestTsumogiriPassesOnAllCalls:
             is None
         )
 
-    def test_passes_on_kan(self):
+    def test_tsumogiri_ai__when_kan_offered__should_pass(self):
         ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         tiles = TilesConverter.string_to_136_array(man="111", pin="1")
         player, rs = _make_round_state(tiles)
@@ -70,7 +63,7 @@ class TestTsumogiriPassesOnAllCalls:
         )
         assert result is False
 
-    def test_passes_on_ron(self):
+    def test_tsumogiri_ai__when_ron_offered__should_pass(self):
         ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1", sou="123")
         player, rs = _make_round_state(tiles)
@@ -80,15 +73,14 @@ class TestTsumogiriPassesOnAllCalls:
 
 
 class TestSelectDiscard:
-    def test_discards_last_tile(self):
-        """Tsumogiri always discards the most recently drawn tile."""
+    def test_select_discard__should_discard_last_tile(self):
         ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12345")
         player, rs = _make_round_state(tiles)
 
         assert ai.select_discard(player, rs) == tiles[-1]
 
-    def test_empty_hand_raises_value_error(self):
+    def test_select_discard__when_hand_empty__should_raise_value_error(self):
         ai = AIPlayer()
         player = MahjongPlayer(seat=0, name="AI", tiles=(), score=25000)
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))

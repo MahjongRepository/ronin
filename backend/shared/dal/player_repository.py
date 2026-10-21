@@ -1,5 +1,3 @@
-"""Abstract interface for player persistence."""
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -10,7 +8,8 @@ if TYPE_CHECKING:
 
 
 class PlayerRepository(ABC):
-    """Abstract interface for player persistence.
+    """
+    Abstract interface for player persistence.
 
     Implementations can use SQLite, PostgreSQL, etc.
     """

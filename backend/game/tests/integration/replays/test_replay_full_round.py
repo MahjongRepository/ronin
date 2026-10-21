@@ -1,5 +1,3 @@
-"""Integration test: replay full games from fixture files and verify structural correctness."""
-
 from pathlib import Path
 
 from game.logic.enums import GamePhase
@@ -14,16 +12,7 @@ PLAYERS = {"Akagi", "Wanjirou", "Ichihime", "Ojisan"}
 STARTING_SCORE = 25000
 
 
-async def test_full_game_flow():
-    """Replay a complete multi-round game and verify structural correctness.
-
-    Verifies:
-    - Replay loads and runs to completion
-    - Game ends properly with final standings
-    - State transitions are consistent across all steps
-    - All required event types appear in the event stream
-    - Scores sum to the expected total
-    """
+async def test_replay_runner__when_full_game_replayed__should_end_with_conserved_ordered_standings():
     replay = load_replay_from_file(FIXTURES_DIR / "full_game.txt")
 
     assert isinstance(replay.seed, str)

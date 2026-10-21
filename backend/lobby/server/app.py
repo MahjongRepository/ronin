@@ -75,13 +75,16 @@ if TYPE_CHECKING:
 def _make_auth_error_handler(
     protected_api_paths: set[str],
 ) -> Callable[[Request, Exception], Awaitable[Response]]:
-    """Build an HTTPException handler that rewrites 401s on protected JSON endpoints."""
+    """
+    Build an HTTPException handler that rewrites 401s on protected JSON endpoints.
+    """
 
     async def _auth_error_handler(request: Request, exc: Exception) -> Response:
-        """Rewrite 401 errors on protected JSON endpoints to JSON responses.
+        """
+        Rewrite 401 errors on protected JSON endpoints to JSON responses.
 
-        All other HTTP exceptions delegate to Starlette's default behavior
-        (plain-text response with the exception detail).
+        All other HTTP exceptions delegate to Starlette's default behavior (plain-text response with the exception
+        detail).
         """
         http_exc = cast("HTTPException", exc)
         if http_exc.status_code == HTTPStatus.UNAUTHORIZED and request.url.path in protected_api_paths:
@@ -322,7 +325,9 @@ def _attach_state(  # noqa: PLR0913
 
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
-    """Factory function for uvicorn --factory lobby.server.app:get_app."""
+    """
+    Factory function for uvicorn --factory lobby.server.app:get_app.
+    """
     s = LobbyServerSettings()
     auth = AuthSettings()
     setup_logging(log_dir=s.log_dir)

@@ -1,13 +1,3 @@
-"""
-Unit tests for turn.py edge cases requiring direct state construction.
-
-Covers: kyuushu availability in draw phase, riichi furiten marking logic,
-chi opportunity detection via _find_meld_callers, ron caller detection and
-distance sorting, hand calculation error paths for single ron / double ron / tsumo,
-chankan opportunity detection via _process_added_kan_call, and chi sequence_tiles
-validation in process_meld_call.
-"""
-
 from unittest.mock import patch
 
 import pytest
@@ -35,8 +25,7 @@ from game.tests.conftest import create_game_state, create_player, create_round_s
 
 
 class TestKyuushuKyuuhaiDrawPhase:
-    def test_kyuushu_kyuuhai_available_in_draw_phase(self):
-        """Player with 9+ terminal/honor types on first turn gets kyuushu action."""
+    def test_kyuushu_kyuuhai__when_in_draw_phase__should_be_available(self):
         kyuushu_tiles = tuple(
             TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="123")
             + TilesConverter.string_to_136_array(man="22334"),
@@ -67,8 +56,7 @@ class TestKyuushuKyuuhaiDrawPhase:
 
 
 class TestRiichiFuriten:
-    def test_riichi_furiten_on_discard(self):
-        """Riichi player becomes furiten when their waiting tile passes without ron."""
+    def test_riichi_furiten__when_riichi_player_discarded_winning_tile__should_flag_riichi_furiten(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         furiten_discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
@@ -99,8 +87,7 @@ class TestRiichiFuriten:
 
         assert new_round.players[1].is_riichi_furiten is True
 
-    def test_riichi_furiten_skips_ron_callers(self):
-        """Riichi player who CAN call ron is NOT marked furiten."""
+    def test_riichi_furiten__when_riichi_player_not_furiten__should_offer_ron_prompt(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -133,8 +120,7 @@ class TestRiichiFuriten:
 
 
 class TestChiOpportunity:
-    def test_chi_opportunity_found(self):
-        """Chi opportunity is detected when kamicha can form a sequence."""
+    def test_chi_opportunity__when_next_player_holds_sequence__should_be_found(self):
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="13579", sou="135799")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
@@ -169,8 +155,7 @@ class TestChiOpportunity:
 
 
 class TestFindRonCallers:
-    def test_find_ron_callers_finds_tenpai_player(self):
-        """_find_ron_callers detects eligible tenpai player."""
+    def test_find_ron_callers__when_player_tenpai_on_discard__should_include_player(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -197,8 +182,7 @@ class TestFindRonCallers:
         assert len(call_prompts) >= 1
         assert 1 in call_prompts[0].callers
 
-    def test_ron_callers_sorted_by_distance(self):
-        """Multiple ron callers are sorted by counter-clockwise distance from discarder."""
+    def test_find_ron_callers__when_multiple_callers__should_sort_by_distance(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -230,8 +214,7 @@ class TestFindRonCallers:
 
 
 class TestSingleRonHandError:
-    def test_single_ron_hand_error_raises(self):
-        """Hand calculation error in single ron raises typed domain exception."""
+    def test_single_ron__when_hand_result_error__should_raise(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -258,8 +241,7 @@ class TestSingleRonHandError:
 
 
 class TestDoubleRonHandError:
-    def test_double_ron_hand_error_raises(self):
-        """Hand calculation error in double ron raises InvalidWinError with seat number."""
+    def test_double_ron__when_hand_result_error__should_raise(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -286,8 +268,7 @@ class TestDoubleRonHandError:
 
 
 class TestTsumoHandError:
-    def test_tsumo_hand_error_raises(self):
-        """Hand calculation error in tsumo raises typed domain exception."""
+    def test_tsumo__when_hand_result_error__should_raise(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
 
         players = tuple(create_player(seat=i, tiles=hand_tiles if i == 0 else ()) for i in range(4))
@@ -312,8 +293,7 @@ class TestTsumoHandError:
 
 
 class TestAddedKanChankan:
-    def test_process_added_kan_call_chankan(self):
-        """Added kan with chankan opportunity creates CHANKAN call prompt."""
+    def test_added_kan__when_player_can_chankan__should_prompt_chankan(self):
         pon_meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
             tiles=tuple(TilesConverter.string_to_136_array(man="111")[:3]),
@@ -354,8 +334,7 @@ class TestAddedKanChankan:
 
 
 class TestChiSequenceTilesValidation:
-    def test_chi_sequence_tiles_none_raises(self):
-        """Chi call with None sequence_tiles raises typed domain exception."""
+    def test_chi__when_sequence_tiles_none__should_raise(self):
         chi_tiles = TilesConverter.string_to_136_array(man="34")
         other_tiles = TilesConverter.string_to_136_array(pin="123456789", sou="11")
         hand_tiles_1 = (*chi_tiles, *other_tiles)
@@ -390,10 +369,7 @@ class TestChiSequenceTilesValidation:
 
 
 class TestAbortiveDrawIntegration:
-    """Integration tests for abortive draw paths through process_discard_phase."""
-
-    def test_four_winds_abort(self):
-        """Four identical wind discards trigger abortive draw via process_discard_phase."""
+    def test_abortive_draw__when_four_same_winds_discarded__should_abort_four_winds(self):
         east_winds = tuple(TilesConverter.string_to_136_array(honors="1111"))
         discard_tile = east_winds[3]
 
@@ -420,8 +396,7 @@ class TestAbortiveDrawIntegration:
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_WINDS
 
-    def test_triple_ron_abort(self):
-        """Three ron callers trigger abortive draw via process_discard_phase."""
+    def test_abortive_draw__when_three_players_ron__should_abort_triple_ron(self):
         tenpai_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -452,8 +427,7 @@ class TestAbortiveDrawIntegration:
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.TRIPLE_RON
 
-    def test_four_riichi_abort(self):
-        """Fourth riichi declaration triggers abortive draw via process_discard_phase."""
+    def test_abortive_draw__when_four_players_riichi__should_abort_four_riichi(self):
         hand_tiles_0 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
         discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
 
@@ -487,8 +461,7 @@ class TestAbortiveDrawIntegration:
 
 
 class TestDoubleRonScenario:
-    def test_double_ron_produces_double_ron_result(self):
-        """Two players simultaneously calling ron produces DOUBLE_RON result type."""
+    def test_double_ron__when_two_players_ron__should_produce_double_ron_result(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
@@ -515,8 +488,7 @@ class TestDoubleRonScenario:
 
 
 class TestAddedKanNormalPath:
-    def test_added_kan_upgrades_pon_to_shouminkan(self):
-        """Added kan without chankan upgrades pon to SHOUMINKAN."""
+    def test_added_kan__when_no_chankan__should_upgrade_pon_to_shouminkan(self):
         pon_meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
             tiles=tuple(TilesConverter.string_to_136_array(man="111")[:3]),
@@ -554,10 +526,7 @@ class TestAddedKanNormalPath:
 
 
 class TestMaybeEmitDoraEvent:
-    """Test _maybe_emit_dora_event emits events for each new dora indicator."""
-
-    def test_no_new_dora(self):
-        """No event emitted when dora count is unchanged."""
+    def test_dora_event__when_no_new_dora__should_emit_nothing(self):
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = create_round_state(
             dead_wall=dead_wall,
@@ -569,8 +538,7 @@ class TestMaybeEmitDoraEvent:
 
         assert events == []
 
-    def test_single_new_dora(self):
-        """Single new dora indicator emits one event."""
+    def test_dora_event__when_one_new_dora__should_emit_one_event(self):
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = create_round_state(
             dead_wall=dead_wall,
@@ -583,8 +551,7 @@ class TestMaybeEmitDoraEvent:
         assert len(events) == 1
         assert events[0].tile_id == dead_wall[3]
 
-    def test_multiple_new_dora(self):
-        """Multiple new dora indicators emit one event per indicator."""
+    def test_dora_event__when_multiple_new_dora__should_emit_event_for_each(self):
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         round_state = create_round_state(
             dead_wall=dead_wall,
@@ -600,10 +567,7 @@ class TestMaybeEmitDoraEvent:
 
 
 class TestValidateRiichiDiscard:
-    """Test _validate_riichi_discard helper validates riichi conditions."""
-
-    def test_rejects_non_tenpai_discard(self):
-        """Riichi discard that leaves hand not in tenpai is rejected."""
+    def test_validate_riichi_discard__when_discard_breaks_tenpai__should_reject(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
         bad_discard = TilesConverter.string_to_136_array(pin="1")[0]
 

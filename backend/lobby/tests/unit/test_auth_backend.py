@@ -1,5 +1,3 @@
-"""Tests for the SessionOrApiKeyBackend authentication backend."""
-
 from __future__ import annotations
 
 import hashlib
@@ -26,7 +24,6 @@ def session_store() -> AuthSessionStore:
 
 @pytest.fixture
 def auth_service(session_store: AuthSessionStore) -> MagicMock:
-    """Mock auth service that delegates validate_session to a real session store."""
     svc = MagicMock()
     svc.validate_session = session_store.get_session
     svc.validate_api_key = AsyncMock(return_value=None)
@@ -44,7 +41,6 @@ def valid_session(session_store: AuthSessionStore) -> AuthSession:
 
 
 def _bot_player(user_id: str = "bot-1", username: str = "TestBot") -> Player:
-    """Create a bot Player for testing."""
     raw_key = "test-api-key"
     return Player(
         user_id=user_id,
@@ -56,7 +52,6 @@ def _bot_player(user_id: str = "bot-1", username: str = "TestBot") -> Player:
 
 
 def _human_player_with_key(user_id: str = "human-1", username: str = "Sneaky") -> Player:
-    """Create a human Player with an api_key_hash (defense-in-depth test)."""
     return Player(
         user_id=user_id,
         username=username,
@@ -67,7 +62,7 @@ def _human_player_with_key(user_id: str = "human-1", username: str = "Sneaky") -
 
 
 class TestSessionCookieAuth:
-    async def test_valid_cookie_returns_authenticated_tuple(
+    async def test_session_cookie_auth__when_cookie_valid__should_return_authenticated_tuple(
         self,
         backend: SessionOrApiKeyBackend,
         valid_session: AuthSession,
@@ -87,12 +82,11 @@ class TestSessionCookieAuth:
         assert user.username == "testuser"
         assert user.user_id == "user-1"
 
-    async def test_query_param_session_id_allowed_for_websocket(
+    async def test_session_cookie_auth__when_websocket_with_query_param__should_authenticate(
         self,
         backend: SessionOrApiKeyBackend,
         valid_session: AuthSession,
     ) -> None:
-        """WebSocket clients pass session_id as a query parameter."""
         conn = MagicMock()
         conn.cookies = {}
         conn.query_params = {"session_id": valid_session.session_id}
@@ -108,12 +102,11 @@ class TestSessionCookieAuth:
         assert isinstance(user, AuthenticatedPlayer)
         assert user.username == "testuser"
 
-    async def test_query_param_session_id_ignored_for_http(
+    async def test_session_cookie_auth__when_http_with_query_param__should_ignore_it(
         self,
         backend: SessionOrApiKeyBackend,
         valid_session: AuthSession,
     ) -> None:
-        """HTTP requests must not use session_id query parameter."""
         conn = MagicMock()
         conn.cookies = {}
         conn.query_params = {"session_id": valid_session.session_id}
@@ -124,7 +117,7 @@ class TestSessionCookieAuth:
 
         assert result is None
 
-    async def test_cookie_takes_precedence_over_query_param(
+    async def test_session_cookie_auth__when_cookie_and_query_param__should_prefer_cookie(
         self,
         backend: SessionOrApiKeyBackend,
         valid_session: AuthSession,
@@ -143,7 +136,7 @@ class TestSessionCookieAuth:
         _, user = result
         assert user.username == "testuser"  # from cookie, not query param
 
-    async def test_missing_cookie_returns_none(
+    async def test_session_cookie_auth__when_cookie_missing__should_return_none(
         self,
         backend: SessionOrApiKeyBackend,
     ) -> None:
@@ -156,7 +149,7 @@ class TestSessionCookieAuth:
         result = await backend.authenticate(conn)
         assert result is None
 
-    async def test_invalid_session_id_returns_none(
+    async def test_session_cookie_auth__when_session_id_invalid__should_return_none(
         self,
         backend: SessionOrApiKeyBackend,
     ) -> None:
@@ -168,7 +161,7 @@ class TestSessionCookieAuth:
         result = await backend.authenticate(conn)
         assert result is None
 
-    async def test_expired_session_returns_none(
+    async def test_session_cookie_auth__when_session_expired__should_return_none(
         self,
         backend: SessionOrApiKeyBackend,
         session_store: AuthSessionStore,
@@ -186,7 +179,7 @@ class TestSessionCookieAuth:
 
 
 class TestApiKeyAuth:
-    async def test_valid_bot_api_key_returns_authenticated_tuple(
+    async def test_api_key_auth__when_bot_key_valid__should_return_authenticated_tuple(
         self,
         auth_service: MagicMock,
         backend: SessionOrApiKeyBackend,
@@ -209,7 +202,7 @@ class TestApiKeyAuth:
         assert user.username == "TestBot"
         assert user.user_id == "bot-1"
 
-    async def test_invalid_api_key_returns_none(
+    async def test_api_key_auth__when_key_invalid__should_return_none(
         self,
         backend: SessionOrApiKeyBackend,
     ) -> None:
@@ -221,12 +214,11 @@ class TestApiKeyAuth:
         result = await backend.authenticate(conn)
         assert result is None
 
-    async def test_human_account_api_key_returns_none(
+    async def test_api_key_auth__when_key_belongs_to_human_account__should_return_none(
         self,
         auth_service: MagicMock,
         backend: SessionOrApiKeyBackend,
     ) -> None:
-        """Defense-in-depth: human accounts with an api_key_hash are rejected."""
         human = _human_player_with_key()
         auth_service.validate_api_key.return_value = human
 
@@ -240,7 +232,7 @@ class TestApiKeyAuth:
 
 
 class TestAccountTypePropagation:
-    async def test_session_auth_preserves_human_account_type(
+    async def test_account_type__when_session_auth_human__should_be_human(
         self,
         backend: SessionOrApiKeyBackend,
         valid_session: AuthSession,
@@ -257,7 +249,7 @@ class TestAccountTypePropagation:
         _, user = result
         assert user.account_type == AccountType.HUMAN
 
-    async def test_session_auth_preserves_bot_account_type(
+    async def test_account_type__when_session_auth_bot__should_be_bot(
         self,
         backend: SessionOrApiKeyBackend,
         session_store: AuthSessionStore,
@@ -275,7 +267,7 @@ class TestAccountTypePropagation:
         _, user = result
         assert user.account_type == AccountType.BOT
 
-    async def test_api_key_auth_preserves_bot_account_type(
+    async def test_account_type__when_api_key_auth_bot__should_be_bot(
         self,
         auth_service: MagicMock,
         backend: SessionOrApiKeyBackend,
@@ -297,13 +289,12 @@ class TestAccountTypePropagation:
 
 
 class TestSessionTakesPrecedenceOverApiKey:
-    async def test_valid_session_used_even_when_api_key_present(
+    async def test_session_cookie_auth__when_api_key_also_present__should_use_session(
         self,
         auth_service: MagicMock,
         backend: SessionOrApiKeyBackend,
         valid_session: AuthSession,
     ) -> None:
-        """Session cookie takes precedence; API key is not checked."""
         bot = _bot_player()
         auth_service.validate_api_key.return_value = bot
 

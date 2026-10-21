@@ -1,5 +1,3 @@
-"""Player account and session models for authentication."""
-
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Self
@@ -13,7 +11,9 @@ class AccountType(StrEnum):
 
 
 class Player(BaseModel, frozen=True):
-    """Player account stored in the player repository."""
+    """
+    Player account stored in the player repository.
+    """
 
     user_id: str
     username: str
@@ -32,7 +32,9 @@ class Player(BaseModel, frozen=True):
 
 @dataclass
 class AuthSession:
-    """Server-side session for authenticated users."""
+    """
+    Server-side session for authenticated users.
+    """
 
     session_id: str  # UUID, stored in cookie
     user_id: str

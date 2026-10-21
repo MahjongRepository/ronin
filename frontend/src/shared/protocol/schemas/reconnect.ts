@@ -1,7 +1,3 @@
-// Zod schema for the game_reconnected message.
-// Matches ReconnectionSnapshot from backend/game/logic/types.py:333-350.
-// Uses aliased keys (by_alias=True) plus an injected "type" field.
-
 import { z } from "zod";
 
 import { SESSION_MESSAGE_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";

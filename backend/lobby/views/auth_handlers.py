@@ -1,5 +1,3 @@
-"""Auth endpoints: login, register, logout, bot auth, and bot room creation for the lobby."""
-
 from __future__ import annotations
 
 import json
@@ -21,7 +19,11 @@ if TYPE_CHECKING:
 
 
 async def _parse_json_body(request: Request) -> dict | None:
-    """Parse JSON body from request. Return None on failure."""
+    """
+    Parse JSON body from request.
+
+    Return None on failure.
+    """
     try:
         body = await request.json()
     except ValueError, json.JSONDecodeError:
@@ -32,7 +34,9 @@ async def _parse_json_body(request: Request) -> dict | None:
 
 
 def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSettings) -> Response:
-    """Redirect to the lobby and set the session cookie."""
+    """
+    Redirect to the lobby and set the session cookie.
+    """
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(
         key="session_id",

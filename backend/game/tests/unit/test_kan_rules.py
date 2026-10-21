@@ -1,9 +1,3 @@
-"""
-Covers minimum wall tiles, kan-after-meld restriction, consecutive kans,
-four-kans abort, kan dora timing, chankan (including kokushi on ankan),
-and chankan preservation rules (ippatsu, dora).
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -90,8 +84,7 @@ def _make_round_state(
 # Minimum wall tiles for kan (configurable via settings.min_wall_for_kan)
 # ---------------------------------------------------------------------------
 class TestMinWallForKan:
-    def test_min_wall_for_kan_uses_setting(self):
-        """Kan checks use settings.min_wall_for_kan, not a hardcoded constant."""
+    def test_closed_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
         tiles_4m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*tiles_4m, *pin_tiles)
@@ -110,8 +103,7 @@ class TestMinWallForKan:
 # Kan after pon/chi on same turn: not allowed (fundamental)
 # ---------------------------------------------------------------------------
 class TestKanAfterMeldCallBlocked:
-    def test_closed_kan_blocked_after_meld_call(self):
-        """get_possible_closed_kans returns empty after pon/chi (is_after_meld_call)."""
+    def test_closed_kan__when_after_meld_call__should_not_be_possible(self):
         tiles_4m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="1234567")
         player0_tiles = (*tiles_4m, *pin_tiles)
@@ -121,8 +113,7 @@ class TestKanAfterMeldCallBlocked:
         result = get_possible_closed_kans(round_state.players[0], round_state, settings)
         assert result == []
 
-    def test_added_kan_blocked_after_meld_call(self):
-        """get_possible_added_kans returns empty after pon/chi (is_after_meld_call)."""
+    def test_added_kan__when_after_meld_call__should_not_be_possible(self):
         # player has a pon of 1m and the 4th copy in hand
         tiles_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
@@ -147,8 +138,7 @@ class TestKanAfterMeldCallBlocked:
         result = get_possible_added_kans(round_state.players[0], round_state, settings)
         assert result == []
 
-    def test_closed_kan_allowed_without_meld_call(self):
-        """get_possible_closed_kans works normally when is_after_meld_call is False."""
+    def test_closed_kan__when_not_after_meld_call__should_be_possible(self):
         tiles_4m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*tiles_4m, *pin_tiles)
@@ -163,8 +153,7 @@ class TestKanAfterMeldCallBlocked:
 # Consecutive concealed quads: allowed, each reveals new dora (fundamental)
 # ---------------------------------------------------------------------------
 class TestConsecutiveClosedKans:
-    def test_two_consecutive_closed_kans(self):
-        """Two closed kans in a row without discarding between them."""
+    def test_closed_kan__when_second_kan_follows_first__should_allow_it_and_reveal_new_dora(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         man_2m = TilesConverter.string_to_136_array(man="2222")
         pin_tiles = TilesConverter.string_to_136_array(pin="12345")
@@ -193,8 +182,7 @@ class TestConsecutiveClosedKans:
 # Four quads by different players (2+): abortive draw (configurable)
 # ---------------------------------------------------------------------------
 class TestFourKansAbort:
-    def test_four_kans_by_one_player_no_abort(self):
-        """Four kans by the same player does NOT trigger abortive draw (suukantsu possible)."""
+    def test_four_kans_abort__when_one_player_has_all_four_kans__should_not_abort(self):
         kan_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False, who=0)
         round_state = _make_round_state(
             player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
@@ -203,8 +191,7 @@ class TestFourKansAbort:
         settings = GameSettings()
         assert check_four_kans(round_state, settings) is False
 
-    def test_four_kans_by_two_players_abort(self):
-        """Four kans by 2+ different players triggers abortive draw."""
+    def test_four_kans_abort__when_two_players_share_four_kans__should_abort(self):
         kan_meld_0 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=True, who=0, from_who=1)
         kan_meld_1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=True, who=1, from_who=0)
         round_state = _make_round_state(
@@ -216,8 +203,7 @@ class TestFourKansAbort:
         settings = GameSettings()
         assert check_four_kans(round_state, settings) is True
 
-    def test_four_kans_abort_uses_setting(self):
-        """Disabling has_suukaikan prevents the check from triggering."""
+    def test_four_kans_abort__when_min_players_setting_is_3__should_not_abort_with_two_players(self):
         kan_meld_0 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=True, who=0, from_who=1)
         kan_meld_1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=True, who=1, from_who=0)
         round_state = _make_round_state(
@@ -234,8 +220,7 @@ class TestFourKansAbort:
         settings_3 = GameSettings(min_players_for_kan_abort=3)
         assert check_four_kans(round_state, settings_3) is False
 
-    def test_shouminkan_counts_toward_four_kans(self):
-        """Added kan (shouminkan) counts toward the four-kan limit."""
+    def test_four_kans_abort__when_shouminkans_make_four_kans__should_abort(self):
         kan_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=True, who=0, from_who=1)
         shouminkan_meld = FrozenMeld(
             meld_type=FrozenMeld.SHOUMINKAN,
@@ -258,8 +243,7 @@ class TestFourKansAbort:
 # Kan dora timing (configurable)
 # ---------------------------------------------------------------------------
 class TestKanDoraTiming:
-    def test_closed_kan_immediate_dora_by_default(self):
-        """Closed kan reveals dora immediately (kandora_immediate_for_closed_kan=True)."""
+    def test_kan_dora__when_closed_kan_by_default__should_reveal_dora_immediately(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -272,8 +256,7 @@ class TestKanDoraTiming:
         assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
         assert new_state.wall.pending_dora_count == 0
 
-    def test_closed_kan_deferred_dora_when_setting_false(self):
-        """Closed kan defers dora when kandora_immediate_for_closed_kan=False."""
+    def test_kan_dora__when_closed_kan_immediate_setting_off__should_defer_dora(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -286,8 +269,7 @@ class TestKanDoraTiming:
         assert len(new_state.wall.dora_indicators) == initial_dora_count
         assert new_state.wall.pending_dora_count == 1
 
-    def test_open_kan_deferred_dora_by_default(self):
-        """Open kan defers dora (kandora_deferred_for_open_kan=True)."""
+    def test_kan_dora__when_open_kan_by_default__should_defer_dora(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         # player 0 has 3 copies, player 3 discards the 4th
@@ -307,8 +289,7 @@ class TestKanDoraTiming:
         assert len(new_state.wall.dora_indicators) == initial_dora_count
         assert new_state.wall.pending_dora_count == 1
 
-    def test_open_kan_immediate_dora_when_setting_false(self):
-        """Open kan reveals dora immediately when kandora_deferred_for_open_kan=False."""
+    def test_kan_dora__when_open_kan_deferred_setting_off__should_reveal_dora_immediately(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m[:3], *pin_tiles)
@@ -327,8 +308,7 @@ class TestKanDoraTiming:
         assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
         assert new_state.wall.pending_dora_count == 0
 
-    def test_added_kan_deferred_dora_by_default(self):
-        """Added kan defers dora (uses same setting as open kan)."""
+    def test_kan_dora__when_added_kan_by_default__should_defer_dora(self):
         tiles_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         pon_meld = FrozenMeld(
@@ -349,8 +329,7 @@ class TestKanDoraTiming:
         assert len(new_state.wall.dora_indicators) == initial_dora_count
         assert new_state.wall.pending_dora_count == 1
 
-    def test_no_dora_when_kandora_disabled(self):
-        """No dora revealed or pending when has_kandora=False."""
+    def test_kan_dora__when_kandora_disabled__should_not_reveal_dora(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -367,21 +346,18 @@ class TestKanDoraTiming:
 # Kokushi tenpai detection
 # ---------------------------------------------------------------------------
 class TestIsKokushiTenpai:
-    def test_kokushi_tenpai_12_types(self):
-        """12 unique terminal/honor types + 1 pair is kokushi tenpai."""
+    def test_is_kokushi_tenpai__when_12_types_with_pair__should_return_true(self):
         # missing chun (7z), pair of 1m → waiting for chun
         tiles = TilesConverter.string_to_136_array(man="119", pin="19", sou="19", honors="123456")
         player = create_player(seat=0, tiles=tiles)
         assert is_kokushi_tenpai(player) is True
 
-    def test_kokushi_tenpai_13_types(self):
-        """All 13 unique terminal/honor types is kokushi tenpai (13-way wait)."""
+    def test_is_kokushi_tenpai__when_all_13_types__should_return_true(self):
         tiles = TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="1234567")
         player = create_player(seat=0, tiles=tiles)
         assert is_kokushi_tenpai(player) is True
 
-    def test_not_kokushi_with_melds(self):
-        """Any melds disqualify kokushi."""
+    def test_is_kokushi_tenpai__when_player_has_meld__should_return_false(self):
         tiles = TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="1234567")
         meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -393,14 +369,12 @@ class TestIsKokushiTenpai:
         player = create_player(seat=0, tiles=tiles[:10], melds=(meld,))
         assert is_kokushi_tenpai(player) is False
 
-    def test_not_kokushi_with_suited_tiles(self):
-        """Non-terminal suited tiles disqualify kokushi."""
+    def test_is_kokushi_tenpai__when_hand_has_non_terminal_suited_tile__should_return_false(self):
         tiles = TilesConverter.string_to_136_array(man="15", pin="19", sou="19", honors="1234567")
         player = create_player(seat=0, tiles=tiles)
         assert is_kokushi_tenpai(player) is False
 
-    def test_not_kokushi_too_few_types(self):
-        """Only 11 unique types is not kokushi tenpai."""
+    def test_is_kokushi_tenpai__when_only_11_types__should_return_false(self):
         # missing 9s and 9p, extra 1m copies → 11 unique types
         tiles = TilesConverter.string_to_136_array(man="119", pin="1", sou="1", honors="12345677")
         player = create_player(seat=0, tiles=tiles)
@@ -411,8 +385,7 @@ class TestIsKokushiTenpai:
 # Chankan on ankan: only kokushi may rob (fundamental)
 # ---------------------------------------------------------------------------
 class TestKokushiChankanOnAnkan:
-    def test_kokushi_can_rob_closed_kan(self):
-        """A player with kokushi tenpai can rob a closed kan."""
+    def test_kokushi_chankan__when_kokushi_waits_on_closed_kan_tile__should_allow_robbing(self):
         # player 1 has kokushi tenpai, missing 1m (pair of 9m)
         kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
         # player 0 declares closed kan on 1m
@@ -428,8 +401,7 @@ class TestKokushiChankanOnAnkan:
         chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
         assert 1 in chankan_seats
 
-    def test_non_kokushi_cannot_rob_closed_kan(self):
-        """A regular tenpai hand cannot rob a closed kan (only kokushi may)."""
+    def test_kokushi_chankan__when_tenpai_hand_is_not_kokushi__should_not_allow_robbing_closed_kan(self):
         # player 1 is tenpai on 1m but not for kokushi (e.g., 23m waiting on 1-4m)
         regular_tenpai = TilesConverter.string_to_136_array(man="2345678", pin="12355", sou="9")
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -445,8 +417,7 @@ class TestKokushiChankanOnAnkan:
         assert 1 not in chankan_seats
         assert chankan_seats == []
 
-    def test_kokushi_chankan_not_possible_with_furiten(self):
-        """A kokushi player in furiten cannot rob a closed kan."""
+    def test_kokushi_chankan__when_kokushi_is_permanent_furiten__should_not_allow_robbing(self):
         # kokushi tenpai missing 1m (pair of 9m)
         kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -480,8 +451,7 @@ class TestKokushiChankanOnAnkan:
         chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
         assert chankan_seats == []
 
-    def test_process_closed_kan_creates_chankan_prompt_for_kokushi(self):
-        """_process_closed_kan_call creates CHANKAN prompt when kokushi player can rob."""
+    def test_process_closed_kan_call__when_kokushi_can_rob__should_create_chankan_prompt(self):
         # kokushi tenpai missing 1m (pair of 9m)
         kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -502,8 +472,7 @@ class TestKokushiChankanOnAnkan:
         assert new_rs.pending_call_prompt is not None
         assert new_rs.pending_call_prompt.call_type == CallType.CHANKAN
 
-    def test_process_closed_kan_executes_when_no_kokushi(self):
-        """_process_closed_kan_call executes kan normally when no kokushi opponent."""
+    def test_process_closed_kan_call__when_no_kokushi_can_rob__should_execute_kan(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -523,8 +492,7 @@ class TestKokushiChankanOnAnkan:
 # Chankan on shouminkan (already verified, sanity check)
 # ---------------------------------------------------------------------------
 class TestChankanOnShouminkan:
-    def test_chankan_possible_on_added_kan(self):
-        """is_chankan_possible detects chankan opportunities on shouminkan."""
+    def test_chankan__when_tenpai_player_waits_on_added_kan_tile__should_allow_robbing(self):
         # player 1 is tenpai waiting on 3p
         tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         pin_3 = TilesConverter.string_to_136_array(pin="3")[0]
@@ -557,8 +525,7 @@ class TestChankanOnShouminkan:
 # Chankan preservation: ippatsu not cleared, dora not flipped (fundamental)
 # ---------------------------------------------------------------------------
 class TestChankanPreservation:
-    def test_chankan_prompt_does_not_clear_ippatsu(self):
-        """When chankan prompt is created (kan deferred), ippatsu flags are preserved."""
+    def test_chankan_prompt__when_added_kan_declared__should_preserve_ippatsu(self):
         # player 1 has ippatsu and is tenpai waiting on 3p
         tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         pin_3 = TilesConverter.string_to_136_array(pin="3333")
@@ -606,8 +573,7 @@ class TestChankanPreservation:
         # ippatsu should be preserved (kan not executed yet)
         assert new_rs.players[1].is_ippatsu is True
 
-    def test_chankan_prompt_does_not_flip_dora(self):
-        """When chankan prompt is created, no new dora indicator is revealed."""
+    def test_chankan_prompt__when_added_kan_declared__should_not_reveal_dora(self):
         tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         pin_3 = TilesConverter.string_to_136_array(pin="3333")
         pin_other = TilesConverter.string_to_136_array(pin="6789", sou="12345")
@@ -656,8 +622,7 @@ class TestChankanPreservation:
 # Action handler guard: kan after meld call raises error
 # ---------------------------------------------------------------------------
 class TestHandleSelfKanAfterMeld:
-    def test_handle_self_kan_raises_when_after_meld_call(self):
-        """_handle_self_kan raises InvalidGameActionError when is_after_meld_call."""
+    def test_handle_self_kan__when_after_meld_call__should_raise(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -675,8 +640,7 @@ class TestHandleSelfKanAfterMeld:
 # Resolve chankan decline for closed kan (kokushi chankan)
 # ---------------------------------------------------------------------------
 class TestResolveChankanDeclineClosedKan:
-    def test_chankan_decline_completes_closed_kan(self):
-        """All pass on kokushi chankan for closed kan completes the closed kan."""
+    def test_resolve_chankan_decline__when_closed_kan__should_complete_kan(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -703,8 +667,7 @@ class TestResolveChankanDeclineClosedKan:
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
 
-    def test_chankan_decline_closed_kan_triggers_four_kans_abort(self):
-        """Closed kan chankan decline triggers four kans abort when applicable."""
+    def test_resolve_chankan_decline__when_closed_kan_is_fourth_kan__should_abort_round(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player0_tiles = (*man_1m, *pin_tiles)
@@ -753,8 +716,7 @@ class TestResolveChankanDeclineClosedKan:
 # Additional kokushi chankan edge cases for coverage
 # ---------------------------------------------------------------------------
 class TestKokushiChankanEdgeCases:
-    def test_kokushi_not_waiting_on_kan_tile(self):
-        """Kokushi tenpai player waiting on a different tile is not offered chankan."""
+    def test_kokushi_chankan__when_kokushi_waits_on_other_tile__should_not_allow_robbing(self):
         # kokushi tenpai missing 1m (waiting on 1m), but kan tile is 2m
         kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
         man_2m = TilesConverter.string_to_136_array(man="2222")
@@ -784,8 +746,7 @@ class TestKokushiChankanEdgeCases:
         chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_2m[0])
         assert chankan_seats == []
 
-    def test_kokushi_riichi_furiten_blocks_chankan(self):
-        """Kokushi player with riichi furiten cannot rob a closed kan."""
+    def test_kokushi_chankan__when_kokushi_is_riichi_furiten__should_not_allow_robbing(self):
         kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
@@ -814,8 +775,7 @@ class TestKokushiChankanEdgeCases:
         chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
         assert 1 not in chankan_seats
 
-    def test_kokushi_temporary_furiten_blocks_chankan(self):
-        """Kokushi player with temporary furiten cannot rob a closed kan."""
+    def test_kokushi_chankan__when_kokushi_is_temporary_furiten__should_not_allow_robbing(self):
         kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")

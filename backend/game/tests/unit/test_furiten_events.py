@@ -1,10 +1,3 @@
-"""
-Unit tests for furiten state-change events.
-
-Tests that the server sends FuritenEvent to individual players when their
-effective furiten state transitions on/off.
-"""
-
 import pytest
 
 from game.logic.enums import GameAction, RoundPhase
@@ -18,20 +11,17 @@ from game.tests.unit.helpers import (
 
 
 class TestCheckFuritenChanges:
-    """Tests for FuritenTracker.check_changes via MahjongGameService."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_no_event_when_state_unchanged(self, service):
+    async def test_check_furiten_changes__when_state_unchanged__should_emit_nothing(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         events = service._furiten_tracker.check_changes("game1", game_state.round_state)
         assert len(events) == 0
 
-    async def test_event_emitted_on_temporary_furiten(self, service):
-        """Setting temporary furiten triggers a furiten event."""
+    async def test_check_furiten_changes__when_temporary_furiten_starts__should_emit_furiten_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -46,8 +36,7 @@ class TestCheckFuritenChanges:
         assert events[0].data.is_furiten is True
         assert events[0].target == SeatTarget(seat=player.seat)
 
-    async def test_event_emitted_on_furiten_clear(self, service):
-        """Clearing furiten triggers a furiten=false event."""
+    async def test_check_furiten_changes__when_furiten_clears__should_emit_event_with_false(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -60,8 +49,7 @@ class TestCheckFuritenChanges:
         assert len(events) == 1
         assert events[0].data.is_furiten is False
 
-    async def test_no_duplicate_events(self, service):
-        """Same furiten state does not emit duplicate events."""
+    async def test_check_furiten_changes__when_called_twice__should_emit_once(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -74,8 +62,7 @@ class TestCheckFuritenChanges:
         events2 = service._furiten_tracker.check_changes("game1", game_state.round_state)
         assert len(events2) == 0
 
-    async def test_events_only_for_affected_player(self, service):
-        """Furiten events target only the affected player, not opponents."""
+    async def test_check_furiten_changes__when_one_player_changes__should_target_only_that_seat(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_player(service, "game1", 1, is_temporary_furiten=True)
@@ -85,8 +72,7 @@ class TestCheckFuritenChanges:
         assert len(events) == 1
         assert events[0].target == SeatTarget(seat=1)
 
-    async def test_no_check_when_round_finished(self, service):
-        """No furiten check when the round phase is FINISHED."""
+    async def test_check_furiten_changes__when_round_finished__should_emit_nothing(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
@@ -96,15 +82,13 @@ class TestCheckFuritenChanges:
         events = service._furiten_tracker.check_changes("game1", game_state.round_state)
         assert len(events) == 0
 
-    async def test_no_events_for_unknown_game(self, service):
-        """Unknown game_id returns no events."""
+    async def test_check_furiten_changes__when_game_unknown__should_emit_nothing(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         events = service._furiten_tracker.check_changes("nonexistent", game_state.round_state)
         assert len(events) == 0
 
-    async def test_riichi_furiten_triggers_event(self, service):
-        """Riichi furiten triggers a furiten event."""
+    async def test_check_furiten_changes__when_riichi_furiten_starts__should_emit_furiten_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_player(service, "game1", 2, is_riichi_furiten=True)
@@ -117,14 +101,11 @@ class TestCheckFuritenChanges:
 
 
 class TestFuritenEventsInGameFlow:
-    """Integration-style tests that furiten events are emitted during gameplay."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_furiten_events_in_action_flow(self, service):
-        """Furiten events are emitted through handle_action when state changes."""
+    async def test_furiten_events__when_action_changes_furiten__should_emit_event_to_player(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -153,8 +134,7 @@ class TestFuritenEventsInGameFlow:
         assert furiten_events[0].data.is_furiten is False
         assert furiten_events[0].target == SeatTarget(seat=player.seat)
 
-    async def test_start_game_no_spurious_furiten_events(self, service):
-        """start_game should not produce furiten events (all state is fresh)."""
+    async def test_furiten_events__when_game_starts__should_emit_none(self, service):
         events = await service.start_game("game1", ["Player"], seed="a" * 192)
 
         furiten_events = [e for e in events if e.event == EventType.FURITEN]

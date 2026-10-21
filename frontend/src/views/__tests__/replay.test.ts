@@ -53,7 +53,6 @@ async function flushAsyncChain(): Promise<void> {
         .then(() => Promise.resolve());
 }
 
-/** Load the replay view and wait for async initialization to complete. */
 async function initReplayView(): Promise<void> {
     setupContainer();
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -65,7 +64,6 @@ async function initReplayView(): Promise<void> {
     await flushAsyncChain();
 }
 
-/** Initialize replay view and open the round dropdown via the captured toggle callback. */
 async function initWithOpenDropdown(): Promise<void> {
     await initReplayView();
     expect(capturedOnToggle).not.toBeNull();

@@ -9,5 +9,7 @@ class GameServer(BaseModel):
 
     @property
     def client_url(self) -> str:
-        """URL exposed to browser clients (for WebSocket connections)."""
+        """
+        URL exposed to browser clients (for WebSocket connections).
+        """
         return self.public_url or self.url

@@ -1,5 +1,3 @@
-"""Shanten calculation using xiangting (Rust)."""
-
 import structlog
 from xiangting import PlayerCount, calculate_replacement_number
 
@@ -13,7 +11,8 @@ _NOT_TENPAI: int = 8
 
 
 def calculate_shanten(tiles_34: list[int]) -> int:
-    """Calculate the minimum shanten number across all hand patterns (regular, chiitoitsu, kokushi).
+    """
+    Calculate the minimum shanten number across all hand patterns (regular, chiitoitsu, kokushi).
 
     Used by is_tempai() which must detect tenpai for all hand types.
     """

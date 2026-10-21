@@ -1,12 +1,3 @@
-"""HMAC-SHA256 signed game tickets for lobby-to-game-server authentication.
-
-The lobby signs tickets when a user creates or joins a room. The game server
-verifies the signature locally using a shared secret, avoiding a network call
-on every WebSocket connection.
-
-Token format: base64url(json_payload_bytes).base64url(hmac_sha256_signature)
-"""
-
 import base64
 import binascii
 import hashlib
@@ -28,7 +19,9 @@ CLOCK_SKEW_SECONDS = 60
 
 @dataclass
 class GameTicket:
-    """Payload carried inside a signed game ticket."""
+    """
+    Payload carried inside a signed game ticket.
+    """
 
     user_id: str
     username: str
@@ -43,7 +36,9 @@ def create_signed_ticket(
     room_id: str,
     game_ticket_secret: str,
 ) -> str:
-    """Create and sign a game ticket, returning the signed token string."""
+    """
+    Create and sign a game ticket, returning the signed token string.
+    """
     now = time.time()
     ticket = GameTicket(
         user_id=user_id,
@@ -56,7 +51,9 @@ def create_signed_ticket(
 
 
 def sign_game_ticket(ticket: GameTicket, secret: str) -> str:
-    """Serialize ticket to JSON, compute HMAC-SHA256, return base64url(payload).base64url(sig)."""
+    """
+    Serialize ticket to JSON, compute HMAC-SHA256, return base64url(payload).base64url(sig).
+    """
     payload_bytes = json.dumps(asdict(ticket), sort_keys=True).encode()
     sig = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).digest()
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode()
@@ -65,7 +62,11 @@ def sign_game_ticket(ticket: GameTicket, secret: str) -> str:
 
 
 def verify_game_ticket(token: str, secret: str) -> GameTicket | None:
-    """Verify HMAC signature and expiry. Returns GameTicket or None on any failure."""
+    """
+    Verify HMAC signature and expiry.
+
+    Returns GameTicket or None on any failure.
+    """
     parts = token.split(".")
     if len(parts) != _TOKEN_PARTS:
         return None
@@ -95,7 +96,9 @@ def verify_game_ticket(token: str, secret: str) -> GameTicket | None:
 
 
 def _is_finite_number(value: object) -> bool:
-    """Check that a value is a finite int or float (excluding bool)."""
+    """
+    Check that a value is a finite int or float (excluding bool).
+    """
     if isinstance(value, bool):
         return False
     if not isinstance(value, (int, float)):
@@ -104,7 +107,8 @@ def _is_finite_number(value: object) -> bool:
 
 
 def _validate_ticket_timestamps(ticket: GameTicket) -> bool:
-    """Validate temporal claims on a game ticket.
+    """
+    Validate temporal claims on a game ticket.
 
     Checks: both timestamps are finite numbers, issued_at is not in the future
     (with clock skew tolerance), expires_at is after issued_at, the ticket

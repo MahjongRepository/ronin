@@ -1,10 +1,3 @@
-"""Call resolution subsystem -- resolve pending call prompts after all callers respond.
-
-Handles ron resolution, meld resolution, all-passed flow, and chankan decline
-completion. Extracted from action_handlers.py to give the call-resolution state
-machine its own module and test surface.
-"""
-
 from typing import TYPE_CHECKING
 
 import structlog
@@ -71,7 +64,9 @@ _ACTION_TO_MELD_CALL_TYPE = {
 
 
 def _action_to_meld_call_type(action: GameAction) -> MeldCallType:
-    """Convert a GameAction to MeldCallType."""
+    """
+    Convert a GameAction to MeldCallType.
+    """
     result = _ACTION_TO_MELD_CALL_TYPE.get(action)
     if result is None:
         raise ValueError(f"no meld call type for action: {action}")
@@ -143,7 +138,9 @@ def _resolve_ron_responses(
     prompt: PendingCallPrompt,
     ron_responses: list[CallResponse],
 ) -> ActionResult:
-    """Resolve ron responses from the pending call prompt."""
+    """
+    Resolve ron responses from the pending call prompt.
+    """
     # sort by position in prompt.callers (counter-clockwise from discarder)
     caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
     ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, FALLBACK_CALLER_ORDER))
@@ -184,7 +181,9 @@ def _resolve_meld_response(
     prompt: PendingCallPrompt,
     best: CallResponse,
 ) -> ActionResult:
-    """Resolve the winning meld response from the pending call prompt."""
+    """
+    Resolve the winning meld response from the pending call prompt.
+    """
     meld_type = _action_to_meld_call_type(best.action)
     meld_input = MeldCallInput(
         caller_seat=best.seat,
@@ -218,8 +217,8 @@ def _resolve_all_passed(
     """
     Handle resolution when all callers passed on a RON or MELD prompt.
 
-    Reveal deferred dora, advance turn, and draw for next player.
-    Riichi finalization is handled separately by DISCARD prompt resolution.
+    Reveal deferred dora, advance turn, and draw for next player. Riichi finalization is handled separately by DISCARD
+    prompt resolution.
     """
     events: list[GameEvent] = []
 
@@ -245,10 +244,10 @@ def _complete_kan_after_chankan_decline(
     *,
     is_closed: bool,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Shared logic for completing a kan after chankan opportunity was declined.
+    """
+    Shared logic for completing a kan after chankan opportunity was declined.
 
-    Executes the kan call, emits meld/dora events, checks four kans abort,
-    and emits the dead wall draw event.
+    Executes the kan call, emits meld/dora events, checks four kans abort, and emits the dead wall draw event.
     """
     settings = game_state.settings
     old_dora_count = len(round_state.wall.dora_indicators)
@@ -296,10 +295,11 @@ def complete_added_kan_after_chankan_decline(
     caller_seat: int,
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Complete an added kan after chankan opportunity was declined.
+    """
+    Complete an added kan after chankan opportunity was declined.
 
-    Called when all players pass on a chankan opportunity.
-    Furiten is applied per-caller in handle_pass before resolution.
+    Called when all players pass on a chankan opportunity. Furiten is applied per-caller in handle_pass before
+    resolution.
     """
     return _complete_kan_after_chankan_decline(
         round_state,
@@ -316,7 +316,8 @@ def complete_closed_kan_after_chankan_decline(
     caller_seat: int,
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Complete a closed kan after kokushi chankan opportunity was declined.
+    """
+    Complete a closed kan after kokushi chankan opportunity was declined.
 
     Called when all players pass on a kokushi chankan opportunity for ankan.
     """
@@ -334,11 +335,11 @@ def _finalize_discard_post_ron_check(
     game_state: MahjongGameState,
     prompt: PendingCallPrompt,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent], bool]:
-    """Reveal deferred dora and finalize pending riichi after ron check passes.
+    """
+    Reveal deferred dora and finalize pending riichi after ron check passes.
 
-    Called when no one called ron on a DISCARD prompt. The discard has "passed"
-    the ron window, so deferred dora from prior open/added kan is revealed
-    and pending riichi bets are deposited.
+    Called when no one called ron on a DISCARD prompt. The discard has "passed" the ron window, so deferred dora from
+    prior open/added kan is revealed and pending riichi bets are deposited.
 
     Returns (new_round_state, new_game_state, events, riichi_finalized).
     """
@@ -369,10 +370,10 @@ def _resolve_all_passed_discard(
     game_state: MahjongGameState,
     extra_events: list[GameEvent],
 ) -> ActionResult:
-    """Handle all-passed for DISCARD prompts.
+    """
+    Handle all-passed for DISCARD prompts.
 
-    Dora/riichi finalization is already done by the caller.
-    Advance turn and draw for next player.
+    Dora/riichi finalization is already done by the caller. Advance turn and draw for next player.
     """
     new_round_state = advance_turn(round_state)
     new_game_state = update_game_with_round(game_state, new_round_state)
@@ -390,7 +391,9 @@ def _resolve_chankan_decline(
     game_state: MahjongGameState,
     prompt: PendingCallPrompt,
 ) -> ActionResult:
-    """Complete the kan after all chankan rob attempts were declined."""
+    """
+    Complete the kan after all chankan rob attempts were declined.
+    """
     player = round_state.players[prompt.from_seat]
     t34 = tile_to_34(prompt.tile_id)
     has_pon = any(m.meld_type == FrozenMeld.PON and tile_to_34(m.tiles[0]) == t34 for m in player.melds)
@@ -418,8 +421,7 @@ def resolve_call_prompt(  # noqa: PLR0911
     """
     Resolve pending call prompt after all callers have responded.
 
-    Pick the winning response by priority (ron > pon/kan > chi > all pass)
-    and execute it. Clear the pending prompt.
+    Pick the winning response by priority (ron > pon/kan > chi > all pass) and execute it. Clear the pending prompt.
     Returns ActionResult with events and new state.
     """
     prompt = round_state.pending_call_prompt

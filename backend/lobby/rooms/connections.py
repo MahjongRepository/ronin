@@ -1,5 +1,3 @@
-"""WebSocket connection manager for lobby rooms."""
-
 from __future__ import annotations
 
 import contextlib
@@ -15,7 +13,9 @@ logger = structlog.get_logger()
 
 
 class RoomConnectionManager:
-    """Track WebSocket connections per room for message broadcasting."""
+    """
+    Track WebSocket connections per room for message broadcasting.
+    """
 
     def __init__(self) -> None:
         self._connections: dict[str, dict[str, WebSocket]] = {}  # room_id -> {conn_id -> ws}
@@ -28,7 +28,9 @@ class RoomConnectionManager:
         self._connection_rooms[connection_id] = room_id
 
     def remove(self, connection_id: str) -> str | None:
-        """Remove a connection and return the room_id it was in, or None."""
+        """
+        Remove a connection and return the room_id it was in, or None.
+        """
         room_id = self._connection_rooms.pop(connection_id, None)
         if room_id is not None and room_id in self._connections:
             self._connections[room_id].pop(connection_id, None)
@@ -37,7 +39,9 @@ class RoomConnectionManager:
         return room_id
 
     async def broadcast(self, room_id: str, message: dict, exclude: str | None = None) -> None:
-        """Send a JSON message to all connections in a room, optionally excluding one."""
+        """
+        Send a JSON message to all connections in a room, optionally excluding one.
+        """
         connections = self._connections.get(room_id, {})
         payload = json.dumps(message)
         for conn_id, ws in list(connections.items()):
@@ -47,7 +51,11 @@ class RoomConnectionManager:
                 await ws.send_text(payload)
 
     async def send_to(self, connection_id: str, message: dict) -> bool:
-        """Send a JSON message to a specific connection. Returns True on success."""
+        """
+        Send a JSON message to a specific connection.
+
+        Returns True on success.
+        """
         room_id = self._connection_rooms.get(connection_id)
         if room_id is None:
             return False
@@ -62,7 +70,9 @@ class RoomConnectionManager:
         return True
 
     async def close_connections(self, room_id: str, code: int = 1000, reason: str = "") -> None:
-        """Close all WebSocket connections in a room."""
+        """
+        Close all WebSocket connections in a room.
+        """
         connections = self._connections.pop(room_id, {})
         for conn_id, ws in connections.items():
             self._connection_rooms.pop(conn_id, None)

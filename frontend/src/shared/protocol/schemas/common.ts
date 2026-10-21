@@ -1,5 +1,3 @@
-// Shared Zod schema helpers for wire protocol parsing.
-
 import { z } from "zod";
 
 import { WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";

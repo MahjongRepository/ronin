@@ -1,10 +1,3 @@
-"""Integration test: replay added kan (shouminkan) and verify state consistency.
-
-Reproduces a bug where the game state was not updated after added kan,
-causing the player's hand to still contain the tile used for kan and
-missing the replacement draw tile.
-"""
-
 from game.logic.enums import GameAction
 from game.logic.events import DoraRevealedEvent, EventType
 from game.logic.tiles import tile_to_34
@@ -27,21 +20,6 @@ SECOND_DORA_INDICATOR = 125
 
 
 def _build_added_kan_wall() -> tuple[int, ...]:
-    """Build a wall that sets up an added kan scenario.
-
-    Tile placement:
-    - Seat 1 (Bob) gets tile 108 (1z) in initial hand
-    - Seat 2 (Alice) gets tiles 109, 110 (1z) in initial hand
-    - Tile 111 (1z) is placed in the live wall so seat 2 draws it
-
-    Sequence:
-    1. Dealer (seat 0) draws and discards
-    2. Seat 1 draws and discards tile 108 (1z)
-    3. Seat 2 calls pon on tile 108
-    4. Seat 2 discards, then 3 more draws/discards (seats 3, 0, 1)
-    5. Seat 2 draws tile 111 (1z) and calls added kan
-    6. Seat 2 draws replacement tile from dead wall and discards
-    """
     wall = list(range(136))
 
     # Seat 1 hand positions: 4-7, 20-23, 36-39, 49
@@ -64,7 +42,6 @@ def _build_added_kan_wall() -> tuple[int, ...]:
 
 
 def _build_added_kan_events() -> tuple[ReplayInputEvent, ...]:
-    """Build the replay events for the added kan scenario."""
     return (
         # 1. Dealer (Charlie, seat 0) discards after initial draw
         ReplayInputEvent(player_name="Charlie", action=GameAction.DISCARD, data={"tile_id": 0}),
@@ -91,12 +68,7 @@ def _build_added_kan_events() -> tuple[ReplayInputEvent, ...]:
     )
 
 
-async def test_added_kan_state_consistency():
-    """After added kan, the stored game state must reflect the updated hand.
-
-    The player's hand should have the kan tile removed and the dead wall
-    replacement tile added. Discarding the replacement tile must succeed.
-    """
+async def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
@@ -142,13 +114,7 @@ async def test_added_kan_state_consistency():
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before
 
 
-async def test_added_kan_hand_tile_count():
-    """After added kan, the player's hand tile count must remain correct.
-
-    After pon: 13 - 2 (pon from hand) = 11 tiles, then discard = 10.
-    After draw + kan + replacement draw: 10 + 1 = 11 tiles in hand.
-    With 1 kan meld (4 tiles): 11 + 4 = 15 total tiles held.
-    """
+async def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
@@ -175,16 +141,7 @@ async def test_added_kan_hand_tile_count():
         assert count <= 4, f"tile_34={t34} appears {count} times in hand"
 
 
-async def test_added_kan_deferred_dora_reveal():
-    """Added kan dora is deferred: revealed after the replacement discard passes.
-
-    Under default settings:
-    - Concealed kan: dora revealed immediately
-    - Open/Added kan: dora deferred until replacement discard passes (no ron)
-
-    The DoraRevealedEvent must NOT appear in the kan step's events,
-    and MUST appear in the discard step's events (after the discard passes).
-    """
+async def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,

@@ -1,7 +1,3 @@
-"""
-Turn loop orchestration for Mahjong game.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -105,7 +101,9 @@ def _maybe_emit_dora_event(
     new_round_state: MahjongRoundState,
     events: list[GameEvent],
 ) -> None:
-    """Append DoraRevealedEvents for each new dora indicator revealed."""
+    """
+    Append DoraRevealedEvents for each new dora indicator revealed.
+    """
     events.extend(
         DoraRevealedEvent(tile_id=indicator) for indicator in new_round_state.wall.dora_indicators[old_dora_count:]
     )
@@ -117,9 +115,8 @@ def emit_deferred_dora_events(
     """
     Reveal deferred dora indicators (from open/added kan) and emit events.
 
-    Called after a discard passes the ron check. Under our rules,
-    open/added kan dora is revealed only after the replacement discard
-    is accepted (not ron'd).
+    Called after a discard passes the ron check. Under our rules, open/added kan dora is revealed only after the
+    replacement discard is accepted (not ron'd).
 
     Returns (new_round_state, events).
     """
@@ -201,8 +198,8 @@ def _check_riichi_furiten(
     """
     Set riichi furiten for riichi players whose winning tile just passed.
 
-    A riichi player who is waiting on the discarded tile but did not (or could not)
-    call ron becomes permanently furiten for the rest of the hand.
+    A riichi player who is waiting on the discarded tile but did not (or could not) call ron becomes permanently furiten
+    for the rest of the hand.
 
     Returns new round state with updated furiten flags.
     """
@@ -292,7 +289,8 @@ def _validate_riichi_discard(
     tile_id: int,
     settings: GameSettings,
 ) -> None:
-    """Validate riichi declaration and that the discard keeps hand in tenpai.
+    """
+    Validate riichi declaration and that the discard keeps hand in tenpai.
 
     Raises InvalidRiichiError if conditions are not met.
     """
@@ -319,7 +317,9 @@ def _check_abortive_draw(
     draw_type: AbortiveDrawType,
     events: list[GameEvent],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Produce abortive draw result and mark round finished."""
+    """
+    Produce abortive draw result and mark round finished.
+    """
     logger.debug("abortive draw", draw_type=draw_type.value)
     result = process_abortive_draw(game_state, draw_type)
     new_round = round_state.model_copy(update={"phase": RoundPhase.FINISHED})
@@ -335,7 +335,9 @@ def _build_discard_prompt(
     ron_callers: list[int],
     meld_calls: list[MeldCaller],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Create a unified DISCARD call prompt for all callers."""
+    """
+    Create a unified DISCARD call prompt for all callers.
+    """
     discarder_seat = round_state.current_player_seat
     callers: list[int | MeldCaller] = list(ron_callers) + list(meld_calls)
     ron_caller_set = set(ron_callers)
@@ -369,7 +371,9 @@ def _finalize_no_callers(
     riichi_pending: bool,
     events: list[GameEvent],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Handle the no-callers path: reveal deferred dora, finalize riichi, advance turn."""
+    """
+    Handle the no-callers path: reveal deferred dora, finalize riichi, advance turn.
+    """
     settings = game_state.settings
     new_round, dora_events = emit_deferred_dora_events(round_state)
     events.extend(dora_events)
@@ -660,7 +664,9 @@ def _process_pon_call(
     discarder_seat: int,
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Handle a pon meld call."""
+    """
+    Handle a pon meld call.
+    """
     logger.debug("pon called", caller_seat=caller_seat, from_seat=discarder_seat, tile_id=tile_id)
     new_round_state, meld = call_pon(round_state, caller_seat, discarder_seat, tile_id, game_state.settings)
     tile_ids = list(meld.tiles)
@@ -683,7 +689,9 @@ def _process_chi_call(
     tile_id: int,
     sequence_tiles: tuple[int, int],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Handle a chi meld call."""
+    """
+    Handle a chi meld call.
+    """
     logger.debug("chi called", caller_seat=caller_seat, tile_id=tile_id, sequence_tiles=sequence_tiles)
     discarder_seat = round_state.current_player_seat
     new_round_state, meld = call_chi(
@@ -712,7 +720,11 @@ def _check_four_kans_abort(
     game_state: MahjongGameState,
     events: list[GameEvent],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent], bool]:
-    """Check for four kans abortive draw. Return (round, game, events, aborted)."""
+    """
+    Check for four kans abortive draw.
+
+    Return (round, game, events, aborted).
+    """
     settings = game_state.settings
     if settings.has_suukaikan and check_four_kans(round_state, settings):
         new_game_state = game_state.model_copy(update={"round_state": round_state})
@@ -732,7 +744,9 @@ def _process_open_kan_call(
     discarder_seat: int,
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Handle an open kan meld call."""
+    """
+    Handle an open kan meld call.
+    """
     logger.debug("open kan called", caller_seat=caller_seat, from_seat=discarder_seat, tile_id=tile_id)
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_open_kan(
@@ -767,7 +781,9 @@ def _process_closed_kan_call(
     caller_seat: int,
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Handle a closed kan meld call."""
+    """
+    Handle a closed kan meld call.
+    """
     logger.debug("closed kan called", caller_seat=caller_seat, tile_id=tile_id)
 
     # validate the closed kan is legal before checking for kokushi chankan,
@@ -823,7 +839,9 @@ def _process_added_kan_call(
     caller_seat: int,
     tile_id: int,
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
-    """Handle an added kan meld call."""
+    """
+    Handle an added kan meld call.
+    """
     logger.debug("added kan called", caller_seat=caller_seat, tile_id=tile_id)
     # validate and resolve tile_id to the actual in-hand copy before chankan
     # checks, so the resolved tile is used consistently for prompts, scoring,

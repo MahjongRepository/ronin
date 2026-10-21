@@ -1,5 +1,3 @@
-"""Unit tests for meld edge cases: kuikae suji, 4-kan limit, riichi kan waits, and pao liability."""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -24,14 +22,7 @@ from game.tests.conftest import create_player, create_round_state
 
 
 class TestKuikaeEdgeCases:
-    """Test kuikae edge cases for chi calls."""
-
-    def test_kuikae_called_tile_highest(self):
-        """Test chi suji kuikae when called tile is highest in sequence.
-
-        When calling chi with tile as highest (e.g., 3m in 123m), the suji extends
-        below the lowest tile. Verify forbidden tiles include both called tile and suji.
-        """
+    def test_get_kuikae_tiles__when_called_tile_is_highest__should_forbid_called_tile_and_low_suji(self):
         # Create sequence 123m where called_tile is 3m (tile_34=2 in man suit)
         man_tiles = TilesConverter.string_to_136_array(man="123")
         called_tile_34 = tile_to_34(man_tiles[2])  # 3m is tile_34 = 2
@@ -59,10 +50,7 @@ class TestKuikaeEdgeCases:
 
 
 class TestKanLimits:
-    """Test 4-kan limit restrictions."""
-
-    def test_open_kan_blocked_by_insufficient_wall(self):
-        """Open kan requires min_wall_for_kan tiles in the wall even when player has 3 matching."""
+    def test_can_call_open_kan__when_wall_below_min_for_kan__should_return_false(self):
         pin_5p = TilesConverter.string_to_136_array(pin="555")
         player = create_player(seat=1, tiles=pin_5p)
         round_state = create_round_state(
@@ -72,8 +60,7 @@ class TestKanLimits:
         discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
         assert can_call_open_kan(player, discarded_tile, round_state, GameSettings()) is False
 
-    def test_four_kan_limit_blocks_open_kan(self):
-        """Test that 4 existing kans blocks new open kan."""
+    def test_can_call_open_kan__when_four_kans_already_made__should_return_false(self):
         # Create players with 4 total kans
         man_1234 = TilesConverter.string_to_136_array(man="1111222233334444")
 
@@ -130,8 +117,7 @@ class TestKanLimits:
 
         assert result is False
 
-    def test_four_kan_limit_blocks_closed_kan(self):
-        """Test that 4 existing kans blocks closed kan."""
+    def test_get_possible_closed_kans__when_four_kans_already_made__should_return_empty(self):
         # Create players with 4 total kans
         man_1234 = TilesConverter.string_to_136_array(man="1111222233334444")
 
@@ -184,8 +170,7 @@ class TestKanLimits:
 
         assert result == []
 
-    def test_four_kan_limit_blocks_added_kan(self):
-        """Test that 4 existing kans blocks added kan."""
+    def test_get_possible_added_kans__when_four_kans_already_made__should_return_empty(self):
         # Create players with 4 total kans
         man_1234 = TilesConverter.string_to_136_array(man="1111222233334444")
 
@@ -246,16 +231,7 @@ class TestKanLimits:
 
 
 class TestRiichiKanWaitPreservation:
-    """Test kan wait preservation checks for riichi players."""
-
-    def test_kan_preserves_waits_allows(self):
-        """Test closed kan during riichi that preserves waits (allowed).
-
-        Hand: 1111m 234p 567p 89s 55s (14 tiles, riichi player just drew).
-        Remove one 1m -> 111m 234p 567p 89s 55s = 13 tiles tenpai on 7s.
-        Kan on 1m: remove all four 1m -> 234p 567p 89s 55s + kan meld.
-        Still tenpai on 7s -> waits preserved.
-        """
+    def test_riichi_kan__when_kan_keeps_waits__should_allow_it(self):
         tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
 
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
@@ -267,11 +243,7 @@ class TestRiichiKanWaitPreservation:
 
         assert result is True
 
-    def test_kan_preserves_waits_rejects(self):
-        """Test closed kan during riichi that changes waits (rejected).
-
-        Hand where kan would change the waiting tiles.
-        """
+    def test_riichi_kan__when_kan_changes_waits__should_reject_it(self):
         # Create a hand where kan changes waits
         # Hand: 1112345678999m (tenpai on 1m, 4m, 7m)
         # If we kan 1111m or 9999m, waits change
@@ -287,16 +259,7 @@ class TestRiichiKanWaitPreservation:
         # This should be rejected because kan changes the hand structure
         assert result is False
 
-    def test_kan_rejected_when_tile_is_also_a_wait(self):
-        """Test closed kan during riichi rejected when kan tile is also a wait.
-
-        Hand: 11234m 567s 789999p (14 tiles, riichi player just drew 4th 9p).
-        Remove one 9p -> 11234m 567s 78999p = 13 tiles.
-        Tenpai readings:
-        - 234m + 567s + 999p + 11m + 78p -> wait on 6p or 9p
-        - 234m + 567s + 789p + 99p + 11m -> shanpon wait on 1m or 9p
-        Since 9p is among the waits, kan on 9p must be rejected.
-        """
+    def test_riichi_kan__when_kan_tile_is_also_a_wait__should_reject_it(self):
         tiles = TilesConverter.string_to_136_array(man="11234", sou="567", pin="789999")
 
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
@@ -309,12 +272,7 @@ class TestRiichiKanWaitPreservation:
 
         assert result is False
 
-    def test_possible_closed_kans_includes_wait_preserving_kan(self):
-        """get_possible_closed_kans includes riichi kan when drawn tile is the kan tile.
-
-        Hand: 111m 234567p 8955s + drawn 1m (last tile).
-        The drawn tile (4th 1m) completes the quad and preserves waits.
-        """
+    def test_get_possible_closed_kans__when_riichi_kan_keeps_waits__should_include_it(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin = TilesConverter.string_to_136_array(pin="234567")
         sou = TilesConverter.string_to_136_array(sou="8955")
@@ -331,13 +289,7 @@ class TestRiichiKanWaitPreservation:
         tile_34_1m = tile_to_34(man_1m[0])
         assert tile_34_1m in result
 
-    def test_riichi_kan_blocked_when_drawn_tile_is_not_kan_tile(self):
-        """Closed kan during riichi requires the drawn tile to be the kan tile.
-
-        Hand: 1111m 234567p 89s + drawn 5s (last tile).
-        Player has 4x 1m but drew 5s, so kan on 1m is blocked because
-        the drawn tile is not the kan tile.
-        """
+    def test_get_possible_closed_kans__when_riichi_and_drawn_tile_is_not_kan_tile__should_return_empty(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pin = TilesConverter.string_to_136_array(pin="234567")
         sou = TilesConverter.string_to_136_array(sou="8955")
@@ -355,14 +307,7 @@ class TestRiichiKanWaitPreservation:
 
 
 class TestPaoLiability:
-    """Test pao liability for daisangen and daisuushii."""
-
-    def test_pao_liability_three_dragons(self):
-        """Test pon on 3rd dragon triggers pao (daisangen).
-
-        Create player with 2 existing dragon pon/kan melds.
-        Call _check_pao with 3rd dragon. Verify returns discarder_seat.
-        """
+    def test_pao__when_third_dragon_called__should_return_discarder_seat(self):
         # Create player with 2 dragon melds (haku and hatsu)
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
@@ -393,12 +338,7 @@ class TestPaoLiability:
 
         assert result == discarder_seat
 
-    def test_pao_liability_four_winds(self):
-        """Test pon on 4th wind triggers pao (daisuushii).
-
-        Create player with 3 existing wind pon/kan melds.
-        Call _check_pao with 4th wind. Verify returns discarder_seat.
-        """
+    def test_pao__when_fourth_wind_called__should_return_discarder_seat(self):
         # Create player with 3 wind melds (east, south, west)
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         south_tiles = TilesConverter.string_to_136_array(honors="222")
@@ -436,11 +376,7 @@ class TestPaoLiability:
 
         assert result == discarder_seat
 
-    def test_no_pao_liability_normal_tile(self):
-        """Test normal tile returns None (no pao).
-
-        Call _check_pao with a normal numbered tile. Verify returns None.
-        """
+    def test_pao__when_normal_tile_called__should_return_none(self):
         player = create_player(seat=0)
 
         # Call _check_pao with 1m (normal tile)
@@ -452,12 +388,7 @@ class TestPaoLiability:
 
         assert result is None
 
-    def test_no_pao_on_first_dragon_meld(self):
-        """Test pon on 1st dragon returns None (need 3 for daisangen pao).
-
-        Player has 0 dragon melds, calling pon on haku. count=0, count+1=1 < 3.
-        Hits the break+return None path.
-        """
+    def test_pao__when_first_dragon_called__should_return_none(self):
         player = create_player(seat=0)
 
         haku_tile = TilesConverter.string_to_136_array(honors="5")[0]
@@ -468,12 +399,7 @@ class TestPaoLiability:
 
         assert result is None
 
-    def test_pao_liability_open_kan(self):
-        """Test open kan on 3rd dragon triggers pao.
-
-        Call call_open_kan with 3rd dragon tile on player with 2 dragon melds.
-        Verify returned state has pao_seat set.
-        """
+    def test_pao__when_open_kan_completes_third_dragon__should_set_pao_on_discarder(self):
         # Create player with 2 dragon melds and 3 chun tiles
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
@@ -517,12 +443,7 @@ class TestPaoLiability:
 
         assert new_state.players[0].pao_seat == discarder_seat
 
-    def test_pao_liability_pon(self):
-        """Test pon on 3rd dragon sets pao_seat.
-
-        Call call_pon with 3rd dragon tile on player with 2 existing dragon melds.
-        Verify pao_seat is set in result.
-        """
+    def test_pao__when_pon_completes_third_dragon__should_set_pao_on_discarder(self):
         # Create player with 2 dragon melds and 2 chun tiles
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
@@ -569,14 +490,7 @@ class TestPaoLiability:
 
 
 class TestChiKuikaeWithoutSuji:
-    """Test chi kuikae restriction without suji extension."""
-
-    def test_chi_kuikae_no_suji(self):
-        """Test call_chi with has_kuikae=True, has_kuikae_suji=False.
-
-        When kuikae is enabled but suji is not, only the called tile type
-        should be forbidden (not the suji extension).
-        """
+    def test_chi_kuikae__when_suji_kuikae_disabled__should_forbid_only_called_tile(self):
         man_tiles = TilesConverter.string_to_136_array(man="123")
         pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
         player1_tiles = (man_tiles[1], man_tiles[2], *pin_tiles)
@@ -609,36 +523,31 @@ class TestChiKuikaeWithoutSuji:
 
 
 class TestValidateChiSequence:
-    """Tests for _validate_chi_sequence defense-in-depth validation."""
-
-    def test_rejects_honor_tiles(self):
+    def test_validate_chi_sequence__when_honor_tiles__should_raise(self):
         honors = TilesConverter.string_to_136_array(honors="123")
         with pytest.raises(InvalidMeldError, match="honor tiles"):
             _validate_chi_sequence(honors[0], (honors[1], honors[2]))
 
-    def test_rejects_mixed_suits(self):
+    def test_validate_chi_sequence__when_mixed_suits__should_raise(self):
         man_1 = TilesConverter.string_to_136_array(man="1")[0]
         pin_2 = TilesConverter.string_to_136_array(pin="2")[0]
         sou_3 = TilesConverter.string_to_136_array(sou="3")[0]
         with pytest.raises(InvalidMeldError, match="same suit"):
             _validate_chi_sequence(man_1, (pin_2, sou_3))
 
-    def test_rejects_non_consecutive(self):
+    def test_validate_chi_sequence__when_not_consecutive__should_raise(self):
         man_tiles = TilesConverter.string_to_136_array(man="124")
         with pytest.raises(InvalidMeldError, match="consecutive sequence"):
             _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
 
-    def test_accepts_valid_chi(self):
+    def test_validate_chi_sequence__when_valid_sequence__should_not_raise(self):
         man_tiles = TilesConverter.string_to_136_array(man="123")
         # Should not raise
         _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
 
 
 class TestCheckPaoDisabled:
-    """Tests for _check_pao when pao settings are disabled."""
-
-    def test_pao_disabled_for_dragons_returns_none(self):
-        """When daisangen pao is disabled, calling a 3rd dragon returns None."""
+    def test_pao__when_daisangen_pao_disabled__should_return_none(self):
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
 
@@ -655,8 +564,7 @@ class TestCheckPaoDisabled:
         result = _check_pao(player, 2, chun_34, settings)
         assert result is None
 
-    def test_pao_disabled_for_winds_returns_none(self):
-        """When daisuushii pao is disabled, calling a 4th wind returns None."""
+    def test_pao__when_daisuushii_pao_disabled__should_return_none(self):
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         south_tiles = TilesConverter.string_to_136_array(honors="222")
         west_tiles = TilesConverter.string_to_136_array(honors="333")

@@ -1,7 +1,3 @@
-"""
-Unit tests for immutable round tile operations (draw, discard, dead wall draw).
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -21,8 +17,7 @@ from game.tests.unit.helpers import _string_to_34_tiles
 
 
 class TestCheckExhaustiveDraw:
-    def test_empty_wall_triggers_exhaustive_draw(self):
-        """Exhaustive draw occurs when the live wall reaches 0 tiles."""
+    def test_check_exhaustive_draw__when_wall_is_empty__should_return_true(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=Wall(live_tiles=()),
@@ -31,8 +26,7 @@ class TestCheckExhaustiveDraw:
         )
         assert check_exhaustive_draw(round_state) is True
 
-    def test_one_tile_remaining_is_not_exhaustive(self):
-        """One tile remaining means the wall is not yet exhausted."""
+    def test_check_exhaustive_draw__when_one_tile_remains__should_return_false(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=Wall(live_tiles=(42,)),
@@ -44,7 +38,6 @@ class TestCheckExhaustiveDraw:
 
 class TestDrawTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
-        """Create a round state with wall and players for testing."""
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
         return MahjongRoundState(
             wall=Wall(live_tiles=tuple(TilesConverter.string_to_136_array(man="1111222233"))),
@@ -52,8 +45,7 @@ class TestDrawTileImmutable:
             current_player_seat=0,
         )
 
-    def test_draw_tile_appends_to_end_of_hand(self):
-        """Drawn tile must be last in hand; tsumogiri detection relies on this."""
+    def test_draw_tile__when_hand_has_tiles__should_append_tile_to_end_of_hand(self):
         round_state = self._create_round_state()
         starting_tiles = tuple(TilesConverter.string_to_136_array(sou="888")[:3])
         players = list(round_state.players)
@@ -64,8 +56,7 @@ class TestDrawTileImmutable:
 
         assert new_state.players[0].tiles[-1] == drawn
 
-    def test_draw_from_empty_wall_returns_none(self):
-        """Drawing from an empty wall returns the unchanged state and None."""
+    def test_draw_tile__when_wall_is_empty__should_return_none(self):
         round_state = self._create_round_state()
         round_state = round_state.model_copy(update={"wall": Wall()})
 
@@ -77,7 +68,6 @@ class TestDrawTileImmutable:
 
 class TestDrawFromDeadWallImmutable:
     def _create_round_state(self) -> MahjongRoundState:
-        """Create a round state with dead wall and players for testing."""
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
         # 14 tiles for dead wall: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
         dead_wall = (
@@ -95,7 +85,7 @@ class TestDrawFromDeadWallImmutable:
             current_player_seat=0,
         )
 
-    def test_draw_from_dead_wall_maintains_dead_wall_size(self):
+    def test_draw_from_dead_wall__when_drawing__should_keep_dead_wall_size(self):
         round_state = self._create_round_state()
 
         new_state, _drawn = draw_from_dead_wall(round_state)
@@ -105,7 +95,7 @@ class TestDrawFromDeadWallImmutable:
         # original state unchanged
         assert len(round_state.wall.dead_wall_tiles) == DEAD_WALL_SIZE
 
-    def test_draw_from_dead_wall_returns_last_tile(self):
+    def test_draw_from_dead_wall__when_drawing__should_return_last_dead_wall_tile(self):
         round_state = self._create_round_state()
         last_tile = round_state.wall.dead_wall_tiles[-1]
 
@@ -113,7 +103,7 @@ class TestDrawFromDeadWallImmutable:
 
         assert drawn == last_tile
 
-    def test_draw_from_dead_wall_adds_to_player_hand(self):
+    def test_draw_from_dead_wall__when_drawing__should_add_tile_to_current_player_hand(self):
         round_state = self._create_round_state()
         round_state = round_state.model_copy(update={"current_player_seat": 1})
         initial_hand_len = len(round_state.players[1].tiles)
@@ -125,7 +115,7 @@ class TestDrawFromDeadWallImmutable:
         # original state unchanged
         assert len(round_state.players[1].tiles) == initial_hand_len
 
-    def test_draw_from_dead_wall_sets_rinshan_flag(self):
+    def test_draw_from_dead_wall__when_drawing__should_set_rinshan_flag(self):
         round_state = self._create_round_state()
         assert round_state.players[0].is_rinshan is False
 
@@ -135,7 +125,7 @@ class TestDrawFromDeadWallImmutable:
         # original state unchanged
         assert round_state.players[0].is_rinshan is False
 
-    def test_draw_from_dead_wall_replenishes_from_live_wall(self):
+    def test_draw_from_dead_wall__when_drawing__should_replenish_dead_wall_from_live_wall(self):
         round_state = self._create_round_state()
         initial_wall_len = len(round_state.wall.live_tiles)
         last_wall_tile = round_state.wall.live_tiles[-1]
@@ -149,7 +139,7 @@ class TestDrawFromDeadWallImmutable:
         # original state unchanged
         assert len(round_state.wall.live_tiles) == initial_wall_len
 
-    def test_draw_from_dead_wall_without_live_wall_raises(self):
+    def test_draw_from_dead_wall__when_live_wall_is_empty__should_raise(self):
         round_state = self._create_round_state()
         round_state = round_state.model_copy(
             update={"wall": round_state.wall.model_copy(update={"live_tiles": ()})},
@@ -161,13 +151,6 @@ class TestDrawFromDeadWallImmutable:
 
 class TestDiscardTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
-        """Create a round state with players for testing.
-
-        Player 0: 3m(copy2), 6m(copy0), 8m(copy2), 2p(copy0)
-        Player 1: 3m(copy3), 6m(copy1), 8m(copy3), 2p(copy1)
-        Player 2: 4m(copy0), 6m(copy2), 9m(copy0), 2p(copy2)
-        Player 3: 4m(copy1), 6m(copy3), 9m(copy1), 2p(copy3)
-        """
         man_3 = TilesConverter.string_to_136_array(man="3333")
         man_4 = TilesConverter.string_to_136_array(man="4444")
         man_6 = TilesConverter.string_to_136_array(man="6666")
@@ -202,14 +185,14 @@ class TestDiscardTileImmutable:
         )
         return MahjongRoundState(players=players, current_player_seat=0)
 
-    def test_discard_tile_raises_if_tile_not_in_hand(self):
+    def test_discard_tile__when_tile_not_in_hand__should_raise(self):
         round_state = self._create_round_state()
         sou_7_copy3 = TilesConverter.string_to_136_array(sou="7777")[3]
 
         with pytest.raises(InvalidDiscardError, match=f"tile {sou_7_copy3} not in player's hand"):
             discard_tile(round_state, seat=0, tile_id=sou_7_copy3)
 
-    def test_discard_tile_sets_tsumogiri_for_last_tile(self):
+    def test_discard_tile__when_discarding_last_tile__should_mark_tsumogiri(self):
         round_state = self._create_round_state()
         # last tile in hand (simulating just drawn)
         last_tile = round_state.players[0].tiles[-1]
@@ -218,7 +201,7 @@ class TestDiscardTileImmutable:
 
         assert result.is_tsumogiri is True
 
-    def test_discard_tile_not_tsumogiri_for_other_tiles(self):
+    def test_discard_tile__when_discarding_other_tile__should_not_mark_tsumogiri(self):
         round_state = self._create_round_state()
         # first tile in hand (not just drawn)
         first_tile = round_state.players[0].tiles[0]
@@ -227,7 +210,7 @@ class TestDiscardTileImmutable:
 
         assert result.is_tsumogiri is False
 
-    def test_discard_tile_sets_riichi_flag(self):
+    def test_discard_tile__when_riichi_declared__should_mark_riichi_discard(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
 
@@ -235,8 +218,7 @@ class TestDiscardTileImmutable:
 
         assert result.is_riichi_discard is True
 
-    def test_discard_tile_clears_ippatsu_for_discarding_player_only(self):
-        """Ippatsu is only cleared for the player who discards, not all players."""
+    def test_discard_tile__when_players_have_ippatsu__should_clear_only_discarders_ippatsu(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
         players = list(round_state.players)
@@ -255,7 +237,7 @@ class TestDiscardTileImmutable:
         # original state unchanged
         assert round_state.players[0].is_ippatsu is True
 
-    def test_discard_tile_clears_rinshan_flag(self):
+    def test_discard_tile__when_player_has_rinshan_flag__should_clear_it(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
         players = list(round_state.players)
@@ -268,7 +250,7 @@ class TestDiscardTileImmutable:
         # original state unchanged
         assert round_state.players[0].is_rinshan is True
 
-    def test_discard_tile_rejects_kuikae_forbidden_tile(self):
+    def test_discard_tile__when_tile_forbidden_by_kuikae__should_raise(self):
         round_state = self._create_round_state()
         man_3_copy2 = TilesConverter.string_to_136_array(man="333")[2]
         # 3m is tile_34=2, set kuikae to forbid it
@@ -280,7 +262,7 @@ class TestDiscardTileImmutable:
         with pytest.raises(InvalidDiscardError, match="forbidden by kuikae"):
             discard_tile(round_state, seat=0, tile_id=man_3_copy2)
 
-    def test_discard_tile_allows_non_kuikae_tile(self):
+    def test_discard_tile__when_tile_not_forbidden_by_kuikae__should_discard_it(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
         # forbid tile_34=2 (3m), but player discards 6m (tile_34=5, not forbidden)
@@ -293,7 +275,7 @@ class TestDiscardTileImmutable:
 
         assert result.tile_id == man_6
 
-    def test_discard_tile_clears_kuikae_after_discard(self):
+    def test_discard_tile__when_kuikae_restriction_active__should_clear_it_after_discard(self):
         round_state = self._create_round_state()
         man_6 = TilesConverter.string_to_136_array(man="6")[0]
         kuikae = tuple(_string_to_34_tiles(man="3"))

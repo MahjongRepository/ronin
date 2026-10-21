@@ -1,8 +1,3 @@
-"""
-Verifies honba bonuses, payment rounding, noten penalty, keishiki tenpai,
-goshashonyu rounding, and tie-breaking rules.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -58,10 +53,7 @@ def _scoring_game_state(
 
 
 class TestHonbaRonBonus:
-    """Verify honba ron bonus uses settings.honba_ron_bonus, not hardcoded 300."""
-
-    def test_custom_honba_ron_bonus(self):
-        """Custom honba_ron_bonus=500 with 2 honba adds 1000 (not 600)."""
+    def test_apply_ron_score__when_custom_honba_ron_bonus__should_scale_payment_by_honba(self):
         settings = GameSettings(honba_ron_bonus=500)
         game_state = _scoring_game_state(honba=2, settings=settings)
         hand_result = HandResult(han=2, fu=30, cost_main=2000, yaku=_yaku(0))
@@ -72,8 +64,7 @@ class TestHonbaRonBonus:
         assert new_rs.players[1].score == 25000 + 3000
         assert new_rs.players[2].score == 25000 - 3000
 
-    def test_double_ron_each_winner_gets_honba(self):
-        """In double ron, each winner independently receives the honba bonus."""
+    def test_apply_double_ron_score__when_honba__should_pay_each_winner_the_honba_bonus(self):
         game_state = _scoring_game_state(honba=3)
         hr1 = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
         hr2 = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
@@ -88,10 +79,7 @@ class TestHonbaRonBonus:
 
 
 class TestHonbaTsumoBonus:
-    """Verify honba tsumo bonus uses settings.honba_tsumo_bonus_per_loser, not hardcoded 100."""
-
-    def test_custom_honba_tsumo_bonus(self):
-        """Custom honba_tsumo_bonus_per_loser=200 with 1 honba adds 200 per loser."""
+    def test_apply_tsumo_score__when_custom_honba_tsumo_bonus__should_add_it_per_loser(self):
         settings = GameSettings(honba_tsumo_bonus_per_loser=200)
         game_state = _scoring_game_state(honba=1, settings=settings)
         # non-dealer tsumo: dealer pays 1000, non-dealers pay 500
@@ -113,10 +101,7 @@ class TestHonbaTsumoBonus:
 
 
 class TestPaymentRoundingUp:
-    """Verify the mahjong library rounds individual payments UP to nearest 100."""
-
-    def test_non_dealer_tsumo_costs_rounded_up(self):
-        """Non-dealer tsumo: base points that aren't multiples of 100 get rounded UP."""
+    def test_calculate_hand_value__when_non_dealer_tsumo_base_not_multiple_of_100__should_round_payments_up(self):
         # hand: 123m 456m 789m 123p 55p, win tile=5p (tanki)
         # menzen tsumo (1 han) + ittsu (2 han) = 3 han, 30 fu
         # base = 30 * 2^5 = 960 (not a multiple of 100)
@@ -156,8 +141,6 @@ class TestPaymentRoundingUp:
 
 
 class TestNotenPenaltyConfigurable:
-    """Verify noten penalty uses settings.noten_penalty_total."""
-
     def _exhaust_game_state(
         self,
         *,
@@ -177,8 +160,7 @@ class TestNotenPenaltyConfigurable:
         round_state = create_round_state(players=players, wall_obj=Wall())
         return create_game_state(round_state=round_state, settings=settings)
 
-    def test_custom_noten_penalty_total(self):
-        """Custom noten_penalty_total=6000: 1 tempai, 3 noten → each noten pays 2000."""
+    def test_process_exhaustive_draw__when_custom_noten_penalty_total__should_split_it(self):
         settings = GameSettings(noten_penalty_total=6000)
         game_state = self._exhaust_game_state(tempai_seats=[0], settings=settings)
 
@@ -190,8 +172,7 @@ class TestNotenPenaltyConfigurable:
         assert result.score_changes[3] == -2000
         assert new_rs.players[0].score == 31000
 
-    def test_two_tempai_two_noten(self):
-        """2 tempai, 2 noten: 3000 split → noten pays 1500, tempai gets 1500."""
+    def test_process_exhaustive_draw__when_two_tempai_two_noten__should_transfer_1500_each(self):
         game_state = self._exhaust_game_state(tempai_seats=[0, 2])
 
         _new_rs, _, result = process_exhaustive_draw(game_state)
@@ -201,8 +182,7 @@ class TestNotenPenaltyConfigurable:
         assert result.score_changes[2] == 1500
         assert result.score_changes[3] == -1500
 
-    def test_three_tempai_one_noten(self):
-        """3 tempai, 1 noten: noten pays 3000, each tempai gets 1000."""
+    def test_process_exhaustive_draw__when_three_tempai_one_noten__should_charge_noten_3000(self):
         game_state = self._exhaust_game_state(tempai_seats=[0, 1, 2])
 
         _new_rs, _, result = process_exhaustive_draw(game_state)
@@ -212,16 +192,14 @@ class TestNotenPenaltyConfigurable:
         assert result.score_changes[2] == 1000
         assert result.score_changes[3] == -3000
 
-    def test_all_tempai_no_payment(self):
-        """All 4 tempai: no payment."""
+    def test_process_exhaustive_draw__when_all_tempai__should_not_transfer_points(self):
         game_state = self._exhaust_game_state(tempai_seats=[0, 1, 2, 3])
 
         _, _, result = process_exhaustive_draw(game_state)
 
         assert all(v == 0 for v in result.score_changes.values())
 
-    def test_all_noten_no_payment(self):
-        """All 4 noten: no payment."""
+    def test_process_exhaustive_draw__when_all_noten__should_not_transfer_points(self):
         game_state = self._exhaust_game_state(tempai_seats=[])
 
         _, _, result = process_exhaustive_draw(game_state)
@@ -235,18 +213,14 @@ class TestNotenPenaltyConfigurable:
 
 
 class TestKeishikiTenpai:
-    """Verify keishiki tenpai: structural tenpai counts even if waits are in others' hands."""
-
-    def test_structural_tenpai_counts(self):
-        """Keishiki tenpai: hand is structurally tenpai regardless of where wait tiles are."""
+    def test_is_tempai__when_hand_structurally_tenpai__should_be_true(self):
         # 123m 456m 789m 12p 55p = 13 tiles → waiting on 3p
         # is_tempai only checks structure + pure karaten, NOT external tile availability
         tiles = list(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         result = is_tempai(tiles, melds=())
         assert result is True
 
-    def test_pure_karaten_with_all_copies_in_own_hand(self):
-        """Pure karaten (all 4 copies of wait in own hand+melds) is NOT tenpai."""
+    def test_is_tempai__when_all_copies_of_wait_in_own_hand__should_be_false(self):
         # closed: 123m 456m 789m 9p (10 tiles) + pon of 9p (3 tiles in meld) = 13
         # waiting on 9p, but all 4 copies are in hand(1) + pon(3)
         closed_tiles = list(TilesConverter.string_to_136_array(man="123456789", pin="9"))
@@ -262,8 +236,7 @@ class TestKeishikiTenpai:
         result = is_tempai(closed_tiles, melds=(pon,))
         assert result is False
 
-    def test_not_karaten_when_some_copies_elsewhere(self):
-        """Holding 3 copies of wait tile (not all 4) is valid tenpai, not karaten."""
+    def test_is_tempai__when_wait_tile_copies_remain_elsewhere__should_be_true(self):
         # 111m 234m 567m 555p = 12 tiles... need 13.
         # 111m 234m 567m 555p 9s = 13 tiles → can form 111m 234m 567m + 555p(triplet) + 9s(tanki)
         # Waiting on 9s (tanki). Has 1 copy in hand, 3 elsewhere → not karaten → tenpai
@@ -278,10 +251,7 @@ class TestKeishikiTenpai:
 
 
 class TestGoshashonyuCustomThreshold:
-    """Verify goshashonyu uses settings.goshashonyu_threshold."""
-
-    def test_custom_threshold_400_rounds_500_up(self):
-        """With threshold=400, a remainder of 500 rounds away from zero (not toward)."""
+    def test_calculate_final_scores__when_goshashonyu_threshold_400_and_remainder_500__should_round_up(self):
         settings = GameSettings(goshashonyu_threshold=400)
         # Player with 30500: diff from 30000 target = 500
         # With threshold=400: 500 > 400, so rounds up → +1
@@ -293,8 +263,7 @@ class TestGoshashonyuCustomThreshold:
         # verify zero-sum
         assert sum(s for _, s in result) == 0
 
-    def test_default_threshold_500_rounds_500_down(self):
-        """With default threshold=500, remainder of 500 rounds toward zero."""
+    def test_calculate_final_scores__when_default_threshold_and_remainder_500__should_round_down(self):
         settings = GameSettings()
         raw = [(0, 30500), (1, 30000), (2, 20000), (3, 19500)]
         result = calculate_final_scores(raw, settings)
@@ -310,10 +279,7 @@ class TestGoshashonyuCustomThreshold:
 
 
 class TestTieBreaking:
-    """Verify tie-breaking by proximity to starting dealer."""
-
-    def test_equal_scores_starting_dealer_ranks_first(self):
-        """With equal scores, starting dealer (seat 0) ranks highest."""
+    def test_finalize_game__when_scores_equal__should_rank_by_seat_from_starting_dealer(self):
         players = tuple(create_player(seat=i, score=25000) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(round_state)
@@ -325,8 +291,7 @@ class TestTieBreaking:
         assert result.standings[2].seat == 2
         assert result.standings[3].seat == 3
 
-    def test_equal_scores_non_zero_starting_dealer(self):
-        """With starting_dealer_seat=2, seat 2 ranks highest on equal scores."""
+    def test_finalize_game__when_scores_equal_and_dealer_seat_2__should_rank_from_seat_2(self):
         players = tuple(create_player(seat=i, score=25000) for i in range(4))
         round_state = create_round_state(players=players)
         game_state = create_game_state(round_state)
@@ -340,8 +305,7 @@ class TestTieBreaking:
         assert result.standings[2].seat == 0
         assert result.standings[3].seat == 1
 
-    def test_higher_score_always_beats_seat_proximity(self):
-        """Score takes priority over seat proximity."""
+    def test_finalize_game__when_scores_differ__should_rank_score_before_seat_proximity(self):
         players = tuple(create_player(seat=i, score=score) for i, score in enumerate([24000, 26000, 25000, 25000]))
         round_state = create_round_state(players=players)
         game_state = create_game_state(round_state)
@@ -353,8 +317,7 @@ class TestTieBreaking:
         assert result.standings[2].seat == 3  # 25000
         assert result.standings[3].seat == 0  # 24000
 
-    def test_double_ron_riichi_sticks_to_closest_counter_clockwise(self):
-        """Double ron: riichi sticks go to winner closest counter-clockwise to discarder."""
+    def test_apply_double_ron_score__when_riichi_sticks__should_give_them_to_winner_closest_after_loser(self):
         game_state = _scoring_game_state(riichi=2)
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
@@ -372,8 +335,7 @@ class TestTieBreaking:
             else:
                 assert w.riichi_sticks_collected == 0
 
-    def test_tie_break_setting_false_rejected(self):
-        """tie_break_by_seat_order=False is rejected by validation."""
+    def test_validate_settings__when_tie_break_by_seat_order_false__should_raise(self):
         settings = GameSettings(tie_break_by_seat_order=False)
         with pytest.raises(Exception, match="tie_break_by_seat_order"):
             validate_settings(settings)

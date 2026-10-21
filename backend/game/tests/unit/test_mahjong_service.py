@@ -1,5 +1,3 @@
-"""Unit tests for MahjongGameService lifecycle and service-level edge cases."""
-
 import pytest
 
 from game.logic.enums import CallType, GameErrorCode, GamePhase, RoundPhase
@@ -24,21 +22,18 @@ from game.tests.unit.helpers import (
 
 
 class TestMahjongGameServiceFindPlayerSeat:
-    """Tests for _find_player_seat edge cases: AI player skipping, name collision."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_find_player_seat_returns_none_for_unknown(self, service):
+    async def test_find_player_seat__when_player_name_unknown__should_return_none(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         seat = service._find_player_seat("game1", "Unknown")
 
         assert seat is None
 
-    async def test_find_player_seat_skips_ai_player_seats(self, service):
-        """Searching for an AI player name returns None because AI player seats are skipped."""
+    async def test_find_player_seat__when_name_belongs_to_ai_player__should_return_none(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         ai_player_controller = service._ai_player_controllers["game1"]
@@ -55,14 +50,11 @@ class TestMahjongGameServiceFindPlayerSeat:
 
 
 class TestMahjongGameServiceAllPlayers:
-    """Tests for PVP mode (4 players, 0 AI players) edge cases."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_four_players_no_ai_player_followup_for_dealer(self, service):
-        """AI player followup is not triggered when dealer is a player (all players)."""
+    async def test_start_game__when_four_players__should_emit_single_draw_event_for_dealer(self, service):
         events = await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
 
         # with 4 players, exactly 1 draw event for dealer (no AI player followup chain)
@@ -71,14 +63,11 @@ class TestMahjongGameServiceAllPlayers:
 
 
 class TestMahjongGameServiceReplaceWithAIPlayer:
-    """Tests for replace_with_ai_player() disconnect handling."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_replace_registers_ai_player_in_controller(self, service):
-        """Replacing a player registers an AI player at their seat."""
+    async def test_replace_with_ai_player__when_player_replaced__should_register_ai_player_in_controller(self, service):
         await service.start_game("game1", ["Alice"])
         game_state = service._games["game1"]
         ai_player_controller = service._ai_player_controllers["game1"]
@@ -91,12 +80,10 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
 
         assert ai_player_controller.is_ai_player(player_seat) is True
 
-    async def test_replace_nonexistent_game_is_safe(self, service):
-        """Replacing a player in a nonexistent game does nothing."""
+    async def test_replace_with_ai_player__when_game_does_not_exist__should_not_raise(self, service):
         service.replace_with_ai_player("nonexistent", "Alice")
 
-    async def test_replace_nonexistent_player_is_safe(self, service):
-        """Replacing a nonexistent player does nothing."""
+    async def test_replace_with_ai_player__when_player_does_not_exist__should_leave_ai_players_unchanged(self, service):
         await service.start_game("game1", ["Alice"])
 
         service.replace_with_ai_player("game1", "Unknown")
@@ -104,8 +91,7 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
         ai_player_controller = service._ai_player_controllers["game1"]
         assert len(ai_player_controller._ai_players) == 3
 
-    async def test_replace_same_player_twice_is_safe(self, service):
-        """Replacing an already-replaced player is a no-op (seat not found)."""
+    async def test_replace_with_ai_player__when_same_player_replaced_twice__should_register_once(self, service):
         await service.start_game("game1", ["Alice"])
 
         service.replace_with_ai_player("game1", "Alice")
@@ -116,14 +102,11 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
 
 
 class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
-    """Tests for process_ai_player_actions_after_replacement() complex flows."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_non_playing_phase_returns_empty(self, service):
-        """Processing AI player actions when round is not PLAYING returns empty list."""
+    async def test_ai_actions_after_replacement__when_round_not_playing__should_return_no_events(self, service):
         await service.start_game("game1", ["Alice"])
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
@@ -132,8 +115,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         assert events == []
 
-    async def test_processes_ai_player_turn_after_replacement(self, service):
-        """After replacement, AI player processes its pending turn if it's the current player."""
+    async def test_ai_actions_after_replacement__when_replaced_player_has_turn__should_play_turn(self, service):
         await service.start_game("game1", ["Alice"])
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -171,8 +153,9 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         assert len(events) > 0
 
-    async def test_handles_pending_call_prompt(self, service):
-        """After replacement, AI player resolves its pending call prompt response."""
+    async def test_ai_actions_after_replacement__when_replaced_player_is_pending_caller__should_clear_their_seat(
+        self, service
+    ):
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -197,8 +180,9 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         if updated_round.pending_call_prompt is not None:
             assert alice.seat not in updated_round.pending_call_prompt.pending_seats
 
-    async def test_pending_call_with_other_player_callers_returns_early(self, service):
-        """When other player callers remain pending after AI player dispatch, returns early."""
+    async def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(
+        self, service
+    ):
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -224,8 +208,9 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         assert alice.seat not in updated_round.pending_call_prompt.pending_seats
         assert isinstance(events, list)
 
-    async def test_round_end_after_call_prompt_resolution(self, service):
-        """When round ends after call prompt resolution, returns round end events."""
+    async def test_ai_actions_after_replacement__when_prompt_resolution_ends_round__should_emit_round_end(
+        self, service
+    ):
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -252,9 +237,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
 
 class TestSeedDeterminism:
-    """Verify that start_game with same seed produces deterministic results."""
-
-    async def test_same_seed_produces_deterministic_game(self):
+    async def test_start_game__when_same_seed__should_deal_identical_games(self):
         service1 = MahjongGameService()
         service2 = MahjongGameService()
 
@@ -275,10 +258,7 @@ class TestSeedDeterminism:
 
 
 class TestAutoCleanup:
-    """Tests for auto_cleanup flag controlling state preservation after game end."""
-
-    async def test_auto_cleanup_false_preserves_state_after_game_end(self):
-        """auto_cleanup=False preserves game state in self._games after game end."""
+    async def test_auto_cleanup__when_disabled_and_game_ends__should_keep_game_state(self):
         service = MahjongGameService(auto_cleanup=False)
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
@@ -299,8 +279,7 @@ class TestAutoCleanup:
         assert "game1" in service._games
         assert service._games["game1"].game_phase == GamePhase.FINISHED
 
-    async def test_auto_cleanup_true_removes_state_after_game_end(self):
-        """auto_cleanup=True (default) removes game state after game end."""
+    async def test_auto_cleanup__when_enabled_and_game_ends__should_remove_game_state(self):
         service = MahjongGameService(auto_cleanup=True)
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
@@ -322,14 +301,11 @@ class TestAutoCleanup:
 
 
 class TestServiceAccessors:
-    """Tests for read-only service accessors and round advance logic."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_is_round_advance_pending_true_after_round_end(self, service):
-        """is_round_advance_pending returns True after round ends (player must confirm)."""
+    async def test_is_round_advance_pending__when_round_ended__should_return_true(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = ExhaustiveDrawResult(
@@ -343,8 +319,9 @@ class TestServiceAccessors:
 
         assert service.is_round_advance_pending("game1") is True
 
-    async def test_get_pending_round_advance_player_names_multi_player(self):
-        """get_pending_round_advance_player_names returns all unconfirmed players."""
+    async def test_get_pending_round_advance_player_names__when_round_ended__should_list_all_players(
+        self,
+    ):
         service = MahjongGameService()
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"])
 
@@ -362,10 +339,7 @@ class TestServiceAccessors:
 
 
 class TestMahjongGameServiceUnsupportedSettings:
-    """Tests for unsupported settings returning ErrorEvent instead of crashing."""
-
-    async def test_unsupported_settings_returns_error_event(self):
-        """start_game with unsupported settings returns ErrorEvent, not exception."""
+    async def test_start_game__when_settings_unsupported__should_return_error_event(self):
         settings = GameSettings(has_agariyame=True)
         service = MahjongGameService(settings=settings)
         events = await service.start_game("game1", ["Alice"])
@@ -378,10 +352,7 @@ class TestMahjongGameServiceUnsupportedSettings:
 
 
 class TestMahjongGameServiceInvalidSeed:
-    """Tests for invalid seed values returning ErrorEvent instead of crashing."""
-
-    async def test_invalid_seed_returns_error_event(self):
-        """start_game with an invalid seed returns ErrorEvent, not exception."""
+    async def test_start_game__when_seed_is_malformed__should_return_error_event(self):
         service = MahjongGameService()
         events = await service.start_game("game1", ["Alice"], seed="bad-seed")
 
@@ -392,10 +363,7 @@ class TestMahjongGameServiceInvalidSeed:
 
 
 class TestMahjongGameServiceInvalidSeedType:
-    """Tests for non-string seed type returning ErrorEvent."""
-
-    async def test_non_string_seed_returns_error_event(self):
-        """start_game with a non-string seed returns ErrorEvent (TypeError path)."""
+    async def test_start_game__when_seed_is_not_a_string__should_return_error_event(self):
         service = MahjongGameService()
         events = await service.start_game("game1", ["Alice"], seed=12345)
 
@@ -406,44 +374,39 @@ class TestMahjongGameServiceInvalidSeedType:
 
 
 class TestServiceGuardClauses:
-    """Covers early-return guard clauses for nonexistent games/players."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_get_game_seed_nonexistent(self, service):
+    async def test_get_game_seed__when_game_does_not_exist__should_return_none(self, service):
         assert service.get_game_seed("nonexistent") is None
 
-    async def test_get_pending_names_nonexistent_game(self, service):
+    async def test_get_pending_round_advance_player_names__when_game_does_not_exist__should_return_empty(self, service):
         assert service.get_pending_round_advance_player_names("nonexistent") == []
 
-    async def test_get_pending_names_no_advance_pending(self, service):
+    async def test_get_pending_round_advance_player_names__when_no_advance_pending__should_return_empty(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         assert service.get_pending_round_advance_player_names("game1") == []
 
-    async def test_find_player_seat_nonexistent_game(self, service):
+    async def test_find_player_seat__when_game_does_not_exist__should_return_none(self, service):
         assert service._find_player_seat("nonexistent", "Player") is None
 
-    async def test_process_ai_actions_nonexistent_game(self, service):
+    async def test_ai_actions_after_replacement__when_game_does_not_exist__should_return_no_events(self, service):
         events = await service.process_ai_player_actions_after_replacement("nonexistent", seat=0)
         assert events == []
 
-    async def test_replace_without_ai_player_controller_is_safe(self, service):
+    async def test_replace_with_ai_player__when_game_has_no_ai_controller__should_not_raise(self, service):
         await service.start_game("game1", ["Alice"], seed="a" * 192)
         del service._ai_player_controllers["game1"]
         service.replace_with_ai_player("game1", "Alice")
 
 
 class TestMahjongGameServiceRestoreHumanPlayer:
-    """Tests for restore_human_player() reconnection method."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_restore_removes_ai_from_seat(self, service):
-        """restore_human_player removes the AI at the given seat."""
+    async def test_restore_human_player__when_seat_was_replaced__should_remove_ai_player_from_seat(self, service):
         await service.start_game("game1", ["Alice"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Alice")
         seat = player.seat
@@ -454,8 +417,7 @@ class TestMahjongGameServiceRestoreHumanPlayer:
         service.restore_human_player("game1", seat)
         assert service._ai_player_controllers["game1"].is_ai_player(seat) is False
 
-    async def test_restore_allows_find_player_seat(self, service):
-        """After restore, _find_player_seat can find the human player again."""
+    async def test_restore_human_player__when_seat_was_replaced__should_make_player_findable_again(self, service):
         await service.start_game("game1", ["Alice"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Alice")
         seat = player.seat
@@ -466,20 +428,16 @@ class TestMahjongGameServiceRestoreHumanPlayer:
         service.restore_human_player("game1", seat)
         assert service._find_player_seat("game1", "Alice") == seat
 
-    async def test_restore_nonexistent_game_is_safe(self, service):
-        """Restoring in a nonexistent game does nothing."""
+    async def test_restore_human_player__when_game_does_not_exist__should_not_raise(self, service):
         service.restore_human_player("nonexistent", 0)
 
 
 class TestMahjongGameServiceBuildReconnectionSnapshot:
-    """Tests for build_reconnection_snapshot()."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_snapshot_contains_full_game_state(self, service):
-        """Snapshot includes all fields needed for reconnection."""
+    async def test_build_reconnection_snapshot__when_game_running__should_contain_full_game_state(self, service):
         await service.start_game("game1", ["Alice"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Alice")
@@ -496,8 +454,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             game_player = game_state.round_state.players[ps.seat]
             assert ps.score == game_player.score
 
-    async def test_snapshot_reflects_ai_status_after_restore(self, service):
-        """After restore_human_player, the snapshot marks the seat as non-AI."""
+    async def test_build_reconnection_snapshot__when_human_restored__should_mark_player_as_not_ai(self, service):
         await service.start_game("game1", ["Alice"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Alice")
         seat = player.seat
@@ -511,19 +468,16 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         reconnected_player = next(p for p in snapshot.players if p.seat == seat)
         assert reconnected_player.is_ai_player is False
 
-    async def test_snapshot_nonexistent_game_returns_none(self, service):
+    async def test_build_reconnection_snapshot__when_game_does_not_exist__should_return_none(self, service):
         assert service.build_reconnection_snapshot("nonexistent", 0) is None
 
 
 class TestMahjongGameServiceBuildDrawEventForSeat:
-    """Tests for build_draw_event_for_seat()."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_returns_draw_event_for_current_player(self, service):
-        """Returns a draw event targeted to the current player's seat."""
+    async def test_build_draw_event_for_seat__when_seat_is_current_player__should_return_draw_event(self, service):
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
         game_state = service._games["game1"]
         current_seat = game_state.round_state.current_player_seat
@@ -535,8 +489,7 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         assert isinstance(events[0].target, SeatTarget)
         assert events[0].target.seat == current_seat
 
-    async def test_returns_empty_for_non_current_player(self, service):
-        """Returns empty when it's not the given seat's turn."""
+    async def test_build_draw_event_for_seat__when_seat_is_not_current_player__should_return_empty(self, service):
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
         game_state = service._games["game1"]
         other_seat = (game_state.round_state.current_player_seat + 1) % 4
@@ -545,8 +498,7 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
 
         assert events == []
 
-    async def test_returns_empty_when_player_has_no_tiles(self, service):
-        """Returns empty when the current player has no tiles (defensive guard)."""
+    async def test_build_draw_event_for_seat__when_player_has_no_tiles__should_return_empty(self, service):
         await service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192)
         game_state = service._games["game1"]
         current_seat = game_state.round_state.current_player_seat
@@ -556,6 +508,6 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         events = service.build_draw_event_for_seat("game1", current_seat)
         assert events == []
 
-    async def test_returns_empty_for_nonexistent_game(self, service):
+    async def test_build_draw_event_for_seat__when_game_does_not_exist__should_return_empty(self, service):
         events = service.build_draw_event_for_seat("nonexistent", 0)
         assert events == []

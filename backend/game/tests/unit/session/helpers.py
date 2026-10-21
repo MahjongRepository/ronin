@@ -19,11 +19,6 @@ async def create_started_game(
     num_ai_players: int = 3,
     player_names: list[str] | None = None,
 ) -> list[MockConnection]:
-    """Create a started game through the pending game flow.
-
-    Creates a pending game, joins players via JOIN_GAME, and waits for the
-    game to start automatically when all expected players connect.
-    """
     num_players = NUM_PLAYERS - num_ai_players
     if player_names is None:
         player_names = [f"Player{i}" for i in range(num_players)]
@@ -54,7 +49,6 @@ async def create_started_game(
 
 
 def make_dummy_game_view() -> GameView:
-    """Create a minimal GameView for testing."""
     return GameView(
         seat=0,
         round_wind=WindName.EAST,
@@ -75,7 +69,6 @@ def make_dummy_game_view() -> GameView:
 
 
 def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockConnection]:
-    """Create a game with a player who has an assigned seat."""
     conn = MockConnection()
     game = Game(game_id="game1")
     session = manager._session_store.create_session("Alice", "game1")
@@ -98,10 +91,6 @@ async def disconnect_and_reconnect(
     conn: MockConnection,
     game_id: str = "game1",
 ) -> tuple[MockConnection, str]:
-    """Disconnect a player and reconnect with a fresh connection.
-
-    Returns (new_connection, session_token). The token is unchanged (no rotation).
-    """
     player = manager._players[conn.connection_id]
     token = player.session_token
 

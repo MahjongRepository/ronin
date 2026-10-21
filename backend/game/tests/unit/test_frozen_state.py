@@ -1,8 +1,3 @@
-"""
-Unit tests for FrozenMeld conversion boundaries,
-state utility functions, and scoring integration.
-"""
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -32,26 +27,26 @@ from game.logic.wall import Wall
 
 
 class TestMahjongPlayerLogic:
-    def test_has_open_melds_with_open(self):
+    def test_has_open_melds__when_open_meld__should_be_true(self):
         open_meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True)
         player = MahjongPlayer(seat=0, name="P1", melds=(open_meld,), score=25000)
         assert player.has_open_melds() is True
 
-    def test_has_open_melds_with_closed(self):
+    def test_has_open_melds__when_only_closed_meld__should_be_false(self):
         closed_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False)
         player = MahjongPlayer(seat=0, name="P2", melds=(closed_meld,), score=25000)
         assert player.has_open_melds() is False
 
-    def test_has_open_melds_empty(self):
+    def test_has_open_melds__when_no_melds__should_be_false(self):
         player = MahjongPlayer(seat=0, name="P3", score=25000)
         assert player.has_open_melds() is False
 
 
 class TestFrozenMeldsToMeldsFunction:
-    def test_empty_tuple_returns_none(self):
+    def test_frozen_melds_to_melds__when_empty_tuple__should_return_none(self):
         assert frozen_melds_to_melds(()) is None
 
-    def test_none_returns_none(self):
+    def test_frozen_melds_to_melds__when_none__should_return_none(self):
         assert frozen_melds_to_melds(None) is None
 
 
@@ -60,7 +55,7 @@ class TestStateUtilsUpdatePlayer:
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         return MahjongRoundState(players=players)
 
-    def test_update_player_score(self):
+    def test_update_player__when_score_changed__should_leave_original_state_untouched(self):
         state = self._create_round_state_with_players()
         new_state = update_player(state, 0, score=30000)
 
@@ -68,7 +63,7 @@ class TestStateUtilsUpdatePlayer:
         assert new_state.players[0].score == 30000
         assert new_state.players[1].score == 25000
 
-    def test_update_player_multiple_fields(self):
+    def test_update_player__when_multiple_fields__should_apply_all(self):
         state = self._create_round_state_with_players()
         new_state = update_player(state, 1, is_riichi=True, is_ippatsu=True, score=24000)
 
@@ -84,7 +79,7 @@ class TestStateUtilsTileOperations:
         players = (player, *tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(1, 4)))
         return MahjongRoundState(players=players)
 
-    def test_add_tile_to_player(self):
+    def test_add_tile_to_player__should_append_tile_without_mutating_original(self):
         state = self._create_round_state_with_tiles()
         new_tile = TilesConverter.string_to_136_array(pin="1")[0]
         new_state = add_tile_to_player(state, 0, new_tile)
@@ -98,7 +93,7 @@ class TestStateUtilsTurnAdvance:
     def _players(self) -> tuple[MahjongPlayer, ...]:
         return tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
 
-    def test_advance_turn(self):
+    def test_advance_turn__should_move_to_next_seat_and_count_turn(self):
         state = MahjongRoundState(players=self._players(), current_player_seat=0, turn_count=0)
         new_state = advance_turn(state)
 
@@ -107,7 +102,7 @@ class TestStateUtilsTurnAdvance:
         assert new_state.current_player_seat == 1
         assert new_state.turn_count == 1
 
-    def test_wraps_around_to_seat_zero(self):
+    def test_advance_turn__when_current_seat_is_last__should_wrap_to_seat_zero(self):
         state = MahjongRoundState(players=self._players(), current_player_seat=3, turn_count=10)
         new_state = advance_turn(state)
         assert new_state.current_player_seat == 0
@@ -115,7 +110,7 @@ class TestStateUtilsTurnAdvance:
 
 
 class TestStateUtilsPendingPrompt:
-    def test_clear_pending_prompt(self):
+    def test_clear_pending_prompt__should_remove_prompt_from_new_state(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -129,7 +124,7 @@ class TestStateUtilsPendingPrompt:
         assert state.pending_call_prompt is not None
         assert new_state.pending_call_prompt is None
 
-    def test_add_prompt_response(self):
+    def test_add_prompt_response__should_record_response_and_remove_pending_seat(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -145,8 +140,7 @@ class TestStateUtilsPendingPrompt:
         assert len(new_prompt.responses) == 1
         assert new_prompt.pending_seats == frozenset({2})
 
-    def test_add_prompt_response_rejects_seat_not_in_pending(self):
-        """Raises KeyError when response seat is not in pending_seats."""
+    def test_add_prompt_response__when_seat_not_pending__should_raise_key_error(self):
         prompt = PendingCallPrompt(
             call_type=CallType.MELD,
             tile_id=0,
@@ -160,7 +154,7 @@ class TestStateUtilsPendingPrompt:
 
 
 class TestStateUtilsPlayerFlags:
-    def test_clear_all_players_ippatsu(self):
+    def test_clear_all_players_ippatsu__should_clear_flag_for_every_player(self):
         players = tuple(
             MahjongPlayer(
                 seat=i,
@@ -179,8 +173,7 @@ class TestStateUtilsPlayerFlags:
 
 
 class TestFrozenMeldScoringIntegration:
-    def test_scoring_with_frozen_meld(self):
-        """calculate_hand_value works with FrozenMeld from frozen player."""
+    def test_scoring__when_hand_has_frozen_meld__should_score_without_error(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
 
@@ -223,32 +216,28 @@ class TestFrozenMeldScoringIntegration:
 
 
 class TestUpdatePlayerValidation:
-    """Tests for update_player seat bounds and field name validation."""
-
     def _create_round_state(self) -> MahjongRoundState:
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         return MahjongRoundState(players=players)
 
-    def test_rejects_negative_seat(self):
+    def test_update_player__when_seat_negative__should_raise_value_error(self):
         state = self._create_round_state()
         with pytest.raises(ValueError, match="Invalid seat -1"):
             update_player(state, -1, score=30000)
 
-    def test_rejects_out_of_bounds_seat(self):
+    def test_update_player__when_seat_out_of_bounds__should_raise_value_error(self):
         state = self._create_round_state()
         with pytest.raises(ValueError, match="Invalid seat 4"):
             update_player(state, 4, score=30000)
 
-    def test_rejects_invalid_field_name(self):
+    def test_update_player__when_field_name_invalid__should_raise_value_error(self):
         state = self._create_round_state()
         with pytest.raises(ValueError, match="Invalid player fields"):
             update_player(state, 0, nonexistent_field=True)
 
 
 class TestGetPlayerViewValidation:
-    """Tests for get_player_view seat validation."""
-
-    def test_rejects_invalid_seat(self):
+    def test_get_player_view__when_seat_not_found__should_raise_value_error(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(players=players)
         game_state = MahjongGameState(round_state=round_state)
@@ -256,7 +245,7 @@ class TestGetPlayerViewValidation:
         with pytest.raises(ValueError, match="No player found at seat 5"):
             get_player_view(game_state, 5)
 
-    def test_valid_seat_returns_view(self):
+    def test_get_player_view__when_seat_valid__should_return_view(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", tiles=(i,), score=25000) for i in range(4))
         round_state = MahjongRoundState(players=players)
         game_state = MahjongGameState(round_state=round_state)
@@ -267,9 +256,7 @@ class TestGetPlayerViewValidation:
 
 
 class TestWindNameConstant:
-    """Test wind_name uses module-level constant."""
-
-    def test_out_of_range_returns_unknown(self):
+    def test_wind_name__when_out_of_range__should_return_unknown(self):
         assert wind_name(-1) == WindName.UNKNOWN
         assert wind_name(4) == WindName.UNKNOWN
         assert wind_name(100) == WindName.UNKNOWN

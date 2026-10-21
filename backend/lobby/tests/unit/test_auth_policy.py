@@ -1,5 +1,3 @@
-"""Tests for auth policy helpers and route validation."""
-
 from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
@@ -39,7 +37,6 @@ def _make_request(
     query_string: bytes = b"",
     account_type: AccountType = AccountType.HUMAN,
 ) -> Request:
-    """Build a real Starlette Request with auth scopes pre-set."""
     scopes = ["authenticated"] if authenticated else []
     scope = {
         "type": "http",
@@ -67,7 +64,7 @@ def _sync_dummy_handler(request: Request) -> str:
 
 
 class TestProtectedHtml:
-    async def test_unauthenticated_redirects_to_login(self) -> None:
+    async def test_protected_html__when_unauthenticated__should_redirect_to_login(self) -> None:
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -79,7 +76,7 @@ class TestProtectedHtml:
         assert "/login" in location
         assert "next=" in location
 
-    async def test_redirect_preserves_query_string(self) -> None:
+    async def test_protected_html__when_unauthenticated_with_query__should_preserve_it_in_next(self) -> None:
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=False, path="/page", query_string=b"tab=settings")
 
@@ -92,7 +89,7 @@ class TestProtectedHtml:
         query = parse_qs(parsed.query)
         assert "/page?tab=settings" in query["next"]
 
-    async def test_authenticated_passes_through(self) -> None:
+    async def test_protected_html__when_authenticated__should_call_handler(self) -> None:
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=True)
 
@@ -100,7 +97,7 @@ class TestProtectedHtml:
 
         assert result == "ok"
 
-    def test_sync_authenticated_passes_through(self) -> None:
+    def test_protected_html__when_sync_handler_authenticated__should_call_handler(self) -> None:
         wrapped = protected_html(_sync_dummy_handler)
         request = _make_request(authenticated=True)
 
@@ -108,7 +105,7 @@ class TestProtectedHtml:
 
         assert result == "ok"
 
-    def test_sync_unauthenticated_redirects_to_login(self) -> None:
+    def test_protected_html__when_sync_handler_unauthenticated__should_redirect_to_login(self) -> None:
         wrapped = protected_html(_sync_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -122,7 +119,7 @@ class TestProtectedHtml:
 
 
 class TestProtectedApi:
-    async def test_unauthenticated_raises_401(self) -> None:
+    async def test_protected_api__when_unauthenticated__should_raise_401(self) -> None:
         wrapped = protected_api(_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -131,7 +128,7 @@ class TestProtectedApi:
 
         assert exc_info.value.status_code == 401
 
-    async def test_authenticated_passes_through(self) -> None:
+    async def test_protected_api__when_authenticated__should_call_handler(self) -> None:
         wrapped = protected_api(_dummy_handler)
         request = _make_request(authenticated=True)
 
@@ -141,7 +138,7 @@ class TestProtectedApi:
 
 
 class TestBotOnly:
-    async def test_unauthenticated_raises_401(self) -> None:
+    async def test_bot_only__when_unauthenticated__should_raise_401(self) -> None:
         wrapped = bot_only(_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -150,7 +147,7 @@ class TestBotOnly:
 
         assert exc_info.value.status_code == 401
 
-    async def test_authenticated_human_returns_403(self) -> None:
+    async def test_bot_only__when_human__should_return_403(self) -> None:
         wrapped = bot_only(_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.HUMAN)
 
@@ -159,7 +156,7 @@ class TestBotOnly:
         assert isinstance(result, JSONResponse)
         assert result.status_code == 403
 
-    async def test_authenticated_bot_passes_through(self) -> None:
+    async def test_bot_only__when_bot__should_call_handler(self) -> None:
         wrapped = bot_only(_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.BOT)
 
@@ -167,7 +164,7 @@ class TestBotOnly:
 
         assert result == "ok"
 
-    def test_sync_unauthenticated_raises_401(self) -> None:
+    def test_bot_only__when_sync_handler_unauthenticated__should_raise_401(self) -> None:
         wrapped = bot_only(_sync_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -176,7 +173,7 @@ class TestBotOnly:
 
         assert exc_info.value.status_code == 401
 
-    def test_sync_authenticated_human_returns_403(self) -> None:
+    def test_bot_only__when_sync_handler_human__should_return_403(self) -> None:
         wrapped = bot_only(_sync_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.HUMAN)
 
@@ -185,7 +182,7 @@ class TestBotOnly:
         assert isinstance(result, JSONResponse)
         assert result.status_code == 403
 
-    def test_sync_authenticated_bot_passes_through(self) -> None:
+    def test_bot_only__when_sync_handler_bot__should_call_handler(self) -> None:
         wrapped = bot_only(_sync_dummy_handler)
         request = _make_request(authenticated=True, account_type=AccountType.BOT)
 
@@ -195,7 +192,7 @@ class TestBotOnly:
 
 
 class TestPublicRoute:
-    async def test_does_not_block_unauthenticated(self) -> None:
+    async def test_public_route__when_unauthenticated__should_call_handler(self) -> None:
         wrapped = public_route(_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -203,7 +200,7 @@ class TestPublicRoute:
 
         assert result == "ok"
 
-    def test_sync_does_not_block_unauthenticated(self) -> None:
+    def test_public_route__when_sync_handler_unauthenticated__should_call_handler(self) -> None:
         wrapped = public_route(_sync_dummy_handler)
         request = _make_request(authenticated=False)
 
@@ -213,8 +210,6 @@ class TestPublicRoute:
 
 
 def _make_handler() -> object:
-    """Return a fresh async handler with no attributes from prior tests."""
-
     async def handler(request: Request) -> str:
         return "ok"
 
@@ -222,7 +217,7 @@ def _make_handler() -> object:
 
 
 class TestValidateRouteAuthPolicy:
-    def test_all_routes_classified_passes(self) -> None:
+    def test_validate_route_auth_policy__when_all_routes_classified__should_pass(self) -> None:
         routes = [
             Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
             Route("/b", protected_api(_make_handler()), methods=["GET"], name="b"),
@@ -231,7 +226,7 @@ class TestValidateRouteAuthPolicy:
 
         validate_route_auth_policy(routes)
 
-    def test_unclassified_route_raises_runtime_error(self) -> None:
+    def test_validate_route_auth_policy__when_route_unclassified__should_raise_runtime_error(self) -> None:
         routes = [
             Route("/ok", public_route(_make_handler()), methods=["GET"], name="ok"),
             Route("/bad", _make_handler(), methods=["GET"], name="bad"),
@@ -240,7 +235,7 @@ class TestValidateRouteAuthPolicy:
         with pytest.raises(RuntimeError, match="Unclassified routes"):
             validate_route_auth_policy(routes)
 
-    def test_mount_is_exempt(self) -> None:
+    def test_validate_route_auth_policy__when_mount_present__should_exempt_it(self) -> None:
         routes = [
             Route("/a", public_route(_make_handler()), methods=["GET"], name="a"),
             Mount("/static", app=Starlette(), name="static"),
@@ -248,7 +243,7 @@ class TestValidateRouteAuthPolicy:
 
         validate_route_auth_policy(routes)
 
-    def test_multiple_unclassified_routes_all_reported(self) -> None:
+    def test_validate_route_auth_policy__when_several_routes_unclassified__should_report_all(self) -> None:
         routes = [
             Route("/x", _make_handler(), methods=["GET"], name="x"),
             Route("/y", _make_handler(), methods=["POST"], name="y"),
@@ -260,7 +255,7 @@ class TestValidateRouteAuthPolicy:
 
 
 class TestCollectProtectedApiPaths:
-    def test_collects_protected_api_and_bot_only_paths(self) -> None:
+    def test_collect_protected_api_paths__should_collect_protected_api_and_bot_only_paths(self) -> None:
         routes = [
             Route("/rooms", protected_api(_make_handler()), methods=["GET"], name="rooms"),
             Route("/servers", protected_api(_make_handler()), methods=["GET"], name="servers"),
@@ -273,7 +268,7 @@ class TestCollectProtectedApiPaths:
 
         assert result == {"/rooms", "/servers", "/api/bot"}
 
-    def test_ignores_mounts(self) -> None:
+    def test_collect_protected_api_paths__when_mount_present__should_ignore_it(self) -> None:
         routes = [
             Route("/rooms", protected_api(_make_handler()), methods=["GET"], name="rooms"),
             Mount("/static", app=Starlette(), name="static"),

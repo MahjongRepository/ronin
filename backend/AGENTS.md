@@ -16,7 +16,12 @@ both servers use: accounts, auth sessions and game tickets (`shared/auth/`), rep
   paths in `pyproject.toml` are relative to it.
 * Run the servers and `bin/` scripts from the repo root with `uv run --project backend ...`: their
   default paths (`frontend/dist`, `backend/storage.db`, `backend/data/replays`) are relative to it.
-* `make lint` (ruff format check + ruff), `make typecheck` (ty), `make test`.
+* `make lint` (docformatter check + ruff format check + ruff), `make typecheck` (ty), `make test`.
+* docformatter formats nothing when given `.`, so the Makefile's `DOCFORMATTER_PATHS` lists the backend's
+  top-level packages and modules: add a new one there. It exits 3 when it changed files, which
+  `make format` treats as success. It also rewraps a triple-quoted string passed directly as a call
+  argument as if it were a docstring: assign the literal to a variable first, or add the file to the
+  `[tool.docformatter]` exclude list (which matches bare filenames), as `test_dead_code.py` is.
 
 ## Configuration
 
@@ -36,8 +41,25 @@ both servers use: accounts, auth sessions and game tickets (`shared/auth/`), rep
   event routing targets — follow the shared rule: a `@dataclass` unless the data needs validation.
 * Docstrings are imperative ("Calculate...", not "Calculates..."): a one-line summary, then a blank
   line and parameter/return detail only when the function is not obvious.
+* No module docstrings or file-header comments: what a module must convey goes on its classes and
+  functions.
 
 ## Tests
 
+* Tests carry no docstrings (module, class, test or helper): the test name, and the
+  names of its variables, say what it pins. The comment gate rejects new comments, so a rename is the
+  way to carry a non-obvious setup.
+* `<subject>` in a test name (root naming rule) is the function, rule or component under test, in
+  snake_case: `declare_riichi`, `pao`, `furiten`, `matchmaking_queue`, `login_route`. A method in a
+  `Test*` class carries the full name too; the class only groups. Example:
+  `test_furiten__when_player_discarded_the_winning_tile__should_forbid_ron`.
+* Test logic once, at the lowest layer that owns it: engine rules in `game/tests/unit/`. Integration
+  tests cover only the wiring (routing, serialization, auth, error mapping) and never re-check engine
+  or service logic through a socket or HTTP.
+* One error test per mechanism, not per field or route: Pydantic's built-in constraints need none; a
+  custom validator or a raised `GameRuleError` subclass gets one.
+* Plain `assert`, fixtures over setup methods, `@pytest.mark.parametrize` over copy-pasted cases.
+* Prefer real I/O against ephemeral resources (`tmp_path`, a temporary SQLite database) over mocks;
+  mock only at process boundaries (sockets, the network).
 * Build test data with the helpers in `game/tests/helpers/` and the suite's `conftest.py` fixtures,
   not raw tile ids or magic strings.

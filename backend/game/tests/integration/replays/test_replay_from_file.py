@@ -1,5 +1,3 @@
-"""Integration test: load a real game replay file and verify event playback."""
-
 from pathlib import Path
 
 from game.logic.enums import GameAction
@@ -11,8 +9,7 @@ from game.replay.loader import load_replay_from_file
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "simple_cases"
 
 
-async def test_single_discard_replay_from_file():
-    """Load single_discard.txt, play it through the runner, and verify events."""
+async def test_replay_runner__when_single_discard_replay_loaded__should_produce_consistent_trace():
     replay = load_replay_from_file(FIXTURES_DIR / "single_discard.txt")
 
     # Verify loaded replay metadata

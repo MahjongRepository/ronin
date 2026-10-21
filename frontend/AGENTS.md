@@ -59,8 +59,12 @@ rather than introducing new FSD layers:
   board layout lives in `styles/game-board/`.
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
+* Zod runs jitless (`zod-setup.ts`): its JIT uses `new Function()`, which the CSP `script-src 'self'`
+  blocks. `zod-setup.ts` stays the first import of `index.ts`, ahead of any module that builds a schema.
 
 ## Tests
 
 Vitest with `happy-dom`. UI tests render lit templates into a DOM element and assert on the
 result; logic tests call the module directly. New tests go in a `__tests__/` directory beside the code.
+Tests carry no doc comments: the `it(...)` title says what it pins. Source files carry no file-header
+comment.

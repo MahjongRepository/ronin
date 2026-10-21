@@ -1,9 +1,3 @@
-"""Tests for pending game management (direct game creation from lobby).
-
-Covers create_pending_game, join_game, timeout behavior, disconnect handling,
-and the POST /games endpoint validation.
-"""
-
 import asyncio
 
 import pytest
@@ -22,7 +16,6 @@ from game.tests.mocks import MockConnection, MockGameService
 
 
 def _make_specs(count: int = 1) -> list[PlayerSpec]:
-    """Create a list of PlayerSpec objects for testing."""
     return [
         PlayerSpec(
             name=f"Player{i}",
@@ -34,12 +27,10 @@ def _make_specs(count: int = 1) -> list[PlayerSpec]:
 
 
 def _error_messages(conn: MockConnection) -> list[dict]:
-    """Extract error messages from a connection's outbox."""
     return [m for m in conn.sent_messages if m.get("type") == "session_error"]
 
 
 def _error_codes(conn: MockConnection) -> list[str]:
-    """Extract error codes from a connection's outbox."""
     return [m["code"] for m in _error_messages(conn)]
 
 
@@ -48,7 +39,7 @@ class TestCreatePendingGame:
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_creates_game_and_sessions(self, manager: SessionManager):
+    async def test_create_pending_game__when_created__should_register_game_and_session(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -62,7 +53,7 @@ class TestCreatePendingGame:
         assert session.player_name == "Player0"
         assert session.game_id == "game1"
 
-    async def test_rejects_duplicate_game_id(self, manager: SessionManager):
+    async def test_create_pending_game__when_game_id_exists__should_raise_value_error(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -75,7 +66,7 @@ class TestJoinGame:
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_join_game_starts_game_when_all_connected(self, manager: SessionManager):
+    async def test_join_game__when_all_expected_players_connected__should_start_game(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -88,7 +79,7 @@ class TestJoinGame:
         assert game.started is True
         assert "game1" not in manager._pending_games
 
-    async def test_join_game_with_invalid_session_token(self, manager: SessionManager):
+    async def test_join_game__when_ticket_unknown__should_return_no_session_error(self, manager: SessionManager):
         manager.create_pending_game("game1", _make_specs(1), num_ai_players=3)
 
         conn = MockConnection()
@@ -97,15 +88,16 @@ class TestJoinGame:
 
         assert SessionErrorCode.JOIN_GAME_NO_SESSION in _error_codes(conn)
 
-    async def test_join_game_nonexistent_game(self, manager: SessionManager):
+    async def test_join_game__when_game_does_not_exist__should_return_not_found_error(self, manager: SessionManager):
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, "nonexistent", "ticket-0")
 
         assert SessionErrorCode.JOIN_GAME_NOT_FOUND in _error_codes(conn)
 
-    async def test_join_game_already_started(self, manager: SessionManager):
-        """After game starts, JOIN_GAME should return ALREADY_STARTED error."""
+    async def test_join_game__when_game_already_started__should_return_already_started_error(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -120,8 +112,9 @@ class TestJoinGame:
 
         assert SessionErrorCode.JOIN_GAME_ALREADY_STARTED in _error_codes(conn2)
 
-    async def test_join_game_connection_already_in_game(self, manager: SessionManager):
-        """A connection already in a game cannot join another via JOIN_GAME."""
+    async def test_join_game__when_connection_already_joined__should_return_already_in_game_error(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -133,8 +126,9 @@ class TestJoinGame:
         await manager.join_game(conn, "game1", "ticket-1")
         assert SessionErrorCode.ALREADY_IN_GAME in _error_codes(conn)
 
-    async def test_join_game_game_id_mismatch(self, manager: SessionManager):
-        """Session token for a different game should be rejected."""
+    async def test_join_game__when_ticket_belongs_to_other_game__should_return_game_mismatch_error(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -147,8 +141,9 @@ class TestJoinGame:
 
         assert SessionErrorCode.RECONNECT_GAME_MISMATCH in _error_codes(conn)
 
-    async def test_join_game_evicts_stale_connection_on_duplicate_token(self, manager: SessionManager):
-        """Duplicate JOIN_GAME with same session_token evicts the old connection."""
+    async def test_join_game__when_token_reused_by_new_connection__should_evict_old_connection(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -180,8 +175,7 @@ class TestJoinGame:
         # Heartbeat tracking is cleaned up for the old connection
         assert conn1.connection_id not in manager._heartbeat._last_ping
 
-    async def test_join_game_multi_player(self, manager: SessionManager):
-        """Multiple players joining a 2-player game triggers game start."""
+    async def test_join_game__when_second_of_two_humans_joins__should_start_game(self, manager: SessionManager):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -206,8 +200,9 @@ class TestPendingGameTimeout:
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_timeout_starts_game_with_ai_substitutes(self, manager: SessionManager):
-        """After timeout, game starts with AI substitutes for missing players."""
+    async def test_pending_game_timeout__when_some_players_connected__should_start_game_with_ai(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -228,8 +223,9 @@ class TestPendingGameTimeout:
         assert game.started is True
         assert "game1" not in manager._pending_games
 
-    async def test_timeout_cancelled_when_all_players_connect(self, manager: SessionManager):
-        """Timeout task is cancelled when all expected players connect."""
+    async def test_pending_game_timeout__when_all_players_connect__should_cancel_timeout_task(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -245,8 +241,9 @@ class TestPendingGameTimeout:
         await asyncio.sleep(0)
         assert timeout_task.done()
 
-    async def test_timeout_with_no_players_connected_cancels_game(self, manager: SessionManager):
-        """Timeout with zero players connected cancels game instead of starting."""
+    async def test_pending_game_timeout__when_no_players_connected__should_cancel_game_and_sessions(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -271,8 +268,9 @@ class TestPendingGameDisconnect:
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_disconnect_marks_session_disconnected(self, manager: SessionManager):
-        """Disconnecting during pending phase marks session disconnected, not removed."""
+    async def test_pending_game_disconnect__when_player_leaves__should_mark_session_disconnected(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -286,8 +284,9 @@ class TestPendingGameDisconnect:
         assert session is not None
         assert session.disconnected_at is not None
 
-    async def test_disconnect_and_reconnect_during_pending(self, manager: SessionManager):
-        """Player can disconnect and rejoin during pending window with same ticket."""
+    async def test_pending_game_disconnect__when_player_rejoins__should_count_as_connected_again(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -308,8 +307,9 @@ class TestPendingGameDisconnect:
         assert pending is not None
         assert pending.connected_count == 1
 
-    async def test_pending_game_survives_empty(self, manager: SessionManager):
-        """Pending game is not cleaned up when all players disconnect (timeout handles it)."""
+    async def test_pending_game_disconnect__when_all_players_left__should_keep_game_pending(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -324,8 +324,9 @@ class TestPendingGameDisconnect:
         assert manager.get_game("game1") is not None
         assert "game1" in manager._pending_games
 
-    async def test_cleanup_after_timeout_start(self, manager: SessionManager):
-        """After timeout starts the game, cleanup happens normally on disconnect."""
+    async def test_pending_game_disconnect__when_last_player_leaves_started_game__should_remove_game(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -345,7 +346,7 @@ class TestPendingGameDisconnect:
 
 
 class TestCreateGameRequestValidation:
-    def test_player_count_mismatch(self):
+    def test_create_game_request__when_player_count_mismatches_ai_count__should_raise_value_error(self):
         with pytest.raises(ValueError, match="Expected 1 players"):
             CreateGameRequest(
                 game_id="test-game",
@@ -356,7 +357,7 @@ class TestCreateGameRequestValidation:
                 ],
             )
 
-    def test_duplicate_game_tickets(self):
+    def test_create_game_request__when_game_tickets_duplicate__should_raise_value_error(self):
         with pytest.raises(ValueError, match="Duplicate game_ticket"):
             CreateGameRequest(
                 game_id="test-game",
@@ -367,7 +368,7 @@ class TestCreateGameRequestValidation:
                 ],
             )
 
-    def test_duplicate_names(self):
+    def test_create_game_request__when_player_names_duplicate__should_raise_value_error(self):
         with pytest.raises(ValueError, match="Duplicate player name"):
             CreateGameRequest(
                 game_id="test-game",
@@ -378,7 +379,7 @@ class TestCreateGameRequestValidation:
                 ],
             )
 
-    def test_duplicate_user_ids(self):
+    def test_create_game_request__when_user_ids_duplicate__should_raise_value_error(self):
         with pytest.raises(ValueError, match="Duplicate user_id"):
             CreateGameRequest(
                 game_id="test-game",
@@ -401,11 +402,10 @@ class TestPostGamesEndpoint:
 
     @staticmethod
     def _signed_player(name: str, user_id: str, game_id: str) -> dict:
-        """Build a player dict with a valid signed game ticket."""
         ticket = make_test_game_ticket(name, game_id, user_id=user_id)
         return {"name": name, "user_id": user_id, "game_ticket": ticket}
 
-    def test_create_game_success(self, client):
+    def test_post_games__when_body_valid__should_return_201_pending(self, client):
         response = client.post(
             "/games",
             json={
@@ -419,11 +419,11 @@ class TestPostGamesEndpoint:
         assert data["game_id"] == "test-game"
         assert data["status"] == "pending"
 
-    def test_create_game_invalid_body(self, client):
+    def test_post_games__when_body_not_json__should_return_400(self, client):
         response = client.post("/games", content=b"not json")
         assert response.status_code == 400
 
-    def test_create_game_duplicate_id(self, client):
+    def test_post_games__when_game_id_exists__should_return_409(self, client):
         # Create game first via endpoint
         client.post(
             "/games",
@@ -444,7 +444,7 @@ class TestPostGamesEndpoint:
         )
         assert response.status_code == 409
 
-    def test_create_game_at_capacity(self, client):
+    def test_post_games__when_server_at_capacity__should_return_503(self, client):
         client.app.state.settings.max_capacity = 1
 
         response = client.post(
@@ -467,11 +467,11 @@ class TestPostGamesEndpoint:
         )
         assert response.status_code == 503
 
-    def test_create_game_body_too_large(self, client):
+    def test_post_games__when_body_too_large__should_return_413(self, client):
         response = client.post("/games", content=b"x" * 5000)
         assert response.status_code == 413
 
-    def test_create_game_invalid_ticket(self, client):
+    def test_post_games__when_ticket_invalid__should_return_400(self, client):
         response = client.post(
             "/games",
             json={
@@ -483,7 +483,7 @@ class TestPostGamesEndpoint:
         assert response.status_code == 400
         assert "Invalid or expired game ticket" in response.json()["error"]
 
-    def test_create_game_ticket_game_id_mismatch(self, client):
+    def test_post_games__when_ticket_game_id_differs__should_return_400(self, client):
         ticket = make_test_game_ticket("Alice", "other-game", user_id="u1")
         response = client.post(
             "/games",
@@ -496,7 +496,7 @@ class TestPostGamesEndpoint:
         assert response.status_code == 400
         assert "game_id mismatch" in response.json()["error"]
 
-    def test_create_game_ticket_identity_mismatch(self, client):
+    def test_post_games__when_ticket_identity_differs__should_return_400(self, client):
         ticket = make_test_game_ticket("Alice", "test-game", user_id="u1")
         response = client.post(
             "/games",
@@ -511,8 +511,6 @@ class TestPostGamesEndpoint:
 
 
 class TestJoinGameViaRouter:
-    """Test JOIN_GAME routing through MessageRouter."""
-
     @pytest.fixture
     def manager(self):
         return SessionManager(MockGameService())
@@ -521,7 +519,7 @@ class TestJoinGameViaRouter:
     def router(self, manager):
         return MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
 
-    async def test_join_game_via_router(self, manager, router):
+    async def test_join_game_via_router__when_ticket_valid__should_start_game(self, manager, router):
         game_id = "test-game"
         ticket = make_test_game_ticket("Alice", game_id, user_id="alice-id")
 
@@ -543,7 +541,7 @@ class TestJoinGameViaRouter:
         assert game is not None
         assert game.started is True
 
-    async def test_join_game_invalid_ticket_via_router(self, manager, router):
+    async def test_join_game_via_router__when_ticket_forged__should_return_invalid_ticket_error(self, manager, router):
         game_id = "test-game"
         specs = [PlayerSpec(name="Alice", user_id="alice-id", game_ticket="valid-ticket")]
         manager.create_pending_game(game_id, specs, num_ai_players=3)
@@ -564,8 +562,6 @@ class TestJoinGameViaRouter:
 
 
 class TestJoinGameViaWebSocket:
-    """Integration test for JOIN_GAME via WebSocket (game_id from connection)."""
-
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
@@ -574,7 +570,7 @@ class TestJoinGameViaWebSocket:
         with TestClient(app) as client:
             yield client
 
-    def test_join_game_uses_connection_game_id(self, client):
+    def test_join_game_via_websocket__when_game_created_via_post__should_start_game_using_url_game_id(self, client):
         game_id = "ws-game"
         ticket = make_test_game_ticket("Alice", game_id, user_id="alice-id")
 
@@ -606,14 +602,11 @@ class TestJoinGameViaWebSocket:
 
 
 class TestPendingGameDefensivePaths:
-    """Tests for defensive code paths in pending game management."""
-
     @pytest.fixture
     def manager(self):
         return SessionManager(MockGameService())
 
-    async def test_leave_pending_game_without_pending_info(self, manager: SessionManager):
-        """Exercise _leave_pending_game fallback when pending info is gone."""
+    async def test_leave_pending_game__when_pending_info_missing__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -632,8 +625,9 @@ class TestPendingGameDefensivePaths:
         # This should fall through to the no-pending-info path in _leave_pending_game
         await manager.leave_game(conn, notify_player=False)
 
-    async def test_complete_pending_game_when_already_popped(self, manager: SessionManager):
-        """_complete_pending_game is a no-op if pending was already popped."""
+    async def test_complete_pending_game__when_pending_info_already_popped__should_leave_game_unstarted(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -652,8 +646,7 @@ class TestPendingGameDefensivePaths:
         assert game is not None
         assert game.started is False
 
-    async def test_complete_pending_game_when_game_gone(self, manager: SessionManager):
-        """_complete_pending_game handles game being removed from _games."""
+    async def test_complete_pending_game__when_game_removed__should_do_nothing(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -669,8 +662,7 @@ class TestPendingGameDefensivePaths:
         # Should be a no-op
         assert "game1" not in manager._pending_games
 
-    async def test_pending_game_timeout_when_pending_gone(self, manager: SessionManager):
-        """_pending_game_timeout is a no-op when pending info is already removed."""
+    async def test_pending_game_timeout__when_pending_info_gone__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -684,8 +676,9 @@ class TestPendingGameDefensivePaths:
         # Manually call the timeout - should be a no-op since pending is gone
         await manager._pending_game_timeout("game1", 0)
 
-    async def test_validate_join_game_game_started_in_lock(self, manager: SessionManager):
-        """_validate_join_game handles game.started race inside the lock."""
+    async def test_validate_join_game__when_game_started_meanwhile__should_return_already_started(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -701,8 +694,9 @@ class TestPendingGameDefensivePaths:
         assert result is not None
         assert result[0] == SessionErrorCode.JOIN_GAME_ALREADY_STARTED
 
-    async def test_cleanup_empty_game_with_pending_timeout(self, manager: SessionManager):
-        """_cleanup_empty_game cancels pending timeout when game becomes empty."""
+    async def test_cleanup_empty_game__when_pending_info_lingers__should_remove_pending_game(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -726,8 +720,9 @@ class TestPendingGameDefensivePaths:
 
         assert "game1" not in manager._pending_games
 
-    async def test_validate_join_game_game_removed_from_games(self, manager: SessionManager):
-        """_validate_join_game returns NOT_FOUND when game removed from _games inside lock."""
+    async def test_validate_join_game__when_game_removed_meanwhile__should_return_not_found(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -741,8 +736,7 @@ class TestPendingGameDefensivePaths:
         assert result is not None
         assert result[0] == SessionErrorCode.JOIN_GAME_NOT_FOUND
 
-    async def test_register_pending_player_guard_clauses(self, manager: SessionManager):
-        """_register_pending_player is a no-op if game/pending/session are gone."""
+    async def test_register_pending_player__when_game_removed__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(1)
         manager.create_pending_game("game1", specs, num_ai_players=3)
 
@@ -754,8 +748,9 @@ class TestPendingGameDefensivePaths:
 
         await manager._register_pending_player(conn, "game1", "ticket-0")
 
-    async def test_evicted_connection_rejected_on_rejoin(self, manager: SessionManager):
-        """An evicted connection (removed from _connections) cannot re-JOIN_GAME."""
+    async def test_join_game__when_evicted_connection_rejoins__should_ignore_it_and_keep_new_player(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 
@@ -780,8 +775,9 @@ class TestPendingGameDefensivePaths:
         assert conn2.connection_id in game.players
         assert conn1.connection_id not in game.players
 
-    async def test_leave_pending_game_skips_evicted_player_with_lock(self, manager: SessionManager):
-        """_leave_pending_game is a no-op when the player was already evicted by a duplicate JOIN_GAME."""
+    async def test_leave_pending_game__when_player_already_evicted__should_keep_count_and_session_connected(
+        self, manager: SessionManager
+    ):
         specs = _make_specs(2)
         manager.create_pending_game("game1", specs, num_ai_players=2)
 

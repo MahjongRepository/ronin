@@ -1,10 +1,3 @@
-"""
-Replay data models: input, output trace, and error types.
-
-ReplayInput is the versioned input format for deterministic replay.
-ReplayTrace is the output containing explicit state transitions per step.
-"""
-
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -20,7 +13,9 @@ REPLAY_VERSION = "0.3-dev"
 
 
 class ReplayInputEvent(BaseModel):
-    """A single player input event in a replay sequence."""
+    """
+    A single player input event in a replay sequence.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -33,8 +28,7 @@ class ReplayInput(BaseModel):
     """
     Versioned input for deterministic replay execution.
 
-    Enforces exactly 4 unique player names (4-player replay contract).
-    All events must target declared players.
+    Enforces exactly 4 unique player names (4-player replay contract). All events must target declared players.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -69,7 +63,9 @@ class ReplayInput(BaseModel):
 
 
 class ReplayStep(BaseModel):
-    """One replay transition: state_before + input -> emitted events + state_after."""
+    """
+    One replay transition: state_before + input -> emitted events + state_after.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -81,7 +77,9 @@ class ReplayStep(BaseModel):
 
 
 class ReplayTrace(BaseModel):
-    """Complete output of a replay execution."""
+    """
+    Complete output of a replay execution.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -95,7 +93,9 @@ class ReplayTrace(BaseModel):
 
 
 class ReplayError(Exception):
-    """Raised when a replay step produces an error event in strict mode."""
+    """
+    Raised when a replay step produces an error event in strict mode.
+    """
 
     def __init__(self, step_index: int, event: ReplayInputEvent, errors: list[ServiceEvent]) -> None:
         self.step_index = step_index
@@ -109,16 +109,24 @@ class ReplayError(Exception):
 
 
 class ReplayStartupError(Exception):
-    """Raised when start_game emits error events in strict mode."""
+    """
+    Raised when start_game emits error events in strict mode.
+    """
 
 
 class ReplayStepLimitError(Exception):
-    """Raised when replay exceeds max allowed steps."""
+    """
+    Raised when replay exceeds max allowed steps.
+    """
 
 
 class ReplayInputAfterGameEndError(Exception):
-    """Raised when replay contains extra input after game end in strict mode."""
+    """
+    Raised when replay contains extra input after game end in strict mode.
+    """
 
 
 class ReplayInvariantError(Exception):
-    """Raised when the engine violates replay-required invariants."""
+    """
+    Raised when the engine violates replay-required invariants.
+    """

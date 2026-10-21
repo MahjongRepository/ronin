@@ -1,9 +1,3 @@
-"""
-Verify that double yakuman, yakuman stacking, kazoe yakuman,
-yakuman-dora interaction, and sextuple yakuman cap settings
-are properly configurable and correctly wired into scoring logic.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -20,7 +14,6 @@ def _make_scoring_game_state(
     dora_indicators=None,
     settings: GameSettings | None = None,
 ):
-    """Create a game state for scoring tests with mid-game state to avoid tenhou/chiihou."""
     dummy_discard = (Discard(tile_id=0),)
     players = tuple(create_player(seat=i, score=25000, discards=dummy_discard) for i in range(4))
     if dora_indicators is None:
@@ -39,10 +32,7 @@ def _make_scoring_game_state(
 
 
 class TestDoubleYakumanSetting:
-    """Verify has_double_yakuman setting controls double yakuman scoring."""
-
-    def test_double_yakuman_disabled_scores_13_han(self):
-        """Suuankou tanki scores 13 han (single yakuman) when has_double_yakuman=False."""
+    def test_double_yakuman_setting__when_disabled__should_score_single_yakuman(self):
         tiles = TilesConverter.string_to_136_array(man="111", pin="333", sou="555777")
         pair_tiles = TilesConverter.string_to_136_array(sou="99")
         all_tiles = (*tuple(tiles), pair_tiles[0])
@@ -63,8 +53,7 @@ class TestDoubleYakumanSetting:
         assert result.cost_main == 16000
         assert result.cost_additional == 8000
 
-    def test_daisuushii_disabled_scores_13_han(self):
-        """Daisuushii alone scores 13 han (single yakuman) when has_double_yakuman=False."""
+    def test_daisuushii_setting__when_double_disabled__should_score_single_yakuman(self):
         # pair is 1m (not honor), so tsuuiisou does NOT apply — only daisuushii
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
@@ -98,10 +87,7 @@ class TestDoubleYakumanSetting:
 
 
 class TestYakumanStacking:
-    """Verify that multiple yakuman hands in the same hand stack correctly."""
-
-    def test_daisuushii_plus_tsuuiisou_stacks(self):
-        """Daisuushii + Tsuuiisou in the same hand stack their yakuman values."""
+    def test_yakuman_stacking__when_daisuushii_and_tsuuiisou__should_stack(self):
         # Open daisuushii + tsuuiisou: EEE(open) SSS WWW NNN + Haku pair
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
@@ -131,8 +117,7 @@ class TestYakumanStacking:
         # daisuushii (26 han, double yakuman) + tsuuiisou (13 han, yakuman) = 39 han
         assert result.han == 39
 
-    def test_stacking_with_double_yakuman_disabled(self):
-        """Stacking still works but individual values are reduced when double yakuman is off."""
+    def test_yakuman_stacking__when_double_yakuman_disabled__should_stack_single_values(self):
         # Same hand: daisuushii + tsuuiisou, but with double yakuman disabled
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
@@ -162,8 +147,7 @@ class TestYakumanStacking:
         # daisuushii (13 han, downgraded) + tsuuiisou (13 han) = 26 han (double yakuman)
         assert result.han == 26
 
-    def test_stacking_produces_correct_payment(self):
-        """Triple yakuman (39 han) produces correct payment amount."""
+    def test_yakuman_stacking__when_stacked__should_pay_multiple_yakuman(self):
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
         pair_tiles = TilesConverter.string_to_136_array(honors="55")
@@ -195,10 +179,7 @@ class TestYakumanStacking:
 
 
 class TestKazoeYakuman:
-    """Verify has_kazoe_yakuman setting controls 13+ han non-yakuman scoring."""
-
-    def test_kazoe_yakuman_enabled_caps_at_yakuman(self):
-        """Non-yakuman hand with 13+ han pays yakuman-level when kazoe enabled."""
+    def test_kazoe_yakuman__when_enabled__should_cap_at_yakuman(self):
         # chinitsu (6) + pinfu (1) + iipeiko (1) + tanyao (1) + riichi (1) + tsumo (1) = 11 han
         # + 3 dora (5m x 3, indicator 4m) = 14 han, kazoe yakuman
         # The library returns raw han but caps the payment at yakuman level.
@@ -228,8 +209,7 @@ class TestKazoeYakuman:
         assert result.cost_main == 16000
         assert result.cost_additional == 8000
 
-    def test_kazoe_yakuman_disabled_caps_at_sanbaiman(self):
-        """Non-yakuman hand with 13+ han pays sanbaiman-level when kazoe disabled."""
+    def test_kazoe_yakuman__when_disabled__should_cap_at_sanbaiman(self):
         tiles = TilesConverter.string_to_136_array(man="2233445556677")
         win_tile = TilesConverter.string_to_136_array(man="8")[0]
         dora_indicator = TilesConverter.string_to_136_array(man="4444")[3:]
@@ -256,8 +236,7 @@ class TestKazoeYakuman:
         assert result.cost_main == 12000
         assert result.cost_additional == 6000
 
-    def test_dora_counts_toward_kazoe_threshold(self):
-        """Dora pushes a non-yakuman hand past the kazoe threshold, changing payment level."""
+    def test_kazoe_yakuman__when_dora_lifts_han_to_13__should_score_yakuman(self):
         # chinitsu (6) + pinfu (1) + iipeiko (1) + tanyao (1) + riichi (1) + tsumo (1) = 11 han
         # Without dora: 11 han -> sanbaiman payment
         # With 3 dora: 14 han -> kazoe yakuman payment
@@ -308,10 +287,7 @@ class TestKazoeYakuman:
 
 
 class TestYakumanDoraInteraction:
-    """Verify that dora does not add han to yakuman hands."""
-
-    def test_dora_does_not_add_to_yakuman(self):
-        """Yakuman hand with matching dora tiles still scores at yakuman han, not higher."""
+    def test_yakuman_dora__when_yakuman_hand_has_dora__should_not_add_han(self):
         # suuankou tanki (26 han double yakuman) with dora indicator 0m -> 1m is dora
         # hand has 3x 1m, so 3 dora would normally add 3 han, but yakuman ignores dora
         tiles = TilesConverter.string_to_136_array(man="111", pin="333", sou="555777")
@@ -334,8 +310,7 @@ class TestYakumanDoraInteraction:
         # han is still 26 (double yakuman), not 26 + 3 dora
         assert result.han == 26
 
-    def test_yakuman_yaku_list_excludes_dora(self):
-        """Yakuman hand's yaku list contains only yakuman yaku, no dora yaku."""
+    def test_yakuman_dora__when_yakuman_hand_has_dora__should_exclude_dora_from_yaku_list(self):
         tiles = TilesConverter.string_to_136_array(man="111", pin="333", sou="555777")
         pair_tiles = TilesConverter.string_to_136_array(sou="99")
         all_tiles = (*tuple(tiles), pair_tiles[0])
@@ -359,8 +334,7 @@ class TestYakumanDoraInteraction:
         assert 121 not in yaku_ids, "Aka dora should not appear in yakuman yaku list"
         assert 122 not in yaku_ids, "Ura dora should not appear in yakuman yaku list"
 
-    def test_non_yakuman_hand_includes_dora(self):
-        """Non-yakuman hand correctly includes dora in its han count (control test)."""
+    def test_yakuman_dora__when_non_yakuman_hand__should_include_dora_yaku(self):
         # simple riichi + tsumo hand with dora
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         win_tile = tiles[-1]

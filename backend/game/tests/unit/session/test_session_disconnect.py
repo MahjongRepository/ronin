@@ -11,10 +11,7 @@ from .helpers import create_started_game
 
 
 class TestSessionManagerDisconnect:
-    """Tests for disconnect handling."""
-
-    async def test_disconnect_replaces_player_with_ai_player(self, manager):
-        """Disconnecting a player from a started multi-player game calls replace_with_ai_player."""
+    async def test_disconnect__when_one_of_two_humans_leaves__should_replace_with_ai_and_keep_game(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         game = manager.get_game("game1")
@@ -37,8 +34,7 @@ class TestSessionManagerDisconnect:
         # game should still exist (Bob is still in)
         assert manager.get_game("game1") is not None
 
-    async def test_last_player_disconnect_does_not_replace_with_ai_player(self, manager):
-        """When the last player leaves, AI player replacement is skipped and the game is cleaned up."""
+    async def test_disconnect__when_last_human_leaves__should_not_replace_with_ai_and_clean_up_game(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         game = manager.get_game("game1")
@@ -62,8 +58,7 @@ class TestSessionManagerDisconnect:
         assert len(replace_calls) == 1  # no additional call
         assert manager.get_game("game1") is None
 
-    async def test_disconnect_cancels_player_timer(self, manager):
-        """Disconnecting a player cancels their timer in the timers dict."""
+    async def test_disconnect__when_player_leaves__should_remove_only_their_timer(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # verify timers exist for both seats
@@ -77,8 +72,7 @@ class TestSessionManagerDisconnect:
         # seat 1's timer should remain
         assert manager._timer_manager.get_timer("game1", 1) is not None
 
-    async def test_ai_player_replacement_broadcasts_events(self, manager):
-        """When AI player replacement produces events, they are broadcast to remaining players."""
+    async def test_disconnect__when_ai_replacement_produces_events__should_broadcast_them(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # make process_ai_player_actions_after_replacement return an event
@@ -104,8 +98,7 @@ class TestSessionManagerDisconnect:
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
 
-    async def test_stale_timeout_after_replacement_is_noop(self, manager):
-        """A timeout callback for a replaced player's seat is safely ignored."""
+    async def test_disconnect__when_stale_timeout_fires_for_replaced_seat__should_send_nothing(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # Alice disconnects
@@ -118,11 +111,9 @@ class TestSessionManagerDisconnect:
 
         assert len(conns[1].sent_messages) == 0
 
-    async def test_leave_game_skips_ai_player_replacement_when_lock_missing(self, manager):
-        """leave_game skips AI player replacement when the game lock is missing.
-
-        Marks session disconnected instead.
-        """
+    async def test_disconnect__when_game_lock_missing__should_skip_ai_replacement_and_mark_session_disconnected(
+        self, manager
+    ):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         player = manager._players.get(conns[0].connection_id)
@@ -154,10 +145,7 @@ class TestSessionManagerDisconnect:
 
 
 class TestLockBoundaryRaces:
-    """Tests for lock-boundary hardening: disconnect/action/timeout race scenarios."""
-
-    async def test_leave_game_serialized_with_handle_action(self, manager):
-        """leave_game and handle_game_action are serialized by the per-game lock."""
+    async def test_lock_boundary__when_leave_races_game_action__should_not_replace_mid_action(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         execution_order = []
@@ -197,8 +185,7 @@ class TestLockBoundaryRaces:
             between = execution_order[start_idx : end_idx + 1]
             assert "replace_start" not in between
 
-    async def test_leave_game_serialized_with_timeout(self, manager):
-        """leave_game and timeout callback are serialized by the per-game lock."""
+    async def test_lock_boundary__when_leave_races_timeout__should_not_replace_mid_timeout(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         execution_order = []
@@ -238,8 +225,7 @@ class TestLockBoundaryRaces:
             between = execution_order[start_idx : end_idx + 1]
             assert "replace_start" not in between
 
-    async def test_double_leave_only_cleans_up_once(self, manager):
-        """Two concurrent leave_game calls for the last player clean up exactly once."""
+    async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         # Alice leaves first (not last)
@@ -265,8 +251,7 @@ class TestLockBoundaryRaces:
         assert cleanup_count <= 1
         assert manager.get_game("game1") is None
 
-    async def test_leave_game_holds_lock_during_ai_player_replacement(self, manager):
-        """AI player replacement in leave_game runs under the same lock as action handling."""
+    async def test_lock_boundary__when_ai_replacement_runs_on_leave__should_hold_game_lock(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         lock = manager._get_game_lock("game1")
@@ -288,10 +273,7 @@ class TestLockBoundaryRaces:
 
 
 class TestHeartbeat:
-    """Tests for heartbeat (ping/pong) and per-game heartbeat monitor."""
-
-    async def test_ping_responds_with_pong(self, manager):
-        """handle_ping sends a pong message and updates last activity timestamp."""
+    async def test_heartbeat__when_ping_received__should_reply_pong_and_update_last_ping(self, manager):
         conn = MockConnection()
         manager.register_connection(conn)
         initial_time = manager._heartbeat._last_ping.get(conn.connection_id)

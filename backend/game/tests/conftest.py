@@ -45,7 +45,6 @@ def create_player(
     is_riichi_furiten: bool = False,
     score: int = 25000,
 ) -> MahjongPlayer:
-    """Create a MahjongPlayer with sensible defaults for testing."""
     return MahjongPlayer(
         seat=seat,
         name=name if name is not None else f"Player{seat}",
@@ -81,12 +80,6 @@ def create_round_state(
     pending_call_prompt: Any = None,
     wall_obj: Wall | None = None,
 ) -> MahjongRoundState:
-    """Create a MahjongRoundState with sensible defaults for testing.
-
-    Accepts wall/dead_wall/dora_indicators/pending_dora_count kwargs
-    and builds a Wall object from them. If wall_obj is provided, it takes
-    precedence over the individual fields.
-    """
     if players is None:
         players = tuple(create_player(seat=i) for i in range(4))
     if wall_obj is not None:
@@ -124,7 +117,6 @@ def create_game_state(
     seed: str = "",
     settings: GameSettings | None = None,
 ) -> MahjongGameState:
-    """Create a MahjongGameState with sensible defaults for testing."""
     if round_state is None:
         round_state = create_round_state()
     kwargs: dict[str, Any] = {

@@ -1,12 +1,12 @@
-"""Persistence models for the data access layer."""
-
 from datetime import datetime
 
 from pydantic import BaseModel, Field
 
 
 class PlayedGameStanding(BaseModel, frozen=True):
-    """Per-player info, populated at game start and enriched with scores at game end."""
+    """
+    Per-player info, populated at game start and enriched with scores at game end.
+    """
 
     name: str  # player name (human or AI)
     seat: int
@@ -16,7 +16,9 @@ class PlayedGameStanding(BaseModel, frozen=True):
 
 
 class PlayedGame(BaseModel, frozen=True):
-    """Record of a played game persisted to storage."""
+    """
+    Record of a played game persisted to storage.
+    """
 
     game_id: str
     started_at: datetime

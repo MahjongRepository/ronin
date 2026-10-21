@@ -1,8 +1,3 @@
-"""
-Verify that kuitan (open tanyao), ippatsu, atozuke, and renhou settings
-are properly configurable and correctly wired into scoring/win logic.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -15,7 +10,6 @@ from game.tests.conftest import create_player, create_round_state
 
 
 def _make_round_state(*, wall=None, dead_wall=None, dora_indicators=None):
-    """Create a round state with a wall for scoring tests."""
     return create_round_state(
         wall=tuple(range(70)) if wall is None else wall,
         dead_wall=tuple(range(14)) if dead_wall is None else dead_wall,
@@ -24,10 +18,7 @@ def _make_round_state(*, wall=None, dead_wall=None, dora_indicators=None):
 
 
 class TestKuitanToggle:
-    """Verify has_kuitan setting controls open tanyao acceptance."""
-
-    def test_kuitan_enabled_allows_open_tanyao_tsumo(self):
-        """Open tanyao (all simples) hand is valid when kuitan is enabled."""
+    def test_kuitan__when_enabled_and_open_tanyao_tsumo__should_allow_declare(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         pon_tiles = TilesConverter.string_to_136_array(pin="888")
         pon = FrozenMeld(
@@ -42,8 +33,7 @@ class TestKuitanToggle:
         round_state = _make_round_state()
         assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=True)) is True
 
-    def test_kuitan_disabled_rejects_open_tanyao_tsumo(self):
-        """Open tanyao hand is rejected when kuitan is disabled (no yaku)."""
+    def test_kuitan__when_disabled_and_open_tanyao_tsumo__should_reject_declare(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         pon_tiles = TilesConverter.string_to_136_array(pin="888")
         pon = FrozenMeld(
@@ -58,16 +48,14 @@ class TestKuitanToggle:
         round_state = _make_round_state()
         assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=False)) is False
 
-    def test_kuitan_disabled_still_allows_closed_tanyao(self):
-        """Closed tanyao (menzen) is always valid, regardless of kuitan setting."""
+    def test_kuitan__when_disabled_and_closed_tanyao__should_allow_declare(self):
         tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="23455")
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), score=25000)
         round_state = _make_round_state()
         # menzen tsumo is a yaku by itself, so closed tanyao is allowed
         assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=False)) is True
 
-    def test_kuitan_disabled_rejects_open_tanyao_ron(self):
-        """Open tanyao ron is rejected when kuitan is disabled."""
+    def test_kuitan__when_disabled_and_open_tanyao_ron__should_reject_call(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="5")
         pon_tiles = TilesConverter.string_to_136_array(sou="888")
         pon = FrozenMeld(
@@ -85,10 +73,7 @@ class TestKuitanToggle:
 
 
 class TestIppatsuToggle:
-    """Verify has_ippatsu setting controls ippatsu yaku credit."""
-
-    def test_ippatsu_credited_when_setting_enabled(self):
-        """Ippatsu yaku is awarded when setting is True and player flag is set."""
+    def test_ippatsu__when_setting_enabled__should_credit_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         discard_tile = TilesConverter.string_to_136_array(sou="9")[0]
         round_state = _make_round_state()
@@ -111,8 +96,7 @@ class TestIppatsuToggle:
         # yaku_id 3 = ippatsu
         assert any(y.yaku_id == 3 for y in result.yaku)
 
-    def test_ippatsu_not_credited_when_setting_disabled(self):
-        """Ippatsu yaku is NOT awarded when setting is False, even if player flag is set."""
+    def test_ippatsu__when_setting_disabled__should_not_credit_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         discard_tile = TilesConverter.string_to_136_array(sou="9")[0]
         round_state = _make_round_state()
@@ -135,10 +119,7 @@ class TestIppatsuToggle:
 
 
 class TestRenhouToggle:
-    """Verify renhou_value setting controls renhou detection and scoring."""
-
     def _make_renhou_round_state(self):
-        """Create a round state for renhou eligibility (first go-around, no calls)."""
         players = tuple(create_player(seat=i) for i in range(4))
         return create_round_state(
             players=players,
@@ -152,8 +133,7 @@ class TestRenhouToggle:
             dora_indicators=TilesConverter.string_to_136_array(man="9"),
         )
 
-    def test_renhou_disabled_does_not_award_yaku(self):
-        """When renhou_value=NONE, renhou yaku is not awarded even if eligible."""
+    def test_renhou_value__when_none__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="234", pin="234", sou="234678", honors="11")
         round_state = self._make_renhou_round_state()
         round_state = update_player(round_state, 1, tiles=tuple(tiles))
@@ -166,8 +146,7 @@ class TestRenhouToggle:
         # yaku_id 11 = renhou
         assert not any(y.yaku_id == 11 for y in result.yaku)
 
-    def test_renhou_mangan_awards_5_han(self):
-        """When renhou_value=MANGAN, renhou is awarded as 5-han yaku."""
+    def test_renhou_value__when_mangan__should_award_at_least_5_han(self):
         tiles = TilesConverter.string_to_136_array(man="234", pin="234", sou="234678", honors="11")
         round_state = self._make_renhou_round_state()
         round_state = update_player(round_state, 1, tiles=tuple(tiles))
@@ -182,10 +161,7 @@ class TestRenhouToggle:
 
 
 class TestRenhouEligibility:
-    """Verify renhou eligibility enforces: non-dealer, first uninterrupted turn, ron only."""
-
-    def test_dealer_not_eligible_for_renhou(self):
-        """Dealer cannot have renhou (tenhou is the dealer equivalent)."""
+    def test_renhou__when_dealer__should_not_be_eligible(self):
         players = tuple(create_player(seat=i) for i in range(4))
         round_state = create_round_state(
             players=players,
@@ -195,8 +171,7 @@ class TestRenhouEligibility:
         )
         assert is_renhou(round_state.players[0], round_state) is False
 
-    def test_non_dealer_eligible_for_renhou(self):
-        """Non-dealer with no discards and no calls is eligible."""
+    def test_renhou__when_non_dealer_before_any_discard__should_be_eligible(self):
         players = tuple(create_player(seat=i) for i in range(4))
         round_state = create_round_state(
             players=players,
@@ -206,8 +181,7 @@ class TestRenhouEligibility:
         )
         assert is_renhou(round_state.players[1], round_state) is True
 
-    def test_renhou_blocked_by_any_call(self):
-        """Any open meld by any player blocks renhou for all."""
+    def test_renhou__when_any_call_made__should_not_be_eligible(self):
         players = tuple(create_player(seat=i) for i in range(4))
         round_state = create_round_state(
             players=players,
@@ -217,8 +191,7 @@ class TestRenhouEligibility:
         )
         assert is_renhou(round_state.players[1], round_state) is False
 
-    def test_renhou_blocked_after_player_discards(self):
-        """Player who has already discarded is not eligible for renhou."""
+    def test_renhou__when_player_already_discarded__should_not_be_eligible(self):
         players = tuple(create_player(seat=i) for i in range(4))
         round_state = create_round_state(
             players=players,
@@ -230,8 +203,7 @@ class TestRenhouEligibility:
         round_state = update_player(round_state, 1, discards=(Discard(tile_id=tile),))
         assert is_renhou(round_state.players[1], round_state) is False
 
-    def test_renhou_is_ron_only_not_tsumo(self):
-        """Renhou flag is only set for ron (is_tsumo=False), not tsumo."""
+    def test_renhou__when_tsumo__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         round_state = create_round_state(
             wall=tuple(range(70)),
@@ -254,8 +226,7 @@ class TestRenhouEligibility:
         result_tsumo = calculate_hand_value(ctx_tsumo, win_tile)
         assert not any(y.yaku_id == 11 for y in result_tsumo.yaku)
 
-    def test_renhou_blocked_by_closed_kan(self):
-        """A closed kan by any player blocks renhou."""
+    def test_renhou__when_closed_kan_made__should_not_be_eligible(self):
         players = tuple(create_player(seat=i) for i in range(4))
         round_state = create_round_state(
             players=players,

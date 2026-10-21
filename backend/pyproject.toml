@@ -21,6 +21,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "docformatter==1.7.8",
     "httpx2==2.13.1",
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
@@ -80,6 +81,16 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseS
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "mahjong.shanten".msg = "Use game.logic.shanten instead of mahjong.shanten directly."
+
+[tool.docformatter]
+recursive = true
+make-summary-multi-line = true
+pre-summary-newline = true
+close-quotes-on-newline = true
+wrap-summaries = 120
+wrap-descriptions = 120
+black = true
+exclude = [".venv", "test_dead_code.py"]
 
 [tool.ty.terminal]
 error-on-warning = true

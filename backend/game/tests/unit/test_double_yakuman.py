@@ -1,10 +1,3 @@
-"""
-Unit tests for double yakuman hand recognition.
-
-Tests that suuankou tanki and daisuushii are correctly identified as double yakuman (26 han)
-while regular suuankou stays at single yakuman (13 han).
-"""
-
 from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
@@ -21,13 +14,8 @@ if TYPE_CHECKING:
 
 
 def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
-    """
-    Create a game state for scoring tests.
-
-    Sets up a mid-game state (player discards) to avoid triggering tenhou/chiihou.
-    """
-    dummy_discard = (Discard(tile_id=0),)
-    players = tuple(create_player(seat=i, score=25000, discards=dummy_discard) for i in range(4))
+    tenhou_blocking_discards = (Discard(tile_id=0),)
+    players = tuple(create_player(seat=i, score=25000, discards=tenhou_blocking_discards) for i in range(4))
     dora_indicator_tiles = TilesConverter.string_to_136_array(man="1")
     dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
     round_state = create_round_state(
@@ -44,9 +32,7 @@ def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
 
 
 class TestSuuankouTankiDoubleYakuman:
-    """Suuankou tanki (four concealed triplets, pair wait) scores as double yakuman."""
-
-    def test_suuankou_tanki_tsumo_is_double_yakuman(self):
+    def test_suuankou__when_tanki_wait_tsumo__should_be_double_yakuman(self):
         # hand: 111m 333p 555s 777s + tanki (pair) wait on 9s
         tiles = TilesConverter.string_to_136_array(man="111", pin="333", sou="555777")
         pair_tiles = TilesConverter.string_to_136_array(sou="99")
@@ -68,7 +54,7 @@ class TestSuuankouTankiDoubleYakuman:
         assert result.cost_main == 32000  # dealer pays
         assert result.cost_additional == 16000  # each non-dealer pays
 
-    def test_regular_suuankou_is_single_yakuman(self):
+    def test_suuankou__when_not_tanki_wait__should_be_single_yakuman(self):
         # shanpon wait: 11m 333p 555s 777s 99s, waiting on 1m or 9s
         # winning on 1m completes a triplet (non-tanki wait) = regular suuankou
         man_tiles = TilesConverter.string_to_136_array(man="111")
@@ -94,9 +80,7 @@ class TestSuuankouTankiDoubleYakuman:
 
 
 class TestDaisuushiiDoubleYakuman:
-    """Daisuushii (big four winds) scores as double yakuman."""
-
-    def test_daisuushii_open_hand_is_double_yakuman(self):
+    def test_daisuushii__when_open_hand__should_be_double_yakuman(self):
         # open daisuushii: EEE(open) SSS WWW NNN + pair of 1m
         # use open pon of east wind to isolate from suuankou
         east_tiles = TilesConverter.string_to_136_array(honors="111")

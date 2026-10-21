@@ -1,8 +1,3 @@
-"""
-Verifies game-end threshold check (configurable), dealer renchan override in West
-(fundamental), and rotation through West-1 to West-4 (fundamental).
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -76,25 +71,19 @@ def _exhaustive_draw(*, tempai_seats: list[int], noten_seats: list[int]) -> Exha
 
 
 class TestWestRoundEndCondition:
-    """Game ends in West when any player reaches winning_score_threshold."""
-
-    def test_game_ends_when_player_reaches_threshold_in_west(self):
-        """West-1: one player at 30000 → game ends."""
+    def test_west_round_end__when_player_reaches_threshold__should_end_game(self):
         gs = _west_game_state(unique_dealers=9, player_scores=[30000, 25000, 22000, 23000])
         assert check_game_end(gs) is True
 
-    def test_game_continues_in_west_without_threshold(self):
-        """West-1: no player at threshold → game continues."""
+    def test_west_round_end__when_no_player_reaches_threshold__should_continue_game(self):
         gs = _west_game_state(unique_dealers=9, player_scores=[29000, 25000, 23000, 23000])
         assert check_game_end(gs) is False
 
-    def test_game_ends_mid_west_when_threshold_reached(self):
-        """West-3: player reaches threshold → game ends immediately."""
+    def test_west_round_end__when_threshold_reached_mid_west__should_end_game(self):
         gs = _west_game_state(unique_dealers=11, player_scores=[35000, 20000, 22000, 23000])
         assert check_game_end(gs) is True
 
-    def test_custom_winning_score_threshold(self):
-        """Custom threshold of 40000: player at 35000 does not trigger game end."""
+    def test_west_round_end__when_custom_threshold_not_reached__should_continue_game(self):
         gs = _west_game_state(
             unique_dealers=9,
             player_scores=[35000, 20000, 22000, 23000],
@@ -102,8 +91,7 @@ class TestWestRoundEndCondition:
         )
         assert check_game_end(gs) is False
 
-    def test_custom_threshold_reached(self):
-        """Custom threshold of 40000: player at 40000 triggers game end."""
+    def test_west_round_end__when_custom_threshold_reached__should_end_game(self):
         gs = _west_game_state(
             unique_dealers=9,
             player_scores=[40000, 15000, 22000, 23000],
@@ -111,8 +99,7 @@ class TestWestRoundEndCondition:
         )
         assert check_game_end(gs) is True
 
-    def test_threshold_not_checked_during_primary_wind(self):
-        """During South round, having threshold score does not end game."""
+    def test_west_round_end__when_still_in_primary_wind__should_ignore_threshold(self):
         scores = [35000, 20000, 22000, 23000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
         rs = MahjongRoundState(players=players, round_wind=1)
@@ -127,10 +114,7 @@ class TestWestRoundEndCondition:
 
 
 class TestWestRoundRenchanOverride:
-    """Renchan applies in West but game ends if any player has threshold."""
-
-    def test_dealer_wins_with_threshold_game_ends(self):
-        """Dealer wins in West-1 and a player has threshold → game ends."""
+    def test_west_renchan__when_dealer_wins_with_threshold_reached__should_end_game(self):
         gs = _west_game_state(
             unique_dealers=9,
             dealer_seat=0,
@@ -142,8 +126,7 @@ class TestWestRoundRenchanOverride:
         assert new_gs.round_state.dealer_seat == 0  # dealer stays
         assert check_game_end(new_gs) is True  # but game ends due to threshold
 
-    def test_dealer_wins_without_threshold_continues(self):
-        """Dealer wins in West-1 but no player has threshold → game continues."""
+    def test_west_renchan__when_dealer_wins_without_threshold__should_continue_game(self):
         gs = _west_game_state(
             unique_dealers=9,
             dealer_seat=0,
@@ -154,8 +137,7 @@ class TestWestRoundRenchanOverride:
         assert new_gs.round_state.dealer_seat == 0
         assert check_game_end(new_gs) is False  # game continues
 
-    def test_dealer_tenpai_draw_with_threshold_game_ends(self):
-        """Dealer tenpai at exhaustive draw in West, threshold reached → game ends."""
+    def test_west_renchan__when_dealer_tenpai_draw_with_threshold_reached__should_end_game(self):
         gs = _west_game_state(
             unique_dealers=10,
             dealer_seat=1,
@@ -166,8 +148,7 @@ class TestWestRoundRenchanOverride:
         assert new_gs.round_state.dealer_seat == 1  # dealer stays (tenpai renchan)
         assert check_game_end(new_gs) is True  # game ends due to threshold
 
-    def test_dealer_tenpai_draw_without_threshold_continues(self):
-        """Dealer tenpai at exhaustive draw in West, no threshold → continues."""
+    def test_west_renchan__when_dealer_tenpai_draw_without_threshold__should_continue_game(self):
         gs = _west_game_state(
             unique_dealers=10,
             dealer_seat=1,
@@ -185,46 +166,38 @@ class TestWestRoundRenchanOverride:
 
 
 class TestWestRoundRotation:
-    """Rotation through West-1 to West-4; game ends after West-4 rotation."""
-
-    def test_wind_is_west_for_unique_dealers_9_to_12(self):
-        """unique_dealers 9-12 all map to wind 2 (West)."""
+    def test_west_rotation__when_unique_dealers_9_to_12__should_use_west_wind(self):
         for ud in range(9, 13):
             assert _get_wind_for_unique_dealers(ud) == 2
 
-    def test_west_1_non_dealer_win_advances_to_west_2(self):
-        """Non-dealer win at West-1 rotates to West-2."""
+    def test_west_rotation__when_non_dealer_wins_west_1__should_advance_to_west_2(self):
         gs = _west_game_state(unique_dealers=9, dealer_seat=0, player_scores=[25000, 25000, 25000, 25000])
         new_gs = process_round_end(gs, _tsumo(winner_seat=1))
         assert new_gs.unique_dealers == 10
         assert new_gs.round_state.dealer_seat == 1
         assert new_gs.round_state.round_wind == 2  # still West
 
-    def test_west_4_non_dealer_win_ends_game(self):
-        """Non-dealer win at West-4 causes unique_dealers to reach 13 → game ends."""
+    def test_west_rotation__when_non_dealer_wins_west_4__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[25000, 25000, 25000, 25000])
         new_gs = process_round_end(gs, _tsumo(winner_seat=1))
         assert new_gs.unique_dealers == 13
         assert check_game_end(new_gs) is True
 
-    def test_west_4_dealer_noten_draw_ends_game(self):
-        """Exhaustive draw at West-4 with dealer noten → rotation → game ends."""
+    def test_west_rotation__when_dealer_noten_draw_in_west_4__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[25000, 25000, 25000, 25000])
         result = _exhaustive_draw(tempai_seats=[0], noten_seats=[1, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.unique_dealers == 13
         assert check_game_end(new_gs) is True
 
-    def test_west_4_renchan_continues_if_no_threshold(self):
-        """Dealer wins at West-4 with no threshold reached → renchan, game continues."""
+    def test_west_rotation__when_dealer_wins_west_4_without_threshold__should_continue_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[29000, 24000, 24000, 23000])
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan, not incremented
         assert new_gs.round_state.dealer_seat == 3
         assert check_game_end(new_gs) is False  # 12 > 12 is False
 
-    def test_west_4_renchan_with_threshold_ends_game(self):
-        """Dealer wins at West-4 and a player has threshold → game ends despite renchan."""
+    def test_west_rotation__when_dealer_wins_west_4_with_threshold__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[30000, 23000, 24000, 23000])
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan
@@ -237,9 +210,7 @@ class TestWestRoundRotation:
 
 
 class TestTonpusenSuddenDeath:
-    """Tonpusen extends into South round (sudden death) instead of West."""
-
-    def test_tonpusen_south_round_continues_without_threshold(self):
+    def test_tonpusen_sudden_death__when_south_without_threshold__should_continue_game(self):
         scores = [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
         rs = MahjongRoundState(players=players, round_wind=1)
@@ -247,7 +218,7 @@ class TestTonpusenSuddenDeath:
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
         assert check_game_end(gs) is False
 
-    def test_tonpusen_south_round_ends_with_threshold(self):
+    def test_tonpusen_sudden_death__when_south_with_threshold__should_end_game(self):
         scores = [31000, 24000, 22000, 23000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
         rs = MahjongRoundState(players=players, round_wind=1)
@@ -255,8 +226,7 @@ class TestTonpusenSuddenDeath:
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
         assert check_game_end(gs) is True
 
-    def test_tonpusen_south_4_ends_regardless(self):
-        """After South-4 in tonpusen, game ends even without threshold."""
+    def test_tonpusen_sudden_death__when_past_south_4__should_end_game(self):
         scores = [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
         rs = MahjongRoundState(players=players, round_wind=1)

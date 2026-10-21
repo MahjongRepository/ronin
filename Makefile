@@ -2,6 +2,8 @@ export PATH := $(HOME)/.bun/bin:$(PATH)
 
 BE_RUN := uv run --project backend
 
+DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
+
 .PHONY: test run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
 
 test:
@@ -11,10 +13,12 @@ run-local-server:
 	@bash ./bin/run-local-server.sh
 
 lint:
+	cd backend && uv run docformatter --check --diff $(DOCFORMATTER_PATHS)
 	cd backend && uv run ruff format --check
 	cd backend && uv run ruff check
 
 format:
+	cd backend && (uv run docformatter --in-place $(DOCFORMATTER_PATHS) ; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 3 ])
 	cd backend && uv run ruff check --fix
 	cd backend && uv run ruff format
 

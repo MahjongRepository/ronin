@@ -1,5 +1,3 @@
-"""Authentication and authorization utilities shared between lobby and game services."""
-
 from shared.auth.game_ticket import (
     TICKET_TTL_SECONDS,
     GameTicket,

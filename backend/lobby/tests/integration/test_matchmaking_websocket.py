@@ -1,5 +1,3 @@
-"""Integration tests for matchmaking WebSocket handler."""
-
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,12 +15,13 @@ from shared.auth.settings import AuthSettings
 
 def _make_app(tmp_path, **settings_kwargs):
     config_file = tmp_path / "servers.yaml"
-    config_file.write_text("""
+    servers_yaml = """
 servers:
   - name: "test-server"
     url: "http://localhost:8711"
     client_url: "http://localhost:8711"
-""")
+"""
+    config_file.write_text(servers_yaml)
     static_dir = tmp_path / "public"
     (static_dir / "styles").mkdir(parents=True)
     (static_dir / "styles" / "lobby.css").write_text("/* test */")
@@ -42,7 +41,6 @@ servers:
 
 
 def _make_mock_entry(user_id: str, username: str, connection_id: str) -> QueueEntry:
-    """Create a mock QueueEntry with a fake websocket for testing."""
     ws = MagicMock()
     ws.client_state = WebSocketState.CONNECTED
     ws.send_json = AsyncMock()
@@ -68,28 +66,28 @@ class TestMatchmakingWebSocket:
         register_with_csrf(c, "player1")
         return c
 
-    def test_connect_and_join_queue(self, client):
+    def test_matchmaking_websocket__when_authenticated_client_connects__should_send_queue_joined(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
             msg = ws.receive_json()
             assert msg["type"] == "queue_joined"
             assert msg["queue_size"] == 1
             assert msg["position"] == 1
 
-    def test_ping_pong(self, client):
+    def test_matchmaking_websocket__when_ping_sent__should_reply_pong(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
             ws.receive_json()  # queue_joined
             ws.send_text(json.dumps({"type": "ping"}))
             msg = ws.receive_json()
             assert msg["type"] == "pong"
 
-    def test_invalid_message(self, client):
+    def test_matchmaking_websocket__when_message_not_json__should_send_error(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
             ws.receive_json()  # queue_joined
             ws.send_text("not json")
             msg = ws.receive_json()
             assert msg["type"] == "error"
 
-    def test_unknown_message_type_rejected(self, client):
+    def test_matchmaking_websocket__when_message_type_unknown__should_send_error(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
             ws.receive_json()  # queue_joined
             ws.send_text(json.dumps({"type": "unknown"}))
@@ -97,7 +95,7 @@ class TestMatchmakingWebSocket:
             assert msg["type"] == "error"
             assert msg["message"] == "Invalid message format"
 
-    def test_oversized_message_rejected(self, client):
+    def test_matchmaking_websocket__when_message_oversized__should_send_error(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
             ws.receive_json()  # queue_joined
             big = json.dumps({"type": "ping", "padding": "x" * 5000})
@@ -106,13 +104,12 @@ class TestMatchmakingWebSocket:
             assert msg["type"] == "error"
             assert "too large" in msg["message"].lower()
 
-    def test_disconnect_removes_from_queue(self, app, client):
+    def test_matchmaking_websocket__when_client_disconnects__should_remove_from_queue(self, app, client):
         with client.websocket_connect("/ws/matchmaking"):
             assert app.state.matchmaking_manager.queue_size == 1
         assert app.state.matchmaking_manager.queue_size == 0
 
-    def test_already_in_queue_rejected(self, app, client):
-        """Second matchmaking connection from same user gets already_in_queue error."""
+    def test_matchmaking_websocket__when_already_in_queue__should_send_error(self, app, client):
         with (
             patch.object(
                 app.state.matchmaking_manager,
@@ -125,7 +122,7 @@ class TestMatchmakingWebSocket:
             assert msg["type"] == "error"
             assert msg["message"] == "already_in_queue"
 
-    def test_already_in_room_rejected(self, app, client):
+    def test_matchmaking_websocket__when_already_in_room__should_send_error(self, app, client):
         room = app.state.room_manager.create_room("test-room")
         # Join the room first
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_room:
@@ -145,7 +142,7 @@ class TestMatchmakingUnauthenticated:
         yield c
         app.state.db.close()
 
-    def test_unauthenticated_ws_rejected(self, unauthenticated_client):
+    def test_matchmaking_websocket__when_unauthenticated__should_reject_connection(self, unauthenticated_client):
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
             unauthenticated_client.websocket_connect("/ws/matchmaking") as ws,
@@ -166,7 +163,7 @@ class TestMatchmakingOriginCheck:
         register_with_csrf(c, "player1")
         return c
 
-    def test_allowed_origin_connects(self, client_with_origin):
+    def test_matchmaking_websocket__when_origin_allowed__should_connect(self, client_with_origin):
         with client_with_origin.websocket_connect(
             "/ws/matchmaking",
             headers={"origin": "http://localhost:3000"},
@@ -174,7 +171,7 @@ class TestMatchmakingOriginCheck:
             msg = ws.receive_json()
             assert msg["type"] == "queue_joined"
 
-    def test_forbidden_origin_rejected(self, client_with_origin):
+    def test_matchmaking_websocket__when_origin_forbidden__should_reject_connection(self, client_with_origin):
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
             client_with_origin.websocket_connect(
@@ -186,13 +183,6 @@ class TestMatchmakingOriginCheck:
 
 
 class TestMatchmakingGameTransition:
-    """Tests for matchmaking triggering game creation when 4 players match.
-
-    Pre-populates the queue with 3 mock entries, then connects the 4th player
-    via a real WebSocket. This avoids threading issues from multiple concurrent
-    TestClient WebSocket connections.
-    """
-
     @pytest.fixture
     def app(self, tmp_path):
         app = _make_app(tmp_path)
@@ -209,8 +199,7 @@ class TestMatchmakingGameTransition:
         for server in app.state.registry._servers:
             server.healthy = True
 
-    def _prefill_queue(self, app, count=3):
-        """Add mock players to the queue so the next real connection triggers a match."""
+    def _queue_mock_players_without_websockets(self, app, count=3):
         mgr = app.state.matchmaking_manager
         entries = []
         for i in range(count):
@@ -219,10 +208,9 @@ class TestMatchmakingGameTransition:
             entries.append(entry)
         return entries
 
-    def test_fourth_player_triggers_game_starting(self, app, client):
-        """When 4th player connects, they receive game_starting and mock players get notified."""
+    def test_matchmaking_websocket__when_fourth_player_joins__should_send_game_starting_to_all(self, app, client):
         self._set_servers_healthy(app)
-        mock_entries = self._prefill_queue(app, 3)
+        mock_entries = self._queue_mock_players_without_websockets(app, 3)
 
         mock_response = AsyncMock(spec=httpx.Response)
         mock_response.status_code = 201
@@ -256,10 +244,9 @@ class TestMatchmakingGameTransition:
         # Queue should be empty
         assert app.state.matchmaking_manager.queue_size == 0
 
-    def test_game_server_failure_requeues_players(self, app, client):
-        """When game server fails, matched players are re-queued."""
+    def test_matchmaking_websocket__when_game_server_unreachable__should_requeue_players(self, app, client):
         self._set_servers_healthy(app)
-        self._prefill_queue(app, 3)
+        self._queue_mock_players_without_websockets(app, 3)
 
         with (
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
@@ -281,8 +268,9 @@ class TestMatchmakingGameTransition:
         # 3 mock players re-queued; the real client disconnected and was cleaned up
         assert app.state.matchmaking_manager.queue_size == 3
 
-    def test_disconnected_player_requeues_remaining(self, app, client):
-        """When a matched player disconnected before game creation, remaining are re-queued."""
+    def test_matchmaking_websocket__when_queued_player_disconnected__should_requeue_only_connected_players(
+        self, app, client
+    ):
         self._set_servers_healthy(app)
         mgr = app.state.matchmaking_manager
 

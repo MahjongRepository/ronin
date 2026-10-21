@@ -20,8 +20,6 @@ if TYPE_CHECKING:
 
 
 class MockResultEvent(GameEvent):
-    """Mock event for action results in tests."""
-
     player: str
     action: GameAction | str
     input: dict[str, Any]
@@ -29,8 +27,6 @@ class MockResultEvent(GameEvent):
 
 
 class _MockPlayer:
-    """Minimal player stub with seat and name."""
-
     __slots__ = ("name", "seat")
 
     def __init__(self, seat: int, name: str) -> None:
@@ -39,8 +35,6 @@ class _MockPlayer:
 
 
 class _MockSettings:
-    """Minimal settings stub exposing game_type."""
-
     __slots__ = ("game_type",)
 
     def __init__(self, game_type: str = GameType.HANCHAN) -> None:
@@ -48,8 +42,6 @@ class _MockSettings:
 
 
 class _MockRoundState:
-    """Minimal round state stub with players list."""
-
     __slots__ = ("players",)
 
     def __init__(self, players: list[_MockPlayer] | None = None) -> None:
@@ -57,8 +49,6 @@ class _MockRoundState:
 
 
 class _MockGameState:
-    """Minimal game state stub for replay collection and persistence tests."""
-
     __slots__ = ("rng_version", "round_number", "round_state", "settings")
 
     def __init__(
@@ -75,11 +65,6 @@ class _MockGameState:
 
 
 class MockGameService(GameService):
-    """Mock game service for testing.
-
-    Simply echoes back actions as events.
-    """
-
     def __init__(self) -> None:
         self._player_seats: dict[str, dict[str, int]] = {}  # game_id -> {player_name -> seat}
         self._seeds: dict[str, str] = {}  # game_id -> seed
@@ -87,7 +72,6 @@ class MockGameService(GameService):
         self._game_types: dict[str, str] = {}  # game_id -> game_type string
 
     def get_player_seat(self, game_id: str, player_name: str) -> int | None:
-        """Get the seat number for a player by name."""
         game_seats = self._player_seats.get(game_id)
         if game_seats is None:
             return None
@@ -170,11 +154,9 @@ class MockGameService(GameService):
         ]
 
     def get_game_seed(self, game_id: str) -> str | None:
-        """Return the seed for a game, or None if game doesn't exist."""
         return self._seeds.get(game_id)
 
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
-        """Return a mock game state, or None if game doesn't exist."""
         if game_id not in self._seeds:
             return None
         all_names = self._all_player_names.get(game_id, [])

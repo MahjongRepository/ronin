@@ -8,7 +8,7 @@ async def _noop() -> None:
 
 
 class TestTurnTimerTurnTimer:
-    async def test_turn_timer_callback_fires_on_timeout(self):
+    async def test_turn_timer__when_bank_exhausted__should_fire_callback(self):
         config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05)
         timer = TurnTimer(config)
         callback_called = asyncio.Event()
@@ -20,7 +20,7 @@ class TestTurnTimerTurnTimer:
         await asyncio.wait_for(callback_called.wait(), timeout=1.0)
         assert callback_called.is_set()
 
-    async def test_stop_deducts_elapsed_time(self):
+    async def test_turn_timer__when_stopped__should_deduct_elapsed_time_from_bank(self):
         config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=10.0)
         timer = TurnTimer(config)
 
@@ -32,7 +32,7 @@ class TestTurnTimerTurnTimer:
         assert timer._bank_seconds < 10.0
         assert timer._bank_seconds > 9.0
 
-    async def test_stop_cancels_pending_timer(self):
+    async def test_turn_timer__when_stopped__should_not_fire_callback(self):
         timer = TurnTimer()
         callback_called = False
 
@@ -48,7 +48,7 @@ class TestTurnTimerTurnTimer:
 
 
 class TestTurnTimerMeldTimer:
-    async def test_start_meld_timer_uses_fixed_timeout(self):
+    async def test_meld_timer__when_started__should_fire_after_fixed_timeout(self):
         config = TimerConfig(meld_decision_seconds=0.05)
         timer = TurnTimer(config)
         callback_called = asyncio.Event()
@@ -60,7 +60,7 @@ class TestTurnTimerMeldTimer:
         await asyncio.wait_for(callback_called.wait(), timeout=1.0)
         assert callback_called.is_set()
 
-    async def test_cancel_does_not_deduct_bank_time(self):
+    async def test_meld_timer__when_cancelled__should_keep_bank_unchanged(self):
         config = TimerConfig(initial_bank_seconds=10.0)
         timer = TurnTimer(config)
 
@@ -73,7 +73,7 @@ class TestTurnTimerMeldTimer:
 
 
 class TestTurnTimerBankEdgeCases:
-    async def test_bank_does_not_go_below_zero(self):
+    async def test_turn_timer__when_running_past_bank__should_clamp_bank_at_zero(self):
         config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05)
         timer = TurnTimer(config)
 
@@ -82,7 +82,7 @@ class TestTurnTimerBankEdgeCases:
         timer.stop()
         assert timer._bank_seconds == 0.0
 
-    async def test_starting_new_timer_cancels_previous(self):
+    async def test_turn_timer__when_new_timer_started__should_cancel_previous_callback(self):
         timer = TurnTimer()
         first_called = False
         second_called = False
@@ -104,8 +104,7 @@ class TestTurnTimerBankEdgeCases:
 
 
 class TestTimerCallbackException:
-    async def test_timer_callback_exception_is_caught(self):
-        """Timer catches exceptions from callback without re-raising."""
+    async def test_turn_timer__when_callback_raises__should_complete_without_propagating(self):
         timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.01))
 
         async def failing_callback():
@@ -120,8 +119,7 @@ class TestTimerCallbackException:
 
 
 class TestBaseTimeBehavior:
-    async def test_acting_within_base_time_does_not_drain_bank(self):
-        """Player who acts within base time keeps their full bank."""
+    async def test_turn_timer__when_acting_within_base_time__should_keep_bank(self):
         config = TimerConfig(base_turn_seconds=1.0, initial_bank_seconds=10.0)
         timer = TurnTimer(config)
         timer.start_turn_timer(_noop)
@@ -129,8 +127,7 @@ class TestBaseTimeBehavior:
         timer.stop()
         assert timer.bank_seconds == 10.0
 
-    async def test_acting_after_base_time_drains_only_excess(self):
-        """Bank is only charged for time exceeding base time."""
+    async def test_turn_timer__when_acting_after_base_time__should_drain_only_excess(self):
         config = TimerConfig(base_turn_seconds=0.1, initial_bank_seconds=10.0)
         timer = TurnTimer(config)
         timer.start_turn_timer(_noop)
@@ -139,8 +136,7 @@ class TestBaseTimeBehavior:
         # should drain ~0.1s from bank; wide tolerance for CI scheduling jitter
         assert 9.5 < timer.bank_seconds < 10.0
 
-    async def test_total_timer_is_base_plus_bank(self):
-        """Timer fires after base + bank seconds."""
+    async def test_turn_timer__when_base_and_bank_set__should_fire_after_their_sum(self):
         config = TimerConfig(base_turn_seconds=0.05, initial_bank_seconds=0.05)
         timer = TurnTimer(config)
         callback_called = asyncio.Event()
@@ -154,8 +150,7 @@ class TestBaseTimeBehavior:
 
 
 class TestBankCap:
-    def test_round_bonus_capped_at_max_bank(self):
-        """Bank doesn't grow beyond max_bank_seconds."""
+    def test_round_bonus__when_exceeding_max_bank__should_cap_at_max(self):
         config = TimerConfig(
             initial_bank_seconds=55.0,
             max_bank_seconds=60.0,
@@ -165,8 +160,7 @@ class TestBankCap:
         timer.add_round_bonus()
         assert timer.bank_seconds == 60.0  # capped, not 65
 
-    def test_round_bonus_below_cap(self):
-        """Bank grows normally when below the cap."""
+    def test_round_bonus__when_below_cap__should_add_full_bonus(self):
         config = TimerConfig(
             initial_bank_seconds=10.0,
             max_bank_seconds=60.0,

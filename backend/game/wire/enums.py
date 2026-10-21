@@ -1,15 +1,10 @@
-"""Wire encoding enums shared across messaging and replay layers.
-
-These IntEnum classes define stable integer assignments for the wire protocol.
-They are used by both game.messaging and game.replay, so they live in a shared
-module to avoid cross-layer imports.
-"""
-
 from enum import IntEnum
 
 
 class WireEventType(IntEnum):
-    """Integer wire encoding for EventType."""
+    """
+    Integer wire encoding for EventType.
+    """
 
     MELD = 0
     DRAW = 1
@@ -26,7 +21,9 @@ class WireEventType(IntEnum):
 
 
 class WireRoundResultType(IntEnum):
-    """Integer wire encoding for RoundResultType."""
+    """
+    Integer wire encoding for RoundResultType.
+    """
 
     TSUMO = 0
     RON = 1

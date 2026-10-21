@@ -1,23 +1,3 @@
-"""Compact integer encoding for draw and discard events.
-
-Packs draw/discard events into single integers to reduce wire and replay
-payload size. Used by both WebSocket broadcasts and replay collection.
-
-Draw encoding
--------------
-    d = seat * 136 + tile_id
-
-Valid range: 0..543 (4 seats x 136 tiles).
-
-Discard encoding
-----------------
-    flag = (is_riichi << 1) | is_tsumogiri
-    d = flag * 544 + seat * 136 + tile_id
-
-Bit 0 = tsumogiri, Bit 1 = riichi.
-Valid range: 0..2175 (4 flag combos x 4 seats x 136 tiles).
-"""
-
 from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import NUM_TILES
 
@@ -29,12 +9,15 @@ _MAX_DISCARD = _NUM_DISCARD_FLAGS * _SEAT_TILE_SPACE - 1  # 2175
 
 
 def _is_strict_int(value: object) -> bool:
-    """Return True if value is an int but not a bool."""
+    """
+    Return True if value is an int but not a bool.
+    """
     return isinstance(value, int) and not isinstance(value, bool)
 
 
 def encode_draw(seat: int, tile_id: int) -> int:
-    """Encode a draw event as a single integer.
+    """
+    Encode a draw event as a single integer.
 
     Args:
         seat: Player seat index (0-3).
@@ -59,7 +42,8 @@ def encode_draw(seat: int, tile_id: int) -> int:
 
 
 def decode_draw(d: int) -> tuple[int, int]:  # deadcode: ignore
-    """Decode a packed draw integer back to (seat, tile_id).
+    """
+    Decode a packed draw integer back to (seat, tile_id).
 
     Args:
         d: Packed draw integer (0..543).
@@ -78,7 +62,8 @@ def decode_draw(d: int) -> tuple[int, int]:  # deadcode: ignore
 
 
 def encode_discard(seat: int, tile_id: int, *, is_tsumogiri: bool, is_riichi: bool) -> int:
-    """Encode a discard event as a single integer.
+    """
+    Encode a discard event as a single integer.
 
     Args:
         seat: Player seat index (0-3).
@@ -106,7 +91,8 @@ def encode_discard(seat: int, tile_id: int, *, is_tsumogiri: bool, is_riichi: bo
 
 
 def decode_discard(d: int) -> tuple[int, int, bool, bool]:
-    """Decode a packed discard integer back to (seat, tile_id, is_tsumogiri, is_riichi).
+    """
+    Decode a packed discard integer back to (seat, tile_id, is_tsumogiri, is_riichi).
 
     Args:
         d: Packed discard integer (0..2175).

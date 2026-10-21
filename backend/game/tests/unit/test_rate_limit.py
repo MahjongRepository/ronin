@@ -1,26 +1,21 @@
-"""Tests for the token bucket rate limiter."""
-
 from unittest.mock import patch
 
 from game.server.rate_limit import TokenBucket
 
 
 class TestTokenBucket:
-    def test_burst_allows_up_to_capacity(self):
-        """Burst capacity messages are allowed immediately."""
+    def test_token_bucket__when_within_burst__should_allow_consumption(self):
         bucket = TokenBucket(rate=1.0, burst=5)
         results = [bucket.consume() for _ in range(5)]
         assert all(results)
 
-    def test_over_burst_rejected(self):
-        """Messages beyond burst capacity are rejected without refill time."""
+    def test_token_bucket__when_burst_exhausted__should_reject(self):
         bucket = TokenBucket(rate=1.0, burst=3)
         for _ in range(3):
             bucket.consume()
         assert bucket.consume() is False
 
-    def test_refill_restores_tokens(self):
-        """After time passes, tokens are refilled at the configured rate."""
+    def test_token_bucket__when_time_passes__should_refill_tokens(self):
         bucket = TokenBucket(rate=10.0, burst=5)
         # Drain all tokens
         for _ in range(5):
@@ -32,8 +27,7 @@ class TestTokenBucket:
             mock_time.monotonic.return_value = bucket._last_refill + 0.5
             assert bucket.consume() is True
 
-    def test_refill_capped_at_burst(self):
-        """Tokens never exceed burst capacity even after long idle periods."""
+    def test_token_bucket__when_long_idle__should_cap_refill_at_burst(self):
         bucket = TokenBucket(rate=10.0, burst=5)
 
         # Advance time by a large amount
@@ -44,8 +38,7 @@ class TestTokenBucket:
             assert all(results)
             assert bucket.consume() is False
 
-    def test_sustained_rate_enforcement(self):
-        """At steady state, only rate-per-second messages are allowed."""
+    def test_token_bucket__when_drained__should_allow_only_refilled_tokens(self):
         bucket = TokenBucket(rate=2.0, burst=2)
         # Drain burst
         bucket.consume()

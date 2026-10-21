@@ -1,5 +1,3 @@
-"""Abstract interface for played game persistence."""
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -12,7 +10,9 @@ if TYPE_CHECKING:
 
 
 class GameRepository(ABC):
-    """Abstract interface for played game persistence."""
+    """
+    Abstract interface for played game persistence.
+    """
 
     @abstractmethod
     async def create_game(self, game: PlayedGame) -> None: ...

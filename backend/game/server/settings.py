@@ -1,5 +1,3 @@
-"""Game server configuration via environment variables."""
-
 from typing import TYPE_CHECKING
 
 from pydantic import Field, field_validator

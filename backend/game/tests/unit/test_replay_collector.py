@@ -35,8 +35,6 @@ from game.session.replay_collector import ReplayCollector
 
 
 class FakeStorage:
-    """In-memory storage for testing replay persistence."""
-
     def __init__(self) -> None:
         self.saved: dict[str, str] = {}
 
@@ -45,14 +43,11 @@ class FakeStorage:
 
 
 class FailingStorage:
-    """Storage that always raises on save."""
-
     def save_replay(self, game_id: str, content: str) -> None:
         raise OSError("disk full")
 
 
 def _parse_saved_replay(content: str) -> list[dict]:
-    """Parse saved replay content, validate version tag, return event dicts."""
     events = [json.loads(line) for line in content.strip().split("\n") if line]
     assert len(events) >= 1
     assert events[0] == {"version": REPLAY_VERSION}
@@ -149,7 +144,6 @@ def _make_round_end_event() -> ServiceEvent:
 
 
 def _make_draw_event(seat: int = 0, tile_id: int = 1) -> ServiceEvent:
-    """Seat-target draw event (included for replay reconstruction)."""
     return ServiceEvent(
         event=EventType.DRAW,
         data=DrawEvent(seat=seat, tile_id=tile_id, target=f"seat_{seat}"),
@@ -188,7 +182,6 @@ def _make_furiten_event(seat: int = 0) -> ServiceEvent:
 
 
 def _make_round_started_event(seat: int = 0) -> ServiceEvent:
-    """Seat-target round started event with concealed tiles (included for replay)."""
     players = [PlayerView(seat=s, score=25000) for s in range(4)]
     return ServiceEvent(
         event=EventType.ROUND_STARTED,
@@ -210,14 +203,11 @@ def _make_round_started_event(seat: int = 0) -> ServiceEvent:
 
 
 def _make_all_round_started_events() -> list[ServiceEvent]:
-    """Create 4 seat-targeted round_started events (one per player)."""
     return [_make_round_started_event(seat) for seat in range(4)]
 
 
 class TestReplayCollectorLifecycle:
-    """Tests for the start -> collect -> save -> cleanup lifecycle."""
-
-    async def test_full_lifecycle(self):
+    async def test_replay_collector__when_events_collected_and_saved__should_store_one_record_per_event(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -236,7 +226,7 @@ class TestReplayCollectorLifecycle:
         record1 = lines[1]
         assert record1["t"] == EVENT_TYPE_INT[EventType.MELD]
 
-    def test_cleanup_discards_buffer(self):
+    def test_replay_collector__when_game_cleaned_up__should_discard_buffer_without_saving(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -246,7 +236,7 @@ class TestReplayCollectorLifecycle:
 
         assert "game1" not in storage.saved
 
-    async def test_save_removes_buffer(self):
+    async def test_replay_collector__when_saved_twice__should_save_only_once(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -259,7 +249,7 @@ class TestReplayCollectorLifecycle:
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
 
-    async def test_collect_before_start_is_ignored(self):
+    async def test_replay_collector__when_events_collected_before_start__should_ignore_them(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -271,9 +261,7 @@ class TestReplayCollectorLifecycle:
 
 
 class TestReplayCollectorFiltering:
-    """Tests for broadcast-only and excluded type filtering."""
-
-    async def test_broadcast_and_included_seat_target_events_collected(self):
+    async def test_replay_collector__when_broadcast_and_seat_target_events__should_collect_them(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -297,8 +285,7 @@ class TestReplayCollectorFiltering:
             EVENT_TYPE_INT[EventType.ROUND_STARTED],
         ]
 
-    async def test_excluded_types_are_filtered(self):
-        """CallPromptEvent, ErrorEvent, FuritenEvent are excluded."""
+    async def test_replay_collector__when_excluded_event_types__should_filter_them_out(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -318,8 +305,7 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
-    async def test_draw_event_available_actions_stripped(self):
-        """DrawEvent available_actions field is stripped from replay output."""
+    async def test_replay_collector__when_draw_has_available_actions__should_strip_them(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -343,8 +329,7 @@ class TestReplayCollectorFiltering:
         assert record["d"] == encode_draw(0, 42)
         assert "aa" not in record
 
-    async def test_broadcast_gameplay_events_all_collected(self):
-        """All broadcast gameplay event types are persisted."""
+    async def test_replay_collector__when_broadcast_gameplay_events__should_collect_all_in_order(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -377,8 +362,7 @@ class TestReplayCollectorFiltering:
         ]
         assert types == expected
 
-    async def test_unknown_target_type_is_excluded(self):
-        """Events with an unknown target type are silently excluded."""
+    async def test_replay_collector__when_event_target_unknown__should_exclude_it(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -398,10 +382,7 @@ class TestReplayCollectorFiltering:
 
 
 class TestReplayCollectorRoundStartedMerge:
-    """Tests for merging per-seat RoundStartedEvent views into a single record."""
-
-    async def test_four_round_started_events_merged_correctly(self):
-        """All 4 per-seat round_started events merge into a single record with tiles and scores."""
+    async def test_replay_collector__when_four_round_started_events__should_merge_into_one_record(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -426,8 +407,9 @@ class TestReplayCollectorRoundStartedMerge:
         assert "mt" not in record
         assert "s" not in record
 
-    async def test_single_round_started_event_produces_one_record(self):
-        """A single round_started event is wrapped as-is (no merge needed)."""
+    async def test_replay_collector__when_single_round_started_event__should_produce_one_record(
+        self,
+    ):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -446,8 +428,9 @@ class TestReplayCollectorRoundStartedMerge:
         # mt (my_tiles) is stripped from the merged output
         assert "mt" not in record
 
-    async def test_game_started_then_merged_round_started_then_draw(self):
-        """Realistic startup: game_started → merged round_started → draw."""
+    async def test_replay_collector__when_round_started_follows_game_started__should_merge_and_keep_order(
+        self,
+    ):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -471,8 +454,7 @@ class TestReplayCollectorRoundStartedMerge:
             EVENT_TYPE_INT[EventType.DRAW],
         ]
 
-    async def test_round_started_across_separate_collect_calls(self):
-        """Round_started events in separate collect_events calls produce separate records."""
+    async def test_replay_collector__when_round_started_events_in_separate_batches__should_merge_each_round(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -496,9 +478,7 @@ class TestReplayCollectorRoundStartedMerge:
 
 
 class TestReplayCollectorJsonLines:
-    """Tests for JSON lines format."""
-
-    async def test_discard_record_shape(self):
+    async def test_replay_collector__when_discard_collected__should_store_packed_discard(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -510,8 +490,7 @@ class TestReplayCollectorJsonLines:
         assert record["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert record["d"] == encode_discard(2, 42, is_tsumogiri=False, is_riichi=False)
 
-    async def test_riichi_discard_encoded_in_packed_integer(self):
-        """Riichi discards encode is_riichi in the packed integer."""
+    async def test_replay_collector__when_riichi_discard_collected__should_encode_riichi_in_packed_value(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -530,9 +509,7 @@ class TestReplayCollectorJsonLines:
 
 
 class TestReplayCollectorErrorHandling:
-    """Tests for error containment on storage failure."""
-
-    async def test_storage_failure_does_not_raise(self):
+    async def test_replay_collector__when_storage_fails__should_not_raise(self):
         collector = ReplayCollector(FailingStorage())
 
         collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
@@ -541,7 +518,7 @@ class TestReplayCollectorErrorHandling:
         # should not raise
         await collector.save_and_cleanup("game1")
 
-    async def test_storage_failure_cleans_up_buffer(self):
+    async def test_replay_collector__when_storage_fails__should_still_remove_buffer(self):
         collector = ReplayCollector(FailingStorage())
 
         collector.start_game("game1", seed="b" * 192, rng_version=RNG_VERSION)
@@ -553,9 +530,7 @@ class TestReplayCollectorErrorHandling:
 
 
 class TestReplayCollectorIsolation:
-    """Tests for concurrent game isolation."""
-
-    async def test_events_and_seeds_isolated_by_game_id(self):
+    async def test_replay_collector__when_two_games_collected__should_isolate_events_and_seeds(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -582,10 +557,7 @@ class TestReplayCollectorIsolation:
 
 
 class TestReplayCollectorSeedInReplay:
-    """Tests that the game seed is included in replay game_started events but never leaks to clients."""
-
-    async def test_game_started_replay_event_includes_seed(self):
-        """The replay game_started event contains the seed for deterministic replay."""
+    async def test_replay_collector__when_game_started_collected__should_include_seed_and_rng_version(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -598,8 +570,7 @@ class TestReplayCollectorSeedInReplay:
         assert record["sd"] == "d" * 192
         assert record["rv"] == RNG_VERSION
 
-    async def test_seed_only_in_game_started_event(self):
-        """Seed is injected only into game_started, not into other event types."""
+    async def test_replay_collector__when_multiple_events_collected__should_include_seed_only_in_game_started(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 
@@ -622,18 +593,14 @@ class TestReplayCollectorSeedInReplay:
         game_ended = lines[2]
         assert "sd" not in game_ended
 
-    def test_game_started_client_event_excludes_seed(self):
-        """The client-facing GameStartedEvent model has no seed field."""
+    def test_service_event_payload__when_game_started__should_exclude_seed(self):
         event = _make_game_started_event()
         payload = service_event_payload(event)
         assert "sd" not in payload
 
 
 class TestReplayCollectorSensitiveDataGuard:
-    """Tests that concealed data is only written when collection is active."""
-
-    async def test_concealed_events_not_persisted_after_cleanup(self):
-        """Concealed seat-target events are silently dropped after game cleanup."""
+    async def test_replay_collector__when_events_collected_after_cleanup__should_not_persist_them(self):
         storage = FakeStorage()
         collector = ReplayCollector(storage)
 

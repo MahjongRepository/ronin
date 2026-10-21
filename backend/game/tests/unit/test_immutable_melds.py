@@ -1,7 +1,3 @@
-"""
-Unit tests for immutable meld operations.
-"""
-
 import pytest
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
@@ -26,7 +22,6 @@ _PIN_TILES = tuple(TilesConverter.string_to_136_array(pin="123456789"))
 
 
 def _round_state(player0_tiles, *, player0_melds=(), current_player_seat=0, dead_wall=None):
-    """Build a 4-player round state with player 0 customised."""
     players = [
         create_player(seat=0, tiles=player0_tiles, melds=player0_melds),
         create_player(seat=1, tiles=TilesConverter.string_to_136_array(man="123", pin="123", sou="123456")),
@@ -47,8 +42,7 @@ def _round_state(player0_tiles, *, player0_melds=(), current_player_seat=0, dead
 
 
 class TestCallPonImmutable:
-    def test_call_pon_state_changes(self):
-        """Pon creates correct meld, opens hand, and sets kuikae restriction."""
+    def test_call_pon__should_add_pon_meld_and_kuikae_to_new_state(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], man_1m[1], *_PIN_TILES)
         round_state = _round_state(player0_tiles, current_player_seat=3)
@@ -70,8 +64,7 @@ class TestCallPonImmutable:
         assert 0 in new_state.players_with_open_hands
         assert tile_to_34(man_1m[0]) in new_state.players[0].kuikae_tiles
 
-    def test_call_pon_clears_ippatsu_for_all_players(self):
-        """Pon by any player clears ippatsu for all riichi players."""
+    def test_call_pon__should_clear_ippatsu_for_all_players(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], man_1m[1], *_PIN_TILES)
         round_state = _round_state(player0_tiles, current_player_seat=3)
@@ -89,7 +82,7 @@ class TestCallPonImmutable:
         for p in new_state.players:
             assert p.is_ippatsu is False
 
-    def test_call_pon_raises_on_insufficient_tiles(self):
+    def test_call_pon__when_insufficient_tiles__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], *_PIN_TILES)
         round_state = _round_state(player0_tiles, current_player_seat=3)
@@ -117,8 +110,7 @@ class TestCallChiImmutable:
         )
         return round_state, man_tiles
 
-    def test_call_chi_state_changes(self):
-        """Chi creates correct meld, removes tiles, sets current player, clears ippatsu, sets kuikae."""
+    def test_call_chi__should_add_chi_meld_and_kuikae_to_new_state(self):
         round_state, man_tiles = self._chi_round_state()
         assert round_state.players[3].is_ippatsu is True
 
@@ -147,8 +139,7 @@ class TestCallChiImmutable:
 
 
 class TestCallOpenKanImmutable:
-    def test_call_open_kan_state_changes(self):
-        """Open kan creates correct meld, removes tiles, draws from dead wall, sets rinshan and pending dora."""
+    def test_call_open_kan__should_add_kan_meld_and_rinshan_state(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], man_1m[1], man_1m[2], *_PIN_TILES)
         round_state = _round_state(player0_tiles, current_player_seat=3)
@@ -174,7 +165,7 @@ class TestCallOpenKanImmutable:
         assert new_state.players[0].is_rinshan is True
         assert new_state.wall.pending_dora_count == 1
 
-    def test_call_open_kan_raises_on_insufficient_tiles(self):
+    def test_call_open_kan__when_insufficient_tiles__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], man_1m[1], *_PIN_TILES)
         round_state = _round_state(player0_tiles, current_player_seat=3)
@@ -184,8 +175,7 @@ class TestCallOpenKanImmutable:
 
 
 class TestCallClosedKanImmutable:
-    def test_call_closed_kan_state_changes(self):
-        """Closed kan creates correct meld, removes tiles, keeps hand closed, reveals dora immediately, sets rinshan."""
+    def test_call_closed_kan__should_add_closed_kan_meld_and_reveal_dora(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (*man_1m, *_PIN_TILES)
         round_state = _round_state(player0_tiles)
@@ -205,8 +195,7 @@ class TestCallClosedKanImmutable:
         assert len(new_state.wall.dora_indicators) == original_dora_count + 1
         assert new_state.players[0].is_rinshan is True
 
-    def test_call_closed_kan_clears_ippatsu_for_all_players(self):
-        """Closed kan (ankan) keeps hand closed but still clears ippatsu for all riichi players."""
+    def test_call_closed_kan__should_clear_ippatsu_for_all_players(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (*man_1m, *_PIN_TILES)
         round_state = _round_state(player0_tiles)
@@ -221,7 +210,7 @@ class TestCallClosedKanImmutable:
         for p in new_state.players:
             assert p.is_ippatsu is False
 
-    def test_call_closed_kan_raises_on_insufficient_tiles(self):
+    def test_call_closed_kan__when_insufficient_tiles__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], man_1m[1], man_1m[2], *_PIN_TILES)
         round_state = _round_state(player0_tiles)
@@ -241,8 +230,7 @@ class TestCallAddedKanImmutable:
             from_who=3,
         )
 
-    def test_call_added_kan_state_changes(self):
-        """Added kan creates shouminkan, removes tile, replaces pon, sets pending dora and rinshan."""
+    def test_call_added_kan__should_upgrade_pon_to_shouminkan(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pon_meld = self._pon_meld(man_1m)
         player0_tiles = (man_1m[3], *_PIN_TILES)
@@ -263,7 +251,7 @@ class TestCallAddedKanImmutable:
         assert new_state.wall.pending_dora_count == 1
         assert new_state.players[0].is_rinshan is True
 
-    def test_call_added_kan_raises_on_no_pon(self):
+    def test_call_added_kan__when_no_pon__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], *_PIN_TILES)
         round_state = _round_state(player0_tiles)
@@ -271,7 +259,7 @@ class TestCallAddedKanImmutable:
         with pytest.raises(InvalidMeldError, match="no pon of tile type"):
             call_added_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
 
-    def test_call_added_kan_raises_on_tile_not_in_hand(self):
+    def test_call_added_kan__when_tile_not_in_hand__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pon_meld = self._pon_meld(man_1m)
         round_state = _round_state(_PIN_TILES, player0_melds=(pon_meld,))
@@ -281,8 +269,6 @@ class TestCallAddedKanImmutable:
 
 
 class TestResolveAddedKanTile:
-    """Tests for resolve_added_kan_tile validation and resolution."""
-
     @staticmethod
     def _pon_meld(tiles):
         return FrozenMeld(
@@ -294,14 +280,14 @@ class TestResolveAddedKanTile:
             from_who=3,
         )
 
-    def test_raises_when_no_matching_pon(self):
+    def test_resolve_added_kan_tile__when_no_matching_pon__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         round_state = _round_state((man_1m[0], *_PIN_TILES))
 
         with pytest.raises(InvalidMeldError, match="no pon of tile type"):
             resolve_added_kan_tile(round_state, 0, man_1m[0], GameSettings())
 
-    def test_raises_when_tile_not_in_hand_and_no_same_type(self):
+    def test_resolve_added_kan_tile__when_no_same_type_tile_in_hand__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pon_meld = self._pon_meld(man_1m)
         round_state = _round_state(_PIN_TILES, player0_melds=(pon_meld,))
@@ -309,8 +295,7 @@ class TestResolveAddedKanTile:
         with pytest.raises(InvalidMeldError, match="not in hand"):
             resolve_added_kan_tile(round_state, 0, man_1m[3], GameSettings())
 
-    def test_resolves_same_type_tile_when_exact_id_not_in_hand(self):
-        """When the exact tile_id is not in hand, resolve to a same-type copy."""
+    def test_resolve_added_kan_tile__when_exact_id_not_in_hand__should_use_same_type_tile(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pon_meld = self._pon_meld(man_1m)
         player0_tiles = (man_1m[3], *_PIN_TILES)
@@ -320,7 +305,7 @@ class TestResolveAddedKanTile:
 
         assert resolved == man_1m[3]
 
-    def test_returns_exact_tile_when_in_hand(self):
+    def test_resolve_added_kan_tile__when_exact_id_in_hand__should_return_it(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
         pon_meld = self._pon_meld(man_1m)
         player0_tiles = (man_1m[3], *_PIN_TILES)
@@ -332,21 +317,19 @@ class TestResolveAddedKanTile:
 
 
 class TestFrozenMeldValidation:
-    """Tests for FrozenMeld field validators."""
-
-    def test_rejects_invalid_tile_count(self):
+    def test_frozen_meld__when_tile_count_invalid__should_be_rejected(self):
         with pytest.raises(Exception, match="3-4 tiles"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1), opened=True, who=0)
         with pytest.raises(Exception, match="3-4 tiles"):
             FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3, 4), opened=False, who=0)
 
-    def test_rejects_invalid_who(self):
+    def test_frozen_meld__when_who_invalid__should_be_rejected(self):
         with pytest.raises(Exception, match="who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=-1)
         with pytest.raises(Exception, match="who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=4)
 
-    def test_rejects_invalid_from_who(self):
+    def test_frozen_meld__when_from_who_invalid__should_be_rejected(self):
         with pytest.raises(Exception, match="from_who"):
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=0, from_who=-1)
         with pytest.raises(Exception, match="from_who"):

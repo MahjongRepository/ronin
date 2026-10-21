@@ -1,9 +1,3 @@
-// Zod schemas for the six round end result variants (t=4).
-// Six variants based on `rt` field: tsumo (0), ron (1), double_ron (2),
-// exhaustive_draw (3), abortive_draw (4), nagashi_mangan (5).
-// Manual dispatch via parseRoundEnd() since Zod discriminatedUnion
-// doesn't work with .transform().
-
 import { z } from "zod";
 
 import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
@@ -218,6 +212,7 @@ export type RoundEndEvent =
     | AbortiveDrawRoundEnd
     | NagashiManganRoundEnd;
 
+/** Dispatch on `rt` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
 export function parseRoundEnd(raw: Record<string, unknown>): RoundEndEvent {
     const { rt } = raw;
     switch (rt) {

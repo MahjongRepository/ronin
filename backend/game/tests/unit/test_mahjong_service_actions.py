@@ -1,16 +1,3 @@
-"""
-Unit tests for MahjongGameService action handling.
-
-Covers service-level entry point guards (game not found, player not in game,
-unknown action), ValidationError wrapping in _dispatch_and_process,
-_process_action_result_internal branching (chankan), and
-_handle_chankan_prompt (player caller wait, AI player response).
-
-Tests for individual action handler validation (wrong turn, missing tile,
-invalid tile, no prompt) live in test_action_handlers_immutable.py and
-test_action_handlers_edge_cases.py.
-"""
-
 from unittest.mock import patch
 
 import pytest
@@ -40,7 +27,7 @@ class TestMahjongGameServiceErrors:
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_action_game_not_found(self, service):
+    async def test_handle_action__when_game_not_found__should_return_error_event(self, service):
         events = await service.handle_action("nonexistent", "Player", GameAction.DISCARD, {"tile_id": 0})
 
         assert any(e.event == EventType.ERROR for e in events)
@@ -48,7 +35,7 @@ class TestMahjongGameServiceErrors:
         assert isinstance(error_event.data, ErrorEvent)
         assert "not found" in error_event.data.message
 
-    async def test_handle_action_player_not_in_game(self, service):
+    async def test_handle_action__when_player_not_in_game__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Unknown", GameAction.DISCARD, {"tile_id": 0})
@@ -58,7 +45,7 @@ class TestMahjongGameServiceErrors:
         assert isinstance(error_event.data, ErrorEvent)
         assert "not in game" in error_event.data.message
 
-    async def test_handle_action_unknown_action(self, service):
+    async def test_handle_action__when_action_unknown__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", "unknown_action", {})
@@ -70,14 +57,11 @@ class TestMahjongGameServiceErrors:
 
 
 class TestMahjongGameServiceValidationError:
-    """Tests for ValidationError handling in _dispatch_and_process."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_dispatch_action_validation_error_on_invalid_data(self, service):
-        """Trigger ValidationError by sending data with wrong types to a data-requiring action."""
+    async def test_handle_action__when_action_data_invalid__should_return_validation_error(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", GameAction.DISCARD, {"tile_id": "not_an_int"})
@@ -92,8 +76,9 @@ class TestMahjongGameServiceValidationError:
         "action",
         [GameAction.DECLARE_RIICHI, GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN],
     )
-    async def test_dispatch_data_actions_validation_error(self, service, action):
-        """Exercise _dispatch_action dispatch branches with missing required fields."""
+    async def test_handle_action__when_data_action_has_empty_data__should_return_validation_error(
+        self, service, action
+    ):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", action, {})
@@ -104,14 +89,11 @@ class TestMahjongGameServiceValidationError:
 
 
 class TestMahjongGameServiceProcessActionResult:
-    """Tests for _process_action_result_internal branching."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_process_action_result_chankan_prompt(self, service):
-        """Verify _process_action_result_internal handles chankan prompts."""
+    async def test_process_action_result__when_chankan_prompt_for_ai_player__should_return_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -151,14 +133,11 @@ class TestMahjongGameServiceProcessActionResult:
 
 
 class TestProcessActionResultRoundEnd:
-    """Test that _process_action_result_internal returns early when round has ended."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_round_end_returns_events_immediately(self, service):
-        """Round-end result returns events without proceeding to post-discard or chankan."""
+    async def test_process_action_result__when_round_ended__should_return_round_end_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         scores = {i: service._games["game1"].round_state.players[i].score for i in range(4)}
@@ -183,14 +162,11 @@ class TestProcessActionResultRoundEnd:
 
 
 class TestMahjongGameServiceHandleChankanPrompt:
-    """Tests for _handle_chankan_prompt."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_chankan_prompt_returns_events_for_player_caller(self, service):
-        """Verify chankan returns events when player is a pending caller."""
+    async def test_handle_chankan_prompt__when_caller_is_human_player__should_return_events_unchanged(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -221,8 +197,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
         assert result == events
 
-    async def test_chankan_prompt_processes_ai_player_response(self, service):
-        """Verify chankan processes AI player responses when no player caller."""
+    async def test_handle_chankan_prompt__when_caller_is_ai_player__should_process_its_response(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
@@ -260,8 +235,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
         assert len(result) >= 1
 
-    async def test_chankan_prompt_no_pending_prompt(self, service):
-        """Returns events immediately when no pending prompt."""
+    async def test_handle_chankan_prompt__when_no_pending_prompt__should_return_events_unchanged(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         chankan_prompt = ServiceEvent(
@@ -283,8 +257,6 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
 
 class TestNoDataActionDispatchRouting:
-    """Tests that no-data actions (TSUMO, RON, KYUUSHU) route through _dispatch_action correctly."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
@@ -293,8 +265,7 @@ class TestNoDataActionDispatchRouting:
         "action",
         [GameAction.DECLARE_TSUMO, GameAction.CALL_KYUUSHU],
     )
-    async def test_turn_dependent_no_data_actions_return_not_your_turn(self, service, action):
-        """TSUMO/KYUUSHU return error when it's not the player's turn."""
+    async def test_handle_action__when_no_data_action_out_of_turn__should_return_error_event(self, service, action):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Player")
         other_seat = (player.seat + 1) % 4
@@ -305,8 +276,7 @@ class TestNoDataActionDispatchRouting:
         assert len(events) >= 1
         assert any(e.event == EventType.ERROR for e in events)
 
-    async def test_ron_returns_error_when_no_prompt(self, service):
-        """RON returns error when there is no pending call prompt."""
+    async def test_handle_action__when_ron_without_call_prompt__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", GameAction.CALL_RON, {})
@@ -316,10 +286,7 @@ class TestNoDataActionDispatchRouting:
 
 
 class TestDispatchActionDataNullFallback:
-    """Tests that _dispatch_action coerces data=None to empty dict."""
-
-    async def test_dispatch_data_action_with_none_data(self):
-        """data=None is coerced to empty dict, raising ValidationError on required field."""
+    async def test_dispatch_action__when_data_action_has_none_data__should_raise_validation_error(self):
         service = MahjongGameService()
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
@@ -329,14 +296,11 @@ class TestDispatchActionDataNullFallback:
 
 
 class TestChankanPromptResolvedPath:
-    """Tests the chankan resolved path where AI players resolve the prompt and round continues."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_chankan_resolved_reaches_round_end_check(self, service):
-        """After AI players resolve chankan prompt, _check_and_handle_round_end is called."""
+    async def test_handle_chankan_prompt__when_ai_responses_resolve_prompt__should_check_round_end(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["game1"]

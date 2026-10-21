@@ -1,5 +1,3 @@
-"""Vite manifest utilities and Jinja2 template factory."""
-
 from __future__ import annotations
 
 import json
@@ -11,12 +9,15 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 
 def create_templates() -> Jinja2Templates:
-    """Create Jinja2 template engine for lobby HTML templates."""
+    """
+    Create Jinja2 template engine for lobby HTML templates.
+    """
     return Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 def load_vite_manifest(game_assets_dir: str) -> dict[str, dict]:
-    """Load the Vite manifest mapping source paths to build outputs.
+    """
+    Load the Vite manifest mapping source paths to build outputs.
 
     Vite 6.x stores the manifest at <outDir>/.vite/manifest.json.
     """
@@ -35,10 +36,10 @@ def load_vite_manifest(game_assets_dir: str) -> dict[str, dict]:
 
 
 def _resolve_css_url(entry: dict, base_path: str) -> str | None:
-    """Extract CSS URL from a Vite manifest entry.
+    """
+    Extract CSS URL from a Vite manifest entry.
 
-    Vite extracts CSS into the `css` array when building from a JS entry point
-    that imports SCSS/CSS files.
+    Vite extracts CSS into the `css` array when building from a JS entry point that imports SCSS/CSS files.
     """
     css_files = entry.get("css", [])
     if css_files:
@@ -47,7 +48,8 @@ def _resolve_css_url(entry: dict, base_path: str) -> str | None:
 
 
 def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/game-assets") -> dict[str, str]:
-    """Extract asset URLs from Vite manifest entries.
+    """
+    Extract asset URLs from Vite manifest entries.
 
     Two entry points:
     - src/index.ts -> game_js + game_css

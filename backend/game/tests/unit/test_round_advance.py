@@ -1,11 +1,3 @@
-"""
-Unit tests for round advancement confirmation feature.
-
-Tests PendingRoundAdvance boundary conditions, confirm_round dispatch (single/multi-player,
-error paths), timeout auto-confirmation, AI player replacement during waiting, cleanup,
-and _handle_round_end error path.
-"""
-
 import pytest
 
 from game.logic.enums import GameAction, GameErrorCode, RoundPhase, TimeoutType
@@ -20,7 +12,6 @@ from game.tests.unit.helpers import _find_player, _update_player, _update_round_
 
 
 def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
-    """Create an exhaustive draw result for testing round end."""
     return ExhaustiveDrawResult(
         tempai_seats=[0],
         noten_seats=[1, 2, 3],
@@ -31,16 +22,14 @@ def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
 
 
 class TestPendingRoundAdvance:
-    """Tests for the PendingRoundAdvance dataclass."""
-
-    def test_all_confirmed_when_required_is_subset(self):
+    def test_pending_round_advance__when_required_seats_confirmed__should_be_all_confirmed(self):
         pending = PendingRoundAdvance(
             confirmed_seats={0, 1, 2, 3},
             required_seats={0, 1},
         )
         assert pending.all_confirmed is True
 
-    def test_not_all_confirmed_when_missing(self):
+    def test_pending_round_advance__when_required_seat_missing__should_not_be_all_confirmed(self):
         pending = PendingRoundAdvance(
             confirmed_seats={0, 2, 3},
             required_seats={0, 1},
@@ -49,14 +38,11 @@ class TestPendingRoundAdvance:
 
 
 class TestRoundAdvanceWaiting:
-    """Tests that round advancement waits for player confirmation."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_round_end_enters_waiting_state(self, service):
-        """After round end, a PendingRoundAdvance is created for player seats."""
+    async def test_round_advance__when_round_ends__should_wait_for_human_confirmation(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         result = _make_exhaustive_draw_result()
 
@@ -72,8 +58,7 @@ class TestRoundAdvanceWaiting:
         for seat in ai_player_controller.ai_player_seats:
             assert seat not in unconfirmed
 
-    async def test_all_ai_players_game_advances_immediately(self, service):
-        """When all seats are AI players, round advances immediately without waiting."""
+    async def test_round_advance__when_all_players_ai__should_start_next_round_immediately(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         service.replace_with_ai_player("game1", "Player")
@@ -87,14 +72,11 @@ class TestRoundAdvanceWaiting:
 
 
 class TestConfirmRound:
-    """Tests for the confirm_round action handling."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_confirm_round_advances_when_all_confirmed(self, service):
-        """When all players confirm, round advances."""
+    async def test_confirm_round__when_last_player_confirms__should_start_next_round(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = _make_exhaustive_draw_result()
@@ -106,8 +88,7 @@ class TestConfirmRound:
         assert len(round_started) == 4
         assert not service.is_round_advance_pending("game1")
 
-    async def test_partial_confirm_waits(self, service):
-        """When only some players confirm, still waiting."""
+    async def test_confirm_round__when_other_player_unconfirmed__should_keep_waiting(self, service):
         await service.start_game("game1", ["Alice", "Bob"])
         game_state = service._games["game1"]
         alice = _find_player(game_state.round_state, "Alice")
@@ -124,8 +105,7 @@ class TestConfirmRound:
         assert alice.seat not in unconfirmed
         assert bob.seat in unconfirmed
 
-    async def test_confirm_round_rejected_when_not_pending(self, service):
-        """confirm_round returns error when no round is pending."""
+    async def test_confirm_round__when_no_advance_pending__should_return_invalid_action_error(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service.handle_action("game1", "Player", GameAction.CONFIRM_ROUND, {})
@@ -135,8 +115,7 @@ class TestConfirmRound:
         assert isinstance(events[0].data, ErrorEvent)
         assert events[0].data.code == GameErrorCode.INVALID_ACTION
 
-    async def test_game_actions_rejected_during_finished_phase(self, service):
-        """Non-confirm actions are rejected when round phase is FINISHED."""
+    async def test_game_action__when_round_phase_finished__should_return_invalid_action_error(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -157,14 +136,11 @@ class TestConfirmRound:
 
 
 class TestRoundAdvanceTimeout:
-    """Tests for round advance timeout auto-confirmation."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_timeout_auto_confirms(self, service):
-        """ROUND_ADVANCE timeout auto-confirms the player."""
+    async def test_round_advance_timeout__when_player_times_out__should_auto_confirm_and_advance(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         result = _make_exhaustive_draw_result()
@@ -177,14 +153,11 @@ class TestRoundAdvanceTimeout:
 
 
 class TestRoundAdvanceAIPlayerReplacement:
-    """Tests for AI player replacement during round-advance waiting."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_disconnect_during_round_advance_auto_confirms(self, service):
-        """When player disconnects during waiting, AI player replacement auto-confirms."""
+    async def test_ai_replacement__when_one_player_disconnects_during_advance__should_confirm_their_seat(self, service):
         await service.start_game("game1", ["Alice", "Bob"])
         game_state = service._games["game1"]
         alice = _find_player(game_state.round_state, "Alice")
@@ -201,8 +174,7 @@ class TestRoundAdvanceAIPlayerReplacement:
         unconfirmed = service._round_advance.get_unconfirmed_seats("game1")
         assert alice.seat not in unconfirmed
 
-    async def test_last_player_disconnect_advances_round(self, service):
-        """When the last player disconnects, all confirm and round advances."""
+    async def test_ai_replacement__when_last_human_disconnects_during_advance__should_start_next_round(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -220,14 +192,11 @@ class TestRoundAdvanceAIPlayerReplacement:
 
 
 class TestRoundAdvanceCleanup:
-    """Tests for cleanup of round advance state."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_cleanup_removes_pending_advance(self, service):
-        """cleanup_game removes pending advance state."""
+    async def test_cleanup_game__when_advance_pending__should_clear_pending(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
@@ -237,8 +206,7 @@ class TestRoundAdvanceCleanup:
 
         assert not service.is_round_advance_pending("game1")
 
-    async def test_game_end_does_not_create_pending_advance(self, service):
-        """When game ends (not just round), no pending advance is created."""
+    async def test_round_end__when_game_ends__should_not_create_pending_advance(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         _update_player(service, "game1", 0, score=-1000)
@@ -259,13 +227,11 @@ class TestRoundAdvanceCleanup:
 
 
 class TestRoundAdvanceHandleRoundEndNone:
-    """Test _handle_round_end with None result still returns error."""
-
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_round_end_with_none_result(self, service):
+    async def test_handle_round_end__when_result_none__should_return_missing_round_result_error(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         events = await service._handle_round_end("game1", round_result=None)
@@ -276,37 +242,31 @@ class TestRoundAdvanceHandleRoundEndNone:
 
 
 class TestRoundAdvanceManager:
-    """Unit tests for RoundAdvanceManager in isolation."""
-
     @pytest.fixture
     def manager(self):
         return RoundAdvanceManager()
 
-    def test_setup_pending_with_players(self, manager):
-        """setup_pending creates pending state with player seats as required."""
+    def test_setup_pending__when_humans_present__should_wait_for_their_seats(self, manager):
         result = manager.setup_pending("g1", ai_player_seats={2, 3})
 
         assert result is False
         assert manager.is_pending("g1")
         assert manager.get_unconfirmed_seats("g1") == {0, 1}
 
-    def test_setup_pending_all_ai_players_returns_true(self, manager):
-        """setup_pending returns True when all seats are AI players (auto-advance)."""
+    def test_setup_pending__when_all_seats_ai__should_advance_without_pending_state(self, manager):
         result = manager.setup_pending("g1", ai_player_seats={0, 1, 2, 3})
 
         assert result is True
         # No stale pending state -- all AI players means immediate advance
         assert not manager.is_pending("g1")
 
-    def test_setup_pending_no_ai_players(self, manager):
-        """setup_pending with no AI players requires all 4 seats to confirm."""
+    def test_setup_pending__when_no_ai_seats__should_wait_for_all_seats(self, manager):
         result = manager.setup_pending("g1", ai_player_seats=set())
 
         assert result is False
         assert manager.get_unconfirmed_seats("g1") == {0, 1, 2, 3}
 
-    def test_confirm_seat_partial(self, manager):
-        """confirm_seat returns False when others still need to confirm."""
+    def test_confirm_seat__when_seats_remain__should_return_false(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
 
         result = manager.confirm_seat("g1", 0)
@@ -315,8 +275,7 @@ class TestRoundAdvanceManager:
         assert manager.is_pending("g1")
         assert manager.get_unconfirmed_seats("g1") == {1}
 
-    def test_confirm_seat_completes(self, manager):
-        """confirm_seat returns True when all required seats are confirmed."""
+    def test_confirm_seat__when_last_seat_confirms__should_complete_and_clear_pending(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
         manager.confirm_seat("g1", 0)
 
@@ -325,30 +284,26 @@ class TestRoundAdvanceManager:
         assert result is True
         assert not manager.is_pending("g1")
 
-    def test_confirm_seat_no_pending_returns_none(self, manager):
-        """confirm_seat returns None when no pending advance exists."""
+    def test_confirm_seat__when_no_pending_advance__should_return_none(self, manager):
         result = manager.confirm_seat("nonexistent", 0)
 
         assert result is None
 
-    def test_confirm_seat_idempotent(self, manager):
-        """Confirming the same seat twice does not break state."""
+    def test_confirm_seat__when_seat_confirmed_twice__should_count_once(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
         manager.confirm_seat("g1", 0)
         manager.confirm_seat("g1", 0)
 
         assert manager.get_unconfirmed_seats("g1") == {1}
 
-    def test_cleanup_game_removes_pending(self, manager):
-        """cleanup_game removes pending state for a game."""
+    def test_cleanup_game__should_remove_pending_advance(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
 
         manager.cleanup_game("g1")
 
         assert not manager.is_pending("g1")
 
-    def test_multiple_games_independent(self, manager):
-        """Multiple games have independent pending state."""
+    def test_round_advance_manager__when_multiple_games__should_track_each_independently(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
         manager.setup_pending("g2", ai_player_seats={1, 2, 3})
 
@@ -358,8 +313,7 @@ class TestRoundAdvanceManager:
         assert not manager.is_pending("g2")
         assert manager.get_unconfirmed_seats("g1") == {0, 1}
 
-    def test_confirm_seat_rejects_non_required_seat(self, manager):
-        """confirm_seat returns False for seats not in the required set (e.g. AI seats)."""
+    def test_confirm_seat__when_seat_not_required__should_ignore_it(self, manager):
         manager.setup_pending("g1", ai_player_seats={2, 3})
 
         result = manager.confirm_seat("g1", 2)

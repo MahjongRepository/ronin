@@ -1,10 +1,3 @@
-"""Integration tests for AuthenticationMiddleware + policy decorators.
-
-Tests the combined behavior of SessionOrApiKeyBackend, AuthenticationMiddleware,
-and route policy wrappers (protected_html, protected_api, public_route) against
-a minimal Starlette app.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -35,8 +28,6 @@ if TYPE_CHECKING:
 
 
 def _make_app(auth_service: MagicMock) -> Starlette:
-    """Build a minimal Starlette app with AuthenticationMiddleware + policy wrappers."""
-
     async def index(request: Request) -> PlainTextResponse:
         return PlainTextResponse(f"hello {request.user.username}")
 
@@ -97,7 +88,6 @@ def session_store() -> AuthSessionStore:
 
 @pytest.fixture
 def auth_service(session_store: AuthSessionStore) -> MagicMock:
-    """Mock auth service that delegates validate_session to a real session store."""
     svc = MagicMock()
     svc.validate_session = session_store.get_session
     svc.validate_api_key = AsyncMock(return_value=None)
@@ -110,19 +100,19 @@ def valid_session(session_store: AuthSessionStore) -> AuthSession:
 
 
 class TestPublicRoutesPassUnauthenticated:
-    def test_health_accessible_without_session(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_health_without_session__should_allow(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_login_page_accessible_without_session(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_login_page_without_session__should_allow(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/login")
         assert response.status_code == 200
         assert response.text == "login form"
 
-    def test_bot_auth_accessible_without_session(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_bot_auth_without_session__should_allow(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.post("/api/auth/bot", json={"api_key": "k"})
         assert response.status_code == 200
@@ -130,7 +120,9 @@ class TestPublicRoutesPassUnauthenticated:
 
 
 class TestProtectedHtmlRedirectsToLogin:
-    def test_unauthenticated_html_route_redirects_with_next(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_unauthenticated_html_route__should_redirect_to_login_with_next(
+        self, auth_service: MagicMock
+    ) -> None:
         client = TestClient(_make_app(auth_service), follow_redirects=False)
         response = client.get("/")
         assert response.status_code == 303
@@ -141,7 +133,7 @@ class TestProtectedHtmlRedirectsToLogin:
 
 
 class TestProtectedJsonReturns401:
-    def test_unauthenticated_rooms_returns_401_json(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_unauthenticated_rooms_api__should_return_401_json(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/rooms")
         assert response.status_code == 401
@@ -149,9 +141,9 @@ class TestProtectedJsonReturns401:
 
 
 class TestTrailingSlashReturns401:
-    """Trailing-slash API paths return 401 JSON instead of a 307 redirect."""
-
-    def test_rooms_trailing_slash_returns_401(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_rooms_with_trailing_slash_unauthenticated__should_return_401(
+        self, auth_service: MagicMock
+    ) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/rooms/")
         assert response.status_code == 401
@@ -159,7 +151,7 @@ class TestTrailingSlashReturns401:
 
 
 class TestValidSessionGrantsAccess:
-    def test_authenticated_html_route_succeeds(
+    def test_auth_policy__when_valid_session_on_html_route__should_allow(
         self,
         auth_service: MagicMock,
         valid_session: AuthSession,
@@ -170,7 +162,7 @@ class TestValidSessionGrantsAccess:
         assert response.status_code == 200
         assert response.text == "hello testuser"
 
-    def test_authenticated_api_route_succeeds(
+    def test_auth_policy__when_valid_session_on_api_route__should_allow(
         self,
         auth_service: MagicMock,
         valid_session: AuthSession,
@@ -183,9 +175,7 @@ class TestValidSessionGrantsAccess:
 
 
 class TestApiKeyGrantsAccess:
-    """Bot API key in X-API-Key header authenticates protected routes."""
-
-    def test_api_key_grants_access_to_protected_api(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_valid_api_key_on_protected_api__should_allow(self, auth_service: MagicMock) -> None:
         bot = _bot_player()
         auth_service.validate_api_key.return_value = bot
 
@@ -194,7 +184,7 @@ class TestApiKeyGrantsAccess:
         assert response.status_code == 200
         assert response.json() == {"rooms": []}
 
-    def test_api_key_grants_access_to_protected_html(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_valid_api_key_on_protected_html__should_allow(self, auth_service: MagicMock) -> None:
         bot = _bot_player()
         auth_service.validate_api_key.return_value = bot
 
@@ -203,13 +193,17 @@ class TestApiKeyGrantsAccess:
         assert response.status_code == 200
         assert response.text == "hello TestBot"
 
-    def test_invalid_api_key_returns_401_on_protected_api(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_invalid_api_key_on_protected_api__should_return_401(
+        self, auth_service: MagicMock
+    ) -> None:
         client = TestClient(_make_app(auth_service))
         response = client.get("/rooms", headers={"x-api-key": "bogus-key"})
         assert response.status_code == 401
         assert response.json() == {"error": "Authentication required"}
 
-    def test_invalid_api_key_redirects_on_protected_html(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_invalid_api_key_on_protected_html__should_redirect(
+        self, auth_service: MagicMock
+    ) -> None:
         client = TestClient(_make_app(auth_service), follow_redirects=False)
         response = client.get("/", headers={"x-api-key": "bogus-key"})
         assert response.status_code == 303
@@ -218,7 +212,7 @@ class TestApiKeyGrantsAccess:
 
 
 class TestInvalidCookieTreatedAsUnauthenticated:
-    def test_nonexistent_session_id_redirects(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_session_id_nonexistent__should_redirect(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service), follow_redirects=False)
         client.cookies.set("session_id", "nonexistent-session-id")
         response = client.get("/")
@@ -226,7 +220,7 @@ class TestInvalidCookieTreatedAsUnauthenticated:
         parsed = urlparse(response.headers["location"])
         assert parsed.path == "/login"
 
-    def test_invalid_cookie_on_api_returns_401(self, auth_service: MagicMock) -> None:
+    def test_auth_policy__when_invalid_cookie_on_api__should_return_401(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         client.cookies.set("session_id", "bogus-id")
         response = client.get("/rooms")
@@ -235,8 +229,7 @@ class TestInvalidCookieTreatedAsUnauthenticated:
 
 
 class TestWebSocketNonRegressive:
-    def test_websocket_connects_without_auth(self, auth_service: MagicMock) -> None:
-        """WebSocket connections pass through without triggering auth exceptions."""
+    def test_auth_policy__when_websocket_without_auth__should_connect(self, auth_service: MagicMock) -> None:
         client = TestClient(_make_app(auth_service))
         with client.websocket_connect("/ws") as ws:
             data = ws.receive_text()

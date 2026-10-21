@@ -1,5 +1,3 @@
-"""WebSocket handler for lobby room interactions."""
-
 from __future__ import annotations
 
 import json
@@ -32,7 +30,9 @@ logger = structlog.get_logger()
 
 
 class _RoomContext:
-    """Bundles per-connection state extracted from app.state."""
+    """
+    Bundles per-connection state extracted from app.state.
+    """
 
     __slots__ = (
         "auth_settings",
@@ -57,7 +57,9 @@ class _RoomContext:
 
 
 async def room_websocket(websocket: WebSocket) -> None:
-    """Handle a WebSocket connection for a lobby room."""
+    """
+    Handle a WebSocket connection for a lobby room.
+    """
     if not check_origin(websocket):
         await websocket.close(code=4003, reason="forbidden_origin")
         return
@@ -158,7 +160,9 @@ async def _handle_set_ready(
     ctx: _RoomContext,
     message: LobbySetReadyMessage,
 ) -> None:
-    """Handle a set_ready message — broadcast state change, never auto-start."""
+    """
+    Handle a set_ready message — broadcast state change, never auto-start.
+    """
     result = ctx.room_manager.set_ready(ctx.connection_id, ready=message.ready)
     if isinstance(result, str):
         await websocket.send_json({"type": "error", "message": result})
@@ -182,12 +186,12 @@ async def _handle_set_ready(
 
 
 async def _handle_start_game(websocket: WebSocket, ctx: _RoomContext) -> bool:
-    """Handle start_game — only the owner can trigger game transition.
+    """
+    Handle start_game — only the owner can trigger game transition.
 
-    Acquires join_lock only for the atomic start_game() call which
-    sets transitioning=True. The lock is released BEFORE the network
-    call in _transition_to_game(), so concurrent joins are rejected
-    quickly with "room_transitioning" instead of blocking on the lock.
+    Acquires join_lock only for the atomic start_game() call which sets transitioning=True. The lock is released BEFORE
+    the network call in _transition_to_game(), so concurrent joins are rejected quickly with "room_transitioning"
+    instead of blocking on the lock.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
@@ -205,7 +209,8 @@ async def _handle_start_game(websocket: WebSocket, ctx: _RoomContext) -> bool:
 
 
 async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
-    """Create a game on the game server and notify all players.
+    """
+    Create a game on the game server and notify all players.
 
     Return True when the game was created and connections were closed.
     """
@@ -294,7 +299,9 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
 
 
 async def _handle_chat(ctx: _RoomContext, message: LobbyChatMessage) -> None:
-    """Broadcast a chat message to the room."""
+    """
+    Broadcast a chat message to the room.
+    """
     await ctx.room_connections.broadcast(
         ctx.room_id,
         {"type": "chat", "player_name": ctx.username, "text": message.text},
@@ -302,17 +309,21 @@ async def _handle_chat(ctx: _RoomContext, message: LobbyChatMessage) -> None:
 
 
 async def _handle_leave(websocket: WebSocket, _ctx: _RoomContext) -> None:
-    """Handle a leave_room message. Closing triggers _cleanup_connection via the finally block."""
+    """
+    Handle a leave_room message.
+
+    Closing triggers _cleanup_connection via the finally block.
+    """
     await websocket.close()
 
 
 async def _cleanup_connection(ctx: _RoomContext) -> None:
-    """Clean up after a disconnected connection.
+    """
+    Clean up after a disconnected connection.
 
-    Acquires join_lock so that cleanup waits for any in-progress join to
-    finish (including room_connections registration). This prevents a race
-    where host transfer targets a joining player whose connection isn't
-    registered yet, causing the owner_changed message to be dropped.
+    Acquires join_lock so that cleanup waits for any in-progress join to finish (including room_connections
+    registration). This prevents a race where host transfer targets a joining player whose connection isn't registered
+    yet, causing the owner_changed message to be dropped.
     """
     username = ctx.username
     room = ctx.room_manager.get_room(ctx.room_id)

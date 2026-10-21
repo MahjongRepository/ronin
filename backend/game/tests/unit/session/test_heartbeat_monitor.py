@@ -9,18 +9,14 @@ from game.tests.mocks import MockConnection
 
 
 class TestHeartbeatMonitorRecordConnect:
-    """Tests for connection tracking."""
-
-    def test_record_connect_stores_timestamp(self):
+    def test_heartbeat_monitor__when_connect_recorded__should_store_last_ping(self):
         monitor = HeartbeatMonitor()
         monitor.record_connect("conn1")
         assert monitor._last_ping.get("conn1") is not None
 
 
 class TestHeartbeatMonitorRecordDisconnect:
-    """Tests for disconnect cleanup."""
-
-    def test_record_disconnect_removes_tracking(self):
+    def test_heartbeat_monitor__when_disconnect_recorded__should_remove_tracking(self):
         monitor = HeartbeatMonitor()
         monitor.record_connect("conn1")
         assert monitor._last_ping.get("conn1") is not None
@@ -30,9 +26,7 @@ class TestHeartbeatMonitorRecordDisconnect:
 
 
 class TestHeartbeatMonitorRecordPing:
-    """Tests for ping timestamp updates."""
-
-    def test_record_ping_updates_timestamp(self):
+    def test_heartbeat_monitor__when_ping_recorded__should_not_move_last_ping_backwards(self):
         monitor = HeartbeatMonitor()
         monitor.record_connect("conn1")
         initial = monitor._last_ping.get("conn1")
@@ -46,9 +40,7 @@ class TestHeartbeatMonitorRecordPing:
 
 
 class TestHeartbeatMonitorTaskManagement:
-    """Tests for game task management."""
-
-    async def test_start_for_game_creates_task(self):
+    async def test_heartbeat_monitor__when_started_for_game__should_create_task(self):
         monitor = HeartbeatMonitor()
 
         def get_game(_game_id):
@@ -61,8 +53,7 @@ class TestHeartbeatMonitorTaskManagement:
         # clean up
         await monitor.stop_for_game("game1")
 
-    async def test_start_for_game_cancels_existing_task(self):
-        """Starting a heartbeat for the same game cancels the previous task."""
+    async def test_heartbeat_monitor__when_started_twice_for_game__should_replace_and_cancel_first_task(self):
         monitor = HeartbeatMonitor()
 
         def get_game(_game_id):
@@ -84,7 +75,7 @@ class TestHeartbeatMonitorTaskManagement:
         # clean up
         await monitor.stop_for_game("game1")
 
-    async def test_stop_for_game_removes_task(self):
+    async def test_heartbeat_monitor__when_stopped_for_game__should_remove_task(self):
         monitor = HeartbeatMonitor()
 
         def get_game(_game_id):
@@ -98,10 +89,7 @@ class TestHeartbeatMonitorTaskManagement:
 
 
 class TestHeartbeatMonitorLoop:
-    """Tests for the heartbeat check loop."""
-
-    async def test_loop_disconnects_stale_connection(self):
-        """Stale connections are closed when past the heartbeat timeout."""
+    async def test_heartbeat_monitor__when_connection_stale__should_close_with_heartbeat_timeout(self):
         monitor = HeartbeatMonitor()
         conn = MockConnection()
         monitor.record_connect(conn.connection_id)
@@ -125,8 +113,7 @@ class TestHeartbeatMonitorLoop:
         assert conn._close_code == 1000
         assert conn._close_reason == "heartbeat_timeout"
 
-    async def test_loop_keeps_active_connection(self):
-        """Active connections are not disconnected."""
+    async def test_heartbeat_monitor__when_connection_fresh__should_keep_it_open(self):
         monitor = HeartbeatMonitor()
         conn = MockConnection()
         monitor.record_connect(conn.connection_id)
@@ -145,8 +132,7 @@ class TestHeartbeatMonitorLoop:
 
         assert not conn.is_closed
 
-    async def test_loop_stops_when_game_is_none(self):
-        """Loop exits when get_game returns None."""
+    async def test_heartbeat_monitor__when_game_missing__should_exit_loop_after_one_sleep(self):
         monitor = HeartbeatMonitor()
 
         def get_game(_game_id):
@@ -160,8 +146,7 @@ class TestHeartbeatMonitorLoop:
         # verify sleep was called (loop attempted one iteration)
         mock_sleep.assert_called_once()
 
-    async def test_loop_handles_connection_error_gracefully(self):
-        """Connection errors during close are suppressed."""
+    async def test_heartbeat_monitor__when_closing_stale_connection_fails__should_suppress_error(self):
         monitor = HeartbeatMonitor()
         conn = MockConnection()
         monitor.record_connect(conn.connection_id)
@@ -187,8 +172,7 @@ class TestHeartbeatMonitorLoop:
 
         # should not raise -- error is suppressed
 
-    async def test_loop_checks_multiple_players(self):
-        """Loop checks all players in the game."""
+    async def test_heartbeat_monitor__when_one_of_two_connections_stale__should_close_only_stale_one(self):
         monitor = HeartbeatMonitor()
         conn1 = MockConnection()
         conn2 = MockConnection()

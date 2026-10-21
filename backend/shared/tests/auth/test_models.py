@@ -1,5 +1,3 @@
-"""Tests for Player model validation."""
-
 from __future__ import annotations
 
 import pytest
@@ -9,7 +7,7 @@ from shared.auth.models import AccountType, Player
 
 
 class TestPlayerValidation:
-    def test_human_with_empty_password_hash_rejected(self):
+    def test_player__when_human_has_empty_password_hash__should_reject(self):
         with pytest.raises(ValidationError, match="password hash"):
             Player(
                 user_id="u1",
@@ -18,7 +16,7 @@ class TestPlayerValidation:
                 account_type=AccountType.HUMAN,
             )
 
-    def test_bot_without_api_key_hash_rejected(self):
+    def test_player__when_bot_has_no_api_key_hash__should_reject(self):
         with pytest.raises(ValidationError, match="api_key_hash"):
             Player(
                 user_id="b1",

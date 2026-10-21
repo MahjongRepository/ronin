@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""ralphex-dk.sh - run ralphex in a docker container
-
-usage: ralphex-dk.sh [ralphex-args]
-example: ralphex-dk.sh docs/plans/feature.md
-example: ralphex-dk.sh --serve docs/plans/feature.md
-example: ralphex-dk.sh --review
-example: ralphex-dk.sh -v /data:/mnt/data:ro docs/plans/feature.md
-example: ralphex-dk.sh --update         # pull latest docker image
-example: ralphex-dk.sh --update-script  # update this wrapper script
-"""
 
 import difflib
 import hashlib

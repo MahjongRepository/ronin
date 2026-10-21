@@ -1,5 +1,3 @@
-"""Abstract connection protocol for MessagePack binary communication."""
-
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -10,20 +8,24 @@ class ConnectionProtocol(ABC):
     """
     Abstract interface for a client connection.
 
-    This abstraction allows message handling logic to be tested
-    without real WebSocket connections. Uses MessagePack binary protocol.
+    This abstraction allows message handling logic to be tested without real WebSocket connections. Uses MessagePack
+    binary protocol.
     """
 
     @property
     @abstractmethod
     def connection_id(self) -> str:
-        """Unique identifier for this connection."""
+        """
+        Unique identifier for this connection.
+        """
         ...
 
     @property
     @abstractmethod
     def game_id(self) -> str:
-        """Game ID from the WebSocket URL path (e.g., /ws/{game_id})."""
+        """
+        Game ID from the WebSocket URL path (e.g., /ws/{game_id}).
+        """
         ...
 
     @abstractmethod

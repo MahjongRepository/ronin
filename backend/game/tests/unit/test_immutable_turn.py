@@ -1,15 +1,3 @@
-"""
-Unit tests for immutable turn processing edge cases.
-
-Covers:
-- emit_deferred_dora_events: pending dora reveal mechanics (single, none, multiple)
-
-Basic turn processing (draw, discard, ron, meld) and immutability contracts
-are covered by integration tests in test_game_flow.py and edge case tests
-in test_turn_edge_cases.py. Riichi validation and tsumo error paths are
-tested in test_turn_edge_cases.py and test_validation_gaps.py.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import RoundPhase
@@ -19,7 +7,6 @@ from game.tests.conftest import create_player, create_round_state
 
 
 def _default_round_state(pending_dora_count: int = 0):
-    """Create a round state with a standard wall and dead wall for dora tests."""
     wall = tuple(TilesConverter.string_to_136_array(man="1111222233334444"))
     dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
     all_tiles = TilesConverter.string_to_136_array(man="123456789", pin="111")
@@ -41,8 +28,7 @@ def _default_round_state(pending_dora_count: int = 0):
 
 
 class TestEmitDeferredDoraEventsImmutable:
-    def test_emit_deferred_dora_events_with_pending_dora(self):
-        """Pending dora should be revealed and emitted as events."""
+    def test_emit_deferred_dora_events__when_one_dora_pending__should_reveal_one_indicator(self):
         round_state = _default_round_state(pending_dora_count=1)
         initial_dora_count = len(round_state.wall.dora_indicators)
 
@@ -56,8 +42,7 @@ class TestEmitDeferredDoraEventsImmutable:
         assert len(round_state.wall.dora_indicators) == initial_dora_count
         assert round_state.wall.pending_dora_count == 1
 
-    def test_emit_deferred_dora_events_no_pending_dora(self):
-        """No events should be emitted when pending_dora_count is 0."""
+    def test_emit_deferred_dora_events__when_no_dora_pending__should_emit_nothing(self):
         round_state = _default_round_state(pending_dora_count=0)
 
         new_state, events = emit_deferred_dora_events(round_state)
@@ -65,8 +50,7 @@ class TestEmitDeferredDoraEventsImmutable:
         assert new_state.wall.dora_indicators == round_state.wall.dora_indicators
         assert len(events) == 0
 
-    def test_emit_deferred_dora_events_multiple_pending(self):
-        """Multiple pending dora should all be revealed."""
+    def test_emit_deferred_dora_events__when_two_dora_pending__should_reveal_two_indicators(self):
         round_state = _default_round_state(pending_dora_count=2)
         initial_dora_count = len(round_state.wall.dora_indicators)
 

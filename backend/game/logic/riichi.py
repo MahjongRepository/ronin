@@ -1,7 +1,3 @@
-"""
-Riichi declaration and related mechanics for Mahjong game.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -63,8 +59,8 @@ def declare_riichi(
     """
     Execute riichi declaration for a player.
 
-    Sets riichi flags, deducts 1000 points, and increments riichi sticks.
-    Should be called after validating with can_declare_riichi.
+    Sets riichi flags, deducts 1000 points, and increments riichi sticks. Should be called after validating with
+    can_declare_riichi.
 
     Returns (new_round_state, new_game_state).
     """

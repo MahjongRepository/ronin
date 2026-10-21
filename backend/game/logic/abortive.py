@@ -1,7 +1,3 @@
-"""
-Abortive draw conditions for Mahjong.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -93,8 +89,7 @@ def check_triple_ron(ron_callers: list[int], triple_ron_count: int) -> bool:
     """
     Check if enough players simultaneously declare ron for an abortive draw.
 
-    When 2 players can ron, both win (double ron).
-    When 3 players can ron, it's an abortive draw (triple ron).
+    When 2 players can ron, both win (double ron). When 3 players can ron, it's an abortive draw (triple ron).
     """
     return len(ron_callers) == triple_ron_count
 

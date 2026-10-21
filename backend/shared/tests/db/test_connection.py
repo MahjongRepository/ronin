@@ -1,5 +1,3 @@
-"""Tests for Database connection and schema."""
-
 from __future__ import annotations
 
 import sys
@@ -15,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class TestConnect:
-    def test_creates_schema_and_connects(self, tmp_path: Path) -> None:
+    def test_database_connect__when_new_db__should_create_schema(self, tmp_path: Path) -> None:
         db = Database(tmp_path / "test.db")
         db.connect()
 
@@ -27,12 +25,12 @@ class TestConnect:
         assert "played_games" in table_names
         db.close()
 
-    def test_connection_raises_when_disconnected(self, tmp_path: Path) -> None:
+    def test_database_connection__when_not_connected__should_raise(self, tmp_path: Path) -> None:
         db = Database(tmp_path / "test.db")
         with pytest.raises(RuntimeError, match="not connected"):
             _ = db.connection
 
-    def test_creates_parent_directories(self, tmp_path: Path) -> None:
+    def test_database_connect__when_parent_dirs_missing__should_create_them(self, tmp_path: Path) -> None:
         db = Database(tmp_path / "nested" / "dir" / "test.db")
         db.connect()
         assert db.connection is not None
@@ -41,7 +39,7 @@ class TestConnect:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions only")
 class TestPermissions:
-    def test_db_file_has_restricted_permissions(self, tmp_path: Path) -> None:
+    def test_database_connect__when_new_db__should_restrict_file_permissions(self, tmp_path: Path) -> None:
         db_path = tmp_path / "test.db"
         db = Database(db_path)
         db.connect()
@@ -50,8 +48,7 @@ class TestPermissions:
         assert mode == 0o600
         db.close()
 
-    def test_harden_permissions_warns_on_failure(self, tmp_path: Path) -> None:
-        """Permission hardening logs a warning on failure instead of raising."""
+    def test_database_connect__when_chmod_fails__should_still_connect(self, tmp_path: Path) -> None:
         db_path = tmp_path / "test.db"
         db = Database(db_path)
         with patch("pathlib.Path.chmod", side_effect=OSError("permission denied")):

@@ -1,9 +1,3 @@
-"""Integration tests for WebSocket reconnection flow over MessagePack transport.
-
-These tests verify the full reconnection lifecycle through the HTTP/WebSocket layer
-using starlette TestClient, complementing the unit tests in test_session_reconnect.py.
-"""
-
 import time
 
 import pytest
@@ -32,7 +26,6 @@ from game.tests.mocks import MockConnection, MockGameService
 
 
 def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSnapshot:
-    """Build a minimal ReconnectionSnapshot for integration tests."""
     return ReconnectionSnapshot(
         game_id=game_id,
         players=[
@@ -60,12 +53,6 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
 
 
 def _start_game_and_get_ticket(client: TestClient) -> str:
-    """Start a 1-player game over WebSocket and disconnect to get the game ticket.
-
-    Injects a second mock player into the game AFTER start so the game
-    survives when Player1 disconnects via WebSocket close.
-    Returns the game ticket string (which is the session token).
-    """
     sm = client.app.state.session_manager
     tickets = create_pending_game(client, "test_game")
     ticket = tickets[0]
@@ -101,8 +88,6 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
 
 
 class TestWebSocketReconnect:
-    """Integration tests for reconnection over WebSocket transport."""
-
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
@@ -110,8 +95,7 @@ class TestWebSocketReconnect:
         with TestClient(app) as client:
             yield client
 
-    def test_reconnect_full_flow(self, client):
-        """Full reconnect flow over WebSocket: receive game_reconnected with game state."""
+    def test_reconnect__when_ticket_valid__should_send_game_reconnected(self, client):
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
@@ -132,8 +116,7 @@ class TestWebSocketReconnect:
             assert msg["gid"] == "test_game"
             assert msg["s"] == 0
 
-    def test_reconnect_invalid_ticket_over_websocket(self, client):
-        """Reconnect with invalid ticket returns structured error over WebSocket."""
+    def test_reconnect__when_ticket_invalid__should_return_invalid_ticket_error(self, client):
         _start_game_and_get_ticket(client)
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -149,8 +132,7 @@ class TestWebSocketReconnect:
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.INVALID_TICKET
 
-    def test_reconnect_game_gone_over_websocket(self, client):
-        """Reconnect after game cleanup returns game_gone error."""
+    def test_reconnect__when_game_already_cleaned_up__should_return_game_gone_error(self, client):
         sm = client.app.state.session_manager
         tickets = create_pending_game(client, "test_game")
 
@@ -190,8 +172,7 @@ class TestWebSocketReconnect:
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
 
-    def test_reconnect_then_game_action(self, client):
-        """Player reconnects and can send game actions over the same WebSocket."""
+    def test_reconnect__when_action_sent_after_reconnect__should_process_it(self, client):
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot

@@ -1,8 +1,3 @@
-// Top-level message parser that routes incoming wire messages
-// to the correct schema based on discriminator fields.
-// String `type` field -> session/reconnect messages.
-// Integer `t` field -> game events.
-
 import { type z } from "zod";
 
 import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";

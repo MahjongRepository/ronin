@@ -58,7 +58,8 @@ _MAX_REQUEST_BODY_SIZE = 4096
 
 
 def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> str | None:
-    """Verify each player's ticket signature, expiry, and identity claims.
+    """
+    Verify each player's ticket signature, expiry, and identity claims.
 
     Returns an error message string if validation fails, or None if all tickets are valid.
     """
@@ -74,7 +75,8 @@ def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> st
 
 
 async def _read_request_body(request: Request) -> bytes | JSONResponse:
-    """Stream-read request body with hard size cutoff.
+    """
+    Stream-read request body with hard size cutoff.
 
     Returns raw bytes on success, or a JSONResponse error on failure.
     """
@@ -192,7 +194,9 @@ def create_app(
 
 
 def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
-    """ASGI application factory for production use (e.g., uvicorn --factory)."""
+    """
+    ASGI application factory for production use (e.g., uvicorn --factory).
+    """
     _settings = GameServerSettings()
     setup_logging(log_dir=_settings.log_dir)
     return create_app(settings=_settings)

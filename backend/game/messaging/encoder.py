@@ -1,10 +1,3 @@
-"""
-MessagePack encoder/decoder for wire format communication.
-
-Provides functions to encode Python dicts to MessagePack bytes and decode
-MessagePack bytes back to dicts. Used for binary protocol communication.
-"""
-
 from typing import Any
 
 import msgpack
@@ -14,8 +7,8 @@ def _stringify_keys(obj: object) -> object:
     """
     Recursively convert integer dict keys to strings.
 
-    MessagePack strict mode only allows string keys, but Pydantic model_dump()
-    preserves integer keys from fields like dict[int, int].
+    MessagePack strict mode only allows string keys, but Pydantic model_dump() preserves integer keys from fields like
+    dict[int, int].
     """
     if isinstance(obj, dict):
         return {str(k) if isinstance(k, int) else k: _stringify_keys(v) for k, v in obj.items()}
@@ -32,7 +25,9 @@ def encode(data: dict[str, Any]) -> bytes:
 
 
 class DecodeError(Exception):
-    """Error raised when MessagePack decoding fails."""
+    """
+    Error raised when MessagePack decoding fails.
+    """
 
 
 # Size limits to prevent resource exhaustion from malicious payloads.

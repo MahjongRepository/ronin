@@ -14,10 +14,7 @@ from .helpers import create_started_game
 
 
 class TestSessionManagerDefensiveChecks:
-    """Tests for defensive checks that guard against invalid state."""
-
-    async def test_handle_game_action_not_in_game_returns_error(self, manager):
-        """Performing a game action without joining returns an error."""
+    async def test_handle_game_action__when_connection_not_in_game__should_return_not_in_game_error(self, manager):
         conn = MockConnection()
         manager.register_connection(conn)
 
@@ -28,8 +25,7 @@ class TestSessionManagerDefensiveChecks:
         assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == SessionErrorCode.NOT_IN_GAME
 
-    async def test_leave_game_when_game_is_none(self, manager):
-        """Leaving when the game mapping is missing clears player state and does not raise."""
+    async def test_leave_game__when_game_mapping_missing__should_clear_player_game_and_seat(self, manager):
         conns = await create_started_game(manager, "game1")
 
         player = manager._players[conns[0].connection_id]
@@ -42,8 +38,7 @@ class TestSessionManagerDefensiveChecks:
         assert player.game_id is None
         assert player.seat is None
 
-    async def test_handle_game_action_game_is_none(self, manager):
-        """Performing a game action when game is missing from mapping does not raise."""
+    async def test_handle_game_action__when_game_mapping_missing__should_send_nothing(self, manager):
         conns = await create_started_game(manager, "game1")
         conns[0]._outbox.clear()
 
@@ -54,8 +49,7 @@ class TestSessionManagerDefensiveChecks:
         await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
         assert len(conns[0].sent_messages) == 0
 
-    async def test_handle_game_action_no_lock_returns_error(self, manager):
-        """Performing a game action when the game has no lock (edge case) returns an error."""
+    async def test_handle_game_action__when_game_lock_missing__should_return_game_not_started_error(self, manager):
         conns = await create_started_game(manager, "game1")
         conns[0]._outbox.clear()
 
@@ -68,8 +62,7 @@ class TestSessionManagerDefensiveChecks:
         assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == SessionErrorCode.GAME_NOT_STARTED
 
-    async def test_broadcast_chat_game_is_none(self, manager):
-        """Broadcasting chat when game is missing from mapping does not raise."""
+    async def test_broadcast_chat__when_game_mapping_missing__should_send_nothing(self, manager):
         conns = await create_started_game(manager, "game1")
         conns[0]._outbox.clear()
 
@@ -80,8 +73,7 @@ class TestSessionManagerDefensiveChecks:
         await manager.broadcast_chat(conns[0], "hello")
         assert len(conns[0].sent_messages) == 0
 
-    async def test_cancel_all_pending_timeouts(self):
-        """cancel_all_pending_timeouts cancels timeout tasks for pending games."""
+    async def test_cancel_all_pending_timeouts__when_game_pending__should_cancel_timeout_task(self):
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
@@ -103,8 +95,7 @@ class TestSessionManagerDefensiveChecks:
 
         assert pending.timeout_task.cancelled()
 
-    async def test_start_game_failure_rolls_back_started_flag(self):
-        """When start_game returns an ErrorEvent, game.started is rolled back."""
+    async def test_join_game__when_start_game_returns_error__should_roll_back_started_flag(self):
         game_service = MockGameService()
 
         # patch start_game to return an error (simulating unsupported settings)

@@ -29,7 +29,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and Vite (`:5173`) together,
   with `.env.local` sourced when present.
-* `make test` / `make lint` / `make typecheck` — backend pytest, ruff, ty.
+* `make test` / `make lint` / `make typecheck` — backend pytest, docformatter + ruff, ty.
 * `make test-frontend` / `make lint-frontend` / `make typecheck-frontend` — the frontend equivalents.
 * `make format` / `make format-frontend` — format in place.
 * `make deadcode` — unused backend code.
@@ -42,7 +42,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 ## Workflow
 
 * While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
-  `cd frontend && bunx vitest run <path>`).
+  `cd frontend && bunx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
+  `make lint` and `make typecheck` are fine.
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
 * After a structural change, update the nearest `AGENTS.md` it invalidates; after a rule change,
@@ -62,6 +63,16 @@ Ronin is a Riichi Mahjong game server and browser client.
   implementation: constructor fields read back, exception subclass `isinstance` checks, a dump of
   model defaults, arithmetic like `4 - num_ai_players`, or a constant's value.
 * Test behaviour and outcomes, not internal mechanics, and don't duplicate a scenario another test
-  already covers. Avoid `pragma: no cover` unless there is no way to reach the line.
+  already covers.
+* Test names follow `test_<subject>__when_<condition>__should_<expected>`: double underscores separate
+  the parts; `<condition>` is the scenario or input state, `<expected>` the observable outcome. Drop
+  the `when_` clause only for unconditional behaviour (`test_wall__should_hold_136_tiles`). Each
+  nested `AGENTS.md` defines `<subject>` for its suite.
+* Keep committed suites lean: essential flows and fixed bugs, not every nuance. To probe a nuance,
+  write a throwaway test or script in the scratchpad and delete it once answered; never commit it.
+* One scenario per test: several assertions about one call or one short flow are fine. Before adding
+  a test, extend the scenario's existing test with an assertion.
+* Never wait out a real timer or delay in a test; shorten it via settings or `monkeypatch`, and
+  cover the deadline itself once. Avoid `pragma: no cover` unless there is no way to reach the line.
 * `except ValueError, KeyError:` (no parentheses) is valid Python 3.14 syntax (PEP 758), not a
   Python 2 leftover; don't "fix" it.

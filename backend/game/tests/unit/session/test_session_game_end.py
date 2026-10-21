@@ -28,8 +28,6 @@ def _make_game_end_events() -> list[ServiceEvent]:
 
 
 class TestSessionManagerGameEnd:
-    """Tests for connection closing on game end."""
-
     def _make_game_end_event(self) -> ServiceEvent:
         return ServiceEvent(
             event=EventType.GAME_END,
@@ -44,8 +42,7 @@ class TestSessionManagerGameEnd:
             target=BroadcastTarget(),
         )
 
-    async def test_close_connections_on_game_end(self, manager):
-        """All player connections are closed when game_end event is present."""
+    async def test_game_end__when_game_end_event__should_close_connection_with_1000(self, manager):
         game, _player, conn = make_game_with_player(manager)
 
         events = [self._make_game_end_event()]
@@ -55,8 +52,7 @@ class TestSessionManagerGameEnd:
         assert conn._close_code == 1000
         assert conn._close_reason == "game_ended"
 
-    async def test_close_connections_skipped_without_game_end(self, manager):
-        """Connections are not closed when no game_end event is present."""
+    async def test_game_end__when_events_lack_game_end__should_keep_connection_open(self, manager):
         game, _player, conn = make_game_with_player(manager)
 
         generic_event = ServiceEvent(
@@ -75,8 +71,7 @@ class TestSessionManagerGameEnd:
 
         assert conn.is_closed is False
 
-    async def test_close_connections_on_game_end_multiple_players(self, manager):
-        """All player connections are closed when game ends with multiple players."""
+    async def test_game_end__when_game_end_event_with_two_players__should_close_both(self, manager):
         game, _player, conn1 = make_game_with_player(manager)
 
         conn2 = MockConnection()
@@ -91,9 +86,7 @@ class TestSessionManagerGameEnd:
 
 
 class TestSessionManagerCloseGameOnError:
-    """Tests for close_game_on_error method."""
-
-    async def test_close_game_on_error_closes_all_connections(self, manager):
+    async def test_close_game_on_error__when_player_in_game__should_close_all_with_1011(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.close_game_on_error(conns[0])
@@ -103,8 +96,7 @@ class TestSessionManagerCloseGameOnError:
         assert conns[0]._close_code == 1011
         assert conns[0]._close_reason == "internal_error"
 
-    async def test_close_game_on_error_no_player(self, manager):
-        """close_game_on_error does nothing for unregistered connection."""
+    async def test_close_game_on_error__when_connection_not_in_game__should_do_nothing(self, manager):
         conn = MockConnection()
         manager.register_connection(conn)
 
@@ -113,8 +105,7 @@ class TestSessionManagerCloseGameOnError:
 
         assert not conn.is_closed
 
-    async def test_close_game_on_error_game_is_none(self, manager):
-        """close_game_on_error does nothing when game has been removed."""
+    async def test_close_game_on_error__when_game_mapping_missing__should_keep_connection_open(self, manager):
         conns = await create_started_game(manager, "game1")
 
         # remove the game from the internal mapping to simulate cleanup race
@@ -126,8 +117,7 @@ class TestSessionManagerCloseGameOnError:
         # connection should NOT be closed (game is gone)
         assert not conns[0].is_closed
 
-    async def test_heartbeat_stops_on_game_cleanup(self, manager):
-        """Heartbeat task is cancelled when game becomes empty."""
+    async def test_heartbeat__when_game_cleaned_up__should_stop_game_task(self, manager):
         conns = await create_started_game(
             manager,
             "game1",
@@ -147,10 +137,7 @@ class TestSessionManagerCloseGameOnError:
 
 
 class TestGameEndFromAction:
-    """Tests that handle_game_action closes connections when game ends."""
-
-    async def test_successful_action_game_end_closes_connections(self, manager):
-        """handle_game_action closes connections when a successful action ends the game."""
+    async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
@@ -162,8 +149,9 @@ class TestGameEndFromAction:
         assert conns[0]._close_reason == "game_ended"
         assert conns[1].is_closed
 
-    async def test_invalid_action_ai_replacement_game_end_closes_connections(self, manager):
-        """When AI replacement after invalid action ends the game, connections close."""
+    async def test_game_end__when_ai_replacement_after_invalid_action_ends_game__should_close_remaining_with_1000(
+        self, manager
+    ):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
@@ -184,10 +172,7 @@ class TestGameEndFromAction:
 
 
 class TestGameEndFromTimeout:
-    """Tests that _handle_timeout closes connections when game ends."""
-
-    async def test_timeout_game_end_closes_connections(self, manager):
-        """_handle_timeout closes connections when the game ends normally."""
+    async def test_game_end__when_timeout_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
@@ -199,8 +184,9 @@ class TestGameEndFromTimeout:
         assert conns[0]._close_reason == "game_ended"
         assert conns[1].is_closed
 
-    async def test_timeout_invalid_action_ai_game_end_closes_connections(self, manager):
-        """When timeout leads to invalid action + AI replacement ending the game."""
+    async def test_game_end__when_ai_replacement_after_timeout_ends_game__should_close_remaining_with_1000(
+        self, manager
+    ):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
@@ -220,10 +206,7 @@ class TestGameEndFromTimeout:
 
 
 class TestGameEndFromLeaveGame:
-    """Tests that leave_game closes connections when AI replacement ends the game."""
-
-    async def test_leave_game_ai_replacement_game_end_closes_connections(self, manager):
-        """When AI replacement after disconnect ends the game, connections close."""
+    async def test_game_end__when_ai_replacement_after_leave_ends_game__should_close_remaining_with_1000(self, manager):
         conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(

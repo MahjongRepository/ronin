@@ -1,16 +1,3 @@
-"""Profile replay execution with cProfile.
-
-Run a replay through the game engine, measure wall-clock time across
-multiple iterations, and save a .prof file for detailed analysis.
-
-Usage:
-    make profile
-    uv run --project backend python bin/profile_replay.py --iterations 5
-    uv run --project backend python bin/profile_replay.py --replay path/to/replay.txt
-    uv run --project backend python bin/profile_replay.py --load
-    uv run --project backend python bin/profile_replay.py --load path/to/replay.prof
-"""
-
 from __future__ import annotations
 
 import argparse

@@ -8,17 +8,20 @@ if TYPE_CHECKING:
 
 
 def validate_num_ai_players(num_ai_players: int) -> None:
-    """Validate num_ai_players is within the allowed range (0 to MAX_AI_PLAYERS)."""
+    """
+    Validate num_ai_players is within the allowed range (0 to MAX_AI_PLAYERS).
+    """
     if not (0 <= num_ai_players <= MAX_AI_PLAYERS):
         raise ValueError(f"num_ai_players must be 0-{MAX_AI_PLAYERS}, got {num_ai_players}")
 
 
 @dataclass
 class SessionData:
-    """Persistent session identity that survives WebSocket disconnects.
+    """
+    Persistent session identity that survives WebSocket disconnects.
 
-    Track a player's session across connection lifecycle events.
-    A session is created when the lobby creates a pending game and cleaned up when the game ends.
+    Track a player's session across connection lifecycle events. A session is created when the lobby creates a pending
+    game and cleaned up when the game ends.
     """
 
     session_token: str
@@ -32,7 +35,8 @@ class SessionData:
 
 @dataclass
 class Player:
-    """Represent a connected player in the session layer.
+    """
+    Represent a connected player in the session layer.
 
     Lifecycle:
     - Created when joining a pending game via JOIN_GAME (game_id is set)
@@ -63,7 +67,9 @@ class Game:
     settings: GameSettings = field(default_factory=GameSettings)
 
     def __post_init__(self) -> None:
-        """Validate num_ai_players is within the allowed range."""
+        """
+        Validate num_ai_players is within the allowed range.
+        """
         validate_num_ai_players(self.num_ai_players)
 
     @property

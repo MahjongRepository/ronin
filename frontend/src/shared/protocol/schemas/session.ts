@@ -1,8 +1,3 @@
-// Zod schemas for session messages (string `type` field).
-// Six variants: session_error, pong, player_reconnected, chat, player_left, game_left.
-// Manual dispatch via parseSessionMessage() since session messages don't share
-// a numeric discriminant like game events.
-
 import { z } from "zod";
 
 import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";

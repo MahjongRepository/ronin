@@ -163,7 +163,9 @@ class PongMessage(BaseModel):
 
 
 class PlayerReconnectedMessage(BaseModel):
-    """Broadcast to other players when a player reconnects."""
+    """
+    Broadcast to other players when a player reconnects.
+    """
 
     type: Literal[SessionMessageType.PLAYER_RECONNECTED] = SessionMessageType.PLAYER_RECONNECTED
     player_name: str
@@ -179,10 +181,10 @@ _game_action_adapter = TypeAdapter(GameActionMessage)
 
 
 def parse_client_message(data: dict[str, Any]) -> ClientMessage:
-    """Parse a raw dict into a typed ClientMessage.
+    """
+    Parse a raw dict into a typed ClientMessage.
 
-    Game action messages use a two-level discriminator (t then a),
-    so they are routed to a separate adapter.
+    Game action messages use a two-level discriminator (t then a), so they are routed to a separate adapter.
     """
     if data.get("t") == WireClientMessageType.GAME_ACTION:
         return _game_action_adapter.validate_python(data)

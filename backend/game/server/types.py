@@ -4,9 +4,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PlayerSpec(BaseModel):
-    """Player info for direct game creation. The game_ticket field is the signed
-    game ticket string -- the game server uses it as the session token in SessionStore,
-    so clients can later present the same ticket in JOIN_GAME to match their session."""
+    """
+    Player info for direct game creation.
+
+    The game_ticket field is the signed game ticket string -- the game server uses it as the session token in
+    SessionStore, so clients can later present the same ticket in JOIN_GAME to match their session.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -34,6 +37,8 @@ class CreateGameRequest(BaseModel):
 
 
 def _check_unique(values: list[str], label: str) -> None:
-    """Raise ValueError if the list contains duplicate values."""
+    """
+    Raise ValueError if the list contains duplicate values.
+    """
     if len(set(values)) != len(values):
         raise ValueError(f"Duplicate {label} in player list")

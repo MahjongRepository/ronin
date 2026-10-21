@@ -1,13 +1,3 @@
-"""
-Verifies:
-- Pao applies to daisangen (Big Three Dragons) and daisuushii (Big Four Winds) — configurable
-- Pao does NOT apply to suukantsu (Four Quads) — fundamental
-- Trigger thresholds are configurable (daisangen_pao_set_threshold, daisuushii_pao_set_threshold)
-- Closed kans count toward pao threshold
-- Tsumo with pao: liable player pays full score — fundamental
-- Ron with pao (third party): liable + discarder split 50/50 — fundamental
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -18,10 +8,7 @@ from game.tests.conftest import create_player, create_round_state
 
 
 class TestPaoCustomThresholds:
-    """Verify pao thresholds are configurable, not hardcoded."""
-
-    def test_daisangen_pao_custom_threshold_2(self):
-        """With threshold=2, pon on 2nd dragon triggers pao."""
+    def test_pao__when_daisangen_threshold_is_2_and_second_dragon_called__should_assign_pao(self):
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         melds = (FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),)
         player = create_player(seat=0, melds=melds)
@@ -34,8 +21,7 @@ class TestPaoCustomThresholds:
 
         assert result == 2
 
-    def test_daisangen_pao_default_threshold_no_trigger_on_2nd(self):
-        """With default threshold=3, pon on 2nd dragon does NOT trigger pao."""
+    def test_pao__when_second_dragon_called_with_default_threshold__should_not_assign_pao(self):
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         melds = (FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),)
         player = create_player(seat=0, melds=melds)
@@ -47,8 +33,7 @@ class TestPaoCustomThresholds:
 
         assert result is None
 
-    def test_daisuushii_pao_custom_threshold_3(self):
-        """With threshold=3, pon on 3rd wind triggers pao."""
+    def test_pao__when_daisuushii_threshold_is_3_and_third_wind_called__should_assign_pao(self):
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         south_tiles = TilesConverter.string_to_136_array(honors="222")
         melds = (
@@ -65,8 +50,7 @@ class TestPaoCustomThresholds:
 
         assert result == 1
 
-    def test_daisuushii_pao_default_threshold_no_trigger_on_3rd(self):
-        """With default threshold=4, pon on 3rd wind does NOT trigger pao."""
+    def test_pao__when_third_wind_called_with_default_threshold__should_not_assign_pao(self):
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         south_tiles = TilesConverter.string_to_136_array(honors="222")
         melds = (
@@ -84,10 +68,7 @@ class TestPaoCustomThresholds:
 
 
 class TestNoSuukantsuPao:
-    """Verify pao does NOT apply to suukantsu (four quads of suited tiles)."""
-
-    def test_four_suited_kans_no_pao(self):
-        """Player with 3 suited kans calling pon on 4th suited tile: no pao."""
+    def test_pao__when_fourth_suited_kan_called__should_not_assign_pao(self):
         man1_tiles = TilesConverter.string_to_136_array(man="1111")
         man2_tiles = TilesConverter.string_to_136_array(man="2222")
         man3_tiles = TilesConverter.string_to_136_array(man="3333")
@@ -107,13 +88,7 @@ class TestNoSuukantsuPao:
 
 
 class TestClosedKanCountsInPaoThreshold:
-    """Verify closed kans are counted toward pao threshold."""
-
-    def test_closed_dragon_kan_counted_for_daisangen(self):
-        """A closed kan of Haku + open pon of Hatsu = 2 dragon sets.
-
-        Calling pon on Chun (3rd dragon) triggers pao.
-        """
+    def test_pao__when_closed_dragon_kan_and_third_dragon_called__should_count_kan_and_assign_pao(self):
         # closed kan of Haku (concealed, opened=False)
         haku_tiles = TilesConverter.string_to_136_array(honors="5555")
         # open pon of Hatsu
@@ -131,11 +106,7 @@ class TestClosedKanCountsInPaoThreshold:
 
         assert result == 3
 
-    def test_shouminkan_counted_for_daisuushii(self):
-        """A shouminkan of East + pons of South, West = 3 wind sets.
-
-        Calling pon on North (4th wind) triggers pao.
-        """
+    def test_pao__when_shouminkan_and_fourth_wind_called__should_count_kan_and_assign_pao(self):
         east_tiles = TilesConverter.string_to_136_array(honors="1111")
         south_tiles = TilesConverter.string_to_136_array(honors="222")
         west_tiles = TilesConverter.string_to_136_array(honors="333")
@@ -155,10 +126,7 @@ class TestClosedKanCountsInPaoThreshold:
 
 
 class TestPaoIntegrationWithCallPon:
-    """Verify pao is set on the player state when pon triggers the threshold."""
-
-    def test_pon_completing_3rd_dragon_sets_pao_on_player(self):
-        """call_pon on 3rd dragon sets pao_seat in the round state."""
+    def test_pao__when_pon_completes_third_dragon__should_make_discarder_liable(self):
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
         chun_tiles = TilesConverter.string_to_136_array(honors="77")
@@ -184,8 +152,7 @@ class TestPaoIntegrationWithCallPon:
 
         assert new_state.players[0].pao_seat == 1
 
-    def test_pon_below_threshold_does_not_set_pao(self):
-        """call_pon on 2nd dragon (default threshold=3) does NOT set pao_seat."""
+    def test_pao__when_pon_is_below_threshold__should_not_set_pao(self):
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         hatsu_tiles = TilesConverter.string_to_136_array(honors="66")
         hand_tiles = TilesConverter.string_to_136_array(pin="12345678")

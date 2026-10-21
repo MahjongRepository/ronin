@@ -1,9 +1,3 @@
-"""
-Scoring calculation for Mahjong game.
-
-Handles hand value calculation and score application for wins (tsumo, ron, double ron).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -66,7 +60,9 @@ class HandResult:
 
 @dataclass(frozen=True)
 class ScoringContext:
-    """Group common scoring parameters: player, round/game state, settings, and win flags."""
+    """
+    Group common scoring parameters: player, round/game state, settings, and win flags.
+    """
 
     player: MahjongPlayer
     round_state: MahjongRoundState
@@ -83,7 +79,9 @@ def _build_hand_config(
     is_tsumo: bool,
     is_chankan: bool = False,
 ) -> HandConfig:
-    """Build HandConfig with all relevant flags for scoring."""
+    """
+    Build HandConfig with all relevant flags for scoring.
+    """
     haitei_flag = is_tsumo and is_haitei(round_state)
     houtei_flag = not is_tsumo and is_houtei(round_state)
     tenhou_flag = is_tsumo and is_tenhou(player, round_state)
@@ -116,8 +114,8 @@ def collect_ura_dora_indicators(
     """
     Collect ura dora indicator tile IDs for a riichi winner.
 
-    Return None when player is not riichi or ura dora is disabled.
-    Return the list of ura dora indicator tile IDs otherwise.
+    Return None when player is not riichi or ura dora is disabled. Return the list of ura dora indicator tile IDs
+    otherwise.
     """
     if not settings.has_uradora or not player.is_riichi:
         return None
@@ -133,7 +131,9 @@ def _collect_dora_indicators(
     round_state: MahjongRoundState,
     settings: GameSettings,
 ) -> list[int]:
-    """Collect omote (face-up) dora indicators for scoring."""
+    """
+    Collect omote (face-up) dora indicators for scoring.
+    """
     if settings.has_omote_dora:
         return list(round_state.wall.dora_indicators) if round_state.wall.dora_indicators else []
     return []
@@ -144,7 +144,9 @@ def _evaluate_hand(
     tiles: list[int],
     win_tile: int,
 ) -> HandResult:
-    """Build scoring config, collect dora, run hand calculator, and return result."""
+    """
+    Build scoring config, collect dora, run hand calculator, and return result.
+    """
     config = _build_hand_config(
         ctx.player,
         ctx.round_state,
@@ -198,8 +200,8 @@ def calculate_hand_value(ctx: ScoringContext, win_tile: int) -> HandResult:
     """
     Calculate the value of a winning hand using the mahjong library's HandCalculator.
 
-    Build HandConfig with all relevant flags and OptionalRules for scoring.
-    Return a HandResult with han, fu, cost breakdown, and yaku list.
+    Build HandConfig with all relevant flags and OptionalRules for scoring. Return a HandResult with han, fu, cost
+    breakdown, and yaku list.
     """
     tiles = all_player_tiles(ctx.player)
     return _evaluate_hand(ctx, tiles, win_tile)
@@ -213,14 +215,16 @@ def calculate_hand_value_with_tiles(
     """
     Calculate the value of a winning hand using explicit tiles list.
 
-    Accept tiles directly instead of reading from player.tiles. Use this for
-    ron calculations where the win tile needs to be included in the tiles list.
+    Accept tiles directly instead of reading from player.tiles. Use this for ron calculations where the win tile needs
+    to be included in the tiles list.
     """
     return _evaluate_hand(ctx, tiles, win_tile)
 
 
 def _current_scores(game_state: MahjongGameState) -> dict[int, int]:
-    """Extract current scores from game state (after riichi deductions, before payment)."""
+    """
+    Extract current scores from game state (after riichi deductions, before payment).
+    """
     return {p.seat: p.score for p in game_state.round_state.players}
 
 
@@ -230,7 +234,9 @@ def _apply_score_changes(
     *,
     clear_riichi: bool = True,
 ) -> tuple[MahjongRoundState, MahjongGameState]:
-    """Apply score changes to round state and optionally clear riichi sticks."""
+    """
+    Apply score changes to round state and optionally clear riichi sticks.
+    """
     new_round_state = game_state.round_state
     for seat, change in score_changes.items():
         player = new_round_state.players[seat]

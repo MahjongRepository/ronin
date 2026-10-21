@@ -1,15 +1,3 @@
-"""Storage abstraction for replay persistence.
-
-Replay files are gzip-compressed NDJSON containing full game event logs.
-Replays are public and served to any user via the lobby replay API.
-Files are written with owner-only permissions (0o600) inside owner-only
-directories (0o700) as a filesystem hygiene measure.
-
-Replay files are distributed across a two-level directory structure using
-the first 4 characters of the game ID as shard prefixes:
-``{replay_dir}/{id[0:2]}/{id[2:4]}/{game_id}.txt.gz``
-"""
-
 import contextlib
 import gzip
 import os
@@ -32,11 +20,11 @@ _MIN_GAME_ID_LEN = 4
 
 
 def replay_file_path(replay_dir: Path, game_id: str) -> Path:
-    """Build the sharded file path for a replay.
+    """
+    Build the sharded file path for a replay.
 
-    Use the first 4 characters of game_id as a two-level directory
-    prefix (2 chars each) to distribute files across subdirectories.
-    Require game_id to be at least 4 characters long.
+    Use the first 4 characters of game_id as a two-level directory prefix (2 chars each) to distribute files across
+    subdirectories. Require game_id to be at least 4 characters long.
     """
     if len(game_id) < _MIN_GAME_ID_LEN:
         raise ValueError(f"game_id must be at least {_MIN_GAME_ID_LEN} characters, got {len(game_id)}")
@@ -46,30 +34,31 @@ def replay_file_path(replay_dir: Path, game_id: str) -> Path:
 
 
 class ReplayStorage(Protocol):
-    """Protocol for persisting replay data."""
+    """
+    Protocol for persisting replay data.
+    """
 
     def save_replay(self, game_id: str, content: str) -> None: ...
 
 
 class LocalReplayStorage:
-    """Write gzip-compressed replay files to the local filesystem.
+    """
+    Write gzip-compressed replay files to the local filesystem.
 
-    Files are created with owner-only read/write (0o600) inside owner-only
-    directories (0o700) as a filesystem hygiene measure. Replay files are
-    distributed across a two-level shard directory structure.
+    Files are created with owner-only read/write (0o600) inside owner-only directories (0o700) as a filesystem hygiene
+    measure. Replay files are distributed across a two-level shard directory structure.
     """
 
     def __init__(self, replay_dir: str) -> None:
         self._replay_dir = Path(replay_dir).resolve()
 
     def save_replay(self, game_id: str, content: str) -> None:
-        """Save gzip-compressed replay content under the configured directory.
+        """
+        Save gzip-compressed replay content under the configured directory.
 
-        Create shard directories lazily on first write with owner-only
-        permissions (0o700). Write replay files atomically via
-        temp-file-then-rename with owner-only permissions (0o600). Reject
-        path traversal attempts that would place the file outside the replay
-        root.
+        Create shard directories lazily on first write with owner-only permissions (0o700). Write replay files
+        atomically via temp-file-then-rename with owner-only permissions (0o600). Reject path traversal attempts that
+        would place the file outside the replay root.
         """
         target = replay_file_path(self._replay_dir, game_id).resolve()
         if not target.is_relative_to(self._replay_dir):

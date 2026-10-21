@@ -1,7 +1,3 @@
-"""
-Unit tests for riichi declaration and related mechanics.
-"""
-
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -16,15 +12,9 @@ from game.logic.wall import Wall
 
 class TestCanDeclareRiichi:
     def _create_tempai_hand(self) -> list[int]:
-        """
-        Create a tempai hand: 11m 234m 567m 888m 9m, waiting for 9m pair.
-        """
         return TilesConverter.string_to_136_array(man="1123456788899")
 
     def _create_non_tempai_hand(self) -> list[int]:
-        """
-        Create a non-tempai hand (random disconnected tiles).
-        """
         return TilesConverter.string_to_136_array(man="13579", pin="2468", sou="1357")
 
     def _create_player_and_round_state(
@@ -35,7 +25,6 @@ class TestCanDeclareRiichi:
         melds: tuple | None = None,
         wall_size: int = 10,
     ) -> tuple[MahjongPlayer, MahjongRoundState]:
-        """Create a player and round state for testing."""
         player = MahjongPlayer(
             seat=0,
             name="Test",
@@ -50,32 +39,28 @@ class TestCanDeclareRiichi:
         )
         return player, round_state
 
-    def test_can_declare_riichi_with_tempai_closed_hand(self):
-        """Player can declare riichi with tempai and closed hand."""
+    def test_can_declare_riichi__when_closed_hand_tempai__should_allow(self):
         player, round_state = self._create_player_and_round_state()
 
         result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is True
 
-    def test_cannot_declare_riichi_with_low_points(self):
-        """Player cannot declare riichi with less than 1000 points."""
+    def test_can_declare_riichi__when_score_999__should_reject(self):
         player, round_state = self._create_player_and_round_state(score=999)
 
         result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
-    def test_can_declare_riichi_with_exactly_1000_points(self):
-        """Player can declare riichi with exactly 1000 points."""
+    def test_can_declare_riichi__when_score_exactly_1000__should_allow(self):
         player, round_state = self._create_player_and_round_state(score=1000)
 
         result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is True
 
-    def test_cannot_declare_riichi_with_open_meld(self):
-        """Player cannot declare riichi with an open meld."""
+    def test_can_declare_riichi__when_hand_has_open_meld__should_reject(self):
         open_meld = FrozenMeld(
             meld_type=FrozenMeld.PON,
             tiles=tuple(TilesConverter.string_to_136_array(man="111")[:3]),
@@ -92,8 +77,7 @@ class TestCanDeclareRiichi:
 
         assert result is False
 
-    def test_can_declare_riichi_with_closed_kan(self):
-        """Player can declare riichi with a closed kan (not an open meld)."""
+    def test_can_declare_riichi__when_hand_has_closed_kan__should_allow(self):
         closed_kan = FrozenMeld(
             meld_type=FrozenMeld.KAN,
             tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
@@ -110,24 +94,21 @@ class TestCanDeclareRiichi:
 
         assert result is True
 
-    def test_cannot_declare_riichi_without_tempai(self):
-        """Player cannot declare riichi without being in tempai."""
+    def test_can_declare_riichi__when_not_tempai__should_reject(self):
         player, round_state = self._create_player_and_round_state(tiles=self._create_non_tempai_hand())
 
         result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
-    def test_cannot_declare_riichi_with_fewer_than_4_tiles_in_wall(self):
-        """Player cannot declare riichi when fewer than 4 tiles remain in wall."""
+    def test_can_declare_riichi__when_wall_has_3_tiles__should_reject(self):
         player, round_state = self._create_player_and_round_state(wall_size=3)
 
         result = can_declare_riichi(player, round_state, GameSettings())
 
         assert result is False
 
-    def test_can_declare_riichi_with_exactly_4_tiles_in_wall(self):
-        """Player can declare riichi with exactly 4 tiles in wall."""
+    def test_can_declare_riichi__when_wall_has_4_tiles__should_allow(self):
         player, round_state = self._create_player_and_round_state(wall_size=4)
 
         result = can_declare_riichi(player, round_state, GameSettings())

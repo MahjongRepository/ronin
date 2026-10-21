@@ -1,10 +1,3 @@
-"""Integration tests for WebSocket and HTTP endpoints.
-
-These tests verify the web/transport layer (HTTP endpoints, WebSocket protocol,
-MessagePack encoding) using the test client. They complement the game logic
-Replay tests by ensuring the service layer works correctly.
-"""
-
 from unittest.mock import patch
 
 import pytest
@@ -39,15 +32,14 @@ class TestWebSocketIntegration:
         with TestClient(app) as client:
             yield client
 
-    def test_join_game_and_start(self, client):
+    def test_websocket__when_single_player_joins__should_start_game(self, client):
         tickets = create_pending_game(client, "test_game")
         with client.websocket_connect("/ws/test_game") as ws:
             messages = join_game_and_start(ws, tickets[0])
             last = messages[-1]
             assert last["t"] in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW])
 
-    def test_game_chat_message(self, client):
-        """Chat messages in a started game are broadcast to game players."""
+    def test_websocket__when_chat_sent__should_echo_chat_with_player_name(self, client):
         tickets = create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -60,7 +52,7 @@ class TestWebSocketIntegration:
             assert response["player_name"] == "Player1"
             assert response["text"] == "Hello from game!"
 
-    def test_game_action(self, client):
+    def test_websocket__when_discard_sent__should_return_successful_draw_event(self, client):
         tickets = create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -74,8 +66,7 @@ class TestWebSocketIntegration:
             assert response["action"] == GameAction.DISCARD
             assert response["success"] is True
 
-    def test_invalid_msgpack_returns_error_and_keeps_connection(self, client):
-        """Sending invalid MessagePack data returns an error without disconnecting."""
+    def test_websocket__when_msgpack_invalid__should_return_error_and_keep_connection(self, client):
         tickets = create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -95,8 +86,7 @@ class TestWebSocketIntegration:
             msg = recv_ws(ws)
             assert msg.get("t") is not None or msg.get("type") is not None
 
-    def test_join_game_with_invalid_ticket(self, client):
-        """An invalid game ticket returns an INVALID_TICKET error."""
+    def test_websocket__when_join_ticket_invalid__should_return_invalid_ticket_error(self, client):
         create_pending_game(client, "test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
@@ -109,13 +99,11 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_TICKET
 
-    def test_invalid_game_id_rejected_before_accept(self, client):
-        """WebSocket connection with invalid game_id is rejected before accept."""
+    def test_websocket__when_game_id_invalid__should_reject_before_accept(self, client):
         with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/invalid game!"):
             pass
 
-    def test_repeated_decode_errors_disconnect(self, client):
-        """Sending too many consecutive malformed messages disconnects the client."""
+    def test_websocket__when_decode_errors_hit_limit__should_disconnect(self, client):
         with patch.object(ws_module, "_MAX_DECODE_ERRORS", 3), client.websocket_connect("/ws/test_game") as ws:
             for _ in range(3):
                 ws.send_bytes(b"\xff\xff\xff")
@@ -124,8 +112,7 @@ class TestWebSocketIntegration:
             with pytest.raises(WebSocketDisconnect):
                 ws.receive_bytes()
 
-    def test_decode_error_counter_resets_on_valid_message(self, client):
-        """A valid message resets the decode error counter."""
+    def test_websocket__when_valid_message_follows_decode_errors__should_reset_error_counter(self, client):
         with patch.object(ws_module, "_MAX_DECODE_ERRORS", 3), client.websocket_connect("/ws/test_game") as ws:
             # Send 2 bad messages (below threshold)
             for _ in range(2):
@@ -144,8 +131,7 @@ class TestWebSocketIntegration:
                 resp = recv_ws(ws)
                 assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
 
-    def test_rate_limited_message_returns_error(self, client):
-        """Flooding valid messages produces RATE_LIMITED error responses."""
+    def test_websocket__when_burst_exceeded__should_return_rate_limited_error(self, client):
         with (
             patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
             patch.object(ws_module, "_RATE_LIMIT_RATE", 1.0),
@@ -161,8 +147,7 @@ class TestWebSocketIntegration:
             resp = recv_ws(ws)
             assert resp["code"] == SessionErrorCode.RATE_LIMITED
 
-    def test_malformed_messages_count_strikes_when_rate_limited(self, client):
-        """Malformed messages increment decode errors even when the bucket is drained."""
+    def test_websocket__when_malformed_after_burst_exhausted__should_count_decode_strikes_and_disconnect(self, client):
         with (
             patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
             patch.object(ws_module, "_RATE_LIMIT_RATE", 1.0),
@@ -193,7 +178,7 @@ class TestHealthEndpoint:
         with TestClient(app) as client:
             yield client
 
-    def test_health_returns_ok(self, client):
+    def test_health_endpoint__should_return_ok_with_version_and_commit(self, client):
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
@@ -210,7 +195,7 @@ class TestStatusEndpoint:
         with TestClient(app) as client:
             yield client
 
-    def test_status_returns_game_info(self, client):
+    def test_status_endpoint__when_no_games__should_return_zero_counts_and_capacity(self, client):
         response = client.get("/status")
         assert response.status_code == 200
         data = response.json()
@@ -222,7 +207,7 @@ class TestStatusEndpoint:
         assert "version" in data
         assert "commit" in data
 
-    def test_status_reflects_pending_games(self, client):
+    def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
         create_pending_game(client, "r1")
         response = client.get("/status")
         data = response.json()
@@ -239,7 +224,7 @@ class TestCreateGameEndpoint:
         with TestClient(app) as client:
             yield client
 
-    def test_create_game_success(self, client):
+    def test_create_game_endpoint__when_body_valid__should_return_201_pending(self, client):
         ticket = make_test_game_ticket("Player1", "test-game", user_id="user-0")
         response = client.post(
             "/games",
@@ -251,12 +236,12 @@ class TestCreateGameEndpoint:
         assert response.status_code == 201
         assert response.json() == {"game_id": "test-game", "status": "pending"}
 
-    def test_create_game_invalid_body(self, client):
+    def test_create_game_endpoint__when_body_not_json__should_return_400(self, client):
         response = client.post("/games", content=b"not json")
         assert response.status_code == 400
         assert response.json() == {"error": "Invalid request body"}
 
-    def test_create_game_invalid_game_id(self, client):
+    def test_create_game_endpoint__when_game_id_invalid__should_return_400(self, client):
         ticket = make_test_game_ticket("Player1", "bad id!", user_id="user-0")
         response = client.post(
             "/games",
@@ -268,7 +253,7 @@ class TestCreateGameEndpoint:
         assert response.status_code == 400
         assert response.json() == {"error": "Invalid request body"}
 
-    def test_create_game_duplicate(self, client):
+    def test_create_game_endpoint__when_pending_game_exists__should_return_409(self, client):
         create_pending_game(client, "dupe")
         ticket = make_test_game_ticket("Player1", "dupe", user_id="user-0")
         response = client.post(
@@ -281,7 +266,7 @@ class TestCreateGameEndpoint:
         assert response.status_code == 409
         assert response.json() == {"error": "Game with this ID already exists"}
 
-    def test_create_game_conflicts_with_active_game(self, client):
+    def test_create_game_endpoint__when_game_active__should_return_409(self, client):
         sm = client.app.state.session_manager
         sm._games["active-game"] = object()
         ticket = make_test_game_ticket("Player1", "active-game", user_id="user-0")
@@ -295,7 +280,7 @@ class TestCreateGameEndpoint:
         assert response.status_code == 409
         assert response.json() == {"error": "Game with this ID already exists"}
 
-    def test_create_game_at_capacity(self, client):
+    def test_create_game_endpoint__when_server_at_capacity__should_return_503(self, client):
         for i in range(100):
             ticket = make_test_game_ticket(f"P{i}", f"r{i}", user_id=f"u-{i}")
             resp = client.post(
@@ -317,7 +302,7 @@ class TestCreateGameEndpoint:
         assert response.status_code == 503
         assert response.json() == {"error": "Server at capacity"}
 
-    def test_create_game_oversized_body_rejected(self, client):
+    def test_create_game_endpoint__when_body_oversized__should_return_413(self, client):
         oversized = b'{"game_id": "' + b"x" * 5000 + b'"}'
         response = client.post("/games", content=oversized, headers={"Content-Type": "application/json"})
         assert response.status_code == 413
@@ -325,9 +310,7 @@ class TestCreateGameEndpoint:
 
 
 class TestReadRequestBodyClientDisconnect:
-    """Unit-level test for the _read_request_body ClientDisconnect path."""
-
-    async def test_client_disconnect_returns_400(self):
+    async def test_read_request_body__when_client_disconnects__should_return_400(self):
         class DisconnectingRequest:
             async def stream(self):
                 yield b"partial"

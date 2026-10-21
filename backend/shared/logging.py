@@ -1,11 +1,3 @@
-"""Structured logging configuration with structlog.
-
-Environment variables:
-- LOG_FORMAT: "json" for production log aggregation, "console" or unset for
-  human-readable colored output.
-- LOG_LEVEL: "DEBUG", "INFO" (default), "WARNING", "ERROR", or "CRITICAL".
-"""
-
 from __future__ import annotations
 
 import logging
@@ -31,7 +23,9 @@ def _serialize_enums(
     _method_name: str,
     event_dict: MutableMapping[str, Any],
 ) -> MutableMapping[str, Any]:
-    """Replace Enum instances with their .value for readable log output."""
+    """
+    Replace Enum instances with their .value for readable log output.
+    """
     for key, value in event_dict.items():
         if isinstance(value, Enum):
             event_dict[key] = value.value
@@ -53,7 +47,11 @@ def _resolve_json_mode() -> bool:
 
 
 def _resolve_log_level() -> int:
-    """Resolve log level from LOG_LEVEL env var. Defaults to INFO."""
+    """
+    Resolve log level from LOG_LEVEL env var.
+
+    Defaults to INFO.
+    """
     value = os.environ.get("LOG_LEVEL", "INFO").upper()
     if value not in _VALID_LOG_LEVELS:
         msg = f"Invalid LOG_LEVEL={value!r}. Must be one of {', '.join(sorted(_VALID_LOG_LEVELS))}."
@@ -62,7 +60,9 @@ def _resolve_log_level() -> int:
 
 
 def _build_stdlib_formatter(*, json_mode: bool, colors: bool = False) -> logging.Formatter:
-    """Build a stdlib ProcessorFormatter for handler output."""
+    """
+    Build a stdlib ProcessorFormatter for handler output.
+    """
     if json_mode:
         return structlog.stdlib.ProcessorFormatter(
             processors=[
@@ -84,12 +84,12 @@ def setup_logging(
     log_dir: Path | str | None = None,
     level: int | None = None,
 ) -> Path | None:
-    """Configure structlog with stdout and optional file output.
+    """
+    Configure structlog with stdout and optional file output.
 
-    Log level is resolved from the LOG_LEVEL env var (default: INFO).
-    When log_dir is provided, writes to a fixed ``app.log`` file inside
-    that directory using WatchedFileHandler (compatible with logrotate).
-    Returns the log file path if created, None otherwise.
+    Log level is resolved from the LOG_LEVEL env var (default: INFO). When log_dir is provided, writes to a fixed
+    ``app.log`` file inside that directory using WatchedFileHandler (compatible with logrotate). Returns the log file
+    path if created, None otherwise.
     """
     json_mode = _resolve_json_mode()
 

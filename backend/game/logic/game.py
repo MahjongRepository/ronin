@@ -1,7 +1,3 @@
-"""
-Game initialization and progression for Mahjong.
-"""
-
 from game.logic.enums import GamePhase, RoundPhase, RoundResultType
 from game.logic.rng import RNG_VERSION, determine_first_dealer
 from game.logic.settings import (
@@ -37,8 +33,8 @@ def _goshashonyu_round(score: int, threshold: int) -> int:
     """
     Round a raw score using goshashonyu (五捨六入) rounding.
 
-    Converts a raw score (relative to target) to points by dividing by 1000,
-    rounding remainder <= threshold toward zero and remainder > threshold away from zero.
+    Converts a raw score (relative to target) to points by dividing by 1000, rounding remainder <= threshold toward zero
+    and remainder > threshold away from zero.
     """
     quotient = score // 1000
     remainder = abs(score) % 1000
@@ -109,10 +105,9 @@ def init_game(
     """
     Initialize a new mahjong game with seat configurations.
 
-    All players start with starting_score points (from settings).
-    First dealer is determined by two-dice-roll method (二度振り) when using
-    seed-based RNG. When wall is provided (test mode), dealer defaults to seat 0.
-    Returns a frozen MahjongGameState.
+    All players start with starting_score points (from settings). First dealer is determined by two-dice-roll method
+    (二度振り) when using seed-based RNG. When wall is provided (test mode), dealer defaults to seat 0. Returns a frozen
+    MahjongGameState.
     """
     game_settings = settings or GameSettings()
 
@@ -213,7 +208,8 @@ def _get_honba_and_rotation(  # noqa: PLR0911
     game_state: MahjongGameState,
     result: RoundResult,
 ) -> tuple[int, bool]:
-    """Determine honba change and dealer rotation based on result type.
+    """
+    Determine honba change and dealer rotation based on result type.
 
     Renchan behavior is controlled by three settings:
     - renchan_on_abortive_draw: if False, dealer rotates and honba resets on abortive draw
@@ -253,7 +249,9 @@ def _get_honba_and_rotation(  # noqa: PLR0911
 
 
 def _get_winner_seats(result: RoundResult) -> list[int]:
-    """Extract winner seats from a result."""
+    """
+    Extract winner seats from a result.
+    """
     if isinstance(result, (TsumoResult, RonResult)):
         return [result.winner_seat]
     if isinstance(result, DoubleRonResult):
@@ -262,7 +260,9 @@ def _get_winner_seats(result: RoundResult) -> list[int]:
 
 
 def _get_wind_for_unique_dealers(unique_dealers: int) -> int:
-    """Determine round wind based on unique dealers count."""
+    """
+    Determine round wind based on unique dealers count.
+    """
     east_max, south_max, _west_max = WIND_THRESHOLDS
     if unique_dealers <= east_max:
         return 0  # East
@@ -360,11 +360,11 @@ def finalize_game(
     """
     Finalize the game and determine winner.
 
-    Winner is the player with highest score. Ties broken by proximity to the
-    starting dealer (起家): the closer a seat is to the starting dealer in
-    counter-clockwise order, the higher it ranks.
-    Winner receives remaining riichi_sticks * riichi_stick_value points.
-    Final scores are adjusted with uma/oka.
+    Winner is the player with highest score and receives remaining riichi_sticks * riichi_stick_value points. Final
+    scores are adjusted with uma/oka.
+
+    Ties are broken by proximity to the starting dealer (起家): the closer a seat is to the starting dealer in
+    counterclockwise order, the higher it ranks.
 
     Returns (new_game_state, GameEndResult).
     """
