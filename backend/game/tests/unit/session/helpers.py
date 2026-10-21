@@ -4,8 +4,7 @@ from game.logic.enums import WindName
 from game.logic.settings import NUM_PLAYERS
 from game.logic.types import GameView, PlayerView
 from game.messaging.types import SessionMessageType
-from game.server.types import PlayerSpec
-from game.session.models import Game, Player
+from game.session.models import Game, Player, PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection
 

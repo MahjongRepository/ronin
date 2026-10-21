@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionMessageType
 from game.tests.mocks import MockConnection, MockResultEvent
+from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game
 

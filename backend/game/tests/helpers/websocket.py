@@ -1,8 +1,8 @@
 from game.logic.events import EventType
 from game.messaging.encoder import decode, encode
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.wire_enums import WireClientMessageType
 from game.tests.helpers.auth import make_test_game_ticket
+from game.wire.events import EVENT_TYPE_INT
 
 
 def send_ws(ws, data: dict) -> None:

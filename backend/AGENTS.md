@@ -1,10 +1,30 @@
 # Backend (Python / Starlette)
 
 Before working in `game/` or `lobby/`, read that directory's `AGENTS.md`. `shared/` holds what
-both servers use: accounts, auth sessions and game tickets (`shared/auth/`), repository interfaces
-(`shared/dal/`) and their SQLite implementations (`shared/db/`), replay storage
+both servers use: auth sessions, password hashing and game tickets (`shared/auth/`), the
+persistence contracts and their models (`shared/dal/`: `Player`, `AccountType`, `PlayedGame`,
+repository interfaces) and the SQLite implementations (`shared/db/`), replay storage
 (`shared/storage.py`), logging, and the IMME meld encoding (`shared/lib/melds/`, see its
 `README.md`).
+
+## Boundaries
+
+`import-linter` (`[tool.importlinter]` in `pyproject.toml`, run by `make lint` as `lint-imports`)
+is the enforced architecture; the contract names say the rule. It checks runtime imports only
+(`exclude_type_checking_imports`), so an `if TYPE_CHECKING:` import still names a real dependency
+and must respect the same direction. The rules it pins:
+
+* `game` and `lobby` never import each other; `shared` imports neither, nor `scripts`.
+* `game`: `server` → `session` → `messaging` → `wire` → `logic`; `replay` is a tool over `logic` and
+  `wire` that never imports the server packages, and `session` never imports `replay`. `logic` and
+  `wire` know nothing of auth or persistence.
+* `lobby`: `server` → `views` → `rooms` | `matchmaking` → `game_transition` | `websocket_utils` →
+  `auth` | `registry` → `settings`; `rooms` and `matchmaking` are independent of each other. What
+  both need from the other is injected in `create_app()` (matchmaking's `is_user_in_room`).
+* `shared`: `db` → `auth` → `dal`; only the two `server/app.py` composition roots, `scripts` and the
+  `shared` tests import `shared.db`.
+
+A new package joins a layer in the contract, or gets its own contract, in the same change.
 
 ## Tooling
 
@@ -26,8 +46,9 @@ both servers use: accounts, auth sessions and game tickets (`shared/auth/`), rep
 ## Configuration
 
 * Settings are pydantic-settings classes, the only list of variables: `AuthSettings`
-  (`shared/auth/settings.py`, `AUTH_`), `LobbyServerSettings` (`LOBBY_`), `GameServerSettings`
-  (`GAME_`); `LOG_LEVEL` / `LOG_FORMAT` are read in `shared/logging.py`.
+  (`shared/auth/settings.py`, `AUTH_`), `LobbyServerSettings` (`lobby/settings.py`, `LOBBY_`),
+  `GameServerSettings` (`game/server/settings.py`, `GAME_`); `LOG_LEVEL` / `LOG_FORMAT` are read in
+  `shared/logging.py`.
 * Both servers share `AUTH_GAME_TICKET_SECRET` (the lobby signs tickets, the game server verifies
   them) and the SQLite database at `AUTH_DATABASE_PATH`.
 * `AUTH_COOKIE_SECURE` defaults to `true`; `.env.local` and `.env.tests` set it to `false`.

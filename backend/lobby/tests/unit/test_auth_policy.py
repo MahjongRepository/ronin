@@ -19,7 +19,7 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from shared.auth.models import AccountType
+from shared.dal.models import AccountType
 
 
 async def _login_page(request: Request) -> JSONResponse:

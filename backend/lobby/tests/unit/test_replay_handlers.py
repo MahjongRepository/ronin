@@ -4,7 +4,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.views.replay_handlers import _load_replay
 from shared.auth.settings import AuthSettings
 from shared.storage import replay_file_path

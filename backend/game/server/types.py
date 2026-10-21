@@ -2,20 +2,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-class PlayerSpec(BaseModel):
-    """
-    Player info for direct game creation.
-
-    The game_ticket field is the signed game ticket string -- the game server uses it as the session token in
-    SessionStore, so clients can later present the same ticket in JOIN_GAME to match their session.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=50)
-    user_id: str = Field(min_length=1, max_length=100)
-    game_ticket: str = Field(min_length=1, max_length=2000)
+from game.session.models import PlayerSpec
 
 
 class CreateGameRequest(BaseModel):

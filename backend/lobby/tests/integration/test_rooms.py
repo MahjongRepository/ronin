@@ -2,7 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from lobby.server.app import create_app
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 

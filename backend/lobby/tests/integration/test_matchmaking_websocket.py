@@ -8,7 +8,7 @@ from starlette.websockets import WebSocketState
 
 from lobby.matchmaking.models import QueueEntry
 from lobby.server.app import create_app
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 

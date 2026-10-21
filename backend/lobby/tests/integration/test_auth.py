@@ -6,11 +6,11 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from starlette.testclient import TestClient
 
+from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.server.app import create_app
-from lobby.server.csrf import CSRF_COOKIE_NAME
-from lobby.server.settings import LobbyServerSettings
-from shared.auth.models import AccountType, Player
+from lobby.settings import LobbyServerSettings
 from shared.auth.settings import AuthSettings
+from shared.dal.models import AccountType, Player
 
 TEST_SECRET = "test-ticket-secret"
 

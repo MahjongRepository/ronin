@@ -4,10 +4,10 @@ import pytest
 from starlette.testclient import TestClient
 
 from game.messaging.encoder import decode, encode
-from game.messaging.router import MessageRouter
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.app import create_app
+from game.server.router import MessageRouter
 from game.server.types import CreateGameRequest, PlayerSpec
 from game.session.manager import SessionManager
 from game.session.models import Player

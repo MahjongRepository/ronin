@@ -10,8 +10,6 @@ if TYPE_CHECKING:
 from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION
-from game.messaging.compact import encode_discard
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
     _MAX_REPLAY_EVENTS,
@@ -19,8 +17,10 @@ from game.replay.loader import (
     load_replay_from_file,
     load_replay_from_string,
 )
-from game.replay.models import REPLAY_VERSION
+from game.wire.compact import encode_discard
 from game.wire.enums import WireRoundResultType
+from game.wire.events import EVENT_TYPE_INT
+from game.wire.replay_format import REPLAY_VERSION
 from shared.lib.melds import MeldData, encode_meld_compact
 
 # Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3

@@ -28,10 +28,11 @@ from game.logic.types import (
     PlayerView,
     TenpaiHand,
 )
-from game.messaging.compact import encode_discard, encode_draw
-from game.messaging.event_payload import EVENT_TYPE_INT, service_event_payload
-from game.replay.models import REPLAY_VERSION
+from game.messaging.event_payload import service_event_payload
 from game.session.replay_collector import ReplayCollector
+from game.wire.compact import encode_discard, encode_draw
+from game.wire.events import EVENT_TYPE_INT
+from game.wire.replay_format import REPLAY_VERSION
 
 
 class FakeStorage:

@@ -9,8 +9,6 @@ from game.logic.settings import NUM_PLAYERS
 from game.logic.state import MahjongGameState
 from game.logic.tiles import NUM_TILES
 
-REPLAY_VERSION = "0.3-dev"
-
 
 class ReplayInputEvent(BaseModel):
     """

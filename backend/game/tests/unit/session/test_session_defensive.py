@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 from game.logic.enums import GameAction, GameErrorCode
 from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
 from game.messaging.types import SessionErrorCode, SessionMessageType
-from game.server.types import PlayerSpec
 from game.session.manager import SessionManager
+from game.session.models import PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
 

@@ -10,10 +10,11 @@ from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION, create_seat_rng, validate_seed_hex
 from game.logic.settings import NUM_PLAYERS
-from game.messaging.compact import decode_discard
-from game.messaging.event_payload import EVENT_TYPE_INT
-from game.replay.models import REPLAY_VERSION, ReplayInput, ReplayInputEvent
+from game.replay.models import ReplayInput, ReplayInputEvent
+from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
+from game.wire.events import EVENT_TYPE_INT
+from game.wire.replay_format import REPLAY_VERSION
 from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.

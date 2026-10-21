@@ -6,22 +6,27 @@ hands each player a signed game ticket; players then connect to `/ws/{game_id}` 
 
 ## Layers
 
-* `server/` — transport: Starlette app (`app.py`, `get_app` factory), WebSocket endpoint
-  (`websocket.py`), `TokenBucket` rate limiter, `GameServerSettings`.
-* `messaging/` — `MessageRouter`, MessagePack encoder, client message models, wire shaping of
-  events. Talks to the transport only through `ConnectionProtocol`, so tests run it on
-  `MockConnection`.
-* `session/` — `SessionManager`: pending games, joins, disconnects, reconnects, timers, replay
-  collection.
+* `server/` — inbound: Starlette app (`app.py`, `get_app` factory), WebSocket endpoint
+  (`websocket.py`), `MessageRouter` (`router.py`: parses client messages, verifies game tickets on
+  JOIN_GAME / RECONNECT, dispatches to `SessionManager`), `TokenBucket` rate limiter,
+  `GameServerSettings`. The router talks to the transport only through `ConnectionProtocol`, so
+  tests run it on `MockConnection`.
+* `session/` — `SessionManager`: pending games (`PlayerSpec` is its input), joins, disconnects,
+  reconnects, timers, replay collection.
+* `messaging/` — outbound: MessagePack encoder, client message models, wire shaping of events
+  (`event_payload.py`).
+* `wire/` — the wire format both the server and the replay tool read: integer event and result
+  codes (`enums.py`, `events.py`), the packed draw/discard codec (`compact.py`) and
+  `REPLAY_VERSION` (`replay_format.py`).
 * `logic/` — the rules engine behind the `GameService` interface (`MahjongGameService`); returns
   `list[ServiceEvent]` and knows nothing about connections.
 * `replay/` — runs recorded games through the public `GameService` API (`runner.py`: `run_replay`;
-  `loader.py`: `load_replay_from_file` / `load_replay_from_string`) for tests and profiling.
-* `wire/enums.py` — integer wire codes shared by `messaging` and `replay`.
+  `loader.py`: `load_replay_from_file` / `load_replay_from_string`) for tests and profiling. It
+  depends on `logic` and `wire` only.
 
-Import direction is enforced by `tests/integration/test_architecture_boundary.py`: at runtime,
-`logic` never imports `replay` and `messaging` never imports `session`; imports under
-`if TYPE_CHECKING:` are allowed. Put a shared wire type in `wire/` rather than crossing those lines.
+Import direction is `server` → `session` → `messaging` → `wire` → `logic`, enforced by the
+import-linter contracts in `pyproject.toml` (see `backend/AGENTS.md`, "Boundaries"). Something two
+layers both need goes down into `wire/` or `logic/`, never sideways.
 
 ## Security requirements
 

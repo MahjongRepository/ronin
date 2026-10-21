@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from game.logic.settings import MAX_AI_PLAYERS, GameSettings
 
 if TYPE_CHECKING:
@@ -13,6 +15,21 @@ def validate_num_ai_players(num_ai_players: int) -> None:
     """
     if not (0 <= num_ai_players <= MAX_AI_PLAYERS):
         raise ValueError(f"num_ai_players must be 0-{MAX_AI_PLAYERS}, got {num_ai_players}")
+
+
+class PlayerSpec(BaseModel):
+    """
+    Player info for direct game creation.
+
+    The game_ticket field is the signed game ticket string -- the game server uses it as the session token in
+    SessionStore, so clients can later present the same ticket in JOIN_GAME to match their session.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=50)
+    user_id: str = Field(min_length=1, max_length=100)
+    game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 @dataclass

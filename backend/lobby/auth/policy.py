@@ -10,7 +10,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 
-from shared.auth.models import AccountType
+from shared.dal.models import AccountType
 
 if TYPE_CHECKING:
     from collections.abc import Callable

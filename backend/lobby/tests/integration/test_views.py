@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from starlette.testclient import TestClient
 
+from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.server.app import create_app
-from lobby.server.csrf import CSRF_COOKIE_NAME
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.settings import AuthSettings
 from shared.dal.models import PlayedGame, PlayedGameStanding

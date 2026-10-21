@@ -4,8 +4,8 @@ import asyncio
 import time
 from unittest.mock import patch
 
-from shared.auth.models import AccountType
 from shared.auth.session_store import AuthSessionStore
+from shared.dal.models import AccountType
 
 
 class TestCreateSession:

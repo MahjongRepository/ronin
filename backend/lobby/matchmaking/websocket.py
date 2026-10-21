@@ -17,8 +17,7 @@ from lobby.websocket_utils import check_origin
 if TYPE_CHECKING:
     from lobby.matchmaking.manager import MatchmakingManager
     from lobby.registry.manager import RegistryManager
-    from lobby.rooms.manager import LobbyRoomManager
-    from lobby.server.settings import LobbyServerSettings
+    from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
 
 logger = structlog.get_logger()
@@ -34,7 +33,6 @@ class _MatchmakingContext:
         "connection_id",
         "matchmaking_manager",
         "registry",
-        "room_manager",
         "settings",
         "user_id",
         "username",
@@ -44,7 +42,6 @@ class _MatchmakingContext:
         self.settings: LobbyServerSettings = websocket.app.state.settings
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
         self.matchmaking_manager: MatchmakingManager = websocket.app.state.matchmaking_manager
-        self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.registry: RegistryManager = websocket.app.state.registry
         self.connection_id: str = str(uuid.uuid4())
         self.user_id: str = websocket.user.user_id
@@ -88,13 +85,6 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
     """
     log = logger.bind(username=ctx.username, connection_id=ctx.connection_id)
 
-    # Cross-system guard: reject if user is already in a room
-    if ctx.room_manager.has_user_in_any_room(ctx.user_id):
-        log.info("matchmaking rejected", reason="already_in_room")
-        await websocket.send_json({"type": "error", "message": "already_in_room"})
-        await websocket.close(code=4000, reason="already_in_room")
-        return False
-
     entry = QueueEntry(
         connection_id=ctx.connection_id,
         user_id=ctx.user_id,
@@ -104,21 +94,20 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
 
     matched = None
     position = 0
-    duplicate = False
+    rejection: str | None = None
     async with ctx.matchmaking_manager.lock:
         try:
             ctx.matchmaking_manager.add_player(entry)
-        except ValueError:
-            duplicate = True
+        except ValueError as e:
+            rejection = str(e)
         else:
             position = ctx.matchmaking_manager.queue_size
             matched = ctx.matchmaking_manager.try_match()
 
-    # Lock released -- handle duplicate rejection outside lock
-    if duplicate:
-        log.info("matchmaking rejected", reason="already_in_queue")
-        await websocket.send_json({"type": "error", "message": "already_in_queue"})
-        await websocket.close(code=4000, reason="already_in_queue")
+    if rejection is not None:
+        log.info("matchmaking rejected", reason=rejection)
+        await websocket.send_json({"type": "error", "message": rejection})
+        await websocket.close(code=4000, reason=rejection)
         return False
 
     if matched:

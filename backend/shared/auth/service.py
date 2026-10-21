@@ -6,7 +6,7 @@ import secrets
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from shared.auth.models import AccountType, Player
+from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from shared.auth.models import AuthSession

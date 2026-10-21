@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 
 
 class TestLobbyServerSettings:

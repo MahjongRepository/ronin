@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from shared.auth.models import Player
+from shared.dal.models import Player
 from shared.dal.player_repository import PlayerRepository
 
 if TYPE_CHECKING:

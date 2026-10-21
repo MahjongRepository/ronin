@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
-    from lobby.server.settings import LobbyServerSettings
+    from lobby.settings import LobbyServerSettings
 
 
 def check_origin(websocket: WebSocket) -> bool:

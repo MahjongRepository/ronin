@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 
 from game.logic.mahjong_service import MahjongGameService
-from game.messaging.router import MessageRouter
+from game.server.router import MessageRouter
 from game.server.settings import GameServerSettings
 from game.server.types import CreateGameRequest
 from game.server.websocket import websocket_endpoint

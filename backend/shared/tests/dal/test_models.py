@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from shared.auth.models import AccountType, Player
+from shared.dal.models import AccountType, Player
 
 
 class TestPlayerValidation:

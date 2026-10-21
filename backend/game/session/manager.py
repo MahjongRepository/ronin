@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from game.logic.service import GameService
     from game.messaging.protocol import ConnectionProtocol
-    from game.server.types import PlayerSpec
+    from game.session.models import PlayerSpec
     from game.session.replay_collector import ReplayCollector
     from shared.dal.game_repository import GameRepository
 

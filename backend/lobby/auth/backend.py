@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 
 from lobby.auth.models import AuthenticatedPlayer
-from shared.auth.models import AccountType
+from shared.dal.models import AccountType
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection

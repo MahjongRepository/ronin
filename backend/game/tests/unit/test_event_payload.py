@@ -16,12 +16,12 @@ from game.logic.types import (
     HandResultInfo,
     TsumoResult,
 )
-from game.messaging.compact import decode_discard, decode_draw
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
     service_event_payload,
     shape_call_prompt_payload,
 )
+from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireRoundResultType
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
 

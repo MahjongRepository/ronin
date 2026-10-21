@@ -16,14 +16,14 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
-from game.messaging.compact import encode_draw
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import SessionData
 from game.session.replay_collector import ReplayCollector
 from game.tests.mocks import MockConnection, MockGameService
 from game.tests.unit.session.helpers import create_started_game, disconnect_and_reconnect
+from game.wire.compact import encode_draw
+from game.wire.events import EVENT_TYPE_INT
 
 
 def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapshot:

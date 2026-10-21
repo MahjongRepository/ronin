@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from starlette.authentication import BaseUser
 
-from shared.auth.models import AccountType
+from shared.dal.models import AccountType
 
 
 class AuthenticatedPlayer(BaseUser):

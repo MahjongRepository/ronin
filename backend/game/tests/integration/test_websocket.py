@@ -8,7 +8,6 @@ from starlette.websockets import WebSocketDisconnect
 
 from game.logic.enums import GameAction
 from game.logic.events import EventType
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server import websocket as ws_module
@@ -22,6 +21,7 @@ from game.tests.helpers.websocket import (
     send_ws,
 )
 from game.tests.mocks import MockGameService
+from game.wire.events import EVENT_TYPE_INT
 
 
 class TestWebSocketIntegration:

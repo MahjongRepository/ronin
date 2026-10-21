@@ -17,8 +17,8 @@ from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import collect_protected_api_paths, protected_api, protected_html, public_route
 from lobby.server.app import _make_auth_error_handler
 from lobby.server.middleware import SlashNormalizationMiddleware
-from shared.auth.models import AccountType, Player
 from shared.auth.session_store import AuthSessionStore
+from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from starlette.requests import Request

@@ -5,7 +5,8 @@ from uuid import uuid4
 
 import structlog
 
-from shared.auth.models import AccountType, AuthSession
+from shared.auth.models import AuthSession
+from shared.dal.models import AccountType
 
 CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
 DEFAULT_SESSION_TTL_SECONDS = 86400  # 24 hours

@@ -6,16 +6,18 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 ## Structure
 
-* `server/` — `app.py` (route table, `create_app()`, and the `get_app` factory uvicorn runs),
-  `settings.py` (`LOBBY_`), `middleware.py` (`SecurityHeadersMiddleware`, slash normalization),
-  `csrf.py`.
-* `auth/` — `SessionOrApiKeyBackend` and the route policy decorators (`policy.py`).
-* `views/` — page and API handlers split by domain, re-exported from `views/__init__.py`; Jinja2
-  templates in `views/templates/`; `assets.py` resolves the Vite manifest (or the Vite dev server
-  under `LOBBY_VITE_DEV_URL`) into template globals.
+* `server/` — `app.py` (route table, `create_app()`, and the `get_app` factory uvicorn runs) and
+  `middleware.py` (`SecurityHeadersMiddleware`, slash normalization). `settings.py` (`LOBBY_`) sits
+  at the `lobby/` root so every feature may import it.
+* `auth/` — `SessionOrApiKeyBackend`, the route policy decorators (`policy.py`) and `csrf.py`.
+* `views/` — page and API handlers split by domain, re-exported from `views/__init__.py`
+  (`bot_api_handlers.py` is the bot JSON API); Jinja2 templates in `views/templates/`; `assets.py`
+  resolves the Vite manifest (or the Vite dev server under `LOBBY_VITE_DEV_URL`) into template
+  globals.
 * `rooms/` and `matchmaking/` — managers, WebSocket handlers and message models; matchmaking is a
   FIFO queue that starts a 4-human game once 4 players wait, and rejects users already in a room
-  (`already_in_room`) or already queued (`already_in_queue`).
+  (`already_in_room`, through the `is_user_in_room` callable `create_app()` injects from the room
+  manager) or already queued (`already_in_queue`). The two packages never import each other.
 * `registry/` — game servers from `servers.yaml`, health-checked on every request that needs one,
   with no caching.
 * `game_transition.py` — `sign_player_tickets` and `create_game_on_server`, shared by rooms and

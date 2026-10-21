@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from shared.auth.models import AccountType, Player
+from shared.dal.models import AccountType, Player
 from shared.db.connection import Database
 from shared.db.player_repository import SqlitePlayerRepository
 

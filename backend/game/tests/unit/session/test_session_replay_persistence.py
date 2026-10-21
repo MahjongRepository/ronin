@@ -8,8 +8,8 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.types import PlayerStanding
-from game.server.types import PlayerSpec
 from game.session.manager import SessionManager
+from game.session.models import PlayerSpec
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService

@@ -10,7 +10,6 @@ from game.logic.types import (
     PlayerReconnectState,
     ReconnectionSnapshot,
 )
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
@@ -23,6 +22,7 @@ from game.tests.helpers.websocket import (
     send_ws,
 )
 from game.tests.mocks import MockConnection, MockGameService
+from game.wire.events import EVENT_TYPE_INT
 
 
 def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSnapshot:

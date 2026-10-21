@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import PlainTextResponse
 
-from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie
+from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
 
 if TYPE_CHECKING:
     from starlette.requests import Request

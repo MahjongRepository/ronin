@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 from starlette.datastructures import FormData
 
-from lobby.server.csrf import (
+from lobby.auth.csrf import (
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
     get_or_create_csrf_token,

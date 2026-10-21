@@ -23,6 +23,7 @@ dependencies = [
 dev = [
     "docformatter==1.7.8",
     "httpx2==2.13.1",
+    "import-linter==2.15",
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
     "pytest-cov==7.1.0",
@@ -110,3 +111,69 @@ omit = ["**/tests/*", "scripts/*", "debug.py", "shared/logging.py", "game/replay
 show_missing = true
 skip_covered = true
 fail_under = 100
+
+[tool.importlinter]
+root_packages = ["game", "lobby", "shared", "scripts"]
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "game and lobby are separate servers that meet only in shared"
+type = "independence"
+modules = ["game", "lobby"]
+
+[[tool.importlinter.contracts]]
+name = "shared is a leaf: it never imports a server or a script"
+type = "forbidden"
+source_modules = ["shared"]
+forbidden_modules = ["game", "lobby", "scripts"]
+
+[[tool.importlinter.contracts]]
+name = "game: server -> session -> messaging -> wire -> logic"
+type = "layers"
+layers = ["game.server", "game.session", "game.messaging", "game.wire", "game.logic"]
+
+[[tool.importlinter.contracts]]
+name = "game.logic and game.wire know nothing of replay, auth or persistence"
+type = "forbidden"
+source_modules = ["game.logic", "game.wire"]
+forbidden_modules = ["game.replay", "shared.auth", "shared.dal", "shared.db", "shared.storage", "shared.logging"]
+
+[[tool.importlinter.contracts]]
+name = "game.replay is a tool over logic and wire, outside the server"
+type = "forbidden"
+source_modules = ["game.replay"]
+forbidden_modules = ["game.server", "game.session", "game.messaging"]
+
+[[tool.importlinter.contracts]]
+name = "game.session writes replays without importing the replay tool"
+type = "forbidden"
+source_modules = ["game.session"]
+forbidden_modules = ["game.replay"]
+
+[[tool.importlinter.contracts]]
+name = "lobby: server -> views -> features -> transition helpers -> auth, registry -> settings"
+type = "layers"
+layers = [
+    "lobby.server",
+    "lobby.views",
+    "lobby.rooms | lobby.matchmaking",
+    "lobby.game_transition | lobby.websocket_utils",
+    "lobby.auth | lobby.registry",
+    "lobby.settings",
+]
+
+[[tool.importlinter.contracts]]
+name = "lobby.rooms and lobby.matchmaking are independent features"
+type = "independence"
+modules = ["lobby.rooms", "lobby.matchmaking"]
+
+[[tool.importlinter.contracts]]
+name = "shared: db implements dal, auth uses dal"
+type = "layers"
+layers = ["shared.db", "shared.auth", "shared.dal"]
+
+[[tool.importlinter.contracts]]
+name = "only composition roots, scripts and the db tests open the database"
+type = "protected"
+protected_modules = ["shared.db"]
+allowed_importers = ["game.server.app", "lobby.server.app", "scripts", "shared.tests"]

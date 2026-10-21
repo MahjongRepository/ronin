@@ -5,21 +5,9 @@ from typing import Any
 from game.logic.enums import RoundResultType, WireCallType
 from game.logic.events import DiscardEvent, DrawEvent, EventType, MeldEvent, RoundEndEvent, ServiceEvent
 from game.logic.meld_compact import meld_event_to_compact
-from game.messaging.compact import encode_discard, encode_draw
+from game.wire.compact import encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
-from shared.lib.melds import EVENT_TYPE_MELD
-
-# Derived from WireEventType IntEnum — stable integer assignments for wire protocol.
-EVENT_TYPE_INT: dict[EventType, int] = {EventType[name]: WireEventType[name] for name in WireEventType.__members__}
-
-if WireEventType.MELD != EVENT_TYPE_MELD:
-    raise RuntimeError(  # pragma: no cover
-        f"WireEventType.MELD ({WireEventType.MELD}) != EVENT_TYPE_MELD ({EVENT_TYPE_MELD})",
-    )
-if set(EVENT_TYPE_INT.keys()) != set(EventType):
-    raise RuntimeError(  # pragma: no cover
-        f"EVENT_TYPE_INT keys {set(EVENT_TYPE_INT.keys())} != EventType members {set(EventType)}",
-    )
+from game.wire.events import EVENT_TYPE_INT
 
 
 def service_event_payload(event: ServiceEvent) -> dict[str, Any]:

@@ -7,8 +7,8 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.types import MeldCaller
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.messaging.types import SessionMessageType
+from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game
 

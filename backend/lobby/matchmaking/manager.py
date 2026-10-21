@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 import structlog
 
 from lobby.matchmaking.models import MATCHMAKING_SEATS, QueueEntry
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 logger = structlog.get_logger()
+
+
+def _nobody_in_room(_user_id: str) -> bool:
+    return False
 
 
 class MatchmakingManager:
@@ -14,9 +22,11 @@ class MatchmakingManager:
     Manage the matchmaking queue.
 
     Pure state management -- no WebSocket I/O. The WebSocket handler calls manager methods and handles responses.
+    `is_user_in_room` is the only link to the rooms feature: a user seated in a room cannot queue.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, is_user_in_room: Callable[[str], bool] = _nobody_in_room) -> None:
+        self._is_user_in_room = is_user_in_room
         self._queue: list[QueueEntry] = []
         self._user_ids: set[str] = set()
         self._in_flight: set[str] = set()
@@ -26,8 +36,11 @@ class MatchmakingManager:
         """
         Add a player to the matchmaking queue.
 
-        Caller must hold self._lock.
+        Caller must hold self._lock. Raise ValueError("already_in_room") or ValueError("already_in_queue") when the user
+        cannot queue.
         """
+        if self._is_user_in_room(entry.user_id):
+            raise ValueError("already_in_room")
         if entry.user_id in self._user_ids or entry.user_id in self._in_flight:
             raise ValueError("already_in_queue")
         self._queue.append(entry)

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from lobby.registry.manager import RegistryManager
     from lobby.rooms.connections import RoomConnectionManager
     from lobby.rooms.manager import LobbyRoomManager
-    from lobby.server.settings import LobbyServerSettings
+    from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
 
 logger = structlog.get_logger()

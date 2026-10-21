@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from shared.auth.models import AccountType, Player
 from shared.auth.password import SimpleHasher
 from shared.auth.service import AuthError, AuthService
 from shared.auth.session_store import AuthSessionStore
+from shared.dal.models import AccountType, Player
 from shared.db import Database, SqlitePlayerRepository
 
 if TYPE_CHECKING:

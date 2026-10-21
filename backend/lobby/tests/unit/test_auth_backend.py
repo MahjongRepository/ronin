@@ -10,8 +10,8 @@ from starlette.authentication import AuthCredentials
 
 from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.models import AuthenticatedPlayer
-from shared.auth.models import AccountType, Player
 from shared.auth.session_store import AuthSessionStore
+from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from shared.auth.models import AuthSession

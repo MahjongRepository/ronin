@@ -1,6 +1,6 @@
 import pytest
 
-from game.messaging.compact import (
+from game.wire.compact import (
     decode_discard,
     decode_draw,
     encode_discard,

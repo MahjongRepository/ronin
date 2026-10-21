@@ -32,7 +32,7 @@ from lobby.rooms.connections import RoomConnectionManager
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import room_websocket
 from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
-from lobby.server.settings import LobbyServerSettings
+from lobby.settings import LobbyServerSettings
 from lobby.views import (
     create_room_and_redirect,
     create_templates,
@@ -48,15 +48,13 @@ from lobby.views import (
     storybook_page,
 )
 from lobby.views.auth_handlers import (
-    bot_auth,
-    bot_create_room,
-    bot_matchmaking_auth,
     login,
     login_page,
     logout,
     register,
     register_page,
 )
+from lobby.views.bot_api_handlers import bot_auth, bot_create_room, bot_matchmaking_auth
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import get_hasher
 from shared.auth.settings import AuthSettings
@@ -131,7 +129,6 @@ def create_app(
     static_dir = Path(settings.static_dir).resolve()
     game_assets_dir = Path(settings.game_assets_dir).resolve()
 
-    matchmaking_manager = MatchmakingManager()
     room_connections = RoomConnectionManager()
     room_manager = LobbyRoomManager(
         room_ttl_seconds=300,
@@ -141,6 +138,7 @@ def create_app(
             reason="room_expired",
         ),
     )
+    matchmaking_manager = MatchmakingManager(is_user_in_room=room_manager.has_user_in_any_room)
 
     routes: list[BaseRoute] = [
         # Protected HTML routes (redirect to login when unauthenticated)

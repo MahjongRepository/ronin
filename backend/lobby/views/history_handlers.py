@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lobby.server.csrf import get_or_create_csrf_token, set_csrf_cookie
+from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
 
 if TYPE_CHECKING:
     from datetime import datetime

@@ -20,9 +20,9 @@ from game.logic.types import (
     PlayerStanding,
     TenpaiHand,
 )
-from game.messaging.event_payload import EVENT_TYPE_INT
 from game.session.models import Game, Player
 from game.tests.mocks import MockConnection, MockResultEvent
+from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game, make_dummy_game_view, make_game_with_player
 

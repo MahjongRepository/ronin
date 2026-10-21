@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from shared.auth.models import Player
+    from shared.dal.models import Player
 
 
 class PlayerRepository(ABC):

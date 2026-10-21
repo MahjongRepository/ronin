@@ -29,6 +29,14 @@ class TestAddPlayer:
         with pytest.raises(ValueError, match="already_in_queue"):
             mgr.add_player(_make_entry(user_id="u1", connection_id="c2"))
 
+    def test_matchmaking_queue_add__when_user_is_in_a_room__should_raise_before_queueing(self):
+        mgr = MatchmakingManager(is_user_in_room=lambda user_id: user_id == "u1")
+        with pytest.raises(ValueError, match="already_in_room"):
+            mgr.add_player(_make_entry(user_id="u1"))
+        assert mgr.queue_size == 0
+        mgr.add_player(_make_entry(user_id="u2", connection_id="c2"))
+        assert mgr.queue_size == 1
+
     def test_matchmaking_queue_add__when_different_users__should_queue_both(self):
         mgr = MatchmakingManager()
         mgr.add_player(_make_entry(user_id="u1", connection_id="c1"))

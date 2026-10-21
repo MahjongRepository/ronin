@@ -17,7 +17,7 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import service_event_payload
-from game.replay.models import REPLAY_VERSION
+from game.wire.replay_format import REPLAY_VERSION
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent

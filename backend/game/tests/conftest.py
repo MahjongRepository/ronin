@@ -10,8 +10,8 @@ from game.logic.state import (
     MahjongRoundState,
 )
 from game.logic.wall import Wall, _extract_ura_dora
-from game.messaging.router import MessageRouter
 from game.server.app import create_app
+from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import MockConnection, MockGameService

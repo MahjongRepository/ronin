@@ -46,4 +46,4 @@ that seat and seats an AI player.
 The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py`
 (PCG64DXSM, seeded per round); AI strategies must be deterministic for a given state. A change to
 wall or RNG behaviour bumps `RNG_VERSION`; a change to the replay format bumps `REPLAY_VERSION`
-(`replay/models.py`).
+(`wire/replay_format.py`).

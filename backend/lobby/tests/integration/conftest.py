@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lobby.server.csrf import CSRF_COOKIE_NAME
+from lobby.auth.csrf import CSRF_COOKIE_NAME
 
 if TYPE_CHECKING:
     from starlette.testclient import TestClient

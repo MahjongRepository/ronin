@@ -14,7 +14,7 @@ from game.server.rate_limit import TokenBucket
 logger = structlog.get_logger()
 
 if TYPE_CHECKING:
-    from game.messaging.router import MessageRouter
+    from game.server.router import MessageRouter
 
 _GAME_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _MAX_GAME_ID_LENGTH = 50
