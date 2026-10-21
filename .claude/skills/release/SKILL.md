@@ -22,7 +22,7 @@ If any check fails, abort with a clear error message explaining what's wrong and
 
 ## Step 2: Detect version and latest tag
 
-1. Read the version from `pyproject.toml` (the `version = "X.Y.Z"` line)
+1. Read the version from `backend/pyproject.toml` (the `version = "X.Y.Z"` line)
 2. Validate the version matches `^\d+\.\d+\.\d+$` format — abort with error if not
 3. Fetch tags from the remote and get the latest version-formatted tag:
    ```
@@ -123,13 +123,13 @@ The `--target` flag pins the tag to the exact commit SHA captured in Step 2, pre
 ## Step 10: Bump version for next cycle
 
 1. Parse current version (e.g., `0.2.0`), increment the minor component → `0.3.0`
-2. Edit `pyproject.toml` and `uv.lock` to update the version line
+2. Edit `backend/pyproject.toml` and `backend/uv.lock` to update the version line
 3. Commit the change (without co-authors):
    ```bash
-   git add pyproject.toml uv.lock && git commit -m "chore: bump version to <new_version>"
+   git add backend/pyproject.toml backend/uv.lock && git commit -m "chore: bump version to <new_version>"
    ```
 
-**Recovery note**: If the skill fails between Steps 9 and 10 (release created but version not bumped), the next run will see the tag matches the version and abort. In that case, manually bump the version in `pyproject.toml` and commit, then the next `/release` invocation will work normally.
+**Recovery note**: If the skill fails between Steps 9 and 10 (release created but version not bumped), the next run will see the tag matches the version and abort. In that case, manually bump the version in `backend/pyproject.toml` and commit, then the next `/release` invocation will work normally.
 
 ## Step 11: Clean up
 

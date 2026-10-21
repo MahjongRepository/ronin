@@ -1,7 +1,7 @@
 {
   "include": ["backend"],
   "pythonVersion": "3.14",
-  "venvPath": ".",
+  "venvPath": "backend",
   "venv": ".venv",
   "typeCheckingMode": "off",
   "executionEnvironments": [

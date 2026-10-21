@@ -27,9 +27,9 @@ ENV UV_CACHE_DIR=/tmp/uv-cache \
     XDG_DATA_HOME=/tmp/xdg-data \
     XDG_CACHE_HOME=/tmp/xdg-cache
 
-# Install Python version from pyproject.toml requires-python
-COPY pyproject.toml /workspace/
-RUN uv python install \
+# Install Python version from backend/pyproject.toml requires-python
+COPY backend/pyproject.toml /workspace/backend/
+RUN cd /workspace/backend && uv python install \
     && ln -sf "$(uv python find)" /usr/local/bin/python3 \
     && ln -sf "$(uv python find)" /usr/local/bin/python
 

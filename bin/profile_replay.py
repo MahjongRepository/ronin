@@ -5,10 +5,10 @@ multiple iterations, and save a .prof file for detailed analysis.
 
 Usage:
     make profile
-    uv run python bin/profile_replay.py --iterations 5
-    uv run python bin/profile_replay.py --replay path/to/replay.txt
-    uv run python bin/profile_replay.py --load
-    uv run python bin/profile_replay.py --load path/to/replay.prof
+    uv run --project backend python bin/profile_replay.py --iterations 5
+    uv run --project backend python bin/profile_replay.py --replay path/to/replay.txt
+    uv run --project backend python bin/profile_replay.py --load
+    uv run --project backend python bin/profile_replay.py --load path/to/replay.prof
 """
 
 from __future__ import annotations

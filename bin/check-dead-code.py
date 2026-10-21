@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def _source_files(src: Path) -> list[Path]:
+    return sorted(path for path in src.rglob("*.py") if ".venv" not in path.relative_to(src).parts)
+
+
 def _is_test_file(path: Path) -> bool:
     parts = str(path)
     return "/tests/" in parts or path.name.startswith("test_") or path.name == "conftest.py"
@@ -213,7 +217,7 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
     def has_implicit_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return any(decorator_name(d) in implicit_decorators for d in node.decorator_list)
 
-    for py_file in sorted(src.rglob("*.py")):
+    for py_file in _source_files(src):
         if _is_test_file(py_file):
             continue
         try:
@@ -275,7 +279,7 @@ def _collect_references(src: Path, *, test_files: bool) -> _ReferenceBucket:
     When test_files=False, collect from production files only.
     """
     refs = _ReferenceBucket(names=set(), attrs=set())
-    for py_file in src.rglob("*.py"):
+    for py_file in _source_files(src):
         is_test = _is_test_file(py_file)
         if test_files != is_test:
             continue

@@ -34,10 +34,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend/lobby", "backend/game", "backend/shared"]
+packages = ["lobby", "game", "shared"]
 
 [tool.pytest.ini_options]
-testpaths = ["backend"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 python_files = "test_*.py"
@@ -45,7 +44,6 @@ addopts = "-p no:warnings --no-header --tb=short -qq --cov --cov-report=term:ski
 timeout = 10
 
 [tool.ruff]
-src = ["backend"]
 target-version = "py314"
 line-length = 120
 
@@ -74,9 +72,9 @@ ignore = [
     "SLF001", # Private member accessed
 ]
 # Base class methods define the interface contract; parameters are unused in the default implementation
-"backend/scripts/*.py" = ["T201", "PLR2004", "S106"]
-"backend/game/logic/ai_player.py" = ["ARG002"]
-"backend/game/logic/shanten.py" = ["TID251"]
+"scripts/*.py" = ["T201", "PLR2004", "S106"]
+"game/logic/ai_player.py" = ["ARG002"]
+"game/logic/shanten.py" = ["TID251"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
@@ -86,9 +84,6 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseS
 
 [tool.ty.environment]
 python-version = "3.14"
-
-[tool.ty.src]
-include = ["backend"]
 
 [tool.ty.rules]
 # Promote all non-error default rules to error for stricter checking
@@ -128,8 +123,8 @@ invalid-parameter-default = "warn"
 unused-ignore-comment = "ignore"
 
 [tool.coverage.run]
-source = ["backend"]
-omit = ["**/tests/*", "**/test_*", "backend/scripts/*", "backend/game/logic/ai_player.py", "backend/game/logic/ai_player_controller.py", "backend/debug.py", "backend/shared/logging.py", "backend/game/replay/external/tenhou.py"]
+source = ["."]
+omit = ["**/tests/*", "**/test_*", "scripts/*", "game/logic/ai_player.py", "game/logic/ai_player_controller.py", "debug.py", "shared/logging.py", "game/replay/external/tenhou.py"]
 
 [tool.coverage.report]
 show_missing = true

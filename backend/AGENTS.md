@@ -5,11 +5,15 @@ documents it names.
 
 ## Tooling
 
-* One uv project at the repo root; run everything from there. `pyproject.toml` installs
-  `backend/game`, `backend/lobby` and `backend/shared` as packages, so imports are rooted at
-  `backend/` (`from game.logic.state import ...`). `backend/conftest.py` loads `.env.tests` and
-  routes structlog through stdlib logging so `caplog` sees it.
-* `make lint` (ruff format check + ruff), `make typecheck` (`ty check backend`), `make test`.
+* The uv project lives in `backend/` (`pyproject.toml`, `uv.lock`, `.venv`). It installs `game`,
+  `lobby` and `shared` as packages, so imports are rooted at `backend/`
+  (`from game.logic.state import ...`). `conftest.py` loads the repo-root `.env.tests` and routes
+  structlog through stdlib logging so `caplog` sees it.
+* Run checks from `backend/` (`cd backend && uv run pytest ...`); the ruff, ty, pytest and coverage
+  paths in `pyproject.toml` are relative to it.
+* Run the servers and `bin/` scripts from the repo root with `uv run --project backend ...`: their
+  default paths (`frontend/dist`, `backend/storage.db`, `backend/data/replays`) are relative to it.
+* `make lint` (ruff format check + ruff), `make typecheck` (ty), `make test`.
 
 ## Conventions
 

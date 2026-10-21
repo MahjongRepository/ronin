@@ -2,7 +2,7 @@
 name: optimize-engine
 description: Profile the game engine, identify a single performance bottleneck, optimize it, and verify the improvement with before/after measurements.
 model: opus
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(uv run python bin/profile_replay.py *), Bash(uv run pytest *), Bash(make run-all-checks), Bash(git log *), Bash(git show *)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(make profile), Bash(uv run --project backend python bin/profile_replay.py *), Bash(cd backend && uv run pytest *), Bash(make run-all-checks), Bash(git log *), Bash(git show *)
 ---
 
 Profile the game engine replay runner, identify a single optimization opportunity, implement it, and verify the result.
@@ -11,7 +11,7 @@ Profile the game engine replay runner, identify a single optimization opportunit
 
 Run the profiler to establish a baseline:
 ```
-uv run python bin/profile_replay.py
+make profile
 ```
 
 Record from the output:
@@ -22,7 +22,7 @@ Record from the output:
 
 Load the saved profile for detailed analysis:
 ```
-uv run python bin/profile_replay.py --load
+uv run --project backend python bin/profile_replay.py --load
 ```
 
 This shows three sections:
@@ -95,7 +95,7 @@ All checks must pass. If checks fail, fix them or revert the optimization.
 
 Run the profiler again with the same settings:
 ```
-uv run python bin/profile_replay.py
+make profile
 ```
 
 Compare against the baseline from Step 1:
@@ -104,7 +104,7 @@ Compare against the baseline from Step 1:
 
 Load the new profile to confirm the target function improved:
 ```
-uv run python bin/profile_replay.py --load
+uv run --project backend python bin/profile_replay.py --load
 ```
 
 ## Step 8: Report results

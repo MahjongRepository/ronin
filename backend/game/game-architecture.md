@@ -380,9 +380,9 @@ The replay adapter (`backend/game/replay/`) enables deterministic replay of game
 
 ```
 ronin/
-├── pyproject.toml
 ├── Makefile
 └── backend/
+    ├── pyproject.toml
     ├── shared/
     │   ├── storage.py            # ReplayStorage protocol, LocalReplayStorage (gzip file persistence with two-level shard directories), replay_file_path helper
     │   ├── dal/

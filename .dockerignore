@@ -2,9 +2,9 @@
 .github
 .claude
 .idea
-.venv
-.pytest_cache
-.ruff_cache
+**/.venv
+**/.pytest_cache
+**/.ruff_cache
 **/.coverage
 thoughts
 *.pyc

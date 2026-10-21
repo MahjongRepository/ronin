@@ -9,7 +9,8 @@ names.
 
 Ronin is a Riichi Mahjong game server and browser client.
 
-* `backend/` — Python 3.14 / Starlette, one `pyproject.toml` at the repo root. See `backend/AGENTS.md`.
+* `backend/` — Python 3.14 / Starlette, its own uv project (`backend/pyproject.toml`). See
+  `backend/AGENTS.md`.
   * `backend/game/` — game server (WebSocket, MessagePack). See `backend/game/AGENTS.md`.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
@@ -37,7 +38,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 ## Workflow
 
-* While iterating, run only the tests your change touches (`uv run pytest <path> -k <expr>`,
+* While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
   `cd frontend && bunx vitest run <path>`).
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
