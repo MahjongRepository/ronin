@@ -1,0 +1,16 @@
+RALPHEX_IMAGE ?= ronin-ralphex
+
+.PHONY: agent-build agent-run agent-check agent-update
+
+# make -f Makefile.agent agent-build
+agent-build:
+	docker build -t $(RALPHEX_IMAGE) -f Dockerfile.agent --pull --no-cache .
+
+# make -f Makefile.agent agent-run AGENT_ARGS="docs/matchmaking-and-num-players-cleanup.md"
+# make -f Makefile.agent agent-run AGENT_ARGS="--review docs/protocol-parsing-layer.md"
+agent-run:
+	@RALPHEX_IMAGE=$(RALPHEX_IMAGE) ./bin/agent_run.py -v /workspace/frontend/node_modules $(AGENT_ARGS) || true
+
+# make -f Makefile.agent agent-check
+agent-check:
+	docker run --rm -v $(PWD):/workspace -v /workspace/frontend/node_modules -w /workspace $(RALPHEX_IMAGE) make run-all-checks

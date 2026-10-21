@@ -18,9 +18,10 @@ Server-rendered HTML pages via Jinja2 templates (served by the lobby backend at 
 - `/` — Room listing with create/join actions (authenticated)
 - `/history` — Completed game history with replay links (authenticated)
 - `/rooms/{room_id}` — Room page with WebSocket-powered player list and chat (authenticated)
-- `/styleguide` — Lobby component showcase (public, dev only)
+- `/matchmaking` — Matchmaking queue page (authenticated)
+- `/storybook` — Lobby component showcase (public, dev only)
 
-Lobby JavaScript (`lobby/index.ts`) loads on all lobby pages via `base.html`. On the room page (`/rooms/{room_id}`), it reads `data-room-id` and `data-ws-url` attributes from the DOM and initializes a WebSocket connection for real-time room interactions (player list, chat, ready state). On other pages, it acts as a no-op since no `#room-app` element exists.
+Lobby JavaScript (`lobby/index.ts`) loads on all lobby pages via `base.html`. On the room page (`/rooms/{room_id}`), it reads `data-room-id` and `data-ws-url` from `#room-app` and initializes a WebSocket connection for real-time room interactions (player list, chat, ready state). On the matchmaking page it reads `data-ws-url` from `#matchmaking-app` and starts the queue WebSocket. On every page it wires the copy-link buttons of the games history (`initGamesCopyLinkButtons`).
 
 **Templates** (in `backend/lobby/views/templates/`):
 - `base.html` — Base layout with Google Fonts, nav block, main container, sticky footer
@@ -36,7 +37,7 @@ Standalone SPA served at `/play/{gameId}` via a Jinja2 template that injects con
 
 **Connection flow**:
 1. Lobby room page stores game session data (WebSocket URL, game ticket) in `sessionStorage` when the room owner starts the game
-2. Browser navigates to `/game#/game/{gameId}`
+2. Browser navigates to `/play/{gameId}`
 3. Game client reads session from `sessionStorage`, connects to game server WebSocket
 4. Client sends `JOIN_GAME` with HMAC-signed game ticket
 5. On disconnect, client auto-reconnects with `RECONNECT` using the same ticket
@@ -113,7 +114,7 @@ Dashed-border card with a "+" icon and "New Table" label. On hover, border and t
 CSS Grid layout with named areas (`a`, `b`, `c`, `d` for N/E/S/W seats, `t` for center table). The center table is rendered as a `::after` pseudo-element. Each seat is a 10px circle positioned via `nth-child` grid-area assignments. Human seats glow jade with solid borders; bot seats use dashed borders and transparent backgrounds.
 
 ### Footer (`footer-content`)
-Sticky footer (pushed to bottom via flexbox `min-height: 100vh` on body). Shows copyright year and version on the left. In dev mode (`APP_VERSION == "dev"`), shows links to lobby and game styleguides on the right. Wraps on mobile via `flex-wrap`.
+Sticky footer (pushed to bottom via flexbox `min-height: 100vh` on body). Shows copyright year and version on the left. In dev mode (`APP_VERSION == "dev"`), shows links to the lobby and game storybooks on the right. Wraps on mobile via `flex-wrap`.
 
 ## Lobby TypeScript
 

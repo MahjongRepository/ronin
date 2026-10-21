@@ -1,0 +1,49 @@
+FROM ghcr.io/umputun/ralphex:latest
+
+# Install dependencies needed for Bun installer/runtime (base image is Alpine).
+RUN apk add --no-cache bash ca-certificates curl unzip
+
+# Install uv (Python package manager)
+RUN wget -qO- https://astral.sh/uv/install.sh | sh \
+    && if [ -f /root/.local/bin/uv ]; then install -m 0755 /root/.local/bin/uv /usr/local/bin/uv; fi \
+    && if [ -f /root/.local/bin/uvx ]; then install -m 0755 /root/.local/bin/uvx /usr/local/bin/uvx; fi
+
+# Install Bun (JS runtime) into a system-wide location
+ENV BUN_INSTALL=/usr/local/bun
+RUN mkdir -p "$BUN_INSTALL" \
+    && curl -fsSL https://bun.sh/install | bash \
+    && ln -sf /usr/local/bun/bin/bun /usr/local/bin/bun \
+    && ln -sf /usr/local/bun/bin/bun /usr/local/bin/bunx \
+    && /usr/local/bun/bin/bun --version
+
+ENV PATH="/usr/local/bun/bin:/usr/local/bin:${PATH}"
+
+WORKDIR /workspace
+
+# Redirect uv/ruff directories to /tmp so they survive APP_UID remapping
+# (SKIP_HOME_CHOWN=1 prevents the baseimage from chowning /home/app).
+ENV UV_CACHE_DIR=/tmp/uv-cache \
+    UV_PYTHON_INSTALL_DIR=/tmp/uv-python \
+    XDG_DATA_HOME=/tmp/xdg-data \
+    XDG_CACHE_HOME=/tmp/xdg-cache
+
+# Install Python version from pyproject.toml requires-python
+COPY pyproject.toml /workspace/
+RUN uv python install \
+    && ln -sf "$(uv python find)" /usr/local/bin/python3 \
+    && ln -sf "$(uv python find)" /usr/local/bin/python
+
+# Install pyright LSP server
+RUN uv tool install pyright \
+    && install -m 0755 /tmp/bin/pyright /usr/local/bin/pyright \
+    && install -m 0755 /tmp/bin/pyright-langserver /usr/local/bin/pyright-langserver
+
+# Fix permissions on all uv/xdg temp dirs after all uv operations are done
+RUN mkdir -p /tmp/uv-cache /tmp/uv-python /tmp/xdg-data /tmp/xdg-cache \
+    && chmod -R a+rwX /tmp/uv-cache /tmp/uv-python /tmp/xdg-data /tmp/xdg-cache
+
+RUN mkdir -p /workspace/frontend
+COPY frontend/package.json frontend/bun.lock /workspace/frontend/
+RUN cd /workspace/frontend \
+    && bun install --frozen-lockfile \
+    && chown -R app:app /workspace/frontend/node_modules
