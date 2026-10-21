@@ -84,7 +84,7 @@ class Database:
         Hardens the main DB file and WAL/SHM sibling files created by WAL mode, since they also contain database content
         (password and API-key hashes).
         """
-        if os.name != "posix":  # pragma: no cover
+        if os.name != "posix":  # pragma: no cover (platform)
             return
 
         for suffix in ("", "-wal", "-shm"):

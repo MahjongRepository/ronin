@@ -583,6 +583,10 @@ class TestFindTimeoutDiscardTile:
         result = _find_timeout_discard_tile(player)
         assert result == 0
 
+    def test_find_timeout_discard_tile__when_every_tile_kuikae_restricted__should_return_none(self):
+        player_left_with_1m_4m_after_chi_of_1m = self._make_player(tiles=(0, 12), kuikae_tiles=(0, 3))
+        assert _find_timeout_discard_tile(player_left_with_1m_4m_after_chi_of_1m) is None
+
     def test_find_timeout_discard_tile__when_kuikae_tiles_not_in_hand__should_return_last_tile(self):
         # tile_id 0 -> tile_34 = 0, kuikae restricts tile_34 = 5 (not in hand)
         player = self._make_player(tiles=(0, 4, 8), kuikae_tiles=(5,))

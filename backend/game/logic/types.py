@@ -291,7 +291,7 @@ class RonCallInput(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    ron_callers: list[int]
+    ron_callers: list[int] = Field(min_length=1)
     tile_id: int
     discarder_seat: int
     is_chankan: bool = False

@@ -53,7 +53,6 @@ from game.logic.melds import (
 )
 from game.logic.riichi import can_declare_riichi, declare_riichi
 from game.logic.round import (
-    check_exhaustive_draw,
     discard_tile,
     draw_tile,
     is_tempai,
@@ -148,8 +147,8 @@ def process_draw_phase(
     events: list[GameEvent] = []
     current_seat = round_state.current_player_seat
 
-    # check for exhaustive draw before attempting to draw
-    if check_exhaustive_draw(round_state):
+    new_round_state, drawn_tile = draw_tile(round_state)
+    if drawn_tile is None:
         logger.debug("exhaustive draw")
         new_round_state, new_game_state, result = process_exhaustive_draw(game_state)
 
@@ -157,11 +156,6 @@ def process_draw_phase(
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(RoundEndEvent(result=result, target="all"))
         return new_round_state, new_game_state, events
-
-    # draw a tile
-    new_round_state, drawn_tile = draw_tile(round_state)
-    if drawn_tile is None:  # pragma: no cover
-        raise AssertionError("drawn_tile is None after exhaustive draw check passed")
 
     logger.debug("tile drawn", tile_id=drawn_tile)
 
@@ -571,7 +565,7 @@ def process_ron_call(
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(RoundEndEvent(result=result, target="all"))
 
-    elif len(ron_callers) == settings.double_ron_count:
+    else:
         # double ron
         winners = []
         for winner_seat in ron_callers:
@@ -611,8 +605,6 @@ def process_ron_call(
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
         events.append(RoundEndEvent(result=result, target="all"))
-    else:  # pragma: no cover
-        raise AssertionError("process_ron_call called with no valid winner count")
 
     return new_round_state, new_game_state, events
 
@@ -972,5 +964,5 @@ def process_meld_call(
         case MeldCallType.ADDED_KAN:
             return _process_added_kan_call(round_state, game_state, caller_seat=caller_seat, tile_id=tile_id)
 
-    logger.error("unknown call_type", call_type=call_type, caller_seat=caller_seat)  # pragma: no cover
-    raise InvalidActionError(f"unknown call_type: {call_type}")  # pragma: no cover
+    logger.error("unknown call_type", call_type=call_type, caller_seat=caller_seat)  # pragma: no cover (exhaustive)
+    raise InvalidActionError(f"unknown call_type: {call_type}")  # pragma: no cover (exhaustive)

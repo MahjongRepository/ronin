@@ -283,7 +283,7 @@ class SessionManager:
             # 2. Pre-start game: no concurrent action/timeout paths.
             if game.started:
                 self._session_store.mark_disconnected(player.session_token)
-            else:  # pragma: no cover — defensive: unreachable after room removal
+            else:
                 self._session_store.remove_session(player.session_token)
 
             self._remove_player_from_game(game, connection_id=connection.connection_id, player=player)

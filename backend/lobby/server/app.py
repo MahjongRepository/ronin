@@ -123,10 +123,10 @@ def create_app(
     settings: LobbyServerSettings | None = None,
     auth_settings: AuthSettings | None = None,  # required in production (via get_app)
 ) -> Starlette:
-    if settings is None:  # pragma: no cover
+    if settings is None:  # pragma: no cover (entrypoint)
         settings = LobbyServerSettings()
 
-    if auth_settings is None:  # pragma: no cover
+    if auth_settings is None:  # pragma: no cover (entrypoint)
         auth_settings = AuthSettings()
 
     static_dir = Path(settings.static_dir).resolve()
@@ -332,7 +332,7 @@ def _attach_state(  # noqa: PLR0913
     app.state.matchmaking_manager = matchmaking_manager
 
 
-def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
+def get_app() -> Starlette:  # pragma: no cover (entrypoint)  # deadcode: ignore
     """
     Factory function for uvicorn --factory lobby.server.app:get_app.
     """

@@ -141,10 +141,10 @@ def create_app(
     session_manager: SessionManager | None = None,
     message_router: MessageRouter | None = None,
 ) -> Starlette:
-    if settings is None:  # pragma: no cover
+    if settings is None:
         settings = GameServerSettings()
 
-    if game_service is None:  # pragma: no cover
+    if game_service is None:  # pragma: no cover (entrypoint)
         game_service = MahjongGameService()
 
     # When the app creates its own SessionManager, it owns the DB lifecycle.
@@ -199,7 +199,7 @@ def create_app(
     return app
 
 
-def get_app() -> Starlette:  # pragma: no cover  # deadcode: ignore
+def get_app() -> Starlette:  # pragma: no cover (entrypoint)  # deadcode: ignore
     """
     ASGI application factory for production use (e.g., uvicorn --factory).
     """

@@ -3,7 +3,6 @@ from mahjong.tile import TilesConverter
 
 from game.logic.exceptions import InvalidActionError, InvalidDiscardError
 from game.logic.round import (
-    check_exhaustive_draw,
     discard_tile,
     draw_from_dead_wall,
     draw_tile,
@@ -14,26 +13,6 @@ from game.logic.state import (
 )
 from game.logic.wall import DEAD_WALL_SIZE, Wall
 from game.tests.unit.helpers import _string_to_34_tiles
-
-
-class TestCheckExhaustiveDraw:
-    def test_check_exhaustive_draw__when_wall_is_empty__should_return_true(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
-        round_state = MahjongRoundState(
-            wall=Wall(live_tiles=()),
-            players=players,
-            current_player_seat=0,
-        )
-        assert check_exhaustive_draw(round_state) is True
-
-    def test_check_exhaustive_draw__when_one_tile_remains__should_return_false(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
-        round_state = MahjongRoundState(
-            wall=Wall(live_tiles=(42,)),
-            players=players,
-            current_player_seat=0,
-        )
-        assert check_exhaustive_draw(round_state) is False
 
 
 class TestDrawTileImmutable:

@@ -105,12 +105,16 @@ unresolved-attribute = "ignore"
 
 [tool.coverage.run]
 source = ["."]
-omit = ["**/tests/*", "scripts/*", "debug.py", "shared/logging.py", "game/replay/external/tenhou.py"]
+omit = ["**/tests/*", "scripts/*", "debug.py", "game/replay/external/tenhou.py"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 100
+exclude_lines = [
+    '^\s*(((async )?def .*?)?[\])]+(\s*->.*?)?:\s*)?\.\.\.\s*(#|$)',
+    'if (typing\.)?TYPE_CHECKING:',
+    '#\s*pragma: no cover \((exhaustive|entrypoint|platform)\)',
+]
 
 [tool.importlinter]
 root_packages = ["game", "lobby", "shared", "scripts"]

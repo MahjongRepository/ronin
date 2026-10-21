@@ -23,7 +23,7 @@ class AuthenticatedPlayer(BaseUser):
         self._account_type = account_type
 
     @property
-    def is_authenticated(self) -> bool:  # pragma: no cover
+    def is_authenticated(self) -> bool:
         return True
 
     @property

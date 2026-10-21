@@ -58,6 +58,19 @@ class TestKyuushuKyuuhaiDrawPhase:
         assert PlayerAction.KYUUSHU in available_actions
 
 
+class TestExhaustiveDrawPhase:
+    def test_process_draw_phase__when_live_wall_empty__should_end_round_with_exhaustive_draw(self):
+        round_state = create_round_state(wall=(), phase=RoundPhase.PLAYING, current_player_seat=0)
+        game_state = create_game_state(round_state)
+
+        new_round, _new_game, events = process_draw_phase(round_state, game_state)
+        assert new_round.phase == RoundPhase.FINISHED
+        assert not any(isinstance(e, DrawEvent) for e in events)
+        round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
+        assert len(round_end_events) == 1
+        assert round_end_events[0].result.type == RoundResultType.EXHAUSTIVE_DRAW
+
+
 class TestRiichiFuriten:
     def test_riichi_furiten__when_riichi_player_discarded_winning_tile__should_flag_riichi_furiten(self):
         hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))

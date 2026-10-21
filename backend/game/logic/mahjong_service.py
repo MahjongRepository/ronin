@@ -108,7 +108,7 @@ def _find_timeout_discard_tile(player: MahjongPlayer) -> int | None:
         if tile_to_34(tile_id) not in kuikae_set:
             return tile_id
 
-    return None  # pragma: no cover -- all tiles restricted is not possible in valid game state
+    return None
 
 
 class MahjongGameService(GameService):
@@ -544,20 +544,20 @@ class MahjongGameService(GameService):
         if game_state is None:
             return []
 
-        player = game_state.round_state.players[seat]
-        if game_state.round_state.current_player_seat != seat or not player.tiles:
-            logger.debug("turn timeout ignored: not current player or no tiles")
+        if game_state.round_state.current_player_seat != seat:
+            logger.debug("turn timeout ignored: not current player")
             return []
 
         if game_state.round_state.pending_call_prompt is not None:
             logger.debug("turn timeout ignored: call prompt pending")
             return []
 
-        tile_id = _find_timeout_discard_tile(player)
-        logger.info("turn timeout, auto-discarding", tile_id=tile_id)
-        if tile_id is None:  # pragma: no cover -- defensive guard
+        tile_id = _find_timeout_discard_tile(game_state.round_state.players[seat])
+        if tile_id is None:
+            logger.error("turn timeout: no discardable tile, turn left pending", seat=seat)
             return []
 
+        logger.info("turn timeout, auto-discarding", tile_id=tile_id)
         try:
             return await self.handle_action(
                 game_id=game_id, player_name=player_name, action=GameAction.DISCARD, data={"tile_id": tile_id}
@@ -790,7 +790,7 @@ class MahjongGameService(GameService):
             if caller_seat == seat:
                 return caller
 
-        raise AssertionError(f"seat {seat} not found in prompt callers")  # pragma: no cover
+        raise AssertionError(f"seat {seat} not found in prompt callers")
 
     async def _handle_round_end(
         self,
@@ -802,7 +802,7 @@ class MahjongGameService(GameService):
         """
         frozen_game = self._games[game_id]
 
-        if round_result is None:  # pragma: no cover - defensive check
+        if round_result is None:
             logger.error("round finished but no round result found in events")
             return self._create_error_event(
                 code=GameErrorCode.MISSING_ROUND_RESULT,

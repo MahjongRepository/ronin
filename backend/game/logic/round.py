@@ -29,15 +29,6 @@ logger = structlog.get_logger()
 HAND_SIZE_AFTER_DRAW = 14
 
 
-def check_exhaustive_draw(round_state: MahjongRoundState) -> bool:
-    """
-    Check if the wall is exhausted (no more tiles to draw).
-
-    Returns True if wall is empty, indicating an exhaustive draw condition.
-    """
-    return wall_ops.is_wall_exhausted(round_state.wall)
-
-
 def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
     """
     Find waiting tiles based on hand tiles only (ignoring melds for agari check).
@@ -258,8 +249,6 @@ def _is_pure_karaten(
     tile they are waiting on. This is not considered valid tenpai.
     """
     waiting = _get_hand_waiting_tiles(tiles)
-    if not waiting:
-        return True  # no waiting tiles at all  # pragma: no cover
 
     # count tiles in player's hand + melds
     tile_counts = hand_to_34_array(tiles)

@@ -29,7 +29,10 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and Vite (`:5173`) together,
   with `.env.local` sourced when present.
-* `make test` / `make lint` / `make typecheck` — backend pytest, docformatter + ruff, ty.
+* `make test` / `make lint` / `make typecheck` — backend pytest with the coverage gate, docformatter
+  + ruff, ty.
+* `make coverage-branches` — advisory branch coverage for the whole backend; not part of
+  `run-all-checks`.
 * `make test-frontend` / `make lint-frontend` / `make typecheck-frontend` — the frontend equivalents.
 * `make format` / `make format-frontend` — format in place.
 * `make deadcode` — unused backend code.
@@ -73,6 +76,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 * One scenario per test: several assertions about one call or one short flow are fine. Before adding
   a test, extend the scenario's existing test with an assertion.
 * Never wait out a real timer or delay in a test; shorten it via settings or `monkeypatch`, and
-  cover the deadline itself once. Avoid `pragma: no cover` unless there is no way to reach the line.
+  cover the deadline itself once. Exclude code from coverage only with a tag `backend/AGENTS.md`
+  allows; otherwise reach the line with a test or restructure it away.
 * `except ValueError, KeyError:` (no parentheses) is valid Python 3.14 syntax (PEP 758), not a
   Python 2 leftover; don't "fix" it.

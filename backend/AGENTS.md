@@ -38,8 +38,20 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
   relative asset defaults (`frontend/dist`, `frontend/public`) and the database and replay paths
   `bin/local-settings.sh` sets resolve against it.
 * `make lint` (docformatter check + ruff format check + ruff), `make typecheck` (ty), `make test`.
-  Only `make test` measures coverage (`--cov`, 100% gate); `addopts` leaves it out so a path-scoped
-  `uv run pytest <path>` runs just that path without failing the gate.
+  `make test` enforces coverage: it runs the whole suite with line-only `--cov`, then gates
+  `game/logic/` and `game/wire/` at 100% line coverage with its own `coverage report`; the rest of
+  the backend is measured, not gated. `addopts` leaves `--cov` out so a path-scoped
+  `uv run pytest <path>` runs just that path. Branch coverage is advisory: `make coverage-branches`
+  reports it for the whole backend with no threshold. Keep `branch` and `fail_under` out of
+  `[tool.coverage]`: `coverage report` has no line-only mode, so branch data would turn the line gate
+  into a branch gate, and a configured threshold would fail the advisory report.
+* Besides the built-in `if TYPE_CHECKING:` and `...` stub exclusions, only a tagged
+  `# pragma: no cover (<tag>)` excludes code from coverage; a bare `# pragma: no cover` excludes
+  nothing. The tags: `exhaustive` (the fallthrough of a `match` or `isinstance` chain over a
+  closed set, or an import-time consistency check between enums), `entrypoint` (a production-only
+  factory or composition-root default the tests replace), `platform` (a branch for an OS the suite
+  does not run on). A line justified as a race, rare, a defensive catch-all or a long-running loop
+  gets no exclusion: reach it with a test, or restructure until the branch is gone or type-checked.
 * docformatter formats nothing when given `.`, so the Makefile's `DOCFORMATTER_PATHS` lists the backend's
   top-level packages and modules: add a new one there. It exits 3 when it changed files, which
   `make format` treats as success. It also rewraps a triple-quoted string passed directly as a call

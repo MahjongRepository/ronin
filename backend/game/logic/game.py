@@ -253,7 +253,7 @@ def _get_honba_and_rotation(  # noqa: PLR0911
 
         return 0, True
 
-    raise AssertionError(f"unexpected round result type: {result_type}")  # pragma: no cover
+    raise AssertionError(f"unexpected round result type: {result_type}")  # pragma: no cover (exhaustive)
 
 
 def _get_winner_seats(result: RoundResult) -> list[int]:
@@ -266,7 +266,9 @@ def _get_winner_seats(result: RoundResult) -> list[int]:
     if isinstance(result, DoubleRonResult):
         return [w.winner_seat for w in result.winners]
 
-    raise AssertionError(f"unexpected result type in _get_winner_seats: {type(result)}")  # pragma: no cover
+    raise AssertionError(  # pragma: no cover (exhaustive)
+        f"unexpected result type in _get_winner_seats: {type(result)}",
+    )
 
 
 def _get_wind_for_unique_dealers(unique_dealers: int) -> int:
