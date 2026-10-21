@@ -31,6 +31,7 @@ class GameTicket:
 
 
 def create_signed_ticket(
+    *,
     user_id: str,
     username: str,
     room_id: str,

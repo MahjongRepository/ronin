@@ -168,7 +168,7 @@ def _resolve_ron_responses(
     new_round_state, new_game_state, events = process_ron_call(
         round_state,
         game_state,
-        ron_input,
+        ron_input=ron_input,
     )
     new_round_state = clear_pending_prompt(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
@@ -194,7 +194,7 @@ def _resolve_meld_response(
     new_round_state, new_game_state, events = process_meld_call(
         round_state,
         game_state,
-        meld_input,
+        meld_input=meld_input,
     )
     new_round_state = clear_pending_prompt(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
@@ -205,7 +205,7 @@ def _resolve_meld_response(
     if meld_type == MeldCallType.OPEN_KAN:
         # open kan draws from dead wall; include tile_id and available actions
         player = new_round_state.players[best.seat]
-        events.append(create_draw_event(new_round_state, new_game_state, best.seat, tile_id=player.tiles[-1]))
+        events.append(create_draw_event(new_round_state, new_game_state, seat=best.seat, tile_id=player.tiles[-1]))
 
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
@@ -253,14 +253,14 @@ def _complete_kan_after_chankan_decline(
     old_dora_count = len(round_state.wall.dora_indicators)
 
     if is_closed:
-        new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, settings)
+        new_round_state, meld = call_closed_kan(round_state, seat=caller_seat, tile_id=tile_id, settings=settings)
         meld_event = MeldEvent(
             meld_type=MeldViewType.CLOSED_KAN,
             caller_seat=caller_seat,
             tile_ids=list(meld.tiles),
         )
     else:
-        new_round_state, meld = call_added_kan(round_state, caller_seat, tile_id, settings)
+        new_round_state, meld = call_added_kan(round_state, seat=caller_seat, tile_id=tile_id, settings=settings)
         meld_event = MeldEvent(
             meld_type=MeldViewType.ADDED_KAN,
             caller_seat=caller_seat,
@@ -272,7 +272,7 @@ def _complete_kan_after_chankan_decline(
     new_game_state = update_game_with_round(game_state, new_round_state)
     events: list[GameEvent] = [meld_event]
 
-    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
+    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
 
     # check for four kans abortive draw
     if settings.has_suukaikan and check_four_kans(new_round_state, settings):
@@ -284,7 +284,7 @@ def _complete_kan_after_chankan_decline(
     elif new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[caller_seat]
         drawn_tile = player.tiles[-1]
-        events.append(create_draw_event(new_round_state, new_game_state, caller_seat, tile_id=drawn_tile))
+        events.append(create_draw_event(new_round_state, new_game_state, seat=caller_seat, tile_id=drawn_tile))
 
     return new_round_state, new_game_state, events
 
@@ -356,8 +356,8 @@ def _finalize_discard_post_ron_check(
         new_round_state, new_game_state = declare_riichi(
             new_round_state,
             new_game_state,
-            prompt.from_seat,
-            settings,
+            seat=prompt.from_seat,
+            settings=settings,
         )
         events.append(RiichiDeclaredEvent(seat=prompt.from_seat, target="all"))
         riichi_finalized = True
@@ -401,15 +401,15 @@ def _resolve_chankan_decline(
         new_rs, new_gs, events = complete_added_kan_after_chankan_decline(
             round_state,
             game_state,
-            prompt.from_seat,
-            prompt.tile_id,
+            caller_seat=prompt.from_seat,
+            tile_id=prompt.tile_id,
         )
     else:
         new_rs, new_gs, events = complete_closed_kan_after_chankan_decline(
             round_state,
             game_state,
-            prompt.from_seat,
-            prompt.tile_id,
+            caller_seat=prompt.from_seat,
+            tile_id=prompt.tile_id,
         )
     return ActionResult(events, new_round_state=new_rs, new_game_state=new_gs)
 
@@ -444,7 +444,7 @@ def resolve_call_prompt(  # noqa: PLR0911
     # priority 1: ron
     if ron_responses:
         logger.debug("call resolved: ron", winner_seats=[r.seat for r in ron_responses])
-        return _resolve_ron_responses(round_state, game_state, prompt, ron_responses)
+        return _resolve_ron_responses(round_state, game_state, prompt=prompt, ron_responses=ron_responses)
 
     # No ron -- finalize dora/riichi for DISCARD and MELD prompts.
     # Both prompt types originate from a discard, so the discarder may have a
@@ -456,7 +456,7 @@ def resolve_call_prompt(  # noqa: PLR0911
         resolved_round, resolved_game, extra_events, riichi_finalized = _finalize_discard_post_ron_check(
             round_state,
             game_state,
-            prompt,
+            prompt=prompt,
         )
 
         # four riichi check only when this resolution finalized riichi
@@ -474,7 +474,7 @@ def resolve_call_prompt(  # noqa: PLR0911
         best = pick_best_meld_response(meld_responses, prompt)
         if best is not None:
             logger.debug("call resolved: meld", caller_seat=best.seat, call_type=best.action.value)
-            meld_result = _resolve_meld_response(resolved_round, resolved_game, prompt, best)
+            meld_result = _resolve_meld_response(resolved_round, resolved_game, prompt=prompt, best=best)
             # prepend dora/riichi events before meld events
             return ActionResult(
                 extra_events + list(meld_result.events),
@@ -489,10 +489,10 @@ def resolve_call_prompt(  # noqa: PLR0911
     new_game_state = update_game_with_round(resolved_game, new_round_state)
 
     if prompt.call_type == CallType.CHANKAN:
-        return _resolve_chankan_decline(new_round_state, new_game_state, prompt)
+        return _resolve_chankan_decline(new_round_state, new_game_state, prompt=prompt)
 
     # For DISCARD/MELD: dora/riichi already finalized above, just advance turn
     if prompt.call_type in (CallType.DISCARD, CallType.MELD):
-        return _resolve_all_passed_discard(new_round_state, new_game_state, extra_events)
+        return _resolve_all_passed_discard(new_round_state, new_game_state, extra_events=extra_events)
 
     return _resolve_all_passed(new_round_state, new_game_state)

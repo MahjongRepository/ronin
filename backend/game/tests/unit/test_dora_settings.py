@@ -213,12 +213,12 @@ class TestKanUraDoraSettingGating:
         result_enabled = collect_ura_dora_indicators(
             player,
             round_state,
-            GameSettings(has_uradora=True, has_kan_uradora=True),
+            settings=GameSettings(has_uradora=True, has_kan_uradora=True),
         )
         result_disabled = collect_ura_dora_indicators(
             player,
             round_state,
-            GameSettings(has_uradora=True, has_kan_uradora=False),
+            settings=GameSettings(has_uradora=True, has_kan_uradora=False),
         )
         assert len(result_enabled) == 2
         assert len(result_disabled) == 1

@@ -37,7 +37,7 @@ def backend(auth_service: MagicMock) -> SessionOrApiKeyBackend:
 
 @pytest.fixture
 def valid_session(session_store: AuthSessionStore) -> AuthSession:
-    return session_store.create_session("user-1", "testuser")
+    return session_store.create_session(user_id="user-1", username="testuser")
 
 
 def _bot_player(user_id: str = "bot-1", username: str = "TestBot") -> Player:
@@ -123,7 +123,7 @@ class TestSessionCookieAuth:
         valid_session: AuthSession,
         session_store: AuthSessionStore,
     ) -> None:
-        other_session = session_store.create_session("user-other", "otheruser")
+        other_session = session_store.create_session(user_id="user-other", username="otheruser")
         conn = MagicMock()
         conn.cookies = {"session_id": valid_session.session_id}
         conn.query_params = {"session_id": other_session.session_id}
@@ -166,7 +166,7 @@ class TestSessionCookieAuth:
         backend: SessionOrApiKeyBackend,
         session_store: AuthSessionStore,
     ) -> None:
-        session = session_store.create_session("user-2", "expired_user", ttl_seconds=0)
+        session = session_store.create_session(user_id="user-2", username="expired_user", ttl_seconds=0)
         session.expires_at = time.time() - 1
 
         conn = MagicMock()
@@ -254,7 +254,7 @@ class TestAccountTypePropagation:
         backend: SessionOrApiKeyBackend,
         session_store: AuthSessionStore,
     ) -> None:
-        bot_session = session_store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
+        bot_session = session_store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
         conn = MagicMock()
         conn.cookies = {"session_id": bot_session.session_id}
         conn.query_params = {}

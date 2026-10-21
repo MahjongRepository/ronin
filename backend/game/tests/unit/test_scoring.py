@@ -880,7 +880,7 @@ class TestHandValueParityBetweenFunctions:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result_a = calculate_hand_value(ctx, win_tile)
-        result_b = calculate_hand_value_with_tiles(ctx, tiles, win_tile)
+        result_b = calculate_hand_value_with_tiles(ctx, tiles=tiles, win_tile=win_tile)
 
         assert result_a.han == result_b.han
         assert result_a.fu == result_b.fu
@@ -911,7 +911,7 @@ class TestHandValueParityBetweenFunctions:
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result_a = calculate_hand_value(ctx, win_tile[0])
-        result_b = calculate_hand_value_with_tiles(ctx, list(all_tiles), win_tile[0])
+        result_b = calculate_hand_value_with_tiles(ctx, tiles=list(all_tiles), win_tile=win_tile[0])
 
         assert result_a.error == result_b.error == "no_yaku"
 
@@ -945,7 +945,7 @@ class TestCollectUraDoraIndicators:
             dora_indicators=(10,),
         )
         player = create_player(seat=0, is_riichi=True)
-        result = collect_ura_dora_indicators(player, round_state, settings)
+        result = collect_ura_dora_indicators(player, round_state, settings=settings)
         assert result is None
 
     def test_collect_ura_dora_indicators__when_no_dora_indicators__should_return_none(self):
@@ -956,7 +956,7 @@ class TestCollectUraDoraIndicators:
             dora_indicators=(),
         )
         player = create_player(seat=0, is_riichi=True)
-        result = collect_ura_dora_indicators(player, round_state, settings)
+        result = collect_ura_dora_indicators(player, round_state, settings=settings)
         assert result is None
 
 

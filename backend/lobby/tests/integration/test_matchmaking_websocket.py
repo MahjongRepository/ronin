@@ -203,7 +203,9 @@ class TestMatchmakingGameTransition:
         mgr = app.state.matchmaking_manager
         entries = []
         for i in range(count):
-            entry = _make_mock_entry(f"fake-uid-{i}", f"fake-player-{i}", f"fake-conn-{i}")
+            entry = _make_mock_entry(
+                user_id=f"fake-uid-{i}", username=f"fake-player-{i}", connection_id=f"fake-conn-{i}"
+            )
             mgr.add_player(entry)
             entries.append(entry)
         return entries
@@ -277,12 +279,14 @@ class TestMatchmakingGameTransition:
         # Add 2 connected mock entries
         connected_entries = []
         for i in range(2):
-            entry = _make_mock_entry(f"fake-uid-{i}", f"fake-player-{i}", f"fake-conn-{i}")
+            entry = _make_mock_entry(
+                user_id=f"fake-uid-{i}", username=f"fake-player-{i}", connection_id=f"fake-conn-{i}"
+            )
             mgr.add_player(entry)
             connected_entries.append(entry)
 
         # Add 1 disconnected mock entry
-        disc_entry = _make_mock_entry("fake-uid-disc", "disc-player", "fake-conn-disc")
+        disc_entry = _make_mock_entry(user_id="fake-uid-disc", username="disc-player", connection_id="fake-conn-disc")
         disc_entry.websocket.client_state = WebSocketState.DISCONNECTED
         mgr.add_player(disc_entry)
 

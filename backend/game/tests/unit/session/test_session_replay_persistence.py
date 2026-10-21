@@ -54,12 +54,12 @@ async def _create_started_game_with_collector(
     manager: SessionManager,
     game_id: str = "game1",
 ) -> list[MockConnection]:
-    ticket = make_test_game_ticket("Alice", game_id, user_id="user-0")
+    ticket = make_test_game_ticket(username="Alice", room_id=game_id, user_id="user-0")
     specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-    manager.create_pending_game(game_id, specs, num_ai_players=3)
+    manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=3)
     conn = MockConnection()
     manager.register_connection(conn)
-    await manager.join_game(conn, game_id, ticket)
+    await manager.join_game(conn, game_id=game_id, session_token=ticket)
     conn._outbox.clear()
     return [conn]
 
@@ -76,7 +76,7 @@ class TestSessionReplayStart:
         await _create_started_game_with_collector(manager)
 
         seed = game_service.get_game_seed("game1")
-        collector.start_game.assert_called_once_with("game1", seed, "pcg64dxsm-v1")
+        collector.start_game.assert_called_once_with(game_id="game1", seed=seed, rng_version="pcg64dxsm-v1")
 
 
 class TestSessionReplayCollect:
@@ -124,11 +124,11 @@ class TestSessionReplayCleanup:
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
-        ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        manager.create_pending_game("game1", specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_game(conn, "game1", ticket)
+        await manager.join_game(conn, game_id="game1", session_token=ticket)
 
         await manager.leave_game(conn)  # should not raise

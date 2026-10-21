@@ -28,6 +28,7 @@ class AuthSessionStore:
 
     def create_session(
         self,
+        *,
         user_id: str,
         username: str,
         account_type: AccountType = AccountType.HUMAN,

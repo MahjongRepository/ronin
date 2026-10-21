@@ -6,6 +6,7 @@ TEST_TICKET_SECRET = "test-secret"
 
 
 def make_test_game_ticket(
+    *,
     username: str,
     room_id: str,
     user_id: str = "test-user-id",

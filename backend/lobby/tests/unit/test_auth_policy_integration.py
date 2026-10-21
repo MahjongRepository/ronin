@@ -96,7 +96,7 @@ def auth_service(session_store: AuthSessionStore) -> MagicMock:
 
 @pytest.fixture
 def valid_session(session_store: AuthSessionStore) -> AuthSession:
-    return session_store.create_session("user-1", "testuser")
+    return session_store.create_session(user_id="user-1", username="testuser")
 
 
 class TestPublicRoutesPassUnauthenticated:

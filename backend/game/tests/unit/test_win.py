@@ -100,7 +100,7 @@ class TestCanDeclareTsumo:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state, GameSettings()) is False
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is False
 
     def test_can_declare_tsumo__when_open_hand_has_yakuhai__should_be_true(self):
         # open hand with haku pon (yakuhai yaku exists)
@@ -119,7 +119,7 @@ class TestCanDeclareTsumo:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state, GameSettings()) is True
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is True
 
     def test_can_declare_tsumo__when_open_hand_has_no_yaku__should_be_false(self):
         # open hand with pon of 1m, no yakuhai, no tanyao -> no yaku
@@ -141,7 +141,7 @@ class TestCanDeclareTsumo:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state, GameSettings()) is False
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is False
 
     def test_can_declare_tsumo__when_open_tanyao_and_kuitan_enabled__should_be_true(self):
         # open tanyao (kuitan) - all simples with open meld
@@ -160,7 +160,7 @@ class TestCanDeclareTsumo:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
 
-        assert can_declare_tsumo(player, round_state, GameSettings()) is True
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is True
 
 
 class TestGetWaitingTiles:
@@ -329,7 +329,7 @@ class TestTemporaryFuritenResetOnDiscard:
             ),
         )
         ron_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        assert can_call_ron(player, ron_tile, round_state, GameSettings()) is False
+        assert can_call_ron(player, discarded_tile=ron_tile, round_state=round_state, settings=GameSettings()) is False
 
     def test_temporary_furiten__when_active__should_allow_tsumo(self):
         # furiten player can still win by tsumo
@@ -355,7 +355,7 @@ class TestTemporaryFuritenResetOnDiscard:
             ),
             all_discards=(99,),
         )
-        assert can_declare_tsumo(player, round_state, GameSettings()) is True
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is True
 
 
 class TestRiichiFuritenPermanent:
@@ -379,7 +379,7 @@ class TestRiichiFuritenPermanent:
             ),
         )
         ron_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        assert can_call_ron(player, ron_tile, round_state, GameSettings()) is False
+        assert can_call_ron(player, discarded_tile=ron_tile, round_state=round_state, settings=GameSettings()) is False
 
     def test_riichi_furiten__when_active__should_allow_tsumo(self):
         # riichi furiten player can still win by tsumo
@@ -406,7 +406,7 @@ class TestRiichiFuritenPermanent:
             ),
             all_discards=(99,),
         )
-        assert can_declare_tsumo(player, round_state, GameSettings()) is True
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is True
 
 
 class TestFuritenRiichiDeclarationAllowed:
@@ -430,7 +430,7 @@ class TestFuritenRiichiDeclarationAllowed:
         # verify player IS in furiten
         assert is_furiten(player) is True
         # verify player CAN still declare riichi
-        assert can_declare_riichi(player, round_state, GameSettings()) is True
+        assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
 
     def test_declare_riichi__when_player_temporary_furiten__should_be_allowed(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
@@ -447,7 +447,7 @@ class TestFuritenRiichiDeclarationAllowed:
             round_wind=0,
             wall=Wall(live_tiles=tuple(range(10))),
         )
-        assert can_declare_riichi(player, round_state, GameSettings()) is True
+        assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
 
 
 class TestApplyTemporaryFuriten:
@@ -495,7 +495,10 @@ class TestCanCallRon:
 
         discarded_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is False
+        assert (
+            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is False
+        )
 
     def test_can_call_ron__when_tile_not_waiting__should_be_false(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
@@ -504,7 +507,10 @@ class TestCanCallRon:
 
         discarded_tile = TilesConverter.string_to_136_array(sou="9")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is False
+        assert (
+            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is False
+        )
 
     def test_can_call_ron__when_open_hand_has_yaku__should_be_true(self):
         # open hand with haku pon (yakuhai) via _has_yaku_for_ron_with_tiles
@@ -526,7 +532,10 @@ class TestCanCallRon:
 
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
+        assert (
+            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is True
+        )
 
     def test_can_call_ron__when_open_hand_has_no_yaku__should_be_false(self):
         # open hand with pon of 1m, no yakuhai, no tanyao -> no yaku
@@ -548,7 +557,10 @@ class TestCanCallRon:
 
         discarded_tile = TilesConverter.string_to_136_array(man="6")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is False
+        assert (
+            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is False
+        )
 
     def test_can_call_ron__when_open_tanyao__should_be_true(self):
         # open tanyao (kuitan) ron via _has_yaku_for_ron_with_tiles
@@ -570,7 +582,10 @@ class TestCanCallRon:
 
         discarded_tile = TilesConverter.string_to_136_array(sou="55")[1]
 
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
+        assert (
+            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is True
+        )
 
     def test_can_call_ron__when_meld_tiles_removed_from_hand__should_be_true(self):
         # meld tiles NOT in player.tiles (actual gameplay after call_pon)
@@ -591,7 +606,10 @@ class TestCanCallRon:
 
         discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
-        assert can_call_ron(player, discarded_tile, round_state, GameSettings()) is True
+        assert (
+            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is True
+        )
 
 
 class TestIsTenhou:
@@ -814,7 +832,7 @@ class TestShibariDoraOnly:
         round_state = self._create_round_state(dora_indicator)
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
 
-        assert can_declare_tsumo(player, round_state, GameSettings()) is False
+        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is False
 
     def test_shibari__when_open_hand_has_only_dora__should_reject_ron(self):
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
@@ -839,4 +857,4 @@ class TestShibariDoraOnly:
         # ron on 5m gives 55m pair: 111m(pon) + 234m + 234p + 567s + 55m
         ron_tile = TilesConverter.string_to_136_array(man="5")[0]
 
-        assert can_call_ron(player, ron_tile, round_state, GameSettings()) is False
+        assert can_call_ron(player, discarded_tile=ron_tile, round_state=round_state, settings=GameSettings()) is False

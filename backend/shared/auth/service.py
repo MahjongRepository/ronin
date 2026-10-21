@@ -97,7 +97,7 @@ class AuthService:
             raise AuthError("Invalid credentials")
         if not await self._hasher.verify(password, player.password_hash):
             raise AuthError("Invalid credentials")
-        return store.create_session(player.user_id, player.username, account_type=AccountType.HUMAN)
+        return store.create_session(user_id=player.user_id, username=player.username, account_type=AccountType.HUMAN)
 
     def validate_session(self, session_id: str | None) -> AuthSession | None:
         """
@@ -110,6 +110,7 @@ class AuthService:
 
     def create_session(
         self,
+        *,
         user_id: str,
         username: str,
         account_type: AccountType = AccountType.HUMAN,
@@ -117,7 +118,9 @@ class AuthService:
         """
         Create a session for an authenticated user (e.g., bot after API key validation).
         """
-        return self._require_session_store().create_session(user_id, username, account_type=account_type)
+        return self._require_session_store().create_session(
+            user_id=user_id, username=username, account_type=account_type
+        )
 
     def logout(self, session_id: str) -> None:
         """

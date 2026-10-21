@@ -87,7 +87,7 @@ class TestSessionManagerGameEnd:
 
 class TestSessionManagerCloseGameOnError:
     async def test_close_game_on_error__when_player_in_game__should_close_all_with_1011(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         await manager.close_game_on_error(conns[0])
 
@@ -106,7 +106,7 @@ class TestSessionManagerCloseGameOnError:
         assert not conn.is_closed
 
     async def test_close_game_on_error__when_game_mapping_missing__should_keep_connection_open(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
 
         # remove the game from the internal mapping to simulate cleanup race
         manager._games.pop("game1", None)
@@ -120,7 +120,6 @@ class TestSessionManagerCloseGameOnError:
     async def test_heartbeat__when_game_cleaned_up__should_stop_game_task(self, manager):
         conns = await create_started_game(
             manager,
-            "game1",
             num_ai_players=0,
             player_names=["P0", "P1", "P2", "P3"],
         )
@@ -138,11 +137,11 @@ class TestSessionManagerCloseGameOnError:
 
 class TestGameEndFromAction:
     async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
 
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
 
         assert conns[0].is_closed
         assert conns[0]._close_code == 1000
@@ -152,7 +151,7 @@ class TestGameEndFromAction:
     async def test_game_end__when_ai_replacement_after_invalid_action_ends_game__should_close_remaining_with_1000(
         self, manager
     ):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
             return_value=_make_game_end_events(),
@@ -160,7 +159,7 @@ class TestGameEndFromAction:
         error = InvalidGameActionError(action="discard", seat=0, reason="bad tile")
         manager._game_service.handle_action = AsyncMock(side_effect=error)
 
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
 
         # Offender closed with 1008 (invalid action)
         assert conns[0].is_closed
@@ -173,11 +172,11 @@ class TestGameEndFromAction:
 
 class TestGameEndFromTimeout:
     async def test_game_end__when_timeout_ends_game__should_close_all_connections(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
 
-        await manager._handle_timeout("game1", TimeoutType.TURN, 0)
+        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
 
         assert conns[0].is_closed
         assert conns[0]._close_code == 1000
@@ -187,7 +186,7 @@ class TestGameEndFromTimeout:
     async def test_game_end__when_ai_replacement_after_timeout_ends_game__should_close_remaining_with_1000(
         self, manager
     ):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
             return_value=_make_game_end_events(),
@@ -195,7 +194,7 @@ class TestGameEndFromTimeout:
         error = InvalidGameActionError(action="pass", seat=0, reason="resolution failed")
         manager._game_service.handle_timeout = AsyncMock(side_effect=error)
 
-        await manager._handle_timeout("game1", TimeoutType.MELD, 0)
+        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
 
         # Offender closed with 1008
         assert conns[0].is_closed
@@ -207,7 +206,7 @@ class TestGameEndFromTimeout:
 
 class TestGameEndFromLeaveGame:
     async def test_game_end__when_ai_replacement_after_leave_ends_game__should_close_remaining_with_1000(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
             return_value=_make_game_end_events(),

@@ -285,7 +285,7 @@ class TestResolveAddedKanTile:
         round_state = _round_state((man_1m[0], *_PIN_TILES))
 
         with pytest.raises(InvalidMeldError, match="no pon of tile type"):
-            resolve_added_kan_tile(round_state, 0, man_1m[0], GameSettings())
+            resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
 
     def test_resolve_added_kan_tile__when_no_same_type_tile_in_hand__should_raise_invalid_meld_error(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -293,7 +293,7 @@ class TestResolveAddedKanTile:
         round_state = _round_state(_PIN_TILES, player0_melds=(pon_meld,))
 
         with pytest.raises(InvalidMeldError, match="not in hand"):
-            resolve_added_kan_tile(round_state, 0, man_1m[3], GameSettings())
+            resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
 
     def test_resolve_added_kan_tile__when_exact_id_not_in_hand__should_use_same_type_tile(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -301,7 +301,7 @@ class TestResolveAddedKanTile:
         player0_tiles = (man_1m[3], *_PIN_TILES)
         round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
 
-        resolved = resolve_added_kan_tile(round_state, 0, man_1m[2], GameSettings())
+        resolved = resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[2], settings=GameSettings())
 
         assert resolved == man_1m[3]
 
@@ -311,7 +311,7 @@ class TestResolveAddedKanTile:
         player0_tiles = (man_1m[3], *_PIN_TILES)
         round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
 
-        resolved = resolve_added_kan_tile(round_state, 0, man_1m[3], GameSettings())
+        resolved = resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
 
         assert resolved == man_1m[3]
 

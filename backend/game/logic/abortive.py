@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 def can_call_kyuushu_kyuuhai(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> bool:
     """

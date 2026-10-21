@@ -82,7 +82,7 @@ class TestStateUtilsTileOperations:
     def test_add_tile_to_player__should_append_tile_without_mutating_original(self):
         state = self._create_round_state_with_tiles()
         new_tile = TilesConverter.string_to_136_array(pin="1")[0]
-        new_state = add_tile_to_player(state, 0, new_tile)
+        new_state = add_tile_to_player(state, seat=0, tile_id=new_tile)
 
         assert len(state.players[0].tiles) == 9
         assert len(new_state.players[0].tiles) == 10

@@ -42,7 +42,7 @@ class TestGetOrCreateCsrfToken:
 class TestSetCsrfCookie:
     def test_set_csrf_cookie__when_secure__should_set_secure_flag(self) -> None:
         response = MagicMock()
-        set_csrf_cookie(response, "test-token", cookie_secure=True)
+        set_csrf_cookie(response, token="test-token", cookie_secure=True)
         response.set_cookie.assert_called_once_with(
             key=CSRF_COOKIE_NAME,
             value="test-token",
@@ -54,7 +54,7 @@ class TestSetCsrfCookie:
 
     def test_set_csrf_cookie__when_not_secure__should_omit_secure_flag(self) -> None:
         response = MagicMock()
-        set_csrf_cookie(response, "test-token", cookie_secure=False)
+        set_csrf_cookie(response, token="test-token", cookie_secure=False)
         response.set_cookie.assert_called_once_with(
             key=CSRF_COOKIE_NAME,
             value="test-token",

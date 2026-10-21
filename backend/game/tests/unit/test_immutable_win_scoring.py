@@ -45,7 +45,9 @@ class TestCanCallRonFuritenGuards:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         settings = GameSettings()
-        result = can_call_ron(round_state.players[0], win_tile, round_state, settings)
+        result = can_call_ron(
+            round_state.players[0], discarded_tile=win_tile, round_state=round_state, settings=settings
+        )
 
         assert result is False
 
@@ -56,7 +58,9 @@ class TestCanCallRonFuritenGuards:
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
         settings = GameSettings()
-        result = can_call_ron(round_state.players[0], win_tile, round_state, settings)
+        result = can_call_ron(
+            round_state.players[0], discarded_tile=win_tile, round_state=round_state, settings=settings
+        )
 
         assert result is False
 

@@ -123,7 +123,7 @@ def _split_wall_by_dice(
     return live_tiles, dead_wall_tiles
 
 
-def create_wall(seed: str, round_number: int, dealer_seat: int) -> Wall:
+def create_wall(*, seed: str, round_number: int, dealer_seat: int) -> Wall:
     """
     Generate a shuffled wall with dice-determined break position.
 
@@ -131,7 +131,7 @@ def create_wall(seed: str, round_number: int, dealer_seat: int) -> Wall:
     wall based on the break.
     """
     shuffled, dice = generate_shuffled_wall_and_dice(seed, round_number)
-    live_tiles, dead_wall_tiles = _split_wall_by_dice(shuffled, dice, dealer_seat)
+    live_tiles, dead_wall_tiles = _split_wall_by_dice(tiles=shuffled, dice=dice, dealer_seat=dealer_seat)
     dora_indicators = (dead_wall_tiles[FIRST_DORA_INDEX],)
     return Wall(
         live_tiles=live_tiles,

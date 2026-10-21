@@ -64,7 +64,7 @@ class TestFinishGame:
     ) -> None:
         await repo.create_game(_game())
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game("g1", ended_at=end_time, end_reason="completed")
+        await repo.finish_game(game_id="g1", ended_at=end_time, end_reason="completed")
 
         result = await repo.get_game("g1")
         assert result is not None
@@ -76,10 +76,10 @@ class TestFinishGame:
     ) -> None:
         await repo.create_game(_game())
         first_end = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game("g1", ended_at=first_end, end_reason="completed")
+        await repo.finish_game(game_id="g1", ended_at=first_end, end_reason="completed")
 
         second_end = datetime(2025, 1, 15, 14, 0, 0, tzinfo=UTC)
-        await repo.finish_game("g1", ended_at=second_end, end_reason="abandoned")
+        await repo.finish_game(game_id="g1", ended_at=second_end, end_reason="abandoned")
 
         # Original end state is preserved
         result = await repo.get_game("g1")
@@ -96,7 +96,7 @@ class TestFinishGame:
         ]
         await repo.create_game(_game())
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game("g1", ended_at=end_time, num_rounds_played=8, standings=standings)
+        await repo.finish_game(game_id="g1", ended_at=end_time, num_rounds_played=8, standings=standings)
 
         result = await repo.get_game("g1")
         assert result is not None
@@ -116,7 +116,7 @@ class TestFinishGame:
         )
         await repo.create_game(game)
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
-        await repo.finish_game("g1", ended_at=end_time, end_reason="abandoned")
+        await repo.finish_game(game_id="g1", ended_at=end_time, end_reason="abandoned")
 
         result = await repo.get_game("g1")
         assert result is not None
@@ -131,7 +131,7 @@ class TestFinishGame:
     ) -> None:
         end_time = datetime(2025, 1, 15, 13, 0, 0, tzinfo=UTC)
         with caplog.at_level(logging.WARNING):
-            await repo.finish_game("nonexistent", ended_at=end_time)
+            await repo.finish_game(game_id="nonexistent", ended_at=end_time)
 
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert [r.msg["event"] for r in warning_records] == ["finish_game had no effect (not found or already ended)"]

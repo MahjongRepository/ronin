@@ -453,7 +453,7 @@ class TestClosedKanRiichiWaitPreservation:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="drawn tile must be the kan tile"):
-            call_closed_kan(round_state, 0, tiles_1m[0], settings)
+            call_closed_kan(round_state, seat=0, tile_id=tiles_1m[0], settings=settings)
 
     def test_closed_kan_riichi__when_waits_change__should_raise(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -475,7 +475,7 @@ class TestClosedKanRiichiWaitPreservation:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
-            call_closed_kan(round_state, 0, man_1m[0], settings)
+            call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
 
 
 class TestValidateClosedKanRiichi:
@@ -498,7 +498,7 @@ class TestValidateClosedKanRiichi:
         )
 
         with pytest.raises(InvalidMeldError, match="drawn tile must be the kan tile"):
-            validate_closed_kan(round_state, 0, tiles_1m[0], GameSettings())
+            validate_closed_kan(round_state, seat=0, tile_id=tiles_1m[0], settings=GameSettings())
 
     def test_validate_closed_kan_riichi__when_waits_change__should_reject(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -519,7 +519,7 @@ class TestValidateClosedKanRiichi:
         )
 
         with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
-            validate_closed_kan(round_state, 0, man_1m[0], GameSettings())
+            validate_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
 
 
 class TestAddedKanRiichiRejection:
@@ -547,7 +547,7 @@ class TestAddedKanRiichiRejection:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="cannot call added kan while in riichi"):
-            call_added_kan(round_state, 0, tile_4th, settings)
+            call_added_kan(round_state, seat=0, tile_id=tile_4th, settings=settings)
 
 
 class TestKanExecutionGuards:
@@ -569,7 +569,7 @@ class TestKanExecutionGuards:
         tile_1m = TilesConverter.string_to_136_array(man="1")[0]
 
         with pytest.raises(InvalidMeldError, match="not enough tiles in wall"):
-            call_closed_kan(round_state, 0, tile_1m, settings)
+            call_closed_kan(round_state, seat=0, tile_id=tile_1m, settings=settings)
 
     def test_added_kan__when_wall_too_short__should_raise(self):
         pon_meld = FrozenMeld(
@@ -593,7 +593,7 @@ class TestKanExecutionGuards:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="not enough tiles in wall"):
-            call_added_kan(round_state, 0, 3, settings)
+            call_added_kan(round_state, seat=0, tile_id=3, settings=settings)
 
     def test_added_kan__when_total_kans_at_limit__should_raise(self):
         kan1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=False, who=0)
@@ -622,7 +622,7 @@ class TestKanExecutionGuards:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="maximum kans per round"):
-            call_added_kan(round_state, 0, 3, settings)
+            call_added_kan(round_state, seat=0, tile_id=3, settings=settings)
 
     def test_closed_kan__when_total_kans_at_limit__should_raise(self):
         kan1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False, who=0)
@@ -647,7 +647,7 @@ class TestKanExecutionGuards:
         tile_5m = TilesConverter.string_to_136_array(man="5")[0]
 
         with pytest.raises(InvalidMeldError, match="maximum kans per round"):
-            call_closed_kan(round_state, 0, tile_5m, settings)
+            call_closed_kan(round_state, seat=0, tile_id=tile_5m, settings=settings)
 
 
 class TestRiichiDiscardTenpaiValidation:
@@ -758,7 +758,9 @@ class TestPendingCallPromptStateGate:
         service._ai_player_controllers["test"] = AIPlayerController({})
 
         with pytest.raises(InvalidGameActionError, match=r"turn action.*call prompt is pending"):
-            await service.handle_action("test", "Player", GameAction.DISCARD, {"tile_id": 0})
+            await service.handle_action(
+                game_id="test", player_name="Player", action=GameAction.DISCARD, data={"tile_id": 0}
+            )
 
 
 class TestCallChiDefenseInDepth:
@@ -872,7 +874,7 @@ class TestOpenKanRiichiGuard:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="cannot call open kan while in riichi"):
-            call_open_kan(round_state, 1, 0, 0, settings)
+            call_open_kan(round_state, caller_seat=1, discarder_seat=0, tile_id=0, settings=settings)
 
 
 # --- Phase 3: Error Handling Conversion Tests ---
@@ -1029,7 +1031,7 @@ class TestResolutionSafetyNetExecution:
             side_effect=GameRuleError("test error"),
         ):
             with pytest.raises(InvalidGameActionError, match="test error") as exc_info:
-                _resolve_call_prompt_safe(round_state, game_state, prompt, triggering_seat=3)
+                _resolve_call_prompt_safe(round_state, game_state, prompt=prompt, triggering_seat=3)
             # Blame should go to the pon caller (seat 1), not the triggering seat (3)
             assert exc_info.value.seat == 1
             assert exc_info.value.action == "resolve_call"
@@ -1115,10 +1117,10 @@ class TestAIPlayerSafetyNets:
             side_effect=InvalidGameActionError(action="call_pon", seat=ai_player_seat, reason="test"),
         ):
             result = service._dispatch_ai_player_call_action(
-                "test",
-                ai_player_seat,
-                GameAction.CALL_PON,
-                {},
+                game_id="test",
+                seat=ai_player_seat,
+                action=GameAction.CALL_PON,
+                data={},
             )
         assert result is None
 
@@ -1144,10 +1146,10 @@ class TestAIPlayerSafetyNets:
             pytest.raises(InvalidGameActionError, match="player error"),
         ):
             service._dispatch_ai_player_call_action(
-                "test",
-                ai_player_seat,
-                GameAction.CALL_PON,
-                {},
+                game_id="test",
+                seat=ai_player_seat,
+                action=GameAction.CALL_PON,
+                data={},
             )
 
     async def test_ai_call_response__when_offender_is_player__should_reraise(self):
@@ -1289,7 +1291,7 @@ class TestOpenKanDefenseInDepthGuards:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="not enough tiles in wall for kan"):
-            call_open_kan(round_state, 1, 0, tile_5m, settings)
+            call_open_kan(round_state, caller_seat=1, discarder_seat=0, tile_id=tile_5m, settings=settings)
 
     def test_open_kan__when_max_kans_exceeded__should_raise(self):
         tile_5m = TilesConverter.string_to_136_array(man="5")[0]
@@ -1319,7 +1321,7 @@ class TestOpenKanDefenseInDepthGuards:
         settings = GameSettings()
 
         with pytest.raises(InvalidMeldError, match="maximum kans per round reached"):
-            call_open_kan(round_state, 1, 0, tile_5m, settings)
+            call_open_kan(round_state, caller_seat=1, discarder_seat=0, tile_id=tile_5m, settings=settings)
 
 
 class TestRiichiTileNotInHandValidation:

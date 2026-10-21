@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 async def create_started_game(
     manager: SessionManager,
+    *,
     game_id: str = "game1",
     num_ai_players: int = 3,
     player_names: list[str] | None = None,
@@ -27,17 +28,17 @@ async def create_started_game(
     specs = []
     tickets: list[str] = []
     for i, name in enumerate(player_names):
-        ticket = make_test_game_ticket(name, game_id, user_id=f"user-{i}")
+        ticket = make_test_game_ticket(username=name, room_id=game_id, user_id=f"user-{i}")
         specs.append(PlayerSpec(name=name, user_id=f"user-{i}", game_ticket=ticket))
         tickets.append(ticket)
 
-    manager.create_pending_game(game_id, specs, num_ai_players)
+    manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=num_ai_players)
 
     connections: list[MockConnection] = []
     for i, _name in enumerate(player_names):
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_game(conn, game_id, tickets[i])
+        await manager.join_game(conn, game_id=game_id, session_token=tickets[i])
         connections.append(conn)
 
     # clear message history for clean test assertions
@@ -70,7 +71,7 @@ def make_dummy_game_view() -> GameView:
 def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockConnection]:
     conn = MockConnection()
     game = Game(game_id="game1")
-    session = manager._session_store.create_session("Alice", "game1")
+    session = manager._session_store.create_session(player_name="Alice", game_id="game1")
     player = Player(
         connection=conn,
         name="Alice",
@@ -97,7 +98,7 @@ async def disconnect_and_reconnect(
 
     new_conn = MockConnection()
     manager.register_connection(new_conn)
-    await manager.reconnect(new_conn, game_id, token)
+    await manager.reconnect(new_conn, game_id=game_id, session_token=token)
 
     reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"

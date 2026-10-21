@@ -110,7 +110,7 @@ servers:
     def test_lobby_page__when_room_has_player__should_list_it_with_join(self, client):
         room_manager = client.app.state.room_manager
         room_manager.create_room("abc12345-long-id")
-        room_manager.join_room("conn-1", "abc12345-long-id", "user-1", "Alice")
+        room_manager.join_room(connection_id="conn-1", room_id="abc12345-long-id", user_id="user-1", username="Alice")
 
         response = client.get("/")
         assert "abc12345" in response.text
@@ -121,7 +121,9 @@ servers:
         room_manager = client.app.state.room_manager
         room_manager.create_room("full-room")
         for i in range(4):
-            room_manager.join_room(f"conn-full-{i}", "full-room", f"user-full-{i}", f"Player{i}")
+            room_manager.join_room(
+                connection_id=f"conn-full-{i}", room_id="full-room", user_id=f"user-full-{i}", username=f"Player{i}"
+            )
 
         response = client.get("/")
         assert "full-roo" in response.text

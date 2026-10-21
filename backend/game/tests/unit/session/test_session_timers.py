@@ -29,7 +29,7 @@ from .helpers import create_started_game, make_dummy_game_view, make_game_with_p
 
 class TestSessionManagerTimers:
     async def test_session_timers__when_game_cleaned_up__should_remove_timers_and_lock(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
 
         assert manager._timer_manager.has_game("game1")
         assert "game1" in manager._game_locks
@@ -39,38 +39,38 @@ class TestSessionManagerTimers:
         assert "game1" not in manager._game_locks
 
     async def test_handle_timeout__when_turn_times_out__should_broadcast_resulting_events(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
         conns[0]._outbox.clear()
 
-        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
+        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
 
         timeout_msgs = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(timeout_msgs) == 1
 
     async def test_handle_timeout__when_game_missing__should_not_raise(self, manager):
         # should not raise
-        await manager._handle_timeout("nonexistent", TimeoutType.TURN, seat=0)
+        await manager._handle_timeout(game_id="nonexistent", timeout_type=TimeoutType.TURN, seat=0)
 
     async def test_handle_timeout__when_game_removed_under_lock__should_broadcast_nothing(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
         conns[0]._outbox.clear()
 
         # Remove the game but keep the lock to simulate concurrent cleanup
         manager._games.pop("game1", None)
 
-        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
+        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
 
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
 
     async def test_handle_timeout__when_game_lock_missing__should_broadcast_nothing(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
 
         # remove lock to simulate cleanup race
         manager._game_locks.pop("game1", None)
         conns[0]._outbox.clear()
 
-        await manager._handle_timeout("game1", TimeoutType.TURN, seat=0)
+        await manager._handle_timeout(game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
 
         # no events broadcast
         assert len(conns[0].sent_messages) == 0
@@ -289,7 +289,7 @@ class TestPerPlayerTimers:
         return game, player1, player2, conn1, conn2
 
     async def test_per_player_timers__when_four_humans_start_game__should_create_timer_per_seat(self, manager):
-        await create_started_game(manager, "game1", num_ai_players=0, player_names=["P0", "P1", "P2", "P3"])
+        await create_started_game(manager, num_ai_players=0, player_names=["P0", "P1", "P2", "P3"])
 
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
@@ -398,7 +398,7 @@ class TestPerPlayerTimers:
 
         # player at seat 0 acts (handle_game_action)
         conn1._outbox.clear()
-        await manager.handle_game_action(conn1, GameAction.DISCARD, {})
+        await manager.handle_game_action(conn1, action=GameAction.DISCARD, data={})
 
         # seat 0's timer should be stopped (bank time deducted), seat 1's cancelled
         assert timer1._active_task is None
@@ -443,7 +443,7 @@ class TestPerPlayerTimers:
         # mock returns empty events (partial pass, other callers still pending)
         manager._game_service.handle_action = AsyncMock(return_value=[])
         conn1._outbox.clear()
-        await manager.handle_game_action(conn1, GameAction.PASS, {})
+        await manager.handle_game_action(conn1, action=GameAction.PASS, data={})
 
         # seat 0's timer should be stopped, seat 1's timer should still be running
         assert timer0._active_task is None

@@ -38,7 +38,7 @@ class TestMahjongGameServiceHandleTimeout:
     async def test_handle_timeout__when_meld_timeout_without_pending_prompt__should_return_no_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.MELD)
+        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.MELD)
 
         assert events == []
 
@@ -65,16 +65,16 @@ class TestMahjongGameServiceHandleTimeout:
             ),
         ]
         with patch.object(service, "handle_action", return_value=mock_events) as mock_action:
-            events = await service.handle_timeout("game1", "Player", TimeoutType.MELD)
+            events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.MELD)
 
-        mock_action.assert_called_once_with("game1", "Player", GameAction.PASS, {})
+        mock_action.assert_called_once_with(game_id="game1", player_name="Player", action=GameAction.PASS, data={})
         assert events == mock_events
 
     async def test_handle_timeout__when_timeout_type_unknown__should_raise(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         with pytest.raises(InvalidActionError, match="Unknown timeout type"):
-            await service.handle_timeout("game1", "Player", "invalid")
+            await service.handle_timeout(game_id="game1", player_name="Player", timeout_type="invalid")
 
     async def test_handle_timeout__when_turn_timeout_and_prompt_pending_for_others__should_return_no_events(
         self, service
@@ -93,7 +93,7 @@ class TestMahjongGameServiceHandleTimeout:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
         assert events == []
 
     async def test_handle_timeout__when_turn_action_rejected_for_timed_out_seat__should_swallow_error(self, service):
@@ -105,7 +105,7 @@ class TestMahjongGameServiceHandleTimeout:
             "handle_action",
             side_effect=InvalidGameActionError(action="discard", seat=player.seat, reason="test"),
         ):
-            events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+            events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
 
         assert events == []
 
@@ -122,7 +122,7 @@ class TestMahjongGameServiceHandleTimeout:
             ),
             pytest.raises(InvalidGameActionError, match="test"),
         ):
-            await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+            await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
 
     async def test_handle_timeout__when_meld_pass_rejected__should_reraise(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
@@ -147,7 +147,7 @@ class TestMahjongGameServiceHandleTimeout:
             ),
             pytest.raises(InvalidGameActionError, match="test"),
         ):
-            await service.handle_timeout("game1", "Player", TimeoutType.MELD)
+            await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.MELD)
 
 
 class TestMahjongGameServiceCheckAndHandleRoundEnd:
@@ -269,7 +269,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         current_seat = round_state.current_player_seat
         current_player = round_state.players[current_seat]
         if len(current_player.tiles) > 13:
-            _update_player(service, "game1", current_seat, tiles=tuple(list(current_player.tiles)[:13]))
+            _update_player(service, game_id="game1", seat=current_seat, tiles=tuple(list(current_player.tiles)[:13]))
             round_state = service._games["game1"].round_state
 
         ai_player_controller = service._ai_player_controllers["game1"]
@@ -324,7 +324,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         current_seat = round_state.current_player_seat
         current_player = round_state.players[current_seat]
         if len(current_player.tiles) > 13:
-            _update_player(service, "game1", current_seat, tiles=tuple(list(current_player.tiles)[:13]))
+            _update_player(service, game_id="game1", seat=current_seat, tiles=tuple(list(current_player.tiles)[:13]))
 
         events: list[ServiceEvent] = []
 
@@ -348,11 +348,11 @@ class TestMahjongGameServiceTimeoutIntegration:
         if len(player_tiles) == 13 and live_tiles:
             player_tiles.append(live_tiles.pop(0))
 
-        _update_player(service, "game1", player.seat, tiles=tuple(player_tiles))
+        _update_player(service, game_id="game1", seat=player.seat, tiles=tuple(player_tiles))
         new_wall = game_state.round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)})
         _update_round_state(service, "game1", current_player_seat=player.seat, wall=new_wall)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
 
         assert events[0].data == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
@@ -364,7 +364,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         other_seat = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
 
         assert events == []
 
@@ -373,10 +373,10 @@ class TestMahjongGameServiceTimeoutIntegration:
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
-        _update_player(service, "game1", player.seat, tiles=())
+        _update_player(service, game_id="game1", seat=player.seat, tiles=())
         _update_round_state(service, "game1", current_player_seat=player.seat)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
 
         assert events == []
 
@@ -552,7 +552,7 @@ class TestGameEndCleanupSafety:
         player = _find_player(game_state.round_state, "Player")
 
         for seat in range(4):
-            _update_player(service, "game1", seat, score=-10000)
+            _update_player(service, game_id="game1", seat=seat, score=-10000)
 
         _update_round_state(
             service,
@@ -566,13 +566,15 @@ class TestGameEndCleanupSafety:
         tiles = list(player.tiles)
         if len(tiles) < 14:
             tiles.append(0)
-        _update_player(service, "game1", player.seat, tiles=tuple(tiles[:14]))
+        _update_player(service, game_id="game1", seat=player.seat, tiles=tuple(tiles[:14]))
 
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
         tile_id = player.tiles[-1]
 
-        events = await service.handle_action("game1", "Player", GameAction.DISCARD, {"tile_id": tile_id})
+        events = await service.handle_action(
+            game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
+        )
 
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
@@ -625,14 +627,14 @@ class TestTurnTimeoutKuikaeIntegration:
 
         _update_player(
             service,
-            "game1",
-            player.seat,
+            game_id="game1",
+            seat=player.seat,
             tiles=tuple(hand_tiles),
             kuikae_tiles=(kuikae_34,),
         )
         _update_round_state(service, "game1", current_player_seat=player.seat)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.TURN)
+        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
 
         player_discard = events[0].data
         assert isinstance(player_discard, DiscardEvent)
@@ -660,8 +662,8 @@ class TestAIPlayerTsumogiriFallbackKuikae:
 
         _update_player(
             service,
-            "game1",
-            ai_seat,
+            game_id="game1",
+            seat=ai_seat,
             tiles=tuple(hand_tiles),
             kuikae_tiles=(kuikae_34,),
         )
@@ -682,17 +684,20 @@ class TestServiceGuardClauses:
         return MahjongGameService()
 
     async def test_handle_timeout__when_game_does_not_exist__should_return_no_events(self, service):
-        assert await service.handle_timeout("nonexistent", "Player", TimeoutType.TURN) == []
+        assert (
+            await service.handle_timeout(game_id="nonexistent", player_name="Player", timeout_type=TimeoutType.TURN)
+            == []
+        )
 
     async def test_handle_timeout__when_player_unknown__should_return_no_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
-        assert await service.handle_timeout("game1", "Unknown", TimeoutType.TURN) == []
+        assert await service.handle_timeout(game_id="game1", player_name="Unknown", timeout_type=TimeoutType.TURN) == []
 
     async def test_handle_turn_timeout__when_game_cleaned_up__should_return_no_events(self, service):
-        assert await service._handle_turn_timeout("nonexistent", "Player", 0) == []
+        assert await service._handle_turn_timeout(game_id="nonexistent", player_name="Player", seat=0) == []
 
     async def test_handle_meld_timeout__when_game_cleaned_up__should_return_no_events(self, service):
-        assert await service._handle_meld_timeout("nonexistent", "Player", 0) == []
+        assert await service._handle_meld_timeout(game_id="nonexistent", player_name="Player", seat=0) == []
 
     async def test_process_ai_player_followup__when_game_has_no_ai_controller__should_return_no_events(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)

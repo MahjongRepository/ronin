@@ -51,10 +51,10 @@ class TestGameServiceIntegration:
             if player.name == "Player" and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 await service.handle_action(
-                    "game1",
-                    player.name,
-                    GameAction.DISCARD,
-                    {"tile_id": tile_to_discard},
+                    game_id="game1",
+                    player_name=player.name,
+                    action=GameAction.DISCARD,
+                    data={"tile_id": tile_to_discard},
                 )
                 actions_processed += 1
 
@@ -83,10 +83,10 @@ class TestUnifiedDiscardClaimIntegration:
 
             tile_to_discard = player.tiles[-1]
             events = await service.handle_action(
-                "game1",
-                "Player",
-                GameAction.DISCARD,
-                {"tile_id": tile_to_discard},
+                game_id="game1",
+                player_name="Player",
+                action=GameAction.DISCARD,
+                data={"tile_id": tile_to_discard},
             )
 
             call_prompt_events = [e for e in events if e.event == EventType.CALL_PROMPT]

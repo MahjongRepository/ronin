@@ -13,12 +13,12 @@ def recv_ws(ws) -> dict:
     return decode(ws.receive_bytes())
 
 
-def create_pending_game(client, game_id: str, num_ai_players: int = 3) -> list[str]:
+def create_pending_game(client, *, game_id: str, num_ai_players: int = 3) -> list[str]:
     num_humans = 4 - num_ai_players
     players = []
     tickets = []
     for i in range(num_humans):
-        ticket = make_test_game_ticket(f"Player{i + 1}", game_id, user_id=f"user-{i}")
+        ticket = make_test_game_ticket(username=f"Player{i + 1}", room_id=game_id, user_id=f"user-{i}")
         players.append({"name": f"Player{i + 1}", "user_id": f"user-{i}", "game_ticket": ticket})
         tickets.append(ticket)
     response = client.post(

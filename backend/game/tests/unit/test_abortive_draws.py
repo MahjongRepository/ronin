@@ -35,8 +35,8 @@ class TestKyuushuKyuuhaiThresholds:
         settings_default = GameSettings(kyuushu_min_types=9)
         settings_custom = GameSettings(kyuushu_min_types=8)
 
-        assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings_default) is False
-        assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings_custom) is True
+        assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings=settings_default) is False
+        assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings=settings_custom) is True
 
     def test_can_call_kyuushu_kyuuhai__when_custom_higher_threshold__should_forbid_call(self):
         tiles = [
@@ -45,7 +45,7 @@ class TestKyuushuKyuuhaiThresholds:
         ]
         rs = self._round_state_with_hand(tiles)
         settings = GameSettings(kyuushu_min_types=10)
-        assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings) is False
+        assert can_call_kyuushu_kyuuhai(rs.players[0], rs, settings=settings) is False
 
 
 class TestFourWindsThresholds:

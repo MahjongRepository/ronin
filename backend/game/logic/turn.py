@@ -169,12 +169,12 @@ def process_draw_phase(
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
 
     # build available actions for the player (already includes tsumo, riichi, kan options)
-    available_actions = get_available_actions(new_round_state, new_game_state, current_seat)
+    available_actions = get_available_actions(new_round_state, new_game_state, seat=current_seat)
 
     # check for kyuushu kyuuhai and add to actions if available
     settings = game_state.settings
     player = new_round_state.players[current_seat]
-    if settings.has_kyuushu_kyuuhai and can_call_kyuushu_kyuuhai(player, new_round_state, settings):
+    if settings.has_kyuushu_kyuuhai and can_call_kyuushu_kyuuhai(player, new_round_state, settings=settings):
         available_actions.append(AvailableActionItem(action=PlayerAction.KYUUSHU))
 
     events.append(
@@ -249,7 +249,7 @@ def _find_meld_callers(
         player = round_state.players[seat]
 
         # check open kan
-        if can_call_open_kan(player, tile_id, round_state, settings):
+        if can_call_open_kan(player, discarded_tile=tile_id, round_state=round_state, settings=settings):
             meld_calls.append(
                 MeldCaller(
                     seat=seat,
@@ -267,7 +267,7 @@ def _find_meld_callers(
             )
 
         # check chi (only from kamicha)
-        chi_options = can_call_chi(player, tile_id, discarder_seat, seat)
+        chi_options = can_call_chi(player, discarded_tile=tile_id, discarder_seat=discarder_seat, caller_seat=seat)
         if chi_options:
             meld_calls.append(
                 MeldCaller(
@@ -294,7 +294,7 @@ def _validate_riichi_discard(
 
     Raises InvalidRiichiError if conditions are not met.
     """
-    if not can_declare_riichi(player, round_state, settings):
+    if not can_declare_riichi(player, round_state, settings=settings):
         logger.error("cannot declare riichi: conditions not met", seat=player.seat)
         raise InvalidRiichiError("cannot declare riichi: conditions not met")
 
@@ -380,11 +380,11 @@ def _finalize_no_callers(
     new_game = game_state.model_copy(update={"round_state": new_round})
 
     if riichi_pending:
-        new_round, new_game = declare_riichi(new_round, new_game, current_seat, settings)
+        new_round, new_game = declare_riichi(new_round, new_game, seat=current_seat, settings=settings)
         events.append(RiichiDeclaredEvent(seat=current_seat, target="all"))
 
         if settings.has_suucha_riichi and check_four_riichi(new_round):
-            return _check_abortive_draw(new_round, new_game, AbortiveDrawType.FOUR_RIICHI, events)
+            return _check_abortive_draw(new_round, new_game, draw_type=AbortiveDrawType.FOUR_RIICHI, events=events)
 
     new_round = advance_turn(new_round)
     new_game = new_game.model_copy(update={"round_state": new_round})
@@ -419,7 +419,7 @@ def process_discard_phase(
 
     riichi_pending = False
     if is_riichi:
-        _validate_riichi_discard(player, round_state, tile_id, settings)
+        _validate_riichi_discard(player, round_state, tile_id=tile_id, settings=settings)
         riichi_pending = True
 
     new_round_state, discard = discard_tile(round_state, current_seat, tile_id, is_riichi=is_riichi)
@@ -437,27 +437,31 @@ def process_discard_phase(
 
     # check for four winds abortive draw
     if settings.has_suufon_renda and check_four_winds(new_round_state, settings):
-        return _check_abortive_draw(new_round_state, game_state, AbortiveDrawType.FOUR_WINDS, events)
+        return _check_abortive_draw(new_round_state, game_state, draw_type=AbortiveDrawType.FOUR_WINDS, events=events)
 
     # find ron callers and apply riichi furiten
-    ron_callers = _find_ron_callers(new_round_state, tile_id, current_seat, settings)
-    new_round_state = _check_riichi_furiten(new_round_state, tile_id, current_seat, ron_callers)
+    ron_callers = _find_ron_callers(new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings)
+    new_round_state = _check_riichi_furiten(
+        new_round_state, tile_id=tile_id, discarder_seat=current_seat, ron_callers=ron_callers
+    )
 
     if settings.has_triple_ron_abort and check_triple_ron(ron_callers, settings.triple_ron_count):
-        return _check_abortive_draw(new_round_state, game_state, AbortiveDrawType.TRIPLE_RON, events)
+        return _check_abortive_draw(new_round_state, game_state, draw_type=AbortiveDrawType.TRIPLE_RON, events=events)
 
     # find meld callers (ron-dominant: seats with ron don't get meld options)
     ron_caller_set = set(ron_callers)
-    all_meld_calls = _find_meld_callers(new_round_state, tile_id, current_seat, settings)
+    all_meld_calls = _find_meld_callers(
+        new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings
+    )
     meld_calls = [c for c in all_meld_calls if c.seat not in ron_caller_set]
 
     if ron_callers or meld_calls:
         new_round, new_game, prompt_events = _build_discard_prompt(
             new_round_state,
             game_state,
-            tile_id,
-            ron_callers,
-            meld_calls,
+            tile_id=tile_id,
+            ron_callers=ron_callers,
+            meld_calls=meld_calls,
         )
         return new_round, new_game, events + prompt_events
 
@@ -488,7 +492,7 @@ def _find_ron_callers(
             continue
 
         player = round_state.players[seat]
-        if can_call_ron(player, tile_id, round_state, settings):
+        if can_call_ron(player, discarded_tile=tile_id, round_state=round_state, settings=settings):
             ron_callers.append(seat)
 
     # sort by priority: counter-clockwise from discarder (closer = higher priority)
@@ -535,7 +539,7 @@ def process_ron_call(
             is_tsumo=False,
             is_chankan=is_chankan,
         )
-        hand_result = calculate_hand_value_with_tiles(ctx, tiles_with_win, tile_id)
+        hand_result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_win, win_tile=tile_id)
 
         if hand_result.error:
             logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
@@ -543,10 +547,10 @@ def process_ron_call(
 
         new_round_state, new_game_state, result = apply_ron_score(
             game_state,
-            winner_seat,
-            discarder_seat,
-            hand_result,
-            tile_id,
+            winner_seat=winner_seat,
+            loser_seat=discarder_seat,
+            hand_result=hand_result,
+            winning_tile=tile_id,
         )
         logger.debug(
             "ron declared",
@@ -578,7 +582,7 @@ def process_ron_call(
                 is_tsumo=False,
                 is_chankan=is_chankan,
             )
-            hand_result = calculate_hand_value_with_tiles(ctx, tiles_with_win, tile_id)
+            hand_result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_win, win_tile=tile_id)
 
             if hand_result.error:
                 logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
@@ -588,9 +592,9 @@ def process_ron_call(
 
         new_round_state, new_game_state, result = apply_double_ron_score(
             game_state,
-            winners,
-            discarder_seat,
-            tile_id,
+            winners=winners,
+            loser_seat=discarder_seat,
+            winning_tile=tile_id,
         )
         logger.debug(
             "double ron declared",
@@ -621,7 +625,7 @@ def process_tsumo_call(
     settings = game_state.settings
     winner = round_state.players[winner_seat]
 
-    if not can_declare_tsumo(winner, round_state, settings):
+    if not can_declare_tsumo(winner, round_state, settings=settings):
         logger.error("cannot declare tsumo: conditions not met", seat=winner_seat)
         raise InvalidWinError("cannot declare tsumo: conditions not met")
 
@@ -641,7 +645,9 @@ def process_tsumo_call(
 
     # apply score changes
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
-    new_round_state, new_game_state, result = apply_tsumo_score(new_game_state, winner_seat, hand_result)
+    new_round_state, new_game_state, result = apply_tsumo_score(
+        new_game_state, winner_seat=winner_seat, hand_result=hand_result
+    )
     logger.debug(
         "tsumo declared",
         winner_seat=winner_seat,
@@ -668,7 +674,13 @@ def _process_pon_call(
     Handle a pon meld call.
     """
     logger.debug("pon called", caller_seat=caller_seat, from_seat=discarder_seat, tile_id=tile_id)
-    new_round_state, meld = call_pon(round_state, caller_seat, discarder_seat, tile_id, game_state.settings)
+    new_round_state, meld = call_pon(
+        round_state,
+        caller_seat=caller_seat,
+        discarder_seat=discarder_seat,
+        tile_id=tile_id,
+        settings=game_state.settings,
+    )
     tile_ids = list(meld.tiles)
     events: list[GameEvent] = [
         MeldEvent(
@@ -751,10 +763,10 @@ def _process_open_kan_call(
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_open_kan(
         round_state,
-        caller_seat,
-        discarder_seat,
-        tile_id,
-        game_state.settings,
+        caller_seat=caller_seat,
+        discarder_seat=discarder_seat,
+        tile_id=tile_id,
+        settings=game_state.settings,
     )
     tile_ids = list(meld.tiles)
     events: list[GameEvent] = [
@@ -766,11 +778,11 @@ def _process_open_kan_call(
             called_tile_id=tile_id,
         ),
     ]
-    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
+    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
     new_round_state, new_game_state, events, _aborted = _check_four_kans_abort(
         new_round_state,
         game_state,
-        events,
+        events=events,
     )
     return new_round_state, new_game_state, events
 
@@ -788,10 +800,10 @@ def _process_closed_kan_call(
 
     # validate the closed kan is legal before checking for kokushi chankan,
     # so a forged payload cannot trigger a chankan window for an illegal kan
-    validate_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
+    validate_closed_kan(round_state, seat=caller_seat, tile_id=tile_id, settings=game_state.settings)
 
     # kokushi musou may rob a closed kan; check before executing
-    kokushi_seats = is_kokushi_chankan_possible(round_state, caller_seat, tile_id)
+    kokushi_seats = is_kokushi_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=tile_id)
     if kokushi_seats:
         prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
@@ -815,7 +827,9 @@ def _process_closed_kan_call(
         return new_round_state, new_game_state, events
 
     old_dora_count = len(round_state.wall.dora_indicators)
-    new_round_state, meld = call_closed_kan(round_state, caller_seat, tile_id, game_state.settings)
+    new_round_state, meld = call_closed_kan(
+        round_state, seat=caller_seat, tile_id=tile_id, settings=game_state.settings
+    )
     tile_ids = list(meld.tiles)
     events: list[GameEvent] = [
         MeldEvent(
@@ -824,11 +838,11 @@ def _process_closed_kan_call(
             tile_ids=tile_ids,
         ),
     ]
-    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
+    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
     new_round_state, new_game_state, events, _aborted = _check_four_kans_abort(
         new_round_state,
         game_state,
-        events,
+        events=events,
     )
     return new_round_state, new_game_state, events
 
@@ -848,13 +862,13 @@ def _process_added_kan_call(
     # and kan execution.
     resolved_tile_id = resolve_added_kan_tile(
         round_state,
-        caller_seat,
-        tile_id,
-        game_state.settings,
+        seat=caller_seat,
+        tile_id=tile_id,
+        settings=game_state.settings,
     )
 
     # check for chankan first (using current state before kan is executed)
-    chankan_seats = is_chankan_possible(round_state, caller_seat, resolved_tile_id)
+    chankan_seats = is_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=resolved_tile_id)
     if chankan_seats:
         prompt = PendingCallPrompt(
             call_type=CallType.CHANKAN,
@@ -878,7 +892,9 @@ def _process_added_kan_call(
         return new_round_state, new_game_state, events
 
     old_dora_count = len(round_state.wall.dora_indicators)
-    new_round_state, meld = call_added_kan(round_state, caller_seat, resolved_tile_id, game_state.settings)
+    new_round_state, meld = call_added_kan(
+        round_state, seat=caller_seat, tile_id=resolved_tile_id, settings=game_state.settings
+    )
     tile_ids = list(meld.tiles)
     events: list[GameEvent] = [
         MeldEvent(
@@ -889,11 +905,11 @@ def _process_added_kan_call(
             from_seat=meld.from_who,
         ),
     ]
-    _maybe_emit_dora_event(old_dora_count, new_round_state, events)
+    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
     new_round_state, new_game_state, events, _aborted = _check_four_kans_abort(
         new_round_state,
         game_state,
-        events,
+        events=events,
     )
     return new_round_state, new_game_state, events
 
@@ -918,7 +934,9 @@ def process_meld_call(
     discarder_seat = round_state.current_player_seat
 
     if call_type == MeldCallType.PON:
-        return _process_pon_call(round_state, game_state, caller_seat, discarder_seat, tile_id)
+        return _process_pon_call(
+            round_state, game_state, caller_seat=caller_seat, discarder_seat=discarder_seat, tile_id=tile_id
+        )
 
     if call_type == MeldCallType.CHI:
         if meld_input.sequence_tiles is None:
@@ -927,19 +945,21 @@ def process_meld_call(
         return _process_chi_call(
             round_state,
             game_state,
-            caller_seat,
-            tile_id,
-            meld_input.sequence_tiles,
+            caller_seat=caller_seat,
+            tile_id=tile_id,
+            sequence_tiles=meld_input.sequence_tiles,
         )
 
     if call_type == MeldCallType.OPEN_KAN:
-        return _process_open_kan_call(round_state, game_state, caller_seat, discarder_seat, tile_id)
+        return _process_open_kan_call(
+            round_state, game_state, caller_seat=caller_seat, discarder_seat=discarder_seat, tile_id=tile_id
+        )
 
     if call_type == MeldCallType.CLOSED_KAN:
-        return _process_closed_kan_call(round_state, game_state, caller_seat, tile_id)
+        return _process_closed_kan_call(round_state, game_state, caller_seat=caller_seat, tile_id=tile_id)
 
     if call_type == MeldCallType.ADDED_KAN:
-        return _process_added_kan_call(round_state, game_state, caller_seat, tile_id)
+        return _process_added_kan_call(round_state, game_state, caller_seat=caller_seat, tile_id=tile_id)
 
     logger.error("unknown call_type", call_type=call_type, caller_seat=caller_seat)  # pragma: no cover
     raise InvalidActionError(f"unknown call_type: {call_type}")  # pragma: no cover

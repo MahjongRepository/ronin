@@ -122,7 +122,9 @@ class TestRoomWebSocket:
         room = app.state.room_manager.create_room("full-room")
         # Pre-fill all 4 seats
         for i in range(4):
-            app.state.room_manager.join_room(f"prefill-{i}", "full-room", f"user-{i}", f"P{i}")
+            app.state.room_manager.join_room(
+                connection_id=f"prefill-{i}", room_id="full-room", user_id=f"user-{i}", username=f"P{i}"
+            )
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             msg = ws.receive_json()
             assert msg["type"] == "error"

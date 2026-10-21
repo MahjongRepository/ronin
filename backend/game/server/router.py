@@ -113,7 +113,7 @@ class MessageRouter:
         """
         Verify game ticket and join a pending game.
         """
-        ticket = await self._verify_ticket(connection, message.game_ticket, connection.game_id)
+        ticket = await self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
         if ticket is None:
             return
         await self._session_manager.join_game(
@@ -130,7 +130,7 @@ class MessageRouter:
         """
         Verify game ticket and attempt reconnection.
         """
-        ticket = await self._verify_ticket(connection, message.game_ticket, connection.game_id)
+        ticket = await self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
         if ticket is None:
             return
         await self._session_manager.reconnect(

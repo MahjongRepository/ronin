@@ -44,6 +44,7 @@ class LobbyRoomManager:
 
     def join_room(
         self,
+        *,
         connection_id: str,
         room_id: str,
         user_id: str,

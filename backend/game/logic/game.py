@@ -129,7 +129,11 @@ def init_game(
     )
 
     # Create wall using Wall module
-    game_wall = create_wall_from_tiles(wall) if wall is not None else create_wall(seed, 0, dealer_seat)
+    game_wall = (
+        create_wall_from_tiles(wall)
+        if wall is not None
+        else create_wall(seed=seed, round_number=0, dealer_seat=dealer_seat)
+    )
 
     # Deal initial hands
     game_wall, hands = deal_initial_hands(game_wall, dealer_seat)
@@ -175,7 +179,7 @@ def init_round(
     dealer_seat = round_state.dealer_seat
 
     # Create wall using Wall module
-    game_wall = create_wall(game_state.seed, game_state.round_number, dealer_seat)
+    game_wall = create_wall(seed=game_state.seed, round_number=game_state.round_number, dealer_seat=dealer_seat)
 
     # Deal initial hands
     game_wall, hands = deal_initial_hands(game_wall, dealer_seat)

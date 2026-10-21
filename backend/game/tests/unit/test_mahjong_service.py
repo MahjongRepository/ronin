@@ -261,7 +261,7 @@ class TestAutoCleanup:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         for seat in range(4):
-            _update_player(service, "game1", seat, score=-10000)
+            _update_player(service, game_id="game1", seat=seat, score=-10000)
 
         result = ExhaustiveDrawResult(
             tempai_seats=[],
@@ -282,7 +282,7 @@ class TestAutoCleanup:
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
         for seat in range(4):
-            _update_player(service, "game1", seat, score=-10000)
+            _update_player(service, game_id="game1", seat=seat, score=-10000)
 
         result = ExhaustiveDrawResult(
             tempai_seats=[],
@@ -501,7 +501,7 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         game_state = service._games["game1"]
         current_seat = game_state.round_state.current_player_seat
 
-        _update_player(service, "game1", current_seat, tiles=())
+        _update_player(service, game_id="game1", seat=current_seat, tiles=())
 
         events = service.build_draw_event_for_seat("game1", current_seat)
         assert events == []

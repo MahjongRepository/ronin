@@ -97,7 +97,7 @@ class ReplayCollector:
             payload = service_event_payload(event)
             if isinstance(event.data, DrawEvent):
                 payload.pop("aa", None)
-            self._inject_seed_if_game_started(game_id, event, payload)
+            self._inject_seed_if_game_started(game_id=game_id, event=event, payload=payload)
             buffer.append(json.dumps(payload, default=str))
 
         # Flush any remaining round_started events at end of batch

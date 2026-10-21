@@ -300,7 +300,7 @@ class TestUraDoraRevelation:
             dora_indicators=(dead_wall[2],),
         )
         player = create_player(seat=0, is_riichi=True, is_daburi=True)
-        result = collect_ura_dora_indicators(player, round_state, settings)
+        result = collect_ura_dora_indicators(player, round_state, settings=settings)
         assert result == [dead_wall[7]]
 
     def test_ura_dora__when_riichi_tsumo__should_add_han(self):

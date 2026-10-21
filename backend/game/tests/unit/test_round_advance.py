@@ -82,7 +82,9 @@ class TestConfirmRound:
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
 
-        events = await service.handle_action("game1", "Player", GameAction.CONFIRM_ROUND, {})
+        events = await service.handle_action(
+            game_id="game1", player_name="Player", action=GameAction.CONFIRM_ROUND, data={}
+        )
 
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
@@ -97,7 +99,9 @@ class TestConfirmRound:
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
 
-        events = await service.handle_action("game1", "Alice", GameAction.CONFIRM_ROUND, {})
+        events = await service.handle_action(
+            game_id="game1", player_name="Alice", action=GameAction.CONFIRM_ROUND, data={}
+        )
 
         assert events == []
         assert service.is_round_advance_pending("game1")
@@ -108,7 +112,9 @@ class TestConfirmRound:
     async def test_confirm_round__when_no_advance_pending__should_return_invalid_action_error(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action("game1", "Player", GameAction.CONFIRM_ROUND, {})
+        events = await service.handle_action(
+            game_id="game1", player_name="Player", action=GameAction.CONFIRM_ROUND, data={}
+        )
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -126,7 +132,9 @@ class TestConfirmRound:
 
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
-        events = await service.handle_action("game1", "Player", GameAction.DISCARD, {"tile_id": tile_id})
+        events = await service.handle_action(
+            game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
+        )
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -146,7 +154,9 @@ class TestRoundAdvanceTimeout:
         result = _make_exhaustive_draw_result()
         await service._handle_round_end("game1", result)
 
-        events = await service.handle_timeout("game1", "Player", TimeoutType.ROUND_ADVANCE)
+        events = await service.handle_timeout(
+            game_id="game1", player_name="Player", timeout_type=TimeoutType.ROUND_ADVANCE
+        )
 
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
@@ -209,7 +219,7 @@ class TestRoundAdvanceCleanup:
     async def test_round_end__when_game_ends__should_not_create_pending_advance(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        _update_player(service, "game1", 0, score=-1000)
+        _update_player(service, game_id="game1", seat=0, score=-1000)
 
         result = ExhaustiveDrawResult(
             tempai_seats=[],

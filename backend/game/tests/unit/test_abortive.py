@@ -70,7 +70,7 @@ class TestCanCallKyuushuKyuuhai:
         round_state = self._create_round_state(tiles)
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         assert result is True
 
@@ -79,7 +79,7 @@ class TestCanCallKyuushuKyuuhai:
         round_state = self._create_round_state(tiles)
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         assert result is False
 
@@ -89,7 +89,7 @@ class TestCanCallKyuushuKyuuhai:
         round_state = self._create_round_state(tiles, other_player_discards=(discard,))
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         assert result is False
 
@@ -99,7 +99,7 @@ class TestCanCallKyuushuKyuuhai:
         round_state = self._create_round_state(tiles, player_discards=(discard,))
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         assert result is False
 
@@ -108,7 +108,7 @@ class TestCanCallKyuushuKyuuhai:
         round_state = self._create_round_state(tiles, players_with_open_hands=(2,))
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         assert result is False
 
@@ -143,7 +143,7 @@ class TestCanCallKyuushuKyuuhai:
         )
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         assert result is False
 
@@ -158,7 +158,7 @@ class TestCanCallKyuushuKyuuhai:
         round_state = self._create_round_state(tiles)
         settings = GameSettings()
 
-        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings)
+        result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
 
         # only 8 unique types, not enough
         assert result is False

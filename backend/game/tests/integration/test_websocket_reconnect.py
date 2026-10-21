@@ -54,7 +54,7 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
 
 def _start_game_and_get_ticket(client: TestClient) -> str:
     sm = client.app.state.session_manager
-    tickets = create_pending_game(client, "test_game")
+    tickets = create_pending_game(client, game_id="test_game")
     ticket = tickets[0]
 
     # Player1 joins and starts the game via WebSocket
@@ -64,7 +64,7 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
         # Inject a "Player2" mock connection into the game so it survives Player1 leaving
         p2_conn = MockConnection()
         sm.register_connection(p2_conn)
-        p2_session = sm._session_store.create_session("Player2", "test_game", token="p2-token")
+        p2_session = sm._session_store.create_session(player_name="Player2", game_id="test_game", token="p2-token")
         sm._session_store.bind_seat(p2_session.session_token, 1)
         game = sm._games["test_game"]
         p2_player = Player(
@@ -134,7 +134,7 @@ class TestWebSocketReconnect:
 
     def test_reconnect__when_game_already_cleaned_up__should_return_game_gone_error(self, client):
         sm = client.app.state.session_manager
-        tickets = create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, game_id="test_game")
 
         # Start and leave via WebSocket (1 human = game gets cleaned up)
         ticket = None

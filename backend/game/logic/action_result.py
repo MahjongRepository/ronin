@@ -33,7 +33,7 @@ def create_draw_event(
     """
     Create a draw event for a player with available actions.
     """
-    available_actions = get_available_actions(round_state, game_state, seat)
+    available_actions = get_available_actions(round_state, game_state, seat=seat)
     return DrawEvent(
         seat=seat,
         tile_id=tile_id,

@@ -108,20 +108,35 @@ class TestGetCallResponseTsumogiriDeclines:
         controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
         rs = _create_round_state()
 
-        assert controller.get_call_response(1, rs, CallType.RON, 0, 1) is None
+        assert (
+            controller.get_call_response(seat=1, round_state=rs, call_type=CallType.RON, tile_id=0, caller_info=1)
+            is None
+        )
 
     def test_get_call_response__when_tsumogiri_ai_offered_pon__should_decline(self):
         controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
         rs = _create_round_state()
         caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
 
-        assert controller.get_call_response(1, rs, CallType.MELD, _string_to_136_tile(man="1"), caller) is None
+        assert (
+            controller.get_call_response(
+                seat=1,
+                round_state=rs,
+                call_type=CallType.MELD,
+                tile_id=_string_to_136_tile(man="1"),
+                caller_info=caller,
+            )
+            is None
+        )
 
     def test_get_call_response__when_non_ai_seat__should_return_none(self):
         controller = AIPlayerController({1: AIPlayer()})
         rs = _create_round_state()
 
-        assert controller.get_call_response(0, rs, CallType.MELD, 0, 0) is None
+        assert (
+            controller.get_call_response(seat=0, round_state=rs, call_type=CallType.MELD, tile_id=0, caller_info=0)
+            is None
+        )
 
 
 class TestGetCallResponseAcceptingAI:
@@ -130,7 +145,7 @@ class TestGetCallResponseAcceptingAI:
         controller = AIPlayerController({1: ai})
         rs = _create_round_state()
 
-        result = controller.get_call_response(1, rs, CallType.RON, 0, 1)
+        result = controller.get_call_response(seat=1, round_state=rs, call_type=CallType.RON, tile_id=0, caller_info=1)
 
         assert result is not None
         action, data = result
@@ -142,7 +157,9 @@ class TestGetCallResponseAcceptingAI:
         controller = AIPlayerController({1: ai})
         rs = _create_round_state()
 
-        result = controller.get_call_response(1, rs, CallType.CHANKAN, 0, 1)
+        result = controller.get_call_response(
+            seat=1, round_state=rs, call_type=CallType.CHANKAN, tile_id=0, caller_info=1
+        )
 
         assert result is not None
         assert result[0] == GameAction.CALL_RON
@@ -152,7 +169,9 @@ class TestGetCallResponseAcceptingAI:
         controller = AIPlayerController({1: ai})
         rs = _create_round_state()
 
-        result = controller.get_call_response(1, rs, CallType.DISCARD, 0, 1)
+        result = controller.get_call_response(
+            seat=1, round_state=rs, call_type=CallType.DISCARD, tile_id=0, caller_info=1
+        )
 
         assert result is not None
         assert result[0] == GameAction.CALL_RON
@@ -164,7 +183,9 @@ class TestGetCallResponseAcceptingAI:
         tile_id = _string_to_136_tile(man="1")
         caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
 
-        result = controller.get_call_response(1, rs, CallType.MELD, tile_id, caller)
+        result = controller.get_call_response(
+            seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
+        )
 
         assert result is not None
         action, data = result
@@ -178,7 +199,9 @@ class TestGetCallResponseAcceptingAI:
         tile_id = _string_to_136_tile(man="3")
         caller = MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((0, 4),))
 
-        result = controller.get_call_response(1, rs, CallType.MELD, tile_id, caller)
+        result = controller.get_call_response(
+            seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
+        )
 
         assert result is not None
         action, data = result
@@ -192,7 +215,9 @@ class TestGetCallResponseAcceptingAI:
         tile_id = 40  # 2p copy 0, tile_34=10
         caller = MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN)
 
-        result = controller.get_call_response(1, rs, CallType.MELD, tile_id, caller)
+        result = controller.get_call_response(
+            seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
+        )
 
         assert result is not None
         action, data = result
@@ -205,7 +230,10 @@ class TestGetCallResponseAcceptingAI:
         controller = AIPlayerController({1: ai})
         rs = _create_round_state()
 
-        assert controller.get_call_response(1, rs, CallType.MELD, 0, 1) is None
+        assert (
+            controller.get_call_response(seat=1, round_state=rs, call_type=CallType.MELD, tile_id=0, caller_info=1)
+            is None
+        )
 
 
 class TestAIPlayerControllerManagement:

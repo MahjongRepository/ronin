@@ -45,8 +45,8 @@ async def bot_auth(request: Request) -> Response:
 
     auth_service = request.app.state.auth_service
     session = auth_service.create_session(
-        request.user.user_id,
-        request.user.username,
+        user_id=request.user.user_id,
+        username=request.user.username,
         account_type=request.user.account_type,
     )
 
@@ -59,8 +59,8 @@ async def bot_matchmaking_auth(request: Request) -> Response:
     """POST /api/matchmaking/join - create lobby session for bot to join matchmaking via WS."""
     auth_service = request.app.state.auth_service
     session = auth_service.create_session(
-        request.user.user_id,
-        request.user.username,
+        user_id=request.user.user_id,
+        username=request.user.username,
         account_type=request.user.account_type,
     )
 
@@ -98,8 +98,8 @@ async def bot_create_room(request: Request) -> Response:
 
     auth_service = request.app.state.auth_service
     session = auth_service.create_session(
-        request.user.user_id,
-        request.user.username,
+        user_id=request.user.user_id,
+        username=request.user.username,
         account_type=request.user.account_type,
     )
 

@@ -23,6 +23,7 @@ class GameService(ABC):
     @abstractmethod
     async def handle_action(
         self,
+        *,
         game_id: str,
         player_name: str,
         action: GameAction,
@@ -78,6 +79,7 @@ class GameService(ABC):
     @abstractmethod
     async def handle_timeout(
         self,
+        *,
         game_id: str,
         player_name: str,
         timeout_type: TimeoutType,

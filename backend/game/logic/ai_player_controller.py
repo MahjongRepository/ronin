@@ -78,6 +78,7 @@ class AIPlayerController:
 
     def get_call_response(
         self,
+        *,
         seat: int,
         round_state: MahjongRoundState,
         call_type: CallType,
@@ -99,13 +100,15 @@ class AIPlayerController:
         if call_type in (CallType.RON, CallType.CHANKAN) or (
             call_type == CallType.DISCARD and isinstance(caller_info, int)
         ):
-            if ai_player.should_call_ron(player, tile_id, round_state):
+            if ai_player.should_call_ron(player, discarded_tile=tile_id, round_state=round_state):
                 return GameAction.CALL_RON, {}
             return None
 
         # Meld opportunity (standalone MELD or meld caller within DISCARD prompt)
         if isinstance(caller_info, MeldCaller):
-            return _get_meld_response(ai_player, player, caller_info, tile_id, round_state)
+            return _get_meld_response(
+                ai_player, player, caller_info=caller_info, tile_id=tile_id, round_state=round_state
+            )
 
         return None
 
@@ -124,20 +127,24 @@ def _get_meld_response(
     """
     meld_call_type = caller_info.call_type
 
-    if meld_call_type == MeldCallType.PON and ai_player.should_call_pon(player, tile_id, round_state):
+    if meld_call_type == MeldCallType.PON and ai_player.should_call_pon(
+        player, discarded_tile=tile_id, round_state=round_state
+    ):
         return GameAction.CALL_PON, {"tile_id": tile_id}
 
     if meld_call_type == MeldCallType.CHI:
-        chi_tiles = ai_player.should_call_chi(player, tile_id, caller_info.options, round_state)
+        chi_tiles = ai_player.should_call_chi(
+            player, discarded_tile=tile_id, chi_options=caller_info.options, round_state=round_state
+        )
         if chi_tiles is not None:
             return GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": chi_tiles}
         return None
 
     if meld_call_type == MeldCallType.OPEN_KAN and ai_player.should_call_kan(
         player,
-        KanType.OPEN,
-        tile_to_34(tile_id),
-        round_state,
+        kan_type=KanType.OPEN,
+        tile_34=tile_to_34(tile_id),
+        round_state=round_state,
     ):
         return GameAction.CALL_KAN, {"tile_id": tile_id, "kan_type": KanType.OPEN}
 

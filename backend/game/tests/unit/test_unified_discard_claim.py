@@ -347,7 +347,7 @@ class TestDualEligibleSeatRonDominant:
         game_state = create_game_state(round_state)
 
         with pytest.raises(InvalidGameActionError, match="only ron is valid"):
-            handle_pon(round_state, game_state, 1, PonActionData(tile_id=discard_tile))
+            handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=discard_tile))
 
 
 class TestDualEligibleSeatPassFuriten:
@@ -375,7 +375,7 @@ class TestDualEligibleSeatPassFuriten:
         )
         game_state = create_game_state(round_state)
 
-        result = handle_pass(round_state, game_state, 1)
+        result = handle_pass(round_state, game_state, seat=1)
 
         assert result.new_round_state.players[1].is_temporary_furiten is True
 
@@ -403,7 +403,7 @@ class TestDualEligibleSeatPassFuriten:
         )
         game_state = create_game_state(round_state)
 
-        result = handle_pass(round_state, game_state, 2)
+        result = handle_pass(round_state, game_state, seat=2)
 
         assert result.new_round_state.players[2].is_temporary_furiten is False
 
@@ -541,7 +541,7 @@ class TestHandleRonOnDiscardPrompt:
         )
         game_state = create_game_state(round_state)
 
-        result = handle_ron(round_state, game_state, 1)
+        result = handle_ron(round_state, game_state, seat=1)
 
         # should record response and wait for seat 2
         assert result.new_round_state.pending_call_prompt is not None
@@ -577,11 +577,11 @@ class TestHandlePassThenResolve:
         game_state = create_game_state(round_state)
 
         # seat 1 passes (ron caller -> furiten applied)
-        result1 = handle_pass(round_state, game_state, 1)
+        result1 = handle_pass(round_state, game_state, seat=1)
         assert result1.new_round_state.players[1].is_temporary_furiten is True
 
         # seat 2 passes (meld caller -> no furiten)
-        result2 = handle_pass(result1.new_round_state, result1.new_game_state, 2)
+        result2 = handle_pass(result1.new_round_state, result1.new_game_state, seat=2)
 
         # should be resolved (turn advanced)
         assert result2.new_round_state.pending_call_prompt is None

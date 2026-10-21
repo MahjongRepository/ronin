@@ -33,41 +33,41 @@ def _make_tile_list() -> list[int]:
 
 class TestCreateWall:
     def test_create_wall__when_created__should_split_live_dead_and_one_dora(self):
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         assert len(wall.live_tiles) == NUM_TILES - DEAD_WALL_SIZE
         assert len(wall.dead_wall_tiles) == DEAD_WALL_SIZE
         assert len(wall.dora_indicators) == 1
 
     def test_create_wall__when_created__should_contain_every_tile_once(self):
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         all_tiles = list(wall.live_tiles) + list(wall.dead_wall_tiles)
         assert sorted(all_tiles) == list(range(NUM_TILES))
 
     def test_create_wall__when_created__should_take_initial_dora_from_dead_wall(self):
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         assert wall.dora_indicators[0] == wall.dead_wall_tiles[FIRST_DORA_INDEX]
 
     def test_create_wall__when_created__should_store_ura_dora_eagerly(self):
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         assert len(wall.ura_dora_indicators) == MAX_DORA_INDICATORS
         for i in range(MAX_DORA_INDICATORS):
             assert wall.ura_dora_indicators[i] == wall.dead_wall_tiles[URA_DORA_START_INDEX + i]
 
     def test_create_wall__when_same_inputs__should_produce_same_wall(self):
-        wall1 = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        wall2 = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall1 = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
+        wall2 = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         assert wall1 == wall2
 
     def test_create_wall__when_different_inputs__should_produce_different_walls(self):
-        wall1 = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        wall2 = create_wall("cd" * SEED_BYTES, 0, dealer_seat=0)
-        wall3 = create_wall(FIXED_SEED, 1, dealer_seat=0)
+        wall1 = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
+        wall2 = create_wall(seed="cd" * SEED_BYTES, round_number=0, dealer_seat=0)
+        wall3 = create_wall(seed=FIXED_SEED, round_number=1, dealer_seat=0)
         assert wall1.live_tiles != wall2.live_tiles
         assert wall1.live_tiles != wall3.live_tiles
 
     def test_create_wall__when_different_dealer_seats__should_split_differently(self):
-        wall0 = create_wall(FIXED_SEED, 0, dealer_seat=0)
-        wall1 = create_wall(FIXED_SEED, 0, dealer_seat=1)
+        wall0 = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
+        wall1 = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=1)
         # Dice are the same (same RNG stream), but break position differs
         assert wall0.dice == wall1.dice
         assert wall0.live_tiles != wall1.live_tiles
@@ -141,13 +141,13 @@ class TestDealInitialHands:
         assert len(new_wall.live_tiles) == len(wall.live_tiles) - 52
 
     def test_deal_initial_hands__when_dealt__should_sort_hands(self):
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         _, hands = deal_initial_hands(wall, dealer_seat=0)
         for hand in hands:
             assert hand == sorted(hand)
 
     def test_deal_initial_hands__when_dealt__should_give_unique_tiles(self):
-        wall = create_wall(FIXED_SEED, 0, dealer_seat=0)
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
         _, hands = deal_initial_hands(wall, dealer_seat=0)
         all_dealt = [t for hand in hands for t in hand]
         assert len(all_dealt) == len(set(all_dealt))
@@ -447,11 +447,11 @@ class TestComputeWallBreakInfo:
 class TestSplitWallByDice:
     def test_split_wall_by_dice__when_wrong_tile_count__should_raise(self):
         with pytest.raises(ValueError, match="Expected 136"):
-            _split_wall_by_dice(list(range(100)), (3, 4), dealer_seat=0)
+            _split_wall_by_dice(tiles=list(range(100)), dice=(3, 4), dealer_seat=0)
 
     def test_split_wall_by_dice__when_split__should_lay_out_dead_wall_stacks(self):
         tiles = _make_tile_list()
-        _live, dead = _split_wall_by_dice(tiles, (3, 4), dealer_seat=0)
+        _live, dead = _split_wall_by_dice(tiles=tiles, dice=(3, 4), dealer_seat=0)
         expected_tops = [tiles[s * 2] for s in range(44, 51)]
         expected_bottoms = [tiles[s * 2 + 1] for s in range(44, 51)]
         assert list(dead[:7]) == expected_tops
@@ -459,7 +459,7 @@ class TestSplitWallByDice:
 
     def test_split_wall_by_dice__when_split__should_order_live_wall_backwards_from_break(self):
         tiles = _make_tile_list()
-        live, _ = _split_wall_by_dice(tiles, (3, 4), dealer_seat=0)
+        live, _ = _split_wall_by_dice(tiles=tiles, dice=(3, 4), dealer_seat=0)
         assert live[0] == tiles[43 * 2]  # top of stack 43
         assert live[1] == tiles[43 * 2 + 1]  # bottom of stack 43
         assert live[2] == tiles[42 * 2]  # top of stack 42
@@ -467,7 +467,7 @@ class TestSplitWallByDice:
 
     def test_split_wall_by_dice__when_dice_sum_2__should_wrap_dead_wall_into_next_segment(self):
         tiles = _make_tile_list()
-        live, dead = _split_wall_by_dice(tiles, (1, 1), dealer_seat=0)
+        live, dead = _split_wall_by_dice(tiles=tiles, dice=(1, 1), dealer_seat=0)
         dead_stacks = [32, 33, 34, 35, 36, 37, 38]
         expected_tops = [tiles[s * 2] for s in dead_stacks]
         assert list(dead[:7]) == expected_tops
@@ -476,12 +476,12 @@ class TestSplitWallByDice:
     def test_split_wall_by_dice__when_split__should_size_live_and_dead_walls(self):
         tiles = _make_tile_list()
         for dice in [(1, 1), (3, 4), (6, 6)]:
-            live, dead = _split_wall_by_dice(tiles, dice, dealer_seat=0)
+            live, dead = _split_wall_by_dice(tiles=tiles, dice=dice, dealer_seat=0)
             assert len(live) == LIVE_WALL_STACKS * 2
             assert len(dead) == DEAD_WALL_STACKS * 2
 
     def test_split_wall_by_dice__when_split__should_contain_every_tile_once(self):
         tiles = _make_tile_list()
-        live, dead = _split_wall_by_dice(tiles, (4, 5), dealer_seat=2)
+        live, dead = _split_wall_by_dice(tiles=tiles, dice=(4, 5), dealer_seat=2)
         all_tiles = list(live) + list(dead)
         assert sorted(all_tiles) == list(range(NUM_TILES))

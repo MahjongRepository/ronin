@@ -63,12 +63,13 @@ class _StubService:
 
     async def handle_action(
         self,
+        *,
         game_id: str,
         player_name: str,
         action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
-        return await self._inner.handle_action(game_id, player_name, action, data)
+        return await self._inner.handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     def cleanup_game(self, game_id: str) -> None:
         self._inner.cleanup_game(game_id)
@@ -133,6 +134,7 @@ async def test_run_replay_async__when_service_raises_invalid_action__should_rais
     class RaisingService(_StubService):
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -347,6 +349,7 @@ async def test_run_replay_async__when_game_state_disappears__should_raise_invari
     class DisappearingStateService(_StubService):
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -382,6 +385,7 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -393,7 +397,7 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
                 if not self._advance_players:
                     self._advance_pending = False
                 return []
-            events = await super().handle_action(game_id, player_name, action, data)
+            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             self._advance_pending = True
             state = self._inner.get_game_state(game_id)
             assert state is not None
@@ -431,6 +435,7 @@ async def test_round_confirmation__when_strict_and_confirm_returns_error__should
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -448,7 +453,7 @@ async def test_round_confirmation__when_strict_and_confirm_returns_error__should
                         target=BroadcastTarget(),
                     ),
                 ]
-            events = await super().handle_action(game_id, player_name, action, data)
+            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             self._advance_pending = True
             return events
 
@@ -479,6 +484,7 @@ async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -487,7 +493,7 @@ async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise
             if action == GameAction.CONFIRM_ROUND:
                 self._advance_pending = False
                 return []
-            events = await super().handle_action(game_id, player_name, action, data)
+            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             self._advance_pending = True
             return events
 
@@ -538,6 +544,7 @@ async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -561,7 +568,7 @@ async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for
                     )
                 return []
 
-            events = await super().handle_action(game_id, player_name, action, data)
+            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             # Inject a fake call prompt after a discard
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
@@ -668,6 +675,7 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -699,7 +707,7 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
                     update={"round_state": new_round},
                 )
                 return []
-            return await super().handle_action(game_id, player_name, action, data)
+            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     replay = _build_replay(actions=((pon_player, GameAction.CALL_PON, {"tile_id": 0}),))
 
@@ -754,6 +762,7 @@ async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_ra
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -771,7 +780,7 @@ async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_ra
                         target=BroadcastTarget(),
                     ),
                 ]
-            return await super().handle_action(game_id, player_name, action, data)
+            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
@@ -792,6 +801,7 @@ async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pas
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -814,7 +824,7 @@ async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pas
                     )
                 return []
 
-            events = await super().handle_action(game_id, player_name, action, data)
+            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
                 assert state is not None
@@ -901,6 +911,7 @@ async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_ra
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -921,7 +932,7 @@ async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_ra
                     },
                 )
                 return []
-            return await super().handle_action(game_id, player_name, action, data)
+            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
@@ -941,6 +952,7 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -960,7 +972,7 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
                 )
                 return []
 
-            events = await super().handle_action(game_id, player_name, action, data)
+            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
@@ -1039,6 +1051,7 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
 
         async def handle_action(
             self,
+            *,
             game_id: str,
             player_name: str,
             action: GameAction,
@@ -1057,7 +1070,7 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
                 return []
             if action == GameAction.DISCARD:
                 # Use real discard but ensure no new prompt is created
-                events = await super().handle_action(game_id, player_name, action, data)
+                events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
                 state = self._inner.get_game_state(game_id)
                 assert state is not None
                 if state.round_state.pending_call_prompt is not None:
@@ -1068,7 +1081,7 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
                         update={"round_state": new_round},
                     )
                 return events
-            return await super().handle_action(game_id, player_name, action, data)
+            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     name, tile = await _async_probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))

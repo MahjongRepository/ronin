@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 def can_declare_riichi(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> bool:
     """

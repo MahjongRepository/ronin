@@ -236,7 +236,7 @@ class TestSingleRonHandError:
 
             ron_input = RonCallInput(ron_callers=[1], tile_id=discard_tile, discarder_seat=0)
             with pytest.raises(InvalidWinError, match="ron calculation error"):
-                process_ron_call(round_state, game_state, ron_input)
+                process_ron_call(round_state, game_state, ron_input=ron_input)
 
 
 class TestDoubleRonHandError:
@@ -263,7 +263,7 @@ class TestDoubleRonHandError:
 
             ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
             with pytest.raises(InvalidWinError, match="ron calculation error for seat 1"):
-                process_ron_call(round_state, game_state, ron_input)
+                process_ron_call(round_state, game_state, ron_input=ron_input)
 
 
 class TestTsumoHandError:
@@ -288,7 +288,7 @@ class TestTsumoHandError:
             mock_calc.return_value = HandResult(error="mock error")
 
             with pytest.raises(InvalidWinError, match="tsumo calculation error"):
-                process_tsumo_call(round_state, game_state, 0)
+                process_tsumo_call(round_state, game_state, winner_seat=0)
 
 
 class TestAddedKanChankan:
@@ -326,7 +326,7 @@ class TestAddedKanChankan:
         game_state = create_game_state(round_state)
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
-        _new_round, _new_game, events = process_meld_call(round_state, game_state, meld_input)
+        _new_round, _new_game, events = process_meld_call(round_state, game_state, meld_input=meld_input)
 
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(call_prompts) == 1
@@ -364,7 +364,7 @@ class TestChiSequenceTilesValidation:
             sequence_tiles=None,
         )
         with pytest.raises(InvalidMeldError, match="chi call requires sequence_tiles"):
-            process_meld_call(round_state, game_state, meld_input)
+            process_meld_call(round_state, game_state, meld_input=meld_input)
 
 
 class TestAbortiveDrawIntegration:
@@ -479,7 +479,7 @@ class TestDoubleRonScenario:
         game_state = create_game_state(round_state)
 
         ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
-        _new_round, _new_game, events = process_ron_call(round_state, game_state, ron_input)
+        _new_round, _new_game, events = process_ron_call(round_state, game_state, ron_input=ron_input)
 
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
@@ -519,7 +519,7 @@ class TestAddedKanNormalPath:
         game_state = create_game_state(round_state)
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
-        new_round, _new_game, _events = process_meld_call(round_state, game_state, meld_input)
+        new_round, _new_game, _events = process_meld_call(round_state, game_state, meld_input=meld_input)
 
         assert any(m.type == FrozenMeld.SHOUMINKAN for m in new_round.players[0].melds)
 
@@ -533,7 +533,7 @@ class TestMaybeEmitDoraEvent:
         )
         events = []
 
-        _maybe_emit_dora_event(1, round_state, events)
+        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
 
         assert events == []
 
@@ -545,7 +545,7 @@ class TestMaybeEmitDoraEvent:
         )
         events = []
 
-        _maybe_emit_dora_event(1, round_state, events)
+        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
 
         assert len(events) == 1
         assert events[0].tile_id == dead_wall[3]
@@ -558,7 +558,7 @@ class TestMaybeEmitDoraEvent:
         )
         events = []
 
-        _maybe_emit_dora_event(1, round_state, events)
+        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
 
         assert len(events) == 2
         assert events[0].tile_id == dead_wall[3]
@@ -583,4 +583,4 @@ class TestValidateRiichiDiscard:
             current_player_seat=0,
         )
         with pytest.raises(InvalidRiichiError, match="not tenpai"):
-            _validate_riichi_discard(player, round_state, bad_discard, GameSettings())
+            _validate_riichi_discard(player, round_state, tile_id=bad_discard, settings=GameSettings())

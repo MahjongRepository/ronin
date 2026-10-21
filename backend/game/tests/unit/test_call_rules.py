@@ -201,7 +201,9 @@ class TestKuikaeSujiRestriction:
         called_34 = tile_to_34(man_tiles[0])  # 4m
         sequence_34 = [tile_to_34(man_tiles[1]), tile_to_34(man_tiles[2])]  # 5m, 6m
 
-        forbidden = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_34)
+        forbidden = get_kuikae_tiles(
+            call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
+        )
 
         # 4m (called tile) and 7m (suji above 6m) should be forbidden
         assert called_34 in forbidden
@@ -213,7 +215,9 @@ class TestKuikaeSujiRestriction:
         called_34 = tile_to_34(man_tiles[2])  # 6m
         sequence_34 = [tile_to_34(man_tiles[0]), tile_to_34(man_tiles[1])]  # 4m, 5m
 
-        forbidden = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_34)
+        forbidden = get_kuikae_tiles(
+            call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
+        )
 
         # 6m (called tile) and 3m (suji below 4m) should be forbidden
         assert called_34 in forbidden
@@ -225,7 +229,9 @@ class TestKuikaeSujiRestriction:
         called_34 = tile_to_34(man_tiles[1])  # 5m
         sequence_34 = [tile_to_34(man_tiles[0]), tile_to_34(man_tiles[2])]  # 4m, 6m
 
-        forbidden = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_34)
+        forbidden = get_kuikae_tiles(
+            call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
+        )
 
         # Only 5m should be forbidden (no suji for middle tile)
         assert forbidden == [called_34]
@@ -235,7 +241,9 @@ class TestKuikaeSujiRestriction:
         called_34 = tile_to_34(man_tiles[0])  # 7m
         sequence_34 = [tile_to_34(man_tiles[1]), tile_to_34(man_tiles[2])]  # 8m, 9m
 
-        forbidden = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_34)
+        forbidden = get_kuikae_tiles(
+            call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_34
+        )
 
         # Only 7m should be forbidden (10m doesn't exist, no suji)
         assert forbidden == [called_34]

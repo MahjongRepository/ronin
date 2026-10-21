@@ -106,7 +106,7 @@ def test_load_replay__when_discard_has_riichi_flag__should_produce_declare_riich
 
 def test_load_replay__when_pon_meld__should_produce_call_pon_action():
     # tile_34=2 (3m): tile IDs 8, 9, 10. Called tile 8 from seat 0.
-    meld = _compact_meld("pon", caller_seat=2, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
+    meld = _compact_meld(meld_type="pon", caller_seat=2, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
 
@@ -117,7 +117,7 @@ def test_load_replay__when_pon_meld__should_produce_call_pon_action():
 
 
 def test_load_replay__when_chi_meld__should_produce_call_chi_action_with_sequence_tiles():
-    meld = _compact_meld("chi", caller_seat=1, from_seat=0, tile_ids=[20, 24, 28], called_tile_id=20)
+    meld = _compact_meld(meld_type="chi", caller_seat=1, from_seat=0, tile_ids=[20, 24, 28], called_tile_id=20)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
 
@@ -128,7 +128,7 @@ def test_load_replay__when_chi_meld__should_produce_call_chi_action_with_sequenc
 
 
 def test_load_replay__when_open_kan_meld__should_produce_open_call_kan_action():
-    meld = _compact_meld("open_kan", caller_seat=3, from_seat=0, tile_ids=[0, 1, 2, 3], called_tile_id=2)
+    meld = _compact_meld(meld_type="open_kan", caller_seat=3, from_seat=0, tile_ids=[0, 1, 2, 3], called_tile_id=2)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
 
@@ -139,7 +139,9 @@ def test_load_replay__when_open_kan_meld__should_produce_open_call_kan_action():
 
 
 def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_action():
-    meld = _compact_meld("closed_kan", caller_seat=1, from_seat=None, tile_ids=[0, 1, 2, 3], called_tile_id=None)
+    meld = _compact_meld(
+        meld_type="closed_kan", caller_seat=1, from_seat=None, tile_ids=[0, 1, 2, 3], called_tile_id=None
+    )
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
 
@@ -150,7 +152,7 @@ def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_actio
 
 
 def test_load_replay__when_added_kan_meld__should_produce_added_call_kan_action():
-    meld = _compact_meld("added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7)
+    meld = _compact_meld(meld_type="added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7)
     content = _build_event_log(meld)
     replay = load_replay_from_string(content)
 

@@ -61,6 +61,7 @@ def _update_round_state(
 
 def _update_player(
     service: MahjongGameService,
+    *,
     game_id: str,
     seat: int,
     **updates: object,

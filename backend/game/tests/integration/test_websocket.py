@@ -33,7 +33,7 @@ class TestWebSocketIntegration:
             yield client
 
     def test_websocket__when_single_player_joins__should_start_game(self, client):
-        tickets = create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, game_id="test_game")
         with client.websocket_connect("/ws/test_game") as ws:
             messages = join_game_and_start(ws, tickets[0])
             assert [message["t"] for message in messages] == [
@@ -42,7 +42,7 @@ class TestWebSocketIntegration:
             ]
 
     def test_websocket__when_chat_sent__should_echo_chat_with_player_name(self, client):
-        tickets = create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, game_id="test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
             join_game_and_start(ws, tickets[0])
@@ -55,7 +55,7 @@ class TestWebSocketIntegration:
             assert response["text"] == "Hello from game!"
 
     def test_websocket__when_discard_sent__should_return_successful_draw_event(self, client):
-        tickets = create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, game_id="test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
             join_game_and_start(ws, tickets[0])
@@ -69,7 +69,7 @@ class TestWebSocketIntegration:
             assert response["success"] is True
 
     def test_websocket__when_msgpack_invalid__should_return_error_and_keep_connection(self, client):
-        tickets = create_pending_game(client, "test_game")
+        tickets = create_pending_game(client, game_id="test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
             # Send garbage bytes that aren't valid MessagePack
@@ -88,7 +88,7 @@ class TestWebSocketIntegration:
             assert msg["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
 
     def test_websocket__when_join_ticket_invalid__should_return_invalid_ticket_error(self, client):
-        create_pending_game(client, "test_game")
+        create_pending_game(client, game_id="test_game")
 
         with client.websocket_connect("/ws/test_game") as ws:
             send_ws(
@@ -209,7 +209,7 @@ class TestStatusEndpoint:
         assert "commit" in data
 
     def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
-        create_pending_game(client, "r1")
+        create_pending_game(client, game_id="r1")
         response = client.get("/status")
         data = response.json()
         assert data["pending_games"] == 1
@@ -226,7 +226,7 @@ class TestCreateGameEndpoint:
             yield client
 
     def test_create_game_endpoint__when_body_valid__should_return_201_pending(self, client):
-        ticket = make_test_game_ticket("Player1", "test-game", user_id="user-0")
+        ticket = make_test_game_ticket(username="Player1", room_id="test-game", user_id="user-0")
         response = client.post(
             "/games",
             json={
@@ -243,7 +243,7 @@ class TestCreateGameEndpoint:
         assert response.json() == {"error": "Invalid request body"}
 
     def test_create_game_endpoint__when_game_id_invalid__should_return_400(self, client):
-        ticket = make_test_game_ticket("Player1", "bad id!", user_id="user-0")
+        ticket = make_test_game_ticket(username="Player1", room_id="bad id!", user_id="user-0")
         response = client.post(
             "/games",
             json={
@@ -255,8 +255,8 @@ class TestCreateGameEndpoint:
         assert response.json() == {"error": "Invalid request body"}
 
     def test_create_game_endpoint__when_pending_game_exists__should_return_409(self, client):
-        create_pending_game(client, "dupe")
-        ticket = make_test_game_ticket("Player1", "dupe", user_id="user-0")
+        create_pending_game(client, game_id="dupe")
+        ticket = make_test_game_ticket(username="Player1", room_id="dupe", user_id="user-0")
         response = client.post(
             "/games",
             json={
@@ -270,7 +270,7 @@ class TestCreateGameEndpoint:
     def test_create_game_endpoint__when_game_active__should_return_409(self, client):
         sm = client.app.state.session_manager
         sm._games["active-game"] = object()
-        ticket = make_test_game_ticket("Player1", "active-game", user_id="user-0")
+        ticket = make_test_game_ticket(username="Player1", room_id="active-game", user_id="user-0")
         response = client.post(
             "/games",
             json={
@@ -283,7 +283,7 @@ class TestCreateGameEndpoint:
 
     def test_create_game_endpoint__when_server_at_capacity__should_return_503(self, client):
         for i in range(100):
-            ticket = make_test_game_ticket(f"P{i}", f"r{i}", user_id=f"u-{i}")
+            ticket = make_test_game_ticket(username=f"P{i}", room_id=f"r{i}", user_id=f"u-{i}")
             resp = client.post(
                 "/games",
                 json={
@@ -292,7 +292,7 @@ class TestCreateGameEndpoint:
                 },
             )
             assert resp.status_code == 201
-        ticket = make_test_game_ticket("Poverflow", "overflow", user_id="u-overflow")
+        ticket = make_test_game_ticket(username="Poverflow", room_id="overflow", user_id="u-overflow")
         response = client.post(
             "/games",
             json={

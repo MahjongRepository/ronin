@@ -28,7 +28,9 @@ class TestKuikaeEdgeCases:
         called_tile_34 = tile_to_34(man_tiles[2])  # 3m is tile_34 = 2
         sequence_tiles_34 = [tile_to_34(man_tiles[0]), tile_to_34(man_tiles[1])]  # 1m, 2m
 
-        forbidden = get_kuikae_tiles(MeldCallType.CHI, called_tile_34, sequence_tiles_34)
+        forbidden = get_kuikae_tiles(
+            call_type=MeldCallType.CHI, called_tile_34=called_tile_34, sequence_tiles_34=sequence_tiles_34
+        )
 
         # Should forbid 3m (called tile) and the suji below 1m (which is 0m, but doesn't exist)
         # Actually: sequence is [0, 1, 2], called is 2 (highest)
@@ -41,7 +43,9 @@ class TestKuikaeEdgeCases:
         called_tile_34_4m = tile_to_34(man_tiles_234[2])  # 4m
         sequence_tiles_34_23 = [tile_to_34(man_tiles_234[0]), tile_to_34(man_tiles_234[1])]  # 2m, 3m
 
-        forbidden_234 = get_kuikae_tiles(MeldCallType.CHI, called_tile_34_4m, sequence_tiles_34_23)
+        forbidden_234 = get_kuikae_tiles(
+            call_type=MeldCallType.CHI, called_tile_34=called_tile_34_4m, sequence_tiles_34=sequence_tiles_34_23
+        )
 
         # Sequence is [1, 2, 3] (234m in tile_34), called is 3 (4m)
         # suji = all_tiles[0] - 1 = 1 - 1 = 0 (1m)
@@ -58,7 +62,10 @@ class TestKanLimits:
             wall=(1,),  # only 1 tile; min_wall_for_kan defaults to 2
         )
         discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
-        assert can_call_open_kan(player, discarded_tile, round_state, GameSettings()) is False
+        assert (
+            can_call_open_kan(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            is False
+        )
 
     def test_can_call_open_kan__when_four_kans_already_made__should_return_false(self):
         # Create players with 4 total kans
@@ -113,7 +120,7 @@ class TestKanLimits:
         discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
 
         settings = GameSettings()
-        result = can_call_open_kan(player2, discarded_tile, round_state, settings)
+        result = can_call_open_kan(player2, discarded_tile=discarded_tile, round_state=round_state, settings=settings)
 
         assert result is False
 
@@ -166,7 +173,7 @@ class TestKanLimits:
         round_state = create_round_state(players=players, wall=wall)
 
         settings = GameSettings()
-        result = get_possible_closed_kans(player2, round_state, settings)
+        result = get_possible_closed_kans(player2, round_state, settings=settings)
 
         assert result == []
 
@@ -225,7 +232,7 @@ class TestKanLimits:
         round_state = create_round_state(players=players, wall=wall)
 
         settings = GameSettings()
-        result = get_possible_added_kans(player2, round_state, settings)
+        result = get_possible_added_kans(player2, round_state, settings=settings)
 
         assert result == []
 
@@ -285,7 +292,7 @@ class TestRiichiKanWaitPreservation:
         dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
         round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
 
-        result = get_possible_closed_kans(player, round_state, GameSettings())
+        result = get_possible_closed_kans(player, round_state, settings=GameSettings())
         tile_34_1m = tile_to_34(man_1m[0])
         assert tile_34_1m in result
 
@@ -302,7 +309,7 @@ class TestRiichiKanWaitPreservation:
         dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
         round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
 
-        result = get_possible_closed_kans(player, round_state, GameSettings())
+        result = get_possible_closed_kans(player, round_state, settings=GameSettings())
         assert result == []
 
 
@@ -334,7 +341,7 @@ class TestPaoLiability:
         chun_34 = tile_to_34(chun_tile)
         discarder_seat = 2
 
-        result = _check_pao(player, discarder_seat, chun_34, GameSettings())
+        result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=chun_34, settings=GameSettings())
 
         assert result == discarder_seat
 
@@ -372,7 +379,7 @@ class TestPaoLiability:
         north_34 = tile_to_34(north_tile)
         discarder_seat = 3
 
-        result = _check_pao(player, discarder_seat, north_34, GameSettings())
+        result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=north_34, settings=GameSettings())
 
         assert result == discarder_seat
 
@@ -384,7 +391,7 @@ class TestPaoLiability:
         tile_34 = tile_to_34(man_1m)
         discarder_seat = 1
 
-        result = _check_pao(player, discarder_seat, tile_34, GameSettings())
+        result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=tile_34, settings=GameSettings())
 
         assert result is None
 
@@ -395,7 +402,7 @@ class TestPaoLiability:
         haku_34 = tile_to_34(haku_tile)
         discarder_seat = 2
 
-        result = _check_pao(player, discarder_seat, haku_34, GameSettings())
+        result = _check_pao(player, discarder_seat=discarder_seat, called_tile_34=haku_34, settings=GameSettings())
 
         assert result is None
 
@@ -556,7 +563,7 @@ class TestCheckPaoDisabled:
         chun_34 = tile_to_34(chun_tile)
 
         settings = GameSettings(has_daisangen_pao=False)
-        result = _check_pao(player, 2, chun_34, settings)
+        result = _check_pao(player, discarder_seat=2, called_tile_34=chun_34, settings=settings)
         assert result is None
 
     def test_pao__when_daisuushii_pao_disabled__should_return_none(self):
@@ -575,5 +582,5 @@ class TestCheckPaoDisabled:
         north_34 = tile_to_34(north_tile)
 
         settings = GameSettings(has_daisuushii_pao=False)
-        result = _check_pao(player, 3, north_34, settings)
+        result = _check_pao(player, discarder_seat=3, called_tile_34=north_34, settings=settings)
         assert result is None

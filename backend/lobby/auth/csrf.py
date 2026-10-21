@@ -26,7 +26,7 @@ def get_or_create_csrf_token(request: Request) -> tuple[str, bool]:
     return secrets.token_urlsafe(32), True
 
 
-def set_csrf_cookie(response: Response, token: str, *, cookie_secure: bool) -> None:
+def set_csrf_cookie(response: Response, *, token: str, cookie_secure: bool) -> None:
     """
     Set the CSRF token cookie on the response.
     """

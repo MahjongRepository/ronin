@@ -92,11 +92,13 @@ class TestMinWallForKan:
 
         # default min_wall_for_kan=2: exactly 2 tiles → can kan
         settings = GameSettings()
-        assert get_possible_closed_kans(round_state.players[0], round_state, settings) == [tile_to_34(tiles_4m[0])]
+        assert get_possible_closed_kans(round_state.players[0], round_state, settings=settings) == [
+            tile_to_34(tiles_4m[0])
+        ]
 
         # custom min_wall_for_kan=3: only 2 tiles → cannot kan
         settings_3 = GameSettings(min_wall_for_kan=3)
-        assert get_possible_closed_kans(round_state.players[0], round_state, settings_3) == []
+        assert get_possible_closed_kans(round_state.players[0], round_state, settings=settings_3) == []
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +112,7 @@ class TestKanAfterMeldCallBlocked:
         round_state = _make_round_state(player0_tiles, is_after_meld_call=True)
 
         settings = GameSettings()
-        result = get_possible_closed_kans(round_state.players[0], round_state, settings)
+        result = get_possible_closed_kans(round_state.players[0], round_state, settings=settings)
         assert result == []
 
     def test_added_kan__when_after_meld_call__should_not_be_possible(self):
@@ -135,7 +137,7 @@ class TestKanAfterMeldCallBlocked:
         )
 
         settings = GameSettings()
-        result = get_possible_added_kans(round_state.players[0], round_state, settings)
+        result = get_possible_added_kans(round_state.players[0], round_state, settings=settings)
         assert result == []
 
     def test_closed_kan__when_not_after_meld_call__should_be_possible(self):
@@ -145,7 +147,7 @@ class TestKanAfterMeldCallBlocked:
         round_state = _make_round_state(player0_tiles, is_after_meld_call=False)
 
         settings = GameSettings()
-        result = get_possible_closed_kans(round_state.players[0], round_state, settings)
+        result = get_possible_closed_kans(round_state.players[0], round_state, settings=settings)
         assert result == [tile_to_34(tiles_4m[0])]
 
 
@@ -167,7 +169,7 @@ class TestConsecutiveClosedKans:
         dora_count_1 = len(new_state.wall.dora_indicators)
 
         # second kan should also be possible
-        possible = get_possible_closed_kans(new_state.players[0], new_state, settings)
+        possible = get_possible_closed_kans(new_state.players[0], new_state, settings=settings)
         man_2m_34 = tile_to_34(man_2m[0])
         assert man_2m_34 in possible
 

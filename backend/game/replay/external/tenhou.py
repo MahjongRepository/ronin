@@ -150,7 +150,7 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
     who: int = meld_event["caller_seat"]
 
     if meld_type == "chi":
-        return _encode_chi(tiles, called_tile, who, meld_event["from_seat"])
+        return _encode_chi(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
     if meld_type == "pon":
         return _encode_pon(tiles, called_tile, who, meld_event["from_seat"])
     if meld_type == "added_kan":
@@ -160,9 +160,9 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
         return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
     if meld_type == "closed_kan":
         tile = called_tile if called_tile is not None else min(tiles)
-        return _encode_kan(tiles, tile, who, who)
+        return _encode_kan(tiles=tiles, called_tile=tile, who=who, from_who=who)
     if meld_type == "open_kan":
-        return _encode_kan(tiles, called_tile, who, meld_event["from_seat"])
+        return _encode_kan(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
 
     return "0"
 

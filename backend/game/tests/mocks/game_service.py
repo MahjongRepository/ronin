@@ -79,6 +79,7 @@ class MockGameService(GameService):
 
     async def handle_action(
         self,
+        *,
         game_id: str,
         player_name: str,
         action: GameAction,
@@ -204,6 +205,7 @@ class MockGameService(GameService):
 
     async def handle_timeout(
         self,
+        *,
         game_id: str,
         player_name: str,
         timeout_type: TimeoutType,

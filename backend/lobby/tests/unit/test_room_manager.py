@@ -17,7 +17,7 @@ class TestJoinRoom:
     def test_room_manager_join_room__when_first_player__should_assign_seat_zero_and_ownership(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        result = mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        result = mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
         assert isinstance(result, dict)
         assert result["type"] == "room_joined"
         assert result["room_id"] == "room-1"
@@ -32,8 +32,8 @@ class TestJoinRoom:
     def test_room_manager_join_room__when_second_player__should_take_seat_one(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        result = mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        result = mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         assert isinstance(result, dict)
         assert result["is_owner"] is False
 
@@ -43,48 +43,48 @@ class TestJoinRoom:
     def test_room_manager_join_room__when_seat_freed__should_fill_first_open_seat(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-0", "room-1", "u0", "P0")
-        mgr.join_room("conn-1", "room-1", "u1", "P1")
-        mgr.join_room("conn-2", "room-1", "u2", "P2")
+        mgr.join_room(connection_id="conn-0", room_id="room-1", user_id="u0", username="P0")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="u1", username="P1")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="u2", username="P2")
 
         mgr.leave_room("conn-1")  # frees seat 1
-        mgr.join_room("conn-3", "room-1", "u3", "P3")
+        mgr.join_room(connection_id="conn-3", room_id="room-1", user_id="u3", username="P3")
 
         room = mgr.get_room("room-1")
         assert room.seats[1] == "conn-3"  # filled the gap
 
     def test_room_manager_join_room__when_room_missing__should_return_room_not_found(self):
         mgr = LobbyRoomManager()
-        result = mgr.join_room("conn-1", "no-room", "user-1", "Alice")
+        result = mgr.join_room(connection_id="conn-1", room_id="no-room", user_id="user-1", username="Alice")
         assert result == "room_not_found"
 
     def test_room_manager_join_room__when_room_full__should_return_room_full(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
         for i in range(4):
-            mgr.join_room(f"conn-{i}", "room-1", f"user-{i}", f"P{i}")
+            mgr.join_room(connection_id=f"conn-{i}", room_id="room-1", user_id=f"user-{i}", username=f"P{i}")
 
-        result = mgr.join_room("conn-5", "room-1", "user-5", "P5")
+        result = mgr.join_room(connection_id="conn-5", room_id="room-1", user_id="user-5", username="P5")
         assert result == "room_full"
 
     def test_room_manager_join_room__when_user_already_in_room__should_return_already_in_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        result = mgr.join_room("conn-2", "room-1", "user-1", "Alice2")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        result = mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-1", username="Alice2")
         assert result == "already_in_room"
 
     def test_room_manager_join_room__when_room_transitioning__should_return_room_transitioning(self):
         mgr = LobbyRoomManager()
         room = mgr.create_room("room-1")
         room.transitioning = True
-        result = mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        result = mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
         assert result == "room_transitioning"
 
     def test_room_manager_join_room__when_owner_alone__should_report_can_start(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        result = mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        result = mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
         assert isinstance(result, dict)
         # Owner alone with default min_human_players=1 — can_start is True
         assert result["can_start"] is True
@@ -92,7 +92,7 @@ class TestJoinRoom:
     def test_room_manager_join_room__when_min_human_players_unmet__should_report_cannot_start(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1", min_human_players=4)
-        result = mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        result = mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
         assert isinstance(result, dict)
         # Only 1 of 4 required humans — can_start is False
         assert result["can_start"] is False
@@ -104,25 +104,25 @@ class TestMinHumanPlayers:
         mgr.create_room("room-1", min_human_players=4)
 
         # Join 3 players — can_start stays False
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         mgr.set_ready("conn-2", ready=True)
-        mgr.join_room("conn-3", "room-1", "user-3", "Carol")
+        mgr.join_room(connection_id="conn-3", room_id="room-1", user_id="user-3", username="Carol")
         mgr.set_ready("conn-3", ready=True)
 
         room = mgr.get_room("room-1")
         assert room.can_start is False
 
         # 4th player joins and readies — can_start becomes True
-        mgr.join_room("conn-4", "room-1", "user-4", "Dave")
+        mgr.join_room(connection_id="conn-4", room_id="room-1", user_id="user-4", username="Dave")
         mgr.set_ready("conn-4", ready=True)
         assert room.can_start is True
 
     def test_room_manager_can_start__when_player_not_ready__should_stay_false(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1", min_human_players=2)
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         # Bob is not ready
         room = mgr.get_room("room-1")
         assert room.can_start is False
@@ -130,7 +130,7 @@ class TestMinHumanPlayers:
     def test_room_manager_start_game__when_min_human_players_unmet__should_return_not_all_ready(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1", min_human_players=2)
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
         # Only 1 of 2 required humans
         result = mgr.start_game("conn-1")
         assert result == "not_all_ready"
@@ -140,8 +140,8 @@ class TestLeaveRoom:
     def test_room_manager_leave_room__should_free_only_leavers_seat(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
 
         mgr.leave_room("conn-1")
         room = mgr.get_room("room-1")
@@ -152,7 +152,7 @@ class TestLeaveRoom:
     def test_room_manager_leave_room__when_last_player__should_remove_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
 
         mgr.leave_room("conn-1")
         assert mgr.get_room("room-1") is None
@@ -165,8 +165,8 @@ class TestLeaveRoom:
     def test_room_manager_leave_room__when_host_leaves__should_transfer_host(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
 
         room = mgr.get_room("room-1")
         assert room.host_connection_id == "conn-1"
@@ -178,7 +178,7 @@ class TestLeaveRoom:
     def test_room_manager_leave_room__when_room_already_removed__should_return_room_id(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
         mgr._rooms.pop("room-1")
         result = mgr.leave_room("conn-1")
         assert result == "room-1"
@@ -188,8 +188,8 @@ class TestSetReady:
     def test_room_manager_set_ready__when_all_ready__should_return_can_start(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
 
         result = mgr.set_ready("conn-2", ready=True)
         assert isinstance(result, tuple)
@@ -200,9 +200,9 @@ class TestSetReady:
     def test_room_manager_set_ready__when_another_player_not_ready__should_return_cannot_start(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
-        mgr.join_room("conn-3", "room-1", "user-3", "Carol")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
+        mgr.join_room(connection_id="conn-3", room_id="room-1", user_id="user-3", username="Carol")
 
         result = mgr.set_ready("conn-2", ready=True)
         _, can_start = result
@@ -211,8 +211,8 @@ class TestSetReady:
     def test_room_manager_set_ready__should_not_set_transitioning(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
 
         mgr.set_ready("conn-2", ready=True)
         room = mgr.get_room("room-1")
@@ -221,7 +221,7 @@ class TestSetReady:
     def test_room_manager_set_ready__when_owner__should_return_owner_cannot_ready(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
 
         result = mgr.set_ready("conn-1", ready=True)
         assert result == "owner_cannot_ready"
@@ -234,8 +234,8 @@ class TestSetReady:
     def test_room_manager_set_ready__when_room_transitioning__should_return_room_transitioning(self):
         mgr = LobbyRoomManager()
         room = mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         room.transitioning = True
         result = mgr.set_ready("conn-2", ready=True)
         assert result == "room_transitioning"
@@ -243,8 +243,8 @@ class TestSetReady:
     def test_room_manager_set_ready__when_room_removed__should_return_not_in_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         mgr._rooms.pop("room-1")
         result = mgr.set_ready("conn-2", ready=True)
         assert result == "not_in_room"
@@ -252,8 +252,8 @@ class TestSetReady:
     def test_room_manager_set_ready__when_player_removed__should_return_not_in_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         room = mgr.get_room("room-1")
         assert room is not None
         room.players.pop("conn-2")
@@ -265,7 +265,7 @@ class TestStartGame:
     def test_room_manager_start_game__when_owner__should_start_and_set_transitioning(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
         # Owner alone with default min_human_players=1 — can_start is True
         result = mgr.start_game("conn-1")
         assert result is None
@@ -276,8 +276,8 @@ class TestStartGame:
     def test_room_manager_start_game__when_not_owner__should_return_not_owner(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         mgr.set_ready("conn-2", ready=True)
 
         result = mgr.start_game("conn-2")
@@ -286,8 +286,8 @@ class TestStartGame:
     def test_room_manager_start_game__when_player_not_ready__should_return_not_all_ready(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         # Bob is not ready
 
         result = mgr.start_game("conn-1")
@@ -301,7 +301,7 @@ class TestStartGame:
     def test_room_manager_start_game__when_room_transitioning__should_return_room_transitioning(self):
         mgr = LobbyRoomManager()
         room = mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
         room.transitioning = True
         result = mgr.start_game("conn-1")
         assert result == "room_transitioning"
@@ -309,9 +309,9 @@ class TestStartGame:
     def test_room_manager_start_game__when_all_humans_ready__should_fill_remaining_seats_with_bots(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
-        mgr.join_room("conn-3", "room-1", "user-3", "Carol")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
+        mgr.join_room(connection_id="conn-3", room_id="room-1", user_id="user-3", username="Carol")
         mgr.set_ready("conn-2", ready=True)
         mgr.set_ready("conn-3", ready=True)
 
@@ -325,7 +325,7 @@ class TestStartGame:
     def test_room_manager_start_game__when_room_removed__should_return_not_in_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
         mgr._rooms.pop("room-1")
         result = mgr.start_game("conn-1")
         assert result == "not_in_room"
@@ -335,8 +335,8 @@ class TestClearTransitioning:
     def test_room_manager_clear_transitioning__should_reset_transitioning_and_ready(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Owner")
-        mgr.join_room("conn-2", "room-1", "user-2", "Bob")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Owner")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
         mgr.set_ready("conn-2", ready=True)
         mgr.start_game("conn-1")
 
@@ -356,7 +356,7 @@ class TestGetRoomsInfo:
     def test_room_manager_get_rooms_info__should_describe_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
 
         info = mgr.get_rooms_info()
         assert len(info) == 1
@@ -383,7 +383,7 @@ class TestRemoveRoom:
     def test_room_manager_remove_room__should_delete_room(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
 
         mgr.remove_room("room-1")
         assert mgr.get_room("room-1") is None
@@ -399,7 +399,7 @@ class TestRoomReaper:
 
         mgr = LobbyRoomManager(room_ttl_seconds=0, on_room_expired=on_expired)
         mgr.create_room("room-1")
-        mgr.join_room("conn-1", "room-1", "user-1", "Alice")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
 
         await mgr._reap_expired_rooms()
 

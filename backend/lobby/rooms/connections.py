@@ -21,7 +21,7 @@ class RoomConnectionManager:
         self._connections: dict[str, dict[str, WebSocket]] = {}  # room_id -> {conn_id -> ws}
         self._connection_rooms: dict[str, str] = {}  # conn_id -> room_id (reverse index)
 
-    def add(self, room_id: str, connection_id: str, websocket: WebSocket) -> None:
+    def add(self, *, room_id: str, connection_id: str, websocket: WebSocket) -> None:
         if room_id not in self._connections:
             self._connections[room_id] = {}
         self._connections[room_id][connection_id] = websocket
@@ -38,7 +38,7 @@ class RoomConnectionManager:
                 del self._connections[room_id]
         return room_id
 
-    async def broadcast(self, room_id: str, message: dict, exclude: str | None = None) -> None:
+    async def broadcast(self, *, room_id: str, message: dict, exclude: str | None = None) -> None:
         """
         Send a JSON message to all connections in a room, optionally excluding one.
         """

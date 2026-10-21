@@ -24,7 +24,7 @@ class TestAuthTimeout:
 
     async def test_auth_timeout__when_connection_authenticated__should_not_close(self, manager):
         with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0.05):
-            conns = await create_started_game(manager, "game1")
+            conns = await create_started_game(manager)
             await asyncio.sleep(0.1)
 
         assert not conns[0].is_closed
@@ -40,7 +40,7 @@ class TestAuthTimeout:
         assert conn.connection_id not in manager._auth_timeouts
 
     async def test_auth_timeout__when_player_joins_game__should_cancel_timeout(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
 
         for conn in conns:
             assert conn.connection_id not in manager._auth_timeouts

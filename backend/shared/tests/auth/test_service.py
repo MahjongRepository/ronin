@@ -163,11 +163,11 @@ class TestValidateSession:
 
 class TestCreateSession:
     def test_auth_service_create_session__when_no_account_type__should_default_to_human(self, auth_service):
-        session = auth_service.create_session("user-1", "alice")
+        session = auth_service.create_session(user_id="user-1", username="alice")
         assert session.account_type == AccountType.HUMAN
 
     def test_auth_service_create_session__when_bot__should_keep_account_type(self, auth_service):
-        session = auth_service.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
+        session = auth_service.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
         assert session.account_type == AccountType.BOT
 
 

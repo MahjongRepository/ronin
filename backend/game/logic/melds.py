@@ -111,6 +111,7 @@ def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
 
 def can_call_chi(
     player: MahjongPlayer,
+    *,
     discarded_tile: int,
     discarder_seat: int,
     caller_seat: int,
@@ -142,7 +143,7 @@ def can_call_chi(
     tile_value = discarded_34 % TILES_PER_SUIT
     hand_tiles_by_34 = _build_same_suit_tile_map(player.tiles, discarded_34)
 
-    return _find_chi_combinations(discarded_34, tile_value, hand_tiles_by_34)
+    return _find_chi_combinations(discarded_34=discarded_34, tile_value=tile_value, hand_tiles=hand_tiles_by_34)
 
 
 def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: int) -> dict[int, list[int]]:
@@ -172,15 +173,21 @@ def _find_chi_combinations(
 
     # discarded tile is lowest in sequence (e.g., 1 in 123)
     if tile_value <= CHI_LOWEST_MAX_VALUE:
-        _add_combination_if_valid(combinations, hand_tiles, discarded_34 + 1, discarded_34 + 2)
+        _add_combination_if_valid(
+            combinations=combinations, hand_tiles=hand_tiles, tile34_a=discarded_34 + 1, tile34_b=discarded_34 + 2
+        )
 
     # discarded tile is middle in sequence (e.g., 2 in 123)
     if CHI_MIDDLE_MIN_VALUE <= tile_value <= CHI_MIDDLE_MAX_VALUE:
-        _add_combination_if_valid(combinations, hand_tiles, discarded_34 - 1, discarded_34 + 1)
+        _add_combination_if_valid(
+            combinations=combinations, hand_tiles=hand_tiles, tile34_a=discarded_34 - 1, tile34_b=discarded_34 + 1
+        )
 
     # discarded tile is highest in sequence (e.g., 3 in 123)
     if tile_value >= CHI_HIGHEST_MIN_VALUE:
-        _add_combination_if_valid(combinations, hand_tiles, discarded_34 - 2, discarded_34 - 1)
+        _add_combination_if_valid(
+            combinations=combinations, hand_tiles=hand_tiles, tile34_a=discarded_34 - 2, tile34_b=discarded_34 - 1
+        )
 
     return combinations
 
@@ -200,6 +207,7 @@ def _add_combination_if_valid(
 
 def can_call_open_kan(
     player: MahjongPlayer,
+    *,
     discarded_tile: int,
     round_state: MahjongRoundState,
     settings: GameSettings,
@@ -312,6 +320,7 @@ def _find_closed_kan_candidates(
 def get_possible_closed_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> list[int]:
     """
@@ -346,6 +355,7 @@ def get_possible_closed_kans(
 def get_possible_added_kans(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> list[int]:
     """
@@ -383,6 +393,7 @@ def get_possible_added_kans(
 
 def _check_pao(
     player: MahjongPlayer,
+    *,
     discarder_seat: int,
     called_tile_34: int,
     settings: GameSettings,
@@ -515,6 +526,7 @@ def _handle_kan_dora_and_draw(
 
 def call_pon(
     round_state: MahjongRoundState,
+    *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
@@ -529,7 +541,9 @@ def call_pon(
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
 
-    removed_tiles, new_hand = _remove_matching_tiles(caller.tiles, tile_34, TILES_FOR_PON, "pon", caller_seat)
+    removed_tiles, new_hand = _remove_matching_tiles(
+        hand=caller.tiles, tile_34=tile_34, count=TILES_FOR_PON, meld_name="pon", seat=caller_seat
+    )
 
     # create meld with all 3 tiles (2 from hand + called tile)
     meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
@@ -545,12 +559,12 @@ def call_pon(
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
-    pao_seat = _check_pao(caller, discarder_seat, tile_34, settings)
+    pao_seat = _check_pao(caller, discarder_seat=discarder_seat, called_tile_34=tile_34, settings=settings)
 
     # set kuikae restriction based on settings
     kuikae_tiles: tuple[int, ...] = ()
     if settings.has_kuikae:
-        kuikae_tiles = tuple(get_kuikae_tiles(MeldCallType.PON, tile_34))
+        kuikae_tiles = tuple(get_kuikae_tiles(call_type=MeldCallType.PON, called_tile_34=tile_34))
 
     # update player state
     player_updates: dict[str, object] = {
@@ -635,7 +649,9 @@ def call_chi(  # noqa: PLR0913
         called_34 = tile_to_34(tile_id)
         sequence_tiles_34 = [tile_to_34(t) for t in sequence_tiles]
         if settings.has_kuikae_suji:
-            kuikae = get_kuikae_tiles(MeldCallType.CHI, called_34, sequence_tiles_34)
+            kuikae = get_kuikae_tiles(
+                call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_tiles_34
+            )
         else:
             # only forbid the called tile type (no suji restriction)
             kuikae = [called_34]
@@ -657,6 +673,7 @@ def call_chi(  # noqa: PLR0913
 
 def call_open_kan(
     round_state: MahjongRoundState,
+    *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
@@ -680,11 +697,11 @@ def call_open_kan(
     )
 
     removed_tiles, new_hand = _remove_matching_tiles(
-        caller.tiles,
-        tile_34,
-        TILES_FOR_OPEN_KAN,
-        "open kan",
-        caller_seat,
+        hand=caller.tiles,
+        tile_34=tile_34,
+        count=TILES_FOR_OPEN_KAN,
+        meld_name="open kan",
+        seat=caller_seat,
     )
 
     # create meld with all 4 tiles (3 from hand + called tile)
@@ -701,7 +718,7 @@ def call_open_kan(
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
-    pao_seat = _check_pao(caller, discarder_seat, tile_34, settings)
+    pao_seat = _check_pao(caller, discarder_seat=discarder_seat, called_tile_34=tile_34, settings=settings)
 
     # update player state
     player_updates: dict[str, object] = {
@@ -750,6 +767,7 @@ def validate_closed_kan(
 
 def call_closed_kan(
     round_state: MahjongRoundState,
+    *,
     seat: int,
     tile_id: int,
     settings: GameSettings,
@@ -772,11 +790,11 @@ def call_closed_kan(
     _validate_kan_preconditions(round_state, settings)
 
     removed_tiles, new_hand = _remove_matching_tiles(
-        player.tiles,
-        tile_34,
-        TILES_FOR_CLOSED_KAN,
-        "closed kan",
-        seat,
+        hand=player.tiles,
+        tile_34=tile_34,
+        count=TILES_FOR_CLOSED_KAN,
+        meld_name="closed kan",
+        seat=seat,
     )
 
     # create meld with all 4 tiles (closed kan - opened=False)
@@ -851,6 +869,7 @@ def resolve_added_kan_tile(
 
 def call_added_kan(
     round_state: MahjongRoundState,
+    *,
     seat: int,
     tile_id: int,
     settings: GameSettings,

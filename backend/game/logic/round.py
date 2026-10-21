@@ -72,7 +72,7 @@ def draw_tile(
         return round_state, None
 
     new_state = round_state.model_copy(update={"wall": new_wall})
-    new_state = add_tile_to_player(new_state, new_state.current_player_seat, tile)
+    new_state = add_tile_to_player(new_state, seat=new_state.current_player_seat, tile_id=tile)
     return new_state, tile
 
 
@@ -183,7 +183,7 @@ def draw_from_dead_wall(
 
     current_seat = round_state.current_player_seat
     new_state = round_state.model_copy(update={"wall": new_wall})
-    new_state = add_tile_to_player(new_state, current_seat, tile)
+    new_state = add_tile_to_player(new_state, seat=current_seat, tile_id=tile)
     new_state = update_player(new_state, current_seat, is_rinshan=True)
 
     return new_state, tile
@@ -312,7 +312,13 @@ def process_exhaustive_draw(
     if settings.has_nagashi_mangan:
         qualifying = check_nagashi_mangan(round_state)
         if qualifying:
-            return apply_nagashi_mangan_score(game_state, qualifying, tempai_seats, noten_seats, tenpai_hands)
+            return apply_nagashi_mangan_score(
+                game_state,
+                qualifying_seats=qualifying,
+                tempai_seats=tempai_seats,
+                noten_seats=noten_seats,
+                tenpai_hands=tenpai_hands,
+            )
 
     scores = {p.seat: p.score for p in round_state.players}
     score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)

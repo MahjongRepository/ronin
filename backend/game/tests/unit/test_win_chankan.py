@@ -300,4 +300,4 @@ class TestHasYakuForOpenHandEmptyTiles:
             round_wind=0,
             wall=Wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
         )
-        assert _has_yaku_for_open_hand(player, round_state, GameSettings()) is False
+        assert _has_yaku_for_open_hand(player, round_state, settings=GameSettings()) is False

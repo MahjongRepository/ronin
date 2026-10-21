@@ -17,6 +17,7 @@ class SessionStore:
 
     def create_session(
         self,
+        *,
         player_name: str,
         game_id: str,
         token: str | None = None,

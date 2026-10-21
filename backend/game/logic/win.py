@@ -89,6 +89,7 @@ def check_tsumo(player: MahjongPlayer) -> bool:
 def can_declare_tsumo(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> bool:
     """
@@ -107,7 +108,7 @@ def can_declare_tsumo(
         return True
 
     # for open hands, need to verify at least one yaku exists
-    return _has_yaku_for_open_hand(player, round_state, settings)
+    return _has_yaku_for_open_hand(player, round_state, settings=settings)
 
 
 def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
@@ -455,6 +456,7 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
 
 def can_call_ron(
     player: MahjongPlayer,
+    *,
     discarded_tile: int,
     round_state: MahjongRoundState,
     settings: GameSettings,
@@ -496,9 +498,9 @@ def can_call_ron(
     return _has_yaku_for_ron_with_tiles(
         player,
         round_state,
-        discarded_tile,
-        tiles_with_win,
-        settings,
+        win_tile=discarded_tile,
+        tiles=tiles_with_win,
+        settings=settings,
     )
 
 

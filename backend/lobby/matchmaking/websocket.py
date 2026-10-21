@@ -170,15 +170,15 @@ async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> 
     try:
         players_for_tickets = [(entry.user_id, entry.username, entry.connection_id) for entry in matched]
         player_specs, ticket_map = sign_player_tickets(
-            players_for_tickets,
-            game_id,
-            ctx.auth_settings.game_ticket_secret,
+            players=players_for_tickets,
+            game_id=game_id,
+            ticket_secret=ctx.auth_settings.game_ticket_secret,
         )
         ws_url = await create_game_on_server(
-            game_id,
-            player_specs,
-            0,  # matchmaking always has 0 AI players
-            ctx.registry,
+            game_id=game_id,
+            players=player_specs,
+            num_ai_players=0,
+            registry=ctx.registry,
         )
     except Exception:
         log.exception("failed to create game from matchmaking")

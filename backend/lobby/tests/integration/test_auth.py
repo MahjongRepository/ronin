@@ -85,7 +85,7 @@ def _register_user(client: TestClient, username: str, password: str = "securepas
     )
 
 
-def _insert_bot(client, user_id: str, username: str) -> tuple[str, str]:
+def _insert_bot(client, *, user_id: str, username: str) -> tuple[str, str]:
     db = client.app.state.db
     raw_api_key = secrets.token_urlsafe(32)
     api_key_hash = hashlib.sha256(raw_api_key.encode()).hexdigest()
@@ -165,7 +165,7 @@ class TestAuthEndpoints:
         assert "Passwords do not match" in response.text
 
     def test_register_route__when_username_taken__should_show_error(self, client):
-        _register_user(client, "takenuser")
+        _register_user(client, username="takenuser")
         csrf = _get_csrf_token(client, "/register")
         response = client.post(
             "/register",
@@ -194,7 +194,7 @@ class TestAuthEndpoints:
         assert "Password must be" in response.text
 
     def test_login_route__when_credentials_valid__should_redirect_to_lobby_with_session(self, client):
-        _register_user(client, "loginuser")
+        _register_user(client, username="loginuser")
         csrf = _get_csrf_token(client, "/login")
         response = client.post(
             "/login",
@@ -206,7 +206,7 @@ class TestAuthEndpoints:
         assert "session_id" in response.cookies
 
     def test_login_route__when_password_wrong__should_show_error(self, client):
-        _register_user(client, "loginuser")
+        _register_user(client, username="loginuser")
         csrf = _get_csrf_token(client, "/login")
         response = client.post(
             "/login",
@@ -225,7 +225,7 @@ class TestAuthEndpoints:
         assert "Invalid credentials" in response.text
 
     def test_logout_route__when_posted__should_clear_session_and_redirect_to_login(self, client):
-        _register_user(client, "logoutuser")
+        _register_user(client, username="logoutuser")
         # After register, the CSRF cookie is already set. Read it for the logout POST.
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
         response = client.post("/logout", data={"csrf_token": csrf}, follow_redirects=False)
@@ -247,7 +247,7 @@ class TestAuthEndpoints:
         assert "next" in parse_qs(location.query)
 
     def test_lobby_page__when_authenticated__should_show_username_and_logout(self, client):
-        _register_user(client, "lobbyuser")
+        _register_user(client, username="lobbyuser")
         response = client.get("/")
         assert response.status_code == 200
         assert "lobbyuser" in response.text
@@ -258,7 +258,7 @@ class TestCreateRoomRedirect:
     @pytest.fixture
     def client(self, tmp_path):
         c = _make_client(tmp_path)
-        _register_user(c, "gameuser")
+        _register_user(c, username="gameuser")
         yield c
         c.app.state.db.close()
 
@@ -285,7 +285,7 @@ class TestJoinRoomRedirect:
     @pytest.fixture
     def client(self, tmp_path):
         c = _make_client(tmp_path)
-        _register_user(c, "joinuser")
+        _register_user(c, username="joinuser")
         yield c
         c.app.state.db.close()
 
@@ -317,7 +317,7 @@ class TestBotAuth:
         c.app.state.db.close()
 
     def test_bot_auth_route__when_key_and_room_valid__should_return_room_info_and_bot_session(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         room_manager = client.app.state.room_manager
         room_manager.create_room("room-bot")
 
@@ -345,7 +345,7 @@ class TestBotAuth:
         assert response.status_code == 401
 
     def test_bot_auth_route__when_room_id_missing__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         response = client.post(
             "/api/auth/bot",
             json={},
@@ -355,7 +355,7 @@ class TestBotAuth:
         assert "required" in response.json()["error"]
 
     def test_bot_auth_route__when_room_not_found__should_return_404(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         response = client.post(
             "/api/auth/bot",
             json={"room_id": "no-such-room"},
@@ -365,7 +365,7 @@ class TestBotAuth:
         assert response.json()["error"] == "Room not found"
 
     def test_bot_auth_route__when_body_not_json__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         response = client.post(
             "/api/auth/bot",
             content="not json",
@@ -375,7 +375,7 @@ class TestBotAuth:
         assert "Invalid JSON" in response.json()["error"]
 
     def test_bot_auth_route__when_body_is_json_array__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         response = client.post(
             "/api/auth/bot",
             json=[{"room_id": "room-1"}],
@@ -386,7 +386,7 @@ class TestBotAuth:
 
     def test_bot_auth_route__when_key_belongs_to_human__should_return_401(self, client):
         raw_key = "sneaky-human-key"
-        _insert_human_with_key(client, "human-with-key", "SneakyHuman", raw_key)
+        _insert_human_with_key(client, user_id="human-with-key", username="SneakyHuman", raw_key=raw_key)
 
         response = client.post(
             "/api/auth/bot",
@@ -404,7 +404,7 @@ class TestBotCreateRoom:
         c.app.state.db.close()
 
     def test_bot_create_room_route__when_key_valid__should_create_room_with_four_ai_seats(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             json={},
@@ -421,7 +421,7 @@ class TestBotCreateRoom:
         assert room.num_ai_players == 4
 
     def test_bot_create_room_route__when_num_ai_players_given__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             json={"num_ai_players": 2},
@@ -439,7 +439,7 @@ class TestBotCreateRoom:
         assert response.status_code == 401
 
     def test_bot_create_room_route__when_min_human_players_given__should_apply_it(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             json={"min_human_players": 4},
@@ -452,7 +452,7 @@ class TestBotCreateRoom:
         assert room.min_human_players == 4
 
     def test_bot_create_room_route__when_min_human_players_out_of_range__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             json={"min_human_players": 5},
@@ -462,7 +462,7 @@ class TestBotCreateRoom:
         assert "min_human_players" in response.json()["error"]
 
     def test_bot_create_room_route__when_min_human_players_not_int__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             json={"min_human_players": "four"},
@@ -472,7 +472,7 @@ class TestBotCreateRoom:
         assert "min_human_players" in response.json()["error"]
 
     def test_bot_create_room_route__when_min_human_players_boolean__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             json={"min_human_players": True},
@@ -482,7 +482,7 @@ class TestBotCreateRoom:
         assert "min_human_players" in response.json()["error"]
 
     def test_bot_create_room_route__when_body_not_json__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, "bot-room-id", "RoomBot")
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
         response = client.post(
             "/api/rooms",
             content="not json",
@@ -500,7 +500,7 @@ class TestBotOnlyRoutes:
         c.app.state.db.close()
 
     def test_bot_auth_route__when_human_session__should_return_403(self, client):
-        _register_user(client, "humanuser")
+        _register_user(client, username="humanuser")
         room_manager = client.app.state.room_manager
         room_manager.create_room("room-test")
 
@@ -509,14 +509,14 @@ class TestBotOnlyRoutes:
         assert "Bot account required" in response.json()["error"]
 
     def test_bot_create_room_route__when_human_session__should_return_403(self, client):
-        _register_user(client, "humanuser")
+        _register_user(client, username="humanuser")
 
         response = client.post("/api/rooms", json={})
         assert response.status_code == 403
         assert "Bot account required" in response.json()["error"]
 
     def test_bot_auth_route__when_api_key_valid__should_issue_session_with_bot_account_type(self, client):
-        _, raw_key = _insert_bot(client, "bot-test-id", "TestBot")
+        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         room_manager = client.app.state.room_manager
         room_manager.create_room("room-bot")
 
@@ -543,7 +543,7 @@ class TestApiKeyProtectedEndpoints:
         c.app.state.db.close()
 
     def test_servers_route__when_api_key_valid__should_list_servers(self, client):
-        _, raw_key = _insert_bot(client, "bot-srv-id", "ServerBot")
+        _, raw_key = _insert_bot(client, user_id="bot-srv-id", username="ServerBot")
         response = client.get(
             "/servers",
             headers={"x-api-key": raw_key},
@@ -579,26 +579,26 @@ class TestCsrfProtection:
         assert response.status_code == 403
 
     def test_csrf_protection__when_logout_post_has_no_cookie__should_return_403(self, client):
-        _register_user(client, "csrfuser")
+        _register_user(client, username="csrfuser")
         # Clear the CSRF cookie to simulate a cross-site request
         client.cookies.delete(CSRF_COOKIE_NAME)
         response = client.post("/logout", follow_redirects=False)
         assert response.status_code == 403
 
     def test_csrf_protection__when_create_room_post_has_no_cookie__should_return_403(self, client):
-        _register_user(client, "csrfuser")
+        _register_user(client, username="csrfuser")
         client.cookies.delete(CSRF_COOKIE_NAME)
         response = client.post("/rooms/new", follow_redirects=False)
         assert response.status_code == 403
 
     def test_csrf_protection__when_join_room_post_has_no_cookie__should_return_403(self, client):
-        _register_user(client, "csrfuser")
+        _register_user(client, username="csrfuser")
         client.cookies.delete(CSRF_COOKIE_NAME)
         response = client.post("/rooms/some-room/join", follow_redirects=False)
         assert response.status_code == 403
 
     def test_csrf_protection__when_login_post_uses_token_from_get__should_succeed(self, client):
-        _register_user(client, "logincsrf")
+        _register_user(client, username="logincsrf")
         csrf = _get_csrf_token(client, "/login")
         response = client.post(
             "/login",
@@ -632,7 +632,7 @@ class TestBotMatchmakingAuth:
         c.app.state.db.close()
 
     def test_bot_matchmaking_join_route__when_key_valid__should_return_bot_session_and_ws_url(self, client):
-        _, raw_key = _insert_bot(client, "bot-mm-id", "MatchBot")
+        _, raw_key = _insert_bot(client, user_id="bot-mm-id", username="MatchBot")
         response = client.post(
             "/api/matchmaking/join",
             headers={"x-api-key": raw_key},
@@ -657,13 +657,13 @@ class TestBotMatchmakingAuth:
         assert response.status_code == 401
 
     def test_bot_matchmaking_join_route__when_human_session__should_return_403(self, client):
-        _register_user(client, "humanuser")
+        _register_user(client, username="humanuser")
         response = client.post("/api/matchmaking/join")
         assert response.status_code == 403
         assert "Bot account required" in response.json()["error"]
 
     def test_bot_matchmaking_join_route__when_session_validated__should_match_bot_user(self, client):
-        _, raw_key = _insert_bot(client, "bot-ws-id", "WSBot")
+        _, raw_key = _insert_bot(client, user_id="bot-ws-id", username="WSBot")
         response = client.post(
             "/api/matchmaking/join",
             headers={"x-api-key": raw_key},

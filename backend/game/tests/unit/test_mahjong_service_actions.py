@@ -28,7 +28,9 @@ class TestMahjongGameServiceErrors:
         return MahjongGameService()
 
     async def test_handle_action__when_game_not_found__should_return_error_event(self, service):
-        events = await service.handle_action("nonexistent", "Player", GameAction.DISCARD, {"tile_id": 0})
+        events = await service.handle_action(
+            game_id="nonexistent", player_name="Player", action=GameAction.DISCARD, data={"tile_id": 0}
+        )
 
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
@@ -38,7 +40,9 @@ class TestMahjongGameServiceErrors:
     async def test_handle_action__when_player_not_in_game__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action("game1", "Unknown", GameAction.DISCARD, {"tile_id": 0})
+        events = await service.handle_action(
+            game_id="game1", player_name="Unknown", action=GameAction.DISCARD, data={"tile_id": 0}
+        )
 
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
@@ -48,7 +52,7 @@ class TestMahjongGameServiceErrors:
     async def test_handle_action__when_action_unknown__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action("game1", "Player", "unknown_action", {})
+        events = await service.handle_action(game_id="game1", player_name="Player", action="unknown_action", data={})
 
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
@@ -64,7 +68,9 @@ class TestMahjongGameServiceValidationError:
     async def test_handle_action__when_action_data_invalid__should_return_validation_error(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action("game1", "Player", GameAction.DISCARD, {"tile_id": "not_an_int"})
+        events = await service.handle_action(
+            game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": "not_an_int"}
+        )
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -81,7 +87,7 @@ class TestMahjongGameServiceValidationError:
     ):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action("game1", "Player", action, {})
+        events = await service.handle_action(game_id="game1", player_name="Player", action=action, data={})
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -271,7 +277,7 @@ class TestNoDataActionDispatchRouting:
         other_seat = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
-        events = await service.handle_action("game1", "Player", action, {})
+        events = await service.handle_action(game_id="game1", player_name="Player", action=action, data={})
 
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
@@ -279,7 +285,7 @@ class TestNoDataActionDispatchRouting:
     async def test_handle_action__when_ron_without_call_prompt__should_return_error_event(self, service):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action("game1", "Player", GameAction.CALL_RON, {})
+        events = await service.handle_action(game_id="game1", player_name="Player", action=GameAction.CALL_RON, data={})
 
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -293,7 +299,7 @@ class TestDispatchActionDataNullFallback:
         game_state = service._games["game1"]
 
         with pytest.raises(ValidationError):
-            service._dispatch_action(game_state, 0, GameAction.DISCARD, None)
+            service._dispatch_action(game_state, seat=0, action=GameAction.DISCARD, data=None)
 
 
 class TestChankanPromptResolvedPath:

@@ -13,7 +13,7 @@ from shared.dal.models import AccountType
 class TestCreateSession:
     def test_session_store_create_session__when_called__should_set_fields_and_future_expiry(self):
         store = AuthSessionStore()
-        session = store.create_session("user-1", "alice")
+        session = store.create_session(user_id="user-1", username="alice")
 
         assert session.user_id == "user-1"
         assert session.username == "alice"
@@ -22,19 +22,19 @@ class TestCreateSession:
 
     def test_session_store_create_session__when_no_account_type__should_default_to_human(self):
         store = AuthSessionStore()
-        session = store.create_session("user-1", "alice")
+        session = store.create_session(user_id="user-1", username="alice")
 
         assert session.account_type == AccountType.HUMAN
 
     def test_session_store_create_session__when_bot__should_store_bot_account_type(self):
         store = AuthSessionStore()
-        session = store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
+        session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
 
         assert session.account_type == AccountType.BOT
 
     def test_session_store_create_session__when_bot_session_fetched__should_keep_account_type(self):
         store = AuthSessionStore()
-        session = store.create_session("bot-1", "TestBot", account_type=AccountType.BOT)
+        session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
 
         result = store.get_session(session.session_id)
         assert result is not None
@@ -44,7 +44,7 @@ class TestCreateSession:
 class TestGetSession:
     def test_session_store_get_session__when_valid__should_return_session(self):
         store = AuthSessionStore()
-        session = store.create_session("u1", "alice")
+        session = store.create_session(user_id="u1", username="alice")
 
         result = store.get_session(session.session_id)
         assert result is not None
@@ -56,7 +56,7 @@ class TestGetSession:
 
     def test_session_store_get_session__when_expired__should_return_none_and_remove_it(self):
         store = AuthSessionStore()
-        session = store.create_session("u1", "alice", ttl_seconds=0)
+        session = store.create_session(user_id="u1", username="alice", ttl_seconds=0)
 
         # Ensure expiry by advancing past the TTL
         with patch("shared.auth.session_store.time") as mock_time:
@@ -71,7 +71,7 @@ class TestGetSession:
 class TestDeleteSession:
     def test_session_store_delete_session__when_existing__should_remove_it(self):
         store = AuthSessionStore()
-        session = store.create_session("u1", "alice")
+        session = store.create_session(user_id="u1", username="alice")
 
         store.delete_session(session.session_id)
         assert store.get_session(session.session_id) is None
@@ -84,9 +84,9 @@ class TestDeleteSession:
 class TestCleanupExpired:
     def test_session_store_cleanup_expired__when_some_expired__should_remove_only_expired(self):
         store = AuthSessionStore()
-        store.create_session("u1", "alice", ttl_seconds=0)
-        store.create_session("u2", "bob", ttl_seconds=0)
-        active = store.create_session("u3", "charlie", ttl_seconds=3600)
+        store.create_session(user_id="u1", username="alice", ttl_seconds=0)
+        store.create_session(user_id="u2", username="bob", ttl_seconds=0)
+        active = store.create_session(user_id="u3", username="charlie", ttl_seconds=3600)
 
         with patch("shared.auth.session_store.time") as mock_time:
             mock_time.time.return_value = time.time() + 1
@@ -97,7 +97,7 @@ class TestCleanupExpired:
 
     def test_session_store_cleanup_expired__when_none_expired__should_return_zero(self):
         store = AuthSessionStore()
-        store.create_session("u1", "alice", ttl_seconds=3600)
+        store.create_session(user_id="u1", username="alice", ttl_seconds=3600)
 
         removed = store.cleanup_expired()
         assert removed == 0
@@ -130,7 +130,7 @@ class TestCleanupLifecycle:
 
     async def test_session_store_cleanup__when_running__should_call_cleanup_periodically(self):
         store = AuthSessionStore()
-        store.create_session("u1", "alice", ttl_seconds=0)
+        store.create_session(user_id="u1", username="alice", ttl_seconds=0)
 
         with (
             patch.object(store, "cleanup_expired", wraps=store.cleanup_expired) as mock_cleanup,

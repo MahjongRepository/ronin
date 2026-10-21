@@ -352,18 +352,18 @@ def _make_pon_round_state(
 class TestHasKandora:
     def test_call_closed_kan__when_kandora_enabled__should_reveal_dora(self):
         rs, settings = _make_kan_test_round_state(has_kandora=True)
-        new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
+        new_rs, _meld = call_closed_kan(rs, seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 2
 
     def test_call_closed_kan__when_kandora_disabled__should_not_reveal_or_defer_dora(self):
         rs, settings = _make_kan_test_round_state(has_kandora=False)
-        new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
+        new_rs, _meld = call_closed_kan(rs, seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 0
 
     def test_call_open_kan__when_kandora_disabled__should_not_reveal_or_defer_dora(self):
         rs, settings = _make_open_kan_test_round_state(has_kandora=False)
-        new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
+        new_rs, _meld = call_open_kan(rs, caller_seat=1, discarder_seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 0
 
@@ -371,13 +371,13 @@ class TestHasKandora:
 class TestKandoraImmediateForClosedKan:
     def test_call_closed_kan__when_kandora_immediate__should_reveal_dora_at_once(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
-        new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
+        new_rs, _meld = call_closed_kan(rs, seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 2
         assert new_rs.wall.pending_dora_count == 0
 
     def test_call_closed_kan__when_kandora_not_immediate__should_defer_dora(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
-        new_rs, _meld = call_closed_kan(rs, 0, 0, settings)
+        new_rs, _meld = call_closed_kan(rs, seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 1
 
@@ -385,13 +385,13 @@ class TestKandoraImmediateForClosedKan:
 class TestKandoraDeferredForOpenKan:
     def test_call_open_kan__when_kandora_deferred__should_defer_dora(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
-        new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
+        new_rs, _meld = call_open_kan(rs, caller_seat=1, discarder_seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 1
 
     def test_call_open_kan__when_kandora_not_deferred__should_reveal_dora_at_once(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
-        new_rs, _meld = call_open_kan(rs, 1, 0, 0, settings)
+        new_rs, _meld = call_open_kan(rs, caller_seat=1, discarder_seat=0, tile_id=0, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 2
         assert new_rs.wall.pending_dora_count == 0
 
@@ -399,19 +399,19 @@ class TestKandoraDeferredForOpenKan:
 class TestKandoraTimingAddedKan:
     def test_call_added_kan__when_kandora_deferred__should_defer_dora(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
-        new_rs, _meld = call_added_kan(rs, 0, 3, settings)
+        new_rs, _meld = call_added_kan(rs, seat=0, tile_id=3, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 1
 
     def test_call_added_kan__when_kandora_not_deferred__should_reveal_dora_at_once(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
-        new_rs, _meld = call_added_kan(rs, 0, 3, settings)
+        new_rs, _meld = call_added_kan(rs, seat=0, tile_id=3, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 2
         assert new_rs.wall.pending_dora_count == 0
 
     def test_call_added_kan__when_kandora_disabled__should_not_reveal_or_defer_dora(self):
         rs, settings = _make_pon_round_state(has_kandora=False)
-        new_rs, _meld = call_added_kan(rs, 0, 3, settings)
+        new_rs, _meld = call_added_kan(rs, seat=0, tile_id=3, settings=settings)
         assert len(new_rs.wall.dora_indicators) == 1
         assert new_rs.wall.pending_dora_count == 0
 
@@ -425,14 +425,14 @@ class TestClosedKanDoraEvents:
     def test_process_closed_kan_call__when_kandora_immediate__should_emit_dora_revealed(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, 0, 0)
+        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, caller_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
     def test_process_closed_kan_call__when_kandora_not_immediate__should_not_emit_dora_revealed(self):
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, 0, 0)
+        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, caller_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
@@ -441,14 +441,14 @@ class TestOpenKanDoraEvents:
     def test_process_open_kan_call__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, 1, 0, 0)
+        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, caller_seat=1, discarder_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
     def test_process_open_kan_call__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, 1, 0, 0)
+        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, caller_seat=1, discarder_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
@@ -457,14 +457,14 @@ class TestAddedKanDoraEvents:
     def test_process_added_kan_call__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, 0, 3)
+        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
     def test_process_added_kan_call__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, 0, 3)
+        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
@@ -478,13 +478,13 @@ class TestChankanDeclineDoraEvents:
     def test_complete_added_kan_after_chankan_decline__when_kandora_not_deferred__should_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, 0, 3)
+        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
     def test_complete_added_kan_after_chankan_decline__when_kandora_deferred__should_not_emit_dora_revealed(self):
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
-        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, 0, 3)
+        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0

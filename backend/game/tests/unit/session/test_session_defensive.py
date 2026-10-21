@@ -18,7 +18,7 @@ class TestSessionManagerDefensiveChecks:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.handle_game_action(conn, GameAction.DISCARD, {})
+        await manager.handle_game_action(conn, action=GameAction.DISCARD, data={})
 
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
@@ -26,7 +26,7 @@ class TestSessionManagerDefensiveChecks:
         assert msg["code"] == SessionErrorCode.NOT_IN_GAME
 
     async def test_leave_game__when_game_mapping_missing__should_clear_player_game_and_seat(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
 
         player = manager._players[conns[0].connection_id]
 
@@ -39,31 +39,31 @@ class TestSessionManagerDefensiveChecks:
         assert player.seat is None
 
     async def test_handle_game_action__when_game_mapping_missing__should_send_nothing(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
         conns[0]._outbox.clear()
 
         # remove the game from the internal mapping
         manager._games.pop("game1", None)
 
         # should return silently without error
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert len(conns[0].sent_messages) == 0
 
     async def test_handle_game_action__when_game_lock_missing__should_return_game_not_started_error(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
         conns[0]._outbox.clear()
 
         # remove lock to simulate edge case
         manager._game_locks.pop("game1", None)
 
-        await manager.handle_game_action(conns[0], GameAction.DISCARD, {})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
         assert msg["code"] == SessionErrorCode.GAME_NOT_STARTED
 
     async def test_broadcast_chat__when_game_mapping_missing__should_send_nothing(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
         conns[0]._outbox.clear()
 
         # remove the game from the internal mapping
@@ -77,9 +77,9 @@ class TestSessionManagerDefensiveChecks:
         game_service = MockGameService()
         manager = SessionManager(game_service)
 
-        ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        manager.create_pending_game("game1", specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
 
         # Verify pending game exists and has a timeout task
         pending = manager._pending_games.get("game1")
@@ -113,13 +113,13 @@ class TestSessionManagerDefensiveChecks:
         game_service.start_game = AsyncMock(return_value=error_events)
         manager = SessionManager(game_service)
 
-        ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+        ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        manager.create_pending_game("game1", specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
 
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_game(conn, "game1", ticket)
+        await manager.join_game(conn, game_id="game1", session_token=ticket)
 
         # game.started should be rolled back to False
         game = manager.get_game("game1")

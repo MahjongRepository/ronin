@@ -14,10 +14,10 @@ from game.tests.mocks import MockConnection, MockGameService
 
 
 async def _setup_player_in_game(session_manager, connection):
-    ticket = make_test_game_ticket("Alice", "game1", user_id="user-0")
+    ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
     specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-    session_manager.create_pending_game("game1", specs, num_ai_players=3)
-    await session_manager.join_game(connection, "game1", ticket)
+    session_manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+    await session_manager.join_game(connection, game_id="game1", session_token=ticket)
     connection._outbox.clear()
 
 
@@ -34,7 +34,7 @@ class TestMessageRouterBranches:
     async def test_message_router__when_reconnect_without_session__should_return_no_session_error(self, setup):
         router, connection, _ = setup
 
-        ticket = make_test_game_ticket("Alice", "test-game")
+        ticket = make_test_game_ticket(username="Alice", room_id="test-game")
         await router.handle_message(
             connection,
             {
@@ -66,10 +66,10 @@ class TestMessageRouterBranches:
 
     async def test_message_router__when_join_ticket_game_id_mismatches__should_return_invalid_ticket_error(self, setup):
         router, connection, session_manager = setup
-        ticket = make_test_game_ticket("Alice", "other-game")
+        ticket = make_test_game_ticket(username="Alice", room_id="other-game")
 
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        session_manager.create_pending_game("test-game", specs, num_ai_players=3)
+        session_manager.create_pending_game(game_id="test-game", player_specs=specs, num_ai_players=3)
 
         await router.handle_message(
             connection,

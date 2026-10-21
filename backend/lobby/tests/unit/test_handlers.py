@@ -132,10 +132,10 @@ class TestPrepareGamesForDisplay:
             game_type="hanchan",
             num_rounds_played=8,
             standings=[
-                _make_standing("Alice", 0, score=35000, final_score=30),
-                _make_standing("Bob", 1, score=25000, final_score=0),
-                _make_standing("Charlie", 2, score=22000, final_score=-10),
-                _make_standing("Diana", 3, score=18000, final_score=-20),
+                _make_standing(name="Alice", seat=0, score=35000, final_score=30),
+                _make_standing(name="Bob", seat=1, score=25000, final_score=0),
+                _make_standing(name="Charlie", seat=2, score=22000, final_score=-10),
+                _make_standing(name="Diana", seat=3, score=18000, final_score=-20),
             ],
         )
         result = _prepare_history_for_display([game])
@@ -156,8 +156,8 @@ class TestPrepareGamesForDisplay:
             game_id="game-2",
             started_at=now,
             standings=[
-                _make_standing("Alice", 0),
-                _make_standing("Bob", 1),
+                _make_standing(name="Alice", seat=0),
+                _make_standing(name="Bob", seat=1),
             ],
         )
         result = _prepare_history_for_display([game])
@@ -173,7 +173,7 @@ class TestPrepareGamesForDisplay:
             started_at=now - timedelta(minutes=5),
             ended_at=now,
             end_reason="abandoned",
-            standings=[_make_standing("Alice", 0), _make_standing("Bot-1", 1)],
+            standings=[_make_standing(name="Alice", seat=0), _make_standing(name="Bot-1", seat=1)],
         )
         result = _prepare_history_for_display([game])
         entry = result[0]

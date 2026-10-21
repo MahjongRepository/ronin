@@ -51,7 +51,7 @@ class TestReplayContent:
     def test_replay_route__when_replay_exists__should_return_200_with_content(self, setup):
         client, replay_dir = setup
         ndjson = '{"version":"0.3-dev"}\n{"t":1,"sd":"abc"}'
-        _write_gzip_replay(replay_dir, "game-123", ndjson)
+        _write_gzip_replay(replay_dir=replay_dir, game_id="game-123", content=ndjson)
 
         response = client.get("/api/replays/game-123")
         assert response.status_code == 200
@@ -59,7 +59,7 @@ class TestReplayContent:
 
     def test_replay_route__should_set_gzip_content_encoding(self, setup):
         client, replay_dir = setup
-        _write_gzip_replay(replay_dir, "game-456", '{"version":"0.3-dev"}')
+        _write_gzip_replay(replay_dir=replay_dir, game_id="game-456", content='{"version":"0.3-dev"}')
 
         # Use raw transport to inspect headers before decompression
         response = client.get("/api/replays/game-456")
@@ -68,7 +68,7 @@ class TestReplayContent:
 
     def test_replay_route__should_set_immutable_cache_headers(self, setup):
         client, replay_dir = setup
-        _write_gzip_replay(replay_dir, "game-789", '{"version":"0.3-dev"}')
+        _write_gzip_replay(replay_dir=replay_dir, game_id="game-789", content='{"version":"0.3-dev"}')
 
         response = client.get("/api/replays/game-789")
         assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
@@ -111,7 +111,7 @@ class TestReplayContent:
     def test_replay_route__when_game_id_at_max_length__should_return_200(self, setup):
         client, replay_dir = setup
         game_id = "a" * 50
-        _write_gzip_replay(replay_dir, game_id, '{"version":"0.3-dev"}')
+        _write_gzip_replay(replay_dir=replay_dir, game_id=game_id, content='{"version":"0.3-dev"}')
 
         response = client.get(f"/api/replays/{game_id}")
         assert response.status_code == 200

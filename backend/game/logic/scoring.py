@@ -109,6 +109,7 @@ def _build_hand_config(
 def collect_ura_dora_indicators(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
+    *,
     settings: GameSettings,
 ) -> list[int] | None:
     """
@@ -155,7 +156,7 @@ def _evaluate_hand(
         is_chankan=ctx.is_chankan,
     )
     dora_indicators = _collect_dora_indicators(ctx.round_state, ctx.settings)
-    ura_dora_indicators = collect_ura_dora_indicators(ctx.player, ctx.round_state, ctx.settings)
+    ura_dora_indicators = collect_ura_dora_indicators(ctx.player, ctx.round_state, settings=ctx.settings)
 
     melds = frozen_melds_to_melds(ctx.player.melds)
     result = HandCalculator.estimate_hand_value(
@@ -204,7 +205,7 @@ def calculate_hand_value(ctx: ScoringContext, win_tile: int) -> HandResult:
     breakdown, and yaku list.
     """
     tiles = all_player_tiles(ctx.player)
-    return _evaluate_hand(ctx, tiles, win_tile)
+    return _evaluate_hand(ctx, tiles=tiles, win_tile=win_tile)
 
 
 def calculate_hand_value_with_tiles(
@@ -218,7 +219,7 @@ def calculate_hand_value_with_tiles(
     Accept tiles directly instead of reading from player.tiles. Use this for ron calculations where the win tile needs
     to be included in the tiles list.
     """
-    return _evaluate_hand(ctx, tiles, win_tile)
+    return _evaluate_hand(ctx, tiles=tiles, win_tile=win_tile)
 
 
 def _current_scores(game_state: MahjongGameState) -> dict[int, int]:
@@ -350,7 +351,7 @@ def apply_tsumo_score(
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             win_tile=winner.tiles[-1],
             pao_seat=winner.pao_seat,
-            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
+            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
 
@@ -426,7 +427,7 @@ def apply_ron_score(
             closed_tiles=list(winner.tiles),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             pao_seat=winner.pao_seat,
-            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
+            ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
 
@@ -503,7 +504,7 @@ def apply_double_ron_score(
                 closed_tiles=list(winner.tiles),
                 melds=[frozen_meld_to_compact(m) for m in winner.melds],
                 pao_seat=winner.pao_seat,
-                ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings),
+                ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
             ),
         )
 

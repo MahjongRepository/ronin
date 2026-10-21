@@ -133,7 +133,7 @@ def create_app(
     room_manager = LobbyRoomManager(
         room_ttl_seconds=300,
         on_room_expired=lambda room_id, _conn_ids: room_connections.close_connections(
-            room_id,
+            room_id=room_id,
             code=4002,
             reason="room_expired",
         ),

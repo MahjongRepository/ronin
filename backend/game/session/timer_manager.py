@@ -27,7 +27,7 @@ class TimerManager:
         self._timers: dict[str, dict[int, TurnTimer]] = {}
         self._on_timeout = on_timeout
 
-    def create_timers(self, game_id: str, seats: list[int], config: TimerConfig | None = None) -> None:
+    def create_timers(self, *, game_id: str, seats: list[int], config: TimerConfig | None = None) -> None:
         """
         Create TurnTimer instances for the given player seats.
         """

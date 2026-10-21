@@ -19,6 +19,7 @@ _HTTP_CREATED = HTTPStatus.CREATED
 
 
 async def create_game_on_server(
+    *,
     game_id: str,
     players: list[dict],
     num_ai_players: int,
@@ -57,6 +58,7 @@ async def create_game_on_server(
 
 
 def sign_player_tickets(
+    *,
     players: list[tuple[str, str, str]],
     game_id: str,
     ticket_secret: str,
@@ -75,7 +77,9 @@ def sign_player_tickets(
     player_specs = []
     ticket_map: dict[str, str] = {}
     for user_id, username, conn_id in players:
-        signed_ticket = create_signed_ticket(user_id, username, game_id, ticket_secret)
+        signed_ticket = create_signed_ticket(
+            user_id=user_id, username=username, room_id=game_id, game_ticket_secret=ticket_secret
+        )
         player_specs.append({"name": username, "user_id": user_id, "game_ticket": signed_ticket})
         ticket_map[conn_id] = signed_ticket
     return player_specs, ticket_map

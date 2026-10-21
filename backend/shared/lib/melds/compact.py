@@ -327,7 +327,7 @@ def _encode_shouminkan(meld: MeldData) -> int:
 
 
 def _decode_shouminkan(local_index: int, caller_seat: int) -> MeldData:
-    return _decode_open_kan(local_index, caller_seat, "added_kan")
+    return _decode_open_kan(local_index=local_index, caller_seat=caller_seat, meld_type="added_kan")
 
 
 def _encode_daiminkan(meld: MeldData) -> int:
@@ -335,7 +335,7 @@ def _encode_daiminkan(meld: MeldData) -> int:
 
 
 def _decode_daiminkan(local_index: int, caller_seat: int) -> MeldData:
-    return _decode_open_kan(local_index, caller_seat, "open_kan")
+    return _decode_open_kan(local_index=local_index, caller_seat=caller_seat, meld_type="open_kan")
 
 
 # --- Ankan (closed kan) ---

@@ -7,7 +7,7 @@ from .helpers import create_started_game
 
 class TestSeatBindingOnStart:
     async def test_session_binding__when_game_starts__should_bind_seat_to_each_session(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
@@ -22,7 +22,7 @@ class TestSeatBindingOnStart:
 
 class TestSessionDisconnect:
     async def test_session_binding__when_player_leaves_started_game__should_mark_session_disconnected(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         token1 = player1.session_token
@@ -34,7 +34,7 @@ class TestSessionDisconnect:
         assert session.disconnected_at is not None
 
     async def test_session_binding__when_game_missing_on_leave__should_remove_session(self, manager):
-        conns = await create_started_game(manager, "game1")
+        conns = await create_started_game(manager)
 
         player = manager._players.get(conns[0].connection_id)
         token = player.session_token
@@ -50,7 +50,7 @@ class TestSessionDisconnect:
 
 class TestSessionCleanup:
     async def test_session_binding__when_all_players_leave__should_remove_sessions_and_game(self, manager):
-        conns = await create_started_game(manager, "game1", num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
@@ -75,7 +75,7 @@ class TestInvalidActionSessionTracking:
         manager._games["game1"] = game_obj
 
         # manually create player with session
-        session = manager._session_store.create_session("Alice", "game1")
+        session = manager._session_store.create_session(player_name="Alice", game_id="game1")
         player = Player(
             connection=conn,
             name="Alice",
@@ -88,7 +88,7 @@ class TestInvalidActionSessionTracking:
         manager._connections[conn.connection_id] = conn
 
         error = InvalidGameActionError(seat=0, action="discard", reason="test error")
-        await manager._handle_invalid_action(game_obj, conn, player, error)
+        await manager._handle_invalid_action(game_obj, conn, player=player, error=error)
 
         session_after = manager._session_store._sessions.get(session.session_token)
         assert session_after is not None

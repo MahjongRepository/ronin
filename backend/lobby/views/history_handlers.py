@@ -90,5 +90,5 @@ async def history_page(request: Request) -> Response:
     )
     if is_new:
         auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, csrf_token, cookie_secure=auth_settings.cookie_secure)
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
     return response

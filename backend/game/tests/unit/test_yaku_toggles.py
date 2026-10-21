@@ -31,7 +31,7 @@ class TestKuitanToggle:
         )
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
-        assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=True)) is True
+        assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=True)) is True
 
     def test_kuitan__when_disabled_and_open_tanyao_tsumo__should_reject_declare(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
@@ -46,14 +46,14 @@ class TestKuitanToggle:
         )
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
-        assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=False)) is False
+        assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=False)) is False
 
     def test_kuitan__when_disabled_and_closed_tanyao__should_allow_declare(self):
         tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="23455")
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), score=25000)
         round_state = _make_round_state()
         # menzen tsumo is a yaku by itself, so closed tanyao is allowed
-        assert can_declare_tsumo(player, round_state, GameSettings(has_kuitan=False)) is True
+        assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=False)) is True
 
     def test_kuitan__when_disabled_and_open_tanyao_ron__should_reject_call(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="5")
@@ -69,7 +69,12 @@ class TestKuitanToggle:
         player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles + pon_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
         win_tile = TilesConverter.string_to_136_array(sou="55")[1]
-        assert can_call_ron(player, win_tile, round_state, GameSettings(has_kuitan=False)) is False
+        assert (
+            can_call_ron(
+                player, discarded_tile=win_tile, round_state=round_state, settings=GameSettings(has_kuitan=False)
+            )
+            is False
+        )
 
 
 class TestIppatsuToggle:

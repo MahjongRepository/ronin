@@ -36,19 +36,19 @@ def get_available_actions(
     result: list[AvailableActionItem] = []
 
     # check riichi eligibility
-    if can_declare_riichi(player, round_state, settings):
+    if can_declare_riichi(player, round_state, settings=settings):
         result.append(AvailableActionItem(action=PlayerAction.RIICHI))
 
     # check tsumo
-    if can_declare_tsumo(player, round_state, settings):
+    if can_declare_tsumo(player, round_state, settings=settings):
         result.append(AvailableActionItem(action=PlayerAction.TSUMO))
 
     # check kan options
-    closed_kans = get_possible_closed_kans(player, round_state, settings)
+    closed_kans = get_possible_closed_kans(player, round_state, settings=settings)
     if closed_kans:
         result.append(AvailableActionItem(action=PlayerAction.KAN, tiles=closed_kans))
 
-    added_kans = get_possible_added_kans(player, round_state, settings)
+    added_kans = get_possible_added_kans(player, round_state, settings=settings)
     if added_kans:
         result.append(AvailableActionItem(action=PlayerAction.ADDED_KAN, tiles=added_kans))
 
