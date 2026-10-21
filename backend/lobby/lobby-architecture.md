@@ -305,7 +305,7 @@ Lobby settings (prefixed with `LOBBY_`):
 - `LOBBY_ALLOWED_HOSTS` - Allowed hosts for Host header validation as JSON array or CSV string (default: `["localhost", "127.0.0.1", "testserver", "*.local"]`)
 - `LOBBY_STATIC_DIR` - Static files directory for CSS (default: `frontend/public`)
 - `LOBBY_GAME_CLIENT_URL` - Game client URL for room creation redirects and join links (default: `/play`)
-- `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Set to `None` to allow all origins
+- `LOBBY_WS_ALLOWED_ORIGIN` - Allowed origin for WebSocket connections (CSRF protection). Default: `http://localhost:8710`. Loopback variants (localhost / 127.0.0.1 / [::1]) with the same scheme and port are treated as equivalent. Set to `None` to allow all origins
 - `LOBBY_GAME_ASSETS_DIR` - Directory containing built game client assets and `.vite/manifest.json` (default: `frontend/dist`)
 - `LOBBY_REPLAY_DIR` - Root directory for gzip-compressed replay files distributed across a two-level shard structure `{id[0:2]}/{id[2:4]}/{game_id}.txt.gz` (default: `backend/data/replays`)
 - `LOBBY_VITE_DEV_URL` - Vite dev server URL for HMR in development (default: empty; set to `http://localhost:5173` when running Vite dev server)

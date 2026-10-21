@@ -35,6 +35,9 @@ cd "$ROOT"
 
 export LOBBY_GAME_CLIENT_URL="${LOBBY_GAME_CLIENT_URL:-/play-ng}"
 export LOBBY_MAJIANG_DIR="$MAJIANG_DIST"
+# Origin комнатного/матчмейкинг-WS: страницы открываются с этого же адреса
+# (localhost и 127.0.0.1 сервер считает эквивалентными)
+export LOBBY_WS_ALLOWED_ORIGIN="${LOBBY_WS_ALLOWED_ORIGIN:-http://localhost:$LOBBY_PORT}"
 
 CONFIG_DIR=$(mktemp -d)
 CONFIG_FILE="$CONFIG_DIR/servers.yaml"

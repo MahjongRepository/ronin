@@ -566,6 +566,28 @@ class TestWebSocketOriginCheck:
             msg = ws.receive_json()
             assert msg["type"] == "room_joined"
 
+    def test_loopback_equivalent_origin_connects(self, client_with_origin, app_with_origin):
+        """127.0.0.1 вместо localhost (тот же порт) — допустимо."""
+        room = app_with_origin.state.room_manager.create_room("origin-loopback")
+        with client_with_origin.websocket_connect(
+            f"/ws/rooms/{room.room_id}",
+            headers={"origin": "http://127.0.0.1:3000"},
+        ) as ws:
+            msg = ws.receive_json()
+            assert msg["type"] == "room_joined"
+
+    def test_loopback_different_port_rejected(self, client_with_origin, app_with_origin):
+        """Loopback host on a different port is still rejected."""
+        room = app_with_origin.state.room_manager.create_room("origin-loopback-port")
+        with (
+            pytest.raises(Exception),  # noqa: B017, PT011
+            client_with_origin.websocket_connect(
+                f"/ws/rooms/{room.room_id}",
+                headers={"origin": "http://127.0.0.1:3001"},
+            ) as ws,
+        ):
+            ws.receive_json()
+
     def test_forbidden_origin_rejected(self, client_with_origin, app_with_origin):
         room = app_with_origin.state.room_manager.create_room("bad-origin")
         with (
