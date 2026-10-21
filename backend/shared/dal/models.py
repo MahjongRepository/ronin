@@ -54,6 +54,8 @@ class Player(BaseModel, frozen=True):
     def _validate_account_fields(self) -> Self:
         if self.account_type == AccountType.HUMAN and not self.password_hash:
             raise ValueError("Human accounts must have a password hash")
+
         if self.account_type == AccountType.BOT and not self.api_key_hash:
             raise ValueError("Bot accounts must have an api_key_hash")
+
         return self

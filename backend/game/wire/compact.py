@@ -29,15 +29,19 @@ def encode_draw(seat: int, tile_id: int) -> int:
     if not _is_strict_int(seat):
         msg = f"seat must be an integer, got {type(seat).__name__}"
         raise TypeError(msg)
+
     if not _is_strict_int(tile_id):
         msg = f"tile_id must be an integer, got {type(tile_id).__name__}"
         raise TypeError(msg)
+
     if seat < 0 or seat >= NUM_PLAYERS:
         msg = f"seat must be 0-{NUM_PLAYERS - 1}, got {seat}"
         raise ValueError(msg)
+
     if tile_id < 0 or tile_id >= NUM_TILES:
         msg = f"tile_id must be 0-{NUM_TILES - 1}, got {tile_id}"
         raise ValueError(msg)
+
     return seat * NUM_TILES + tile_id
 
 
@@ -54,9 +58,11 @@ def decode_draw(d: int) -> tuple[int, int]:  # deadcode: ignore
     if not _is_strict_int(d):
         msg = f"Expected integer, got {type(d).__name__}"
         raise TypeError(msg)
+
     if d < 0 or d > _MAX_DRAW:
         msg = f"Draw packed value must be 0-{_MAX_DRAW}, got {d}"
         raise ValueError(msg)
+
     seat, tile_id = divmod(d, NUM_TILES)
     return seat, tile_id
 
@@ -77,15 +83,19 @@ def encode_discard(seat: int, tile_id: int, *, is_tsumogiri: bool, is_riichi: bo
     if not _is_strict_int(seat):
         msg = f"seat must be an integer, got {type(seat).__name__}"
         raise TypeError(msg)
+
     if not _is_strict_int(tile_id):
         msg = f"tile_id must be an integer, got {type(tile_id).__name__}"
         raise TypeError(msg)
+
     if seat < 0 or seat >= NUM_PLAYERS:
         msg = f"seat must be 0-{NUM_PLAYERS - 1}, got {seat}"
         raise ValueError(msg)
+
     if tile_id < 0 or tile_id >= NUM_TILES:
         msg = f"tile_id must be 0-{NUM_TILES - 1}, got {tile_id}"
         raise ValueError(msg)
+
     flag = (int(is_riichi) << 1) | int(is_tsumogiri)
     return flag * _SEAT_TILE_SPACE + seat * NUM_TILES + tile_id
 
@@ -103,9 +113,11 @@ def decode_discard(d: int) -> tuple[int, int, bool, bool]:
     if not _is_strict_int(d):
         msg = f"Expected integer, got {type(d).__name__}"
         raise TypeError(msg)
+
     if d < 0 or d > _MAX_DISCARD:
         msg = f"Discard packed value must be 0-{_MAX_DISCARD}, got {d}"
         raise ValueError(msg)
+
     flag, remainder = divmod(d, _SEAT_TILE_SPACE)
     seat, tile_id = divmod(remainder, NUM_TILES)
     is_tsumogiri = bool(flag & 0b01)

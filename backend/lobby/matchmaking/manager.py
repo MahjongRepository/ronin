@@ -41,8 +41,10 @@ class MatchmakingManager:
         """
         if self._is_user_in_room(entry.user_id):
             raise ValueError("already_in_room")
+
         if entry.user_id in self._user_ids or entry.user_id in self._in_flight:
             raise ValueError("already_in_queue")
+
         self._queue.append(entry)
         self._user_ids.add(entry.user_id)
 
@@ -70,7 +72,9 @@ class MatchmakingManager:
             for entry in matched:
                 self._user_ids.discard(entry.user_id)
                 self._in_flight.add(entry.user_id)
+
             return matched
+
         return None
 
     def requeue_at_front(self, entries: list[QueueEntry]) -> None:

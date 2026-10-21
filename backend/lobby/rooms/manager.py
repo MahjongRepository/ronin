@@ -58,10 +58,13 @@ class LobbyRoomManager:
         room = self._rooms.get(room_id)
         if room is None:
             return "room_not_found"
+
         if room.transitioning:
             return "room_transitioning"
+
         if room.is_full:
             return "room_full"
+
         if room.has_user(user_id):
             return "already_in_room"
 
@@ -97,6 +100,7 @@ class LobbyRoomManager:
         room_id = self._player_rooms.pop(connection_id, None)
         if room_id is None:
             return None
+
         room = self._rooms.get(room_id)
         if room is None:
             return room_id
@@ -105,6 +109,7 @@ class LobbyRoomManager:
         seat = room.seat_of(connection_id)
         if seat is not None:
             room.seats[seat] = None
+
         room.players.pop(connection_id, None)
 
         # Host transfer
@@ -128,9 +133,11 @@ class LobbyRoomManager:
         room_id = self._player_rooms.get(connection_id)
         if room_id is None:
             return "not_in_room"
+
         room = self._rooms.get(room_id)
         if room is None:
             return "not_in_room"
+
         if room.transitioning:
             return "room_transitioning"
 
@@ -153,13 +160,17 @@ class LobbyRoomManager:
         room_id = self._player_rooms.get(connection_id)
         if room_id is None:
             return "not_in_room"
+
         room = self._rooms.get(room_id)
         if room is None:
             return "not_in_room"
+
         if room.transitioning:
             return "room_transitioning"
+
         if connection_id != room.host_connection_id:
             return "not_owner"
+
         if not room.can_start:
             return "not_all_ready"
 
@@ -173,6 +184,7 @@ class LobbyRoomManager:
         room = self._rooms.get(room_id)
         if room is None:
             return
+
         room.transitioning = False
         for player in room.players.values():
             player.ready = False
@@ -216,6 +228,7 @@ class LobbyRoomManager:
         """
         if self._reaper_task is not None:
             return
+
         self._reaper_task = asyncio.create_task(self._reaper_loop())
 
     async def stop_reaper(self) -> None:
@@ -226,6 +239,7 @@ class LobbyRoomManager:
             self._reaper_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._reaper_task
+
             self._reaper_task = None
 
     async def _reaper_loop(self) -> None:  # pragma: no cover — long-running background loop
@@ -242,10 +256,10 @@ class LobbyRoomManager:
         """
         now = time.monotonic()
         expired: list[tuple[str, list[str]]] = []
-
         for room_id, room in list(self._rooms.items()):
             if room.transitioning:
                 continue
+
             if now - room.created_at > self._room_ttl_seconds:
                 connection_ids = list(room.players.keys())
                 self.remove_room(room_id)

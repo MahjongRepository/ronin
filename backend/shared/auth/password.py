@@ -55,6 +55,7 @@ class SimpleHasher:
     async def verify(self, plain: str, hashed: str) -> bool:
         if not hashed.startswith(_SIMPLE_PREFIX):
             return False
+
         expected = _SIMPLE_PREFIX + hashlib.sha256(plain.encode("utf-8")).hexdigest()
         return hashed == expected
 
@@ -65,6 +66,8 @@ def get_hasher(name: str = "bcrypt") -> PasswordHasher:
     """
     if name == "bcrypt":
         return BcryptHasher()
+
     if name == "simple":
         return SimpleHasher()
+
     raise ValueError(f"Unknown password hasher: {name!r}")

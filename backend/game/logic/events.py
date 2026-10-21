@@ -51,11 +51,14 @@ def parse_event_target(value: str) -> EventTarget:
     """
     if value == "all":
         return BroadcastTarget()
+
     if value.startswith("seat_"):
         seat = int(value.split("_")[1])
         if seat < 0:
             raise ValueError(f"invalid seat number in target: {value}")
+
         return SeatTarget(seat=seat)
+
     raise ValueError(f"invalid target value: {value}")
 
 
@@ -279,6 +282,7 @@ class ServiceEvent(BaseModel):
             raise ValueError(
                 f"ServiceEvent.event '{self.event.value}' does not match data.type '{self.data.type.value}'",
             )
+
         return self
 
 
@@ -298,6 +302,7 @@ def _get_unique_caller_seats(callers: list[int | MeldCaller]) -> list[int]:
         if seat not in seen:
             seen.add(seat)
             seats.append(seat)
+
     return seats
 
 
@@ -326,8 +331,10 @@ def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPro
                 "target": target,
             },
         )
+
     if not meld_callers:
         raise ValueError(f"seat {seat} has no ron or meld entries in DISCARD prompt callers")
+
     return event.model_copy(
         update={
             "call_type": CallType.MELD,
@@ -379,12 +386,15 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
                 seat = int(target_str[5:])
                 if seat < 0:
                     raise ValueError(f"invalid seat number in target: {target_str}")
+
                 target = SeatTarget(seat=seat)
             else:
                 raise ValueError(f"invalid target value: {target_str}")
+
             result.append(
                 _construct(event=event.type, data=event, target=target),
             )
+
     return result
 
 
@@ -395,4 +405,5 @@ def extract_round_result(events: list[ServiceEvent]) -> RoundResult | None:
     for event in events:
         if event.event == EventType.ROUND_END and isinstance(event.data, RoundEndEvent):
             return event.data.result
+
     return None

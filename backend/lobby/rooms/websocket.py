@@ -52,6 +52,7 @@ class _RoomContext:
         self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.room_connections: RoomConnectionManager = websocket.app.state.room_connections
         self.registry: RegistryManager = websocket.app.state.registry
+
         self.connection_id: str = str(uuid.uuid4())
         self.username: str = websocket.user.username
 
@@ -251,6 +252,7 @@ async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
                     "can_start": room.can_start,
                 },
             )
+
         await ctx.room_connections.broadcast(
             room_id=room_id,
             message={"type": "error", "message": f"Failed to start game: {e}"},
@@ -352,6 +354,7 @@ async def _cleanup_connection(ctx: _RoomContext) -> None:
                             "players": [p.model_dump() for p in room.get_player_info()],
                         },
                     )
+
                 await ctx.room_connections.broadcast(
                     room_id=room_id,
                     message={

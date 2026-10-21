@@ -30,6 +30,7 @@ def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
         payload: dict[str, Any] = {"t": EVENT_TYPE_INT[EventType.DRAW], "d": d}
         if event.data.available_actions:
             payload["aa"] = [aa.model_dump(by_alias=True, exclude_none=True) for aa in event.data.available_actions]
+
         return payload
 
     if isinstance(event.data, DiscardEvent):
@@ -53,6 +54,7 @@ def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
     }
     if isinstance(event.data, RoundEndEvent):
         _flatten_round_end(payload)
+
     return payload
 
 
@@ -87,18 +89,22 @@ def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:
         callers = payload.pop("clr", [])
         if callers:
             payload["cs"] = callers[0]
+
         return payload
 
     if call_type == WireCallType.MELD:
         callers = payload.pop("clr", [])
         if callers:
             payload["cs"] = callers[0]["s"]
+
         available_calls: list[dict[str, Any]] = []
         for caller in callers:
             call: dict[str, Any] = {"clt": caller["clt"]}
             if caller.get("opt") is not None:
                 call["opt"] = caller["opt"]
+
             available_calls.append(call)
+
         payload["ac"] = available_calls
         return payload
 

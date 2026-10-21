@@ -28,6 +28,7 @@ def replay_file_path(replay_dir: Path, game_id: str) -> Path:
     """
     if len(game_id) < _MIN_GAME_ID_LEN:
         raise ValueError(f"game_id must be at least {_MIN_GAME_ID_LEN} characters, got {len(game_id)}")
+
     prefix_a = game_id[:2]
     prefix_b = game_id[2:4]
     return replay_dir / prefix_a / prefix_b / f"{game_id}.txt.gz"
@@ -81,13 +82,17 @@ class LocalReplayStorage:
                 f.write(compressed)
                 f.flush()
                 os.fsync(f.fileno())
+
             os.chmod(tmp_path, _REPLAY_FILE_MODE)  # noqa: PTH101
             Path(tmp_path).replace(target)
         except BaseException:
             if fd_owned:
                 with contextlib.suppress(OSError):
                     os.close(fd)
+
             with contextlib.suppress(OSError):
                 Path(tmp_path).unlink()
+
             raise
+
         logger.info("saved replay", game_id=game_id, path=str(target))

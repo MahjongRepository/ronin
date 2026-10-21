@@ -57,11 +57,9 @@ class FuritenTracker:
         furiten_state = self._state[game_id]
         player_ids = self._player_ids[game_id]
         events: list[ServiceEvent] = []
-
         for seat in range(NUM_PLAYERS):
             player = round_state.players[seat]
             pid = id(player)
-
             if pid == player_ids.get(seat):
                 continue
 

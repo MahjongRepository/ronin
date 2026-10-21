@@ -25,9 +25,11 @@ def _frozen_meld_wire_type(meld: FrozenMeld) -> MeldType:
     """
     if meld.meld_type == FrozenMeld.KAN:
         return "open_kan" if meld.opened else "closed_kan"
+
     wire_type = _FROZEN_TO_WIRE_TYPE.get(meld.meld_type)
     if wire_type is None:
         raise ValueError(f"Unknown FrozenMeld type: {meld.meld_type!r}")
+
     return wire_type
 
 

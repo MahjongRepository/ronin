@@ -70,6 +70,7 @@ class TimerManager:
         timers = self._timers.get(game_id)
         if timers is None:
             return None
+
         return timers.pop(seat, None)
 
     def cleanup_game(self, game_id: str) -> None:
@@ -149,6 +150,7 @@ class TimerManager:
         timers = self._timers.get(game_id)
         if timers is None:
             return
+
         timeout = game.settings.round_advance_timeout_seconds
         for player in list(game.players.values()):
             if player.seat is not None:

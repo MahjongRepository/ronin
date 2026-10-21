@@ -51,9 +51,11 @@ def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
     for tile_34 in range(NUM_TILE_TYPES):
         if tiles_34[tile_34] >= MAX_TILE_COPIES:
             continue
+
         tiles_34[tile_34] += 1
         if Agari.is_agari(tiles_34, None):
             waiting.add(tile_34)
+
         tiles_34[tile_34] -= 1
 
     return waiting
@@ -89,7 +91,6 @@ def discard_tile(
     Returns (new_round_state, discard_record). Raises InvalidDiscardError if tile not in hand or violates kuikae.
     """
     player = round_state.players[seat]
-
     if tile_id not in player.tiles:
         logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
         raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
@@ -135,8 +136,8 @@ def discard_tile(
     }
     if round_state.is_after_meld_call:
         round_updates["is_after_meld_call"] = False
-    new_state = round_state.model_copy(update=round_updates)
 
+    new_state = round_state.model_copy(update=round_updates)
     return new_state, discard
 
 
@@ -185,7 +186,6 @@ def draw_from_dead_wall(
     new_state = round_state.model_copy(update={"wall": new_wall})
     new_state = add_tile_to_player(new_state, seat=current_seat, tile_id=tile)
     new_state = update_player(new_state, current_seat, is_rinshan=True)
-
     return new_state, tile
 
 
@@ -225,6 +225,7 @@ def is_tempai(
             t34 = tiles_list[i] // 4
             if t34 in checked:
                 continue
+
             checked.add(t34)
             tiles_34[t34] -= 1
             is_tenpai = calculate_replacement_number(tiles_34, four) == 1
@@ -233,6 +234,7 @@ def is_tempai(
                 remaining = tiles_list[:i] + tiles_list[i + 1 :]
                 if not _is_pure_karaten(remaining, melds):
                     return True
+
         return False
 
     # Unlike the 14-tile loop above, tile count here can be invalid for
@@ -293,7 +295,6 @@ def process_exhaustive_draw(
     tempai_seats = []
     noten_seats = []
     tenpai_hands = []
-
     for player in round_state.players:
         if is_tempai(player.tiles, player.melds):
             tempai_seats.append(player.seat)
@@ -346,7 +347,6 @@ def process_exhaustive_draw(
 
     # update game state with new round state
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
-
     return (
         new_round_state,
         new_game_state,
@@ -388,10 +388,12 @@ def check_nagashi_mangan(
         for other in round_state.players:
             if other.seat == player.seat:
                 continue
+
             for meld in other.melds:
                 if meld.from_who == player.seat:
                     was_claimed = True
                     break
+
             if was_claimed:
                 break
 

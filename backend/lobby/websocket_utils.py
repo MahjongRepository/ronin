@@ -16,5 +16,6 @@ def check_origin(websocket: WebSocket) -> bool:
     ws_allowed_origin = settings.ws_allowed_origin
     if not ws_allowed_origin:
         return True
+
     origin = websocket.headers.get("origin", "")
     return origin == ws_allowed_origin

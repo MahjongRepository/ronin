@@ -32,6 +32,7 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
         session_id = conn.cookies.get("session_id")
         if session_id is None and conn.scope["type"] == "websocket":
             session_id = conn.query_params.get("session_id")
+
         session = self._auth_service.validate_session(session_id)
         if session is not None:
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(

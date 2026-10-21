@@ -31,7 +31,6 @@ def _load_replay(replay_dir_str: str, game_id: str) -> bytes | None:
     """
     replay_dir = Path(replay_dir_str).resolve()
     target = replay_file_path(replay_dir, game_id).resolve()
-
     if not target.is_relative_to(replay_dir):
         return None
 
@@ -52,7 +51,6 @@ async def replay_content(request: Request) -> Response:
     GET /api/replays/{game_id} — serve a gzip-compressed replay file.
     """
     game_id = request.path_params["game_id"]
-
     if (
         not game_id
         or len(game_id) < _MIN_GAME_ID_LEN

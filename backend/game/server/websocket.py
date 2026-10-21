@@ -97,6 +97,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     )
                     await connection.close(code=4004, reason="too_many_decode_errors")
                     return
+
                 continue
 
             decode_errors = 0
@@ -106,6 +107,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                     ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many messages").model_dump(),
                 )
                 continue
+
             await router.handle_message(connection, data)
     except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip
         pass

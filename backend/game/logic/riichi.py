@@ -89,5 +89,4 @@ def declare_riichi(
             "round_state": new_round_state,
         },
     )
-
     return new_round_state, new_game_state

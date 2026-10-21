@@ -102,6 +102,7 @@ class AIPlayerController:
         ):
             if ai_player.should_call_ron(player, discarded_tile=tile_id, round_state=round_state):
                 return GameAction.CALL_RON, {}
+
             return None
 
         # Meld opportunity (standalone MELD or meld caller within DISCARD prompt)
@@ -138,6 +139,7 @@ def _get_meld_response(
         )
         if chi_tiles is not None:
             return GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": chi_tiles}
+
         return None
 
     if meld_call_type == MeldCallType.OPEN_KAN and ai_player.should_call_kan(

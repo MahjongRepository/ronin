@@ -52,14 +52,17 @@ class SqlitePlayerRepository(PlayerRepository):
                     raise ValueError(
                         f"Player with id '{player.user_id}' already exists",
                     ) from exc
+
                 if "players.username" in error_msg or "idx_players_username" in error_msg:
                     raise ValueError(
                         f"Username '{player.username}' already taken",
                     ) from exc
+
                 if "players.api_key_hash" in error_msg or "idx_players_api_key_hash" in error_msg:
                     raise ValueError(
                         "API key hash already in use",
                     ) from exc
+
                 raise ValueError(str(exc)) from exc  # pragma: no cover
 
     async def get_by_username(self, username: str) -> Player | None:
@@ -72,6 +75,7 @@ class SqlitePlayerRepository(PlayerRepository):
         ).fetchone()
         if row is None:
             return None
+
         return Player.model_validate(json.loads(row[0]))
 
     async def get_by_api_key_hash(self, api_key_hash: str) -> Player | None:
@@ -84,4 +88,5 @@ class SqlitePlayerRepository(PlayerRepository):
         ).fetchone()
         if row is None:
             return None
+
         return Player.model_validate(json.loads(row[0]))

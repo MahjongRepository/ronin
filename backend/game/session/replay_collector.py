@@ -80,7 +80,6 @@ class ReplayCollector:
             return
 
         pending_round_started: list[ServiceEvent] = []
-
         for event in events:
             if isinstance(event.data, RoundStartedEvent) and isinstance(event.target, SeatTarget):
                 pending_round_started.append(event)
@@ -97,6 +96,7 @@ class ReplayCollector:
             payload = service_event_payload(event)
             if isinstance(event.data, DrawEvent):
                 payload.pop("aa", None)
+
             self._inject_seed_if_game_started(game_id=game_id, event=event, payload=payload)
             buffer.append(json.dumps(payload, default=str))
 
@@ -111,8 +111,10 @@ class ReplayCollector:
         """
         if isinstance(event.target, SeatTarget):
             return isinstance(event.data, _SEAT_TARGET_INCLUDED)
+
         if isinstance(event.target, BroadcastTarget):
             return not isinstance(event.data, _EXCLUDED_EVENT_TYPES)
+
         return False
 
     def _inject_seed_if_game_started(
@@ -128,6 +130,7 @@ class ReplayCollector:
             seed = self._seeds.get(game_id)
             if seed is not None:
                 payload["sd"] = seed
+
             rng_version = self._rng_versions.get(game_id)
             if rng_version is not None:
                 payload["rv"] = rng_version
@@ -147,13 +150,13 @@ class ReplayCollector:
         """
         if not events:
             return "{}"
-        tiles_by_seat: dict[int, list[int]] = {}
-        base_payload = service_event_payload(events[0])
 
+        tiles_by_seat: dict[int, list[int]] = {}
         for event in events:
             data = cast("RoundStartedEvent", event.data)
             tiles_by_seat[data.seat] = data.my_tiles
 
+        base_payload = service_event_payload(events[0])
         for player_dict in base_payload["p"]:
             seat = player_dict["s"]
             if seat in tiles_by_seat:

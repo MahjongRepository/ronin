@@ -91,10 +91,12 @@ class MessageRouter:
             logger.warning("invalid game ticket")
             await self._send_ticket_error(connection, "Invalid game ticket")
             return None
+
         if ticket.room_id != game_id:
             logger.warning("ticket game_id mismatch", ticket_room_id=ticket.room_id, expected_game_id=game_id)
             await self._send_ticket_error(connection, "Ticket game_id mismatch")
             return None
+
         return ticket
 
     async def _send_ticket_error(self, connection: ConnectionProtocol, message: str) -> None:
@@ -116,6 +118,7 @@ class MessageRouter:
         ticket = await self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
         if ticket is None:
             return
+
         await self._session_manager.join_game(
             connection=connection,
             game_id=connection.game_id,
@@ -133,6 +136,7 @@ class MessageRouter:
         ticket = await self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
         if ticket is None:
             return
+
         await self._session_manager.reconnect(
             connection=connection,
             game_id=connection.game_id,

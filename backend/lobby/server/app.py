@@ -87,8 +87,10 @@ def _make_auth_error_handler(
         http_exc = cast("HTTPException", exc)
         if http_exc.status_code == HTTPStatus.UNAUTHORIZED and request.url.path in protected_api_paths:
             return JSONResponse({"error": "Authentication required"}, status_code=HTTPStatus.UNAUTHORIZED)
+
         if http_exc.status_code in {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}:
             return Response(status_code=http_exc.status_code, headers=http_exc.headers)
+
         return PlainTextResponse(http_exc.detail or "", status_code=http_exc.status_code, headers=http_exc.headers)
 
     return _auth_error_handler
@@ -123,6 +125,7 @@ def create_app(
 ) -> Starlette:
     if settings is None:  # pragma: no cover
         settings = LobbyServerSettings()
+
     if auth_settings is None:  # pragma: no cover
         auth_settings = AuthSettings()
 
@@ -214,8 +217,10 @@ def create_app(
     # Initialize database and auth components
     db = Database(auth_settings.database_path)
     db.connect()
+
     player_repo = SqlitePlayerRepository(db)
     game_repo = SqliteGameRepository(db)
+
     session_store = AuthSessionStore()
     hasher = get_hasher(auth_settings.password_hasher)
     auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
@@ -225,6 +230,7 @@ def create_app(
         session_store.start_cleanup()
         room_manager.start_reaper()
         yield
+
         await room_manager.stop_reaper()
         await session_store.stop_cleanup()
         db.close()
@@ -293,6 +299,7 @@ def _attach_state(  # noqa: PLR0913
         # JS URLs point to TS entry points — Vite serves them as ES modules.
         env_globals["vite_dev"] = True
         env_globals["vite_dev_url"] = vite_dev_url
+
         env_globals["lobby_css_url"] = f"{vite_dev_url}/src/styles/lobby-app.scss"
         env_globals["lobby_js_url"] = f"{vite_dev_url}/src/lobby/index.ts"
         env_globals["game_css_url"] = f"{vite_dev_url}/src/styles/game-app.scss"
@@ -302,8 +309,10 @@ def _attach_state(  # noqa: PLR0913
         # Production (or standalone dev without Vite): read Vite manifest
         env_globals["vite_dev"] = False
         env_globals["vite_dev_url"] = ""
+
         manifest = load_vite_manifest(settings.game_assets_dir)
         urls = resolve_vite_asset_urls(manifest)
+
         env_globals["lobby_css_url"] = urls.get("lobby_css", "")
         env_globals["lobby_js_url"] = urls.get("lobby_js", "")
         env_globals["game_css_url"] = urls.get("game_css", "")
@@ -314,6 +323,7 @@ def _attach_state(  # noqa: PLR0913
     env_globals["git_commit"] = GIT_COMMIT
     env_globals["current_year"] = datetime.now(tz=UTC).year
     env_globals["dev_mode"] = dev_mode
+
     app.state.templates = templates
     app.state.game_assets_available = game_assets_available
     app.state.auth_service = auth_service

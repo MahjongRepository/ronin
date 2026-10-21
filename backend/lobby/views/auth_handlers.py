@@ -44,6 +44,7 @@ async def login_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -86,6 +87,7 @@ async def register_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -103,7 +105,6 @@ async def register(request: Request) -> Response:
     username = form.get("username", "")
     password = form.get("password", "")
     confirm_password = form.get("confirm_password", "")
-
     if password != confirm_password:
         csrf_token, _ = get_or_create_csrf_token(request)
         return templates.TemplateResponse(
@@ -122,6 +123,7 @@ async def register(request: Request) -> Response:
             "register.html",
             {"error": str(e), "csrf_token": csrf_token},
         )
+
     return _redirect_with_session_cookie(session, auth_settings)
 
 
@@ -136,6 +138,7 @@ async def logout(request: Request) -> Response:
     session_id = request.cookies.get("session_id")
     if session_id:
         auth_service.logout(session_id)
+
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie(key="session_id", path="/")
     return response

@@ -26,9 +26,11 @@ def validate_seed_hex(seed_hex: str) -> None:
     """
     if not isinstance(seed_hex, str):
         raise TypeError(f"Seed must be a string, got {type(seed_hex).__name__}")
+
     expected_length = SEED_BYTES * 2
     if len(seed_hex) != expected_length:
         raise ValueError(f"Seed must be exactly {expected_length} hex characters, got {len(seed_hex)}")
+
     try:
         bytes.fromhex(seed_hex)
     except ValueError:
@@ -110,6 +112,7 @@ def _derive_round_pcg(seed_hex: str, round_number: int) -> PCG64DXSM:
     """
     if not (0 <= round_number < 2**32):
         raise ValueError("round_number must be in [0, 2^32)")
+
     validate_seed_hex(seed_hex)
     seed_bytes = bytes.fromhex(seed_hex)
     round_bytes = round_number.to_bytes(4, byteorder="little")
@@ -125,6 +128,7 @@ def _bounded_uint64(pcg: PCG64DXSM, bound: int) -> int:
     """
     if bound <= 0 or bound > (1 << 64):
         raise ValueError("bound must be in (0, 2^64]")
+
     limit = (1 << 64) - ((1 << 64) % bound)
     while True:
         r = pcg.next_uint64()
@@ -147,6 +151,7 @@ def _fisher_yates_shuffle(tiles: list[int], pcg: PCG64DXSM) -> list[int]:
     for i in range(n - 1):
         j = i + _bounded_uint64(pcg, n - i)
         result[i], result[j] = result[j], result[i]
+
     return result
 
 
@@ -201,8 +206,10 @@ def determine_first_dealer(seed_hex: str) -> tuple[int, tuple[int, int], tuple[i
     Return (dealer_seat, first_dice, second_dice).
     """
     pcg = _derive_dealer_pcg(seed_hex)
+
     first_dice = roll_dice(pcg)
     temp_dealer = (sum(first_dice) - 1) % NUM_PLAYERS
+
     second_dice = roll_dice(pcg)
     dealer = (temp_dealer + sum(second_dice) - 1) % NUM_PLAYERS
     return dealer, first_dice, second_dice
@@ -217,5 +224,6 @@ def create_seat_rng(seed_hex: str | None) -> random.Random:
     """
     if seed_hex is None:
         return random.Random()  # noqa: S311
+
     validate_seed_hex(seed_hex)
     return random.Random(int(seed_hex, 16))  # noqa: S311

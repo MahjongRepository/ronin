@@ -42,6 +42,7 @@ def all_player_tiles(player: MahjongPlayer) -> list[int]:
     all_tiles = list(player.tiles)
     for meld in player.melds:
         all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
+
     return all_tiles
 
 
@@ -59,6 +60,7 @@ def all_tiles_from_hand_and_melds(
     all_tiles = list(hand_tiles)
     for meld in melds:
         all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
+
     return all_tiles
 
 
@@ -74,6 +76,7 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     tiles_34 = [0] * NUM_TILE_TYPES
     for t in player.tiles:
         tiles_34[t // 4] += 1
+
     if player.melds:
         hand_ids = set(player.tiles)
         for meld in player.melds:
@@ -82,7 +85,6 @@ def check_tsumo(player: MahjongPlayer) -> bool:
                     tiles_34[t // 4] += 1
 
     open_sets_34 = _melds_to_34_sets(player.melds)
-
     return Agari.is_agari(tiles_34, open_sets_34)
 
 
@@ -124,7 +126,6 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     # calculate_shanten guards against these with sum().
     closed_tiles_34 = hand_to_34_array(player.tiles)
     current_shanten = calculate_shanten(closed_tiles_34)
-
     if current_shanten != 0:
         return set()
 
@@ -141,7 +142,6 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     open_sets = _melds_to_34_sets(player.melds)
 
     waiting = set()
-
     # check each of the 34 tile types
     for tile_34 in range(NUM_TILE_TYPES):
         # skip if already 4 of this tile (can't draw a 5th)
@@ -152,6 +152,7 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
         tiles_34[tile_34] += 1
         if Agari.is_agari(tiles_34, open_sets):
             waiting.add(tile_34)
+
         tiles_34[tile_34] -= 1
 
     return waiting
@@ -165,7 +166,6 @@ def is_furiten(player: MahjongPlayer) -> bool:
     tsumo but cannot win by ron.
     """
     waiting_tiles = get_waiting_tiles(player)
-
     if not waiting_tiles:
         return False
 
@@ -187,8 +187,10 @@ def is_effective_furiten(player: MahjongPlayer) -> bool:
     """
     if player.is_temporary_furiten:
         return True
+
     if player.is_riichi_furiten:
         return True
+
     return is_furiten(player)
 
 
@@ -228,7 +230,6 @@ def _has_yaku_for_open_hand(
         dora_indicators=round_state.wall.dora_indicators,
         config=config,
     )
-
     return result.error is None
 
 
@@ -275,6 +276,7 @@ def _no_calls_from_any_player(round_state: MahjongRoundState) -> bool:
     """
     if round_state.players_with_open_hands:
         return False
+
     return not any(p.melds for p in round_state.players)
 
 
@@ -330,8 +332,10 @@ def is_renhou(
     """
     if player.seat == round_state.dealer_seat:
         return False
+
     if not _no_calls_from_any_player(round_state):
         return False
+
     # player has not yet discarded (before their first turn)
     return len(player.discards) == 0
 
@@ -351,13 +355,11 @@ def _find_chankan_seats(
     """
     kan_tile_34 = tile_to_34(kan_tile)
     chankan_seats = []
-
     for seat in range(NUM_PLAYERS):
         if seat == caller_seat:
             continue
 
         player = round_state.players[seat]
-
         if extra_filter and not extra_filter(player):
             continue
 
@@ -443,6 +445,7 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
     tiles_34 = [0] * NUM_TILE_TYPES
     for t in tiles:
         tiles_34[t // 4] += 1
+
     if player.melds:
         hand_ids = set(tiles)
         for meld in player.melds:
@@ -535,7 +538,6 @@ def _has_yaku_for_ron_with_tiles(
         dora_indicators=round_state.wall.dora_indicators,
         config=config,
     )
-
     return result.error is None
 
 

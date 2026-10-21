@@ -97,6 +97,7 @@ class SqliteGameRepository(GameRepository):
                     "WHERE id = ? AND ended_at IS NULL",
                     (ended_at_iso, end_reason, ended_at_iso, end_reason, num_rounds_played, game_id),
                 )
+
             self._db.connection.commit()
             if cursor.rowcount == 0:
                 logger.warning("finish_game had no effect (not found or already ended)", game_id=game_id)
@@ -111,6 +112,7 @@ class SqliteGameRepository(GameRepository):
         ).fetchone()
         if row is None:
             return None
+
         return PlayedGame.model_validate(json.loads(row[0]))
 
     async def get_recent_games(self, limit: int = 20) -> list[PlayedGame]:

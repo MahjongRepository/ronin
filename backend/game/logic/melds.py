@@ -52,6 +52,7 @@ def _count_total_kans(round_state: MahjongRoundState) -> int:
         for m in player.melds:
             if m.type in _KAN_MELD_TYPES:
                 count += 1
+
     return count
 
 
@@ -106,6 +107,7 @@ def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
             count += 1
             if count >= TILES_FOR_PON:
                 return True
+
     return False
 
 
@@ -136,13 +138,11 @@ def can_call_chi(
         return []
 
     discarded_34 = tile_to_34(discarded_tile)
-
     if is_honor(discarded_34):
         return []
 
     tile_value = discarded_34 % TILES_PER_SUIT
     hand_tiles_by_34 = _build_same_suit_tile_map(player.tiles, discarded_34)
-
     return _find_chi_combinations(discarded_34=discarded_34, tile_value=tile_value, hand_tiles=hand_tiles_by_34)
 
 
@@ -150,9 +150,8 @@ def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: 
     """
     Build a map of tiles in hand that are in the same suit as discarded tile.
     """
-    result: dict[int, list[int]] = {}
     discarded_suit = discarded_34 // TILES_PER_SUIT
-
+    result: dict[int, list[int]] = {}
     for t in tiles:
         t34 = tile_to_34(t)
         if t34 // TILES_PER_SUIT == discarded_suit:
@@ -259,7 +258,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
 
     tenpai_player = player.model_copy(update={"tiles": tuple(tiles_13)})
     original_waits = get_waiting_tiles(tenpai_player)
-
     if not original_waits:
         return False
 
@@ -285,9 +283,7 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
             "melds": (*player.melds, kan_meld),
         },
     )
-
     new_waits = get_waiting_tiles(temp_player)
-
     return new_waits == original_waits
 
 
@@ -305,15 +301,18 @@ def _find_closed_kan_candidates(
     for t34, count in tile_counts.items():
         if count < TILES_FOR_CLOSED_KAN:
             continue
+
         if player.is_riichi:
             # the drawn tile (last in hand) must be the kan tile;
             # a riichi player cannot kan tiles already held before drawing
             if player.tiles[-1] // 4 != t34:
                 continue
+
             if _kan_preserves_waits_for_riichi(player, t34):
                 possible.append(t34)
         else:
             possible.append(t34)
+
     return possible
 
 
@@ -414,11 +413,14 @@ def _check_pao(
     for tile_set, threshold, enabled in pao_rules:
         if called_tile_34 not in tile_set:
             continue
+
         if not enabled:
             continue
+
         count = sum(1 for m in player.melds if tile_to_34(m.tiles[0]) in tile_set and m.type in _PAO_MELD_TYPES)
         if count + 1 >= threshold:
             return discarder_seat
+
     return None
 
 
@@ -555,7 +557,6 @@ def call_pon(
         who=caller_seat,
         from_who=discarder_seat,
     )
-
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
@@ -579,7 +580,6 @@ def call_pon(
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     # Pon requires a subsequent discard without drawing; mark state for tsumogiri detection
     new_state = new_state.model_copy(update={"is_after_meld_call": True})
-
     return new_state, meld
 
 
@@ -595,9 +595,11 @@ def _validate_chi_sequence(tile_id: int, sequence_tiles: tuple[int, int]) -> Non
     all_34 = sorted(tile_to_34(t) for t in (tile_id, *sequence_tiles))
     if any(is_honor(t) for t in all_34):
         raise InvalidMeldError("chi is not allowed with honor tiles")
+
     suits = {t // TILES_PER_SUIT for t in all_34}
     if len(suits) != 1:
         raise InvalidMeldError("chi tiles must be from the same suit")
+
     if all_34[1] - all_34[0] != 1 or all_34[2] - all_34[1] != 1:
         raise InvalidMeldError("chi tiles must form a consecutive sequence")
 
@@ -640,7 +642,6 @@ def call_chi(  # noqa: PLR0913
         who=caller_seat,
         from_who=discarder_seat,
     )
-
     new_melds = (*caller.melds, meld)
 
     # set kuikae restriction based on settings
@@ -667,7 +668,6 @@ def call_chi(  # noqa: PLR0913
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     # Chi requires a subsequent discard without drawing; mark state for tsumogiri detection
     new_state = new_state.model_copy(update={"is_after_meld_call": True})
-
     return new_state, meld
 
 
@@ -714,7 +714,6 @@ def call_open_kan(
         who=caller_seat,
         from_who=discarder_seat,
     )
-
     new_melds = (*caller.melds, meld)
 
     # check pao liability (before updating state so we can check existing melds)
@@ -731,7 +730,6 @@ def call_open_kan(
     new_state = update_player(round_state, caller_seat, **player_updates)
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
-
     return new_state, meld
 
 
@@ -753,6 +751,7 @@ def validate_closed_kan(
     if player.is_riichi:
         if tile_to_34(player.tiles[-1]) != tile_34:
             raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
+
         if not _kan_preserves_waits_for_riichi(player, tile_34):
             raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
 
@@ -784,6 +783,7 @@ def call_closed_kan(
     if player.is_riichi:
         if tile_to_34(player.tiles[-1]) != tile_34:
             raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
+
         if not _kan_preserves_waits_for_riichi(player, tile_34):
             raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
 
@@ -805,7 +805,6 @@ def call_closed_kan(
         opened=False,
         who=seat,
     )
-
     new_melds = (*player.melds, meld)
 
     # update player state
@@ -818,7 +817,6 @@ def call_closed_kan(
     # closed kan does NOT make the hand open (mark_open=False)
     new_state = _finalize_meld_state(new_state, seat, mark_open=False)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=True)
-
     return new_state, meld
 
 
@@ -939,5 +937,4 @@ def call_added_kan(
     # added kan keeps the hand open (already open from the pon), no need to re-mark
     new_state = _finalize_meld_state(new_state, seat, mark_open=False)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
-
     return new_state, upgraded_meld

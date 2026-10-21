@@ -162,16 +162,22 @@ def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
     """
     if settings.base_turn_seconds < 0:
         errors.append("base_turn_seconds must be non-negative")
+
     if settings.initial_bank_seconds <= 0:
         errors.append("initial_bank_seconds must be positive")
+
     if settings.max_bank_seconds < settings.initial_bank_seconds:
         errors.append("max_bank_seconds must be >= initial_bank_seconds")
+
     if settings.round_bonus_seconds < 0:
         errors.append("round_bonus_seconds must be non-negative")
+
     if settings.meld_decision_seconds <= 0:
         errors.append("meld_decision_seconds must be positive")
+
     if settings.round_advance_timeout_seconds <= 0:
         errors.append("round_advance_timeout_seconds must be positive")
+
     if settings.pending_game_timeout_seconds <= 0:
         errors.append("pending_game_timeout_seconds must be positive")
 

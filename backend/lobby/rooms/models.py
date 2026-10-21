@@ -80,8 +80,10 @@ class LobbyRoom:
         """
         if not self.players:
             return False
+
         if self.player_count < self.min_human_players:
             return False
+
         return all(p.ready for conn_id, p in self.players.items() if conn_id != self.host_connection_id)
 
     def first_open_seat(self) -> int | None:
@@ -91,6 +93,7 @@ class LobbyRoom:
         for i, conn_id in enumerate(self.seats):
             if conn_id is None:
                 return i
+
         return None
 
     def seat_of(self, connection_id: str) -> int | None:
@@ -100,6 +103,7 @@ class LobbyRoom:
         for i, conn_id in enumerate(self.seats):
             if conn_id == connection_id:
                 return i
+
         return None
 
     def get_player_info(self) -> list[LobbyPlayerInfo]:
@@ -130,6 +134,7 @@ class LobbyRoom:
                         is_owner=False,
                     ),
                 )
+
         return info
 
     def has_user(self, user_id: str) -> bool:

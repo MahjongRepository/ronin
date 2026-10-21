@@ -137,7 +137,6 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
     players_view: list[PlayerView] = []
     my_tiles: list[int] = []
     found = False
-
     for p in round_state.players:
         if p.seat == seat:
             my_tiles = list(p.tiles)

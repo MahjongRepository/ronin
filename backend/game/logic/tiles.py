@@ -43,6 +43,7 @@ def tile_to_34(tile_id: int) -> int:
     """
     if not (TILE_ID_MIN <= tile_id <= TILE_ID_MAX):
         raise ValueError(f"tile_id must be in [{TILE_ID_MIN}, {TILE_ID_MAX}], got {tile_id}")
+
     return tile_id // 4
 
 
@@ -84,7 +85,9 @@ def hand_to_34_array(tiles: list[int] | tuple[int, ...]) -> list[int]:
     if tiles and (min(tiles) < TILE_ID_MIN or max(tiles) > TILE_ID_MAX):
         bad = next(t for t in tiles if not (TILE_ID_MIN <= t <= TILE_ID_MAX))
         raise ValueError(f"tile_id must be in [{TILE_ID_MIN}, {TILE_ID_MAX}], got {bad}")
+
     tiles_34 = [0] * NUM_TILE_TYPES
     for tile_id in tiles:
         tiles_34[tile_id // 4] += 1
+
     return tiles_34

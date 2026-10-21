@@ -19,6 +19,7 @@ async def play_page(request: Request) -> Response:
     templates: Jinja2Templates = request.app.state.templates
     if not request.app.state.game_assets_available:
         return PlainTextResponse("Game client assets not available", status_code=503)
+
     return templates.TemplateResponse(request, "play.html")
 
 
@@ -28,6 +29,7 @@ async def storybook_page(request: Request) -> Response:
     """
     templates: Jinja2Templates = request.app.state.templates
     username = request.user.username if request.user.is_authenticated else None
+
     csrf_token, is_new = get_or_create_csrf_token(request)
     response = templates.TemplateResponse(
         request,
@@ -37,4 +39,5 @@ async def storybook_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response

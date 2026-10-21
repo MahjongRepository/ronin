@@ -43,6 +43,7 @@ class FrozenMeld(BaseModel):
     def _validate_tiles(cls, v: tuple[int, ...]) -> tuple[int, ...]:
         if not (_MIN_MELD_TILES <= len(v) <= _MAX_MELD_TILES):
             raise ValueError(f"meld must have {_MIN_MELD_TILES}-{_MAX_MELD_TILES} tiles, got {len(v)}")
+
         return v
 
     @field_validator("who")
@@ -50,6 +51,7 @@ class FrozenMeld(BaseModel):
     def _validate_who(cls, v: int) -> int:
         if not (_MIN_SEAT <= v <= _MAX_SEAT):
             raise ValueError(f"who must be in [{_MIN_SEAT}, {_MAX_SEAT}], got {v}")
+
         return v
 
     @field_validator("from_who")
@@ -57,6 +59,7 @@ class FrozenMeld(BaseModel):
     def _validate_from_who(cls, v: int | None) -> int | None:
         if v is not None and not (_MIN_SEAT <= v <= _MAX_SEAT):
             raise ValueError(f"from_who must be in [{_MIN_SEAT}, {_MAX_SEAT}], got {v}")
+
         return v
 
     @property
@@ -86,4 +89,5 @@ def frozen_melds_to_melds(melds: tuple[FrozenMeld, ...]) -> list[Meld] | None:
     """
     if not melds:
         return None
+
     return [m.to_meld() for m in melds]

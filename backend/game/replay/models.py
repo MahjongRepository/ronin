@@ -42,21 +42,25 @@ class ReplayInput(BaseModel):
     def _validate_replay_input(self) -> ReplayInput:
         if len(set(self.player_names)) != NUM_PLAYERS:
             raise ValueError(f"ReplayInput.player_names must contain {NUM_PLAYERS} unique names")
+
         player_name_set = set(self.player_names)
         invalid_names = {event.player_name for event in self.events if event.player_name not in player_name_set}
         if invalid_names:
             raise ValueError(
                 f"ReplayInput.events contain unknown player_name values: {sorted(invalid_names)}",
             )
+
         if self.wall is not None:
             if len(self.wall) != NUM_TILES:
                 raise ValueError(
                     f"ReplayInput.wall must contain exactly {NUM_TILES} tiles, got {len(self.wall)}",
                 )
+
             if sorted(self.wall) != list(range(NUM_TILES)):
                 raise ValueError(
                     f"ReplayInput.wall must be a permutation of tile IDs 0..{NUM_TILES - 1}",
                 )
+
         return self
 
 
@@ -99,6 +103,7 @@ class ReplayError(Exception):
         self.step_index = step_index
         self.event = event
         self.errors = errors
+
         messages = [e.data.message for e in errors if isinstance(e.data, ErrorEvent)]
         super().__init__(
             f"Replay error at step {step_index} ({event.action} by {event.player_name}): "

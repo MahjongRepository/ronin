@@ -106,6 +106,7 @@ def _split_wall_by_dice(
     """
     if len(tiles) != NUM_TILES:
         raise ValueError(f"Expected {NUM_TILES} tiles, got {len(tiles)}")
+
     break_info = compute_wall_break_info(dice, dealer_seat)
     break_stack = break_info.break_stack
 
@@ -119,7 +120,6 @@ def _split_wall_by_dice(
     # Live wall: 61 stacks from (break-1) going left (decreasing, wrapping)
     live_stacks = [(break_stack - 1 - i) % TOTAL_STACKS for i in range(LIVE_WALL_STACKS)]
     live_tiles = tuple(tile for s in live_stacks for tile in (tiles[s * 2], tiles[s * 2 + 1]))
-
     return live_tiles, dead_wall_tiles
 
 
@@ -154,8 +154,10 @@ def create_wall_from_tiles(tiles: list[int], dice: tuple[int, int] = (1, 1)) -> 
     """
     if len(tiles) != NUM_TILES:
         raise ValueError(f"Expected {NUM_TILES} tiles, got {len(tiles)}")
+
     if not all(isinstance(t, int) and 0 <= t <= NUM_TILES - 1 for t in tiles):
         raise ValueError(f"All tile IDs must be integers in [0, {NUM_TILES - 1}]")
+
     if len(set(tiles)) != NUM_TILES:
         raise ValueError("All tile IDs must be unique (full permutation)")
 
@@ -187,7 +189,6 @@ def deal_initial_hands(wall: Wall, dealer_seat: int) -> tuple[Wall, list[list[in
     live = list(wall.live_tiles)
     hands: list[list[int]] = [[] for _ in range(NUM_PLAYERS)]
     pos = 0
-
     # 3 rounds of 4 tiles each, starting from dealer
     for _ in range(DEAL_BLOCKS):
         for offset in range(NUM_PLAYERS):
@@ -216,6 +217,7 @@ def draw_tile(wall: Wall) -> tuple[Wall, int | None]:
     """
     if not wall.live_tiles:
         return wall, None
+
     tile = wall.live_tiles[0]
     new_wall = wall.model_copy(update={"live_tiles": wall.live_tiles[1:]})
     return new_wall, tile
@@ -232,11 +234,13 @@ def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
     """
     if wall.rinshan_draws_count >= MAX_RINSHAN_DRAWS:
         raise InvalidActionError("No more rinshan draw positions available")
+
     draw_index = RINSHAN_START_INDEX - wall.rinshan_draws_count
 
     tile = wall.dead_wall_tiles[draw_index]
     if not wall.live_tiles:
         raise InvalidActionError("Cannot draw from dead wall: live wall is empty for replenishment")
+
     dead = list(wall.dead_wall_tiles)
     live = list(wall.live_tiles)
 
@@ -260,9 +264,11 @@ def add_dora_indicator(wall: Wall) -> tuple[Wall, int]:
     current_count = len(wall.dora_indicators)
     if current_count >= MAX_DORA_INDICATORS:
         raise InvalidActionError(f"Cannot add more than {MAX_DORA_INDICATORS} dora indicators")
+
     next_index = FIRST_DORA_INDEX + current_count
     if next_index >= len(wall.dead_wall_tiles):
         raise InvalidActionError("No more dora indicator positions in dead wall")
+
     indicator = wall.dead_wall_tiles[next_index]
     new_indicators = (*wall.dora_indicators, indicator)
     new_wall = wall.model_copy(update={"dora_indicators": new_indicators})
@@ -298,6 +304,7 @@ def increment_pending_dora(wall: Wall) -> Wall:
             f"Cannot exceed {MAX_DORA_INDICATORS} dora indicators "
             f"(current: {len(wall.dora_indicators)}, pending: {wall.pending_dora_count})",
         )
+
     return wall.model_copy(update={"pending_dora_count": wall.pending_dora_count + 1})
 
 

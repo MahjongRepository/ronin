@@ -70,6 +70,7 @@ def _action_to_meld_call_type(action: GameAction) -> MeldCallType:
     result = _ACTION_TO_MELD_CALL_TYPE.get(action)
     if result is None:
         raise ValueError(f"no meld call type for action: {action}")
+
     return result
 
 
@@ -129,6 +130,7 @@ def pick_best_meld_response(
         if key < best_key:
             best = response
             best_key = key
+
     return best
 
 
@@ -152,6 +154,7 @@ def _resolve_ron_responses(
         new_round_state = clear_pending_prompt(round_state)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = update_game_with_round(game_state, new_round_state)
+
         events: list[GameEvent] = [RoundEndEvent(result=result, target="all")]
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
@@ -170,6 +173,7 @@ def _resolve_ron_responses(
         game_state,
         ron_input=ron_input,
     )
+
     new_round_state = clear_pending_prompt(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
@@ -196,6 +200,7 @@ def _resolve_meld_response(
         game_state,
         meld_input=meld_input,
     )
+
     new_round_state = clear_pending_prompt(new_round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
 
@@ -411,6 +416,7 @@ def _resolve_chankan_decline(
             caller_seat=prompt.from_seat,
             tile_id=prompt.tile_id,
         )
+
     return ActionResult(events, new_round_state=new_rs, new_game_state=new_gs)
 
 
@@ -466,6 +472,7 @@ def resolve_call_prompt(  # noqa: PLR0911
             new_round_state = clear_pending_prompt(resolved_round)
             new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
             new_game_state = update_game_with_round(resolved_game, new_round_state)
+
             extra_events.append(RoundEndEvent(result=result, target="all"))
             return ActionResult(extra_events, new_round_state=new_round_state, new_game_state=new_game_state)
 
@@ -481,6 +488,7 @@ def resolve_call_prompt(  # noqa: PLR0911
                 new_round_state=meld_result.new_round_state,
                 new_game_state=meld_result.new_game_state,
             )
+
         logger.error("all meld responses from unrecognized callers, treating as all-pass", count=len(meld_responses))
 
     # all passed

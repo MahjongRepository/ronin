@@ -82,4 +82,5 @@ def sign_player_tickets(
         )
         player_specs.append({"name": username, "user_id": user_id, "game_ticket": signed_ticket})
         ticket_map[conn_id] = signed_ticket
+
     return player_specs, ticket_map

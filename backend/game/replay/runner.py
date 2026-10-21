@@ -111,6 +111,7 @@ def run_replay(
         return asyncio.run(
             run_replay_async(replay, opts, service_factory=service_factory),
         )
+
     raise RuntimeError("run_replay() cannot be used in async context; use await run_replay_async(...)")
 
 
@@ -135,6 +136,7 @@ async def run_replay_async(
             auto_pass_calls=resolved_opts.auto_pass_calls,
             max_steps=resolved_opts.max_steps,
         )
+
     factory = service_factory or _default_service_factory
     service = factory()
     ctx = _ReplayRunContext(service=service, opts=resolved_opts)
@@ -157,6 +159,7 @@ async def _execute_replay(
 
     if opts.auto_confirm_rounds:
         _reject_manual_confirm_rounds(replay)
+
     if opts.auto_pass_calls:
         _reject_manual_pass(replay)
 
@@ -175,18 +178,17 @@ async def _execute_replay(
 
     steps: list[ReplayStep] = []
     step_count = 0
-
     for input_event in replay.events:
         _check_step_limit(step_count, opts.max_steps)
         current_state = _require_state(
             service, game_id=opts.game_id, message="game state disappeared during replay execution"
         )
-
         if current_state.game_phase == GamePhase.FINISHED:
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
                     f"Input remains after game end at step {step_count}: {input_event}",
                 )
+
             break
 
         step_count = await _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
@@ -211,6 +213,7 @@ async def _execute_replay(
                 raise ReplayInputAfterGameEndError(
                     f"Input remains after game end at step {step_count}: {input_event}",
                 )
+
             break
 
         step_count = await _process_input_event(ctx, input_event=input_event, steps=steps, step_count=step_count)
@@ -237,6 +240,7 @@ async def _execute_replay(
 def _check_startup_errors(events: list[ServiceEvent], strict: bool) -> None:  # noqa: FBT001
     if not strict:
         return
+
     errors = [e for e in events if e.event == EventType.ERROR]
     if errors:
         messages = [e.data.message for e in errors if isinstance(e.data, ErrorEvent)]
@@ -289,6 +293,7 @@ def _require_state(
     state = service.get_game_state(game_id)
     if state is None:
         raise ReplayInvariantError(message)
+
     return state
 
 
@@ -320,6 +325,7 @@ async def _process_input_event(
         )
         if ctx.opts.strict:
             raise ReplayError(step_index=step_count, event=input_event, errors=[error_event]) from exc
+
         events = [error_event]
 
     if ctx.opts.strict:
@@ -352,6 +358,7 @@ async def _maybe_confirm_round(
     if ctx.opts.auto_confirm_rounds and ctx.service.is_round_advance_pending(ctx.opts.game_id):
         step_count = await _inject_round_confirmations(ctx, steps=steps, step_count=step_count)
         _check_step_limit(step_count, ctx.opts.max_steps)
+
     return step_count
 
 
@@ -391,7 +398,6 @@ async def _inject_round_confirmations(
             game_id=game_id,
             message="game state disappeared after synthetic confirm_round",
         )
-
         steps.append(
             ReplayStep(
                 input_event=ReplayInputEvent(
@@ -435,7 +441,6 @@ async def _handle_auto_pass_for_input(
     is_call_response = (
         input_event.action in _CALL_RESPONSE_ACTIONS and input_seat is not None and input_seat in prompt.pending_seats
     )
-
     exclude_seats = frozenset({input_seat}) if is_call_response and input_seat is not None else frozenset()
     return await _inject_pass_calls(ctx, steps, step_count, exclude_seats=exclude_seats)
 
@@ -492,7 +497,6 @@ async def _inject_pass_calls(
         state_after = _require_state(
             ctx.service, game_id=game_id, message="game state disappeared after synthetic pass"
         )
-
         steps.append(
             ReplayStep(
                 input_event=ReplayInputEvent(

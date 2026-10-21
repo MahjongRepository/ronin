@@ -48,6 +48,7 @@ class RoundAdvanceManager:
         pending = self._pending.get(game_id)
         if pending is None:
             return set()
+
         return pending.required_seats - pending.confirmed_seats
 
     def setup_pending(self, game_id: str, ai_player_seats: set[int]) -> bool:
@@ -68,6 +69,7 @@ class RoundAdvanceManager:
             # All AI players -- no players to wait for. Don't store stale pending state.
             self._pending.pop(game_id, None)
             return True
+
         self._pending[game_id] = pending
         return False
 
@@ -87,13 +89,16 @@ class RoundAdvanceManager:
         pending = self._pending.get(game_id)
         if pending is None:
             return None
+
         if seat not in pending.required_seats:
             logger.warning("seat is not in required_seats, ignoring", seat=seat)
             return False
+
         pending.confirmed_seats.add(seat)
         if pending.all_confirmed:
             self._pending.pop(game_id, None)
             return True
+
         return False
 
     def is_seat_required(self, game_id: str, seat: int) -> bool:
@@ -103,6 +108,7 @@ class RoundAdvanceManager:
         pending = self._pending.get(game_id)
         if pending is None:
             return False
+
         return seat in pending.required_seats
 
     def cleanup_game(self, game_id: str) -> None:

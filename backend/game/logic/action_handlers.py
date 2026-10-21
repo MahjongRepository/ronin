@@ -149,6 +149,7 @@ def _validate_chi_sequence(
                 seat=seat,
                 reason=f"sequence tile {t} not in hand",
             )
+
         hand_list.remove(t)
 
     # The 3 tiles must form a valid sequence (consecutive values in same suit, not honor)
@@ -218,6 +219,7 @@ def _validate_meld_action_for_callers(
             seat=seat,
             reason=f"action {action.value} not available: no meld options for this seat",
         )
+
     allowed: frozenset[GameAction] = frozenset().union(
         *(_MELD_CALL_TYPE_TO_GAME_ACTIONS.get(c.call_type, frozenset()) for c in seat_callers),
     )
@@ -258,6 +260,7 @@ def _validate_caller_action_matches_prompt(
                 seat=seat,
                 reason=f"only ron is valid for this seat on a {prompt.call_type.value} prompt",
             )
+
         return
 
     # Meld prompts and meld callers on DISCARD: ron is never valid, check meld types
@@ -274,6 +277,7 @@ def _validate_caller_action_matches_prompt(
             seat=seat,
             reason=f"cannot call ron on a {prompt.call_type.value} prompt",
         )
+
     _validate_meld_action_for_callers(prompt, seat=seat, action=action)
 
 
@@ -292,6 +296,7 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
         caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
         ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, FALLBACK_CALLER_ORDER))
         return ron_responses[0].seat
+
     meld_responses = [
         r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
     ]
@@ -299,6 +304,7 @@ def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: i
         best = pick_best_meld_response(meld_responses, prompt)
         if best is not None:
             return best.seat
+
     return fallback_seat
 
 
@@ -319,6 +325,7 @@ def _resolve_call_prompt_safe(
     except GameRuleError as e:
         offending_seat = _find_offending_seat_from_prompt(prompt, triggering_seat)
         raise InvalidGameActionError(action="resolve_call", seat=offending_seat, reason=str(e)) from e
+
     return ActionResult(
         resolve_result.events,
         new_round_state=resolve_result.new_round_state,
@@ -494,6 +501,7 @@ def handle_pon(
     )
     if isinstance(result, ActionResult):
         return result
+
     prompt = result
 
     # validate caller action matches prompt
@@ -537,6 +545,7 @@ def handle_chi(
     )
     if isinstance(result, ActionResult):
         return result
+
     prompt = result
 
     # validate caller action matches prompt
@@ -583,6 +592,7 @@ def _handle_open_kan_call_response(
     )
     if isinstance(result, ActionResult):
         return result
+
     prompt = result
 
     # validate caller action matches prompt
@@ -774,6 +784,7 @@ def handle_pass(
         player = new_round_state.players[seat]
         if player.is_riichi:
             new_round_state = update_player(new_round_state, seat, is_riichi_furiten=True)
+
         new_game_state = update_game_with_round(new_game_state, new_round_state)
 
     # Remove from pending without recording a CallResponse. resolve_call_prompt

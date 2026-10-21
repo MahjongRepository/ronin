@@ -24,14 +24,17 @@ def load_vite_manifest(game_assets_dir: str) -> dict[str, dict]:
     manifest_path = Path(game_assets_dir).resolve() / ".vite" / "manifest.json"
     if not manifest_path.exists():
         return {}
+
     try:
         data = json.loads(manifest_path.read_text())
     except json.JSONDecodeError as e:
         msg = f"Malformed manifest.json at {manifest_path}: {e}"
         raise ValueError(msg) from e
+
     if not isinstance(data, dict):
         msg = f"manifest.json must be a JSON object, got {type(data).__name__}"
         raise TypeError(msg)
+
     return data
 
 
@@ -44,6 +47,7 @@ def _resolve_css_url(entry: dict, base_path: str) -> str | None:
     css_files = entry.get("css", [])
     if css_files:
         return f"{base_path}/{css_files[0]}"
+
     return None
 
 
@@ -65,6 +69,7 @@ def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/game-a
     game_js = game_entry.get("file")
     if game_js:
         urls["game_js"] = f"{base_path}/{game_js}"
+
     game_css = _resolve_css_url(game_entry, base_path)
     if game_css:
         urls["game_css"] = game_css
@@ -73,6 +78,7 @@ def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/game-a
     lobby_js = lobby_entry.get("file")
     if lobby_js:
         urls["lobby_js"] = f"{base_path}/{lobby_js}"
+
     lobby_css = _resolve_css_url(lobby_entry, base_path)
     if lobby_css:
         urls["lobby_css"] = lobby_css

@@ -56,9 +56,11 @@ class AuthSessionStore:
         session = self._sessions.get(session_id)
         if session is None:
             return None
+
         if time.time() > session.expires_at:
             del self._sessions[session_id]
             return None
+
         return session
 
     def delete_session(self, session_id: str) -> None:
@@ -77,8 +79,10 @@ class AuthSessionStore:
         expired = [sid for sid, s in self._sessions.items() if now > s.expires_at]
         for sid in expired:
             del self._sessions[sid]
+
         if expired:
             logger.info("cleaned up expired sessions", count=len(expired))
+
         return len(expired)
 
     def start_cleanup(self) -> None:
@@ -87,6 +91,7 @@ class AuthSessionStore:
         """
         if self._cleanup_task is not None and not self._cleanup_task.done():
             return
+
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
     async def stop_cleanup(self) -> None:
@@ -97,6 +102,7 @@ class AuthSessionStore:
             self._cleanup_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
+
             self._cleanup_task = None
 
     async def _cleanup_loop(self) -> None:

@@ -57,6 +57,7 @@ def sign_game_ticket(ticket: GameTicket, secret: str) -> str:
     """
     payload_bytes = json.dumps(asdict(ticket), sort_keys=True).encode()
     sig = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).digest()
+
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode()
     sig_b64 = base64.urlsafe_b64encode(sig).decode()
     return f"{payload_b64}.{sig_b64}"
@@ -102,8 +103,10 @@ def _is_finite_number(value: object) -> bool:
     """
     if isinstance(value, bool):
         return False
+
     if not isinstance(value, (int, float)):
         return False
+
     return math.isfinite(value)
 
 
@@ -120,7 +123,6 @@ def _validate_ticket_timestamps(ticket: GameTicket) -> bool:
         return False
 
     now = time.time()
-
     if ticket.issued_at > now + CLOCK_SKEW_SECONDS:
         logger.debug("game ticket issued in the future")
         return False

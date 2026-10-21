@@ -43,6 +43,7 @@ class _MatchmakingContext:
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
         self.matchmaking_manager: MatchmakingManager = websocket.app.state.matchmaking_manager
         self.registry: RegistryManager = websocket.app.state.registry
+
         self.connection_id: str = str(uuid.uuid4())
         self.user_id: str = websocket.user.user_id
         self.username: str = websocket.user.username
@@ -158,12 +159,14 @@ async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> 
             disconnected = [e for e in matched if e.websocket.client_state != WebSocketState.CONNECTED]
             ctx.matchmaking_manager.requeue_at_front(remaining)
             ctx.matchmaking_manager.clear_in_flight({e.user_id for e in disconnected})
+
         log.warning(
             "matched players disconnected before game creation",
             disconnected=[e.username for e in disconnected],
         )
         if remaining:
             await _broadcast_queue_update(ctx)
+
         return
 
     # Sign tickets and create game -- catch any exception to avoid leaking _in_flight
@@ -189,11 +192,13 @@ async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> 
             disconnected = [e for e in matched if e.websocket.client_state != WebSocketState.CONNECTED]
             ctx.matchmaking_manager.requeue_at_front(connected)
             ctx.matchmaking_manager.clear_in_flight({e.user_id for e in disconnected})
+
         for entry in connected:
             with contextlib.suppress(WebSocketDisconnect, ConnectionError, RuntimeError):
                 await entry.websocket.send_json(
                     {"type": "error", "message": "Failed to start game, please try again"},
                 )
+
         await _broadcast_queue_update(ctx)
         return
 
@@ -233,6 +238,7 @@ async def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | No
     for entry in entries:
         if entry.connection_id == exclude:
             continue
+
         if entry.websocket.client_state == WebSocketState.CONNECTED:
             with contextlib.suppress(WebSocketDisconnect, ConnectionError, RuntimeError):
                 await entry.websocket.send_json({"type": "queue_update", "queue_size": queue_size})

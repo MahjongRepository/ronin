@@ -39,6 +39,7 @@ def _to_binary_string(number: int, size: int | None = None) -> str:
     result = bin(number).replace("0b", "")
     if size and len(result) < size:
         result = "0" * (size - len(result)) + result
+
     return result
 
 
@@ -46,6 +47,7 @@ def _from_who_offset(who: int, from_who: int) -> int:
     result = from_who - who
     if result < 0:
         result += 4
+
     return result
 
 
@@ -149,22 +151,23 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
     called_tile = meld_event["called_tile_id"]
     who: int = meld_event["caller_seat"]
 
-    if meld_type == "chi":
-        return _encode_chi(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
-    if meld_type == "pon":
-        return _encode_pon(tiles, called_tile, who, meld_event["from_seat"])
-    if meld_type == "added_kan":
-        tile = called_tile if called_tile is not None else min(tiles)
-        source: int = meld_event.get("from_seat", who)
-        added = meld_event.get("_added_tile")
-        return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
-    if meld_type == "closed_kan":
-        tile = called_tile if called_tile is not None else min(tiles)
-        return _encode_kan(tiles=tiles, called_tile=tile, who=who, from_who=who)
-    if meld_type == "open_kan":
-        return _encode_kan(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
-
-    return "0"
+    match meld_type:
+        case "chi":
+            return _encode_chi(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
+        case "pon":
+            return _encode_pon(tiles, called_tile, who, meld_event["from_seat"])
+        case "added_kan":
+            tile = called_tile if called_tile is not None else min(tiles)
+            source: int = meld_event.get("from_seat", who)
+            added = meld_event.get("_added_tile")
+            return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
+        case "closed_kan":
+            tile = called_tile if called_tile is not None else min(tiles)
+            return _encode_kan(tiles=tiles, called_tile=tile, who=who, from_who=who)
+        case "open_kan":
+            return _encode_kan(tiles=tiles, called_tile=called_tile, who=who, from_who=meld_event["from_seat"])
+        case _:
+            return "0"
 
 
 def build_yaku_string(yaku_list: list[dict[str, Any]]) -> str:
@@ -178,6 +181,7 @@ def build_yaku_string(yaku_list: list[dict[str, Any]]) -> str:
         tenhou_id = YAKU_ID_TO_TENHOU_ID.get(yaku["yi"])
         if tenhou_id is not None:
             parts.append(f"{tenhou_id},{yaku['han']}")
+
     return ",".join(parts)
 
 
@@ -193,6 +197,7 @@ def _format_sc(scores: dict[str, int], score_changes: dict[str, int]) -> str:
         score = scores.get(str(i), 0)
         change = score_changes.get(str(i), 0)
         parts.append(f"{score},{change}")
+
     return ",".join(parts)
 
 
@@ -218,14 +223,19 @@ def _compute_limit(han: int) -> int:
     """
     if han >= _HAN_YAKUMAN:
         return 5
+
     if han >= _HAN_SANBAIMAN:
         return 4
+
     if han >= _HAN_BAIMAN:
         return 3
+
     if han >= _HAN_HANEMAN:
         return 2
+
     if han >= _HAN_MANGAN:
         return 1
+
     return 0
 
 
@@ -235,6 +245,7 @@ def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
     """
     if not ura_dora_indicators:
         return ""
+
     ura_string = ",".join(str(d) for d in ura_dora_indicators)
     return f' doraHaiUra="{ura_string}"'
 
@@ -278,6 +289,7 @@ class TenhouConverter:
     def convert(self) -> str:
         for event in self.events:
             self._process_event(event)
+
         return "".join(self.tags)
 
     def _process_event(self, event: dict[str, Any]) -> None:
@@ -528,6 +540,7 @@ class TenhouConverter:
             seat = hand["s"]
             tiles_str = ",".join(str(t) for t in hand["ct"])
             hai_attrs += f' hai{seat}="{tiles_str}"'
+
         self.tags.append(
             f'<RYUUKYOKU ba="{self.honba},{self._total_riichi_sticks}" sc="{sc_string}"{hai_attrs} />',
         )
@@ -551,6 +564,7 @@ class TenhouConverter:
             standing = next(s for s in standings if s["s"] == seat)
             final_score = float(standing["fs"])
             owari_parts.append(f"{standing['sc']},{final_score:.1f}")
+
         owari_string = ",".join(owari_parts)
 
         # Append owari to the last AGARI/RYUUKYOKU tag
@@ -567,6 +581,7 @@ def convert_replay(filepath: Path) -> str:
     else:
         with filepath.open() as f:
             content = f.read().strip()
+
     events = [json.loads(line) for line in content.split("\n") if line]
     converter = TenhouConverter(events)
     return converter.convert()
@@ -577,6 +592,7 @@ def main() -> None:
     if OUTPUT_DIR.exists():
         for old_file in OUTPUT_DIR.iterdir():
             old_file.unlink()
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     replay_files = sorted(REPLAYS_DIR.glob("??/??/*.txt.gz"))

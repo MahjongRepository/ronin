@@ -66,6 +66,7 @@ def encode_meld_compact(meld: MeldData) -> int:
     if encoder is None:
         msg = f"Unknown meld type: {meld['meld_type']}"
         raise ValueError(msg)
+
     return encoder(meld)
 
 
@@ -76,6 +77,7 @@ def decode_meld_compact(value: int) -> MeldData:
     if not _is_strict_int(value):
         msg = f"Expected integer, got {type(value).__name__}"
         raise TypeError(msg)
+
     if value < 0:
         msg = f"Compact integer {value} is negative"
         raise ValueError(msg)
@@ -117,10 +119,12 @@ def decode_game_event(event: dict[str, int]) -> MeldData:
     if event_type != EVENT_TYPE_MELD:
         msg = f"Unsupported event type: {event_type}"
         raise ValueError(msg)
+
     payload = event["m"]
     if not _is_strict_int(payload):
         msg = f"Expected integer payload, got {type(payload).__name__}"
         raise TypeError(msg)
+
     return decode_meld_compact(payload)
 
 
@@ -154,6 +158,7 @@ def _validate_from_offset(from_seat: int, caller_seat: int) -> int:
     if not _is_strict_int(from_seat) or from_seat not in _VALID_SEATS:
         msg = f"from_seat must be an integer 0-3, got {from_seat!r}"
         raise ValueError(msg)
+
     from_offset = (from_seat - caller_seat) % 4 - 1
     if from_offset not in (0, 1, 2):
         msg = (
@@ -161,6 +166,7 @@ def _validate_from_offset(from_seat: int, caller_seat: int) -> int:
             f"caller_seat={caller_seat} produces from_offset={from_offset}"
         )
         raise ValueError(msg)
+
     return from_offset
 
 
@@ -174,11 +180,13 @@ def _encode_chi(meld: MeldData) -> int:
     if called_tile_id is None:
         msg = "Chi meld requires called_tile_id"
         raise ValueError(msg)
+
     from_seat = meld.get("from_seat")
     expected_from = (caller_seat + 3) % 4
     if not _is_strict_int(from_seat) or from_seat not in _VALID_SEATS:
         msg = f"from_seat must be an integer 0-3, got {from_seat!r}"
         raise ValueError(msg)
+
     if from_seat != expected_from:
         msg = f"Chi from_seat must be kamicha ({expected_from}), got {from_seat}"
         raise ValueError(msg)
@@ -192,10 +200,12 @@ def _encode_chi(meld: MeldData) -> int:
     if suit_index >= _SUITED_TILE_KINDS:
         msg = f"Chi tiles must be suited (man/pin/sou), got tile_34={tile34_lo}"
         raise ValueError(msg)
+
     start_in_suit = tile34_lo % 9
     if start_in_suit >= _CHI_SEQS_PER_SUIT:
         msg = f"Chi sequence cannot start at position {start_in_suit} in suit (max {_CHI_SEQS_PER_SUIT - 1})"
         raise ValueError(msg)
+
     base_index = suit_index * _CHI_SEQS_PER_SUIT + start_in_suit
 
     copy_index = copy_lo * 16 + copy_mid * 4 + copy_hi
@@ -224,7 +234,6 @@ def _decode_chi(meld_index: int, caller_seat: int) -> MeldData:
         (tile34_lo + 1) * 4 + copy_mid,
         (tile34_lo + 2) * 4 + copy_hi,
     ]
-
     return MeldData(
         type="meld",
         meld_type="chi",
@@ -246,6 +255,7 @@ def _encode_pon(meld: MeldData) -> int:
     if called_tile_id is None:
         msg = "Pon meld requires called_tile_id"
         raise ValueError(msg)
+
     if from_seat is None:
         msg = "Pon meld requires from_seat"
         raise ValueError(msg)
@@ -272,7 +282,6 @@ def _decode_pon(pon_index: int, caller_seat: int) -> MeldData:
     tile_34 = remainder // _MISSING_COPIES
 
     tile_ids = [tile_34 * 4 + c for c in range(4) if c != missing_copy]
-
     return MeldData(
         type="meld",
         meld_type="pon",
@@ -293,6 +302,7 @@ def _encode_open_kan(meld: MeldData, type_offset: int) -> int:
     if called_tile_id is None:
         msg = "Open kan meld requires called_tile_id"
         raise ValueError(msg)
+
     if from_seat is None:
         msg = "Open kan meld requires from_seat"
         raise ValueError(msg)

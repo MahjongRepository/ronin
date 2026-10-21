@@ -137,6 +137,7 @@ def _collect_dora_indicators(
     """
     if settings.has_omote_dora:
         return list(round_state.wall.dora_indicators) if round_state.wall.dora_indicators else []
+
     return []
 
 
@@ -167,7 +168,6 @@ def _evaluate_hand(
         config=config,
         ura_dora_indicators=ura_dora_indicators,
     )
-
     if result.error:
         tile_counts_34 = hand_to_34_array(tiles)
         logger.error(
@@ -188,6 +188,7 @@ def _evaluate_hand(
         for y in result.yaku:
             han = y.han_open if result.is_open_hand and y.han_open > 0 else y.han_closed
             yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=han))
+
     return HandResult(
         han=result.han or 0,
         fu=result.fu or 0,
@@ -264,6 +265,7 @@ def _tsumo_payment_for_seat(
     """
     if is_dealer_win or seat == dealer_seat:
         return hand_result.cost_main + honba_bonus_per_loser
+
     return hand_result.cost_additional + honba_bonus_per_loser
 
 
@@ -291,6 +293,7 @@ def apply_tsumo_score(
     settings = game_state.settings
     scores = _current_scores(game_state)
     winner = round_state.players[winner_seat]
+
     is_dealer_win = winner_seat == round_state.dealer_seat
     honba_bonus_per_loser = game_state.honba_sticks * settings.honba_tsumo_bonus_per_loser
 
@@ -317,6 +320,7 @@ def apply_tsumo_score(
         for seat in range(NUM_PLAYERS):
             if seat == winner_seat:
                 continue
+
             payment = _tsumo_payment_for_seat(
                 seat,
                 is_dealer_win=is_dealer_win,
@@ -326,6 +330,7 @@ def apply_tsumo_score(
             )
             score_changes[seat] = -payment
             total_payment += payment
+
         score_changes[winner_seat] = total_payment
 
     # winner receives riichi sticks
@@ -333,7 +338,6 @@ def apply_tsumo_score(
     score_changes[winner_seat] += riichi_bonus
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
-
     return (
         new_round_state,
         new_game_state,
@@ -408,7 +412,6 @@ def apply_ron_score(
     score_changes[winner_seat] += riichi_bonus
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
-
     return (
         new_round_state,
         new_game_state,
@@ -464,11 +467,11 @@ def apply_double_ron_score(
         if check_seat in winner_seats:
             riichi_receiver = check_seat
             break
+
     if riichi_receiver is None:
         raise ValueError("No riichi receiver found in double ron")
 
     winner_results = []
-
     for winner_seat, hand_result in winners:
         winner = round_state.players[winner_seat]
         payment = hand_result.cost_main + honba_bonus
@@ -509,7 +512,6 @@ def apply_double_ron_score(
         )
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
-
     return (
         new_round_state,
         new_game_state,
@@ -549,6 +551,7 @@ def apply_nagashi_mangan_score(
         for seat in range(NUM_PLAYERS):
             if seat == winner_seat:
                 continue
+
             payment = (
                 settings.nagashi_mangan_dealer_payment
                 if is_dealer or seat == round_state.dealer_seat
@@ -558,7 +561,6 @@ def apply_nagashi_mangan_score(
             score_changes[winner_seat] += payment
 
     new_round_state, new_game_state = _apply_score_changes(game_state, score_changes, clear_riichi=False)
-
     return (
         new_round_state,
         new_game_state,

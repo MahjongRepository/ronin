@@ -67,10 +67,13 @@ def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> st
         ticket = verify_game_ticket(player_spec.game_ticket, secret)
         if ticket is None:
             return "Invalid or expired game ticket"
+
         if ticket.room_id != game_request.game_id:
             return "Ticket game_id mismatch"
+
         if ticket.username != player_spec.name or ticket.user_id != player_spec.user_id:
             return "Ticket identity mismatch"
+
     return None
 
 
@@ -87,9 +90,11 @@ async def _read_request_body(request: Request) -> bytes | JSONResponse:
             total += len(chunk)
             if total > _MAX_REQUEST_BODY_SIZE:
                 return JSONResponse({"error": "Request body too large"}, status_code=413)
+
             chunks.append(chunk)
     except ClientDisconnect:
         return JSONResponse({"error": "Client disconnected"}, status_code=400)
+
     return b"".join(chunks)
 
 
@@ -101,6 +106,7 @@ async def create_game(request: Request) -> JSONResponse:
         result = await _read_request_body(request)
         if isinstance(result, JSONResponse):
             return result
+
         raw_body = result
         body = json.loads(raw_body)
         game_request = CreateGameRequest(**body)

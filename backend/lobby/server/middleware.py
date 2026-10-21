@@ -37,6 +37,7 @@ def _build_csp_headers(
         parsed = urlparse(vite_dev_url)
         ws_scheme = "wss" if parsed.scheme == "https" else "ws"
         ws_origin = f"{ws_scheme}://{parsed.netloc}"
+
         vite_script = f" {vite_dev_url}"
         vite_connect = f" {vite_dev_url} {ws_origin}"
         vite_style = f" {vite_dev_url}"
@@ -91,6 +92,7 @@ class SecurityHeadersMiddleware:
     def _get_csp_headers(self, path: str) -> list[tuple[bytes, bytes]]:
         if path.startswith(("/play/", "/game-assets/")):
             return self._game_headers
+
         return self._lobby_headers
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -105,6 +107,7 @@ class SecurityHeadersMiddleware:
                 headers = list(message.get("headers", []))
                 headers.extend(extra_headers)
                 message["headers"] = headers
+
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
@@ -130,4 +133,5 @@ class SlashNormalizationMiddleware:
             path: str = scope["path"]
             if len(path) > 1 and path.endswith("/"):
                 scope["path"] = path.rstrip("/")
+
         await self.app(scope, receive, send)

@@ -115,6 +115,7 @@ class TurnTimer:
         """
         if self._active_task is not None and not self._active_task.done():
             self._active_task.cancel()
+
         self._active_task = None
 
     def _deduct_bank_time(self) -> None:

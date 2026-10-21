@@ -21,11 +21,14 @@ def fill_seats(player_names: list[str], seed: str | None = None) -> list[SeatCon
     """
     if not player_names or len(player_names) > NUM_PLAYERS:
         raise ValueError(f"Expected 1 to {NUM_PLAYERS} player names, got {len(player_names)}")
+
     player_names = [name.strip() for name in player_names]
     if any(not name for name in player_names):
         raise ValueError("Player names must not be empty or whitespace")
+
     if len(player_names) != len(set(player_names)):
         raise ValueError("Player names must be unique")
+
     num_ai = NUM_PLAYERS - len(player_names)
     collisions = _ai_player_names(num_ai) & set(player_names)
     if collisions:
@@ -41,7 +44,6 @@ def fill_seats(player_names: list[str], seed: str | None = None) -> list[SeatCon
 
     configs: list[SeatConfig] = []
     ai_player_number = 1
-
     for seat in range(NUM_PLAYERS):
         if seat in seat_to_player:
             configs.append(SeatConfig(name=seat_to_player[seat]))

@@ -22,5 +22,6 @@ def parse_matchmaking_message(raw: str) -> MatchmakingPingMessage:
     byte_len = len(raw.encode("utf-8"))
     if byte_len > _MAX_WS_MESSAGE_SIZE:
         raise ValueError(f"Message too large ({byte_len} bytes, max {_MAX_WS_MESSAGE_SIZE})")
+
     data = json.loads(raw)
     return _matchmaking_message_adapter.validate_python(data)

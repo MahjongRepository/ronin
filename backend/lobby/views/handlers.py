@@ -39,6 +39,7 @@ def _render_lobby_with_error(
     if is_new:  # pragma: no cover — CSRF validation guarantees cookie exists before this path
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -63,6 +64,7 @@ async def lobby_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -120,6 +122,7 @@ async def matchmaking_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response
 
 
@@ -150,4 +153,5 @@ async def room_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response

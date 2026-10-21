@@ -93,10 +93,13 @@ class AuthService:
         player = await self._player_repo.get_by_username(username)
         if player is None:
             raise AuthError("Invalid credentials")
+
         if player.account_type == AccountType.BOT:
             raise AuthError("Invalid credentials")
+
         if not await self._hasher.verify(password, player.password_hash):
             raise AuthError("Invalid credentials")
+
         return store.create_session(user_id=player.user_id, username=player.username, account_type=AccountType.HUMAN)
 
     def validate_session(self, session_id: str | None) -> AuthSession | None:
@@ -106,6 +109,7 @@ class AuthService:
         store = self._require_session_store()
         if session_id is None:
             return None
+
         return store.get_session(session_id)
 
     def create_session(
@@ -140,6 +144,7 @@ class AuthService:
     def _require_session_store(self) -> AuthSessionStore:
         if self._session_store is None:
             raise RuntimeError("session_store is required for session operations")
+
         return self._session_store
 
     async def _ensure_username_available(self, username: str) -> None:
@@ -157,6 +162,7 @@ class AuthService:
             await self._player_repo.create_player(player)
         except ValueError as e:
             raise AuthError(str(e)) from e
+
         return player
 
 
@@ -166,6 +172,7 @@ def _validate_username(username: str) -> None:
     """
     if len(username) < USERNAME_MIN_LENGTH or len(username) > USERNAME_MAX_LENGTH:
         raise AuthError(f"Username must be between {USERNAME_MIN_LENGTH} and {USERNAME_MAX_LENGTH} characters")
+
     if not USERNAME_PATTERN.match(username):
         raise AuthError("Username must contain only letters, numbers, and underscores")
 
@@ -176,5 +183,6 @@ def _validate_password(password: str) -> None:
     """
     if len(password) < PASSWORD_MIN_LENGTH or len(password) > PASSWORD_MAX_LENGTH:
         raise AuthError(f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters")
+
     if len(password.encode("utf-8")) > PASSWORD_MAX_LENGTH:
         raise AuthError(f"Password must not exceed {PASSWORD_MAX_LENGTH} bytes when encoded")

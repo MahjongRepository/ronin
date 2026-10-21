@@ -29,4 +29,5 @@ class TokenBucket:
         if self._tokens >= 1.0:
             self._tokens -= 1.0
             return True
+
         return False

@@ -23,6 +23,7 @@ def get_or_create_csrf_token(request: Request) -> tuple[str, bool]:
     token = request.cookies.get(CSRF_COOKIE_NAME)
     if token:
         return token, False
+
     return secrets.token_urlsafe(32), True
 
 

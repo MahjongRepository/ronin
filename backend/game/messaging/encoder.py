@@ -12,8 +12,10 @@ def _stringify_keys(obj: object) -> object:
     """
     if isinstance(obj, dict):
         return {str(k) if isinstance(k, int) else k: _stringify_keys(v) for k, v in obj.items()}
+
     if isinstance(obj, (list, tuple)):
         return [_stringify_keys(item) for item in obj]
+
     return obj
 
 
@@ -47,6 +49,7 @@ def decode(data: bytes) -> dict[str, Any]:
     """
     if len(data) > MAX_BUFFER_LEN:
         raise DecodeError(f"payload too large: {len(data)} bytes (max {MAX_BUFFER_LEN})")
+
     try:
         result = msgpack.unpackb(
             data,

@@ -73,6 +73,7 @@ class HeartbeatMonitor:
         existing = self._tasks.get(key)
         if existing is not None and not existing.done():
             existing.cancel()
+
         self._tasks[key] = asyncio.create_task(
             self._check_loop(entity_id=entity_id, entity_type=entity_type, get_entity=get_entity)
         )

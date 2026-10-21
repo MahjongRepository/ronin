@@ -17,6 +17,7 @@ class CreateGameRequest(BaseModel):
         expected = 4 - self.num_ai_players
         if len(self.players) != expected:
             raise ValueError(f"Expected {expected} players for {self.num_ai_players} AI, got {len(self.players)}")
+
         _check_unique([p.game_ticket for p in self.players], "game_ticket")
         _check_unique([p.name for p in self.players], "player name")
         _check_unique([p.user_id for p in self.players], "user_id")

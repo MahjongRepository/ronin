@@ -20,5 +20,7 @@ def calculate_shanten(tiles_34: list[int]) -> int:
     if total == 0 or total % 3 not in (1, 2):
         if total > 0:
             logger.warning("unexpected tile count in shanten calculation", tile_count=total)
+
         return _NOT_TENPAI
+
     return calculate_replacement_number(tiles_34, PlayerCount.FOUR) - 1

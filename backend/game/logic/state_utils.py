@@ -30,9 +30,11 @@ def update_player(
     """
     if not (0 <= seat < len(round_state.players)):
         raise ValueError(f"Invalid seat {seat}, expected 0-{len(round_state.players) - 1}")
+
     invalid_fields = set(updates) - _PLAYER_FIELDS
     if invalid_fields:
         raise ValueError(f"Invalid player fields: {invalid_fields}")
+
     players = list(round_state.players)
     players[seat] = round_state.players[seat].model_copy(update=updates)
     return round_state.model_copy(update={"players": tuple(players)})
@@ -152,8 +154,10 @@ def clear_all_players_ippatsu(
     """
     if not any(p.is_ippatsu for p in round_state.players):
         return round_state
+
     players = list(round_state.players)
     for i, p in enumerate(players):
         if p.is_ippatsu:
             players[i] = p.model_copy(update={"is_ippatsu": False})
+
     return round_state.model_copy(update={"players": tuple(players)})

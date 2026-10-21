@@ -51,6 +51,7 @@ class Database:
         """
         if self._conn is None:
             raise RuntimeError("Database is not connected")
+
         return self._conn
 
     def connect(self) -> None:
@@ -85,6 +86,7 @@ class Database:
         """
         if os.name != "posix":  # pragma: no cover
             return
+
         for suffix in ("", "-wal", "-shm"):
             p = Path(self._path + suffix)
             if p.exists():

@@ -29,6 +29,7 @@ def _login_redirect(request: Request) -> RedirectResponse:
     next_path = request.url.path
     if request.url.query:
         next_path = f"{next_path}?{request.url.query}"
+
     login_url = f"/login?{urlencode({'next': next_path})}"
     return RedirectResponse(url=login_url, status_code=303)
 
@@ -47,6 +48,7 @@ def protected_html(endpoint: Callable[..., Any]) -> Callable[..., Any]:
         async def async_wrapper(request: Request, **kwargs: str) -> Response:
             if not has_required_scope(request, ["authenticated"]):
                 return _login_redirect(request)
+
             return await endpoint(request, **kwargs)
 
         setattr(async_wrapper, AUTH_POLICY_ATTR, "protected_html")
@@ -56,6 +58,7 @@ def protected_html(endpoint: Callable[..., Any]) -> Callable[..., Any]:
     def sync_wrapper(request: Request, **kwargs: str) -> Response:
         if not has_required_scope(request, ["authenticated"]):
             return _login_redirect(request)
+
         return endpoint(request, **kwargs)
 
     setattr(sync_wrapper, AUTH_POLICY_ATTR, "protected_html")
@@ -83,8 +86,10 @@ def bot_only(endpoint: Callable[..., Any]) -> Callable[..., Any]:
         async def async_wrapper(request: Request, **kwargs: str) -> Response:
             if not has_required_scope(request, ["authenticated"]):
                 raise HTTPException(status_code=401)
+
             if request.user.account_type != AccountType.BOT:
                 return JSONResponse({"error": "Bot account required"}, status_code=403)
+
             return await endpoint(request, **kwargs)
 
         setattr(async_wrapper, AUTH_POLICY_ATTR, "bot_only")
@@ -94,8 +99,10 @@ def bot_only(endpoint: Callable[..., Any]) -> Callable[..., Any]:
     def sync_wrapper(request: Request, **kwargs: str) -> Response:
         if not has_required_scope(request, ["authenticated"]):
             raise HTTPException(status_code=401)
+
         if request.user.account_type != AccountType.BOT:
             return JSONResponse({"error": "Bot account required"}, status_code=403)
+
         return endpoint(request, **kwargs)
 
     setattr(sync_wrapper, AUTH_POLICY_ATTR, "bot_only")
@@ -137,6 +144,7 @@ def collect_protected_api_paths(routes: list[BaseRoute]) -> set[str]:
     for route in routes:
         if isinstance(route, Route) and getattr(route.endpoint, AUTH_POLICY_ATTR, None) in _API_POLICIES:
             paths.add(route.path)
+
     return paths
 
 
@@ -150,6 +158,7 @@ def validate_route_auth_policy(routes: list[BaseRoute]) -> None:
     for route in routes:
         if isinstance(route, Mount):
             continue
+
         if isinstance(route, Route) and not hasattr(route.endpoint, AUTH_POLICY_ATTR):
             name = route.name or getattr(route.endpoint, "__name__", "unknown")
             unclassified.append(f"{route.path} ({name})")

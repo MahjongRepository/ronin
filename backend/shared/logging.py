@@ -32,6 +32,7 @@ def _serialize_enums(
             event_dict[key] = value.value
         elif isinstance(value, dict):
             event_dict[key] = {k: v.value if isinstance(v, Enum) else v for k, v in value.items()}
+
     return event_dict
 
 
@@ -52,6 +53,7 @@ class LoggingSettings(BaseSettings):
         if value not in _VALID_LOG_LEVELS:
             msg = f"Invalid LOG_LEVEL={value!r}. Must be one of {', '.join(sorted(_VALID_LOG_LEVELS))}."
             raise ValueError(msg)
+
         return value
 
     @field_validator("log_format", mode="before")
@@ -61,6 +63,7 @@ class LoggingSettings(BaseSettings):
         if value not in _VALID_LOG_FORMATS:
             msg = f"Invalid LOG_FORMAT={value!r}. Must be 'json', 'console', or unset."
             raise ValueError(msg)
+
         return value
 
 
@@ -76,6 +79,7 @@ def _build_stdlib_formatter(*, json_mode: bool, colors: bool = False) -> logging
                 structlog.processors.JSONRenderer(),
             ],
         )
+
     return structlog.stdlib.ProcessorFormatter(
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
@@ -142,6 +146,7 @@ def setup_logging(
         dir_path = Path(log_dir)
         dir_path.mkdir(parents=True, exist_ok=True)
         file_path = dir_path / "app.log"
+
         file_formatter = _build_stdlib_formatter(json_mode=json_mode, colors=False)
         file_handler = logging.handlers.WatchedFileHandler(file_path)
         file_handler.setFormatter(file_formatter)

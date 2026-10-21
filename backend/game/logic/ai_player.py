@@ -90,6 +90,7 @@ class AIPlayer:
         """
         if not player.tiles:
             raise ValueError("cannot select discard from empty hand")
+
         return player.tiles[-1]
 
     def get_action(

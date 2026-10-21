@@ -23,8 +23,10 @@ async def _parse_json_body(request: Request) -> dict | None:
         body = await request.json()
     except ValueError, json.JSONDecodeError:
         return None
+
     if not isinstance(body, dict):
         return None
+
     return body
 
 

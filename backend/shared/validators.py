@@ -22,6 +22,7 @@ def parse_string_list(value: str | list[str], *, allow_empty: bool = False) -> l
     if isinstance(value, list):
         if not allow_empty and not value:
             raise ValueError("String list value must not be empty")
+
         return value
 
     stripped = value.strip()
@@ -33,15 +34,19 @@ def parse_string_list(value: str | list[str], *, allow_empty: bool = False) -> l
             parsed = json.loads(stripped)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON array: {e}") from e
+
         if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
             raise ValueError("JSON value must be an array of strings")
+
         if not allow_empty and not parsed:
             raise ValueError("String list value must not be empty")
+
         return parsed
 
     result = [origin.strip() for origin in stripped.split(",") if origin.strip()]
     if not allow_empty and not result:
         raise ValueError("String list value must not be empty")
+
     return result
 
 
@@ -65,4 +70,5 @@ class StringListEnvSettingsSource(EnvSettingsSource):
     ) -> Any:  # noqa: ANN401
         if field_name in _STRING_LIST_FIELDS and isinstance(value, str):
             return value
+
         return super().prepare_field_value(field_name, field, value, value_is_complex)

@@ -26,10 +26,12 @@ def _format_duration(started_at: datetime, ended_at: datetime) -> str:
         h = seconds // SECONDS_PER_HOUR
         m = (seconds % SECONDS_PER_HOUR) // SECONDS_PER_MINUTE
         return f"{h}h {m}m"
+
     if seconds >= SECONDS_PER_MINUTE:
         m = seconds // SECONDS_PER_MINUTE
         s = seconds % SECONDS_PER_MINUTE
         return f"{m}m {s}s"
+
     return f"{seconds}s"
 
 
@@ -51,9 +53,11 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
             }
             for i, s in enumerate(game.standings)
         ]
+
         duration_label = None
         if game.ended_at:
             duration_label = _format_duration(game.started_at, game.ended_at)
+
         status = "completed" if game.end_reason == "completed" else "active"
         result.append(
             {
@@ -66,6 +70,7 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
                 ),
             },
         )
+
     return result
 
 
@@ -91,4 +96,5 @@ async def history_page(request: Request) -> Response:
     if is_new:
         auth_settings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
     return response

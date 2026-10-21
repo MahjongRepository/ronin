@@ -106,6 +106,7 @@ class ChatMessage(BaseModel):
     def _validate_text(cls, v: str) -> str:
         if any((ord(c) < _SPACE_ORD and c not in ("\t", "\n", "\r")) or ord(c) == _DEL_ORD for c in v):
             raise ValueError("text must not contain control characters")
+
         return v
 
 
@@ -188,4 +189,5 @@ def parse_client_message(data: dict[str, Any]) -> ClientMessage:
     """
     if data.get("t") == WireClientMessageType.GAME_ACTION:
         return _game_action_adapter.validate_python(data)
+
     return _non_game_adapter.validate_python(data)
