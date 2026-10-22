@@ -10,6 +10,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import (
     add_dora_indicator,
     draw_from_dead_wall,
+    legal_discards,
 )
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state_utils import clear_all_players_ippatsu, update_player
@@ -89,6 +90,24 @@ def get_kuikae_tiles(
     return forbidden
 
 
+def _chi_kuikae_tiles(called_tile: int, *, sequence_tiles: tuple[int, int], settings: GameSettings) -> list[int]:
+    """
+    Compute the kuikae-restricted tile types a chi of called_tile with sequence_tiles leaves, under the settings.
+    """
+    if not settings.has_kuikae:
+        return []
+
+    called_34 = tile_to_34(called_tile)
+    if not settings.has_kuikae_suji:
+        return [called_34]
+
+    return get_kuikae_tiles(
+        call_type=MeldCallType.CHI,
+        called_tile_34=called_34,
+        sequence_tiles_34=[tile_to_34(t) for t in sequence_tiles],
+    )
+
+
 def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
     """
     Check if player can call pon on a discarded tile.
@@ -117,6 +136,7 @@ def can_call_chi(
     discarded_tile: int,
     discarder_seat: int,
     caller_seat: int,
+    settings: GameSettings,
 ) -> list[tuple[int, int]]:
     """
     Check if player can call chi on a discarded tile.
@@ -126,6 +146,7 @@ def can_call_chi(
     - Tile must be numbered (not honor)
     - Player has tiles to form at least one sequence
     - Player is not in riichi
+    - The remaining hand keeps at least one legal discard under kuikae
 
     Returns list of possible chi combinations. Each tuple contains the two tiles
     from hand that would complete the sequence with the discarded tile.
@@ -143,7 +164,35 @@ def can_call_chi(
 
     tile_value = discarded_34 % TILES_PER_SUIT
     hand_tiles_by_34 = _build_same_suit_tile_map(player.tiles, discarded_34)
-    return _find_chi_combinations(discarded_34=discarded_34, tile_value=tile_value, hand_tiles=hand_tiles_by_34)
+    combinations = _find_chi_combinations(discarded_34=discarded_34, tile_value=tile_value, hand_tiles=hand_tiles_by_34)
+    return [
+        c
+        for c in combinations
+        if _chi_leaves_legal_discard(player, discarded_tile=discarded_tile, sequence_tiles=c, settings=settings)
+    ]
+
+
+def _chi_leaves_legal_discard(
+    player: MahjongPlayer,
+    *,
+    discarded_tile: int,
+    sequence_tiles: tuple[int, int],
+    settings: GameSettings,
+) -> bool:
+    """
+    Check that the hand left by this chi has a legal discard, so the caller is never stuck after the call.
+    """
+    remaining = list(player.tiles)
+    for t in sequence_tiles:
+        remaining.remove(t)
+
+    after_chi = player.model_copy(
+        update={
+            "tiles": tuple(remaining),
+            "kuikae_tiles": tuple(_chi_kuikae_tiles(discarded_tile, sequence_tiles=sequence_tiles, settings=settings)),
+        },
+    )
+    return bool(legal_discards(after_chi))
 
 
 def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: int) -> dict[int, list[int]]:
@@ -644,26 +693,12 @@ def call_chi(  # noqa: PLR0913
     )
     new_melds = (*caller.melds, meld)
 
-    # set kuikae restriction based on settings
-    kuikae: list[int] = []
-    if settings.has_kuikae:
-        called_34 = tile_to_34(tile_id)
-        sequence_tiles_34 = [tile_to_34(t) for t in sequence_tiles]
-        if settings.has_kuikae_suji:
-            kuikae = get_kuikae_tiles(
-                call_type=MeldCallType.CHI, called_tile_34=called_34, sequence_tiles_34=sequence_tiles_34
-            )
-        else:
-            # only forbid the called tile type (no suji restriction)
-            kuikae = [called_34]
-
-    # update player state
     new_state = update_player(
         round_state,
         caller_seat,
         tiles=tuple(new_hand),
         melds=new_melds,
-        kuikae_tiles=tuple(kuikae),
+        kuikae_tiles=tuple(_chi_kuikae_tiles(tile_id, sequence_tiles=sequence_tiles, settings=settings)),
     )
     new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
     # Chi requires a subsequent discard without drawing; mark state for tsumogiri detection

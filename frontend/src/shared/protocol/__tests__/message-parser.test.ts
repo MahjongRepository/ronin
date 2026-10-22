@@ -85,6 +85,7 @@ describe("parseServerMessage", () => {
                 ],
                 di: [10],
                 dl: 0,
+                f: false,
                 gid: "game-123",
                 h: 0,
                 mt: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],

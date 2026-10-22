@@ -27,16 +27,15 @@ def can_call_kyuushu_kyuuhai(
     Check if a player can declare kyuushu kyuuhai (nine terminals abortive draw).
 
     Requirements:
-    - Player's first draw (no discards from any player, no melds)
-    - Hand contains 9 or more different terminal/honor tile types
+    - Kyuushu kyuuhai is enabled in the settings
+    - The player's first draw, uninterrupted: they have not discarded yet and no player has made any call (closed
+      kans included)
+    - Hand contains at least kyuushu_min_types different terminal/honor tile types
     """
-    # check if any discards have been made
-    for p in round_state.players:
-        if p.discards:
-            return False
+    if not settings.has_kyuushu_kyuuhai:
+        return False
 
-    # check if any calls have been made (including closed kans)
-    if round_state.players_with_open_hands:
+    if player.discards:
         return False
 
     if any(p.melds for p in round_state.players):

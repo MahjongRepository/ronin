@@ -138,7 +138,10 @@ def _validate_chi_sequence(
     Raises InvalidGameActionError if:
     - Either tile is not in the player's hand
     - The 3 tiles don't form a valid chi sequence (consecutive in same suit)
-    - The sequence_tiles don't match one of the available chi options in the prompt
+    - The sequence_tiles don't match, by tile type, one of the seat's chi options in the prompt
+
+    The seat's CHI caller is the one checked, also when the seat is offered pon too (pon callers sort first); it exists
+    because _validate_caller_action_matches_prompt ran upstream.
     """
     # Both tiles must be in the player's hand
     hand_list = list(player.tiles)
@@ -163,20 +166,17 @@ def _validate_chi_sequence(
             reason="tiles do not form a valid chi sequence",
         )
 
-    # sequence_tiles must match one of the available options (by tile type, not exact ID)
-    # Caller metadata existence is enforced by _validate_caller_action_matches_prompt upstream
-    caller_info = next(
-        (c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == seat),
-        None,
+    chi_caller = next(
+        c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == seat and c.call_type == MeldCallType.CHI
     )
-    if caller_info is not None and caller_info.options:
-        submitted_34 = tuple(sorted(tile_to_34(t) for t in sequence_tiles))
-        if not any(tuple(sorted(tile_to_34(t) for t in opt)) == submitted_34 for opt in caller_info.options):
-            raise InvalidGameActionError(
-                action="call_chi",
-                seat=seat,
-                reason="sequence tiles not among available options",
-            )
+    submitted_34 = tuple(sorted(tile_to_34(t) for t in sequence_tiles))
+    options = chi_caller.options or ()
+    if not any(tuple(sorted(tile_to_34(t) for t in opt)) == submitted_34 for opt in options):
+        raise InvalidGameActionError(
+            action="call_chi",
+            seat=seat,
+            reason="sequence tiles not among available options",
+        )
 
 
 def _validate_matching_tile_count(
@@ -716,13 +716,6 @@ def handle_kyuushu(
     """
     if round_state.current_player_seat != seat:
         return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
-
-    if not game_state.settings.has_kyuushu_kyuuhai:
-        raise InvalidGameActionError(
-            action="call_kyuushu",
-            seat=seat,
-            reason="kyuushu kyuuhai is disabled by game settings",
-        )
 
     player = round_state.players[seat]
     if not can_call_kyuushu_kyuuhai(player, round_state, settings=game_state.settings):

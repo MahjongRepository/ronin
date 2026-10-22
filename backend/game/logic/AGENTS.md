@@ -24,6 +24,17 @@ changes.
   `FuritenEvent` on change) and `RoundAdvanceManager` (who still has to confirm the round end; AI
   seats are pre-confirmed).
 
+## Turn rules
+
+* `get_available_actions` (`actions.py`) builds a turn's offered actions (riichi, tsumo, kan, kyuushu) in one
+  place, for the live draw event and the reconnect rebuild alike; each handler re-checks the same predicate the offer
+  used. Right after the player's own pon or chi (`is_after_meld_call`) nothing was drawn: only a discard is legal, and
+  no draw is sent or rebuilt.
+* `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule (kuikae; a riichi player
+  discards the drawn tile). The discard validator, the turn timeout, the AI and its fallback all go through them, and
+  `can_call_chi` drops a shape that would leave no legal discard, so the default chooser never comes up empty; if it
+  does, that is an engine fault (`AssertionError`), not a rule error.
+
 ## Calls
 
 A discard creates one `PendingCallPrompt` (`call_type=DISCARD`) holding every eligible caller: ron

@@ -98,9 +98,16 @@ def can_declare_tsumo(
     Check if player can declare tsumo (self-draw win).
 
     Requirements:
+    - The player drew: right after their own pon or chi there is no drawn tile, and the "win tile" would be the
+      called discard
     - Hand must be a winning hand
     - For open hands, must have at least one yaku (no yaku = can't win)
+
+    Furiten does not apply: it forbids ron only.
     """
+    if round_state.is_after_meld_call:
+        return False
+
     # first check if hand is winning
     if not check_tsumo(player):
         return False

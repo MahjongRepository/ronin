@@ -1,7 +1,10 @@
+import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.action_handlers import handle_tsumo
 from game.logic.actions import get_available_actions
 from game.logic.enums import AIPlayerType, PlayerAction
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -79,6 +82,30 @@ class TestGetAvailableActions:
 
         actions = get_available_actions(round_state, game_state, seat=0)
         assert len(actions) == 0
+
+
+class TestTsumoAfterOwnCall:
+    def test_tsumo__when_hand_complete_right_after_own_pon__should_be_neither_offered_nor_accepted(self):
+        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        haku_tiles = TilesConverter.string_to_136_array(honors="555")
+        haku_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, called_tile=haku_tiles[0], who=0, from_who=3
+        )
+        complete_hand = tuple(TilesConverter.string_to_136_array(man="234567", sou="23455"))
+        round_state = _update_player(game_state.round_state, 0, tiles=complete_hand, melds=(haku_pon,))
+        drawn_state = round_state.model_copy(update={"current_player_seat": 0})
+        after_pon_state = drawn_state.model_copy(update={"is_after_meld_call": True})
+
+        drawn_actions = get_available_actions(
+            drawn_state, game_state.model_copy(update={"round_state": drawn_state}), seat=0
+        )
+        assert PlayerAction.TSUMO in [a.action for a in drawn_actions]
+
+        after_pon_game = game_state.model_copy(update={"round_state": after_pon_state})
+        after_pon_actions = get_available_actions(after_pon_state, after_pon_game, seat=0)
+        assert PlayerAction.TSUMO not in [a.action for a in after_pon_actions]
+        with pytest.raises(InvalidGameActionError, match="cannot declare tsumo"):
+            handle_tsumo(after_pon_state, after_pon_game, seat=0)
 
 
 class TestAddedKanAction:

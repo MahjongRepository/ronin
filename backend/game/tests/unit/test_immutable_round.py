@@ -1,8 +1,10 @@
 import pytest
+from mahjong.constants import FIVE_RED_MAN
 from mahjong.tile import TilesConverter
 
 from game.logic.exceptions import InvalidActionError, InvalidDiscardError
 from game.logic.round import (
+    choose_default_discard,
     discard_tile,
     draw_from_dead_wall,
     draw_tile,
@@ -231,8 +233,23 @@ class TestDiscardTileImmutable:
         players[0] = players[0].model_copy(update={"kuikae_tiles": kuikae})
         round_state = round_state.model_copy(update={"players": tuple(players)})
 
-        with pytest.raises(InvalidDiscardError, match="forbidden by kuikae"):
+        with pytest.raises(InvalidDiscardError, match="not a legal discard"):
             discard_tile(round_state, seat=0, tile_id=man_3_copy2)
+
+    def test_discard_tile__when_riichi_player_discards_same_type_as_drawn_tile__should_raise(self):
+        round_state = self._create_round_state()
+        held_ordinary_5m = FIVE_RED_MAN + 1
+        drawn_red_5m = FIVE_RED_MAN
+        riichi_hand = (*round_state.players[0].tiles[:2], held_ordinary_5m, drawn_red_5m)
+        players = list(round_state.players)
+        players[0] = players[0].model_copy(update={"is_riichi": True, "tiles": riichi_hand})
+        round_state = round_state.model_copy(update={"players": tuple(players)})
+
+        with pytest.raises(InvalidDiscardError, match="not a legal discard"):
+            discard_tile(round_state, seat=0, tile_id=held_ordinary_5m)
+
+        _new_state, result = discard_tile(round_state, seat=0, tile_id=drawn_red_5m)
+        assert result.is_tsumogiri is True
 
     def test_discard_tile__when_tile_not_forbidden_by_kuikae__should_discard_it(self):
         round_state = self._create_round_state()
@@ -260,3 +277,27 @@ class TestDiscardTileImmutable:
         assert new_state.players[0].kuikae_tiles == ()
         # original state unchanged
         assert round_state.players[0].kuikae_tiles == kuikae
+
+
+class TestChooseDefaultDiscard:
+    def _make_player(self, tiles: tuple[int, ...], kuikae_tiles: tuple[int, ...] = ()) -> MahjongPlayer:
+        return MahjongPlayer(seat=0, name="Test", tiles=tiles, kuikae_tiles=kuikae_tiles, score=25000)
+
+    def test_choose_default_discard__when_no_kuikae__should_return_drawn_tile(self):
+        hand = tuple(TilesConverter.string_to_136_array(man="159"))
+        assert choose_default_discard(self._make_player(hand)) == hand[-1]
+
+    def test_choose_default_discard__when_drawn_tile_kuikae_restricted__should_return_last_legal_tile(self):
+        man_1, man_2, man_3a, man_3b = TilesConverter.string_to_136_array(man="1233")
+        player_after_pon_of_3m = self._make_player(
+            (man_1, man_2, man_3a, man_3b), kuikae_tiles=tuple(_string_to_34_tiles(man="3"))
+        )
+        assert choose_default_discard(player_after_pon_of_3m) == man_2
+
+    def test_choose_default_discard__when_every_tile_kuikae_restricted__should_raise(self):
+        man_1, man_4 = TilesConverter.string_to_136_array(man="14")
+        player_left_with_1m_4m_after_chi_of_1m = self._make_player(
+            (man_1, man_4), kuikae_tiles=tuple(_string_to_34_tiles(man="14"))
+        )
+        with pytest.raises(AssertionError, match="no legal discard"):
+            choose_default_discard(player_left_with_1m_4m_after_chi_of_1m)

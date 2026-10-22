@@ -146,6 +146,7 @@ describe("game view message handling", () => {
                 ],
                 di: [0],
                 dl: 0,
+                f: false,
                 gid: "test-game",
                 h: 0,
                 mt: [0, 1, 2],

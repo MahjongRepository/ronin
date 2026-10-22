@@ -15,7 +15,9 @@ messages and error codes in `types.py`, client codes in `wire_enums.py`, event c
   `d` (`../wire/compact.py`: `seat * 136 + tile_id`, discard adds `flag * 544` for tsumogiri/riichi); a meld
   is one IMME integer `m` (`shared/lib/melds/README.md`); `round_end` inlines its result with `rt`.
 * Delivery rules clients rely on: a draw goes only to the drawing seat, with `aa` (available
-  actions) when it has any; no draw follows a pon or chi; a discard's call prompt is split per seat
-  and a seat that can both ron and meld gets only the ron prompt; `furiten` goes only to its seat.
+  actions) when it has any; no draw follows a pon or chi, nor is one re-sent on a reconnect before
+  that seat's discard; a discard's call prompt is split per seat and a seat that can both ron and
+  meld gets only the ron prompt; `furiten` goes only to its seat, and only on a change, so the
+  `game_reconnected` snapshot carries the seat's current furiten.
 * The frontend mirrors this protocol in `frontend/src/shared/protocol/`; change both in the same
   change.

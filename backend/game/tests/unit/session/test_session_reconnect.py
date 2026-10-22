@@ -55,6 +55,7 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
         player_states=[
             PlayerReconnectState(seat=i, score=25000, discards=[], melds=[], is_riichi=False) for i in range(4)
         ],
+        is_furiten=False,
     )
 
 
@@ -83,7 +84,7 @@ class TestSessionManagerReconnect:
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
 
-        snapshot = _make_snapshot("game1", seat=0)
+        snapshot = _make_snapshot("game1", seat=0).model_copy(update={"is_furiten": True})
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
 
         await manager.leave_game(alice_conn, notify_player=False)
@@ -97,6 +98,7 @@ class TestSessionManagerReconnect:
         assert len(reconnect_msgs) == 1
         assert reconnect_msgs[0]["gid"] == "game1"
         assert reconnect_msgs[0]["s"] == 0
+        assert reconnect_msgs[0]["f"] is True
         bob_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_RECONNECTED]
         assert len(bob_msgs) == 1
         assert bob_msgs[0]["player_name"] == "Alice"

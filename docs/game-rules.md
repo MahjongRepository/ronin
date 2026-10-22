@@ -18,6 +18,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 - Call precedence: Ron > Pon/Kan > Chi; among same-type calls, closer counter-clockwise to discarder wins
 - Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chi, pon, or kan — only ron is allowed.
+- Tsumo wins on a self-drawn tile, including a kan replacement draw and the dealer's initial hand. Claiming a discard for chi or pon does not provide a tsumo opportunity.
 
 ### Riichi
 
@@ -27,11 +28,13 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Riichi discard claimed for a meld: Riichi stands. Ippatsu is lost.
 - Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
 - Minimum wall tiles for declaration: 4
+- After riichi is established, every discard must be the tile just drawn. The player may instead declare a legal win or a permitted concealed kan. The declaration discard itself may be any tile that keeps the hand tenpai.
 - Concealed quad during riichi (ankan): Allowed only if it doesn't change the hand's waiting tiles or set interpretation. Applies to concealed kan only — shouminkan is blocked during riichi. The drawn tile must be the kan tile.
 - Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. Awarded to 1st place at game end if uncollected.
 
 ### Furiten
 
+- Furiten prohibits ron, including chankan, on every winning tile. It does not prohibit an otherwise legal tsumo.
 - Furiten scope: Based on the player's full discard history — all tiles the player has discarded this hand, regardless of whether another player subsequently claimed them. Tiles in own kans do NOT create furiten.
 - Discard furiten: Permanent while wait includes a previously discarded tile
 - Temporary furiten: Triggered when a player passes on a winning tile (declines Ron on another player's discard). Resets on player's next discard.
@@ -148,8 +151,10 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 ### Call Rules
 
 - Kuikae (swap-calling): Not allowed
-  - Same-tile restriction: Cannot discard the same tile type that was claimed
-  - Suji restriction: Cannot discard the tile at the opposite end of a chi sequence
+  - Same-tile restriction: For the discard immediately after pon or chi, cannot discard the same tile type that was claimed
+  - Suji restriction: For the discard immediately after chi, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
+  - Red and ordinary fives share a tile type for kuikae.
+  - A chi is legal only if at least one legal discard remains after the meld is formed; a chi shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
 - Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds go to the winner closest counter-clockwise to the discarder. Both winners receive the honba bonus (+300 per counter each) — the discarder pays the honba bonus to each winner separately. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks.
 
 ### Dora
@@ -162,7 +167,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 
 ### Abortive Draws
 
-- Kyuushu Kyuuhai (player choice): Player may declare an abortive draw when holding 9+ unique terminal/honor tiles in their starting hand, on their first uninterrupted turn. Not automatic — the server must offer this as an action. Any call (meld) by any player before the player's turn removes eligibility.
+- Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chi, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
 - Four Winds: All four players discard the same wind on first turn
 - Four Riichi: After fourth riichi succeeds (if no one wins on the discard)
 - Triple Ron: Three opponents declare Ron on the same discard (no score changes)

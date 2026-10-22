@@ -380,6 +380,9 @@ class PlayerReconnectState(BaseModel):
 class ReconnectionSnapshot(BaseModel):
     """
     Full game state snapshot sent to a reconnecting player.
+
+    is_furiten is the reconnecting seat's own effective furiten: the furiten event goes only to its seat and is not sent
+    again, so the snapshot restores it.
     """
 
     game_id: str = Field(serialization_alias="gid")
@@ -397,6 +400,7 @@ class ReconnectionSnapshot(BaseModel):
     dice: tuple[int, int] = Field(serialization_alias="dc")
     tiles_remaining: int = Field(serialization_alias="tr")
     player_states: list[PlayerReconnectState] = Field(serialization_alias="pst")
+    is_furiten: bool = Field(serialization_alias="f")
 
 
 # discriminated union for all round results

@@ -307,7 +307,7 @@ class TestHandleChiImmutable:
             tile_id=tile_to_chi,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI),),
+            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(sequence_tiles,)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})

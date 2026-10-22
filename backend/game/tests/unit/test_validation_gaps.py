@@ -163,21 +163,13 @@ class TestChiEarlyValidation:
         with pytest.raises(InvalidGameActionError, match="valid chi sequence"):
             handle_chi(round_state, game_state, seat=1, data=data)
 
-    def test_chi_validation__when_sequence_not_among_options__should_raise(self):
+    def test_chi_validation__when_sequence_not_among_options_and_pon_also_offered__should_raise(self):
         round_state, game_state = self._create_chi_state()
-        # Options are (2m, 3m). Give seat 1 tiles for (2m, 3m) and (3m, 4m).
-        # Discarded tile is 1m. (2m,3m) with 1m = valid option.
-        # Submit (3m, 4m) with 1m = 1m,3m,4m which is not consecutive -> caught earlier.
-        # Instead, let's set up so the discarded tile is 2m and options allow (1m, 3m).
-        # Actually, the simpler approach: change the options to not include (2m, 3m).
         prompt = round_state.pending_call_prompt
-        caller = MeldCaller(
-            seat=1,
-            call_type=MeldCallType.CHI,
-            options=((8, 12),),  # only option is (3m, 4m)
-        )
+        pon_caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
+        chi_caller_offered_only_3m_4m = MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((8, 12),))
         new_prompt = prompt.model_copy(
-            update={"callers": (caller,)},
+            update={"callers": (pon_caller, chi_caller_offered_only_3m_4m)},
         )
         round_state = round_state.model_copy(
             update={"pending_call_prompt": new_prompt},
@@ -714,15 +706,6 @@ class TestRiichiDiscardTenpaiValidation:
 
 
 class TestKyuushuRuleGate:
-    def test_kyuushu_kyuuhai__when_disabled_by_settings__should_raise(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        settings = GameSettings(has_kyuushu_kyuuhai=False)
-        game_state = game_state.model_copy(update={"settings": settings})
-
-        with pytest.raises(InvalidGameActionError, match="disabled by game settings"):
-            handle_kyuushu(round_state, game_state, seat=0)
-
     def test_kyuushu_kyuuhai__when_conditions_not_met__should_raise(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
@@ -1250,22 +1233,6 @@ class TestAIPlayerSafetyNets:
     async def test_ai_tsumogiri_fallback__when_game_cleaned_up__should_return_none(self):
         service = MahjongGameService()
         result = await service._ai_player_tsumogiri_fallback("nonexistent", 0)
-        assert result is None
-
-    async def test_ai_tsumogiri_fallback__when_player_has_no_tiles__should_return_none(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
-
-        game_state = service._games["test"]
-        current_seat = game_state.round_state.current_player_seat
-        # Remove tiles from the current player
-        empty_player = game_state.round_state.players[current_seat].model_copy(update={"tiles": ()})
-        players = list(game_state.round_state.players)
-        players[current_seat] = empty_player
-        round_state = game_state.round_state.model_copy(update={"players": tuple(players)})
-        service._games["test"] = game_state.model_copy(update={"round_state": round_state})
-
-        result = await service._ai_player_tsumogiri_fallback("test", current_seat)
         assert result is None
 
     async def test_ai_tsumogiri_fallback__when_offender_is_player__should_reraise(self):

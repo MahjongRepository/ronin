@@ -6,7 +6,7 @@ from game.logic.settings import NUM_PLAYERS
 from game.logic.win import is_effective_furiten
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongRoundState
+    from game.logic.state import MahjongPlayer, MahjongRoundState
 
 
 class FuritenTracker:
@@ -17,10 +17,10 @@ class FuritenTracker:
     passes the current round state and the tracker compares effective furiten
     against the last known value, emitting FuritenEvent for any changes.
 
-    Skip recomputation for players whose object identity hasn't changed
-    since the last check. Pydantic model_copy preserves object identity
-    for unchanged players, so same id() means same tiles, discards, and
-    furiten flags — the result is guaranteed identical.
+    Skip recomputation for a seat whose player object is the one checked last
+    time. Pydantic model_copy preserves object identity for unchanged players,
+    and the tracker holds the checked object, so an identical object means
+    identical tiles, discards and furiten flags.
 
     Follow the same pattern as RoundAdvanceManager: pure state tracking,
     no side effects, narrow API, cleanup_game() for teardown.
@@ -28,14 +28,14 @@ class FuritenTracker:
 
     def __init__(self) -> None:
         self._state: dict[str, dict[int, bool]] = {}
-        self._player_ids: dict[str, dict[int, int]] = {}
+        self._checked_players: dict[str, dict[int, MahjongPlayer]] = {}
 
     def init_game(self, game_id: str) -> None:
         """
         Initialize furiten tracking for a new game or round.
         """
         self._state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
-        self._player_ids[game_id] = {}
+        self._checked_players[game_id] = {}
 
     def check_changes(
         self,
@@ -45,8 +45,8 @@ class FuritenTracker:
         """
         Check all seats for furiten state changes and return events.
 
-        Only check when the round is in PLAYING phase. Skip seats where the player object is unchanged (same id()) since
-        the last call.
+        Only check when the round is in PLAYING phase. Skip seats whose player object is the one checked by the last
+        call.
         """
         if round_state.phase != RoundPhase.PLAYING:
             return []
@@ -55,15 +55,14 @@ class FuritenTracker:
             return []
 
         furiten_state = self._state[game_id]
-        player_ids = self._player_ids[game_id]
+        checked_players = self._checked_players[game_id]
         events: list[ServiceEvent] = []
         for seat in range(NUM_PLAYERS):
             player = round_state.players[seat]
-            pid = id(player)
-            if pid == player_ids.get(seat):
+            if player is checked_players.get(seat):
                 continue
 
-            player_ids[seat] = pid
+            checked_players[seat] = player
             current = is_effective_furiten(player)
             previous = furiten_state.get(seat, False)
 
@@ -87,4 +86,4 @@ class FuritenTracker:
         Remove furiten state for a game.
         """
         self._state.pop(game_id, None)
-        self._player_ids.pop(game_id, None)
+        self._checked_players.pop(game_id, None)

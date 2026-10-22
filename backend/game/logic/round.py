@@ -13,6 +13,7 @@ from game.logic.shanten import calculate_shanten
 from game.logic.state import (
     Discard,
     MahjongGameState,
+    MahjongPlayer,
     MahjongRoundState,
 )
 from game.logic.state_utils import (
@@ -69,6 +70,33 @@ def draw_tile(
     return new_state, tile
 
 
+def legal_discards(player: MahjongPlayer) -> list[int]:
+    """
+    Return the tiles the player may discard, in hand order.
+
+    A riichi player may discard only the drawn tile (the last in hand); otherwise every tile is legal except the types
+    kuikae forbids after the player's own pon or chi.
+    """
+    if player.is_riichi:
+        return list(player.tiles[-1:])
+
+    return [t for t in player.tiles if tile_to_34(t) not in player.kuikae_tiles]
+
+
+def choose_default_discard(player: MahjongPlayer) -> int:
+    """
+    Choose the discard made on the player's behalf: the drawn tile when legal, else the last legal tile in hand.
+
+    Every reachable hand has a legal discard (chi shapes that would leave none are never offered), so an empty choice is
+    an engine invariant breach and raises AssertionError.
+    """
+    legal = legal_discards(player)
+    if not legal:
+        raise AssertionError(f"seat {player.seat} has no legal discard")
+
+    return legal[-1]
+
+
 def discard_tile(
     round_state: MahjongRoundState,
     seat: int,
@@ -79,17 +107,17 @@ def discard_tile(
     """
     Discard a tile from a player's hand.
 
-    Returns (new_round_state, discard_record). Raises InvalidDiscardError if tile not in hand or violates kuikae.
+    Returns (new_round_state, discard_record). Raises InvalidDiscardError if the tile is not in hand or is not a legal
+    discard (kuikae, or a riichi player discarding other than the drawn tile).
     """
     player = round_state.players[seat]
     if tile_id not in player.tiles:
         logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
         raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
 
-    # validate kuikae restriction
-    if player.kuikae_tiles and tile_to_34(tile_id) in player.kuikae_tiles:
-        logger.warning("discard forbidden by kuikae restriction", seat=seat, tile_id=tile_id)
-        raise InvalidDiscardError(f"tile {tile_id} is forbidden by kuikae restriction")
+    if tile_id not in legal_discards(player):
+        logger.warning("discard forbidden by kuikae or riichi", seat=seat, tile_id=tile_id)
+        raise InvalidDiscardError(f"tile {tile_id} is not a legal discard (kuikae or riichi tsumogiri)")
 
     # Tsumogiri: discarding the just-drawn tile (last in hand).
     # After a meld call (pon/chi), no tile was drawn, so tsumogiri is impossible.

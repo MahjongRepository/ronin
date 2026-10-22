@@ -14,8 +14,8 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.exceptions import InvalidActionError, InvalidGameActionError
-from game.logic.mahjong_service import MahjongGameService, _find_timeout_discard_tile
-from game.logic.state import MahjongPlayer, PendingCallPrompt
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.state import PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.types import (
     ExhaustiveDrawResult,
@@ -357,17 +357,6 @@ class TestMahjongGameServiceTimeoutIntegration:
         events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
         assert events == []
 
-    async def test_handle_timeout__when_turn_timeout_and_player_has_no_tiles__should_return_no_events(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Player")
-
-        _update_player(service, game_id="game1", seat=player.seat, tiles=())
-        _update_round_state(service, "game1", current_player_seat=player.seat)
-
-        events = await service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.TURN)
-        assert events == []
-
 
 class TestMahjongGameServicePostDiscardRoundEnd:
     @pytest.fixture
@@ -557,40 +546,6 @@ class TestGameEndCleanupSafety:
         game_end_events = [e for e in events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert "game1" not in service._games
-
-
-class TestFindTimeoutDiscardTile:
-    def _make_player(self, tiles: tuple[int, ...], kuikae_tiles: tuple[int, ...] = ()) -> MahjongPlayer:
-        return MahjongPlayer(seat=0, name="Test", tiles=tiles, kuikae_tiles=kuikae_tiles, score=25000)
-
-    def test_find_timeout_discard_tile__when_no_kuikae__should_return_last_tile(self):
-        player = self._make_player(tiles=(10, 20, 30))
-        assert _find_timeout_discard_tile(player) == 30
-
-    def test_find_timeout_discard_tile__when_last_tile_kuikae_restricted__should_return_earlier_tile(self):
-        # tile_id 20 -> tile_34 = 5, tile_id 21 -> tile_34 = 5
-        # kuikae_tiles = (5,) restricts tile_34 == 5
-        # tiles[-1] = 21 (tile_34=5, restricted), tiles[-2] = 10 (tile_34=2, ok)
-        player = self._make_player(tiles=(10, 20, 21), kuikae_tiles=(5,))
-        result = _find_timeout_discard_tile(player)
-        assert result == 10
-        assert tile_to_34(result) not in player.kuikae_tiles
-
-    def test_find_timeout_discard_tile__when_multiple_kuikae_tiles__should_skip_all_of_them(self):
-        # tile_id 4 -> tile_34 = 1, tile_id 8 -> tile_34 = 2, tile_id 0 -> tile_34 = 0
-        # kuikae_tiles = (1, 2) restricts both
-        player = self._make_player(tiles=(0, 4, 8), kuikae_tiles=(1, 2))
-        result = _find_timeout_discard_tile(player)
-        assert result == 0
-
-    def test_find_timeout_discard_tile__when_every_tile_kuikae_restricted__should_return_none(self):
-        player_left_with_1m_4m_after_chi_of_1m = self._make_player(tiles=(0, 12), kuikae_tiles=(0, 3))
-        assert _find_timeout_discard_tile(player_left_with_1m_4m_after_chi_of_1m) is None
-
-    def test_find_timeout_discard_tile__when_kuikae_tiles_not_in_hand__should_return_last_tile(self):
-        # tile_id 0 -> tile_34 = 0, kuikae restricts tile_34 = 5 (not in hand)
-        player = self._make_player(tiles=(0, 4, 8), kuikae_tiles=(5,))
-        assert _find_timeout_discard_tile(player) == 8
 
 
 class TestTurnTimeoutKuikaeIntegration:

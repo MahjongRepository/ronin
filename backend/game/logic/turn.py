@@ -6,28 +6,25 @@ import structlog
 
 from game.logic.abortive import (
     AbortiveDrawType,
-    can_call_kyuushu_kyuuhai,
     check_four_kans,
     check_four_riichi,
     check_four_winds,
     check_triple_ron,
     process_abortive_draw,
 )
-from game.logic.actions import get_available_actions
+from game.logic.action_result import create_draw_event
 from game.logic.enums import (
     FALLBACK_MELD_PRIORITY,
     MELD_CALL_PRIORITY,
     CallType,
     MeldCallType,
     MeldViewType,
-    PlayerAction,
     RoundPhase,
 )
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
     DoraRevealedEvent,
-    DrawEvent,
     GameEvent,
     MeldEvent,
     RiichiDeclaredEvent,
@@ -79,7 +76,7 @@ from game.logic.state_utils import (
     update_player,
 )
 from game.logic.tiles import tile_to_34
-from game.logic.types import AvailableActionItem, MeldCaller, MeldCallInput, RonCallInput
+from game.logic.types import MeldCaller, MeldCallInput, RonCallInput
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
     can_call_ron,
@@ -137,10 +134,7 @@ def process_draw_phase(
     """
     Process the draw phase for the current player.
 
-    Draws a tile and checks for available actions:
-    - tsumo win
-    - kyuushu kyuuhai (nine terminals abortive draw)
-    - closed/added kan options
+    Draws a tile and emits the draw event with the player's available actions (get_available_actions).
 
     Returns (new_round_state, new_game_state, events).
     """
@@ -162,24 +156,7 @@ def process_draw_phase(
     # update game state with new round state
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
 
-    # build available actions for the player (already includes tsumo, riichi, kan options)
-    available_actions = get_available_actions(new_round_state, new_game_state, seat=current_seat)
-
-    # check for kyuushu kyuuhai and add to actions if available
-    settings = game_state.settings
-    player = new_round_state.players[current_seat]
-    if settings.has_kyuushu_kyuuhai and can_call_kyuushu_kyuuhai(player, new_round_state, settings=settings):
-        available_actions.append(AvailableActionItem(action=PlayerAction.KYUUSHU))
-
-    events.append(
-        DrawEvent(
-            seat=current_seat,
-            tile_id=drawn_tile,
-            available_actions=available_actions,
-            target=f"seat_{current_seat}",
-        ),
-    )
-
+    events.append(create_draw_event(new_round_state, new_game_state, seat=current_seat, tile_id=drawn_tile))
     return new_round_state, new_game_state, events
 
 
@@ -263,7 +240,9 @@ def _find_meld_callers(
             )
 
         # check chi (only from kamicha)
-        chi_options = can_call_chi(player, discarded_tile=tile_id, discarder_seat=discarder_seat, caller_seat=seat)
+        chi_options = can_call_chi(
+            player, discarded_tile=tile_id, discarder_seat=discarder_seat, caller_seat=seat, settings=settings
+        )
         if chi_options:
             meld_calls.append(
                 MeldCaller(

@@ -4,6 +4,7 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
+from game.logic.actions import get_available_actions
 from game.logic.enums import CallType, MeldCallType, PlayerAction, RoundPhase, RoundResultType
 from game.logic.events import CallPromptEvent, DrawEvent, RoundEndEvent
 from game.logic.exceptions import InvalidMeldError, InvalidRiichiError, InvalidWinError
@@ -56,6 +57,39 @@ class TestKyuushuKyuuhaiDrawPhase:
         assert len(draw_events) == 1
         available_actions = [a.action for a in draw_events[0].available_actions]
         assert PlayerAction.KYUUSHU in available_actions
+
+
+class TestRinshanTsumoAfterOpenKan:
+    def test_tsumo__when_open_kan_replacement_completes_hand__should_be_offered_and_accepted(self):
+        man_1s = TilesConverter.string_to_136_array(man="1111")
+        sou_5s = TilesConverter.string_to_136_array(sou="55")
+        waiting_hand = (*man_1s[:3], *TilesConverter.string_to_136_array(pin="234567", sou="789"), sou_5s[0])
+        players = (
+            create_player(seat=0),
+            create_player(seat=1, tiles=waiting_hand),
+            create_player(seat=2),
+            create_player(seat=3),
+        )
+        dead_wall = (*TilesConverter.string_to_136_array(sou="1111222233334"), sou_5s[1])
+        round_state = create_round_state(
+            players=players,
+            wall=tuple(TilesConverter.string_to_136_array(pin="9999")),
+            dead_wall=dead_wall,
+            dora_indicators=(dead_wall[2],),
+            phase=RoundPhase.PLAYING,
+            current_player_seat=0,
+        )
+        game_state = create_game_state(round_state)
+
+        kan_round, kan_game, _events = process_meld_call(
+            round_state,
+            game_state,
+            meld_input=MeldCallInput(caller_seat=1, call_type=MeldCallType.OPEN_KAN, tile_id=man_1s[3]),
+        )
+        assert PlayerAction.TSUMO in [a.action for a in get_available_actions(kan_round, kan_game, seat=1)]
+
+        _round, _game, tsumo_events = process_tsumo_call(kan_round, kan_game, winner_seat=1)
+        assert tsumo_events[0].result.type == RoundResultType.TSUMO
 
 
 class TestExhaustiveDrawPhase:

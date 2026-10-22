@@ -15,6 +15,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         ],
         di: [45, 67],
         dl: 0,
+        f: true,
         gid: "game-abc-123",
         h: 1,
         mt: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
@@ -80,7 +81,7 @@ describe("gameReconnectedSchema", () => {
         expect(result.wind).toBe(0);
     });
 
-    it("parses sticks, tiles remaining, and seat info", () => {
+    it("parses sticks, tiles remaining, seat info and the seat's furiten", () => {
         const result = parsePayload();
 
         expect(result.honbaSticks).toBe(1);
@@ -88,6 +89,7 @@ describe("gameReconnectedSchema", () => {
         expect(result.tilesRemaining).toBe(52);
         expect(result.seat).toBe(0);
         expect(result.myTiles).toHaveLength(13);
+        expect(result.isFuriten).toBe(true);
     });
 
     it("parses dice and dora indicators", () => {

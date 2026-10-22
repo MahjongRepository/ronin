@@ -45,16 +45,15 @@ from game.logic.game import (
 from game.logic.matchmaker import fill_seats
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.rng import generate_seed
+from game.logic.round import choose_default_discard
 from game.logic.round_advance import RoundAdvanceManager
 from game.logic.service import GameService
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
     MahjongGameState,
-    MahjongPlayer,
     PendingCallPrompt,
     get_player_view,
 )
-from game.logic.tiles import tile_to_34
 from game.logic.turn import (
     process_draw_phase,
 )
@@ -72,6 +71,7 @@ from game.logic.types import (
     RoundResult,
 )
 from game.logic.wall import tiles_remaining
+from game.logic.win import is_effective_furiten
 
 if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
@@ -86,29 +86,6 @@ MAX_AI_PLAYER_CALL_ITERATIONS = 10
 _AI_PLAYER_TYPE_TO_STRATEGY: dict[AIPlayerType, AIPlayerStrategy] = {
     AIPlayerType.TSUMOGIRI: AIPlayerStrategy.TSUMOGIRI,
 }
-
-
-def _find_timeout_discard_tile(player: MahjongPlayer) -> int | None:
-    """
-    Find a tile to discard for timeout, preferring tiles[-1] but skipping kuikae-restricted tiles.
-
-    After a pon/chi meld, the player's kuikae_tiles may restrict certain tiles from being discarded. This picks the last
-    tile in hand that is not kuikae-restricted. Falls back to tiles[-1] if no kuikae restrictions exist (the common
-    case).
-    """
-    if not player.tiles:
-        return None
-
-    if not player.kuikae_tiles:
-        return player.tiles[-1]
-
-    kuikae_set = frozenset(player.kuikae_tiles)
-    # Search from the end of the hand (prefer tsumogiri-like behavior)
-    for tile_id in reversed(player.tiles):
-        if tile_to_34(tile_id) not in kuikae_set:
-            return tile_id
-
-    return None
 
 
 class MahjongGameService(GameService):
@@ -506,7 +483,7 @@ class MahjongGameService(GameService):
         """
         Handle a player timeout by performing the default action.
 
-        For TURN timeout: tsumogiri (discard last drawn tile).
+        For TURN timeout: the default discard (the drawn tile unless kuikae forbids it).
         For MELD timeout: pass on the call opportunity.
         For ROUND_ADVANCE timeout: auto-confirm round advancement.
         """
@@ -538,7 +515,7 @@ class MahjongGameService(GameService):
         seat: int,
     ) -> list[ServiceEvent]:
         """
-        Handle TURN timeout: discard the last tile in hand, skipping kuikae-restricted tiles.
+        Handle TURN timeout: make the default discard (choose_default_discard).
         """
         game_state = self._games.get(game_id)
         if game_state is None:
@@ -552,11 +529,7 @@ class MahjongGameService(GameService):
             logger.debug("turn timeout ignored: call prompt pending")
             return []
 
-        tile_id = _find_timeout_discard_tile(game_state.round_state.players[seat])
-        if tile_id is None:
-            logger.error("turn timeout: no discardable tile, turn left pending", seat=seat)
-            return []
-
+        tile_id = choose_default_discard(game_state.round_state.players[seat])
         logger.info("turn timeout, auto-discarding", tile_id=tile_id)
         try:
             return await self.handle_action(
@@ -972,18 +945,22 @@ class MahjongGameService(GameService):
             dice=view.dice,
             tiles_remaining=tiles_remaining(round_state.wall),
             player_states=player_states,
+            is_furiten=is_effective_furiten(round_state.players[seat]),
         )
 
     def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
         """
         Rebuild the draw event with available actions for a specific seat.
+
+        Right after the seat's own pon or chi it drew nothing, so there is no draw to rebuild (no draw follows a pon or
+        chi on the live path either).
         """
         game_state = self._games.get(game_id)
         if game_state is None:
             return []
 
         round_state = game_state.round_state
-        if round_state.current_player_seat != seat:
+        if round_state.current_player_seat != seat or round_state.is_after_meld_call:
             return []
 
         player = round_state.players[seat]
@@ -1033,6 +1010,7 @@ class MahjongGameService(GameService):
         prompt = round_state.pending_call_prompt
         if prompt is not None and seat in prompt.pending_seats:
             self._dispatch_ai_player_call_responses(game_id, events)
+            self._append_furiten_changes(game_id, events)
 
             # Re-fetch state after AI player responses
             game_state = self._games[game_id]
@@ -1182,18 +1160,15 @@ class MahjongGameService(GameService):
         """
         Fallback to tsumogiri (discard last tile) when an AI player's turn action fails.
 
-        Uses _find_timeout_discard_tile to respect kuikae restrictions after meld calls. Returns events on success, or
-        None if the fallback also fails.
+        Uses choose_default_discard, so the fallback is always a legal discard. Returns events on success, or None if
+        the fallback also fails.
         """
         fallback_state = self._games.get(game_id)
         if fallback_state is None:
             return None
 
         fallback_player = fallback_state.round_state.players[seat]
-        tile_id = _find_timeout_discard_tile(fallback_player)
-        if tile_id is None:
-            return None
-
+        tile_id = choose_default_discard(fallback_player)
         logger.debug("AI player tsumogiri fallback", ai_seat=seat, tile_id=tile_id)
         return await self._try_ai_player_dispatch_async(
             game_id=game_id,

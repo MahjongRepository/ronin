@@ -2,6 +2,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType, PlayerAction
+from game.logic.round import choose_default_discard
 from game.logic.types import AIPlayerAction
 
 if TYPE_CHECKING:
@@ -24,7 +25,8 @@ class AIPlayer:
     AI player with configurable decision-making strategy.
 
     All decision methods are on this class so subclasses or alternative strategies can override them. The base
-    implementation is tsumogiri: always discard the last drawn tile and pass on all call opportunities.
+    implementation is tsumogiri: discard the drawn tile (or the last legal tile when kuikae forbids it) and pass on all
+    call opportunities.
     """
 
     def __init__(self, strategy: AIPlayerStrategy = AIPlayerStrategy.TSUMOGIRI) -> None:
@@ -86,12 +88,9 @@ class AIPlayer:
         """
         Select a tile to discard from the player's hand.
 
-        Always discards the last tile (most recently drawn).
+        Discards the drawn tile, or the last legal tile in hand when kuikae forbids it.
         """
-        if not player.tiles:
-            raise ValueError("cannot select discard from empty hand")
-
-        return player.tiles[-1]
+        return choose_default_discard(player)
 
     def get_action(
         self,
@@ -101,7 +100,7 @@ class AIPlayer:
         """
         Determine the AI player's turn action.
 
-        Always discards the last drawn tile.
+        Always discards the default tile (select_discard).
         """
         discard_tile = self.select_discard(player, round_state)
         return AIPlayerAction(action=PlayerAction.DISCARD, tile_id=discard_tile)

@@ -325,7 +325,7 @@ class TestHandleChiMultiCaller:
             from_seat=0,
             pending_seats=frozenset({1, 2}),
             callers=(
-                MeldCaller(seat=1, call_type=MeldCallType.CHI),
+                MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(sequence_tiles,)),
                 MeldCaller(seat=2, call_type=MeldCallType.PON),
             ),
         )

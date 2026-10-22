@@ -21,7 +21,6 @@ class TestCanCallKyuushuKyuuhai:
         tiles: list[int],
         *,
         player_discards: tuple[Discard, ...] | None = None,
-        other_player_discards: tuple[Discard, ...] | None = None,
         players_with_open_hands: tuple[int, ...] = (),
     ) -> MahjongRoundState:
         players = (
@@ -32,13 +31,7 @@ class TestCanCallKyuushuKyuuhai:
                 discards=player_discards or (),
                 score=25000,
             ),
-            MahjongPlayer(
-                seat=1,
-                name="AI1",
-                tiles=(),
-                discards=other_player_discards or (),
-                score=25000,
-            ),
+            MahjongPlayer(seat=1, name="AI1", tiles=(), score=25000),
             MahjongPlayer(seat=2, name="AI2", tiles=(), score=25000),
             MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
         )
@@ -81,14 +74,28 @@ class TestCanCallKyuushuKyuuhai:
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
         assert result is False
 
-    def test_can_call_kyuushu_kyuuhai__when_other_player_discarded__should_forbid(self):
+    def test_can_call_kyuushu_kyuuhai__when_disabled_by_settings__should_forbid(self):
         tiles = self._create_kyuushu_hand()
-        discard = Discard(tile_id=TilesConverter.string_to_136_array(pin="444")[2])
-        round_state = self._create_round_state(tiles, other_player_discards=(discard,))
-        settings = GameSettings()
+        round_state = self._create_round_state(tiles)
+        settings = GameSettings(has_kyuushu_kyuuhai=False)
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)
         assert result is False
+
+    def test_can_call_kyuushu_kyuuhai__when_non_dealer_first_draw_after_others_discarded__should_allow(self):
+        pin_4a, pin_4b = TilesConverter.string_to_136_array(pin="44")
+        dealer = MahjongPlayer(seat=0, name="Dealer", discards=(Discard(tile_id=pin_4a),), score=25000)
+        shimocha = MahjongPlayer(seat=1, name="Shimocha", discards=(Discard(tile_id=pin_4b),), score=25000)
+        toimen_on_first_draw = MahjongPlayer(
+            seat=2, name="Toimen", tiles=tuple(self._create_kyuushu_hand()), score=25000
+        )
+        kamicha = MahjongPlayer(seat=3, name="Kamicha", score=25000)
+        round_state = MahjongRoundState(
+            players=(dealer, shimocha, toimen_on_first_draw, kamicha), dealer_seat=0, current_player_seat=2
+        )
+
+        result = can_call_kyuushu_kyuuhai(toimen_on_first_draw, round_state, settings=GameSettings())
+        assert result is True
 
     def test_can_call_kyuushu_kyuuhai__when_player_discarded__should_forbid(self):
         tiles = self._create_kyuushu_hand()
@@ -101,7 +108,12 @@ class TestCanCallKyuushuKyuuhai:
 
     def test_can_call_kyuushu_kyuuhai__when_meld_exists__should_forbid(self):
         tiles = self._create_kyuushu_hand()
+        pin_4s = tuple(TilesConverter.string_to_136_array(pin="444"))
+        pon = FrozenMeld(meld_type=FrozenMeld.PON, tiles=pin_4s, opened=True, called_tile=pin_4s[0], who=2, from_who=1)
         round_state = self._create_round_state(tiles, players_with_open_hands=(2,))
+        players = list(round_state.players)
+        players[2] = players[2].model_copy(update={"melds": (pon,)})
+        round_state = round_state.model_copy(update={"players": tuple(players)})
         settings = GameSettings()
 
         result = can_call_kyuushu_kyuuhai(round_state.players[0], round_state, settings=settings)

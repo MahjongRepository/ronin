@@ -1,4 +1,3 @@
-import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.ai_player import AIPlayer, AIPlayerStrategy
@@ -70,21 +69,3 @@ class TestTsumogiriPassesOnAllCalls:
         discarded = TilesConverter.string_to_136_array(pin="11")[1]
 
         assert ai.should_call_ron(player, discarded_tile=discarded, round_state=rs) is False
-
-
-class TestSelectDiscard:
-    def test_select_discard__should_discard_last_tile(self):
-        ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12345")
-        player, rs = _make_round_state(tiles)
-
-        assert ai.select_discard(player, rs) == tiles[-1]
-
-    def test_select_discard__when_hand_empty__should_raise_value_error(self):
-        ai = AIPlayer()
-        player = MahjongPlayer(seat=0, name="AI", tiles=(), score=25000)
-        players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
-        rs = MahjongRoundState(wall=Wall(live_tiles=tuple(range(10))), players=players)
-
-        with pytest.raises(ValueError, match="cannot select discard from empty hand"):
-            ai.select_discard(player, rs)

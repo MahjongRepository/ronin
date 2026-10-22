@@ -14,7 +14,7 @@ from game.logic.enums import (
 )
 from game.logic.exceptions import InvalidDiscardError
 from game.logic.game import init_game
-from game.logic.melds import call_chi, call_pon, get_kuikae_tiles
+from game.logic.melds import call_chi, call_pon, can_call_chi, get_kuikae_tiles
 from game.logic.round import discard_tile
 from game.logic.scoring import (
     HandResult,
@@ -114,7 +114,7 @@ class TestKuikaeSameTileRestriction:
         ]
         round_state = create_round_state(players=players, current_player_seat=0)
 
-        with pytest.raises(InvalidDiscardError, match="forbidden by kuikae"):
+        with pytest.raises(InvalidDiscardError, match="not a legal discard"):
             discard_tile(round_state, seat=0, tile_id=man_tiles[0])
 
     def test_kuikae__when_discarding_allowed_tile__should_succeed(self):
@@ -296,6 +296,41 @@ class TestKuikaeSujiRestriction:
         kuikae = new_state.players[1].kuikae_tiles
         assert called_34 in kuikae
         assert man_7m_34 in kuikae
+
+
+class TestChiOfferLeavesLegalDiscard:
+    @pytest.mark.parametrize(
+        ("hand", "called", "settings"),
+        [
+            pytest.param("1234", "1", GameSettings(), id="three_melds_1234m_chi_1m_leaves_1m_4m"),
+            pytest.param(
+                "1123",
+                "1",
+                GameSettings(has_kuikae_suji=False),
+                id="three_melds_1123m_chi_1m_without_suji_leaves_1m_1m",
+            ),
+            pytest.param("1223", "2", GameSettings(), id="three_melds_1223m_chi_middle_2m_leaves_2m_2m"),
+            pytest.param("1112344", "1", GameSettings(), id="two_melds_1112344m_chi_1m_leaves_1m_1m_1m_4m_4m"),
+        ],
+    )
+    def test_can_call_chi__when_every_remaining_tile_would_be_kuikae_restricted__should_not_offer(
+        self, hand: str, called: str, settings: GameSettings
+    ):
+        caller = create_player(seat=1, tiles=TilesConverter.string_to_136_array(man=hand))
+        called_tile = TilesConverter.string_to_136_array(man=called * 4)[3]
+
+        options = can_call_chi(caller, discarded_tile=called_tile, discarder_seat=0, caller_seat=1, settings=settings)
+        assert options == []
+
+    def test_can_call_chi__when_a_remaining_tile_stays_discardable__should_offer(self):
+        man_1, man_2, man_3, man_5 = TilesConverter.string_to_136_array(man="1235")
+        caller = create_player(seat=1, tiles=(man_1, man_2, man_3, man_5))
+        called_1m = TilesConverter.string_to_136_array(man="1111")[3]
+
+        options = can_call_chi(
+            caller, discarded_tile=called_1m, discarder_seat=0, caller_seat=1, settings=GameSettings()
+        )
+        assert options == [(man_2, man_3)]
 
 
 class TestKuikaeClearedAfterDiscard:
