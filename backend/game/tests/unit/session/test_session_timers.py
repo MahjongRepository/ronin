@@ -293,7 +293,7 @@ class TestPerPlayerTimers:
         return game, player1, player2, conn1, conn2
 
     async def test_per_player_timers__when_four_humans_start_game__should_create_timer_per_seat(self, manager):
-        await create_started_game(manager, num_ai_players=0, player_names=["P0", "P1", "P2", "P3"])
+        await create_started_game(manager, player_names=["P0", "P1", "P2", "P3"])
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
             assert timer is not None
@@ -523,7 +523,7 @@ class TestTimerCallbackLifecycle:
             replay_collector=ReplayCollector(LocalReplayStorage(tmp_path)),
             game_repository=game_repo,
         )
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
         seeded_engine.handle_timeout = MagicMock(side_effect=RuntimeError("engine fault"))
 

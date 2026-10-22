@@ -4,7 +4,7 @@ from mahjong.tile import TilesConverter
 from game.logic.abortive import check_four_kans
 from game.logic.action_handlers import _handle_self_kan
 from game.logic.call_resolution import resolve_call_prompt
-from game.logic.enums import CallType, KanType, MeldViewType, RoundPhase
+from game.logic.enums import CallType, KanType, MeldViewType, PromptKind, RoundPhase
 from game.logic.events import CallPromptEvent, MeldEvent, RoundEndEvent
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.meld_wrapper import FrozenMeld
@@ -16,7 +16,7 @@ from game.logic.melds import (
     get_possible_closed_kans,
 )
 from game.logic.settings import GameSettings
-from game.logic.state import Discard, PendingCallPrompt
+from game.logic.state import Caller, Discard, PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.turn import _process_added_kan_call, _process_closed_kan_call
 from game.logic.types import KanActionData
@@ -46,7 +46,6 @@ def _make_round_state(
     dead_wall=None,
     is_after_meld_call=False,
     pending_dora_count=0,
-    players_with_open_hands=None,
 ):
     players = [
         create_player(seat=0, tiles=player0_tiles, melds=player0_melds),
@@ -73,7 +72,6 @@ def _make_round_state(
         dora_indicators=(dead_wall or _DEFAULT_DEAD_WALL)[2:3],
         current_player_seat=current_player_seat,
         pending_dora_count=pending_dora_count,
-        players_with_open_hands=players_with_open_hands or (),
     )
     if is_after_meld_call:
         rs = rs.model_copy(update={"is_after_meld_call": True})
@@ -134,7 +132,6 @@ class TestKanAfterMeldCallBlocked:
             player0_tiles,
             player0_melds=(pon_meld,),
             is_after_meld_call=True,
-            players_with_open_hands=(0,),
         )
 
         settings = GameSettings()
@@ -475,7 +472,7 @@ class TestKokushiChankanOnAnkan:
         chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(chankan_events) == 1
         assert new_rs.pending_call_prompt is not None
-        assert new_rs.pending_call_prompt.call_type == CallType.CHANKAN
+        assert new_rs.pending_call_prompt.kind == PromptKind.CHANKAN
 
     def test_process_closed_kan_call__when_no_kokushi_can_rob__should_execute_kan(self):
         man_1m = TilesConverter.string_to_136_array(man="1111")
@@ -564,7 +561,6 @@ class TestChankanPreservation:
             dead_wall=_DEFAULT_DEAD_WALL,
             dora_indicators=_DEFAULT_DEAD_WALL[2:3],
             current_player_seat=0,
-            players_with_open_hands=(0,),
         )
         game_state = create_game_state(round_state)
 
@@ -608,7 +604,6 @@ class TestChankanPreservation:
             dead_wall=_DEFAULT_DEAD_WALL,
             dora_indicators=_DEFAULT_DEAD_WALL[2:3],
             current_player_seat=0,
-            players_with_open_hands=(0,),
         )
         game_state = create_game_state(round_state)
 
@@ -651,11 +646,11 @@ class TestResolveChankanDeclineClosedKan:
         game_state = create_game_state(round_state)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=man_1m[0],
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
             responses=(),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -694,11 +689,11 @@ class TestResolveChankanDeclineClosedKan:
         game_state = create_game_state(round_state)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=man_1m[0],
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
             responses=(),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})

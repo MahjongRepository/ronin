@@ -8,19 +8,22 @@ from game.logic.enums import (
     CallType,
     GameAction,
     MeldCallType,
+    PromptKind,
     RoundPhase,
     RoundResultType,
 )
 from game.logic.events import CallPromptEvent, DrawEvent, MeldEvent, RiichiDeclaredEvent, RoundEndEvent
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.state import (
+    Caller,
     CallResponse,
     Discard,
+    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_game_with_round
 from game.logic.turn import process_discard_phase
-from game.logic.types import MeldCaller, PonActionData
+from game.logic.types import PonActionData
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
@@ -55,17 +58,13 @@ class TestRonPlusMeldCallersRonWins:
 
         # process_discard_phase creates a unified DISCARD prompt
         new_round, new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert len(call_prompts) == 1
-        assert call_prompts[0].call_type == CallType.DISCARD
-        # verify both callers are present
-        ron_callers = [c for c in call_prompts[0].callers if isinstance(c, int)]
-        meld_callers = [c for c in call_prompts[0].callers if isinstance(c, MeldCaller)]
-        assert 1 in ron_callers
-        assert any(c.seat == 2 for c in meld_callers)
-        # simulate: B calls ron, C passes -> ron resolves
+        assert [e.target for e in events if isinstance(e, CallPromptEvent)] == ["seat_1", "seat_2"]
         prompt = new_round.pending_call_prompt
         assert prompt is not None
+        assert prompt.callers == (
+            Caller(seat=1, can_ron=True),
+            Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
+        )
 
         resolved_prompt = prompt.model_copy(
             update={
@@ -188,11 +187,15 @@ class TestMultipleRonPlusMeld:
 
         # set up prompt directly: seats 1 and 2 are ron callers, seat 3 is meld
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1, 2, MeldCaller(seat=3, call_type=MeldCallType.PON)),
+            callers=(
+                Caller(seat=1, can_ron=True),
+                Caller(seat=2, can_ron=True),
+                Caller(seat=3, melds=(MeldOption(call_type=MeldCallType.PON),)),
+            ),
             responses=(
                 CallResponse(seat=1, action=GameAction.CALL_RON),
                 CallResponse(seat=2, action=GameAction.CALL_RON),
@@ -225,14 +228,16 @@ class TestAllRonPassMeldWins:
 
         # seat 2 has pon tiles, seat 3 has chi tiles, seat 1 is ron caller (will pass)
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset(),
             callers=(
-                1,  # ron caller who passed
-                MeldCaller(seat=2, call_type=MeldCallType.PON),
-                MeldCaller(seat=3, call_type=MeldCallType.CHI, options=((chi_tiles[0], chi_tiles[1]),)),
+                Caller(seat=1, can_ron=True),
+                Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
+                Caller(
+                    seat=3, melds=(MeldOption(call_type=MeldCallType.CHI, options=((chi_tiles[0], chi_tiles[1]),)),)
+                ),
             ),
             responses=(
                 CallResponse(seat=2, action=GameAction.CALL_PON),
@@ -289,22 +294,17 @@ class TestDualEligibleSeatRonDominant:
         new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
         prompt = new_round.pending_call_prompt
         assert prompt is not None
-        assert prompt.call_type == CallType.DISCARD
-        # seat 1 should only be a ron caller (int), not meld caller
-        seat1_callers = [c for c in prompt.callers if (isinstance(c, int) and c == 1)]
-        seat1_melds = [c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == 1]
-        assert len(seat1_callers) == 1
-        assert len(seat1_melds) == 0
+        assert prompt.callers == (Caller(seat=1, can_ron=True),)
 
     def test_discard_claim__when_ron_caller_responds_pon__should_reject(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),  # seat 1 is ron caller
+            callers=(Caller(seat=1, can_ron=True),),
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
@@ -329,11 +329,11 @@ class TestDualEligibleSeatPassFuriten:
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),  # seat 1 is ron caller
+            callers=(Caller(seat=1, can_ron=True),),
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
@@ -356,11 +356,11 @@ class TestDualEligibleSeatPassFuriten:
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset({2}),
-            callers=(MeldCaller(seat=2, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
@@ -401,11 +401,11 @@ class TestRiichiFinalizationAfterRonPass:
 
         # create a DISCARD prompt with seat 1 as ron caller (already passed) and seat 2 as meld
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1, MeldCaller(seat=2, call_type=MeldCallType.PON)),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),))),
             responses=(CallResponse(seat=2, action=GameAction.CALL_PON),),
         )
         round_state = create_round_state(
@@ -447,11 +447,11 @@ class TestFourRiichiAbortAfterRonPass:
 
         wall, dead_wall = _make_wall_and_dead_wall()
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1,),  # seat 1 was a ron caller who passed
+            callers=(Caller(seat=1, can_ron=True),),
         )
         round_state = create_round_state(
             players=players,
@@ -480,11 +480,11 @@ class TestHandleRonOnDiscardPrompt:
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
-            callers=(1, MeldCaller(seat=2, call_type=MeldCallType.PON)),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),))),
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
@@ -519,11 +519,11 @@ class TestHandlePassThenResolve:
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
-            callers=(1, MeldCaller(seat=2, call_type=MeldCallType.PON)),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),))),
         )
 
         wall, dead_wall = _make_wall_and_dead_wall()
@@ -634,13 +634,8 @@ class TestLastDiscardRestriction:
         game_state = create_game_state(round_state)
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        # a call prompt should exist with only ron callers
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert len(call_prompts) == 1
-        prompt = call_prompts[0]
-        # all callers should be ron callers (int), not meld callers
-        for caller in prompt.callers:
-            assert isinstance(caller, int), f"expected ron caller (int), got MeldCaller: {caller}"
+        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, "seat_1")]
 
     def test_discard_claim__when_last_discard_pon_and_ron_possible__should_offer_ron_only(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
@@ -670,10 +665,4 @@ class TestLastDiscardRestriction:
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert len(call_prompts) == 1
-        prompt = call_prompts[0]
-        # ron caller (seat 1) should be present, meld caller (seat 2) should not
-        ron_callers = [c for c in prompt.callers if isinstance(c, int)]
-        meld_callers = [c for c in prompt.callers if isinstance(c, MeldCaller)]
-        assert 1 in ron_callers
-        assert len(meld_callers) == 0
+        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, "seat_1")]

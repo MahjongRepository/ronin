@@ -139,7 +139,6 @@ class GameSettings(BaseModel):
 
 
 NUM_PLAYERS = 4
-MAX_AI_PLAYERS = NUM_PLAYERS - 1
 
 # (east_max, south_max, west_max) dealer thresholds — raw boundaries based on
 # NUM_PLAYERS.  The caller (check_game_end) selects which threshold is the

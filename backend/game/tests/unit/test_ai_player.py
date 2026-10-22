@@ -1,6 +1,6 @@
 from mahjong.tile import TilesConverter
 
-from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player import AIPlayer
 from game.logic.enums import KanType
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.wall import Wall
@@ -26,7 +26,7 @@ def _make_round_state(
 
 class TestTsumogiriPassesOnAllCalls:
     def test_tsumogiri_ai__when_pon_offered__should_pass(self):
-        ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
+        ai = AIPlayer()
         tiles = TilesConverter.string_to_136_array(man="1123456789", pin="123")
         player, rs = _make_round_state(tiles)
         discarded = TilesConverter.string_to_136_array(man="111")[2]
@@ -34,7 +34,7 @@ class TestTsumogiriPassesOnAllCalls:
         assert ai.should_call_pon(player, discarded_tile=discarded, round_state=rs) is False
 
     def test_tsumogiri_ai__when_chi_offered__should_pass(self):
-        ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
+        ai = AIPlayer()
         tiles = TilesConverter.string_to_136_array(man="12", pin="1", sou="1")
         player, rs = _make_round_state(tiles)
         man_12 = TilesConverter.string_to_136_array(man="12")
@@ -50,7 +50,7 @@ class TestTsumogiriPassesOnAllCalls:
         )
 
     def test_tsumogiri_ai__when_kan_offered__should_pass(self):
-        ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
+        ai = AIPlayer()
         tiles = TilesConverter.string_to_136_array(man="111", pin="1")
         player, rs = _make_round_state(tiles)
 
@@ -63,7 +63,7 @@ class TestTsumogiriPassesOnAllCalls:
         assert result is False
 
     def test_tsumogiri_ai__when_ron_offered__should_pass(self):
-        ai = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
+        ai = AIPlayer()
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1", sou="123")
         player, rs = _make_round_state(tiles)
         discarded = TilesConverter.string_to_136_array(pin="11")[1]

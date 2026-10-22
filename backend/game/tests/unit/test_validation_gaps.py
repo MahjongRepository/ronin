@@ -19,11 +19,11 @@ from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import (
     AIPlayerType,
-    CallType,
     GameAction,
     GameErrorCode,
     KanType,
     MeldCallType,
+    PromptKind,
     RoundPhase,
     TimeoutType,
 )
@@ -42,7 +42,9 @@ from game.logic.melds import (
 from game.logic.round import draw_tile
 from game.logic.settings import GameSettings
 from game.logic.state import (
+    Caller,
     Discard,
+    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
@@ -51,7 +53,6 @@ from game.logic.types import (
     ChiActionData,
     DiscardActionData,
     KanActionData,
-    MeldCaller,
     PonActionData,
     RiichiActionData,
     SeatConfig,
@@ -99,11 +100,13 @@ class TestChiEarlyValidation:
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
             pending_call_prompt=PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=tile_1m,
                 from_seat=0,
                 pending_seats=frozenset({1}),
-                callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((tile_2m, tile_3m),)),),
+                callers=(
+                    Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=((tile_2m, tile_3m),)),)),
+                ),
             ),
         )
         game_state = create_game_state(round_state)
@@ -149,11 +152,13 @@ class TestChiEarlyValidation:
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
             pending_call_prompt=PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=tile_9m,
                 from_seat=0,
                 pending_seats=frozenset({1}),
-                callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((tile_8m, tile_1p),)),),
+                callers=(
+                    Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=((tile_8m, tile_1p),)),)),
+                ),
             ),
         )
         game_state = create_game_state(round_state)
@@ -165,11 +170,9 @@ class TestChiEarlyValidation:
     def test_chi_validation__when_sequence_not_among_options_and_pon_also_offered__should_raise(self):
         round_state, game_state = self._create_chi_state()
         prompt = round_state.pending_call_prompt
-        pon_caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
-        chi_caller_offered_only_3m_4m = MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((8, 12),))
-        new_prompt = prompt.model_copy(
-            update={"callers": (pon_caller, chi_caller_offered_only_3m_4m)},
-        )
+        chi_offered_only_3m_4m = MeldOption(call_type=MeldCallType.CHI, options=((8, 12),))
+        caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON), chi_offered_only_3m_4m))
+        new_prompt = prompt.model_copy(update={"callers": (caller,)})
         round_state = round_state.model_copy(
             update={"pending_call_prompt": new_prompt},
         )
@@ -210,11 +213,11 @@ class TestPonEarlyValidation:
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
             pending_call_prompt=PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=tile_1m,
                 from_seat=0,
                 pending_seats=frozenset({1}),
-                callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
+                callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
             ),
         )
         return round_state, create_game_state(round_state)
@@ -251,24 +254,27 @@ class TestResponseActionMatchesPrompt:
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
             pending_call_prompt=PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=tile_id,
                 from_seat=0,
                 pending_seats=frozenset({1}),
                 callers=(
-                    MeldCaller(
+                    Caller(
                         seat=1,
-                        call_type=caller_type,
-                        options=((4, 8),) if caller_type == MeldCallType.CHI else None,
+                        melds=(
+                            MeldOption(
+                                call_type=caller_type, options=((4, 8),) if caller_type == MeldCallType.CHI else None
+                            ),
+                        ),
                     ),
                 ),
             ),
         )
         return round_state, create_game_state(round_state)
 
-    def test_response_action__when_ron_on_meld_prompt__should_raise(self):
+    def test_response_action__when_meld_caller_calls_ron__should_raise(self):
         round_state, game_state = self._create_meld_prompt_state()
-        with pytest.raises(InvalidGameActionError, match="cannot call ron on a meld prompt"):
+        with pytest.raises(InvalidGameActionError, match="cannot call ron on a discard prompt"):
             handle_ron(round_state, game_state, seat=1)
 
     def test_response_action__when_pon_caller_sends_chi__should_raise(self):
@@ -280,30 +286,6 @@ class TestResponseActionMatchesPrompt:
     def test_response_action__when_chi_caller_sends_pon__should_raise(self):
         round_state, game_state = self._create_meld_prompt_state(caller_type=MeldCallType.CHI)
         with pytest.raises(InvalidGameActionError, match="does not match available call type"):
-            handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
-
-    def test_response_action__when_caller_not_in_prompt__should_raise(self):
-        round_state, game_state = self._create_meld_prompt_state(
-            caller_type=MeldCallType.PON,
-        )
-        # Modify prompt to only have seat 2 as caller, but seat 1 is pending
-        prompt = round_state.pending_call_prompt
-        new_callers = (MeldCaller(seat=2, call_type=MeldCallType.PON),)
-        new_prompt = prompt.model_copy(
-            update={
-                "callers": new_callers,
-                "pending_seats": frozenset({1, 2}),
-            },
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": new_prompt},
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(
-            InvalidGameActionError,
-            match="no meld options for this seat",
-        ):
             handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
 
 
@@ -323,11 +305,11 @@ class TestOpenKanEarlyValidation:
             current_player_seat=0,
             phase=RoundPhase.PLAYING,
             pending_call_prompt=PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=tile_1m,
                 from_seat=0,
                 pending_seats=frozenset({1}),
-                callers=(MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN),),
+                callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
             ),
         )
         return round_state, create_game_state(round_state)
@@ -360,15 +342,6 @@ class TestOpenKanEarlyValidation:
         assert len(result.events) == 1
         assert isinstance(result.events[0], ErrorEvent)
         assert result.events[0].code == GameErrorCode.INVALID_KAN
-
-    def test_open_kan_validation__when_ron_prompt__should_raise(self):
-        round_state, game_state = self._create_open_kan_state()
-        prompt = round_state.pending_call_prompt.model_copy(update={"call_type": CallType.RON})
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError, match="only ron is valid"):
-            handle_kan(round_state, game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN))
 
 
 class TestClosedKanRiichiWaitPreservation:
@@ -688,11 +661,11 @@ class TestPendingCallPromptStateGate:
         own_tile = round_state.players[0].tiles[-1]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = round_state.model_copy(
             update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
@@ -781,11 +754,11 @@ class TestSoftErrorsRemainUnchanged:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -802,11 +775,11 @@ class TestSoftErrorsRemainUnchanged:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -959,11 +932,11 @@ class TestServerGeneratedActionRefusals:
         game_state = service._games["test"]
         ai_player_seat = min(service._ai_player_controllers["test"].ai_player_seats)
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=(ai_player_seat + 1) % 4,
             pending_seats=frozenset({ai_player_seat}),
-            callers=(MeldCaller(seat=ai_player_seat, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
         service._games["test"] = game_state.model_copy(update={"round_state": round_state})
@@ -1078,49 +1051,3 @@ class TestRiichiTileNotInHandValidation:
         # tile_id 999 is not in hand (but hand IS tenpai so can_declare_riichi passes)
         with pytest.raises(InvalidGameActionError, match="not in hand"):
             handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=999))
-
-
-class TestFindMeldCallerForSeatNone:
-    def test_chi__when_seat_not_in_callers__should_raise(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        tile_id = TilesConverter.string_to_136_array(man="5")[0]
-        player1_tiles = list(round_state.players[1].tiles)
-
-        chi_tiles = TilesConverter.string_to_136_array(man="46")
-        player1_tiles = list(chi_tiles) + [t for t in player1_tiles if t not in chi_tiles][:11]
-        round_state = update_player(round_state, 1, tiles=tuple(player1_tiles))
-
-        # Seat 1 is pending but callers only list seat 2
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(
-                MeldCaller(
-                    seat=2,
-                    call_type=MeldCallType.CHI,
-                    options=(chi_tiles,),
-                ),
-            ),
-            responses=(),
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt},
-        )
-        game_state = game_state.model_copy(
-            update={"round_state": round_state},
-        )
-
-        with pytest.raises(
-            InvalidGameActionError,
-            match="no meld options for this seat",
-        ):
-            handle_chi(
-                round_state,
-                game_state,
-                seat=1,
-                data=ChiActionData(tile_id=tile_id, sequence_tiles=chi_tiles),
-            )

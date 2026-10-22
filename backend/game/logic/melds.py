@@ -534,19 +534,10 @@ def _remove_matching_tiles(
     return removed_tiles, new_hand
 
 
-def _finalize_meld_state(
-    state: MahjongRoundState,
-    caller_seat: int,
-    *,
-    mark_open: bool,
-) -> MahjongRoundState:
+def _finalize_meld_state(state: MahjongRoundState, caller_seat: int) -> MahjongRoundState:
     """
-    Apply shared post-meld state updates: track open hand, clear ippatsu, set current player.
+    Apply shared post-meld state updates: clear ippatsu, set current player.
     """
-    if mark_open and caller_seat not in state.players_with_open_hands:
-        new_open_hands = (*state.players_with_open_hands, caller_seat)
-        state = state.model_copy(update={"players_with_open_hands": new_open_hands})
-
     state = clear_all_players_ippatsu(state)
     return state.model_copy(update={"current_player_seat": caller_seat})
 
@@ -626,7 +617,7 @@ def call_pon(
         player_updates["pao_seat"] = pao_seat
 
     new_state = update_player(round_state, caller_seat, **player_updates)
-    new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
+    new_state = _finalize_meld_state(new_state, caller_seat)
     # Pon requires a subsequent discard without drawing; mark state for tsumogiri detection
     new_state = new_state.model_copy(update={"is_after_meld_call": True})
     return new_state, meld
@@ -700,7 +691,7 @@ def call_chi(  # noqa: PLR0913
         melds=new_melds,
         kuikae_tiles=tuple(_chi_kuikae_tiles(tile_id, sequence_tiles=sequence_tiles, settings=settings)),
     )
-    new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
+    new_state = _finalize_meld_state(new_state, caller_seat)
     # Chi requires a subsequent discard without drawing; mark state for tsumogiri detection
     new_state = new_state.model_copy(update={"is_after_meld_call": True})
     return new_state, meld
@@ -763,7 +754,7 @@ def call_open_kan(
         player_updates["pao_seat"] = pao_seat
 
     new_state = update_player(round_state, caller_seat, **player_updates)
-    new_state = _finalize_meld_state(new_state, caller_seat, mark_open=True)
+    new_state = _finalize_meld_state(new_state, caller_seat)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
     return new_state, meld
 
@@ -849,8 +840,7 @@ def call_closed_kan(
         tiles=tuple(new_hand),
         melds=new_melds,
     )
-    # closed kan does NOT make the hand open (mark_open=False)
-    new_state = _finalize_meld_state(new_state, seat, mark_open=False)
+    new_state = _finalize_meld_state(new_state, seat)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=True)
     return new_state, meld
 
@@ -969,7 +959,6 @@ def call_added_kan(
         tiles=tuple(new_hand),
         melds=tuple(new_melds),
     )
-    # added kan keeps the hand open (already open from the pon), no need to re-mark
-    new_state = _finalize_meld_state(new_state, seat, mark_open=False)
+    new_state = _finalize_meld_state(new_state, seat)
     new_state = _handle_kan_dora_and_draw(new_state, settings, is_closed_kan=False)
     return new_state, upgraded_meld

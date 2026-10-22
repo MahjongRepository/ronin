@@ -277,16 +277,6 @@ def is_houtei(round_state: MahjongRoundState) -> bool:
     return is_wall_exhausted(round_state.wall)
 
 
-def _no_calls_from_any_player(round_state: MahjongRoundState) -> bool:
-    """
-    Check that no calls (including closed kans) have been made by any player.
-    """
-    if round_state.players_with_open_hands:
-        return False
-
-    return not any(p.melds for p in round_state.players)
-
-
 def is_tenhou(
     player: MahjongPlayer,
     round_state: MahjongRoundState,
@@ -301,9 +291,7 @@ def is_tenhou(
     - Win on first draw (tsumo on dealt hand)
     """
     return (
-        player.seat == round_state.dealer_seat
-        and len(round_state.all_discards) == 0
-        and _no_calls_from_any_player(round_state)
+        player.seat == round_state.dealer_seat and len(round_state.all_discards) == 0 and not round_state.has_any_call()
     )
 
 
@@ -320,9 +308,7 @@ def is_chiihou(
     - No calls from any player (including closed kans)
     - Win on first draw (tsumo on first turn)
     """
-    return (
-        player.seat != round_state.dealer_seat and len(player.discards) == 0 and _no_calls_from_any_player(round_state)
-    )
+    return player.seat != round_state.dealer_seat and len(player.discards) == 0 and not round_state.has_any_call()
 
 
 def is_renhou(
@@ -340,7 +326,7 @@ def is_renhou(
     if player.seat == round_state.dealer_seat:
         return False
 
-    if not _no_calls_from_any_player(round_state):
+    if round_state.has_any_call():
         return False
 
     # player has not yet discarded (before their first turn)

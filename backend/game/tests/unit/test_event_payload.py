@@ -116,17 +116,6 @@ class TestShapeCallPromptPayload:
             "cs": 0,
         }
 
-    def test_shape_call_prompt_payload__when_unknown_call_type__should_return_payload_unchanged(self):
-        payload = {
-            "clt": 99,
-            "ti": 42,
-            "frs": 1,
-            "clr": [0],
-        }
-        result = shape_call_prompt_payload(payload)
-        assert result == payload
-        assert result["clr"] == [0]
-
     def test_shape_call_prompt_payload__when_meld_prompt_has_multiple_call_types__should_list_all_call_types(self):
         payload = {
             "clt": WireCallType.MELD,

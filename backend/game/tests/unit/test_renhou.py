@@ -18,7 +18,6 @@ class TestIsRenhou:
             current_player_seat=0,
             round_wind=0,
             all_discards=(),
-            players_with_open_hands=(),
         )
 
     def test_is_renhou__when_non_dealer_in_first_goaround__should_return_true(self):
@@ -36,7 +35,14 @@ class TestIsRenhou:
     def test_is_renhou__when_open_meld_was_called__should_return_false(self):
         # a player called an open meld (pon/chi)
         round_state = self._create_round_state(dealer_seat=0)
-        round_state = round_state.model_copy(update={"players_with_open_hands": (2,)})  # seat 2 has open hand
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="555")),
+            opened=True,
+            who=2,
+            from_who=1,
+        )
+        round_state = update_player(round_state, 2, melds=(pon,))
 
         player = round_state.players[1]
         assert is_renhou(player, round_state) is False
@@ -86,7 +92,6 @@ class TestRenhouScoring:
             wall=tuple(range(70)),
             dead_wall=tuple(range(14)),
             all_discards=(),
-            players_with_open_hands=(),
         )
         return create_game_state(round_state=round_state)
 

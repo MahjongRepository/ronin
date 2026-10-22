@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from game.logic.enums import WindName
-from game.logic.settings import NUM_PLAYERS
 from game.logic.types import GameView, PlayerView
 from game.messaging.types import SessionMessageType
 from game.session.models import Game, Player, PlayerSpec
@@ -22,16 +21,9 @@ async def create_started_game(
     manager: SessionManager,
     *,
     game_id: str = "game1",
-    num_ai_players: int = 3,
     player_names: list[str] | None = None,
 ) -> list[MockConnection]:
-    num_players = NUM_PLAYERS - num_ai_players
-    if player_names is None:
-        player_names = [f"Player{i}" for i in range(num_players)]
-
-    if len(player_names) != num_players:
-        raise ValueError(f"Expected {num_players} player names, got {len(player_names)}")
-
+    player_names = player_names or ["Player0"]
     specs = []
     tickets: list[str] = []
     for i, name in enumerate(player_names):
@@ -39,7 +31,7 @@ async def create_started_game(
         specs.append(PlayerSpec(name=name, user_id=f"user-{i}", game_ticket=ticket))
         tickets.append(ticket)
 
-    manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=num_ai_players)
+    manager.create_pending_game(game_id=game_id, player_specs=specs)
 
     connections: list[MockConnection] = []
     for i, _name in enumerate(player_names):

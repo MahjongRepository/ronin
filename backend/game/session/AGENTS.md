@@ -6,7 +6,7 @@ per-game lock.
 
 * **Pending game.** `POST /games` registers a session per player, keyed by the player's game ticket
   string — the ticket is the session token for the whole game, never rotated. The game waits for
-  `4 - num_ai_players` humans to send `JOIN_GAME`; it starts when they all have, or when the pending
+  every player in the request to send `JOIN_GAME`; it starts when they all have, or when the pending
   timeout (10s) fires, with AI players in the empty seats. With no humans it is cancelled. At
   start every expected human's session is bound to its seat before AI players fill the absent
   ones, and an absent human's session is marked disconnected, so it can RECONNECT later.

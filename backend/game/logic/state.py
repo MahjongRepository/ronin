@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.enums import CallType, GameAction, GamePhase, RoundPhase, WindName
+from game.logic.enums import GameAction, GamePhase, MeldCallType, PromptKind, RoundPhase, WindName
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import WINDS_34
-from game.logic.types import GameView, MeldCaller, PlayerView
+from game.logic.types import GameView, PlayerView
 from game.logic.wall import Wall
 
 _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
@@ -37,21 +37,58 @@ class CallResponse(BaseModel):
     sequence_tiles: tuple[int, int] | None = None
 
 
-class PendingCallPrompt(BaseModel):
+class MeldOption(BaseModel):
     """
-    Immutable pending call prompt.
-
-    Uses frozenset for pending_seats and tuple for responses/callers to ensure complete immutability.
+    One meld a caller may make on the prompt's tile; options holds the chi shapes as pairs of hand tiles.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    call_type: CallType
+    call_type: MeldCallType
+    options: tuple[tuple[int, int], ...] | None = None
+
+
+class Caller(BaseModel):
+    """
+    A seat eligible to respond to a call prompt: by ron, or by one of its melds (kan > pon > chi).
+
+    A seat that could both ron and meld is a ron caller only, with no melds.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    seat: int
+    can_ron: bool = False
+    melds: tuple[MeldOption, ...] = ()
+
+
+class PendingCallPrompt(BaseModel):
+    """
+    Immutable pending call prompt.
+
+    Callers are in prompt order, which is also the order of the per-seat prompt events and the order ron winners are
+    ranked in: for a discard, ron callers by distance from the discarder, then meld callers by their best meld (kan >
+    pon > chi), then seat index.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: PromptKind
     tile_id: int
     from_seat: int
     pending_seats: frozenset[int]
-    callers: tuple[int | MeldCaller, ...]
+    callers: tuple[Caller, ...]
     responses: tuple[CallResponse, ...] = ()
+
+    def caller(self, seat: int) -> Caller:
+        """
+        Return the seat's caller entry; the seat must be one of the prompt's callers.
+        """
+        caller = next((c for c in self.callers if c.seat == seat), None)
+        if caller is None:
+            raise AssertionError(f"seat {seat} is not a caller on the prompt")
+
+        return caller
 
 
 class MahjongPlayer(BaseModel):
@@ -97,12 +134,16 @@ class MahjongRoundState(BaseModel):
     dealer_seat: int = 0
     current_player_seat: int = 0
     round_wind: int = 0
-    turn_count: int = 0
     all_discards: tuple[int, ...] = ()
-    players_with_open_hands: tuple[int, ...] = ()
     phase: RoundPhase = RoundPhase.WAITING
     pending_call_prompt: PendingCallPrompt | None = None
     is_after_meld_call: bool = False
+
+    def has_any_call(self) -> bool:
+        """
+        Check if any player has called a meld this round, closed kans included.
+        """
+        return any(p.melds for p in self.players)
 
 
 class MahjongGameState(BaseModel):

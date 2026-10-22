@@ -21,6 +21,7 @@ from game.logic.enums import (
     GameErrorCode,
     KanType,
     MeldCallType,
+    PromptKind,
     RoundPhase,
 )
 from game.logic.events import (
@@ -33,15 +34,16 @@ from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.state import (
+    Caller,
     CallResponse,
     MahjongGameState,
+    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
 from game.logic.types import (
     ChiActionData,
     KanActionData,
-    MeldCaller,
     PonActionData,
     SeatConfig,
 )
@@ -65,16 +67,15 @@ def _create_frozen_game_state() -> MahjongGameState:
 
 class TestPickBestMeldResponse:
     def test_pick_best_meld_response__when_pon_and_chi_callers__should_pick_pon_caller(self):
-        # create a prompt with MeldCaller objects
         tile_id = 0
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset(),
             callers=(
-                MeldCaller(seat=1, call_type=MeldCallType.PON),
-                MeldCaller(seat=2, call_type=MeldCallType.CHI),
+                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),
+                Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.CHI),)),
             ),
         )
 
@@ -117,11 +118,11 @@ class TestResolveMeldResponse:
 
         # create prompt with open kan response ready to resolve
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
             responses=(CallResponse(seat=1, action=GameAction.CALL_KAN),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -174,11 +175,11 @@ class TestResolveMeldResponse:
 
         # create prompt with open kan response ready to resolve
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(MeldCaller(seat=3, call_type=MeldCallType.OPEN_KAN),),
+            callers=(Caller(seat=3, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
             responses=(CallResponse(seat=3, action=GameAction.CALL_KAN),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -284,13 +285,13 @@ class TestHandlePonMultiCaller:
 
         # create prompt with 2 pending callers: seat 1 can pon, seat 2 can chi
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
             callers=(
-                MeldCaller(seat=1, call_type=MeldCallType.PON),
-                MeldCaller(seat=2, call_type=MeldCallType.CHI),
+                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),
+                Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.CHI),)),
             ),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -320,13 +321,13 @@ class TestHandleChiMultiCaller:
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
             callers=(
-                MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(sequence_tiles,)),
-                MeldCaller(seat=2, call_type=MeldCallType.PON),
+                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=(sequence_tiles,)),)),
+                Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
             ),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -353,13 +354,13 @@ class TestHandleKanMultiCaller:
         round_state = update_player(round_state, 1, tiles=player1_tiles)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
             callers=(
-                MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN),
-                MeldCaller(seat=2, call_type=MeldCallType.PON),
+                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),
+                Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
             ),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -384,11 +385,11 @@ class TestHandleChiTileMismatch:
         # create pending call prompt for chi
         tile_id = 0
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI),)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -529,11 +530,11 @@ class TestDiscardPromptValidation:
         tile_id = round_state.players[0].tiles[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),  # seat 1 is a ron caller (int)
+            callers=(Caller(seat=1, can_ron=True),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -541,36 +542,17 @@ class TestDiscardPromptValidation:
         with pytest.raises(InvalidGameActionError, match="only ron is valid"):
             handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
 
-    def test_discard_prompt__when_seat_not_a_caller__should_reject(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        tile_id = round_state.players[0].tiles[0]
-
-        # seat 2 is pending but not in callers list (inconsistent state)
-        prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1, 2}),
-            callers=(1,),  # only seat 1 is a ron caller, seat 2 has no entry
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError, match="no meld options"):
-            handle_pon(round_state, game_state, seat=2, data=PonActionData(tile_id=tile_id))
-
     def test_discard_prompt__when_meld_caller_sends_wrong_action__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
         tile_id = round_state.players[0].tiles[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({2}),
-            callers=(MeldCaller(seat=2, call_type=MeldCallType.CHI),),
+            callers=(Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.CHI),)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -590,11 +572,11 @@ class TestChankanRiechiFuritenOnPass:
         # seat 1 and seat 2 are pending callers; passing as seat 1 won't trigger
         # resolution (seat 2 is still pending), avoiding the added kan completion
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
-            callers=(1, 2),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})

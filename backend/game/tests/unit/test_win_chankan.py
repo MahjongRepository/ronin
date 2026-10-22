@@ -219,7 +219,6 @@ class TestChankanWithOpenHand:
                 MahjongPlayer(seat=2, name="P2", score=25000),
                 MahjongPlayer(seat=3, name="P3", score=25000),
             ),
-            players_with_open_hands=(1,),
         )
 
         # player 2 does added kan with 4s - player 1 is waiting on 4s
@@ -263,7 +262,6 @@ class TestChankanWithOpenHand:
                 MahjongPlayer(seat=2, name="P2", score=25000),
                 MahjongPlayer(seat=3, name="P3", score=25000),
             ),
-            players_with_open_hands=(1,),
         )
 
         # player 2 does added kan with 5m - player 1 is waiting on 5m

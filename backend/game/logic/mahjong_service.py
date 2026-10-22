@@ -14,9 +14,9 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import create_draw_event
-from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import AIPlayerType, CallType, GameAction, GameErrorCode, RoundPhase, TimeoutType
+from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -61,7 +61,6 @@ from game.logic.types import (
     DiscardInfo,
     GamePlayerInfo,
     KanActionData,
-    MeldCaller,
     PlayerReconnectState,
     PonActionData,
     ReconnectionSnapshot,
@@ -77,10 +76,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-_AI_PLAYER_TYPE_TO_STRATEGY: dict[AIPlayerType, AIPlayerStrategy] = {
-    AIPlayerType.TSUMOGIRI: AIPlayerStrategy.TSUMOGIRI,
-}
-
 
 class MahjongGameService(GameService):
     """
@@ -89,13 +84,12 @@ class MahjongGameService(GameService):
     Maintains game states for multiple concurrent games.
     """
 
-    def __init__(self, *, auto_cleanup: bool = True, settings: GameSettings | None = None) -> None:
+    def __init__(self, *, auto_cleanup: bool = True) -> None:
         self._games: dict[str, MahjongGameState] = {}
         self._ai_player_controllers: dict[str, AIPlayerController] = {}
         self._furiten_tracker = FuritenTracker()
         self._round_advance = RoundAdvanceManager()
         self._auto_cleanup = auto_cleanup
-        self._settings = settings
 
     def start_game(
         self,
@@ -115,9 +109,8 @@ class MahjongGameService(GameService):
         """
         game_seed = seed if seed is not None else generate_seed()
 
-        game_settings = settings or self._settings
         seat_configs = fill_seats(player_names, seed=game_seed)
-        frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings, wall=wall)
+        frozen_game = init_game(seat_configs, seed=game_seed, settings=settings, wall=wall)
         self._games[game_id] = frozen_game
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
@@ -125,11 +118,7 @@ class MahjongGameService(GameService):
 
         self._furiten_tracker.init_game(game_id)
 
-        ai_players: dict[int, AIPlayer] = {}
-        for seat, config in enumerate(seat_configs):
-            if config.ai_player_type is not None:
-                strategy = _AI_PLAYER_TYPE_TO_STRATEGY.get(config.ai_player_type, AIPlayerStrategy.TSUMOGIRI)
-                ai_players[seat] = AIPlayer(strategy=strategy)
+        ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
 
         ai_player_controller = AIPlayerController(ai_players)
         self._ai_player_controllers[game_id] = ai_player_controller
@@ -651,28 +640,15 @@ class MahjongGameService(GameService):
         ai_player_seats = sorted(s for s in prompt.pending_seats if ai_player_controller.is_ai_player(s))
         for seat in ai_player_seats:
             response = ai_player_controller.get_call_response(
-                seat=seat,
                 round_state=self._games[game_id].round_state,
-                call_type=prompt.call_type,
                 tile_id=prompt.tile_id,
-                caller_info=self._find_caller_info(prompt, seat),
+                caller=prompt.caller(seat),
             )
             action, data = response if response is not None else (GameAction.PASS, {})
             logger.debug("AI player call response", action=action.value, ai_seat=seat)
             result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
             self._update_state_from_result(game_id, result)
             events.extend(convert_events(result.events))
-
-    def _find_caller_info(self, prompt: PendingCallPrompt, seat: int) -> int | MeldCaller:
-        """
-        Find caller info for a seat from the prompt's callers list.
-        """
-        for caller in prompt.callers:
-            caller_seat = caller if isinstance(caller, int) else caller.seat
-            if caller_seat == seat:
-                return caller
-
-        raise AssertionError(f"seat {seat} not found in prompt callers")
 
     def _handle_round_end(
         self,
@@ -783,8 +759,7 @@ class MahjongGameService(GameService):
         if ai_player_controller is None:
             return
 
-        ai_player = AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)
-        ai_player_controller.add_ai_player(seat, ai_player)
+        ai_player_controller.add_ai_player(seat, AIPlayer())
         logger.info("replaced player with AI", replaced_player=player_name, replaced_seat=seat)
 
     def restore_human_player(self, game_id: str, seat: int) -> None:

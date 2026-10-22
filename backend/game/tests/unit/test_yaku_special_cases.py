@@ -31,7 +31,6 @@ class TestTenhouScoring:
             dealer_seat=0,
             current_player_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
             wall=list(range(70)),
         )
 
@@ -60,7 +59,6 @@ class TestTenhouScoring:
             dealer_seat=0,
             current_player_seat=1,
             all_discards=(),
-            players_with_open_hands=(),
             wall=list(range(70)),
         )
 
@@ -92,7 +90,6 @@ class TestChiihouBugFix:
             dealer_seat=0,
             current_player_seat=1,
             all_discards=(0,),
-            players_with_open_hands=(),
         )
         # player has no discards (first draw), even though all_discards is non-empty
         assert is_chiihou(round_state.players[1], round_state) is True
@@ -108,7 +105,6 @@ class TestChiihouBugFix:
             players=players,
             dealer_seat=0,
             current_player_seat=1,
-            players_with_open_hands=(),
         )
         assert is_chiihou(round_state.players[1], round_state) is False
 
@@ -127,7 +123,6 @@ class TestChiihouScoring:
             dealer_seat=0,
             current_player_seat=1,
             all_discards=(0,),
-            players_with_open_hands=(),
             wall=list(range(70)),
         )
 
@@ -155,7 +150,6 @@ class TestChiihouScoring:
             dealer_seat=0,
             current_player_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
             wall=list(range(70)),
         )
 
@@ -495,7 +489,6 @@ class TestRyuuiisou:
             dealer_seat=0,
             current_player_seat=0,
             all_discards=(0, 1, 2, 3),
-            players_with_open_hands=(0,),
             wall=list(range(70)),
         )
 
@@ -650,7 +643,6 @@ class TestNagashiManganDetection:
         )
         round_state = create_round_state(
             players=players,
-            players_with_open_hands=(1,),
         )
 
         qualifying = check_nagashi_mangan(round_state)
@@ -679,7 +671,6 @@ class TestNagashiManganDetection:
         )
         round_state = create_round_state(
             players=players,
-            players_with_open_hands=(0,),
         )
 
         qualifying = check_nagashi_mangan(round_state)

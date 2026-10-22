@@ -19,12 +19,12 @@ from game.logic.call_resolution import (
 from game.logic.enums import (
     AbortiveDrawType,
     AIPlayerType,
-    CallType,
     GameAction,
     GameErrorCode,
     KanType,
     MeldCallType,
     MeldViewType,
+    PromptKind,
     RoundPhase,
     RoundResultType,
 )
@@ -39,10 +39,12 @@ from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.state import (
+    Caller,
     CallResponse,
     Discard,
     MahjongGameState,
     MahjongRoundState,
+    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
@@ -51,7 +53,6 @@ from game.logic.types import (
     ChiActionData,
     DiscardActionData,
     KanActionData,
-    MeldCaller,
     PonActionData,
     RiichiActionData,
     SeatConfig,
@@ -177,11 +178,11 @@ class TestHandleRonImmutable:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=pending_seats,
-            callers=tuple(pending_seats),
+            callers=tuple(Caller(seat=seat, can_ron=True) for seat in sorted(pending_seats)),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -206,11 +207,11 @@ class TestHandleRonImmutable:
 
         # set up pending call prompt for ron
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=win_tile,
             from_seat=discarder_seat,
             pending_seats=frozenset({1}),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -261,11 +262,11 @@ class TestHandlePonImmutable:
 
         # set up pending call prompt for meld
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_to_pon,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -303,11 +304,11 @@ class TestHandleChiImmutable:
 
         # set up pending call prompt for meld
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_to_chi,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(sequence_tiles,)),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=(sequence_tiles,)),)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -402,11 +403,11 @@ class TestHandleKanImmutable:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -462,11 +463,11 @@ class TestHandlePassImmutable:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -494,11 +495,11 @@ class TestHandlePassImmutable:
 
         # set up pending call prompt for seat 1 (meld prompt)
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_to_discard,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = round_state.model_copy(
             update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
@@ -539,11 +540,11 @@ class TestHandlePassImmutable:
 
         # set up pending ron prompt for riichi player
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
@@ -552,31 +553,6 @@ class TestHandlePassImmutable:
         assert result.new_round_state is not None
         # riichi player passing on ron should set riichi furiten
         assert result.new_round_state.players[1].is_riichi_furiten is True
-
-
-class TestResolveCallPromptImmutable:
-    def test_resolve_call_prompt__when_all_pass_on_meld_prompt__should_clear_prompt(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # create a meld prompt with no pending seats (all passed)
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),  # all passed
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-            responses=(),  # no meld responses
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(round_state, game_state)
-        assert result.new_round_state is not None
-        # prompt should be cleared
-        assert result.new_round_state.pending_call_prompt is None
 
 
 class TestResolveMeldResponseImmutable:
@@ -595,11 +571,11 @@ class TestResolveMeldResponseImmutable:
 
         # create prompt with pon response
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
             responses=(CallResponse(seat=1, action=GameAction.CALL_PON),),
         )
         new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
@@ -676,11 +652,11 @@ class TestResolveOpenKanResponseImmutable:
 
         # create prompt with open kan response
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN),),
+            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
             responses=(CallResponse(seat=1, action=GameAction.CALL_KAN),),
         )
         new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})

@@ -6,13 +6,13 @@ from mahjong.tile import TilesConverter
 from game.logic.abortive import AbortiveDrawType
 from game.logic.action_handlers import handle_ron, handle_tsumo
 from game.logic.actions import get_available_actions
-from game.logic.enums import CallType, GameAction, MeldCallType, PlayerAction, RoundPhase, RoundResultType
+from game.logic.enums import CallType, GameAction, MeldCallType, PlayerAction, PromptKind, RoundPhase, RoundResultType
 from game.logic.events import CallPromptEvent, DrawEvent, RoundEndEvent
 from game.logic.exceptions import InvalidRiichiError, ScoringError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult, ScoringContext, calculate_hand_value_with_tiles
 from game.logic.settings import GameSettings
-from game.logic.state import CallResponse, Discard, PendingCallPrompt
+from game.logic.state import Caller, CallResponse, Discard, PendingCallPrompt
 from game.logic.turn import (
     _maybe_emit_dora_event,
     _validate_riichi_discard,
@@ -49,7 +49,6 @@ class TestKyuushuKyuuhaiDrawPhase:
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
         )
         game_state = create_game_state(round_state)
 
@@ -160,9 +159,9 @@ class TestRiichiFuriten:
         )
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) == 1
+        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        assert new_round.pending_call_prompt is not None
+        assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
         assert new_round.players[1].is_riichi_furiten is False
 
 
@@ -191,13 +190,11 @@ class TestChiOpportunity:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) == 1
-        chi_callers = [
-            c for c in call_prompts[0].callers if hasattr(c, "call_type") and c.call_type == MeldCallType.CHI
-        ]
-        assert len(chi_callers) == 1
+        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        prompt = new_round.pending_call_prompt
+        assert prompt is not None
+        assert [c.seat for c in prompt.callers] == [1]
+        assert [m.call_type for m in prompt.caller(1).melds] == [MeldCallType.CHI]
 
 
 class TestFindRonCallers:
@@ -223,10 +220,9 @@ class TestFindRonCallers:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) == 1
-        assert 1 in call_prompts[0].callers
+        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        assert new_round.pending_call_prompt is not None
+        assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
 
     def test_find_ron_callers__when_multiple_callers__should_sort_by_distance(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
@@ -250,12 +246,9 @@ class TestFindRonCallers:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.DISCARD]
-        assert len(call_prompts) == 1
-        # ron callers (ints) come first, sorted by distance from discarder
-        ron_callers = [c for c in call_prompts[0].callers if isinstance(c, int)]
-        assert ron_callers == [1, 3]
+        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        assert new_round.pending_call_prompt is not None
+        assert [c.seat for c in new_round.pending_call_prompt.callers if c.can_ron] == [1, 3]
 
 
 class TestSingleRonHandError:
@@ -303,11 +296,11 @@ class TestDoubleRonHandError:
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
         first_winner_already_called_ron = PendingCallPrompt(
-            call_type=CallType.DISCARD,
+            kind=PromptKind.DISCARD,
             tile_id=discard_tile,
             from_seat=0,
             pending_seats=frozenset({2}),
-            callers=(1, 2),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
             responses=(CallResponse(seat=1, action=GameAction.CALL_RON),),
         )
         round_state = create_round_state(
@@ -455,7 +448,6 @@ class TestAbortiveDrawIntegration:
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
             all_discards=east_winds[:3],
-            players_with_open_hands=(),
         )
         game_state = create_game_state(round_state)
 

@@ -1,11 +1,12 @@
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import CallType, GameAction, WindName
+from game.logic.enums import GameAction, PromptKind, WindName
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
 from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
 from game.logic.state import (
+    Caller,
     CallResponse,
     Discard,
     MahjongGameState,
@@ -93,31 +94,43 @@ class TestStateUtilsTurnAdvance:
     def _players(self) -> tuple[MahjongPlayer, ...]:
         return tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
 
-    def test_advance_turn__should_move_to_next_seat_and_count_turn(self):
-        state = MahjongRoundState(players=self._players(), current_player_seat=0, turn_count=0)
+    def test_advance_turn__should_move_to_next_seat(self):
+        state = MahjongRoundState(players=self._players(), current_player_seat=0)
 
         new_state = advance_turn(state)
         assert state.current_player_seat == 0
-        assert state.turn_count == 0
         assert new_state.current_player_seat == 1
-        assert new_state.turn_count == 1
 
     def test_advance_turn__when_current_seat_is_last__should_wrap_to_seat_zero(self):
-        state = MahjongRoundState(players=self._players(), current_player_seat=3, turn_count=10)
+        state = MahjongRoundState(players=self._players(), current_player_seat=3)
 
         new_state = advance_turn(state)
         assert new_state.current_player_seat == 0
-        assert new_state.turn_count == 11
+
+
+class TestPendingCallPromptCaller:
+    def test_pending_call_prompt_caller__when_seat_is_not_a_caller__should_raise_assertion_error(self):
+        prompt = PendingCallPrompt(
+            kind=PromptKind.DISCARD,
+            tile_id=0,
+            from_seat=0,
+            pending_seats=frozenset({1}),
+            callers=(Caller(seat=1, can_ron=True),),
+        )
+
+        assert prompt.caller(1) == Caller(seat=1, can_ron=True)
+        with pytest.raises(AssertionError, match="seat 2 is not a caller"):
+            prompt.caller(2)
 
 
 class TestStateUtilsPendingPrompt:
     def test_clear_pending_prompt__should_remove_prompt_from_new_state(self):
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
         )
         state = MahjongRoundState(pending_call_prompt=prompt)
 
@@ -127,11 +140,11 @@ class TestStateUtilsPendingPrompt:
 
     def test_add_prompt_response__should_record_response_and_remove_pending_seat(self):
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1, 2}),
-            callers=(1, 2),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
         )
         response = CallResponse(seat=1, action=GameAction.PASS)
 
@@ -143,11 +156,11 @@ class TestStateUtilsPendingPrompt:
 
     def test_add_prompt_response__when_seat_not_pending__should_raise_key_error(self):
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
-            callers=(1,),
+            callers=(Caller(seat=1, can_ron=True),),
         )
         response = CallResponse(seat=3, action=GameAction.PASS)
         with pytest.raises(KeyError):

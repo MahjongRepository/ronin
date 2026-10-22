@@ -55,7 +55,6 @@ class TestGameStartRecording:
     ):
         await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
         played_game = game_repo.stored_games["game1"]
@@ -103,7 +102,6 @@ class TestGameCompletionRecording:
     async def test_game_history__when_game_ends__should_record_completed(self, manager_with_repo, game_repo):
         conns = await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
         manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
@@ -120,7 +118,6 @@ class TestGameCompletionRecording:
     ):
         conns = await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
 
@@ -169,7 +166,6 @@ class TestGameCompletionRecording:
     async def test_game_history__when_game_ends__should_record_round_count(self, manager_with_repo, game_repo):
         conns = await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
 
@@ -184,7 +180,6 @@ class TestGameCompletionRecording:
     async def test_game_history__when_timeout_ends_game__should_record_completed(self, manager_with_repo, game_repo):
         await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
         manager_with_repo._game_service.handle_timeout = MagicMock(return_value=_make_game_end_events())
@@ -198,7 +193,6 @@ class TestGameCompletionRecording:
     ):
         conns = await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
 
@@ -215,7 +209,6 @@ class TestGameCompletionRecording:
     ):
         conns = await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
 
@@ -241,7 +234,6 @@ class TestGameAbandonmentRecording:
     ):
         conns = await create_started_game(
             manager_with_repo,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
         manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())

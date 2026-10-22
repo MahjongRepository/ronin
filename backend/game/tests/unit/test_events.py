@@ -1,20 +1,20 @@
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import CallType, MeldCallType
+from game.logic.enums import CallType, MeldCallType, PromptKind
 from game.logic.events import (
     BroadcastTarget,
-    CallPromptEvent,
     DrawEvent,
     EventType,
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
-    _split_discard_prompt_for_seat,
+    build_call_prompt_events,
     convert_events,
     extract_round_result,
     parse_event_target,
 )
+from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.types import (
     HandResultInfo,
     MeldCaller,
@@ -67,108 +67,52 @@ class TestConvertEvents:
         assert result[0].data.seat == 0
         assert result[0].target == SeatTarget(seat=0)
 
-    def test_convert_events__when_call_prompt_has_several_seats__should_split_per_seat(self):
-        callers = [
-            MeldCaller(seat=0, call_type=MeldCallType.PON),
-            MeldCaller(seat=1, call_type=MeldCallType.PON),
-        ]
-        call_prompt = CallPromptEvent(
-            call_type=CallType.MELD,
-            tile_id=42,
-            from_seat=3,
-            callers=callers,
-            target="all",
-        )
 
-        result = convert_events([call_prompt])
-        assert len(result) == 2
-        assert result[0].target == SeatTarget(seat=0)
-        assert result[1].target == SeatTarget(seat=1)
-        # each wrapper carries a distinct event copy (no shared mutable data)
-        assert result[0].data is not result[1].data
-        # callers filtered to each seat's entries
-        assert isinstance(result[0].data, CallPromptEvent)
-        assert isinstance(result[1].data, CallPromptEvent)
-        assert result[0].data.callers == [MeldCaller(seat=0, call_type=MeldCallType.PON)]
-        assert result[1].data.callers == [MeldCaller(seat=1, call_type=MeldCallType.PON)]
-        assert result[0].event == EventType.CALL_PROMPT
-
-    def test_convert_events__when_seat_has_pon_and_chi_options__should_send_one_prompt_with_both(self):
-        callers = [
-            MeldCaller(seat=0, call_type=MeldCallType.PON),
-            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
-        ]
-        call_prompt = CallPromptEvent(
-            call_type=CallType.MELD,
+class TestBuildCallPromptEvents:
+    def test_build_call_prompt_events__when_discard_prompt_mixes_ron_and_meld__should_emit_one_event_per_caller(self):
+        chi_shape = (57, 63)
+        prompt = PendingCallPrompt(
+            kind=PromptKind.DISCARD,
             tile_id=55,
-            from_seat=3,
-            callers=callers,
-            target="all",
+            from_seat=0,
+            pending_seats=frozenset({1, 3}),
+            callers=(
+                Caller(seat=3, can_ron=True),
+                Caller(
+                    seat=1,
+                    melds=(
+                        MeldOption(call_type=MeldCallType.PON),
+                        MeldOption(call_type=MeldCallType.CHI, options=(chi_shape,)),
+                    ),
+                ),
+            ),
         )
 
-        result = convert_events([call_prompt])
-        assert len(result) == 1
-        assert result[0].target == SeatTarget(seat=0)
-        # both call options preserved for the same seat
-        assert isinstance(result[0].data, CallPromptEvent)
-        assert result[0].data.callers == callers
+        events = build_call_prompt_events(prompt)
+        assert [(e.target, e.call_type, e.tile_id, e.from_seat) for e in events] == [
+            ("seat_3", CallType.RON, 55, 0),
+            ("seat_1", CallType.MELD, 55, 0),
+        ]
+        assert events[0].callers == [3]
+        assert events[1].callers == [
+            MeldCaller(seat=1, call_type=MeldCallType.PON),
+            MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(chi_shape,)),
+        ]
 
-    def test_convert_events__when_call_prompt_has_single_caller__should_target_that_seat(self):
-        call_prompt = CallPromptEvent(
-            call_type=CallType.RON,
+    def test_build_call_prompt_events__when_chankan_prompt__should_emit_chankan_event_per_caller(self):
+        prompt = PendingCallPrompt(
+            kind=PromptKind.CHANKAN,
             tile_id=10,
             from_seat=2,
-            callers=[1],
-            target="all",
+            pending_seats=frozenset({0, 1}),
+            callers=(Caller(seat=0, can_ron=True), Caller(seat=1, can_ron=True)),
         )
 
-        result = convert_events([call_prompt])
-        assert len(result) == 1
-        assert result[0].target == SeatTarget(seat=1)
-        assert isinstance(result[0].data, CallPromptEvent)
-        assert result[0].data.callers == [1]
-        assert result[0].event == EventType.CALL_PROMPT
-
-    def test_convert_events__when_discard_prompt_mixes_ron_and_meld__should_split_per_seat(self):
-        callers: list = [
-            1,  # ron caller (seat 1)
-            MeldCaller(seat=2, call_type=MeldCallType.PON),  # meld caller (seat 2)
+        events = build_call_prompt_events(prompt)
+        assert [(e.target, e.call_type, e.callers) for e in events] == [
+            ("seat_0", CallType.CHANKAN, [0]),
+            ("seat_1", CallType.CHANKAN, [1]),
         ]
-        call_prompt = CallPromptEvent(
-            call_type=CallType.DISCARD,
-            tile_id=42,
-            from_seat=0,
-            callers=callers,
-            target="all",
-        )
-
-        result = convert_events([call_prompt])
-        assert len(result) == 2
-        # seat 1 gets a RON event
-        seat1_event = next(se for se in result if se.target == SeatTarget(seat=1))
-        assert isinstance(seat1_event.data, CallPromptEvent)
-        assert seat1_event.data.call_type == CallType.RON
-        assert seat1_event.data.callers == [1]
-        # seat 2 gets a MELD event
-        seat2_event = next(se for se in result if se.target == SeatTarget(seat=2))
-        assert isinstance(seat2_event.data, CallPromptEvent)
-        assert seat2_event.data.call_type == CallType.MELD
-        assert seat2_event.data.callers == [MeldCaller(seat=2, call_type=MeldCallType.PON)]
-
-    def test_convert_events__when_discard_prompt_ron_only__should_emit_ron_prompts(self):
-        call_prompt = CallPromptEvent(
-            call_type=CallType.DISCARD,
-            tile_id=10,
-            from_seat=3,
-            callers=[0, 1],
-            target="all",
-        )
-
-        result = convert_events([call_prompt])
-        assert len(result) == 2
-        for se in result:
-            assert isinstance(se.data, CallPromptEvent)
-            assert se.data.call_type == CallType.RON
 
 
 class TestConvertEventsTargetValidation:
@@ -181,19 +125,6 @@ class TestConvertEventsTargetValidation:
         event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="bogus")
         with pytest.raises(ValueError, match="invalid target value"):
             convert_events([event])
-
-
-class TestSplitDiscardPromptEmptyCallersGuard:
-    def test_split_discard_prompt__when_seat_has_no_ron_or_meld_entries__should_raise_value_error(self):
-        call_prompt = CallPromptEvent(
-            call_type=CallType.DISCARD,
-            tile_id=42,
-            from_seat=0,
-            callers=[1],  # only seat 1 as ron caller
-            target="all",
-        )
-        with pytest.raises(ValueError, match="no ron or meld entries"):
-            _split_discard_prompt_for_seat(call_prompt, 2)  # seat 2 has no entries
 
 
 class TestExtractRoundResult:

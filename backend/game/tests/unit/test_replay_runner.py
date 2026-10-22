@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase
+from game.logic.enums import GameAction, GameErrorCode, GamePhase, MeldCallType, PromptKind
 from game.logic.events import (
     BroadcastTarget,
     ErrorEvent,
@@ -12,7 +12,7 @@ from game.logic.events import (
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
-from game.logic.state import MahjongGameState, PendingCallPrompt
+from game.logic.state import Caller, MahjongGameState, MeldOption, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
     ReplayError,
@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
+
+
+def _pon_caller(seat: int) -> Caller:
+    return Caller(seat=seat, melds=(MeldOption(call_type=MeldCallType.PON),))
 
 
 def _build_replay(
@@ -511,11 +515,11 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
                 seat = next(p.seat for p in state.round_state.players if p.name == player_name)
                 other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
                 prompt = PendingCallPrompt(
-                    call_type=CallType.MELD,
+                    kind=PromptKind.DISCARD,
                     tile_id=0,
                     from_seat=seat,
                     pending_seats=other_seats,
-                    callers=tuple(other_seats),
+                    callers=tuple(_pon_caller(s) for s in sorted(other_seats)),
                 )
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
@@ -596,11 +600,11 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             assert state is not None
 
             prompt = PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=0,
                 from_seat=discarder_seat,
                 pending_seats=frozenset({pon_seat, pass_seat}),
-                callers=(pon_seat, pass_seat),
+                callers=(_pon_caller(pon_seat), _pon_caller(pass_seat)),
             )
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
@@ -688,11 +692,11 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
 
             # Inject a fake call prompt
             prompt = PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=0,
                 from_seat=0,
                 pending_seats=frozenset({1}),
-                callers=(1,),
+                callers=(_pon_caller(1),),
             )
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
@@ -777,11 +781,11 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
                 seat = next(p.seat for p in state.round_state.players if p.name == player_name)
                 other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
                 prompt = PendingCallPrompt(
-                    call_type=CallType.MELD,
+                    kind=PromptKind.DISCARD,
                     tile_id=0,
                     from_seat=seat,
                     pending_seats=other_seats,
-                    callers=tuple(other_seats),
+                    callers=tuple(_pon_caller(s) for s in sorted(other_seats)),
                 )
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
@@ -843,11 +847,11 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
 
             # Inject a call prompt pending on seat 1
             prompt = PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=0,
                 from_seat=0,
                 pending_seats=frozenset({1}),
-                callers=(1,),
+                callers=(_pon_caller(1),),
             )
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
@@ -931,11 +935,11 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                 seat = next(p.seat for p in state.round_state.players if p.name == player_name)
                 other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
                 prompt = PendingCallPrompt(
-                    call_type=CallType.MELD,
+                    kind=PromptKind.DISCARD,
                     tile_id=0,
                     from_seat=seat,
                     pending_seats=other_seats,
-                    callers=tuple(other_seats),
+                    callers=tuple(_pon_caller(s) for s in sorted(other_seats)),
                 )
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
@@ -988,11 +992,11 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             assert state is not None
 
             prompt = PendingCallPrompt(
-                call_type=CallType.MELD,
+                kind=PromptKind.DISCARD,
                 tile_id=0,
                 from_seat=0,
                 pending_seats=frozenset({1, 2}),
-                callers=(1, 2),
+                callers=(_pon_caller(1), _pon_caller(2)),
             )
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},

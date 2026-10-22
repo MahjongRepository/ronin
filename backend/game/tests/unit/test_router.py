@@ -19,7 +19,7 @@ from game.tests.unit.session.helpers import create_started_game, wait_for_backgr
 async def _setup_player_in_game(session_manager, connection):
     ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
     specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-    session_manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+    session_manager.create_pending_game(game_id="game1", player_specs=specs)
     await session_manager.join_game(connection, game_id="game1", session_token=ticket)
     connection._outbox.clear()
 
@@ -70,7 +70,7 @@ class TestMessageRouterBranches:
         ticket = make_test_game_ticket(username="Alice", room_id="other-game")
 
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        session_manager.create_pending_game(game_id="test-game", player_specs=specs, num_ai_players=3)
+        session_manager.create_pending_game(game_id="test-game", player_specs=specs)
 
         await router.handle_message(
             connection,
@@ -178,7 +178,7 @@ class TestMessageRouterEntryPointFailures:
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        session_manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        session_manager.create_pending_game(game_id="game1", player_specs=specs)
         connection = MockConnection(game_id="game1")
         router.handle_connect(connection)
 
@@ -191,7 +191,7 @@ class TestMessageRouterEntryPointFailures:
     async def test_message_router__when_the_ai_replacement_on_disconnect_raises__should_fail_the_game(self):
         session_manager = SessionManager(MockGameService())
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
-        conns = await create_started_game(session_manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(session_manager, player_names=["Alice", "Bob"])
         session_manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             side_effect=ValueError("engine state broke"),
         )

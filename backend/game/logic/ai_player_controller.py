@@ -1,12 +1,11 @@
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import CallType, GameAction, KanType, MeldCallType, PlayerAction
+from game.logic.enums import GameAction, KanType, MeldCallType, PlayerAction
 from game.logic.tiles import tile_to_34
-from game.logic.types import MeldCaller
 
 if TYPE_CHECKING:
     from game.logic.ai_player import AIPlayer
-    from game.logic.state import MahjongPlayer, MahjongRoundState
+    from game.logic.state import Caller, MahjongPlayer, MahjongRoundState, MeldOption
 
 
 class AIPlayerController:
@@ -19,9 +18,6 @@ class AIPlayerController:
 
     def __init__(self, ai_players: dict[int, AIPlayer]) -> None:
         self._ai_players = ai_players
-
-    def _get_ai_player(self, seat: int) -> AIPlayer | None:
-        return self._ai_players.get(seat)
 
     def is_ai_player(self, seat: int) -> bool:
         """
@@ -54,16 +50,12 @@ class AIPlayerController:
         round_state: MahjongRoundState,
     ) -> tuple[GameAction, dict[str, Any]] | None:
         """
-        Get the AI player's turn action as (GameAction, data).
+        Get the AI player's turn action as (GameAction, data) for an AI seat.
 
-        Returns None if seat is not an AI player.
+        Returns None when the AI picked an action this controller cannot dispatch.
         """
-        ai_player = self._get_ai_player(seat)
-        if ai_player is None:
-            return None
-
         player = round_state.players[seat]
-        action = ai_player.get_action(player, round_state)
+        action = self._ai_players[seat].get_action(player, round_state)
 
         if action.action == PlayerAction.TSUMO:
             return GameAction.DECLARE_TSUMO, {}
@@ -79,45 +71,31 @@ class AIPlayerController:
     def get_call_response(
         self,
         *,
-        seat: int,
         round_state: MahjongRoundState,
-        call_type: CallType,
         tile_id: int,
-        caller_info: int | MeldCaller,
+        caller: Caller,
     ) -> tuple[GameAction, dict[str, Any]] | None:
         """
-        Get the AI player's call response as (GameAction, data).
+        Get an AI caller's response to a call prompt as (GameAction, data).
 
-        Returns None if the AI player declines (passes).
+        A ron caller decides on ron; a meld caller decides on its first (highest-priority) meld. Returns None if the AI
+        player declines (passes).
         """
-        ai_player = self._get_ai_player(seat)
-        if ai_player is None:
-            return None
-
-        player = round_state.players[seat]
-
-        # Ron opportunity (standalone RON, CHANKAN, or ron caller within DISCARD prompt)
-        if call_type in (CallType.RON, CallType.CHANKAN) or (
-            call_type == CallType.DISCARD and isinstance(caller_info, int)
-        ):
+        ai_player = self._ai_players[caller.seat]
+        player = round_state.players[caller.seat]
+        if caller.can_ron:
             if ai_player.should_call_ron(player, discarded_tile=tile_id, round_state=round_state):
                 return GameAction.CALL_RON, {}
 
             return None
 
-        # Meld opportunity (standalone MELD or meld caller within DISCARD prompt)
-        if isinstance(caller_info, MeldCaller):
-            return _get_meld_response(
-                ai_player, player, caller_info=caller_info, tile_id=tile_id, round_state=round_state
-            )
-
-        return None
+        return _get_meld_response(ai_player, player, meld=caller.melds[0], tile_id=tile_id, round_state=round_state)
 
 
 def _get_meld_response(
     ai_player: AIPlayer,
     player: MahjongPlayer,
-    caller_info: MeldCaller,
+    meld: MeldOption,
     tile_id: int,
     round_state: MahjongRoundState,
 ) -> tuple[GameAction, dict[str, Any]] | None:
@@ -126,7 +104,7 @@ def _get_meld_response(
 
     Returns (GameAction, data) or None if AI player declines.
     """
-    meld_call_type = caller_info.call_type
+    meld_call_type = meld.call_type
 
     if meld_call_type == MeldCallType.PON and ai_player.should_call_pon(
         player, discarded_tile=tile_id, round_state=round_state
@@ -135,7 +113,7 @@ def _get_meld_response(
 
     if meld_call_type == MeldCallType.CHI:
         chi_tiles = ai_player.should_call_chi(
-            player, discarded_tile=tile_id, chi_options=caller_info.options, round_state=round_state
+            player, discarded_tile=tile_id, chi_options=meld.options, round_state=round_state
         )
         if chi_tiles is not None:
             return GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": chi_tiles}

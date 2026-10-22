@@ -43,7 +43,7 @@ class TestCreatePendingGame:
     async def test_create_pending_game__when_created__should_register_game_and_session(self, manager: SessionManager):
         specs = _make_specs(1)
 
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
         assert manager.get_game("game1") is not None
         assert "game1" in manager._pending_games
         assert manager.pending_game_count == 1
@@ -55,10 +55,10 @@ class TestCreatePendingGame:
 
     async def test_create_pending_game__when_game_id_exists__should_raise_value_error(self, manager: SessionManager):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         with pytest.raises(ValueError, match="already exists"):
-            manager.create_pending_game(game_id="game1", player_specs=_make_specs(1), num_ai_players=3)
+            manager.create_pending_game(game_id="game1", player_specs=_make_specs(1))
 
 
 class TestJoinGame:
@@ -68,7 +68,7 @@ class TestJoinGame:
 
     async def test_join_game__when_all_expected_players_connected__should_start_game(self, manager: SessionManager):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -79,7 +79,7 @@ class TestJoinGame:
         assert "game1" not in manager._pending_games
 
     async def test_join_game__when_ticket_unknown__should_return_no_session_error(self, manager: SessionManager):
-        manager.create_pending_game(game_id="game1", player_specs=_make_specs(1), num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(1))
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -96,7 +96,7 @@ class TestJoinGame:
         self, manager: SessionManager
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn1 = MockConnection()
         manager.register_connection(conn1)
@@ -112,7 +112,7 @@ class TestJoinGame:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -126,10 +126,10 @@ class TestJoinGame:
         self, manager: SessionManager
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         specs2 = [PlayerSpec(name="OtherPlayer", user_id="other", game_ticket="other-ticket")]
-        manager.create_pending_game(game_id="game2", player_specs=specs2, num_ai_players=3)
+        manager.create_pending_game(game_id="game2", player_specs=specs2)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -140,7 +140,7 @@ class TestJoinGame:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn1 = MockConnection()
         manager.register_connection(conn1)
@@ -167,7 +167,7 @@ class TestJoinGame:
 
     async def test_join_game__when_second_of_two_humans_joins__should_start_game(self, manager: SessionManager):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn1 = MockConnection()
         manager.register_connection(conn1)
@@ -192,7 +192,7 @@ class TestPendingGameTimeout:
         self, seeded_engine, short_pending_timeout
     ):
         manager = SessionManager(seeded_engine)
-        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2), num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         assert manager.get_playing_game_id("user-1") == "game1"
         conn = MockConnection()
         manager.register_connection(conn)
@@ -221,7 +221,7 @@ class TestPendingGameTimeout:
         self, manager: SessionManager
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
         pending = manager._pending_games.get("game1")
         timeout_task = pending.timeout_task
         assert timeout_task is not None
@@ -238,7 +238,7 @@ class TestPendingGameTimeout:
         self, manager: SessionManager, short_pending_timeout
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
         timeout_task = manager._pending_games["game1"].timeout_task
         assert timeout_task is not None
 
@@ -260,7 +260,7 @@ class TestPendingGameDisconnect:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -275,7 +275,7 @@ class TestPendingGameDisconnect:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn1 = MockConnection()
         manager.register_connection(conn1)
@@ -296,7 +296,7 @@ class TestPendingGameDisconnect:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -312,7 +312,7 @@ class TestPendingGameDisconnect:
         self, manager: SessionManager
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -509,7 +509,7 @@ class TestJoinGameViaRouter:
         ticket = make_test_game_ticket(username="Alice", room_id=game_id, user_id="alice-id")
 
         specs = [PlayerSpec(name="Alice", user_id="alice-id", game_ticket=ticket)]
-        manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id=game_id, player_specs=specs)
 
         conn = MockConnection(game_id=game_id)
         router.handle_connect(conn)
@@ -528,7 +528,7 @@ class TestJoinGameViaRouter:
     async def test_join_game_via_router__when_ticket_forged__should_return_invalid_ticket_error(self, manager, router):
         game_id = "test-game"
         specs = [PlayerSpec(name="Alice", user_id="alice-id", game_ticket="valid-ticket")]
-        manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id=game_id, player_specs=specs)
 
         conn = MockConnection(game_id=game_id)
         router.handle_connect(conn)
@@ -591,7 +591,7 @@ class TestPendingGameDefensivePaths:
 
     async def test_leave_pending_game__when_pending_info_missing__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -611,7 +611,7 @@ class TestPendingGameDefensivePaths:
         self, manager: SessionManager
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
         pending = manager._pending_games.get("game1")
         assert pending is not None
 
@@ -628,7 +628,7 @@ class TestPendingGameDefensivePaths:
 
     async def test_complete_pending_game__when_game_removed__should_do_nothing(self, manager: SessionManager):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
         pending = manager._pending_games.get("game1")
         assert pending is not None
 
@@ -642,7 +642,7 @@ class TestPendingGameDefensivePaths:
 
     async def test_pending_game_timeout__when_pending_info_gone__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         game = manager.get_game("game1")
         pending = manager._pending_games.pop("game1")
@@ -655,7 +655,7 @@ class TestPendingGameDefensivePaths:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -674,7 +674,7 @@ class TestPendingGameDefensivePaths:
         self, manager: SessionManager
     ):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -689,7 +689,7 @@ class TestPendingGameDefensivePaths:
 
     async def test_register_pending_player__when_game_removed__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(1)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn = MockConnection()
         manager.register_connection(conn)
@@ -702,7 +702,7 @@ class TestPendingGameDefensivePaths:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn1 = MockConnection()
         manager.register_connection(conn1)
@@ -727,7 +727,7 @@ class TestPendingGameDefensivePaths:
         self, manager: SessionManager
     ):
         specs = _make_specs(2)
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=2)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
 
         conn1 = MockConnection()
         manager.register_connection(conn1)

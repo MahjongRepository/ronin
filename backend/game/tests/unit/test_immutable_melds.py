@@ -60,7 +60,6 @@ class TestCallPonImmutable:
         assert meld.who == 0
         assert meld.from_who == 3
         assert meld.called_tile == man_1m[2]
-        assert 0 in new_state.players_with_open_hands
         assert tile_to_34(man_1m[0]) in new_state.players[0].kuikae_tiles
 
     def test_call_pon__should_clear_ippatsu_for_all_players(self):
@@ -185,7 +184,6 @@ class TestCallClosedKanImmutable:
         assert meld.from_who is None
         # 13 original - 4 for kan + 1 dead wall draw = 10
         assert len(new_state.players[0].tiles) == 10
-        assert 0 not in new_state.players_with_open_hands
         assert new_state.wall.pending_dora_count == 0
         assert len(new_state.wall.dora_indicators) == original_dora_count + 1
         assert new_state.players[0].is_rinshan is True
@@ -198,8 +196,6 @@ class TestCallClosedKanImmutable:
         assert round_state.players[3].is_ippatsu is True
 
         new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
-        # hand stays closed
-        assert 0 not in new_state.players_with_open_hands
         # but ippatsu is cleared for everyone
         for p in new_state.players:
             assert p.is_ippatsu is False

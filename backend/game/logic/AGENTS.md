@@ -42,13 +42,19 @@ changes.
   discards the drawn tile). The discard validator, the turn timeout and the AI all go through them, and `can_call_chi`
   drops a shape that would leave no legal discard, so the default chooser never comes up empty; if it does, that is an
   engine fault (`AssertionError`), not a rule error.
+* "No call yet" is one predicate, `MahjongRoundState.has_any_call()` (closed kans count): tenhou, chiihou, renhou,
+  double riichi and kyuushu kyuuhai all use it. Four Winds alone looks only at open melds (`has_open_melds()`), so a
+  closed kan does not prevent it.
 
 ## Calls
 
-A discard creates one `PendingCallPrompt` (`call_type=DISCARD`) holding every eligible caller: ron
-callers as `int`, meld callers as `MeldCaller`, and a seat eligible for both as a ron caller only.
-A shouminkan that someone can rob, or an ankan that a kokushi hand can rob, creates a `CHANKAN`
-prompt instead. Each response (including pass) removes the seat from
+A discard creates one `PendingCallPrompt` (`kind=PromptKind.DISCARD`) holding every eligible seat
+as one `Caller`: a ron caller (`can_ron`) or a meld caller with its `MeldOption`s (kan > pon > chi);
+a seat eligible for both is a ron caller only. A shouminkan that someone can rob, or an ankan that
+a kokushi hand can rob, creates a `CHANKAN` prompt instead, every caller a ron caller.
+`build_call_prompt_events()` turns each caller into its per-seat call prompt event (`CallType` RON,
+MELD or CHANKAN) in the prompt's caller order, which is the order clients get them;
+`_resolve_ron_responses` ranks ron winners by that same order. Each response (including pass) removes the seat from
 `pending_seats`; when it is empty, `call_resolution.resolve_call_prompt()` picks ron > pon/kan > chi
 > pass. Dora reveal and riichi finalization after a discard wait until no ron is taken.
 

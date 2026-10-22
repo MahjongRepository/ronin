@@ -14,21 +14,20 @@ from game.logic.abortive import (
 )
 from game.logic.action_result import create_draw_event
 from game.logic.enums import (
-    FALLBACK_MELD_PRIORITY,
     MELD_CALL_PRIORITY,
-    CallType,
     MeldCallType,
     MeldViewType,
+    PromptKind,
     RoundPhase,
 )
 from game.logic.events import (
-    CallPromptEvent,
     DiscardEvent,
     DoraRevealedEvent,
     GameEvent,
     MeldEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
+    build_call_prompt_events,
 )
 from game.logic.exceptions import (
     ImpossibleActionError,
@@ -65,9 +64,11 @@ from game.logic.scoring import (
 )
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
+    Caller,
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
+    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import (
@@ -75,7 +76,6 @@ from game.logic.state_utils import (
     update_player,
 )
 from game.logic.tiles import tile_to_34
-from game.logic.types import MeldCaller, MeldCallInput, RonCallInput
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
     can_call_ron,
@@ -87,6 +87,7 @@ from game.logic.win import (
 
 if TYPE_CHECKING:
     from game.logic.settings import GameSettings
+    from game.logic.types import MeldCallInput, RonCallInput
 
 logger = structlog.get_logger()
 
@@ -200,12 +201,12 @@ def _find_meld_callers(
     tile_id: int,
     discarder_seat: int,
     settings: GameSettings,
-) -> list[MeldCaller]:
+) -> list[Caller]:
     """
     Find all players who can call a meld on the discarded tile.
 
-    Returns list of MeldCaller options sorted by priority (kan > pon > chi).
-    Each entry includes: seat, call_type, and options (for chi).
+    Returns the meld callers ordered by their best meld (kan > pon > chi), then seat index; each caller's melds are in
+    that priority order too, a chi with its options.
 
     Last discard restriction: when the live wall is empty, no meld calls are
     allowed (only ron). This applies to the final discard of a hand.
@@ -213,48 +214,30 @@ def _find_meld_callers(
     if not round_state.wall.live_tiles:
         return []
 
-    meld_calls: list[MeldCaller] = []
+    callers: list[Caller] = []
     for seat in range(NUM_PLAYERS):
         if seat == discarder_seat:
             continue
 
         player = round_state.players[seat]
-
-        # check open kan
+        melds: list[MeldOption] = []
         if can_call_open_kan(player, discarded_tile=tile_id, round_state=round_state, settings=settings):
-            meld_calls.append(
-                MeldCaller(
-                    seat=seat,
-                    call_type=MeldCallType.OPEN_KAN,
-                ),
-            )
+            melds.append(MeldOption(call_type=MeldCallType.OPEN_KAN))
 
-        # check pon
         if can_call_pon(player, tile_id):
-            meld_calls.append(
-                MeldCaller(
-                    seat=seat,
-                    call_type=MeldCallType.PON,
-                ),
-            )
+            melds.append(MeldOption(call_type=MeldCallType.PON))
 
-        # check chi (only from kamicha)
         chi_options = can_call_chi(
             player, discarded_tile=tile_id, discarder_seat=discarder_seat, caller_seat=seat, settings=settings
         )
         if chi_options:
-            meld_calls.append(
-                MeldCaller(
-                    seat=seat,
-                    call_type=MeldCallType.CHI,
-                    options=tuple(chi_options),
-                ),
-            )
+            melds.append(MeldOption(call_type=MeldCallType.CHI, options=tuple(chi_options)))
 
-    # sort by priority: kan > pon > chi
-    meld_calls.sort(key=lambda x: MELD_CALL_PRIORITY.get(x.call_type, FALLBACK_MELD_PRIORITY))
+        if melds:
+            callers.append(Caller(seat=seat, melds=tuple(melds)))
 
-    return meld_calls
+    callers.sort(key=lambda c: MELD_CALL_PRIORITY[c.melds[0].call_type])
+    return callers
 
 
 def _validate_riichi_discard(
@@ -312,36 +295,22 @@ def _build_discard_prompt(
     game_state: MahjongGameState,
     tile_id: int,
     ron_callers: list[int],
-    meld_calls: list[MeldCaller],
+    meld_callers: list[Caller],
 ) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
     """
-    Create a unified DISCARD call prompt for all callers.
+    Create the DISCARD call prompt for all callers, ron callers first, and its per-seat prompt events.
     """
-    discarder_seat = round_state.current_player_seat
-    callers: list[int | MeldCaller] = list(ron_callers) + list(meld_calls)
-    ron_caller_set = set(ron_callers)
-    all_caller_seats = ron_caller_set | {c.seat for c in meld_calls}
-
+    callers = (*(Caller(seat=seat, can_ron=True) for seat in ron_callers), *meld_callers)
     prompt = PendingCallPrompt(
-        call_type=CallType.DISCARD,
+        kind=PromptKind.DISCARD,
         tile_id=tile_id,
-        from_seat=discarder_seat,
-        pending_seats=frozenset(all_caller_seats),
-        callers=tuple(callers),
+        from_seat=round_state.current_player_seat,
+        pending_seats=frozenset(c.seat for c in callers),
+        callers=callers,
     )
     new_round = round_state.model_copy(update={"pending_call_prompt": prompt})
     new_game = game_state.model_copy(update={"round_state": new_round})
-
-    events: list[GameEvent] = [
-        CallPromptEvent(
-            call_type=CallType.DISCARD,
-            tile_id=tile_id,
-            from_seat=discarder_seat,
-            callers=callers,
-            target="all",
-        ),
-    ]
-    return new_round, new_game, events
+    return new_round, new_game, list(build_call_prompt_events(prompt))
 
 
 def _finalize_no_callers(
@@ -431,18 +400,18 @@ def process_discard_phase(
 
     # find meld callers (ron-dominant: seats with ron don't get meld options)
     ron_caller_set = set(ron_callers)
-    all_meld_calls = _find_meld_callers(
+    all_meld_callers = _find_meld_callers(
         new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings
     )
-    meld_calls = [c for c in all_meld_calls if c.seat not in ron_caller_set]
+    meld_callers = [c for c in all_meld_callers if c.seat not in ron_caller_set]
 
-    if ron_callers or meld_calls:
+    if ron_callers or meld_callers:
         new_round, new_game, prompt_events = _build_discard_prompt(
             new_round_state,
             game_state,
             tile_id=tile_id,
             ron_callers=ron_callers,
-            meld_calls=meld_calls,
+            meld_callers=meld_callers,
         )
         return new_round, new_game, events + prompt_events
 
@@ -767,6 +736,29 @@ def _process_open_kan_call(
     return new_round_state, new_game_state, events
 
 
+def _build_chankan_prompt(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    *,
+    caller_seat: int,
+    tile_id: int,
+    seats: list[int],
+) -> tuple[MahjongRoundState, MahjongGameState, list[GameEvent]]:
+    """
+    Create the CHANKAN call prompt for the seats that can rob the kan, and its per-seat prompt events.
+    """
+    prompt = PendingCallPrompt(
+        kind=PromptKind.CHANKAN,
+        tile_id=tile_id,
+        from_seat=caller_seat,
+        pending_seats=frozenset(seats),
+        callers=tuple(Caller(seat=seat, can_ron=True) for seat in seats),
+    )
+    new_round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
+    new_game_state = game_state.model_copy(update={"round_state": new_round_state})
+    return new_round_state, new_game_state, list(build_call_prompt_events(prompt))
+
+
 def _process_closed_kan_call(
     round_state: MahjongRoundState,
     game_state: MahjongGameState,
@@ -785,27 +777,9 @@ def _process_closed_kan_call(
     # kokushi musou may rob a closed kan; check before executing
     kokushi_seats = is_kokushi_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=tile_id)
     if kokushi_seats:
-        prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
-            tile_id=tile_id,
-            from_seat=caller_seat,
-            pending_seats=frozenset(kokushi_seats),
-            callers=tuple(kokushi_seats),
+        return _build_chankan_prompt(
+            round_state, game_state, caller_seat=caller_seat, tile_id=tile_id, seats=kokushi_seats
         )
-        new_round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        new_game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        chankan_callers: list[int | MeldCaller] = list(kokushi_seats)
-        events: list[GameEvent] = [
-            CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=tile_id,
-                from_seat=caller_seat,
-                callers=chankan_callers,
-                target="all",
-            ),
-        ]
-        return new_round_state, new_game_state, events
 
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_closed_kan(
@@ -852,27 +826,9 @@ def _process_added_kan_call(
     # check for chankan first (using current state before kan is executed)
     chankan_seats = is_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=resolved_tile_id)
     if chankan_seats:
-        prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
-            tile_id=resolved_tile_id,
-            from_seat=caller_seat,
-            pending_seats=frozenset(chankan_seats),
-            callers=tuple(chankan_seats),
+        return _build_chankan_prompt(
+            round_state, game_state, caller_seat=caller_seat, tile_id=resolved_tile_id, seats=chankan_seats
         )
-        new_round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        new_game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        chankan_callers: list[int | MeldCaller] = list(chankan_seats)
-        events: list[GameEvent] = [
-            CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=resolved_tile_id,
-                from_seat=caller_seat,
-                callers=chankan_callers,
-                target="all",
-            ),
-        ]
-        return new_round_state, new_game_state, events
 
     old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_added_kan(

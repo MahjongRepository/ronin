@@ -68,7 +68,7 @@ class TestSessionManagerDefensiveChecks:
 
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        manager.create_pending_game(game_id="game1", player_specs=specs)
         # Verify pending game exists and has a timeout task
         pending = manager._pending_games.get("game1")
         assert pending is not None

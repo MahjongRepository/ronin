@@ -79,33 +79,22 @@ def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """
     Shape a CallPromptEvent payload for the wire.
 
-    For ron/chankan: drop callers (recipient is implied by routing target).
-    For meld: replace callers with available_calls containing only the
-    recipient's call choices (seat is dropped since it's implied).
+    Replace the callers list (clr) with the recipient's seat (cs); a meld prompt also lists the recipient's call choices
+    (ac), without the seat.
     """
-    call_type = payload.get("clt")
-
-    if call_type in (WireCallType.RON, WireCallType.CHANKAN):
-        callers = payload.pop("clr", [])
-        if callers:
-            payload["cs"] = callers[0]
-
+    callers = payload.pop("clr")
+    if payload["clt"] != WireCallType.MELD:
+        payload["cs"] = callers[0]
         return payload
 
-    if call_type == WireCallType.MELD:
-        callers = payload.pop("clr", [])
-        if callers:
-            payload["cs"] = callers[0]["s"]
+    payload["cs"] = callers[0]["s"]
+    available_calls: list[dict[str, Any]] = []
+    for caller in callers:
+        call: dict[str, Any] = {"clt": caller["clt"]}
+        if caller.get("opt") is not None:
+            call["opt"] = caller["opt"]
 
-        available_calls: list[dict[str, Any]] = []
-        for caller in callers:
-            call: dict[str, Any] = {"clt": caller["clt"]}
-            if caller.get("opt") is not None:
-                call["opt"] = caller["opt"]
+        available_calls.append(call)
 
-            available_calls.append(call)
-
-        payload["ac"] = available_calls
-        return payload
-
+    payload["ac"] = available_calls
     return payload

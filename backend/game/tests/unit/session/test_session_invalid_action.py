@@ -18,7 +18,7 @@ DISCARD_ERROR = InvalidGameActionError(action="discard", seat=0, reason="tile no
 
 class TestSessionManagerInvalidAction:
     async def test_invalid_action__when_player_sends_it__should_close_with_1008(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
@@ -27,7 +27,7 @@ class TestSessionManagerInvalidAction:
         assert conns[0]._close_reason == "invalid_game_action"
 
     async def test_invalid_action__when_player_sends_it__should_replace_player_with_ai(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
@@ -44,7 +44,7 @@ class TestSessionManagerInvalidAction:
         assert replace_calls[0] == ("game1", "Alice")
 
     async def test_invalid_action__when_player_sends_it__should_broadcast_player_left(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
@@ -53,7 +53,7 @@ class TestSessionManagerInvalidAction:
         assert left_msgs[0]["player_name"] == "Alice"
 
     async def test_invalid_action__when_last_human_sends_it__should_clean_up_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=3, player_names=["Alice"])
+        conns = await create_started_game(manager, player_names=["Alice"])
         assert manager.get_game("game1") is not None
 
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
@@ -62,7 +62,7 @@ class TestSessionManagerInvalidAction:
         assert manager.get_game("game1") is None
 
     async def test_invalid_action__when_player_sends_it__should_log_warning(self, manager, caplog):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
         with caplog.at_level(logging.WARNING):
@@ -76,7 +76,7 @@ class TestSessionManagerInvalidAction:
         assert msg["reason"] == "tile not in hand"
 
     async def test_invalid_action__when_player_replaced__should_broadcast_ai_pending_actions(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         ai_player_event = ServiceEvent(
             event=EventType.DRAW,
@@ -101,7 +101,7 @@ class TestSessionManagerInvalidAction:
         assert len(ai_player_msgs) == 1
 
     async def test_invalid_action__when_ai_replacement_raises__should_fail_the_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
@@ -116,7 +116,7 @@ class TestSessionManagerInvalidAction:
         assert [(c._close_code, c._close_reason) for c in conns] == [(1011, "internal_error")] * 2
 
     async def test_invalid_action__when_offender_leaves_afterwards__should_not_replace_again(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
 

@@ -7,7 +7,7 @@ from .helpers import create_started_game
 
 class TestSeatBindingOnStart:
     async def test_session_binding__when_game_starts__should_bind_seat_to_each_session(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)
         session1 = manager._session_store._sessions.get(player1.session_token)
@@ -20,7 +20,7 @@ class TestSeatBindingOnStart:
 
 class TestSessionDisconnect:
     async def test_session_binding__when_player_leaves_started_game__should_mark_session_disconnected(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         token1 = player1.session_token
@@ -45,7 +45,7 @@ class TestSessionDisconnect:
 
 class TestSessionCleanup:
     async def test_session_binding__when_all_players_leave__should_remove_sessions_and_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         player1 = manager._players.get(conns[0].connection_id)
         player2 = manager._players.get(conns[1].connection_id)

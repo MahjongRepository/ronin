@@ -140,7 +140,6 @@ class TestRenhouToggle:
             current_player_seat=0,
             round_wind=0,
             all_discards=(),
-            players_with_open_hands=(),
             wall=tuple(range(70)),
             dead_wall=tuple(range(14)),
             dora_indicators=TilesConverter.string_to_136_array(man="9"),
@@ -184,7 +183,6 @@ class TestRenhouEligibility:
             players=players,
             dealer_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_renhou(round_state.players[0], round_state) is False
 
@@ -194,17 +192,22 @@ class TestRenhouEligibility:
             players=players,
             dealer_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_renhou(round_state.players[1], round_state) is True
 
     def test_renhou__when_any_call_made__should_not_be_eligible(self):
-        players = tuple(create_player(seat=i) for i in range(4))
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="555")),
+            opened=True,
+            who=3,
+            from_who=2,
+        )
+        players = (*(create_player(seat=i) for i in range(3)), create_player(seat=3, melds=(pon,)))
         round_state = create_round_state(
             players=players,
             dealer_seat=0,
             all_discards=(),
-            players_with_open_hands=(3,),
         )
         assert is_renhou(round_state.players[1], round_state) is False
 
@@ -214,7 +217,6 @@ class TestRenhouEligibility:
             players=players,
             dealer_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
         )
         tile = TilesConverter.string_to_136_array(man="1")[0]
         round_state = update_player(round_state, 1, discards=(Discard(tile_id=tile),))
@@ -228,7 +230,6 @@ class TestRenhouEligibility:
             dead_wall=tuple(range(14)),
             dora_indicators=TilesConverter.string_to_136_array(man="9"),
             all_discards=(),
-            players_with_open_hands=(),
         )
         round_state = update_player(round_state, 1, tiles=tuple(tiles))
         player = round_state.players[1]
@@ -250,7 +251,6 @@ class TestRenhouEligibility:
             players=players,
             dealer_seat=0,
             all_discards=(),
-            players_with_open_hands=(),
         )
         kan_tiles = TilesConverter.string_to_136_array(man="1111")
         closed_kan = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(kan_tiles), opened=False)

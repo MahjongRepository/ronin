@@ -68,8 +68,6 @@ MELD_CALL_PRIORITY: dict[MeldCallType, int] = {
     MeldCallType.CHI: 2,
 }
 
-FALLBACK_MELD_PRIORITY = 99  # sorts unknown call types after all known ones
-
 
 class KanType(StrEnum):
     """
@@ -94,15 +92,23 @@ _KAN_TO_MELD_CALL: dict[KanType, MeldCallType] = {
 }
 
 
+class PromptKind(StrEnum):
+    """
+    Kinds of pending call prompts the engine stores.
+    """
+
+    DISCARD = "discard"
+    CHANKAN = "chankan"
+
+
 class CallType(StrEnum):
     """
-    Types of call prompts sent to players.
+    Kinds of per-seat call prompt events sent to players.
     """
 
     RON = "ron"
     MELD = "meld"
     CHANKAN = "chankan"
-    DISCARD = "discard"  # unified discard claim (ron + meld callers)
 
 
 class WireCallType(IntEnum):

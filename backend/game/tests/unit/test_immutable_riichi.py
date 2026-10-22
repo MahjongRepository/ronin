@@ -20,7 +20,6 @@ class TestDeclareRiichiDaburi:
         self,
         *,
         player_discards: tuple[Discard, ...] | None = None,
-        players_with_open_hands: tuple[int, ...] | None = None,
         other_player_melds: dict[int, tuple[FrozenMeld, ...]] | None = None,
     ) -> tuple[MahjongRoundState, MahjongGameState]:
         player = MahjongPlayer(
@@ -38,7 +37,6 @@ class TestDeclareRiichiDaburi:
         round_state = MahjongRoundState(
             wall=Wall(live_tiles=tuple(range(10))),
             players=players,
-            players_with_open_hands=players_with_open_hands or (),
         )
         game_state = MahjongGameState(
             round_state=round_state,
@@ -48,7 +46,6 @@ class TestDeclareRiichiDaburi:
     def test_declare_riichi__when_riichi_discard_is_first_discard__should_set_daburi(self):
         round_state, game_state = self._create_game_state(
             player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
-            players_with_open_hands=(),
         )
         assert round_state.players[0].is_daburi is False
 
@@ -69,7 +66,6 @@ class TestDeclareRiichiDaburi:
                 Discard(tile_id=TilesConverter.string_to_136_array(sou="88")[0]),
                 Discard(tile_id=TilesConverter.string_to_136_array(sou="88")[1], is_riichi_discard=True),
             ),
-            players_with_open_hands=(),
         )
 
         settings = GameSettings()
@@ -82,9 +78,16 @@ class TestDeclareRiichiDaburi:
         assert new_round_state.players[0].is_daburi is False
 
     def test_declare_riichi__when_open_meld_exists__should_not_set_daburi(self):
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="555")),
+            opened=True,
+            who=1,
+            from_who=0,
+        )
         round_state, game_state = self._create_game_state(
             player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
-            players_with_open_hands=(1,),
+            other_player_melds={1: (pon,)},
         )
 
         settings = GameSettings()
@@ -104,7 +107,6 @@ class TestDeclareRiichiDaburi:
         )
         round_state, game_state = self._create_game_state(
             player_discards=(Discard(tile_id=TilesConverter.string_to_136_array(sou="8")[0], is_riichi_discard=True),),
-            players_with_open_hands=(),
             other_player_melds={1: (closed_kan,)},
         )
 

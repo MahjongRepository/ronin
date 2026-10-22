@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 class TestSessionManagerDisconnect:
     async def test_disconnect__when_one_of_two_humans_leaves__should_replace_with_ai_and_keep_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         game = manager.get_game("game1")
         assert game.started is True
 
@@ -41,7 +41,7 @@ class TestSessionManagerDisconnect:
         assert manager.get_game("game1") is not None
 
     async def test_disconnect__when_last_human_leaves__should_not_replace_with_ai_and_clean_up_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         game = manager.get_game("game1")
         assert game.started is True
 
@@ -64,7 +64,7 @@ class TestSessionManagerDisconnect:
         assert manager.get_game("game1") is None
 
     async def test_disconnect__when_player_leaves__should_remove_only_their_timer(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         # verify timers exist for both seats
         assert manager._timer_manager.get_timer("game1", 0) is not None
         assert manager._timer_manager.get_timer("game1", 1) is not None
@@ -76,7 +76,7 @@ class TestSessionManagerDisconnect:
         assert manager._timer_manager.get_timer("game1", 1) is not None
 
     async def test_disconnect__when_ai_replacement_produces_events__should_broadcast_them(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         # make process_ai_player_actions_after_replacement return an event
         ai_player_event = ServiceEvent(
@@ -101,7 +101,7 @@ class TestSessionManagerDisconnect:
         assert len(ai_player_msgs) == 1
 
     async def test_disconnect__when_stale_timeout_fires_for_replaced_seat__should_send_nothing(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         # Alice disconnects
         await manager.leave_game(conns[0])
@@ -115,7 +115,7 @@ class TestSessionManagerDisconnect:
     async def test_disconnect__when_game_lock_missing__should_skip_ai_replacement_and_mark_session_disconnected(
         self, manager
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         player = manager._players.get(conns[0].connection_id)
         token = player.session_token
@@ -179,7 +179,7 @@ class TestLockBoundaryRaces:
     async def test_lock_boundary__when_leave_arrives_during_action_broadcast__should_replace_after_the_send(
         self, manager, monkeypatch
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         order: list[str] = []
         _track_replacements(manager, order, monkeypatch)
         bob_send = _FirstSendHold(conns[1].send_bytes, order)
@@ -196,7 +196,7 @@ class TestLockBoundaryRaces:
     async def test_lock_boundary__when_leave_arrives_during_timeout_broadcast__should_replace_after_the_send(
         self, manager, monkeypatch
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         order: list[str] = []
         _track_replacements(manager, order, monkeypatch)
         bob_send = _FirstSendHold(conns[1].send_bytes, order)
@@ -211,7 +211,7 @@ class TestLockBoundaryRaces:
         assert order == ["held_send_done", "replace Alice"]
 
     async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         # Alice leaves first (not last)
         await manager.leave_game(conns[0])
@@ -236,7 +236,7 @@ class TestLockBoundaryRaces:
         assert manager.get_game("game1") is None
 
     async def test_lock_boundary__when_ai_replacement_runs_on_leave__should_hold_game_lock(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         lock = manager._get_game_lock("game1")
         assert lock is not None

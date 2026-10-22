@@ -3,7 +3,7 @@ import logging
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import CallType, GamePhase, PlayerAction, RoundPhase
+from game.logic.enums import GamePhase, PlayerAction, PromptKind, RoundPhase
 from game.logic.events import (
     DiscardEvent,
     EventType,
@@ -13,7 +13,7 @@ from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
-from game.logic.state import PendingCallPrompt
+from game.logic.state import Caller, PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.types import (
     ExhaustiveDrawResult,
@@ -189,7 +189,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             "game1",
             wall=round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)}),
             current_player_seat=alice.seat,
-            players_with_open_hands=(alice.seat,),
             is_after_meld_call=True,
         )
 
@@ -210,11 +209,11 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         alice = _find_player(round_state, "Alice")
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=round_state.players[0].tiles[0] if round_state.players[0].tiles else 0,
             from_seat=(alice.seat + 1) % 4,
             pending_seats=frozenset({alice.seat}),
-            callers=(alice.seat,),
+            callers=(Caller(seat=alice.seat, can_ron=True),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -231,11 +230,11 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         bob = _find_player(round_state, "Bob")
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=round_state.players[0].tiles[0] if round_state.players[0].tiles else 0,
             from_seat=(alice.seat + 2) % 4,
             pending_seats=frozenset({alice.seat, bob.seat}),
-            callers=(alice.seat, bob.seat),
+            callers=(Caller(seat=alice.seat, can_ron=True), Caller(seat=bob.seat, can_ron=True)),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -258,11 +257,11 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         discarder_seat = (alice.seat + 1) % 4
         tile_id = round_state.players[discarder_seat].tiles[0] if round_state.players[discarder_seat].tiles else 0
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=tile_id,
             from_seat=discarder_seat,
             pending_seats=frozenset({alice.seat}),
-            callers=(alice.seat,),
+            callers=(Caller(seat=alice.seat, can_ron=True),),
         )
         _update_round_state(service, "game1", wall=Wall(), pending_call_prompt=prompt)
 
@@ -371,10 +370,10 @@ class TestServiceAccessors:
 
 class TestMahjongGameServiceInvalidStart:
     def test_start_game__when_settings_unsupported__should_raise_and_register_no_game(self):
-        service = MahjongGameService(settings=GameSettings(has_agariyame=True))
+        service = MahjongGameService()
 
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
-            service.start_game("game1", ["Alice"])
+            service.start_game("game1", ["Alice"], settings=GameSettings(has_agariyame=True))
         assert service.get_game_state("game1") is None
 
 

@@ -2,27 +2,28 @@ from game.logic.call_resolution import (
     pick_best_meld_response,
 )
 from game.logic.enums import (
-    CallType,
     GameAction,
     MeldCallType,
+    PromptKind,
 )
 from game.logic.state import (
+    Caller,
     CallResponse,
+    MeldOption,
     PendingCallPrompt,
 )
-from game.logic.types import MeldCaller
 
 
 class TestPickBestMeldResponseTieBreak:
     def test_pick_best_meld_response__when_distance_wraps_around_table__should_prefer_closest_seat(self):
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=2,
             pending_seats=frozenset(),
             callers=(
-                MeldCaller(seat=0, call_type=MeldCallType.PON),
-                MeldCaller(seat=3, call_type=MeldCallType.PON),
+                Caller(seat=0, melds=(MeldOption(call_type=MeldCallType.PON),)),
+                Caller(seat=3, melds=(MeldOption(call_type=MeldCallType.PON),)),
             ),
         )
 

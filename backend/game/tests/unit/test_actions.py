@@ -128,11 +128,9 @@ class TestAddedKanAction:
         )
         round_state = _update_player(round_state, 0, melds=(pon_meld,), tiles=player_tiles)
 
-        # player must be in open hands list
         # wall needs at least 2 tiles for kan
         round_state = round_state.model_copy(
             update={
-                "players_with_open_hands": (0,),
                 "wall": round_state.wall.model_copy(update={"live_tiles": tuple(range(50))}),
             },
         )

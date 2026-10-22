@@ -158,7 +158,6 @@ async def create_game(request: Request) -> JSONResponse:
         session_manager.create_pending_game(
             game_id=game_request.game_id,
             player_specs=game_request.players,
-            num_ai_players=game_request.num_ai_players,
         )
     except ValueError:
         return JSONResponse({"error": "Game with this ID already exists"}, status_code=409)

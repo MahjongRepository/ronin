@@ -7,9 +7,9 @@ from mahjong.tile import TilesConverter
 
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
-    CallType,
     GameAction,
     MeldCallType,
+    PromptKind,
     RoundResultType,
 )
 from game.logic.exceptions import InvalidDiscardError
@@ -22,7 +22,7 @@ from game.logic.scoring import (
     apply_ron_score,
 )
 from game.logic.settings import GameSettings
-from game.logic.state import CallResponse, PendingCallPrompt
+from game.logic.state import Caller, CallResponse, PendingCallPrompt
 from game.logic.state_utils import update_player
 from game.logic.tiles import tile_to_34
 from game.logic.types import SeatConfig, YakuInfo
@@ -385,11 +385,11 @@ class TestDoubleRonEnabled:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=win_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1, 2),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
             responses=(
                 CallResponse(seat=1, action=GameAction.CALL_RON),
                 CallResponse(seat=2, action=GameAction.CALL_RON),
@@ -410,11 +410,11 @@ class TestHeadBumpWhenDoubleRonDisabled:
         round_state = game_state.round_state
 
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=win_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1, 2),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
             responses=(
                 CallResponse(seat=1, action=GameAction.CALL_RON),
                 CallResponse(seat=2, action=GameAction.CALL_RON),
@@ -436,11 +436,11 @@ class TestHeadBumpWhenDoubleRonDisabled:
         # Discarder is seat 0. Counter-clockwise order: 1, 2, 3.
         # Seat 1 is closest to seat 0 counter-clockwise.
         prompt = PendingCallPrompt(
-            call_type=CallType.RON,
+            kind=PromptKind.DISCARD,
             tile_id=win_tile,
             from_seat=0,
             pending_seats=frozenset(),
-            callers=(1, 2),
+            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
             responses=(
                 CallResponse(seat=1, action=GameAction.CALL_RON),
                 CallResponse(seat=2, action=GameAction.CALL_RON),

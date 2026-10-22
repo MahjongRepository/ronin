@@ -57,11 +57,17 @@ class PendingGameInfo:
     """
 
     game_id: str
-    expected_count: int  # number of human players expected
+    player_specs: list[PlayerSpec]
     connected_count: int = 0
     timeout_task: asyncio.Task[None] | None = None
-    player_specs: list[PlayerSpec] = field(default_factory=list)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False, compare=False)
+
+    @property
+    def expected_count(self) -> int:
+        """
+        Return the number of human players expected to join: one per player spec.
+        """
+        return len(self.player_specs)
 
 
 @dataclass(frozen=True)
@@ -895,7 +901,6 @@ class SessionManager:
         *,
         game_id: str,
         player_specs: list[PlayerSpec],
-        num_ai_players: int,
     ) -> None:
         """
         Create a game in pending state, waiting for players to connect via JOIN_GAME.
@@ -903,7 +908,7 @@ class SessionManager:
         if game_id in self._games or game_id in self._pending_games:
             raise ValueError(f"Game {game_id} already exists")
 
-        game = Game(game_id=game_id, num_ai_players=num_ai_players)
+        game = Game(game_id=game_id)
         self._games[game_id] = game
 
         # Create sessions using game_ticket as the session token, matching what
@@ -916,18 +921,13 @@ class SessionManager:
                 user_id=spec.user_id,
             )
 
-        expected_count = len(player_specs)
-        pending = PendingGameInfo(
-            game_id=game_id,
-            expected_count=expected_count,
-            player_specs=list(player_specs),
-        )
+        pending = PendingGameInfo(game_id=game_id, player_specs=list(player_specs))
         self._pending_games[game_id] = pending
 
         pending.timeout_task = self._spawn(
             self._pending_game_timeout(game, game.timer_config.pending_game_timeout_seconds),
         )
-        logger.info("pending game created", game_id=game_id, expected_count=expected_count)
+        logger.info("pending game created", game_id=game_id, expected_count=pending.expected_count)
 
     async def join_game(
         self,
@@ -1255,7 +1255,7 @@ class SessionManager:
 
         game.started = True
         player_names = [spec.name for spec in player_specs]
-        events = self._game_service.start_game(game.game_id, player_names, settings=game.settings)
+        events = self._game_service.start_game(game.game_id, player_names)
 
         self._start_replay_collection(game.game_id)
         await self._record_game_start(game, user_ids_by_name={spec.name: spec.user_id for spec in player_specs})

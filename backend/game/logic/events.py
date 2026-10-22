@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType
+from game.logic.enums import CallType, GameErrorCode, MeldViewType, PromptKind
 from game.logic.types import (
     AvailableActionItem,
     GamePlayerInfo,
@@ -17,6 +17,9 @@ from game.logic.types import (
     WireCallTypeField,
     WireWindField,
 )
+
+if TYPE_CHECKING:
+    from game.logic.state import PendingCallPrompt
 
 # ---------------------------------------------------------------------------
 # Typed routing targets
@@ -291,109 +294,62 @@ class ServiceEvent(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _get_unique_caller_seats(callers: list[int | MeldCaller]) -> list[int]:
+def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]:
     """
-    Extract unique seat numbers from callers list.
+    Build the prompt's per-seat call prompt events: one per caller, in prompt order, each addressed to its seat.
+
+    On a discard prompt a ron caller gets a RON event and a meld caller a MELD event listing its melds; on a chankan
+    prompt every caller gets a CHANKAN event.
     """
-    seen: set[int] = set()
-    seats: list[int] = []
-    for caller in callers:
-        seat = caller if isinstance(caller, int) else caller.seat
-        if seat not in seen:
-            seen.add(seat)
-            seats.append(seat)
+    events: list[CallPromptEvent] = []
+    for caller in prompt.callers:
+        callers: list[int | MeldCaller] = [caller.seat]
+        if prompt.kind == PromptKind.CHANKAN:
+            call_type = CallType.CHANKAN
+        elif caller.can_ron:
+            call_type = CallType.RON
+        else:
+            call_type = CallType.MELD
+            callers = [MeldCaller(seat=caller.seat, call_type=m.call_type, options=m.options) for m in caller.melds]
 
-    return seats
-
-
-def _filter_callers_for_seat(callers: list[int | MeldCaller], seat: int) -> list[int | MeldCaller]:
-    """
-    Filter callers list to only include entries for the given seat.
-    """
-    return [c for c in callers if (isinstance(c, int) and c == seat) or (isinstance(c, MeldCaller) and c.seat == seat)]
-
-
-def _split_discard_prompt_for_seat(event: CallPromptEvent, seat: int) -> CallPromptEvent:
-    """
-    Split a DISCARD prompt into one per-seat event.
-
-    Ron-dominant: if seat has both ron and meld entries, produce a RON prompt.
-    """
-    is_ron = any(c == seat for c in event.callers if isinstance(c, int))
-    meld_callers: list[int | MeldCaller] = [c for c in event.callers if isinstance(c, MeldCaller) and c.seat == seat]
-
-    target = f"seat_{seat}"
-    if is_ron:
-        return event.model_copy(
-            update={
-                "call_type": CallType.RON,
-                "callers": [seat],
-                "target": target,
-            },
+        events.append(
+            CallPromptEvent(
+                call_type=call_type,
+                tile_id=prompt.tile_id,
+                from_seat=prompt.from_seat,
+                callers=callers,
+                target=f"seat_{caller.seat}",
+            ),
         )
 
-    if not meld_callers:
-        raise ValueError(f"seat {seat} has no ron or meld entries in DISCARD prompt callers")
-
-    return event.model_copy(
-        update={
-            "call_type": CallType.MELD,
-            "callers": meld_callers,
-            "target": target,
-        },
-    )
+    return events
 
 
 def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
     """
     Convert typed events to service events with typed targets.
 
-    CallPromptEvent is split into per-caller-seat events with callers filtered to only the recipient's entries. Each
-    ServiceEvent carries a distinct CallPromptEvent instance (no shared mutable data).
-
-    DISCARD prompts are split per-seat with the appropriate call_type for each seat (RON for ron callers, MELD for meld
-    callers).
+    Builds each ServiceEvent with model_construct, skipping validation: its event is the data's own type, so they always
+    match. The target parse is parse_event_target inlined, as this runs for every event.
     """
-    # Use model_construct to skip redundant Pydantic validation on every
-    # ServiceEvent. The event/data.type consistency is guaranteed by
-    # construction (event=event.type always matches data.type).
     _construct = ServiceEvent.model_construct
     result: list[ServiceEvent] = []
     for event in raw_events:
-        if isinstance(event, CallPromptEvent):
-            if event.call_type == CallType.DISCARD:
-                for seat in _get_unique_caller_seats(event.callers):
-                    per_seat_event = _split_discard_prompt_for_seat(event, seat)
-                    result.append(
-                        _construct(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
-                    )
-            else:
-                for seat in _get_unique_caller_seats(event.callers):
-                    per_seat_callers = _filter_callers_for_seat(event.callers, seat)
-                    per_seat_event = event.model_copy(
-                        update={"callers": per_seat_callers, "target": f"seat_{seat}"},
-                    )
-                    result.append(
-                        _construct(event=event.type, data=per_seat_event, target=SeatTarget(seat=seat)),
-                    )
+        target_str = event.target
+        if target_str == "all":
+            target = _BROADCAST
+        elif target_str.startswith("seat_"):
+            seat = int(target_str[5:])
+            if seat < 0:
+                raise ValueError(f"invalid seat number in target: {target_str}")
+
+            target = SeatTarget(seat=seat)
         else:
-            # Inline parse_event_target to avoid function call and string
-            # splitting overhead. Most events target "all" (broadcast).
-            target_str = event.target
-            if target_str == "all":
-                target = _BROADCAST
-            elif target_str.startswith("seat_"):
-                seat = int(target_str[5:])
-                if seat < 0:
-                    raise ValueError(f"invalid seat number in target: {target_str}")
+            raise ValueError(f"invalid target value: {target_str}")
 
-                target = SeatTarget(seat=seat)
-            else:
-                raise ValueError(f"invalid target value: {target_str}")
-
-            result.append(
-                _construct(event=event.type, data=event, target=target),
-            )
+        result.append(
+            _construct(event=event.type, data=event, target=target),
+        )
 
     return result
 

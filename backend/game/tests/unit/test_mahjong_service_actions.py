@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from game.logic.action_result import ActionResult
-from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase, RoundResultType
+from game.logic.enums import CallType, GameAction, GameErrorCode, PromptKind, RoundPhase, RoundResultType
 from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
@@ -13,7 +13,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt
+from game.logic.state import Caller, PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
 from game.tests.unit.helpers import (
     _find_player,
@@ -61,11 +61,11 @@ class TestMahjongGameServiceProcessActionResult:
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=0,
             from_seat=player.seat,
             pending_seats=frozenset({ai_player_seats[0]}),
-            callers=(ai_player_seats[0],),
+            callers=(Caller(seat=ai_player_seats[0], can_ron=True),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -131,11 +131,11 @@ class TestMahjongGameServiceHandleChankanPrompt:
         player = _find_player(game_state.round_state, "Player")
 
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({player.seat}),
-            callers=(player.seat,),
+            callers=(Caller(seat=player.seat, can_ron=True),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -163,11 +163,11 @@ class TestMahjongGameServiceHandleChankanPrompt:
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=0,
             from_seat=ai_player_seats[0],
             pending_seats=frozenset({ai_player_seats[1]}),
-            callers=(ai_player_seats[1],),
+            callers=(Caller(seat=ai_player_seats[1], can_ron=True),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -260,11 +260,11 @@ class TestChankanPromptResolvedPath:
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.CHANKAN,
+            kind=PromptKind.CHANKAN,
             tile_id=0,
             from_seat=ai_player_seats[0],
             pending_seats=frozenset({ai_player_seats[1]}),
-            callers=(ai_player_seats[1],),
+            callers=(Caller(seat=ai_player_seats[1], can_ron=True),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 

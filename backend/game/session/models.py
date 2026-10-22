@@ -3,20 +3,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.settings import MAX_AI_PLAYERS, GameSettings
 from game.session.timer import TimerConfig
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
     from shared.dal.models import GameEndReason
-
-
-def validate_num_ai_players(num_ai_players: int) -> None:
-    """
-    Validate num_ai_players is within the allowed range (0 to MAX_AI_PLAYERS).
-    """
-    if not (0 <= num_ai_players <= MAX_AI_PLAYERS):
-        raise ValueError(f"num_ai_players must be 0-{MAX_AI_PLAYERS}, got {num_ai_players}")
 
 
 class PlayerSpec(BaseModel):
@@ -79,18 +70,10 @@ class Player:
 @dataclass
 class Game:
     game_id: str
-    num_ai_players: int = 3
     started: bool = False
     end_reason: GameEndReason | None = None
     players: dict[str, Player] = field(default_factory=dict)
-    settings: GameSettings = field(default_factory=GameSettings)
     timer_config: TimerConfig = field(default_factory=TimerConfig)
-
-    def __post_init__(self) -> None:
-        """
-        Validate num_ai_players is within the allowed range.
-        """
-        validate_num_ai_players(self.num_ai_players)
 
     @property
     def ended(self) -> bool:

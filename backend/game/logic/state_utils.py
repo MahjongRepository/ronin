@@ -74,12 +74,7 @@ def advance_turn(
         New MahjongRoundState with turn advanced
     """
     new_seat = (round_state.current_player_seat + 1) % len(round_state.players)
-    return round_state.model_copy(
-        update={
-            "current_player_seat": new_seat,
-            "turn_count": round_state.turn_count + 1,
-        },
-    )
+    return round_state.model_copy(update={"current_player_seat": new_seat})
 
 
 def clear_pending_prompt(

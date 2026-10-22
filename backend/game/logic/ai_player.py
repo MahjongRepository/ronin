@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType, PlayerAction
@@ -12,25 +11,14 @@ if TYPE_CHECKING:
     )
 
 
-class AIPlayerStrategy(Enum):
-    """
-    Available AI player strategies.
-    """
-
-    TSUMOGIRI = "tsumogiri"
-
-
 class AIPlayer:
     """
-    AI player with configurable decision-making strategy.
+    AI player that makes every decision for its seat.
 
     All decision methods are on this class so subclasses or alternative strategies can override them. The base
     implementation is tsumogiri: discard the drawn tile (or the last legal tile when kuikae forbids it) and pass on all
     call opportunities.
     """
-
-    def __init__(self, strategy: AIPlayerStrategy = AIPlayerStrategy.TSUMOGIRI) -> None:
-        self.strategy = strategy
 
     def should_call_pon(
         self,

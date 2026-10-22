@@ -83,7 +83,7 @@ def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLA
 class TestSessionManagerReconnect:
     @pytest.mark.asyncio
     async def test_reconnect__when_session_disconnected__should_send_game_reconnected_and_notify_others(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn, bob_conn = conns
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -134,7 +134,7 @@ class TestSessionManagerReconnect:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_game_cleaned_up__should_return_game_gone_error(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -164,7 +164,7 @@ class TestSessionManagerReconnect:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_game_id_differs_from_session__should_return_game_mismatch_error(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -179,7 +179,7 @@ class TestSessionManagerReconnect:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_game_lock_missing__should_return_retry_later_error(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -196,7 +196,7 @@ class TestSessionManagerReconnect:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_bank_saved_on_leave__should_restore_timer_with_that_bank(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -226,7 +226,7 @@ class TestSessionManagerReconnect:
 class TestBankTimePreservation:
     @pytest.mark.asyncio
     async def test_bank_time__when_player_leaves_mid_turn__should_save_bank_minus_elapsed_overtime(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -247,7 +247,7 @@ class TestBankTimePreservation:
 
     @pytest.mark.asyncio
     async def test_bank_time__when_player_leaves_during_meld_prompt__should_save_bank_unchanged(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -269,7 +269,7 @@ class TestBankTimePreservation:
 class TestReconnectTurnState:
     @pytest.mark.asyncio
     async def test_reconnect__when_it_is_players_turn__should_resend_draw_event(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -304,7 +304,7 @@ class TestReconnectTurnState:
 class TestReconnectEdgeCases:
     @pytest.mark.asyncio
     async def test_reconnect__when_session_token_still_active__should_return_already_active_error(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -318,7 +318,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_snapshot_unavailable__should_return_snapshot_failed_and_restore_ai(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -345,7 +345,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_session_has_no_seat__should_return_no_seat_error(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -362,7 +362,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_old_connection_still_in_game__should_evict_and_close_it(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -388,7 +388,7 @@ class TestReconnectEdgeCases:
     async def test_reconnect__when_session_reconnected_concurrently_before_lock__should_return_no_session_error(
         self, manager
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -427,7 +427,7 @@ class TestReconnectEdgeCases:
     async def test_reconnect__when_connection_removed_before_lock__should_return_silently_without_registering(
         self, manager
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -462,7 +462,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_game_state_missing__should_send_no_draw_event(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -483,7 +483,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_snapshot_raises__should_fail_the_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         alice_token = manager._players[conns[0].connection_id].session_token
         await manager.leave_game(conns[0], notify_player=False)
@@ -504,7 +504,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_call_prompt_pending__should_send_no_draw_event(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -538,7 +538,7 @@ class TestReconnectEdgeCases:
 
     @pytest.mark.asyncio
     async def test_reconnect__when_round_not_playing__should_send_no_draw_event(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_player = manager._players[alice_conn.connection_id]
         alice_token = alice_player.session_token
@@ -573,7 +573,7 @@ class TestReconnectEdgeCases:
 class TestReconnectToEndedGame:
     async def test_reconnect__when_game_ended_while_player_was_away__should_refuse_with_game_gone(self, seeded_engine):
         manager = SessionManager(seeded_engine)
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
         bob_token = manager._players[conns[1].connection_id].session_token
         await manager.leave_game(conns[1], notify_player=False)
@@ -591,7 +591,7 @@ class TestReconnectToEndedGame:
 class TestReconnectThenPlay:
     @pytest.mark.asyncio
     async def test_reconnect__when_discard_sent_after_reconnect__should_handle_it_as_reconnected_player(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
 
         snapshot = _make_snapshot("game1", seat=0)
@@ -611,7 +611,7 @@ class TestReconnectThenPlay:
 class TestMultipleReconnects:
     @pytest.mark.asyncio
     async def test_reconnect__when_repeated_after_overtime__should_decrease_bank_each_time(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
 
         snapshot = _make_snapshot("game1", seat=0)
@@ -662,7 +662,6 @@ class TestAllHumansDisconnected:
 
         conns = await create_started_game(
             manager_with_replay,
-            num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
         mock_replay.reset_mock()

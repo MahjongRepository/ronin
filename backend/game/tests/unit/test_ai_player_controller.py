@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from mahjong.tile import TilesConverter
 
-from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import CallType, GameAction, KanType, MeldCallType, PlayerAction, RoundPhase
-from game.logic.state import MahjongPlayer, MahjongRoundState
+from game.logic.enums import GameAction, KanType, MeldCallType, PlayerAction, RoundPhase
+from game.logic.state import Caller, MahjongPlayer, MahjongRoundState, MeldOption
 from game.logic.tiles import tile_to_34
-from game.logic.types import AIPlayerAction, MeldCaller
+from game.logic.types import AIPlayerAction
 from game.logic.wall import Wall
 from game.tests.unit.helpers import _string_to_136_tile
 
@@ -56,7 +56,7 @@ def _create_round_state(current_seat: int = 0) -> MahjongRoundState:
 
 class TestGetTurnAction:
     def test_get_turn_action__when_ai_seat__should_return_discard(self):
-        controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
+        controller = AIPlayerController({1: AIPlayer()})
         rs = _create_round_state(current_seat=1)
         expected_tile = rs.players[1].tiles[-1]
 
@@ -65,12 +65,6 @@ class TestGetTurnAction:
         action, data = result
         assert action == GameAction.DISCARD
         assert data["tile_id"] == expected_tile
-
-    def test_get_turn_action__when_non_ai_seat__should_return_none(self):
-        controller = AIPlayerController({1: AIPlayer()})
-        rs = _create_round_state(current_seat=0)
-
-        assert controller.get_turn_action(0, rs) is None
 
     def test_get_turn_action__when_ai_tsumos__should_route_to_declare_tsumo(self):
         class TsumoAI(AIPlayer):
@@ -105,129 +99,55 @@ class TestGetTurnAction:
 
 class TestGetCallResponseTsumogiriDeclines:
     def test_get_call_response__when_tsumogiri_ai_offered_ron__should_decline(self):
-        controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
-        rs = _create_round_state()
-
-        assert (
-            controller.get_call_response(seat=1, round_state=rs, call_type=CallType.RON, tile_id=0, caller_info=1)
-            is None
-        )
-
-    def test_get_call_response__when_tsumogiri_ai_offered_pon__should_decline(self):
-        controller = AIPlayerController({1: AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI)})
-        rs = _create_round_state()
-        caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
-
-        assert (
-            controller.get_call_response(
-                seat=1,
-                round_state=rs,
-                call_type=CallType.MELD,
-                tile_id=_string_to_136_tile(man="1"),
-                caller_info=caller,
-            )
-            is None
-        )
-
-    def test_get_call_response__when_non_ai_seat__should_return_none(self):
         controller = AIPlayerController({1: AIPlayer()})
         rs = _create_round_state()
 
-        assert (
-            controller.get_call_response(seat=0, round_state=rs, call_type=CallType.MELD, tile_id=0, caller_info=0)
-            is None
-        )
+        assert controller.get_call_response(round_state=rs, tile_id=0, caller=Caller(seat=1, can_ron=True)) is None
+
+    def test_get_call_response__when_tsumogiri_ai_offered_pon__should_decline(self):
+        controller = AIPlayerController({1: AIPlayer()})
+        rs = _create_round_state()
+        caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),))
+
+        assert controller.get_call_response(round_state=rs, tile_id=_string_to_136_tile(man="1"), caller=caller) is None
 
 
 class TestGetCallResponseAcceptingAI:
-    def test_get_call_response__when_accepting_ai_and_ron_prompt__should_call_ron(self):
-        ai = _AcceptAllAI()
-        controller = AIPlayerController({1: ai})
+    def test_get_call_response__when_accepting_ai_and_ron_caller__should_call_ron(self):
+        controller = AIPlayerController({1: _AcceptAllAI()})
         rs = _create_round_state()
 
-        result = controller.get_call_response(seat=1, round_state=rs, call_type=CallType.RON, tile_id=0, caller_info=1)
-        assert result is not None
-        action, data = result
-        assert action == GameAction.CALL_RON
-        assert data == {}
-
-    def test_get_call_response__when_accepting_ai_and_chankan_prompt__should_call_ron(self):
-        ai = _AcceptAllAI()
-        controller = AIPlayerController({1: ai})
-        rs = _create_round_state()
-
-        result = controller.get_call_response(
-            seat=1, round_state=rs, call_type=CallType.CHANKAN, tile_id=0, caller_info=1
-        )
-        assert result is not None
-        assert result[0] == GameAction.CALL_RON
-
-    def test_get_call_response__when_accepting_ai_and_discard_prompt_int_caller__should_call_ron(self):
-        ai = _AcceptAllAI()
-        controller = AIPlayerController({1: ai})
-        rs = _create_round_state()
-
-        result = controller.get_call_response(
-            seat=1, round_state=rs, call_type=CallType.DISCARD, tile_id=0, caller_info=1
-        )
-        assert result is not None
-        assert result[0] == GameAction.CALL_RON
+        result = controller.get_call_response(round_state=rs, tile_id=0, caller=Caller(seat=1, can_ron=True))
+        assert result == (GameAction.CALL_RON, {})
 
     def test_get_call_response__when_accepting_ai_and_pon__should_call_pon_with_tile_id(self):
-        ai = _AcceptAllAI()
-        controller = AIPlayerController({1: ai})
+        controller = AIPlayerController({1: _AcceptAllAI()})
         rs = _create_round_state()
         tile_id = _string_to_136_tile(man="1")
-        caller = MeldCaller(seat=1, call_type=MeldCallType.PON)
+        caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),))
 
-        result = controller.get_call_response(
-            seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
-        )
-        assert result is not None
-        action, data = result
-        assert action == GameAction.CALL_PON
-        assert data == {"tile_id": tile_id}
+        result = controller.get_call_response(round_state=rs, tile_id=tile_id, caller=caller)
+        assert result == (GameAction.CALL_PON, {"tile_id": tile_id})
 
     def test_get_call_response__when_accepting_ai_and_chi__should_call_chi_with_sequence(self):
-        ai = _AcceptAllAI()
-        controller = AIPlayerController({1: ai})
+        controller = AIPlayerController({1: _AcceptAllAI()})
         rs = _create_round_state()
         tile_id = _string_to_136_tile(man="3")
-        caller = MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((0, 4),))
+        caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=((0, 4),)),))
 
-        result = controller.get_call_response(
-            seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
-        )
-        assert result is not None
-        action, data = result
-        assert action == GameAction.CALL_CHI
-        assert data == {"tile_id": tile_id, "sequence_tiles": (0, 4)}
+        result = controller.get_call_response(round_state=rs, tile_id=tile_id, caller=caller)
+        assert result == (GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": (0, 4)})
 
     def test_get_call_response__when_accepting_ai_and_open_kan__should_call_kan_and_convert_tile_to_34(self):
         ai = _AcceptAllAI()
         controller = AIPlayerController({1: ai})
         rs = _create_round_state()
-        tile_id = 40  # 2p copy 0, tile_34=10
-        caller = MeldCaller(seat=1, call_type=MeldCallType.OPEN_KAN)
+        tile_id = _string_to_136_tile(pin="2")
+        caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),))
 
-        result = controller.get_call_response(
-            seat=1, round_state=rs, call_type=CallType.MELD, tile_id=tile_id, caller_info=caller
-        )
-        assert result is not None
-        action, data = result
-        assert action == GameAction.CALL_KAN
-        assert data == {"tile_id": tile_id, "kan_type": KanType.OPEN}
+        result = controller.get_call_response(round_state=rs, tile_id=tile_id, caller=caller)
+        assert result == (GameAction.CALL_KAN, {"tile_id": tile_id, "kan_type": KanType.OPEN})
         assert ai.last_kan_tile_34 == tile_to_34(tile_id)
-
-    def test_get_call_response__when_meld_prompt_with_int_caller__should_return_none(self):
-        ai = _AcceptAllAI()
-        controller = AIPlayerController({1: ai})
-        rs = _create_round_state()
-
-        assert (
-            controller.get_call_response(seat=1, round_state=rs, call_type=CallType.MELD, tile_id=0, caller_info=1)
-            is None
-        )
 
 
 class TestAIPlayerControllerManagement:

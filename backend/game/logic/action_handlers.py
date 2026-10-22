@@ -43,7 +43,6 @@ from game.logic.types import (
     ChiActionData,
     DiscardActionData,
     KanActionData,
-    MeldCaller,
     MeldCallInput,
     PonActionData,
     RiichiActionData,
@@ -161,8 +160,8 @@ def _validate_chi_sequence(
     - The 3 tiles don't form a valid chi sequence (consecutive in same suit)
     - The sequence_tiles don't match, by tile type, one of the seat's chi options in the prompt
 
-    The seat's CHI caller is the one checked, also when the seat is offered pon too (pon callers sort first); it exists
-    because _validate_caller_action_matches_prompt ran upstream.
+    The seat's chi meld is the one checked, also when the seat is offered pon too (pon sorts first); it exists because
+    _validate_caller_action_matches_prompt ran upstream.
     """
     # Both tiles must be in the player's hand
     hand_list = list(player.tiles)
@@ -187,11 +186,9 @@ def _validate_chi_sequence(
             reason="tiles do not form a valid chi sequence",
         )
 
-    chi_caller = next(
-        c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == seat and c.call_type == MeldCallType.CHI
-    )
+    chi_meld = next(m for m in prompt.caller(seat).melds if m.call_type == MeldCallType.CHI)
     submitted_34 = tuple(sorted(tile_to_34(t) for t in sequence_tiles))
-    options = chi_caller.options or ()
+    options = chi_meld.options or ()
     if not any(tuple(sorted(tile_to_34(t) for t in opt)) == submitted_34 for opt in options):
         raise InvalidGameActionError(
             action="call_chi",
@@ -222,70 +219,23 @@ def _validate_matching_tile_count(
         )
 
 
-def _validate_meld_action_for_callers(
-    prompt: PendingCallPrompt,
-    seat: int,
-    action: GameAction,
-) -> None:
-    """
-    Validate that the meld action matches available call types for this seat.
-
-    Raises InvalidGameActionError if no meld callers exist for the seat or the action doesn't match any available call
-    type.
-    """
-    seat_callers = [c for c in prompt.callers if isinstance(c, MeldCaller) and c.seat == seat]
-    if not seat_callers:
-        raise InvalidGameActionError(
-            action=action.value,
-            seat=seat,
-            reason=f"action {action.value} not available: no meld options for this seat",
-        )
-
-    allowed: frozenset[GameAction] = frozenset().union(
-        *(_MELD_CALL_TYPE_TO_GAME_ACTIONS.get(c.call_type, frozenset()) for c in seat_callers),
-    )
-    if action not in allowed:
-        available = ", ".join(c.call_type.value for c in seat_callers)
-        raise InvalidGameActionError(
-            action=action.value,
-            seat=seat,
-            reason=f"action {action.value} does not match available call types: {available}",
-        )
-
-
-def _is_ron_caller_on_prompt(prompt: PendingCallPrompt, seat: int) -> bool:
-    """
-    Check if the seat is a ron caller (int entry) on the prompt.
-    """
-    return any(c == seat for c in prompt.callers if isinstance(c, int))
-
-
 def _validate_caller_action_matches_prompt(
     prompt: PendingCallPrompt,
     seat: int,
     action: GameAction,
 ) -> None:
     """
-    Validate that the player's response action is among their available call types.
+    Validate that the player's response action is among the calls the prompt offered the seat.
 
-    Raises InvalidGameActionError if the action is not valid for the seat's role on this prompt type.
+    A ron caller may only ron; a meld caller may make only one of its melds. Raises InvalidGameActionError otherwise.
     """
-    match prompt.call_type:
-        case CallType.RON | CallType.CHANKAN:
-            ron_only = True
-        case CallType.DISCARD:
-            ron_only = _is_ron_caller_on_prompt(prompt, seat)
-        case CallType.MELD:
-            ron_only = False
-        case _:  # pragma: no cover (exhaustive)
-            raise AssertionError(f"unknown prompt type: {prompt.call_type}")
-
-    if ron_only:
+    caller = prompt.caller(seat)
+    if caller.can_ron:
         if action != GameAction.CALL_RON:
             raise InvalidGameActionError(
                 action=action.value,
                 seat=seat,
-                reason=f"only ron is valid for this seat on a {prompt.call_type.value} prompt",
+                reason=f"only ron is valid for this seat on a {prompt.kind.value} prompt",
             )
 
         return
@@ -294,16 +244,22 @@ def _validate_caller_action_matches_prompt(
         raise InvalidGameActionError(
             action=action.value,
             seat=seat,
-            reason=f"cannot call ron on a {prompt.call_type.value} prompt",
+            reason=f"cannot call ron on a {prompt.kind.value} prompt",
         )
 
-    _validate_meld_action_for_callers(prompt, seat=seat, action=action)
+    if action not in {_MELD_CALL_TYPE_TO_GAME_ACTION[m.call_type] for m in caller.melds}:
+        available = ", ".join(m.call_type.value for m in caller.melds)
+        raise InvalidGameActionError(
+            action=action.value,
+            seat=seat,
+            reason=f"action {action.value} does not match available call types: {available}",
+        )
 
 
-_MELD_CALL_TYPE_TO_GAME_ACTIONS: dict[MeldCallType, frozenset[GameAction]] = {
-    MeldCallType.PON: frozenset({GameAction.CALL_PON}),
-    MeldCallType.CHI: frozenset({GameAction.CALL_CHI}),
-    MeldCallType.OPEN_KAN: frozenset({GameAction.CALL_KAN}),
+_MELD_CALL_TYPE_TO_GAME_ACTION: dict[MeldCallType, GameAction] = {
+    MeldCallType.PON: GameAction.CALL_PON,
+    MeldCallType.CHI: GameAction.CALL_CHI,
+    MeldCallType.OPEN_KAN: GameAction.CALL_KAN,
 }
 
 
@@ -725,14 +681,7 @@ def handle_pass(
         )
 
     # apply furiten for passing on ron/chankan opportunity
-    should_apply_furiten = False
-    if prompt.call_type in (CallType.CHANKAN, CallType.RON):
-        should_apply_furiten = True
-    elif prompt.call_type == CallType.DISCARD:
-        # For DISCARD prompts, only apply furiten if this seat was a ron caller
-        should_apply_furiten = any(c == seat for c in prompt.callers if isinstance(c, int))
-
-    if should_apply_furiten:
+    if prompt.caller(seat).can_ron:
         new_round_state = apply_temporary_furiten(new_round_state, seat)
         player = new_round_state.players[seat]
         if player.is_riichi:

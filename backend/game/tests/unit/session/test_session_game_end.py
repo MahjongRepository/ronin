@@ -110,7 +110,7 @@ class TestFailGame:
     async def test_fail_game__when_game_running__should_send_internal_error_record_error_and_close_with_1011(self):
         game_repo = MockGameRepository()
         manager = SessionManager(MockGameService(), game_repository=game_repo)
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         game = manager.get_game("game1")
 
         assert manager.fail_game(game, reason="engine fault", exc=RuntimeError("boom")) is True
@@ -137,7 +137,6 @@ class TestFailGame:
                 PlayerSpec(name="Alice", user_id="u0", game_ticket="ticket-0"),
                 PlayerSpec(name="Bob", user_id="u1", game_ticket="ticket-1"),
             ],
-            num_ai_players=2,
         )
         conn = MockConnection()
         manager.register_connection(conn)
@@ -159,7 +158,7 @@ class TestFailGame:
         collector = MagicMock(spec=ReplayCollector)
         collector.save = AsyncMock(side_effect=KeyError("replay buffer"))
         manager = SessionManager(MockGameService(), replay_collector=collector, game_repository=game_repo)
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         conns[0].send_message = AsyncMock(side_effect=ValueError("encoder broke"))
 
         with caplog.at_level(logging.ERROR):
@@ -185,7 +184,6 @@ class TestFailGame:
                 PlayerSpec(name="Alice", user_id="u0", game_ticket="ticket-0"),
                 PlayerSpec(name="Bob", user_id="u1", game_ticket="ticket-1"),
             ],
-            num_ai_players=2,
         )
         conn = MockConnection()
         manager.register_connection(conn)
@@ -255,7 +253,7 @@ class TestFailGame:
 
     async def test_heartbeat_loop__when_it_raises__should_fail_its_game(self, manager, monkeypatch):
         monkeypatch.setattr(heartbeat_module, "HEARTBEAT_CHECK_INTERVAL", 0)
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         heartbeat_task = manager._heartbeat._tasks["game:game1"]
 
         async def broken_check(*_args, **_kwargs):
@@ -289,7 +287,6 @@ class TestFailGame:
     async def test_heartbeat__when_game_cleaned_up__should_stop_game_task(self, manager):
         conns = await create_started_game(
             manager,
-            num_ai_players=0,
             player_names=["P0", "P1", "P2", "P3"],
         )
         assert "game:game1" in manager._heartbeat._tasks
@@ -379,7 +376,7 @@ class TestGameEndOwnership:
     ):
         game_repo = MockGameRepository()
         manager = SessionManager(seeded_engine, game_repository=game_repo)
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
         game = manager.get_game("game1")
@@ -401,7 +398,7 @@ class TestGameEndFromAction:
     async def test_game_end__when_ai_replacement_after_a_kick_ends_game__should_close_remaining_with_1000(
         self, manager
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=_make_game_end_events(),
         )
@@ -414,7 +411,7 @@ class TestGameEndFromAction:
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
 
     async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
@@ -426,7 +423,7 @@ class TestGameEndFromAction:
     async def test_game_end__when_ai_replacement_after_invalid_action_ends_game__should_close_remaining_with_1000(
         self, manager
     ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=_make_game_end_events(),
@@ -454,7 +451,7 @@ class TestGameEndFromTimeout:
             replay_collector=ReplayCollector(LocalReplayStorage(tmp_path)),
             game_repository=game_repo,
         )
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
 
@@ -471,7 +468,7 @@ class TestGameEndFromTimeout:
 
 class TestGameEndFromLeaveGame:
     async def test_game_end__when_ai_replacement_after_leave_ends_game__should_close_remaining_with_1000(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=_make_game_end_events(),

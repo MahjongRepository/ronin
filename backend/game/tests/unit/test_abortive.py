@@ -1,3 +1,4 @@
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import (
@@ -14,6 +15,8 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 
+_PIN_5S = tuple(TilesConverter.string_to_136_array(pin="5555"))
+
 
 class TestCanCallKyuushuKyuuhai:
     def _create_round_state(
@@ -21,7 +24,6 @@ class TestCanCallKyuushuKyuuhai:
         tiles: list[int],
         *,
         player_discards: tuple[Discard, ...] | None = None,
-        players_with_open_hands: tuple[int, ...] = (),
     ) -> MahjongRoundState:
         players = (
             MahjongPlayer(
@@ -38,7 +40,6 @@ class TestCanCallKyuushuKyuuhai:
         return MahjongRoundState(
             players=players,
             current_player_seat=0,
-            players_with_open_hands=players_with_open_hands,
         )
 
     def _create_kyuushu_hand(self) -> list[int]:
@@ -110,7 +111,7 @@ class TestCanCallKyuushuKyuuhai:
         tiles = self._create_kyuushu_hand()
         pin_4s = tuple(TilesConverter.string_to_136_array(pin="444"))
         pon = FrozenMeld(meld_type=FrozenMeld.PON, tiles=pin_4s, opened=True, called_tile=pin_4s[0], who=2, from_who=1)
-        round_state = self._create_round_state(tiles, players_with_open_hands=(2,))
+        round_state = self._create_round_state(tiles)
         players = list(round_state.players)
         players[2] = players[2].model_copy(update={"melds": (pon,)})
         round_state = round_state.model_copy(update={"players": tuple(players)})
@@ -146,7 +147,6 @@ class TestCanCallKyuushuKyuuhai:
         round_state = MahjongRoundState(
             players=players,
             current_player_seat=0,
-            players_with_open_hands=(),
         )
         settings = GameSettings()
 
@@ -315,18 +315,17 @@ class TestCheckFourWinds:
     def _create_round_state(
         self,
         all_discards: tuple[int, ...] = (),
-        players_with_open_hands: tuple[int, ...] = (),
+        player1_melds: tuple[FrozenMeld, ...] = (),
     ) -> MahjongRoundState:
         players = [
             MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="AI1", score=25000),
+            MahjongPlayer(seat=1, name="AI1", melds=player1_melds, score=25000),
             MahjongPlayer(seat=2, name="AI2", score=25000),
             MahjongPlayer(seat=3, name="AI3", score=25000),
         ]
         return MahjongRoundState(
             players=players,
             all_discards=all_discards,
-            players_with_open_hands=players_with_open_hands,
         )
 
     def test_check_four_winds__when_four_same_winds_discarded__should_abort(self):
@@ -388,12 +387,20 @@ class TestCheckFourWinds:
         result = check_four_winds(round_state, settings)
         assert result is False
 
-    def test_check_four_winds__when_open_meld_exists__should_not_abort(self):
+    @pytest.mark.parametrize(
+        ("meld", "expected_abort"),
+        [
+            (FrozenMeld(meld_type=FrozenMeld.PON, tiles=_PIN_5S[:3], opened=True, who=1, from_who=0), False),
+            (FrozenMeld(meld_type=FrozenMeld.KAN, tiles=_PIN_5S, opened=False, who=1, from_who=1), True),
+        ],
+        ids=["open_pon_blocks", "closed_kan_does_not_block"],
+    )
+    def test_check_four_winds__when_a_player_has_a_meld__should_abort_only_without_open_melds(
+        self, meld, expected_abort
+    ):
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="1111")),
-            players_with_open_hands=(1,),
+            player1_melds=(meld,),
         )
-        settings = GameSettings()
 
-        result = check_four_winds(round_state, settings)
-        assert result is False
+        assert check_four_winds(round_state, GameSettings()) is expected_abort

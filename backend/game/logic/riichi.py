@@ -71,8 +71,7 @@ def declare_riichi(
     # double riichi is possible if:
     # 1. this is the player's first discard (riichi discard already added, so len == 1)
     # 2. no calls have been made by anyone (including closed kans)
-    no_calls = len(round_state.players_with_open_hands) == 0 and not any(p.melds for p in round_state.players)
-    is_daburi = len(player.discards) == 1 and no_calls
+    is_daburi = len(player.discards) == 1 and not round_state.has_any_call()
 
     new_round_state = update_player(
         round_state,

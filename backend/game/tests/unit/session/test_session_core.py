@@ -15,7 +15,7 @@ from .helpers import create_started_game
 
 class TestSessionManager:
     async def test_leave_game__when_player_leaves__should_notify_others(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         await manager.leave_game(conns[1])
         assert len(conns[0].sent_messages) == 1
@@ -33,7 +33,7 @@ class TestSessionManager:
         assert msg["action"] == GameAction.DISCARD
 
     async def test_broadcast_events__when_event_targets_seat__should_send_only_to_that_player(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
@@ -53,7 +53,7 @@ class TestSessionManager:
         assert len(conns[1].sent_messages) == 0
 
     async def test_broadcast_events__when_call_prompt_targets_seat__should_send_only_to_that_caller(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         # per-seat call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
@@ -75,7 +75,7 @@ class TestSessionManager:
         assert len(conns[1].sent_messages) == 0
 
     async def test_broadcast_events__when_caller_has_pon_and_chi__should_send_call_prompt_once(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         # seat 0 can both pon and chi the same tile -- two MeldCaller entries for the same seat.
         game = manager.get_game("game1")

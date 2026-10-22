@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from game.logic.enums import CallType, GameAction, MeldCallType, RoundPhase, TimeoutType
+from game.logic.enums import CallType, GameAction, MeldCallType, PromptKind, RoundPhase, TimeoutType
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -15,7 +15,7 @@ from game.logic.events import (
 )
 from game.logic.exceptions import GeneratedActionError
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.state import PendingCallPrompt
+from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.types import (
     ExhaustiveDrawResult,
@@ -48,11 +48,11 @@ class TestMahjongGameServiceHandleTimeout:
         player = _find_player(round_state, "Player")
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=(player.seat + 1) % 4,
             pending_seats=frozenset({player.seat}),
-            callers=(MeldCaller(seat=player.seat, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=player.seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -67,11 +67,11 @@ class TestMahjongGameServiceHandleTimeout:
         player = _find_player(round_state, "Player")
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=(player.seat + 1) % 4,
             pending_seats=frozenset({(player.seat + 2) % 4}),
-            callers=(MeldCaller(seat=(player.seat + 2) % 4, call_type=MeldCallType.PON),),
+            callers=(Caller(seat=(player.seat + 2) % 4, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -148,16 +148,11 @@ class TestMahjongGameServiceProcessPostDiscard:
         player = _find_player(game_state.round_state, "Player")
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({player.seat}),
-            callers=(
-                MeldCaller(
-                    seat=player.seat,
-                    call_type=MeldCallType.PON,
-                ),
-            ),
+            callers=(Caller(seat=player.seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -197,16 +192,11 @@ class TestMahjongGameServiceProcessPostDiscard:
         )
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=ai_player_tile,
             from_seat=0,
             pending_seats=frozenset({ai_player_seat}),
-            callers=(
-                MeldCaller(
-                    seat=ai_player_seat,
-                    call_type=MeldCallType.PON,
-                ),
-            ),
+            callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
@@ -303,47 +293,17 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         ai_player_seat = ai_player_seats[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({ai_player_seat}),
-            callers=(
-                MeldCaller(
-                    seat=ai_player_seat,
-                    call_type=MeldCallType.PON,
-                ),
-            ),
+            callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt, wall=Wall())
 
         events: list[ServiceEvent] = []
         result = service._process_post_discard("game1", events)
         assert [e.event for e in result] == [EventType.ROUND_END]
-
-
-class TestMahjongGameServiceFindCallerInfo:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_find_caller_info__when_seat_not_among_callers__should_raise(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(
-                MeldCaller(
-                    seat=2,
-                    call_type=MeldCallType.PON,
-                ),
-            ),
-        )
-
-        with pytest.raises(AssertionError, match="seat 1 not found in prompt callers"):
-            service._find_caller_info(prompt, 1)
 
 
 class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
@@ -365,11 +325,11 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({0}),
-            callers=(0,),
+            callers=(Caller(seat=0, can_ron=True),),
         )
         _update_round_state(
             service,
@@ -407,16 +367,11 @@ class TestDispatchAIPlayerCallResponseNonNullAction:
         ai_player_seat = ai_player_seats[0]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            kind=PromptKind.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({ai_player_seat}),
-            callers=(
-                MeldCaller(
-                    seat=ai_player_seat,
-                    call_type=MeldCallType.PON,
-                ),
-            ),
+            callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 

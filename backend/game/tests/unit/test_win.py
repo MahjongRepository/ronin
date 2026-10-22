@@ -600,7 +600,6 @@ class TestIsTenhou:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_tenhou(players[0], round_state) is True
 
@@ -612,7 +611,6 @@ class TestIsTenhou:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_tenhou(players[1], round_state) is False
 
@@ -624,19 +622,26 @@ class TestIsTenhou:
             round_wind=0,
             players=players,
             all_discards=(1,),
-            players_with_open_hands=(),
         )
         assert is_tenhou(players[0], round_state) is False
 
     def test_tenhou__when_meld_made__should_be_false(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="555")),
+            opened=True,
+            who=1,
+            from_who=0,
+        )
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}", score=25000, melds=(pon,) if i == 1 else ()) for i in range(4)
+        )
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(1,),
         )
         assert is_tenhou(players[0], round_state) is False
 
@@ -661,7 +666,6 @@ class TestIsTenhou:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_tenhou(players[0], round_state) is False
 
@@ -675,7 +679,6 @@ class TestIsChiihou:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_chiihou(players[1], round_state) is True
 
@@ -687,7 +690,6 @@ class TestIsChiihou:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_chiihou(players[0], round_state) is False
 
@@ -709,19 +711,26 @@ class TestIsChiihou:
             current_player_seat=1,
             round_wind=0,
             players=players,
-            players_with_open_hands=(),
         )
         assert is_chiihou(players[1], round_state) is False
 
     def test_chiihou__when_meld_made__should_be_false(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(TilesConverter.string_to_136_array(pin="555")),
+            opened=True,
+            who=2,
+            from_who=1,
+        )
+        players = tuple(
+            MahjongPlayer(seat=i, name=f"Player{i}", score=25000, melds=(pon,) if i == 2 else ()) for i in range(4)
+        )
         round_state = MahjongRoundState(
             dealer_seat=0,
             current_player_seat=1,
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(2,),
         )
         assert is_chiihou(players[1], round_state) is False
 
@@ -746,7 +755,6 @@ class TestIsChiihou:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_chiihou(players[1], round_state) is False
 
@@ -773,7 +781,6 @@ class TestIsRenhouClosedKan:
             round_wind=0,
             players=players,
             all_discards=(),
-            players_with_open_hands=(),
         )
         assert is_renhou(players[1], round_state) is False
 
