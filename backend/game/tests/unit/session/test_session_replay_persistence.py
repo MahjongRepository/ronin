@@ -96,16 +96,16 @@ class TestSessionReplaySave:
         game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_game_end_event()]
-        await manager._close_connections_on_game_end(game, events)
-        collector.save_and_cleanup.assert_awaited_once_with("game1")
+        await manager._broadcast_events(game, events)
+        collector.save.assert_awaited_once_with("game1", collector.detach_game.return_value)
 
     async def test_replay_save__when_no_game_end_event__should_not_save(self):
         manager, collector, _game_service = _make_manager_with_collector()
         game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_discard_event()]
-        await manager._close_connections_on_game_end(game, events)
-        collector.save_and_cleanup.assert_not_called()
+        await manager._broadcast_events(game, events)
+        collector.save.assert_not_called()
 
 
 class TestSessionReplayCleanup:

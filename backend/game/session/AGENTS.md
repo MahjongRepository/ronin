@@ -20,13 +20,24 @@ per-game lock.
   (`restore_human_player`), send the `game_reconnected` snapshot, broadcast `player_reconnected`, and
   re-send the draw if it is that player's turn (directly, so the replay collector does not record it
   twice). Close evicted connections outside the lock.
-* **Game end.** A finished game is marked `ended` before its replay save and finish record; the
-  sockets close after them. An action, a timeout or a reconnect that reaches an ended game is
-  refused (reconnect with `reconnect_game_gone`, before any eviction or seat restore).
-* **Server failure.** `fail_game(game, reason, exc)` is the one terminal path for a server fault.
-  It is synchronous and lock-agnostic: before anything can suspend it marks the game ended and drops
-  it from the registry with its pending entry, sleeping timers, lock, engine state and sessions, so
-  no other path can finalize it, then hands the effects to a finalizer task it owns: record
+* **Game end.** Exactly one path finalizes a game, and it claims `Game.end_reason` synchronously
+  before its first await: a completion claims it as soon as the engine's events end the game,
+  before the game-end broadcast, unless `fail_game` claimed it first; `fail_game` claims it the same
+  way. The claimer is bound to finish: right after its game-end broadcast the same path saves the
+  detached replay, records the finish and closes the sockets. If the broadcast or the replay save
+  raises, it escalates its own claim to a failure, finished by the fail_game finalizer; once the
+  finish record is written (best-effort, as all persistence) the completion stands, and a socket
+  whose close fails is logged while the rest still close. Only the claimer escalates; a concurrent
+  `fail_game` still finds the game ended and does nothing. An action, a timeout or a reconnect that reaches an ended game is refused
+  (reconnect with `reconnect_game_gone`, before any eviction or seat restore).
+* **Game ids are reusable** once a game leaves the registry. Teardown releases everything keyed by
+  the id before its first await, delayed effects use only objects detached synchronously, and a
+  player's game is resolved by membership (`_game_of`), never by id alone.
+* **Server failure.** `fail_game(game, reason, exc)` is the one terminal path for a server fault,
+  and a completion that fails while finishing escalates into the same finalizer.
+  It is synchronous and lock-agnostic: before anything can suspend it claims the game's end, drops
+  it from the registry with its pending entry, sleeping timers, lock, engine state and sessions, and
+  detaches its heartbeat loop and replay lines, then hands those to a finalizer task it owns: record
   `end_reason="error"`, save whatever replay history exists (unchanged format), send every connected
   player an `internal_error` session error, close with 1011; a failing step is logged and the rest
   still run. It is idempotent, works before start, and never cancels or awaits the current task; a

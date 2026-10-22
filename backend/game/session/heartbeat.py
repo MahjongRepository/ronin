@@ -75,9 +75,19 @@ class HeartbeatMonitor:
 
     async def stop_for_game(self, game_id: str) -> None:
         """
-        Stop the heartbeat monitor for a game.
+        Stop the heartbeat monitor for a game; the loop leaves the monitor before the first await.
         """
-        await self._stop(f"game:{game_id}")
+        task = self.detach_for_game(game_id)
+        if task is not None:
+            await cancel_and_wait([task])
+
+    def detach_for_game(self, game_id: str) -> asyncio.Task[None] | None:
+        """
+        Take a game's check loop out of the monitor without stopping it, for the caller to stop later.
+
+        Detaching synchronously keeps a later stop from reaching the loop of another game started under the same id.
+        """
+        return self._tasks.pop(f"game:{game_id}", None)
 
     async def shutdown(self) -> None:
         """
@@ -102,11 +112,6 @@ class HeartbeatMonitor:
         self._tasks[key] = asyncio.create_task(
             self._check_loop(entity_id=entity_id, entity_type=entity_type, get_entity=get_entity, on_error=on_error)
         )
-
-    async def _stop(self, key: str) -> None:
-        task = self._tasks.pop(key, None)
-        if task is not None:
-            await cancel_and_wait([task])
 
     async def _check_loop(
         self,

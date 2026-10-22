@@ -47,6 +47,9 @@ class MockConnection(ConnectionProtocol):
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         await asyncio.sleep(0)
+        if self._closed:
+            raise RuntimeError("Cannot close an already closed websocket")
+
         self._closed = True
         self._close_code = code
         self._close_reason = reason

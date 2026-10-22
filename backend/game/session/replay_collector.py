@@ -170,19 +170,30 @@ class ReplayCollector:
     async def save_and_cleanup(self, game_id: str) -> None:
         """
         Persist collected events to storage and discard the buffer.
+        """
+        await self.save(game_id, self.detach_game(game_id))
+
+    def detach_game(self, game_id: str) -> list[str] | None:
+        """
+        Stop collecting a game and hand over its recorded lines, so a later game with the same id starts clean.
+        """
+        self._seeds.pop(game_id, None)
+        self._rng_versions.pop(game_id, None)
+        return self._buffers.pop(game_id, None)
+
+    async def save(self, game_id: str, lines: list[str] | None) -> None:
+        """
+        Persist detached replay lines; nothing to do when the game recorded none.
 
         File I/O is offloaded to a worker thread to avoid blocking the async event loop. Errors during storage are
         logged but never raised, to avoid blocking the game-end cleanup flow.
         """
-        buffer = self._buffers.pop(game_id, None)
-        self._seeds.pop(game_id, None)
-        self._rng_versions.pop(game_id, None)
-        if buffer is None:
+        if lines is None:
             return
 
         try:
             version_tag = json.dumps({"version": REPLAY_VERSION})
-            content = "\n".join([version_tag, *buffer])
+            content = "\n".join([version_tag, *lines])
             await asyncio.to_thread(self._storage.save_replay, game_id, content)
         except (OSError, ValueError):  # fmt: skip
             logger.exception("failed to save replay")
@@ -191,6 +202,4 @@ class ReplayCollector:
         """
         Discard the event buffer without persisting (abandoned game).
         """
-        self._buffers.pop(game_id, None)
-        self._seeds.pop(game_id, None)
-        self._rng_versions.pop(game_id, None)
+        self.detach_game(game_id)

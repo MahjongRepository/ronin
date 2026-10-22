@@ -7,6 +7,7 @@ from game.logic.settings import MAX_AI_PLAYERS, GameSettings
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
+    from shared.dal.models import GameEndReason
 
 
 def validate_num_ai_players(num_ai_players: int) -> None:
@@ -79,7 +80,7 @@ class Game:
     game_id: str
     num_ai_players: int = 3
     started: bool = False
-    ended: bool = False
+    end_reason: GameEndReason | None = None
     players: dict[str, Player] = field(default_factory=dict)
     settings: GameSettings = field(default_factory=GameSettings)
 
@@ -88,6 +89,13 @@ class Game:
         Validate num_ai_players is within the allowed range.
         """
         validate_num_ai_players(self.num_ai_players)
+
+    @property
+    def ended(self) -> bool:
+        """
+        Whether a path claimed the game's end: set once, by the completion or by fail_game, before any await.
+        """
+        return self.end_reason is not None
 
     @property
     def player_names(self) -> list[str]:
