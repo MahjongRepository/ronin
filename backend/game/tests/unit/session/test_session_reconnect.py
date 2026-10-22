@@ -21,7 +21,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.router import MessageRouter
 from game.session.manager import SessionManager
-from game.session.models import SessionData
+from game.session.models import PlayerSpec, SessionData
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
@@ -175,23 +175,6 @@ class TestSessionManagerReconnect:
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_GAME_MISMATCH
-
-    @pytest.mark.asyncio
-    async def test_reconnect__when_game_lock_missing__should_return_retry_later_error(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        await manager.leave_game(alice_conn, notify_player=False)
-        manager._game_locks.pop("game1", None)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
-        assert len(error_msgs) == 1
-        assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_RETRY_LATER
 
     @pytest.mark.asyncio
     async def test_reconnect__when_bank_saved_on_leave__should_restore_timer_with_that_bank(self, manager):
@@ -352,23 +335,6 @@ class TestReconnectEdgeCases:
         assert replace_calls[0] == ("game1", 0)
 
     @pytest.mark.asyncio
-    async def test_reconnect__when_session_has_no_seat__should_return_no_seat_error(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        session = manager._session_store.get_session(alice_token)
-        session.seat = None
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
-        assert any(m["code"] == SessionErrorCode.RECONNECT_NO_SEAT for m in error_msgs)
-
-    @pytest.mark.asyncio
     async def test_reconnect__when_old_connection_still_in_game__should_evict_and_close_it(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
@@ -480,6 +446,7 @@ class TestReconnectEdgeCases:
         router.handle_connect(new_conn)
 
         await router.handle_message(new_conn, {"t": WireClientMessageType.RECONNECT, "game_ticket": alice_token})
+        assert new_conn.connection_id not in manager._connections
         await router.handle_disconnect(new_conn)
         await wait_for_background_tasks(manager)
         assert manager.get_game("game1") is None
@@ -503,6 +470,32 @@ class TestReconnectToEndedGame:
         await manager.reconnect(reconnecting, game_id="game1", session_token=bob_token)
         assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_GAME_GONE]
         assert manager._session_store.get_session(bob_token).disconnected_at is not None
+
+
+class TestReconnectToPendingGame:
+    async def test_reconnect__when_game_not_started_yet__should_answer_retry_later(self, seeded_engine):
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
+        specs = [
+            PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=f"ticket-{name}") for name in ("A", "B", "C")
+        ]
+        manager.create_pending_game(game_id="game1", player_specs=specs)
+        joined = []
+        for spec in specs[:2]:
+            conn = MockConnection()
+            manager.register_connection(conn)
+            await manager.join_game(conn, game_id="game1", session_token=spec.game_ticket)
+            joined.append(conn)
+
+        await manager.leave_game(joined[0], notify_player=False)
+        manager.unregister_connection(joined[0])
+
+        before_start = MockConnection()
+        manager.register_connection(before_start)
+        await manager.reconnect(before_start, game_id="game1", session_token="ticket-A")
+        assert [m["code"] for m in before_start.sent_messages] == [SessionErrorCode.RECONNECT_RETRY_LATER]
+        assert manager.get_playing_game_id("user-A") == "game1"
+
+        await manager.shutdown()
 
 
 class TestReconnectThenPlay:

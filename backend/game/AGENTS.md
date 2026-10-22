@@ -71,8 +71,9 @@ Mandatory for all game server code; review must catch violations.
   client gets its close code.
 * The router's game action, JOIN_GAME, RECONNECT and disconnect handlers are the same kind of
   boundary (`SessionManager.fail_connection`, with the game captured before the call): any exception
-  fails that game, or with no game is logged and the socket closed with 1011. Inside its message
-  loop `websocket_endpoint` closes with 1011 on anything else that reaches it, so no exception from
+  fails that game, or with no game is logged and the socket closed with 1011; a connection the game
+  does not seat leaves the registry before its 1011 close. Inside its message loop
+  `websocket_endpoint` closes with 1011 on anything else that reaches it, so no exception from
   handling a message leaves the ASGI app; a non-binary frame is client input and counts as a decode
   strike.
 * Concealed hand tiles are logged at DEBUG only; game tickets and session tokens are never logged at

@@ -504,11 +504,13 @@ class SessionManager:
 
     async def _close_kicked_and_cleanup(self, connection: ConnectionProtocol, game: Game) -> None:
         """
-        Close a kicked player's connection with 1008 and clean up the game if empty.
+        Evict a kicked player's connection from the registry, close it with 1008 and clean up the game if empty.
 
-        Called OUTSIDE the per-game lock to avoid deadlock risk from connection.close() triggering WebSocket disconnect
-        handler.
+        The eviction comes before the close is queued, so a RECONNECT the client pipelined on the closing socket finds
+        it unregistered and is dropped. Called OUTSIDE the per-game lock to avoid deadlock risk from connection.close()
+        triggering WebSocket disconnect handler.
         """
+        self.unregister_connection(connection)
         connection.close(code=1008, reason="invalid_game_action")
 
         await self._cleanup_empty_game(game.game_id, game)
@@ -781,15 +783,6 @@ class SessionManager:
             )
             return None
 
-        seat = session.seat
-        if seat is None:
-            self._send_error(
-                connection,
-                code=SessionErrorCode.RECONNECT_NO_SEAT,
-                message="Session has no seat assignment",
-            )
-            return None
-
         game = self._games.get(session.game_id)
         if game is None:
             self._session_store.remove_session(session_token)
@@ -805,9 +798,13 @@ class SessionManager:
             self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_RETRY_LATER,
-                message="Game is starting, retry shortly",
+                message="Game has not started yet, retry shortly",
             )
             return None
+
+        seat = session.seat
+        if seat is None:
+            raise AssertionError("session in a started game has no seat")
 
         return session, game, lock, seat
 
@@ -1397,9 +1394,11 @@ class SessionManager:
         Handle a server fault met while serving a connection's message or disconnect.
 
         With a game (the one the connection was acting in, captured before the failing call), the game ends through
-        fail_game, whose finalizer closes its players; the connection itself is closed with 1011 here when it is not
-        among them (a join or reconnect that failed before seating it, a player already removed). With no game there is
-        nothing to fail: the fault is logged with its traceback and the connection closed with 1011.
+        fail_game, whose finalizer closes its players; the connection itself is evicted from the registry and closed
+        with 1011 here when it is not among them (a join or reconnect that failed before seating it, a player already
+        removed). With no game there is nothing to fail: the fault is logged with its traceback, and the connection
+        evicted and closed with 1011. The eviction comes first, so a JOIN_GAME or RECONNECT pipelined behind the failed
+        message is dropped.
         """
         seated = game is not None and game.players.get(connection.connection_id) is not None
         if game is not None:
@@ -1408,6 +1407,7 @@ class SessionManager:
             logger.error("connection failed outside a game", reason=reason, exc_info=exc)
 
         if not seated:
+            self.unregister_connection(connection)
             self._close_with_internal_error(connection)
 
     def _escalate_completion(self, game: Game, *, exc: Exception, replay_lines: list[str] | None) -> None:

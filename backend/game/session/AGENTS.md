@@ -14,16 +14,18 @@ per-game lock, and under it only enqueues to sockets: a send or close never wait
 * **Disconnect** from a started game: an AI player takes the seat, the player's timer stops and the
   remaining bank time is saved on the session, and any pending turn, call or round confirmation for
   that seat is resolved. Structurally impossible input (`InvalidGameActionError`, always the acting
-  human's own seat) disconnects that player with code 1008 and seats an AI player; a rule judgment or
-  race only answers with an `ErrorEvent`; an error while replacing the kicked player is a server
-  fault (`fail_game`). A timeout or AI action is never a kick. When the last human leaves,
-  the game is torn down: there are never all-AI games, and no reconnect after that.
+  human's own seat) disconnects that player with code 1008 and seats an AI player; its connection
+  leaves the registry before the close is queued, so a RECONNECT on the closing socket is dropped. A
+  rule judgment or race only answers with an `ErrorEvent`; an error while replacing the kicked
+  player is a server fault (`fail_game`). A timeout or AI action is never a kick. When the last
+  human leaves, the game is torn down: there are never all-AI games, and no reconnect after that.
 * **Reconnect:** the router verifies the ticket; the session must be disconnected and belong to the
-  path's game. Under the lock: evict stale connections, remove the AI player
-  (`restore_human_player`), send the `game_reconnected` snapshot with the current wait id, broadcast
-  `player_reconnected`, and, when the engine's current wait (`get_awaiting`) is that seat's turn,
-  re-send the draw (directly, so the replay collector does not record it twice) and start its turn
-  timer. Close evicted connections outside the lock.
+  path's game; a game that has not started yet answers `reconnect_retry_later` (the client retries,
+  and the start seats every expected human). Under the lock: evict stale connections, remove the AI
+  player (`restore_human_player`), send the `game_reconnected` snapshot with the current wait id,
+  broadcast `player_reconnected`, and, when the engine's current wait (`get_awaiting`) is that
+  seat's turn, re-send the draw (directly, so the replay collector does not record it twice) and
+  start its turn timer. Close evicted connections outside the lock.
 * **Game end.** Exactly one path finalizes a game, and it claims `Game.end_reason` synchronously
   before its first await: a completion claims it as soon as the engine reports the game waits for
   nothing (`Awaiting.kind` NONE), before the game-end broadcast, unless `fail_game` claimed it

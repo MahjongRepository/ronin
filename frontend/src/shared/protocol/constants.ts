@@ -187,7 +187,6 @@ export const SESSION_ERROR_CODE = {
     RECONNECT_ALREADY_ACTIVE: "reconnect_already_active",
     RECONNECT_GAME_GONE: "reconnect_game_gone",
     RECONNECT_GAME_MISMATCH: "reconnect_game_mismatch",
-    RECONNECT_NO_SEAT: "reconnect_no_seat",
     RECONNECT_NO_SESSION: "reconnect_no_session",
     RECONNECT_RETRY_LATER: "reconnect_retry_later",
     RECONNECT_SNAPSHOT_FAILED: "reconnect_snapshot_failed",

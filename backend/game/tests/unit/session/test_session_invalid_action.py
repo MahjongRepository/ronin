@@ -21,6 +21,7 @@ from .helpers import (
     wait_for_background_tasks,
 )
 
+_SEAT_CHANGE_TYPES = (SessionMessageType.PLAYER_LEFT, SessionMessageType.PLAYER_RECONNECTED)
 DISCARD_ERROR = InvalidGameActionError(action="discard", seat=0, reason="tile not in hand")
 
 
@@ -148,6 +149,37 @@ class TestSessionManagerInvalidAction:
         await manager.leave_game(conns[0])
         # no additional replacement should have happened
         assert len(replace_calls) == 0
+
+
+class TestKickedConnection:
+    async def test_invalid_action__when_kicked_client_pipelines_a_reconnect__should_drop_it_and_keep_the_ai_seat(
+        self, seeded_engine
+    ):
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
+        player_of = {conn: manager._players[conn.connection_id] for conn in conns}
+        awaited_seat = next(iter(manager.get_game("game1").awaiting.seats))
+        kicked = next(conn for conn in conns if player_of[conn].seat == awaited_seat)
+        other = next(conn for conn in conns if player_of[conn].seat != awaited_seat)
+        kicked_token = player_of[kicked].session_token
+        held_tiles = set(seeded_engine.get_game_state("game1").round_state.players[awaited_seat].tiles)
+        foreign_tile = next(tile for tile in range(136) if tile not in held_tiles)
+
+        await manager.handle_game_action(
+            kicked, action=GameAction.DISCARD, data={"tile_id": foreign_tile}, wait_id=current_wait_id(manager)
+        )
+        assert kicked._close_code == 1008
+
+        await manager.reconnect(kicked, game_id="game1", session_token=kicked_token)
+        assert manager.get_connection_game(kicked) is None
+        assert manager._session_store.get_session(kicked_token).disconnected_at is not None
+        other_seat = player_of[other].seat
+        assert seeded_engine.build_reconnection_snapshot("game1", other_seat).players[awaited_seat].is_ai_player
+        assert [m["type"] for m in other.sent_messages if m.get("type") in _SEAT_CHANGE_TYPES] == [
+            SessionMessageType.PLAYER_LEFT
+        ]
+
+        await manager.shutdown()
 
 
 class TestStaleAction:
