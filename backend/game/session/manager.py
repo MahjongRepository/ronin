@@ -26,12 +26,10 @@ from game.messaging.types import (
     GameLeftMessage,
     PlayerLeftMessage,
     PlayerReconnectedMessage,
-    PongMessage,
     SessionChatMessage,
     SessionErrorCode,
     SessionMessageType,
 )
-from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
 from game.session.played_game import build_finish_record
 from game.session.session_store import SessionStore
@@ -72,12 +70,11 @@ class PendingGameInfo:
 @dataclass(frozen=True)
 class _FailedGame:
     """
-    What fail_game detached from a failed game for its finalizer: the game, its players, heartbeat loop and replay.
+    What fail_game detached from a failed game for its finalizer: the game, its players and replay.
     """
 
     game: Game
     players: list[Player]
-    heartbeat: asyncio.Task[None] | None
     replay_lines: list[str] | None
 
 
@@ -108,7 +105,6 @@ class SessionManager:
         self._game_locks: dict[str, asyncio.Lock] = {}  # game_id -> Lock
         self._pending_games: dict[str, PendingGameInfo] = {}  # game_id -> PendingGameInfo
 
-        self._heartbeat = HeartbeatMonitor()
         self._auth_timeouts: dict[str, asyncio.Task[None]] = {}  # connection_id -> timeout task
         self._background_tasks: set[asyncio.Task[None]] = set()
 
@@ -129,13 +125,11 @@ class SessionManager:
 
     def register_connection(self, connection: ConnectionProtocol) -> None:
         self._connections[connection.connection_id] = connection
-        self._heartbeat.record_connect(connection.connection_id)
         self._auth_timeouts[connection.connection_id] = self._spawn(self._auth_timeout(connection))
 
     def unregister_connection(self, connection: ConnectionProtocol) -> None:
         self._connections.pop(connection.connection_id, None)
         self._players.pop(connection.connection_id, None)
-        self._heartbeat.record_disconnect(connection.connection_id)
         self._cancel_auth_timeout(connection.connection_id)
 
     def get_game(self, game_id: str) -> Game | None:
@@ -272,7 +266,7 @@ class SessionManager:
         # Don't clean up pending games when they become empty - the timeout
         # task will handle starting the game (with AI substitutes) or cleanup.
         if game_id not in self._pending_games:
-            await self._cleanup_empty_game(game_id, game)
+            self._cleanup_empty_game(game_id, game)
 
     async def _leave_pending_game(
         self,
@@ -346,12 +340,11 @@ class SessionManager:
             message=PlayerLeftMessage(player_name=player_name).model_dump(),
         )
 
-    async def _cleanup_empty_game(self, game_id: str, game: Game) -> None:
+    def _cleanup_empty_game(self, game_id: str, game: Game) -> None:
         """
-        Clean up an empty game: remove from registry, stop timers/heartbeat, cleanup service state.
+        Clean up an empty game: remove from registry, stop timers, cleanup service state.
 
-        Everything keyed by the game id is released before the first await, so a new game registered under the same id
-        afterwards is left alone.
+        The registry identity check leaves alone a new game registered under the same id.
         """
         if not game.is_empty or self._games.get(game_id) is not game:
             return
@@ -367,8 +360,6 @@ class SessionManager:
         self._game_service.cleanup_game(game_id)
         if self._replay_collector:
             self._replay_collector.cleanup_game(game_id)
-
-        await self._heartbeat.stop_for_game(game_id)
 
     async def _replace_with_ai_player(
         self,
@@ -502,7 +493,7 @@ class SessionManager:
             else:
                 self._timer_manager.start_meld_timer(game_id, seat)
 
-    async def _close_kicked_and_cleanup(self, connection: ConnectionProtocol, game: Game) -> None:
+    def _close_kicked_and_cleanup(self, connection: ConnectionProtocol, game: Game) -> None:
         """
         Evict a kicked player's connection from the registry, close it with 1008 and clean up the game if empty.
 
@@ -513,7 +504,7 @@ class SessionManager:
         self.unregister_connection(connection)
         connection.close(code=1008, reason="invalid_game_action")
 
-        await self._cleanup_empty_game(game.game_id, game)
+        self._cleanup_empty_game(game.game_id, game)
 
     async def handle_game_action(
         self,
@@ -567,7 +558,7 @@ class SessionManager:
                 await self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
         if kicked:
-            await self._close_kicked_and_cleanup(connection, game)
+            self._close_kicked_and_cleanup(connection, game)
 
     def _send_stale_action(
         self,
@@ -609,13 +600,6 @@ class SessionManager:
                 text=text,
             ).model_dump(),
         )
-
-    def handle_ping(self, connection: ConnectionProtocol) -> None:
-        """
-        Respond to client ping with pong and update activity timestamp.
-        """
-        self._heartbeat.record_ping(connection.connection_id)
-        connection.send_message(PongMessage().model_dump())
 
     # --- Reconnection ---
 
@@ -823,7 +807,6 @@ class SessionManager:
             self._players.pop(cid, None)
             stale_conn = self._connections.pop(cid, None)
             if stale_conn is not None:
-                self._heartbeat.record_disconnect(cid)
                 self._cancel_auth_timeout(cid)
                 stale_out.append(stale_conn)
 
@@ -1028,7 +1011,6 @@ class SessionManager:
                 self._players.pop(cid, None)
                 stale_conn = self._connections.pop(cid, None)
                 if stale_conn is not None:
-                    self._heartbeat.record_disconnect(cid)
                     self._cancel_auth_timeout(cid)
 
                 p.game_id = None
@@ -1165,16 +1147,15 @@ class SessionManager:
         """
         Stop every background task before the server's resources close.
 
-        Sleeping pending, auth and turn timers and the heartbeat loops are cancelled; a task already past its sleep (a
-        pending game completing, an auth close, a timer callback or a failed game's finalizer) is awaited, so its replay
-        save, finish record post and socket closes happen first. Games still running are not recorded as ended.
+        Sleeping pending, auth and turn timers are cancelled; a task already past its sleep (a pending game completing,
+        an auth close, a timer callback or a failed game's finalizer) is awaited, so its replay save, finish record post
+        and socket closes happen first. Games still running are not recorded as ended.
         """
         sleeping = [pending.timeout_task for pending in self._pending_games.values() if pending.timeout_task]
         sleeping.extend(self._auth_timeouts.values())
         self._auth_timeouts.clear()
         await cancel_and_wait(sleeping, finalizing=list(self._background_tasks))
         await self._timer_manager.shutdown()
-        await self._heartbeat.shutdown()
         await cancel_and_wait([], finalizing=list(self._background_tasks))
 
     def _cancel_auth_timeout(self, connection_id: str) -> None:
@@ -1213,7 +1194,6 @@ class SessionManager:
         # The identity check in join_game (and reconnect) will fail because
         # the connection is no longer in _connections.
         self._connections.pop(cid, None)
-        self._heartbeat.record_disconnect(cid)
 
         logger.info("auth timeout, closing unauthenticated connection", connection_id=cid)
         connection.close(code=4001, reason="auth_timeout")
@@ -1249,11 +1229,6 @@ class SessionManager:
         seats = [p.seat for p in game.players.values() if p.seat is not None]
         self._timer_manager.create_timers(game_id=game.game_id, seats=seats, config=game.timer_config)
         self._game_locks[game.game_id] = asyncio.Lock()
-        self._heartbeat.start_for_game(
-            game.game_id,
-            self.get_game,
-            on_error=lambda exc: self.fail_game(game, reason="heartbeat loop failed", exc=exc),
-        )
 
         async with self._game_locks[game.game_id]:
             await self._follow_engine(game, events=start.events, awaiting=start.awaiting, actor=None)
@@ -1361,8 +1336,8 @@ class SessionManager:
         is registered, before the game started. Synchronously, before anything can suspend, it claims the game's end
         (`end_reason=ERROR`) and drops the game from the registry with its pending entry, sleeping timers, lock, engine
         state and sessions, so a new action, timeout, join or reconnect finds no game and no other path can finalize
-        it. It also detaches the heartbeat loop and the replay lines, so its finalizer works on those objects and a new
-        game started under the same id meanwhile keeps its own. An action, timeout or reconnect already waiting on the
+        it. It also detaches the replay lines, so its finalizer works on those and a new game started under the same id
+        meanwhile keeps its own. An action, timeout or reconnect already waiting on the
         game lock checks `ended` and stops; a leave already waiting still removes its player and may broadcast
         `player_left` before the internal error. The effects run in a background finalizer the manager owns, with no
         lock held: record the error end, save whatever replay history exists, send every connected player an
@@ -1430,7 +1405,6 @@ class SessionManager:
         release, and the id-keyed stores are left to whoever owns them now.
         """
         game_id = game.game_id
-        heartbeat: asyncio.Task[None] | None = None
         if self._games.get(game_id) is game:
             self._games.pop(game_id)
             pending = self._pending_games.pop(game_id, None)
@@ -1441,12 +1415,10 @@ class SessionManager:
             self._game_locks.pop(game_id, None)
             self._game_service.cleanup_game(game_id)
             self._session_store.cleanup_game(game_id)
-            heartbeat = self._heartbeat.detach_for_game(game_id)
 
         return _FailedGame(
             game=game,
             players=list(game.players.values()),
-            heartbeat=heartbeat,
             replay_lines=replay_lines,
         )
 
@@ -1463,9 +1435,6 @@ class SessionManager:
             self._record_game_finish(failed.game, GameEndReason.ERROR)
         except Exception:
             logger.exception("failed to record the finish of a failed game", game_id=game_id)
-
-        if failed.heartbeat is not None:
-            await cancel_and_wait([failed.heartbeat])
 
         try:
             if self._replay_collector:

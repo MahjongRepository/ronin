@@ -12,7 +12,6 @@ from lobby.game_transition import GameTransitionError, create_game_on_server, si
 from lobby.rooms.messages import (
     LobbyChatMessage,
     LobbyLeaveRoomMessage,
-    LobbyPingMessage,
     LobbySetReadyMessage,
     LobbyStartGameMessage,
     parse_lobby_message,
@@ -175,8 +174,6 @@ async def _message_loop(websocket: WebSocket, ctx: _RoomContext) -> None:
         elif isinstance(message, LobbyLeaveRoomMessage):
             await _handle_leave(websocket, ctx)
             return
-        elif isinstance(message, LobbyPingMessage):
-            await websocket.send_json({"type": "pong"})
 
 
 async def _handle_set_ready(

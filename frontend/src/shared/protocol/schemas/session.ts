@@ -16,16 +16,6 @@ const sessionErrorSchema = z
         type: "session_error" as const,
     }));
 
-// --- Pong ---
-
-const pongSchema = z
-    .object({
-        type: z.literal(SESSION_MESSAGE_TYPE.PONG),
-    })
-    .transform(() => ({
-        type: "pong" as const,
-    }));
-
 // --- Player Reconnected ---
 
 const playerReconnectedSchema = z
@@ -77,7 +67,6 @@ const gameLeftSchema = z
 // --- Dispatch ---
 
 export type SessionErrorMessage = z.output<typeof sessionErrorSchema>;
-export type PongMessage = z.output<typeof pongSchema>;
 export type PlayerReconnectedMessage = z.output<typeof playerReconnectedSchema>;
 export type SessionChatMessage = z.output<typeof sessionChatSchema>;
 export type PlayerLeftMessage = z.output<typeof playerLeftSchema>;
@@ -85,7 +74,6 @@ export type GameLeftMessage = z.output<typeof gameLeftSchema>;
 
 export type SessionMessage =
     | SessionErrorMessage
-    | PongMessage
     | PlayerReconnectedMessage
     | SessionChatMessage
     | PlayerLeftMessage
@@ -96,8 +84,6 @@ export function parseSessionMessage(raw: Record<string, unknown>): SessionMessag
     switch (type) {
         case SESSION_MESSAGE_TYPE.ERROR:
             return sessionErrorSchema.parse(raw);
-        case SESSION_MESSAGE_TYPE.PONG:
-            return pongSchema.parse(raw);
         case SESSION_MESSAGE_TYPE.PLAYER_RECONNECTED:
             return playerReconnectedSchema.parse(raw);
         case SESSION_MESSAGE_TYPE.CHAT:

@@ -113,7 +113,6 @@ function buildMessageHandlers(state: RoomState, updateUI: UpdateUICallbacks): Me
         player_joined: onPlayerJoined,
         player_left: onPlayerLeft,
         player_ready_changed: (msg) => updateFromServerState(state, msg, updateUI),
-        pong: () => {},
         room_joined: onRoomJoined,
     };
 }

@@ -39,6 +39,11 @@ a workstation through `make -C deploy <target> TARGET=dev` (`TARGET` picks `spot
 * **Bounded shutdown.** Both uvicorn commands pass `--timeout-graceful-shutdown 5` (uvicorn waits
   forever for a client whose transport is stalled otherwise), and `stop_grace_period: 15s` leaves
   room after it for the lifespan shutdown and the database drain before docker's SIGKILL.
+* **Liveness is the WebSocket protocol ping.** Both uvicorn commands (and `bin/run-local-server.sh`)
+  pin `--ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20`; the apps run no ping of
+  their own. A missed pong closes the transport, which the app sees once its write buffer drains: a
+  game socket with a stuck buffer is still freed by its writer's send deadline, a lobby socket is
+  not (`backend/game/AGENTS.md`).
 * Per-service settings live in compose `environment:` (`AUTH_*`, `LOBBY_*`, `GAME_*`,
   `LOG_FORMAT: json`), secrets only in `.env`. A deployment-specific setting has no default
   (`backend/AGENTS.md`), so a new one must be added here or the service fails to start and the

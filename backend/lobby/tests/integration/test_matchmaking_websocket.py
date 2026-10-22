@@ -78,36 +78,15 @@ class TestMatchmakingWebSocket:
             assert msg["queue_size"] == 1
             assert msg["position"] == 1
 
-    def test_matchmaking_websocket__when_ping_sent__should_reply_pong(self, client):
-        with client.websocket_connect("/ws/matchmaking") as ws:
-            ws.receive_json()  # queue_joined
-            ws.send_text(json.dumps({"type": "ping"}))
-            msg = ws.receive_json()
-            assert msg["type"] == "pong"
+    async def test_matchmaking_websocket__when_client_sends_frames__should_discard_them_unanswered(self, app):
+        peer = AsgiPeer()
+        peer.send_from_client(json.dumps({"type": "ping"}))
+        peer.send_bytes_from_client(b"\x81")
+        peer.disconnect()
 
-    def test_matchmaking_websocket__when_message_not_json__should_send_error(self, client):
-        with client.websocket_connect("/ws/matchmaking") as ws:
-            ws.receive_json()  # queue_joined
-            ws.send_text("not json")
-            msg = ws.receive_json()
-            assert msg["type"] == "error"
-
-    def test_matchmaking_websocket__when_message_type_unknown__should_send_error(self, client):
-        with client.websocket_connect("/ws/matchmaking") as ws:
-            ws.receive_json()  # queue_joined
-            ws.send_text(json.dumps({"type": "unknown"}))
-            msg = ws.receive_json()
-            assert msg["type"] == "error"
-            assert msg["message"] == "Invalid message format"
-
-    def test_matchmaking_websocket__when_message_oversized__should_send_error(self, client):
-        with client.websocket_connect("/ws/matchmaking") as ws:
-            ws.receive_json()  # queue_joined
-            big = json.dumps({"type": "ping", "padding": "x" * 5000})
-            ws.send_text(big)
-            msg = ws.receive_json()
-            assert msg["type"] == "error"
-            assert "too large" in msg["message"].lower()
+        await matchmaking_websocket(_matchmaking_socket(app, peer, username="alice"))
+        assert [message["type"] for message in peer.received_json()] == ["queue_joined"]
+        assert app.state.matchmaking_manager.queue_size == 0
 
     def test_matchmaking_websocket__when_client_disconnects__should_remove_from_queue(self, app, client):
         with client.websocket_connect("/ws/matchmaking"):

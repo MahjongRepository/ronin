@@ -23,6 +23,8 @@ from game.tests.helpers.websocket import (
 from game.tests.mocks import MOCK_AWAITING, FakeGameRepository, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
+CHAT_OUTSIDE_A_GAME = {"t": WireClientMessageType.CHAT, "text": "hi"}
+
 
 class TestWebSocketIntegration:
     @pytest.fixture
@@ -114,8 +116,8 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
-            send_ws(ws, {"t": WireClientMessageType.PING})
-            assert recv_ws(ws)["type"] == SessionMessageType.PONG
+            send_ws(ws, CHAT_OUTSIDE_A_GAME)
+            assert recv_ws(ws)["code"] == SessionErrorCode.NOT_IN_GAME
 
     def test_websocket__when_game_id_invalid__should_reject_before_accept(self, client):
         with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/invalid game!"):
@@ -140,10 +142,9 @@ class TestWebSocketIntegration:
                 resp = recv_ws(ws)
                 assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
 
-            # Send a valid PING to reset the counter
-            send_ws(ws, {"t": WireClientMessageType.PING})
+            send_ws(ws, CHAT_OUTSIDE_A_GAME)
             resp = recv_ws(ws)
-            assert resp["type"] == SessionMessageType.PONG
+            assert resp["code"] == SessionErrorCode.NOT_IN_GAME
 
             # Send 2 more bad messages - should still be under threshold
             for _ in range(2):
@@ -159,11 +160,11 @@ class TestWebSocketIntegration:
         ):
             # First 2 valid messages consume burst
             for _ in range(2):
-                send_ws(ws, {"t": WireClientMessageType.PING})
-                recv_ws(ws)  # PONG responses
+                send_ws(ws, CHAT_OUTSIDE_A_GAME)
+                recv_ws(ws)
 
             # Next valid message should be rate-limited
-            send_ws(ws, {"t": WireClientMessageType.PING})
+            send_ws(ws, CHAT_OUTSIDE_A_GAME)
             resp = recv_ws(ws)
             assert resp["code"] == SessionErrorCode.RATE_LIMITED
 
@@ -176,7 +177,7 @@ class TestWebSocketIntegration:
         ):
             # Drain the bucket with valid messages
             for _ in range(2):
-                send_ws(ws, {"t": WireClientMessageType.PING})
+                send_ws(ws, CHAT_OUTSIDE_A_GAME)
                 recv_ws(ws)
 
             # Send malformed messages - they hit decode (not rate-limit) and

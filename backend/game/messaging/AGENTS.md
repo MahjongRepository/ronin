@@ -9,7 +9,7 @@ messages and error codes in `types.py`, client codes in `wire_enums.py`, event c
 * Client messages carry an integer `t` (`WireClientMessageType`); game actions add an integer `a`
   (`WireGameAction`) and short keys (`ti` for a tile id). Session messages from the server carry a
   string `type`; game events carry an integer `t` (`WireEventType`, mapped through
-  `EVENT_TYPE_INT`). Integer codes are only ever added, never renumbered.
+  `EVENT_TYPE_INT`). Integer codes are only ever added, never renumbered or reused: a removed one leaves its gap.
 * `event_payload.py` builds every outgoing event, for both the socket and the replay:
   `model_dump(by_alias=True, exclude_none=True)` for most; draw and discard pack into one integer
   `d` (`../wire/compact.py`: `seat * 136 + tile_id`, discard adds `flag * 544` for tsumogiri/riichi); a meld

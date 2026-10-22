@@ -4,7 +4,6 @@ from pydantic import ValidationError
 from lobby.rooms.messages import (
     LobbyChatMessage,
     LobbyLeaveRoomMessage,
-    LobbyPingMessage,
     LobbySetReadyMessage,
     LobbyStartGameMessage,
     parse_lobby_message,
@@ -25,10 +24,6 @@ class TestParseLobbyMessage:
     def test_parse_lobby_message__when_leave_room__should_return_leave_room_message(self):
         msg = parse_lobby_message('{"type": "leave_room"}')
         assert isinstance(msg, LobbyLeaveRoomMessage)
-
-    def test_parse_lobby_message__when_ping__should_return_ping_message(self):
-        msg = parse_lobby_message('{"type": "ping"}')
-        assert isinstance(msg, LobbyPingMessage)
 
     def test_parse_lobby_message__when_start_game__should_return_start_game_message(self):
         msg = parse_lobby_message('{"type": "start_game"}')

@@ -37,6 +37,9 @@ class AsgiPeer:
     def send_from_client(self, text: str) -> None:
         self._inbox.put_nowait({"type": "websocket.receive", "text": text})
 
+    def send_bytes_from_client(self, data: bytes) -> None:
+        self._inbox.put_nowait({"type": "websocket.receive", "bytes": data})
+
     def disconnect(self, code: int = 1000) -> None:
         self._inbox.put_nowait({"type": "websocket.disconnect", "code": code})
 

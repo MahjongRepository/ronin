@@ -5,13 +5,6 @@ import { parseServerMessage } from "@/shared/protocol/schemas/message";
 
 describe("parseServerMessage", () => {
     describe("session messages (string type field)", () => {
-        it("parses a pong message", () => {
-            const raw = { type: SESSION_MESSAGE_TYPE.PONG };
-            const [err, parsed] = parseServerMessage(raw);
-            expect(err).toBeNull();
-            expect(parsed).toEqual({ type: "pong" });
-        });
-
         it("parses a session error message", () => {
             const raw = {
                 code: "invalid_ticket",

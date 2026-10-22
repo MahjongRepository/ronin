@@ -12,7 +12,6 @@ from game.messaging.types import (
     JoinGameMessage,
     KanMessage,
     NoDataActionMessage,
-    PingMessage,
     PonMessage,
     ReconnectMessage,
     RiichiMessage,
@@ -72,8 +71,6 @@ class MessageRouter:
             await self._handle_join_game(connection, message)
         elif isinstance(message, ReconnectMessage):
             await self._handle_reconnect(connection, message)
-        elif isinstance(message, PingMessage):
-            self._session_manager.handle_ping(connection)
         elif isinstance(message, ChatMessage):
             self._session_manager.broadcast_chat(connection, text=message.text)
 

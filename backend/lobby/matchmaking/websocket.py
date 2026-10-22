@@ -5,11 +5,9 @@ import uuid
 from typing import TYPE_CHECKING
 
 import structlog
-from pydantic import ValidationError
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketDisconnected, WebSocketState
 
 from lobby.game_transition import create_game_on_server, sign_player_tickets
-from lobby.matchmaking.messages import MatchmakingPingMessage, parse_matchmaking_message
 from lobby.matchmaking.models import QueueEntry
 from lobby.websocket_utils import check_origin, close_quietly, send_or_drop
 
@@ -134,22 +132,11 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
 
 
 async def _message_loop(websocket: WebSocket) -> None:
-    while True:
-        raw = await websocket.receive_text()
-        try:
-            message = parse_matchmaking_message(raw)
-        except ValidationError:
-            await websocket.send_json({"type": "error", "message": "Invalid message format"})
-            continue
-        except json.JSONDecodeError:
-            await websocket.send_json({"type": "error", "message": "Invalid JSON"})
-            continue
-        except ValueError as e:
-            await websocket.send_json({"type": "error", "message": str(e)})
-            continue
-
-        if isinstance(message, MatchmakingPingMessage):
-            await websocket.send_json({"type": "pong"})
+    """
+    Wait for the client's disconnect; the client sends nothing, so any frame it does send is discarded unanswered.
+    """
+    while (await websocket.receive())["type"] != "websocket.disconnect":
+        pass
 
 
 async def _send_error_and_close(websocket: WebSocket, *, reason: str) -> None:

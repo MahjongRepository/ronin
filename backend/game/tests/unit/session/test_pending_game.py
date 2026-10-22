@@ -162,8 +162,6 @@ class TestJoinGame:
         # Stale connection is removed from _connections and closed
         assert conn1.connection_id not in manager._connections
         assert conn1.is_closed
-        # Heartbeat tracking is cleaned up for the old connection
-        assert conn1.connection_id not in manager._heartbeat._last_ping
 
     async def test_join_game__when_second_of_two_humans_joins__should_start_game(self, manager: SessionManager):
         specs = _make_specs(2)

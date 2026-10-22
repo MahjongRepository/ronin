@@ -94,8 +94,6 @@ function handleMessage(
         case "error":
             showError(message.message, page);
             break;
-        case "pong":
-            break;
     }
 }
 

@@ -3,9 +3,8 @@ from unittest.mock import MagicMock
 
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
-from game.messaging.types import SessionMessageType
 from game.session.manager import SessionManager
-from game.tests.mocks import FakeGameRepository, MockConnection, MockResultEvent, mock_update
+from game.tests.mocks import FakeGameRepository, MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game, run_timeout
@@ -139,17 +138,3 @@ class TestLockBoundaryRaces:
 
         await manager.leave_game(conns[0])
         assert lock_was_held is True
-
-
-class TestHeartbeat:
-    async def test_heartbeat__when_ping_received__should_reply_pong_and_update_last_ping(self, manager):
-        conn = MockConnection()
-        manager.register_connection(conn)
-        initial_time = manager._heartbeat._last_ping.get(conn.connection_id)
-
-        # small delay so monotonic time advances
-        await asyncio.sleep(0.01)
-        manager.handle_ping(conn)
-        assert len(conn.sent_messages) == 1
-        assert conn.sent_messages[0]["type"] == SessionMessageType.PONG
-        assert manager._heartbeat._last_ping.get(conn.connection_id) > initial_time

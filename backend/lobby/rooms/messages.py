@@ -32,16 +32,12 @@ class LobbyLeaveRoomMessage(BaseModel):
     type: Literal["leave_room"]
 
 
-class LobbyPingMessage(BaseModel):
-    type: Literal["ping"]
-
-
 class LobbyStartGameMessage(BaseModel):
     type: Literal["start_game"]
 
 
 LobbyClientMessage = Annotated[
-    LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage | LobbyStartGameMessage,
+    LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyStartGameMessage,
     Field(discriminator="type"),
 ]
 
@@ -50,7 +46,7 @@ _lobby_message_adapter: TypeAdapter[LobbyClientMessage] = TypeAdapter(LobbyClien
 
 def parse_lobby_message(
     raw: str,
-) -> LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyPingMessage | LobbyStartGameMessage:
+) -> LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyStartGameMessage:
     """
     Parse and validate a raw JSON string into a typed lobby message.
     """

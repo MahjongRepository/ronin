@@ -17,7 +17,6 @@ from game.messaging.event_payload import WAIT_ID_KEY
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
-from game.session import heartbeat as heartbeat_module
 from game.session import manager as manager_module
 from game.session.manager import SessionManager
 from game.session.models import Player, PlayerSpec
@@ -264,20 +263,6 @@ class TestFailGame:
         assert manager.get_game("game1") is None
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 
-    async def test_heartbeat_loop__when_it_raises__should_fail_its_game(self, manager, monkeypatch):
-        monkeypatch.setattr(heartbeat_module, "HEARTBEAT_CHECK_INTERVAL", 0)
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        heartbeat_task = manager._heartbeat._tasks["game:game1"]
-
-        def broken_check(*_args, **_kwargs):
-            raise RuntimeError("heartbeat broke")
-
-        monkeypatch.setattr(manager._heartbeat, "_close_stale_connections", broken_check)
-        await heartbeat_task
-        await wait_for_background_tasks(manager)
-        assert manager.get_game("game1") is None
-        assert [(c._close_code, c._close_reason) for c in conns] == [(1011, "internal_error"), (1011, "internal_error")]
-
     async def test_fail_game__when_the_game_id_is_reused_before_the_finalizer_runs__should_leave_the_new_game_alone(
         self, seeded_engine, tmp_path
     ):
@@ -292,25 +277,9 @@ class TestFailGame:
         assert replay_file_path(tmp_path, "game1").exists()
         assert not new_conns[0].is_closed
         assert manager.get_game("game1").ended is False
-        assert not manager._heartbeat._tasks["game:game1"].done()
         assert "game1" in collector._buffers
 
         await manager.shutdown()
-
-    async def test_heartbeat__when_game_cleaned_up__should_stop_game_task(self, manager):
-        conns = await create_started_game(
-            manager,
-            player_names=["P0", "P1", "P2", "P3"],
-        )
-        assert "game:game1" in manager._heartbeat._tasks
-        heartbeat_task = manager._heartbeat._tasks.get("game:game1")
-
-        # leave all players -- game becomes empty, cleanup runs
-        for c in conns:
-            await manager.leave_game(c)
-
-        assert "game:game1" not in manager._heartbeat._tasks
-        assert heartbeat_task.done()
 
 
 class TestGameEndOwnership:
@@ -337,7 +306,7 @@ class TestGameEndOwnership:
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await replay_saving.wait()
 
-        assert manager.fail_game(manager.get_game("game1"), reason="heartbeat failed") is False
+        assert manager.fail_game(manager.get_game("game1"), reason="engine fault") is False
         resume_saving.set()
         await fired
         await wait_for_background_tasks(manager)

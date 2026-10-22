@@ -54,14 +54,18 @@ Mandatory for all game server code; review must catch violations.
 * Every background task has an owner and an exception boundary. A sleeping pending, auth or turn
   timer is cancelled when its game or connection goes; once it fires it detaches itself, so no
   cancel path cancels it while it finishes a game, and a fired timer that a stop, cancel or re-arm
-  superseded while it waited for the game lock drops its default action. Heartbeat loops are
-  cancelled whenever their game goes, even mid-close. A connection's writer task is owned by its
-  endpoint (`websocket_endpoint`): started after accept and stopped once the disconnect is handled,
-  so `SessionManager` holds no socket state. The app lifespan opens the database and, on
-  the way out, awaits `SessionManager.shutdown()` (sleeping tasks and heartbeats cancelled, fired
+  superseded while it waited for the game lock drops its default action. A connection's writer task
+  is owned by its endpoint (`websocket_endpoint`): started after accept and stopped once the
+  disconnect is handled, so `SessionManager` holds no socket state. The app lifespan opens the
+  database and, on the way out, awaits `SessionManager.shutdown()` (sleeping tasks cancelled, fired
   ones awaited) before draining and closing it. An unexpected error in a task that has a game ends that game
   through `fail_game`; the auth timeout, which has none, logs and closes the socket. A new kind of
   task joins these paths.
+* Liveness is the WebSocket protocol ping, run by uvicorn (`deploy/AGENTS.md`); the server keeps no
+  application-level ping or heartbeat. A missed pong closes the transport, and the endpoint's
+  disconnect path runs once uvicorn reports the connection lost, which waits for the transport's
+  write buffer to drain: at once for a peer with nothing pending, and for one whose buffer is stuck
+  only through the connection writer's send deadline (below), which terminates it.
 * Sends and closes never raise or wait for a dead or slow socket (an encoding error still raises
   at the caller): `WebSocketConnection` queues them (bounded) for its writer, FIFO, a close last and
   nothing after it. A connection whose queue overflows, whose send outlasts the send deadline or

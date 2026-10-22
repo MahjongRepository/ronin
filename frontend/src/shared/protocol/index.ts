@@ -59,7 +59,6 @@ export { parseRoundEnd } from "./schemas/round-results";
 export {
     buildJoinGameMessage,
     buildReconnectMessage,
-    buildPingMessage,
     buildChatMessage,
     buildDiscardAction,
     buildRiichiAction,
@@ -96,7 +95,6 @@ export type {
     NagashiManganRoundEnd,
     RoundEndEvent,
     SessionErrorMessage,
-    PongMessage,
     PlayerReconnectedMessage,
     SessionChatMessage,
     PlayerLeftMessage,

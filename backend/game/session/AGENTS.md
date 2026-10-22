@@ -1,7 +1,7 @@
 # Game sessions
 
 `SessionManager` owns game and player lifecycle, delegating to `SessionStore` (in-memory sessions),
-`TimerManager`, `HeartbeatMonitor` and `ReplayCollector`. Work that touches a game runs under its
+`TimerManager` and `ReplayCollector`. Work that touches a game runs under its
 per-game lock, and under it only enqueues to sockets: a send or close never waits on a client.
 
 * **Pending game.** `POST /games` registers a session per player, keyed by the player's game ticket
@@ -49,7 +49,7 @@ per-game lock, and under it only enqueues to sockets: a send or close never wait
   and a completion that fails while finishing escalates into the same finalizer.
   It is synchronous and lock-agnostic: before anything can suspend it claims the game's end, drops
   it from the registry with its pending entry, sleeping timers, lock, engine state and sessions, and
-  detaches its heartbeat loop and replay lines, then hands those to a finalizer task it owns: record
+  detaches its replay lines, then hands those to a finalizer task it owns: record
   `end_reason="error"`, save whatever replay history exists (unchanged format), send every connected
   player an `internal_error` session error, close with 1011; a failing step is logged and the rest
   still run. It is idempotent, works before start, and never cancels or awaits the current task; a
@@ -60,10 +60,11 @@ per-game lock, and under it only enqueues to sockets: a send or close never wait
   inside the callback leaves it running and keeps the timer it arms. Every start, stop and cancel
   bumps the timer's arm generation: a fired callback that finds it changed once it holds the game
   lock (the player acted, the prompt resolved, the seat was replaced) does nothing. `shutdown`
-  cancels the sleeping tasks and awaits the rest. Timer and heartbeat callbacks and the pending
-  timeout fail their game on an unexpected error.
+  cancels the sleeping tasks and awaits the rest. Timer callbacks and the pending timeout fail their
+  game on an unexpected error.
 * **Timers** (`TurnTimer`, one per player): each turn gets base time (5s), then a bank (20s start,
-  +10s per round, 60s cap) that drains only past the base time. Meld-call and round-advance timers
+  +10s per round, 60s cap) that drains only past the base time; the browser client's silence
+  watchdog limit is derived from these defaults (`frontend/AGENTS.md`). Meld-call and round-advance timers
   are fixed and never touch the bank. The engine's `Awaiting` drives them, never the events
   (`_follow_engine`, `Game.awaiting` holds the last one): when an action, timeout, replacement or
   the game start brings a new wait id, the actor's timer stops (deducting its bank on a turn) and
@@ -73,8 +74,8 @@ per-game lock, and under it only enqueues to sockets: a send or close never wait
   that left the wait (a partial pass or confirmation) has its timer stopped, and a refused action
   leaves the running deadline alone. Every game pacing duration (turn, bank, meld, round advance,
   pending timeout) comes from the game's `TimerConfig` (`Game.timer_config`), the session's one
-  pacing model; the engine has none. Connection-level timing (auth timeout, heartbeat) is not
-  pacing.
+  pacing model; the engine has none. Connection-level timing (the auth timeout, the transport
+  ping) is not pacing.
 * **Stale actions.** Every game action echoes the wait id (`wi`) the server stamped on the message
   that opened the wait. Under the lock, after the ended check, an action whose id is not
   `Game.awaiting.wait_id` gets a `stale_action` ErrorEvent to its seat and touches neither the

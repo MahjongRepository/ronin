@@ -32,7 +32,6 @@ export const CLIENT_MESSAGE_TYPE = {
     CHAT: 4,
     GAME_ACTION: 3,
     JOIN_GAME: 7,
-    PING: 5,
     RECONNECT: 6,
 } as const;
 
@@ -64,7 +63,6 @@ export const SESSION_MESSAGE_TYPE = {
     GAME_RECONNECTED: "game_reconnected",
     PLAYER_LEFT: "player_left",
     PLAYER_RECONNECTED: "player_reconnected",
-    PONG: "pong",
 } as const;
 
 export type SessionMessageType = (typeof SESSION_MESSAGE_TYPE)[keyof typeof SESSION_MESSAGE_TYPE];

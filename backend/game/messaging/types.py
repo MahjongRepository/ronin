@@ -17,7 +17,6 @@ class SessionMessageType(StrEnum):
     PLAYER_LEFT = "player_left"
     CHAT = "chat"
     ERROR = "session_error"
-    PONG = "pong"
     GAME_RECONNECTED = "game_reconnected"
     PLAYER_RECONNECTED = "player_reconnected"
 
@@ -112,10 +111,6 @@ class ChatMessage(BaseModel):
         return v
 
 
-class PingMessage(BaseModel):
-    t: Literal[WireClientMessageType.PING] = WireClientMessageType.PING
-
-
 class ReconnectMessage(BaseModel):
     t: Literal[WireClientMessageType.RECONNECT] = WireClientMessageType.RECONNECT
     game_ticket: str = Field(min_length=1, max_length=2000)
@@ -134,7 +129,6 @@ ClientMessage = (
     | KanMessage
     | NoDataActionMessage
     | ChatMessage
-    | PingMessage
     | ReconnectMessage
     | JoinGameMessage
 )
@@ -161,10 +155,6 @@ class ErrorMessage(BaseModel):
     message: str
 
 
-class PongMessage(BaseModel):
-    type: Literal[SessionMessageType.PONG] = SessionMessageType.PONG
-
-
 class PlayerReconnectedMessage(BaseModel):
     """
     Broadcast to other players when a player reconnects.
@@ -175,7 +165,7 @@ class PlayerReconnectedMessage(BaseModel):
 
 
 _NonGameMessage = Annotated[
-    ChatMessage | PingMessage | ReconnectMessage | JoinGameMessage,
+    ChatMessage | ReconnectMessage | JoinGameMessage,
     Field(discriminator="t"),
 ]
 

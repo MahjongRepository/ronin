@@ -9,7 +9,6 @@ import {
     buildKanAction,
     buildKyuushuAction,
     buildPassAction,
-    buildPingMessage,
     buildPonAction,
     buildReconnectMessage,
     buildRiichiAction,
@@ -34,11 +33,6 @@ describe("client message builders", () => {
                 game_ticket: "ticket-xyz-789",
                 t: CLIENT_MESSAGE_TYPE.RECONNECT,
             });
-        });
-
-        it("buildPingMessage creates correct wire format", () => {
-            const msg = buildPingMessage();
-            expect(msg).toEqual({ t: CLIENT_MESSAGE_TYPE.PING });
         });
 
         it("buildChatMessage creates correct wire format", () => {

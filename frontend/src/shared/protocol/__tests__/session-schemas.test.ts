@@ -31,14 +31,6 @@ describe("parseSessionMessage", () => {
         });
     });
 
-    describe("pong", () => {
-        it("parses pong with minimal output", () => {
-            const wire = { type: SESSION_MESSAGE_TYPE.PONG };
-            const result = parseSessionMessage(wire);
-            expect(result).toEqual({ type: "pong" });
-        });
-    });
-
     describe("player_reconnected", () => {
         it("transforms player_name to playerName", () => {
             const wire = {

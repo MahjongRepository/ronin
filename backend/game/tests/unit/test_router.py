@@ -128,14 +128,6 @@ class TestMessageRouterBranches:
         assert response["type"] == SessionMessageType.ERROR
         assert response["code"] == SessionErrorCode.NOT_IN_GAME
 
-    async def test_message_router__when_ping__should_reply_pong(self, setup):
-        router, connection, _ = setup
-
-        await router.handle_message(connection, {"t": WireClientMessageType.PING})
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.PONG
-
     async def test_message_router__when_game_action_raises__should_fail_the_players_game(self, setup):
         router, connection, session_manager = setup
         await _setup_player_in_game(session_manager, connection)

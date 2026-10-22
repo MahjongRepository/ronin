@@ -53,7 +53,6 @@ export type {
     GameLeftMessage,
     PlayerLeftMessage,
     PlayerReconnectedMessage,
-    PongMessage,
     SessionChatMessage,
     SessionErrorMessage,
     SessionMessage,

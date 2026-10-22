@@ -41,6 +41,7 @@ services:
       --host 0.0.0.0 --port 8710
       --proxy-headers --forwarded-allow-ips=*
       --timeout-graceful-shutdown 5
+      --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20
       --log-level info
     stop_grace_period: 15s
     ports:
@@ -84,6 +85,7 @@ services:
       --host 0.0.0.0 --port 8711
       --proxy-headers --forwarded-allow-ips=*
       --timeout-graceful-shutdown 5
+      --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20
       --log-level info
     stop_grace_period: 15s
     ports:

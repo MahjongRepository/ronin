@@ -14,8 +14,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   (`bot_api_handlers.py` is the bot JSON API); Jinja2 templates in `views/templates/`; `assets.py`
   resolves the Vite manifest (or the Vite dev server under `LOBBY_VITE_DEV_URL`) into template
   globals.
-* `rooms/` and `matchmaking/` — managers, WebSocket handlers and message models; matchmaking is a
-  FIFO queue that starts a 4-human game once 4 players wait. The two packages never import each
+* `rooms/` and `matchmaking/` — managers and WebSocket handlers, plus the room's client message
+  models; matchmaking is a FIFO queue that starts a 4-human game once 4 players wait, and its client
+  sends nothing (the socket only carries the disconnect). The two packages never import each
   other: each gets the occupancy rule (below) as an injected callable.
 * `registry/` — game servers from `servers.yaml`, health-checked on every request that needs one,
   with no caching.

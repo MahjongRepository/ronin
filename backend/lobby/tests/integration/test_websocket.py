@@ -96,13 +96,6 @@ class TestRoomWebSocket:
             assert msg["is_owner"] is True
             assert len(msg["players"]) == 4  # always 4 seats
 
-    def test_room_websocket__when_ping_sent__should_reply_pong(self, client, room_id):
-        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
-            ws.receive_json()  # room_joined
-            ws.send_text(json.dumps({"type": "ping"}))
-            msg = ws.receive_json()
-            assert msg["type"] == "pong"
-
     def test_room_websocket__when_chat_sent__should_echo_chat_with_player_name(self, client, room_id):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
             ws.receive_json()  # room_joined

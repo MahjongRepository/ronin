@@ -1,11 +1,8 @@
 export type MessageHandler = (message: Record<string, unknown>) => void;
 export type StatusHandler = (status: "connected" | "disconnected" | "error") => void;
 
-const PING_INTERVAL_MS = 10_000;
-
 export class LobbySocket {
     private ws: WebSocket | null = null;
-    private pingInterval: ReturnType<typeof setInterval> | null = null;
     private onMessage: MessageHandler;
     private onStatusChange: StatusHandler;
 
@@ -24,9 +21,6 @@ export class LobbySocket {
                 return;
             }
             this.onStatusChange("connected");
-            this.pingInterval = setInterval(() => {
-                this.send({ type: "ping" });
-            }, PING_INTERVAL_MS);
         };
 
         ws.onmessage = (event: MessageEvent) => {
@@ -47,7 +41,6 @@ export class LobbySocket {
             if (this.ws !== ws) {
                 return;
             }
-            this.clearPingInterval();
             this.ws = null;
             this.onStatusChange("disconnected");
         };
@@ -67,22 +60,13 @@ export class LobbySocket {
     }
 
     disconnect(): void {
-        this.clearPingInterval();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
     }
 
-    private clearPingInterval(): void {
-        if (this.pingInterval) {
-            clearInterval(this.pingInterval);
-            this.pingInterval = null;
-        }
-    }
-
     private disconnectExisting(): void {
-        this.clearPingInterval();
         if (!this.ws) {
             return;
         }

@@ -23,16 +23,24 @@ Bun drives everything, from `frontend/` or through the root `make` targets:
 * **Lobby** (`src/lobby/`): no routing; the Jinja2 templates in `backend/lobby/views/templates/` are
   the pages and `lobby/index.ts` loads on all of them, starting what the page holds: the room
   (`#room-app`, `data-room-id`, `data-ws-url`), the matchmaking queue (`#matchmaking-app`), the
-  history copy-link buttons. `lobby-socket.ts` is the JSON lobby WebSocket with a 10s ping.
+  history copy-link buttons. `lobby-socket.ts` is the JSON lobby WebSocket; it neither reconnects
+  nor watches for a silent server.
 * **Game client** (`src/index.ts` → `router.ts` → `views/`): pathname routes `/play/{gameId}`
   (live game), `/play/history/{gameId}` (replay over HTTP) and `/play/storybook[/...]` (dev
   component showcase). Each route may register a cleanup the router runs on navigation.
 * **Handoff:** on `game_starting` the room or matchmaking script stores the WebSocket URL and game
   ticket with `storeGameSession` (`shared/session/`, sessionStorage keyed by game id) and navigates
-  to `/play/{gameId}`. The game view sends `JOIN_GAME`; after a disconnect `GameSocket`
-  reconnects with backoff (10 attempts, 30s cap) and the view sends `RECONNECT` with the same
+  to `/play/{gameId}`. The game view sends `JOIN_GAME`; after a disconnect, or a server silent
+  longer than any legitimate wait, `GameSocket` reconnects with backoff (10 attempts, 30s cap) and the view sends `RECONNECT` with the same
   ticket. `reconnect_retry_later` is retried; other reconnect errors send the player back to the
   lobby.
+* **Silence watchdog:** the client sends nothing on its own, so a socket whose peer vanished (a FIN
+  lost while the device slept) never fires `onclose`. `GameSocket` therefore treats 90s without a
+  server frame as a disconnect, checked every 5s against the wall clock so the first check after a
+  wake sees the whole gap. The longest legitimate silence towards one seat is about 75s: a call
+  prompt to another seat (5s), that seat's full turn at the bank cap (5s base + 60s bank), then a
+  chankan prompt for its added kan (5s); the margin covers late timers. The limit is tied to the
+  session `TimerConfig` defaults (`backend/game/session/AGENTS.md`, Timers).
 
 ## Structure
 

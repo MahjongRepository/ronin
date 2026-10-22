@@ -1,21 +1,19 @@
 import { decode, encode } from "@msgpack/msgpack";
 
-import {
-    CLIENT_MESSAGE_TYPE,
-    CONNECTION_STATUS,
-    type ConnectionStatus,
-    INTERNAL_MESSAGE_TYPE,
-} from "@/shared/protocol";
+import { CONNECTION_STATUS, type ConnectionStatus, INTERNAL_MESSAGE_TYPE } from "@/shared/protocol";
 
 export type MessageHandler = (message: Record<string, unknown>) => void;
 export type StatusHandler = (status: ConnectionStatus) => void;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 const MAX_BACKOFF_MS = 30_000;
+const SERVER_SILENCE_LIMIT_MS = 90_000;
+const SILENCE_CHECK_INTERVAL_MS = 5000;
 
 export class GameSocket {
     private ws: WebSocket | null = null;
-    private pingInterval: ReturnType<typeof setInterval> | null = null;
+    private lastFrameAt = 0;
+    private silenceWatchdog: ReturnType<typeof setInterval> | null = null;
     private onMessage: MessageHandler;
     private onStatusChange: StatusHandler;
 
@@ -42,16 +40,15 @@ export class GameSocket {
                 return;
             }
             this.reconnectAttempts = 0;
+            this.startSilenceWatchdog(ws);
             this.onStatusChange(CONNECTION_STATUS.CONNECTED);
-            this.pingInterval = setInterval(() => {
-                this.send({ t: CLIENT_MESSAGE_TYPE.PING });
-            }, 10_000);
         };
 
         ws.onmessage = (event: MessageEvent) => {
             if (this.ws !== ws) {
                 return;
             }
+            this.lastFrameAt = Date.now();
             const { data } = event;
             if (data instanceof ArrayBuffer) {
                 try {
@@ -70,10 +67,7 @@ export class GameSocket {
             if (this.ws !== ws) {
                 return;
             }
-            this.clearPingInterval();
-            this.ws = null;
-            this.onStatusChange(CONNECTION_STATUS.DISCONNECTED);
-            this.scheduleReconnect();
+            this.handleClosed();
         };
 
         ws.onerror = () => {
@@ -115,11 +109,44 @@ export class GameSocket {
 
     disconnect(): void {
         this.disableReconnect();
-        this.clearPingInterval();
+        this.stopSilenceWatchdog();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
+    }
+
+    private handleClosed(): void {
+        this.stopSilenceWatchdog();
+        this.ws = null;
+        this.onStatusChange(CONNECTION_STATUS.DISCONNECTED);
+        this.scheduleReconnect();
+    }
+
+    private startSilenceWatchdog(ws: WebSocket): void {
+        this.stopSilenceWatchdog();
+        this.lastFrameAt = Date.now();
+        this.silenceWatchdog = setInterval(() => {
+            if (this.ws === ws && Date.now() - this.lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
+                this.detachHandlers(ws);
+                ws.close();
+                this.handleClosed();
+            }
+        }, SILENCE_CHECK_INTERVAL_MS);
+    }
+
+    private stopSilenceWatchdog(): void {
+        if (this.silenceWatchdog) {
+            clearInterval(this.silenceWatchdog);
+            this.silenceWatchdog = null;
+        }
+    }
+
+    private detachHandlers(ws: WebSocket): void {
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
     }
 
     private scheduleReconnect(): void {
@@ -165,24 +192,14 @@ export class GameSocket {
         };
     }
 
-    private clearPingInterval(): void {
-        if (this.pingInterval) {
-            clearInterval(this.pingInterval);
-            this.pingInterval = null;
-        }
-    }
-
     // detach handlers before closing to prevent stale onclose from
     // nullifying the reference to a new socket created below
     private disconnectExisting(): void {
-        this.clearPingInterval();
+        this.stopSilenceWatchdog();
         if (!this.ws) {
             return;
         }
-        this.ws.onopen = null;
-        this.ws.onmessage = null;
-        this.ws.onclose = null;
-        this.ws.onerror = null;
+        this.detachHandlers(this.ws);
         this.ws.close();
         this.ws = null;
     }
