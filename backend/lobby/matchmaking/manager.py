@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 
 import structlog
@@ -21,7 +20,8 @@ class MatchmakingManager:
     """
     Manage the matchmaking queue.
 
-    Pure state management -- no WebSocket I/O. The WebSocket handler calls manager methods and handles responses.
+    Pure state management -- no WebSocket I/O. The WebSocket handler calls manager methods and handles responses. Every
+    method is synchronous, so each runs atomically on the event loop and the queue needs no lock.
     `find_conflict` is the occupancy rule ``create_app()`` injects (``lobby.occupancy``), the only link to the rooms
     feature: it returns why a user cannot queue, or None.
     """
@@ -31,13 +31,12 @@ class MatchmakingManager:
         self._queue: list[QueueEntry] = []
         self._user_ids: set[str] = set()
         self._in_flight: set[str] = set()
-        self._lock = asyncio.Lock()
 
     def add_player(self, entry: QueueEntry) -> None:
         """
         Add a player to the matchmaking queue.
 
-        Caller must hold self._lock. Raise ValueError with the occupancy conflict when the user cannot queue.
+        Raise ValueError with the occupancy conflict when the user cannot queue.
         """
         conflict = self._find_conflict(entry.user_id)
         if conflict is not None:
@@ -55,8 +54,6 @@ class MatchmakingManager:
     def remove_player(self, connection_id: str) -> None:
         """
         Remove a player from the queue by connection_id.
-
-        Caller must hold self._lock.
         """
         for i, entry in enumerate(self._queue):
             if entry.connection_id == connection_id:
@@ -67,8 +64,6 @@ class MatchmakingManager:
     def try_match(self) -> list[QueueEntry] | None:
         """
         Pop MATCHMAKING_SEATS players if enough in queue, else None.
-
-        Caller must hold self._lock.
         """
         if len(self._queue) >= MATCHMAKING_SEATS:
             matched = self._queue[:MATCHMAKING_SEATS]
@@ -82,18 +77,12 @@ class MatchmakingManager:
         return None
 
     @property
-    def lock(self) -> asyncio.Lock:
-        return self._lock
-
-    @property
     def queue_size(self) -> int:
         return len(self._queue)
 
     def get_queue_entries(self) -> list[QueueEntry]:
         """
         Return a snapshot of current queue entries.
-
-        Caller must hold self._lock.
         """
         return list(self._queue)
 
@@ -102,6 +91,5 @@ class MatchmakingManager:
         Remove user IDs from the in-flight set.
 
         Called once a match is resolved, whether its game was created or not, so every matched user may queue again.
-        Caller must hold self._lock.
         """
         self._in_flight -= user_ids

@@ -88,8 +88,9 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
 
     Return True if the player is queued and should enter the message loop. Return False if the connection was rejected
     or this join completed a match, whether its game was created or not: either way the socket is closed. The check that
-    the user is not playing a game, which asks the game servers, runs before the lock; ``add_player`` checks the rest of
-    the occupancy rule under it, including a start that handed the user to a game while that lookup was in flight.
+    the user is not playing a game, which asks the game servers, runs first; ``add_player`` then checks the rest of the
+    occupancy rule in the same synchronous step that queues the user, including a start that handed the user to a game
+    while that lookup was in flight.
     """
     log = logger.bind(username=ctx.username, connection_id=ctx.connection_id)
 
@@ -105,14 +106,13 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
     with ctx.occupancy.admitting(ctx.user_id):
         rejection = await ctx.occupancy.find_game_conflict(ctx.user_id)
         if rejection is None:
-            async with ctx.matchmaking_manager.lock:
-                try:
-                    ctx.matchmaking_manager.add_player(entry)
-                except ValueError as e:
-                    rejection = str(e)
-                else:
-                    position = ctx.matchmaking_manager.queue_size
-                    matched = ctx.matchmaking_manager.try_match()
+            try:
+                ctx.matchmaking_manager.add_player(entry)
+            except ValueError as e:
+                rejection = str(e)
+            else:
+                position = ctx.matchmaking_manager.queue_size
+                matched = ctx.matchmaking_manager.try_match()
 
     if rejection is not None:
         log.info("matchmaking rejected", reason=rejection)
@@ -165,8 +165,7 @@ async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> 
         log.exception("failed to create game from matchmaking")
         created = None
     finally:
-        async with ctx.matchmaking_manager.lock:
-            ctx.matchmaking_manager.clear_in_flight({e.user_id for e in matched})
+        ctx.matchmaking_manager.clear_in_flight({e.user_id for e in matched})
 
     if created is None:
         for entry in matched:
@@ -228,12 +227,8 @@ async def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | No
     """
     Send queue_update to all players currently in the queue.
     """
-
-    async with ctx.matchmaking_manager.lock:
-        queue_size = ctx.matchmaking_manager.queue_size
-        entries = ctx.matchmaking_manager.get_queue_entries()
-
-    message = json.dumps({"type": "queue_update", "queue_size": queue_size})
+    entries = ctx.matchmaking_manager.get_queue_entries()
+    message = json.dumps({"type": "queue_update", "queue_size": len(entries)})
     for entry in entries:
         if entry.connection_id != exclude and entry.websocket.client_state == WebSocketState.CONNECTED:
             await send_or_drop(entry.websocket, message)
@@ -243,9 +238,6 @@ async def _cleanup_connection(ctx: _MatchmakingContext) -> None:
     """
     Remove player from queue on disconnect.
     """
-
-    async with ctx.matchmaking_manager.lock:
-        ctx.matchmaking_manager.remove_player(ctx.connection_id)
-
+    ctx.matchmaking_manager.remove_player(ctx.connection_id)
     logger.info("player left matchmaking queue", username=ctx.username)
     await _broadcast_queue_update(ctx)

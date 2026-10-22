@@ -53,12 +53,13 @@ Services are created in `create_app()` and stored on `app.state`; handlers read 
   that seats or queues the user, so the two exclude each other atomically on the event loop.
 * "Playing" comes only from the game servers' in-memory sessions (their internal per-user lookup),
   never from `played_games`, whose `ended_at` stays NULL after a crash. The WebSocket handlers ask
-  every server in the registry, concurrently under one short deadline, before taking the lock. The
-  answer can be stale by then: a start may hand the user's seat or queue place to a new game while
-  the lookup is in flight. So each join runs inside an `Occupancy.admitting` window, every attempt
-  to create a game calls `hand_to_game` once the game server call is over, whatever its outcome (a
-  failure may mean the game exists), and before the seats or the matched players are released, and
-  the locked check rejects an admission that was open at that moment as already in a game.
+  every server in the registry, concurrently under one short deadline, before the occupancy check
+  (a room takes its `join_lock` for it; matchmaking's `add_player` is one synchronous step and needs
+  no lock). The answer can be stale by then: a start may hand the user's seat or queue place to a
+  new game while the lookup is in flight. So each join runs inside an `Occupancy.admitting` window,
+  every attempt to create a game calls `hand_to_game` once the game server call is over, whatever
+  its outcome (a failure may mean the game exists), and before the seats or the matched players are
+  released, and that check rejects an admission that was open at that moment as already in a game.
 * The lookup fails open (warning, treated as not playing) on a transport error, timeout or
   unexpected status, so a game server outage never locks users out of the lobby. `POST /games`
   refuses a user already playing with 409 as the backstop, which surfaces as an ordinary failed
