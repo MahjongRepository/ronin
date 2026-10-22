@@ -3,13 +3,13 @@ import logging
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import CallType, GameErrorCode, GamePhase, PlayerAction, RoundPhase
+from game.logic.enums import CallType, GamePhase, PlayerAction, RoundPhase
 from game.logic.events import (
     DiscardEvent,
-    ErrorEvent,
     EventType,
     SeatTarget,
 )
+from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
@@ -373,39 +373,13 @@ class TestServiceAccessors:
         assert set(names) == {"Alice", "Bob", "Charlie", "Dave"}
 
 
-class TestMahjongGameServiceUnsupportedSettings:
-    async def test_start_game__when_settings_unsupported__should_return_error_event(self):
-        settings = GameSettings(has_agariyame=True)
-        service = MahjongGameService(settings=settings)
+class TestMahjongGameServiceInvalidStart:
+    async def test_start_game__when_settings_unsupported__should_raise_and_register_no_game(self):
+        service = MahjongGameService(settings=GameSettings(has_agariyame=True))
 
-        events = await service.start_game("game1", ["Alice"])
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_ACTION
-        assert "has_agariyame" in events[0].data.message
-
-
-class TestMahjongGameServiceInvalidSeed:
-    async def test_start_game__when_seed_is_malformed__should_return_error_event(self):
-        service = MahjongGameService()
-
-        events = await service.start_game("game1", ["Alice"], seed="bad-seed")
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_ACTION
-
-
-class TestMahjongGameServiceInvalidSeedType:
-    async def test_start_game__when_seed_is_not_a_string__should_return_error_event(self):
-        service = MahjongGameService()
-
-        events = await service.start_game("game1", ["Alice"], seed=12345)
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_ACTION
+        with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
+            await service.start_game("game1", ["Alice"])
+        assert service.get_game_state("game1") is None
 
 
 class TestServiceGuardClauses:

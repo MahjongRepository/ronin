@@ -5,7 +5,7 @@ from mahjong.agari import Agari
 from xiangting import PlayerCount, calculate_replacement_number
 
 from game.logic import wall as wall_ops
-from game.logic.exceptions import InvalidDiscardError
+from game.logic.exceptions import ImpossibleActionError, InvalidDiscardError
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.settings import NUM_PLAYERS
@@ -107,13 +107,13 @@ def discard_tile(
     """
     Discard a tile from a player's hand.
 
-    Returns (new_round_state, discard_record). Raises InvalidDiscardError if the tile is not in hand or is not a legal
-    discard (kuikae, or a riichi player discarding other than the drawn tile).
+    Returns (new_round_state, discard_record). Raises ImpossibleActionError if the tile is not in hand, and
+    InvalidDiscardError if it is not a legal discard (kuikae, or a riichi player discarding other than the drawn tile).
     """
     player = round_state.players[seat]
     if tile_id not in player.tiles:
         logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
-        raise InvalidDiscardError(f"tile {tile_id} not in player's hand")
+        raise ImpossibleActionError(f"tile {tile_id} not in player's hand")
 
     if tile_id not in legal_discards(player):
         logger.warning("discard forbidden by kuikae or riichi", seat=seat, tile_id=tile_id)

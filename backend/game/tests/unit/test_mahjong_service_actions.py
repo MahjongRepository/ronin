@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
 
 from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, RoundPhase, RoundResultType
@@ -47,47 +46,6 @@ class TestMahjongGameServiceErrors:
         assert isinstance(error_event.data, ErrorEvent)
         assert "not in game" in error_event.data.message
 
-    async def test_handle_action__when_action_unknown__should_return_error_event(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events = await service.handle_action(game_id="game1", player_name="Player", action="unknown_action", data={})
-        assert any(e.event == EventType.ERROR for e in events)
-        error_event = next(e for e in events if e.event == EventType.ERROR)
-        assert isinstance(error_event.data, ErrorEvent)
-        assert "unknown action" in error_event.data.message
-
-
-class TestMahjongGameServiceValidationError:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_handle_action__when_action_data_invalid__should_return_validation_error(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events = await service.handle_action(
-            game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": "not_an_int"}
-        )
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
-        assert "invalid action data" in events[0].data.message
-
-    @pytest.mark.parametrize(
-        "action",
-        [GameAction.DECLARE_RIICHI, GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN],
-    )
-    async def test_handle_action__when_data_action_has_empty_data__should_return_validation_error(
-        self, service, action
-    ):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events = await service.handle_action(game_id="game1", player_name="Player", action=action, data={})
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert events[0].data.code == GameErrorCode.VALIDATION_ERROR
-
 
 class TestMahjongGameServiceProcessActionResult:
     @pytest.fixture
@@ -125,7 +83,7 @@ class TestMahjongGameServiceProcessActionResult:
 
         cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
-            "game.logic.call_resolution.complete_added_kan_after_chankan_decline",
+            "game.logic.call_resolution.complete_closed_kan_after_chankan_decline",
             return_value=(cleared_round, game_state, []),
         ):
             events = await service._process_action_result_internal("game1", result)
@@ -228,7 +186,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
 
         cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
         with patch(
-            "game.logic.call_resolution.complete_added_kan_after_chankan_decline",
+            "game.logic.call_resolution.complete_closed_kan_after_chankan_decline",
             return_value=(cleared_round, game_state, []),
         ):
             result = await service._handle_chankan_prompt("game1", events)
@@ -274,23 +232,22 @@ class TestNoDataActionDispatchRouting:
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
 
-    async def test_handle_action__when_ron_without_call_prompt__should_return_error_event(self, service):
+    @pytest.mark.parametrize(
+        ("action", "data", "code"),
+        [
+            (GameAction.CALL_RON, {}, GameErrorCode.INVALID_RON),
+            (GameAction.CALL_CHI, {"tile_id": 0, "sequence_tiles": (4, 8)}, GameErrorCode.INVALID_CHI),
+        ],
+    )
+    async def test_handle_action__when_call_without_call_prompt__should_return_error_event(
+        self, service, action, data, code
+    ):
         await service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action(game_id="game1", player_name="Player", action=GameAction.CALL_RON, data={})
+        events = await service.handle_action(game_id="game1", player_name="Player", action=action, data=data)
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
-        assert events[0].data.code == GameErrorCode.INVALID_RON
-
-
-class TestDispatchActionDataNullFallback:
-    async def test_dispatch_action__when_data_action_has_none_data__should_raise_validation_error(self):
-        service = MahjongGameService()
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        with pytest.raises(ValidationError):
-            service._dispatch_action(game_state, seat=0, action=GameAction.DISCARD, data=None)
+        assert events[0].data.code == code
 
 
 class TestChankanPromptResolvedPath:
@@ -313,7 +270,7 @@ class TestChankanPromptResolvedPath:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        def mock_dispatch_clearing_prompt(_game_id, _evts):
+        def mock_dispatch_clearing_prompt(_game_id, _prompt, _evts):
             _update_round_state(service, "game1", pending_call_prompt=None)
 
         events: list[ServiceEvent] = []

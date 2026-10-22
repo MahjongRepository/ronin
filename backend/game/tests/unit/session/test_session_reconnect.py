@@ -17,15 +17,19 @@ from game.logic.types import (
     ReconnectionSnapshot,
 )
 from game.messaging.types import SessionErrorCode, SessionMessageType
+from game.messaging.wire_enums import WireClientMessageType
+from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.session.models import SessionData
 from game.session.replay_collector import ReplayCollector
+from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import MockConnection, MockGameService
 from game.tests.unit.session.helpers import (
     arrange_final_discard,
     create_started_game,
     disconnect_and_reconnect,
     run_timeout,
+    wait_for_background_tasks,
 )
 from game.wire.compact import encode_draw
 from game.wire.events import EVENT_TYPE_INT
@@ -478,35 +482,25 @@ class TestReconnectEdgeCases:
         assert len(draw_msgs) == 0
 
     @pytest.mark.asyncio
-    async def test_reconnect__when_snapshot_raises__should_restore_ai_and_propagate(self, manager):
+    async def test_reconnect__when_snapshot_raises__should_fail_the_game(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
+        router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
+        alice_token = manager._players[conns[0].connection_id].session_token
+        await manager.leave_game(conns[0], notify_player=False)
 
         def raise_error(gid, seat):
             raise RuntimeError("snapshot failed")
 
         manager._game_service.build_reconnection_snapshot = raise_error
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
+        new_conn = MockConnection(game_id="game1")
+        await router.handle_connect(new_conn)
 
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        replace_calls.clear()
-
-        with pytest.raises(RuntimeError, match="snapshot failed"):
-            await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-
-        assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", "Alice")
+        await router.handle_message(new_conn, {"t": WireClientMessageType.RECONNECT, "game_ticket": alice_token})
+        await router.handle_disconnect(new_conn)
+        await wait_for_background_tasks(manager)
+        assert manager.get_game("game1") is None
+        assert (new_conn._close_code, new_conn._close_reason) == (1011, "internal_error")
+        assert (conns[1]._close_code, conns[1]._close_reason) == (1011, "internal_error")
 
     @pytest.mark.asyncio
     async def test_reconnect__when_call_prompt_pending__should_send_no_draw_event(self, manager):

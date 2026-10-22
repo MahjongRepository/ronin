@@ -1,14 +1,17 @@
 import logging
 from unittest.mock import AsyncMock
 
-from game.logic.enums import GameAction, TimeoutType
+from game.logic.enums import GameAction
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.types import SessionMessageType
+from game.messaging.wire_enums import WireClientMessageType, WireGameAction
+from game.server.router import MessageRouter
+from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, run_timeout
+from .helpers import create_started_game, wait_for_background_tasks
 
 DISCARD_ERROR = InvalidGameActionError(action="discard", seat=0, reason="tile not in hand")
 
@@ -97,43 +100,20 @@ class TestSessionManagerInvalidAction:
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
 
-    async def test_invalid_action__when_resolution_blames_other_seat__should_disconnect_only_that_seat(self, manager):
+    async def test_invalid_action__when_ai_replacement_raises__should_fail_the_game(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
-        # Seat 0 (Alice) sends PASS, but resolution fails on seat 1 (Bob)'s prior bad chi data.
-        resolution_error = InvalidGameActionError(
-            action="resolve_call",
-            seat=1,
-            reason="chi tile not in hand",
-        )
-        manager._game_service.handle_action = AsyncMock(side_effect=resolution_error)
-
-        # Alice (seat 0) sends the action that triggers the error
-        await manager.handle_game_action(conns[0], action=GameAction.PASS, data={})
-        # Bob (seat 1, the offender) should be disconnected
-        assert conns[1].is_closed
-        assert conns[1]._close_code == 1008
-        # Alice (seat 0, innocent) should NOT be disconnected
-        assert not conns[0].is_closed
-
-    async def test_invalid_action__when_ai_replacement_blames_other__should_disconnect_original_offender(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         manager._game_service.handle_action = AsyncMock(side_effect=DISCARD_ERROR)
-
-        # AI replacement flow raises InvalidGameActionError blaming a different seat
-        ai_replacement_error = InvalidGameActionError(
-            action="resolve_call",
-            seat=1,
-            reason="resolution failed on prior bad data from another seat",
-        )
         manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
-            side_effect=ai_replacement_error,
+            side_effect=ValueError("engine state broke during replacement"),
         )
 
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-        # original offender (seat 0) should still be disconnected
-        assert conns[0].is_closed
-        assert conns[0]._close_code == 1008
+        await router.handle_message(
+            conns[0], {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0}
+        )
+        await wait_for_background_tasks(manager)
+        assert manager.get_game("game1") is None
+        assert [(c._close_code, c._close_reason) for c in conns] == [(1011, "internal_error")] * 2
 
     async def test_invalid_action__when_offender_leaves_afterwards__should_not_replace_again(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
@@ -154,66 +134,3 @@ class TestSessionManagerInvalidAction:
         await manager.leave_game(conns[0])
         # no additional replacement should have happened
         assert len(replace_calls) == 0
-
-    async def test_invalid_action__when_error_seat_is_ai__should_disconnect_nobody(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
-        # error references seat 3 (an AI player seat, no connected player)
-        error = InvalidGameActionError(action="discard", seat=3, reason="bad data")
-        manager._game_service.handle_action = AsyncMock(side_effect=error)
-
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
-        # neither player should be disconnected (offending seat is an AI player)
-        assert not conns[0].is_closed
-        assert not conns[1].is_closed
-
-
-class TestTimeoutInvalidActionHandling:
-    async def test_timeout_invalid_action__when_resolution_fails__should_disconnect_only_offender(self, manager):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
-        # make handle_timeout raise InvalidGameActionError for seat 0
-        error = InvalidGameActionError(action="pass", seat=0, reason="resolution failed on bad data")
-        manager._game_service.handle_timeout = AsyncMock(side_effect=error)
-
-        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-        # offender (seat 0) should be disconnected
-        assert conns[0].is_closed
-        assert conns[0]._close_code == 1008
-        # innocent player (seat 1) should NOT be disconnected
-        assert not conns[1].is_closed
-
-    async def test_timeout_invalid_action__when_ai_replacement_blames_other__should_disconnect_original_offender(
-        self, manager
-    ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
-        error = InvalidGameActionError(action="pass", seat=0, reason="resolution failed")
-        manager._game_service.handle_timeout = AsyncMock(side_effect=error)
-
-        # AI replacement flow raises InvalidGameActionError blaming a different seat
-        ai_replacement_error = InvalidGameActionError(
-            action="resolve_call",
-            seat=1,
-            reason="resolution failed on prior bad data",
-        )
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
-            side_effect=ai_replacement_error,
-        )
-
-        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-        # original offender (seat 0) should still be disconnected
-        assert conns[0].is_closed
-        assert conns[0]._close_code == 1008
-        # innocent player (seat 1) should NOT be disconnected
-        assert not conns[1].is_closed
-
-    async def test_timeout_invalid_action__when_offender_is_last_human__should_clean_up_game(self, manager):
-        conns = await create_started_game(manager, num_ai_players=3, player_names=["Alice"])
-
-        error = InvalidGameActionError(action="pass", seat=0, reason="resolution error")
-        manager._game_service.handle_timeout = AsyncMock(side_effect=error)
-
-        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-        assert conns[0].is_closed
-        assert manager.get_game("game1") is None

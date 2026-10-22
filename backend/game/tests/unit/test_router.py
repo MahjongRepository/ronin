@@ -1,6 +1,8 @@
+import logging
+from unittest.mock import AsyncMock
+
 import pytest
 
-from game.logic.exceptions import InvalidDiscardError
 from game.messaging.types import (
     SessionErrorCode,
     SessionMessageType,
@@ -11,7 +13,7 @@ from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import MockConnection, MockGameService
-from game.tests.unit.session.helpers import wait_for_background_tasks
+from game.tests.unit.session.helpers import create_started_game, wait_for_background_tasks
 
 
 async def _setup_player_in_game(session_manager, connection):
@@ -121,44 +123,11 @@ class TestMessageRouterBranches:
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.PONG
 
-    async def test_message_router__when_game_rule_error_raised__should_return_action_failed_error(self, setup):
+    async def test_message_router__when_game_action_raises__should_fail_the_players_game(self, setup):
         router, connection, session_manager = setup
         await _setup_player_in_game(session_manager, connection)
+        session_manager.handle_game_action = AsyncMock(side_effect=ValueError("engine state broke"))
 
-        async def raise_game_rule_error(
-            connection: object,
-            action: object,
-            data: object,
-        ) -> None:
-            raise InvalidDiscardError("tile not in hand")
-
-        session_manager.handle_game_action = raise_game_rule_error
-        await router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.GAME_ACTION,
-                "a": WireGameAction.DISCARD,
-                "ti": 0,
-            },
-        )
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.ACTION_FAILED
-        assert response["message"] == "tile not in hand"
-
-    async def test_message_router__when_game_action_raises_unexpectedly__should_fail_the_players_game(self, setup):
-        router, connection, session_manager = setup
-        await _setup_player_in_game(session_manager, connection)
-
-        async def raise_runtime_error(
-            connection: object,
-            action: object,
-            data: object,
-        ) -> None:
-            raise RuntimeError("unexpected crash")
-
-        session_manager.handle_game_action = raise_runtime_error
         await router.handle_message(
             connection,
             {
@@ -171,3 +140,64 @@ class TestMessageRouterBranches:
         assert session_manager.get_game("game1") is None
         assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
         assert connection._close_code == 1011
+
+    async def test_message_router__when_own_socket_dies_during_an_action__should_propagate_it_as_a_disconnect(
+        self, setup
+    ):
+        router, connection, session_manager = setup
+        await _setup_player_in_game(session_manager, connection)
+        session_manager.handle_game_action = AsyncMock(side_effect=ConnectionError("socket gone"))
+
+        with pytest.raises(ConnectionError):
+            await router.handle_message(
+                connection, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0}
+            )
+        assert session_manager.get_game("game1") is not None
+
+    async def test_message_router__when_join_raises_outside_any_game__should_log_and_close_with_1011(
+        self, setup, caplog
+    ):
+        router, connection, session_manager = setup
+        session_manager.join_game = AsyncMock(side_effect=KeyError("session store broke"))
+        ticket = make_test_game_ticket(username="Alice", room_id=connection.game_id)
+
+        with caplog.at_level(logging.ERROR):
+            await router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+        assert [r.msg["event"] for r in caplog.records if r.levelno == logging.ERROR] == [
+            "connection failed outside a game"
+        ]
+        assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert connection._close_code == 1011
+
+
+class TestMessageRouterEntryPointFailures:
+    async def test_message_router__when_the_final_join_starts_the_game_and_start_raises__should_fail_the_game(self):
+        game_service = MockGameService()
+        game_service.start_game = AsyncMock(side_effect=RuntimeError("start failed"))
+        session_manager = SessionManager(game_service)
+        router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
+        ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
+        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
+        session_manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
+        connection = MockConnection(game_id="game1")
+        await router.handle_connect(connection)
+
+        await router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+        await wait_for_background_tasks(session_manager)
+        assert session_manager.get_game("game1") is None
+        assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert connection._close_code == 1011
+
+    async def test_message_router__when_the_ai_replacement_on_disconnect_raises__should_fail_the_game(self):
+        session_manager = SessionManager(MockGameService())
+        router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
+        conns = await create_started_game(session_manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        session_manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            side_effect=ValueError("engine state broke"),
+        )
+
+        await router.handle_disconnect(conns[0])
+        await wait_for_background_tasks(session_manager)
+        assert session_manager.get_game("game1") is None
+        assert conns[0].connection_id not in session_manager._connections
+        assert (conns[1]._close_code, conns[1]._close_reason) == (1011, "internal_error")

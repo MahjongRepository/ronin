@@ -82,7 +82,7 @@ class TestInvalidActionSessionTracking:
         manager._connections[conn.connection_id] = conn
 
         error = InvalidGameActionError(seat=0, action="discard", reason="test error")
-        await manager._handle_invalid_action(game_obj, conn, player=player, error=error)
+        await manager._kick_player(game_obj, conn, player=player, error=error)
         session_after = manager._session_store._sessions.get(session.session_token)
         assert session_after is not None
         assert session_after.disconnected_at is not None

@@ -2,7 +2,7 @@ import pytest
 from mahjong.constants import FIVE_RED_MAN
 from mahjong.tile import TilesConverter
 
-from game.logic.exceptions import InvalidActionError, InvalidDiscardError
+from game.logic.exceptions import ImpossibleActionError, InvalidDiscardError
 from game.logic.round import (
     choose_default_discard,
     discard_tile,
@@ -120,7 +120,7 @@ class TestDrawFromDeadWallImmutable:
             update={"wall": round_state.wall.model_copy(update={"live_tiles": ()})},
         )  # no live wall tiles
 
-        with pytest.raises(InvalidActionError, match="live wall is empty"):
+        with pytest.raises(AssertionError, match="live wall is empty"):
             draw_from_dead_wall(round_state)
 
 
@@ -165,7 +165,7 @@ class TestDiscardTileImmutable:
         round_state = self._create_round_state()
         sou_7_copy3 = TilesConverter.string_to_136_array(sou="7777")[3]
 
-        with pytest.raises(InvalidDiscardError, match=f"tile {sou_7_copy3} not in player's hand"):
+        with pytest.raises(ImpossibleActionError, match=f"tile {sou_7_copy3} not in player's hand"):
             discard_tile(round_state, seat=0, tile_id=sou_7_copy3)
 
     def test_discard_tile__when_discarding_last_tile__should_mark_tsumogiri(self):

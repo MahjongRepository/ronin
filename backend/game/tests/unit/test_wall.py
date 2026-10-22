@@ -1,6 +1,5 @@
 import pytest
 
-from game.logic.exceptions import InvalidActionError
 from game.logic.rng import SEED_BYTES
 from game.logic.tiles import NUM_TILES
 from game.logic.wall import (
@@ -227,13 +226,13 @@ class TestDrawFromDeadWall:
     def test_draw_from_dead_wall__when_live_wall_empty__should_raise(self):
         dead = tuple(range(14))
         wall = Wall(live_tiles=(), dead_wall_tiles=dead)
-        with pytest.raises(InvalidActionError, match="live wall is empty"):
+        with pytest.raises(AssertionError, match="live wall is empty"):
             draw_from_dead_wall(wall)
 
     def test_draw_from_dead_wall__when_no_rinshan_positions_left__should_raise(self):
         dead = tuple(range(14))
         wall = Wall(live_tiles=(1, 2, 3), dead_wall_tiles=dead, rinshan_draws_count=4)
-        with pytest.raises(InvalidActionError, match="No more rinshan"):
+        with pytest.raises(AssertionError, match="No more rinshan"):
             draw_from_dead_wall(wall)
 
     def test_draw_from_dead_wall__when_four_kan_draws__should_keep_dead_wall_size(self):
@@ -287,7 +286,7 @@ class TestAddDoraIndicator:
             dead_wall_tiles=dead,
             dora_indicators=tuple(dead[FIRST_DORA_INDEX : FIRST_DORA_INDEX + MAX_DORA_INDICATORS]),
         )
-        with pytest.raises(InvalidActionError, match="Cannot add more"):
+        with pytest.raises(AssertionError, match="Cannot add more"):
             add_dora_indicator(wall)
 
     def test_add_dora_indicator__when_dead_wall_too_short__should_raise(self):
@@ -297,7 +296,7 @@ class TestAddDoraIndicator:
             dead_wall_tiles=dead,
             dora_indicators=(dead[FIRST_DORA_INDEX],),
         )
-        with pytest.raises(InvalidActionError, match="No more dora indicator positions"):
+        with pytest.raises(AssertionError, match="No more dora indicator positions"):
             add_dora_indicator(wall)
 
 
@@ -357,7 +356,7 @@ class TestIncrementPendingDora:
         assert new_wall.pending_dora_count == 2
 
         # 3 revealed + 2 pending + 1 new = 6 > MAX, should fail
-        with pytest.raises(InvalidActionError, match="Cannot exceed"):
+        with pytest.raises(AssertionError, match="Cannot exceed"):
             increment_pending_dora(new_wall)
 
 

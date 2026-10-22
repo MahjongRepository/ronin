@@ -174,7 +174,6 @@ export type AbortiveDrawType = (typeof ABORTIVE_DRAW_TYPE)[keyof typeof ABORTIVE
 // --- Session error codes (string) ---
 
 export const SESSION_ERROR_CODE = {
-    ACTION_FAILED: "action_failed",
     ALREADY_IN_GAME: "already_in_game",
     GAME_NOT_STARTED: "game_not_started",
     INTERNAL_ERROR: "internal_error",

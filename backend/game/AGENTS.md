@@ -57,6 +57,13 @@ Mandatory for all game server code; review must catch violations.
   ones awaited) before closing it. An unexpected error in a task that has a game ends that game
   through `fail_game`; the auth timeout, which has none, logs and closes the socket. A new kind of
   task joins these paths.
+* The router's game action, JOIN_GAME, RECONNECT and disconnect handlers are the same kind of
+  boundary (`SessionManager.fail_connection`, with the game captured before the call): the
+  connection's own dead socket (`ConnectionError`; `WebSocketConnection` turns every transport
+  failure into one) propagates as a disconnect, any other exception fails that game, or with no game
+  is logged and the socket closed with 1011. Inside its message loop `websocket_endpoint` closes with
+  1011 on anything else that reaches it, so no exception from handling a message leaves the ASGI
+  app; a non-binary frame is client input and counts as a decode strike.
 * Concealed hand tiles are logged at DEBUG only; game tickets and session tokens are never logged at
   INFO or above.
 

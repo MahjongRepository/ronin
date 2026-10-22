@@ -1,7 +1,4 @@
-from unittest.mock import AsyncMock
-
-from game.logic.enums import GameAction, GameErrorCode
-from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
+from game.logic.enums import GameAction
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
@@ -80,35 +77,3 @@ class TestSessionManagerDefensiveChecks:
 
         await manager.shutdown()
         assert pending.timeout_task.cancelled()
-
-    async def test_join_game__when_start_game_returns_error__should_roll_back_started_flag(self):
-        game_service = MockGameService()
-
-        # patch start_game to return an error (simulating unsupported settings)
-        error_events = [
-            ServiceEvent(
-                event=EventType.ERROR,
-                data=ErrorEvent(
-                    code=GameErrorCode.INVALID_ACTION,
-                    message="unsupported settings",
-                    target="all",
-                ),
-                target=BroadcastTarget(),
-            ),
-        ]
-        game_service.start_game = AsyncMock(return_value=error_events)
-        manager = SessionManager(game_service)
-
-        ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
-        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
-
-        conn = MockConnection()
-        manager.register_connection(conn)
-        await manager.join_game(conn, game_id="game1", session_token=ticket)
-        # game.started should be rolled back to False
-        game = manager.get_game("game1")
-        assert game is not None
-        assert game.started is False
-        # no lock or heartbeat resources should be allocated
-        assert "game1" not in manager._game_locks

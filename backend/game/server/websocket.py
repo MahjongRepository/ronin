@@ -30,6 +30,14 @@ _MAX_DECODE_ERRORS = 5
 
 
 class WebSocketConnection(ConnectionProtocol):
+    """
+    A Starlette WebSocket behind ConnectionProtocol.
+
+    Every transport failure of a send or receive (a disconnect, or Starlette's RuntimeError for a socket already closed)
+    surfaces as ConnectionError, so callers tell a dead socket from a server fault by type. A frame that carries no
+    bytes (a text frame) is client input the protocol cannot decode: DecodeError.
+    """
+
     def __init__(self, websocket: WebSocket, game_id: str, connection_id: str | None = None) -> None:
         self._websocket = websocket
         self._game_id = game_id
@@ -46,14 +54,23 @@ class WebSocketConnection(ConnectionProtocol):
     async def send_bytes(self, data: bytes) -> None:
         try:
             await self._websocket.send_bytes(data)
-        except WebSocketDisconnect:
-            raise ConnectionError("WebSocket already disconnected") from None
+        except (WebSocketDisconnect, RuntimeError) as e:
+            raise ConnectionError("WebSocket already disconnected") from e
 
     async def receive_bytes(self) -> bytes:
         try:
-            return await self._websocket.receive_bytes()
-        except WebSocketDisconnect:
-            raise ConnectionError("WebSocket already disconnected") from None
+            message = await self._websocket.receive()
+        except (WebSocketDisconnect, RuntimeError) as e:
+            raise ConnectionError("WebSocket already disconnected") from e
+
+        if message["type"] == "websocket.disconnect":
+            raise ConnectionError("WebSocket already disconnected")
+
+        data = message.get("bytes")
+        if data is None:
+            raise DecodeError("expected a binary MessagePack frame")
+
+        return data
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         with contextlib.suppress(WebSocketDisconnect):
@@ -77,13 +94,11 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
 
     try:
         while True:
-            raw = await connection.receive_bytes()
-
             # Always decode to maintain the malformed-message strike counter.
             # Decode is cheap (sub-microsecond for malformed input via the
             # msgpack C extension); the expensive work is in handle_message.
             try:
-                data = decode(raw)
+                data = decode(await connection.receive_bytes())
             except DecodeError as e:
                 decode_errors += 1
                 logger.warning("decode error", error=str(e), strikes=decode_errors)
@@ -109,8 +124,12 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
                 continue
 
             await router.handle_message(connection, data)
-    except (WebSocketDisconnect, RuntimeError, ConnectionError):  # fmt: skip
+    except ConnectionError:
         pass
+    except Exception:
+        logger.exception("websocket message loop failed", connection_id=connection.connection_id)
+        with contextlib.suppress(RuntimeError, OSError):
+            await connection.close(code=1011, reason="internal_error")
     finally:
         logger.info("websocket disconnected", connection_id=connection.connection_id)
         await router.handle_disconnect(connection)

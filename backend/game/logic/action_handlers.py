@@ -5,7 +5,7 @@ from game.logic.abortive import (
     can_call_kyuushu_kyuuhai,
 )
 from game.logic.action_result import ActionResult, create_draw_event
-from game.logic.call_resolution import FALLBACK_CALLER_ORDER, pick_best_meld_response, resolve_call_prompt
+from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     CallType,
     GameAction,
@@ -20,7 +20,7 @@ from game.logic.events import (
     GameEvent,
     RoundEndEvent,
 )
-from game.logic.exceptions import GameRuleError, InvalidGameActionError
+from game.logic.exceptions import GameRuleError, ImpossibleActionError, InvalidGameActionError
 from game.logic.state import (
     CallResponse,
     MahjongGameState,
@@ -52,30 +52,51 @@ from game.logic.win import apply_temporary_furiten
 
 logger = structlog.get_logger()
 
-# Actions that require it to be the player's turn (not a call response)
-TURN_ACTIONS = frozenset(
-    {
-        GameAction.DISCARD,
-        GameAction.DECLARE_RIICHI,
-        GameAction.DECLARE_TSUMO,
-        GameAction.CALL_KYUUSHU,
-    },
-)
+
+def _is_turn_of(round_state: MahjongRoundState, seat: int) -> bool:
+    """
+    Check that the seat may take a turn action now: it is the current player and no call prompt is pending.
+
+    A turn action during a pending prompt is a race the client cannot see (another seat's call window is still open), so
+    it gets the same answer as a turn action out of turn.
+    """
+    return round_state.current_player_seat == seat and round_state.pending_call_prompt is None
 
 
-def _create_not_your_turn_error(
+def _create_error_result(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    *,
     seat: int,
-    round_state: MahjongRoundState | None = None,
-    game_state: MahjongGameState | None = None,
+    code: GameErrorCode,
+    message: str,
 ) -> ActionResult:
     """
-    Create an error result for when it's not a player's turn.
+    Answer the acting seat with an ErrorEvent and leave the state unchanged.
     """
     return ActionResult(
-        events=[ErrorEvent(code=GameErrorCode.NOT_YOUR_TURN, message="not your turn", target=f"seat_{seat}")],
+        events=[ErrorEvent(code=code, message=message, target=f"seat_{seat}")],
         new_round_state=round_state,
         new_game_state=game_state,
     )
+
+
+def _create_not_your_turn_error(
+    round_state: MahjongRoundState, game_state: MahjongGameState, seat: int
+) -> ActionResult:
+    return _create_error_result(
+        round_state, game_state, seat=seat, code=GameErrorCode.NOT_YOUR_TURN, message="not your turn"
+    )
+
+
+def _create_rule_error(
+    round_state: MahjongRoundState,
+    game_state: MahjongGameState,
+    seat: int,
+    error: GameRuleError,
+) -> ActionResult:
+    logger.info("action refused by a rule judgment", code=error.code.value, reason=str(error))
+    return _create_error_result(round_state, game_state, seat=seat, code=error.code, message=str(error))
 
 
 def _validate_call_prompt(
@@ -249,10 +270,16 @@ def _validate_caller_action_matches_prompt(
 
     Raises InvalidGameActionError if the action is not valid for the seat's role on this prompt type.
     """
-    # Ron-only prompts (RON, CHANKAN) and ron callers on DISCARD: only CALL_RON is valid
-    ron_only = prompt.call_type in (CallType.RON, CallType.CHANKAN) or (
-        prompt.call_type == CallType.DISCARD and _is_ron_caller_on_prompt(prompt, seat)
-    )
+    match prompt.call_type:
+        case CallType.RON | CallType.CHANKAN:
+            ron_only = True
+        case CallType.DISCARD:
+            ron_only = _is_ron_caller_on_prompt(prompt, seat)
+        case CallType.MELD:
+            ron_only = False
+        case _:  # pragma: no cover (exhaustive)
+            raise AssertionError(f"unknown prompt type: {prompt.call_type}")
+
     if ron_only:
         if action != GameAction.CALL_RON:
             raise InvalidGameActionError(
@@ -263,14 +290,6 @@ def _validate_caller_action_matches_prompt(
 
         return
 
-    # Meld prompts and meld callers on DISCARD: ron is never valid, check meld types
-    if prompt.call_type not in (CallType.MELD, CallType.DISCARD):
-        raise InvalidGameActionError(
-            action=action.value,
-            seat=seat,
-            reason=f"unknown prompt type: {prompt.call_type.value}",
-        )
-
     if action == GameAction.CALL_RON:
         raise InvalidGameActionError(
             action=action.value,
@@ -279,58 +298,6 @@ def _validate_caller_action_matches_prompt(
         )
 
     _validate_meld_action_for_callers(prompt, seat=seat, action=action)
-
-
-def _find_offending_seat_from_prompt(prompt: PendingCallPrompt, fallback_seat: int) -> int:
-    """
-    Identify the winning caller's seat from prompt responses for error attribution.
-
-    When resolution fails, the error is from the response being executed (ron > pon/kan > chi),
-    not from the player whose response happened to trigger resolution.
-    Uses the same priority logic as resolve_call_prompt: ron callers sorted by caller order,
-    meld callers picked by pick_best_meld_response (kan > pon > chi, distance tie-break).
-    """
-    ron_responses = [r for r in prompt.responses if r.action == GameAction.CALL_RON]
-    if ron_responses:
-        # Sort by caller order (counter-clockwise from discarder), same as _resolve_ron_responses
-        caller_order = {(c if isinstance(c, int) else c.seat): i for i, c in enumerate(prompt.callers)}
-        ron_responses = sorted(ron_responses, key=lambda r: caller_order.get(r.seat, FALLBACK_CALLER_ORDER))
-        return ron_responses[0].seat
-
-    meld_responses = [
-        r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
-    ]
-    if meld_responses:
-        best = pick_best_meld_response(meld_responses, prompt)
-        if best is not None:
-            return best.seat
-
-    return fallback_seat
-
-
-def _resolve_call_prompt_safe(
-    round_state: MahjongRoundState,
-    game_state: MahjongGameState,
-    prompt: PendingCallPrompt,
-    triggering_seat: int,
-) -> ActionResult:
-    """
-    Resolve a call prompt with a safety net for resolution-time exceptions.
-
-    Wraps resolve_call_prompt to catch GameRuleError and convert to InvalidGameActionError with correct blame
-    attribution (the offending caller, not the triggering respondent).
-    """
-    try:
-        resolve_result = resolve_call_prompt(round_state, game_state)
-    except GameRuleError as e:
-        offending_seat = _find_offending_seat_from_prompt(prompt, triggering_seat)
-        raise InvalidGameActionError(action="resolve_call", seat=offending_seat, reason=str(e)) from e
-
-    return ActionResult(
-        resolve_result.events,
-        new_round_state=resolve_result.new_round_state,
-        new_game_state=resolve_result.new_game_state,
-    )
 
 
 _MELD_CALL_TYPE_TO_GAME_ACTIONS: dict[MeldCallType, frozenset[GameAction]] = {
@@ -354,10 +321,11 @@ def handle_discard(
     Handle a discard action.
 
     Validates the player's turn and tile_id, then processes the discard. Returns ActionResult with events, post-discard
-    flag, and new state.
+    flag, and new state; an illegal discard (kuikae, riichi tsumogiri) gets an ErrorEvent, a tile not in hand raises
+    InvalidGameActionError.
     """
-    if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
+    if not _is_turn_of(round_state, seat):
+        return _create_not_your_turn_error(round_state, game_state, seat)
 
     try:
         new_round_state, new_game_state, events = process_discard_phase(
@@ -366,15 +334,17 @@ def handle_discard(
             data.tile_id,
             is_riichi=False,
         )
-        return ActionResult(
-            events,
-            needs_post_discard=True,
-            new_round_state=new_round_state,
-            new_game_state=new_game_state,
-        )
-    except GameRuleError as e:
-        logger.warning("discard rejected", reason=str(e))
+    except ImpossibleActionError as e:
         raise InvalidGameActionError(action="discard", seat=seat, reason=str(e)) from e
+    except GameRuleError as e:
+        return _create_rule_error(round_state, game_state, seat, e)
+
+    return ActionResult(
+        events,
+        needs_post_discard=True,
+        new_round_state=new_round_state,
+        new_game_state=new_game_state,
+    )
 
 
 def handle_riichi(
@@ -388,10 +358,11 @@ def handle_riichi(
     Handle a riichi declaration with discard.
 
     Validates the player's turn and tile_id, then processes the riichi discard. Returns ActionResult with events and new
-    state.
+    state; a discard that breaks tenpai or is not legal gets an ErrorEvent, riichi not offered or a tile not in hand
+    raises InvalidGameActionError.
     """
-    if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
+    if not _is_turn_of(round_state, seat):
+        return _create_not_your_turn_error(round_state, game_state, seat)
 
     try:
         new_round_state, new_game_state, events = process_discard_phase(
@@ -400,15 +371,17 @@ def handle_riichi(
             data.tile_id,
             is_riichi=True,
         )
-        return ActionResult(
-            events,
-            needs_post_discard=True,
-            new_round_state=new_round_state,
-            new_game_state=new_game_state,
-        )
-    except GameRuleError as e:
-        logger.warning("riichi rejected", reason=str(e))
+    except ImpossibleActionError as e:
         raise InvalidGameActionError(action="declare_riichi", seat=seat, reason=str(e)) from e
+    except GameRuleError as e:
+        return _create_rule_error(round_state, game_state, seat, e)
+
+    return ActionResult(
+        events,
+        needs_post_discard=True,
+        new_round_state=new_round_state,
+        new_game_state=new_game_state,
+    )
 
 
 def handle_tsumo(
@@ -422,19 +395,15 @@ def handle_tsumo(
 
     Validates the player's turn and processes the tsumo win. Returns ActionResult with events and new state.
     """
-    if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
+    if not _is_turn_of(round_state, seat):
+        return _create_not_your_turn_error(round_state, game_state, seat)
 
     try:
         new_round_state, new_game_state, events = process_tsumo_call(round_state, game_state, winner_seat=seat)
-        return ActionResult(
-            events,
-            new_round_state=new_round_state,
-            new_game_state=new_game_state,
-        )
-    except GameRuleError as e:
-        logger.warning("tsumo rejected", reason=str(e))
+    except ImpossibleActionError as e:
         raise InvalidGameActionError(action="declare_tsumo", seat=seat, reason=str(e)) from e
+
+    return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
 
 def handle_ron(
@@ -474,7 +443,7 @@ def handle_ron(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
+        return resolve_call_prompt(new_round_state, new_game_state)
 
     return ActionResult(
         [],
@@ -518,7 +487,7 @@ def handle_pon(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
+        return resolve_call_prompt(new_round_state, new_game_state)
 
     return ActionResult(
         [],
@@ -562,7 +531,7 @@ def handle_chi(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
+        return resolve_call_prompt(new_round_state, new_game_state)
 
     return ActionResult(
         [],
@@ -609,7 +578,7 @@ def _handle_open_kan_call_response(
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
-        return _resolve_call_prompt_safe(new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat)
+        return resolve_call_prompt(new_round_state, new_game_state)
 
     return ActionResult(
         [],
@@ -646,8 +615,7 @@ def _handle_self_kan(
             game_state,
             meld_input=meld_input,
         )
-    except GameRuleError as e:
-        logger.warning("kan rejected", reason=str(e))
+    except ImpossibleActionError as e:
         raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
 
     if new_round_state.phase == RoundPhase.FINISHED:
@@ -687,17 +655,9 @@ def handle_kan(
     if data.kan_type == KanType.OPEN:
         return _handle_open_kan_call_response(round_state, game_state, seat=seat, submitted_tile_id=data.tile_id)
 
-    # closed/added kan cannot be called while a call prompt is pending
-    if round_state.pending_call_prompt is not None:
-        raise InvalidGameActionError(
-            action="call_kan",
-            seat=seat,
-            reason=f"cannot call {data.kan_type.value} kan while a call prompt is pending",
-        )
-
     # closed/added kan during own turn - immediate execution
-    if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
+    if not _is_turn_of(round_state, seat):
+        return _create_not_your_turn_error(round_state, game_state, seat)
 
     return _handle_self_kan(round_state, game_state, seat=seat, data=data)
 
@@ -714,8 +674,8 @@ def handle_kyuushu(
     Validates the player's turn and kyuushu conditions, then processes the abortive draw. Returns ActionResult with
     events and new state.
     """
-    if round_state.current_player_seat != seat:
-        return _create_not_your_turn_error(seat=seat, round_state=round_state, game_state=game_state)
+    if not _is_turn_of(round_state, seat):
+        return _create_not_your_turn_error(round_state, game_state, seat)
 
     player = round_state.players[seat]
     if not can_call_kyuushu_kyuuhai(player, round_state, settings=game_state.settings):
@@ -791,9 +751,7 @@ def handle_pass(
 
     # resolve if all callers have responded
     if not new_prompt.pending_seats:
-        resolve_result = _resolve_call_prompt_safe(
-            new_round_state, new_game_state, prompt=new_prompt, triggering_seat=seat
-        )
+        resolve_result = resolve_call_prompt(new_round_state, new_game_state)
         events.extend(resolve_result.events)
         new_round_state = resolve_result.new_round_state
         new_game_state = resolve_result.new_game_state

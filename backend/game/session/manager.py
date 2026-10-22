@@ -463,7 +463,7 @@ class SessionManager:
             await self._broadcast_events(game, events)
             await self._maybe_start_timer(game, events)
 
-    async def _handle_invalid_action(
+    async def _kick_player(
         self,
         game: Game,
         connection: ConnectionProtocol,
@@ -471,10 +471,11 @@ class SessionManager:
         error: InvalidGameActionError,
     ) -> None:
         """
-        Handle a provably invalid game action: log, disconnect, replace with AI player.
+        Remove a human player who sent structurally impossible input for their own seat, and seat an AI player.
 
         Must be called under the per-game lock. Connection close and empty-game cleanup happen OUTSIDE the lock (by the
-        caller).
+        caller). An error while replacing the player propagates: it is a server fault the caller's boundary turns into
+        fail_game.
         """
         player_name = player.name
         player_seat = player.seat
@@ -517,50 +518,17 @@ class SessionManager:
         await self._broadcast_events(game, events)
         await self._maybe_start_timer(game, events)
 
-    async def _process_invalid_action(
-        self,
-        game: Game,
-        error: InvalidGameActionError,
-    ) -> ConnectionProtocol | None:
+    async def _close_kicked_and_cleanup(self, connection: ConnectionProtocol, game: Game) -> None:
         """
-        Handle InvalidGameActionError under the lock.
-
-        Returns the offender connection, which the caller closes outside the lock.
-        """
-        # resolve offender by seat from exception (critical for resolution-triggered errors)
-        offender_player = self._get_player_at_seat(game, error.seat)
-        if offender_player is None:
-            # offending seat has no connected player (AI player seat) — log and skip disconnect
-            logger.warning("invalid action at AI player seat, skipping disconnect", error_seat=error.seat)
-            return None
-
-        offender_connection = offender_player.connection
-        try:
-            await self._handle_invalid_action(game, offender_connection, player=offender_player, error=error)
-        except (RuntimeError, OSError, ConnectionError, ValueError, InvalidGameActionError):  # fmt: skip
-            logger.exception("error during invalid action handling, player already removed, continuing with disconnect")
-
-        return offender_connection
-
-    async def _close_offender_and_cleanup(
-        self,
-        offender_connection: ConnectionProtocol | None,
-        game_id: str,
-        game: Game,
-    ) -> None:
-        """
-        Close the offender's connection and clean up the game if empty.
+        Close a kicked player's connection with 1008 and clean up the game if empty.
 
         Called OUTSIDE the per-game lock to avoid deadlock risk from connection.close() triggering WebSocket disconnect
         handler.
         """
-        if offender_connection is None:
-            return
-
         with contextlib.suppress(RuntimeError, OSError):
-            await offender_connection.close(code=1008, reason="invalid_game_action")
+            await connection.close(code=1008, reason="invalid_game_action")
 
-        await self._cleanup_empty_game(game_id, game)
+        await self._cleanup_empty_game(game.game_id, game)
 
     async def handle_game_action(
         self,
@@ -569,6 +537,13 @@ class SessionManager:
         action: GameAction,
         data: dict[str, Any],
     ) -> None:
+        """
+        Run a player's game action under the game lock.
+
+        A rule judgment or race comes back from the engine as an ErrorEvent for the seat. Structurally impossible input
+        (InvalidGameActionError, always the acting seat's) disconnects the player with 1008 and seats an AI player.
+        Anything else the engine raises is a server fault and propagates to the caller's boundary, which fails the game.
+        """
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
             await self._send_error(connection, code=SessionErrorCode.NOT_IN_GAME, message="You must join a game first")
@@ -587,7 +562,7 @@ class SessionManager:
             )
             return
 
-        offender_connection: ConnectionProtocol | None = None
+        kicked = False
         async with lock:
             if game.ended:
                 return
@@ -600,11 +575,13 @@ class SessionManager:
                     data=data,
                 )
             except InvalidGameActionError as e:
-                offender_connection = await self._process_invalid_action(game, e)
+                kicked = True
+                await self._kick_player(game, connection, player=player, error=e)
             else:
                 await self._process_successful_action(game, game_id=game_id, player=player, events=events)
 
-        await self._close_offender_and_cleanup(offender_connection, game_id=game_id, game=game)
+        if kicked:
+            await self._close_kicked_and_cleanup(connection, game)
 
     async def broadcast_chat(
         self,
@@ -690,13 +667,7 @@ class SessionManager:
                 self._evict_stale_connections(game, seat=seat, stale_out=stale_connections)
                 self._game_service.restore_human_player(game_id, seat)
 
-                try:
-                    snapshot = self._game_service.build_reconnection_snapshot(game_id, seat)
-                except Exception:
-                    # Reinstate AI player so the seat isn't orphaned
-                    self._game_service.replace_with_ai_player(game_id, session.player_name)
-                    raise
-
+                snapshot = self._game_service.build_reconnection_snapshot(game_id, seat)
                 if snapshot is None:
                     self._game_service.replace_with_ai_player(game_id, session.player_name)
                     await self._send_error(
@@ -1284,11 +1255,6 @@ class SessionManager:
         game.started = True
         player_names = [spec.name for spec in player_specs]
         events = await self._game_service.start_game(game.game_id, player_names, settings=game.settings)
-        # if startup failed (e.g. unsupported settings), rollback and broadcast error
-        if any(isinstance(e.data, ErrorEvent) for e in events):
-            game.started = False
-            await self._broadcast_events(game, events)
-            return
 
         # Second liveness check: if all players disconnected during the
         # start_game await, leave_game may have cleaned the game from _games.
@@ -1497,6 +1463,31 @@ class SessionManager:
         self._spawn(self._finish_failed_game(self._detach_failed_game(game, replay_lines=self._detach_replay(game))))
         return True
 
+    async def fail_connection(
+        self,
+        connection: ConnectionProtocol,
+        game: Game | None,
+        *,
+        reason: str,
+        exc: Exception,
+    ) -> None:
+        """
+        Handle a server fault met while serving a connection's message or disconnect.
+
+        With a game (the one the connection was acting in, captured before the failing call), the game ends through
+        fail_game, whose finalizer closes its players; the connection itself is closed with 1011 here when it is not
+        among them (a join or reconnect that failed before seating it, a player already removed). With no game there is
+        nothing to fail: the fault is logged with its traceback and the connection closed with 1011.
+        """
+        seated = game is not None and game.players.get(connection.connection_id) is not None
+        if game is not None:
+            self.fail_game(game, reason=reason, exc=exc)
+        else:
+            logger.error("connection failed outside a game", reason=reason, exc_info=exc)
+
+        if not seated:
+            await self._close_with_internal_error(connection)
+
     def _escalate_completion(self, game: Game, *, exc: Exception, replay_lines: list[str] | None) -> None:
         """
         Turn the caller's own completion claim into a failure after an unexpected error while finishing the game.
@@ -1668,7 +1659,6 @@ class SessionManager:
         if lock is None:
             return
 
-        offender_connection: ConnectionProtocol | None = None
         async with lock:
             superseded = self._timer_manager.is_superseded(game_id, seat, firing)
             if game.ended or self._games.get(game_id) is not game or superseded:
@@ -1684,14 +1674,8 @@ class SessionManager:
             if timeout_type == TimeoutType.TURN:
                 self._timer_manager.consume_bank(game_id, seat)
 
-            try:
-                events = await self._game_service.handle_timeout(
-                    game_id=game_id, player_name=player.name, timeout_type=timeout_type
-                )
-            except InvalidGameActionError as e:
-                offender_connection = await self._process_invalid_action(game, e)
-            else:
-                await self._broadcast_events(game, events)
-                await self._maybe_start_timer(game, events)
-
-        await self._close_offender_and_cleanup(offender_connection, game_id=game_id, game=game)
+            events = await self._game_service.handle_timeout(
+                game_id=game_id, player_name=player.name, timeout_type=timeout_type
+            )
+            await self._broadcast_events(game, events)
+            await self._maybe_start_timer(game, events)

@@ -1,58 +1,84 @@
+from typing import ClassVar
+
+from game.logic.enums import GameErrorCode
+
+
 class GameRuleError(Exception):
     """
-    Base exception for game rule violations.
+    A rule judgment refused the acting seat's action: one the wire offered, refused by a rule the client cannot apply
+    without engine state it never receives (kuikae, a riichi player's tsumogiri, a riichi discard that breaks tenpai).
 
-    Raised by domain logic (turn.py, melds.py, round.py) when a player action violates game rules. Caught at the service
-    boundary (action_handlers.py) and converted to ErrorEvent responses.
+    Raised only while validating an action, before anything changes. The action handler answers the acting seat with an
+    ErrorEvent carrying `code`; the turn and its timer continue. Any other exception the engine raises is either
+    structural input (ImpossibleActionError) or a server fault. Each judgment is a subclass with its own code; the base
+    answers with the generic INVALID_ACTION.
     """
+
+    code: ClassVar[GameErrorCode] = GameErrorCode.INVALID_ACTION
 
 
 class InvalidDiscardError(GameRuleError):
     """
-    Tile cannot be discarded (not in hand, kuikae restriction, etc.).
+    The tile is in hand but not a legal discard (kuikae, or a riichi player discarding other than the drawn tile).
     """
 
-
-class InvalidMeldError(GameRuleError):
-    """
-    Meld call is invalid (wrong tiles, already called, etc.).
-    """
+    code = GameErrorCode.INVALID_DISCARD
 
 
 class InvalidRiichiError(GameRuleError):
     """
-    Riichi declaration conditions not met.
+    The riichi discard would leave the hand not tenpai.
+    """
+
+    code = GameErrorCode.INVALID_RIICHI
+
+
+class ImpossibleActionError(Exception):
+    """
+    Structurally impossible input: a tile not in hand, or an action or tile the wire did not offer the seat.
+
+    A correct client never sends it. The action handler validating the acting seat's input turns it into
+    InvalidGameActionError; raised anywhere else (call resolution executes responses already validated on submit), it is
+    a server fault.
     """
 
 
-class InvalidWinError(GameRuleError):
+class InvalidMeldError(ImpossibleActionError):
     """
-    Win declaration (tsumo/ron) conditions not met or calculation error.
-    """
-
-
-class InvalidActionError(GameRuleError):
-    """
-    Action is not valid in the current game state.
+    The meld does not match the hand or what was offered (tiles missing, kan not offered, chi shape invalid).
     """
 
 
-class UnsupportedSettingsError(GameRuleError):
+class ScoringError(Exception):
+    """
+    The scoring library failed on a hand the engine had already judged a win: a server fault, never a rule judgment.
+    """
+
+
+class UnsupportedSettingsError(Exception):
     """
     Game settings contain unsupported values that cannot be silently ignored.
     """
 
 
+class GeneratedActionError(Exception):
+    """
+    The engine refused an action the server made on a seat's behalf (an AI decision or a timeout default).
+
+    The server generated it, so the refusal is a server fault that ends the game, never the seat's fault.
+    """
+
+
 class InvalidGameActionError(Exception):
     """
-    Raised when a player sends a provably invalid game action.
+    A human client sent structurally impossible input for its own seat (modified client, bug, or attack).
 
-    Indicates the client is sending fabricated data (modified client, bug, or attack).
-    The player should be disconnected and replaced with an AI player.
+    Raised by an action handler only for the acting seat, before anything changes. The session disconnects that player
+    (1008) and seats an AI player.
 
     Attributes:
         action: The game action that was attempted (e.g. "discard", "declare_riichi").
-        seat: The seat number of the player.
+        seat: The acting seat.
         reason: Human-readable explanation of why the action is invalid.
     """
 

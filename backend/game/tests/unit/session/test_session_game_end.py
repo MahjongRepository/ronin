@@ -1,18 +1,26 @@
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from game.logic.enums import GameAction, TimeoutType
+from mahjong.tile import TilesConverter
+
+from game.logic.ai_player import AIPlayer
+from game.logic.enums import GameAction
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
-from game.logic.exceptions import InvalidGameActionError
+from game.logic.exceptions import InvalidGameActionError, ScoringError
+from game.logic.scoring import HandResult
 from game.logic.types import PlayerStanding
 from game.messaging.encoder import decode
 from game.messaging.types import SessionErrorCode
+from game.messaging.wire_enums import WireClientMessageType, WireGameAction
+from game.server.router import MessageRouter
 from game.session import heartbeat as heartbeat_module
 from game.session.manager import SessionManager
 from game.session.models import Player, PlayerSpec
 from game.session.replay_collector import ReplayCollector
+from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.mocks import MockConnection, MockGameRepository, MockGameService, MockResultEvent
+from game.tests.unit.helpers import _update_player, _update_round_state
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
@@ -22,7 +30,6 @@ from .helpers import (
     create_started_game,
     fire_turn_timer_now,
     make_game_with_player,
-    run_timeout,
     wait_for_background_tasks,
 )
 
@@ -193,6 +200,59 @@ class TestFailGame:
         assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
         assert conn._close_code == 1011
 
+    async def test_game_action__when_the_scoring_library_fails_on_tsumo__should_fail_the_game_with_that_error(
+        self, seeded_engine, caplog
+    ):
+        manager = SessionManager(seeded_engine)
+        router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        winning_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
+        _update_player(seeded_engine, game_id="game1", seat=alice_seat, tiles=winning_hand)
+        _update_round_state(seeded_engine, "game1", current_player_seat=alice_seat, pending_call_prompt=None)
+
+        with (
+            patch("game.logic.turn.calculate_hand_value", return_value=HandResult(error="library failure")),
+            caplog.at_level(logging.ERROR),
+        ):
+            await router.handle_message(
+                conns[0], {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DECLARE_TSUMO}
+            )
+            await wait_for_background_tasks(manager)
+
+        failure = next(r.msg for r in caplog.records if r.msg["event"] == "game failed")
+        assert failure["reason"] == "game action failed"
+        assert isinstance(failure["exc_info"], ScoringError)
+        assert manager.get_game("game1") is None
+        assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
+
+    async def test_game_action__when_an_ai_turn_after_the_committed_discard_is_refused__should_fail_the_game(
+        self, seeded_engine, monkeypatch
+    ):
+        manager = SessionManager(seeded_engine)
+        router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        round_state = seeded_engine.get_game_state("game1").round_state
+        assert round_state.current_player_seat == alice_seat
+        assert round_state.pending_call_prompt is None
+
+        def discard_a_tile_not_in_hand(_ai_player, player, _round_state):
+            return next(t for t in range(136) if t not in player.tiles)
+
+        monkeypatch.setattr(AIPlayer, "select_discard", discard_a_tile_not_in_hand)
+        await router.handle_message(
+            conns[0],
+            {
+                "t": WireClientMessageType.GAME_ACTION,
+                "a": WireGameAction.DISCARD,
+                "ti": round_state.players[alice_seat].tiles[-1],
+            },
+        )
+        await wait_for_background_tasks(manager)
+        assert manager.get_game("game1") is None
+        assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
+
     async def test_heartbeat_loop__when_it_raises__should_fail_its_game(self, manager, monkeypatch):
         monkeypatch.setattr(heartbeat_module, "HEARTBEAT_CHECK_INTERVAL", 0)
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
@@ -338,6 +398,21 @@ class TestGameEndOwnership:
 
 
 class TestGameEndFromAction:
+    async def test_game_end__when_ai_replacement_after_a_kick_ends_game__should_close_remaining_with_1000(
+        self, manager
+    ):
+        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+            return_value=_make_game_end_events(),
+        )
+        manager._game_service.handle_action = AsyncMock(
+            side_effect=InvalidGameActionError(action="discard", seat=0, reason="tile not in hand"),
+        )
+
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        assert (conns[0]._close_code, conns[0]._close_reason) == (1008, "invalid_game_action")
+        assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
+
     async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
@@ -392,25 +467,6 @@ class TestGameEndFromTimeout:
         assert game_repo.games["game1"]["ended_at"] is not None
         assert replay_file_path(tmp_path, "game1").exists()
         assert [(c._close_code, c._close_reason) for c in conns] == [(1000, "game_ended"), (1000, "game_ended")]
-
-    async def test_game_end__when_ai_replacement_after_timeout_ends_game__should_close_remaining_with_1000(
-        self, manager
-    ):
-        conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
-            return_value=_make_game_end_events(),
-        )
-        error = InvalidGameActionError(action="pass", seat=0, reason="resolution failed")
-        manager._game_service.handle_timeout = AsyncMock(side_effect=error)
-
-        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=0)
-        # Offender closed with 1008
-        assert conns[0].is_closed
-        assert conns[0]._close_code == 1008
-        # Bob closed with 1000 (game ended)
-        assert conns[1].is_closed
-        assert conns[1]._close_code == 1000
 
 
 class TestGameEndFromLeaveGame:

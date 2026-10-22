@@ -5,9 +5,8 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
-from game.logic.enums import GameAction, GameErrorCode, GamePhase
-from game.logic.events import BroadcastTarget, ErrorEvent, EventType, ServiceEvent
-from game.logic.exceptions import InvalidGameActionError
+from game.logic.enums import GameAction, GamePhase
+from game.logic.events import EventType, ServiceEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
@@ -16,7 +15,6 @@ from game.replay.models import (
     ReplayInputAfterGameEndError,
     ReplayInputEvent,
     ReplayInvariantError,
-    ReplayStartupError,
     ReplayStep,
     ReplayStepLimitError,
     ReplayTrace,
@@ -169,7 +167,6 @@ async def _execute_replay(
         seed=replay.seed,
         wall=list(replay.wall) if replay.wall is not None else None,
     )
-    _check_startup_errors(startup_events, opts.strict)
 
     initial_state = _require_state(
         service, game_id=opts.game_id, message="start_game completed but game state is missing"
@@ -237,16 +234,6 @@ async def _execute_replay(
     )
 
 
-def _check_startup_errors(events: list[ServiceEvent], strict: bool) -> None:  # noqa: FBT001
-    if not strict:
-        return
-
-    errors = [e for e in events if e.event == EventType.ERROR]
-    if errors:
-        messages = [e.data.message for e in errors if isinstance(e.data, ErrorEvent)]
-        raise ReplayStartupError(f"Startup errors: {messages}")
-
-
 def _reject_manual_confirm_rounds(replay: ReplayInput) -> None:
     """
     Reject CONFIRM_ROUND events in input when auto_confirm_rounds is enabled.
@@ -305,28 +292,20 @@ async def _process_input_event(
 ) -> int:
     """
     Process one player input event and append to steps.
+
+    A rule judgment comes back as the ErrorEvent the live server sends; structural input (InvalidGameActionError) or a
+    server fault raises and fails the replay.
     """
     state_before = _require_state(
         ctx.service, game_id=ctx.opts.game_id, message="game state disappeared before replay action"
     )
 
-    try:
-        events = await ctx.service.handle_action(
-            game_id=ctx.opts.game_id,
-            player_name=input_event.player_name,
-            action=input_event.action,
-            data=dict(input_event.data),
-        )
-    except InvalidGameActionError as exc:
-        error_event = ServiceEvent(
-            event=EventType.ERROR,
-            data=ErrorEvent(target="all", code=GameErrorCode.INVALID_ACTION, message=str(exc)),
-            target=BroadcastTarget(),
-        )
-        if ctx.opts.strict:
-            raise ReplayError(step_index=step_count, event=input_event, errors=[error_event]) from exc
-
-        events = [error_event]
+    events = await ctx.service.handle_action(
+        game_id=ctx.opts.game_id,
+        player_name=input_event.player_name,
+        action=input_event.action,
+        data=dict(input_event.data),
+    )
 
     if ctx.opts.strict:
         errors = [e for e in events if e.event == EventType.ERROR]

@@ -1,6 +1,5 @@
 from pydantic import BaseModel, ConfigDict
 
-from game.logic.exceptions import InvalidActionError
 from game.logic.rng import generate_shuffled_wall_and_dice
 from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import NUM_TILES, sort_tiles
@@ -233,13 +232,13 @@ def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
     position to maintain the dead wall size.
     """
     if wall.rinshan_draws_count >= MAX_RINSHAN_DRAWS:
-        raise InvalidActionError("No more rinshan draw positions available")
+        raise AssertionError("No more rinshan draw positions available")
 
     draw_index = RINSHAN_START_INDEX - wall.rinshan_draws_count
 
     tile = wall.dead_wall_tiles[draw_index]
     if not wall.live_tiles:
-        raise InvalidActionError("Cannot draw from dead wall: live wall is empty for replenishment")
+        raise AssertionError("Cannot draw from dead wall: live wall is empty for replenishment")
 
     dead = list(wall.dead_wall_tiles)
     live = list(wall.live_tiles)
@@ -263,11 +262,11 @@ def add_dora_indicator(wall: Wall) -> tuple[Wall, int]:
     """
     current_count = len(wall.dora_indicators)
     if current_count >= MAX_DORA_INDICATORS:
-        raise InvalidActionError(f"Cannot add more than {MAX_DORA_INDICATORS} dora indicators")
+        raise AssertionError(f"Cannot add more than {MAX_DORA_INDICATORS} dora indicators")
 
     next_index = FIRST_DORA_INDEX + current_count
     if next_index >= len(wall.dead_wall_tiles):
-        raise InvalidActionError("No more dora indicator positions in dead wall")
+        raise AssertionError("No more dora indicator positions in dead wall")
 
     indicator = wall.dead_wall_tiles[next_index]
     new_indicators = (*wall.dora_indicators, indicator)
@@ -300,7 +299,7 @@ def increment_pending_dora(wall: Wall) -> Wall:
     """
     total = len(wall.dora_indicators) + wall.pending_dora_count + 1
     if total > MAX_DORA_INDICATORS:
-        raise InvalidActionError(
+        raise AssertionError(
             f"Cannot exceed {MAX_DORA_INDICATORS} dora indicators "
             f"(current: {len(wall.dora_indicators)}, pending: {wall.pending_dora_count})",
         )

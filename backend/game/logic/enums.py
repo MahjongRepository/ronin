@@ -33,24 +33,19 @@ class GameAction(StrEnum):
 
 class GameErrorCode(StrEnum):
     """
-    Error codes sent to clients for invalid game actions.
+    Error codes of an ErrorEvent: the engine refused an action and changed nothing.
     """
 
     NOT_YOUR_TURN = "not_your_turn"
     INVALID_DISCARD = "invalid_discard"
     INVALID_RIICHI = "invalid_riichi"
-    INVALID_TSUMO = "invalid_tsumo"
     INVALID_RON = "invalid_ron"
     INVALID_PON = "invalid_pon"
     INVALID_CHI = "invalid_chi"
     INVALID_KAN = "invalid_kan"
-    CANNOT_CALL_KYUUSHU = "cannot_call_kyuushu"
     INVALID_PASS = "invalid_pass"  # noqa: S105
     GAME_ERROR = "game_error"
     INVALID_ACTION = "invalid_action"
-    VALIDATION_ERROR = "validation_error"
-    UNKNOWN_ACTION = "unknown_action"
-    MISSING_ROUND_RESULT = "missing_round_result"
 
 
 class MeldCallType(StrEnum):

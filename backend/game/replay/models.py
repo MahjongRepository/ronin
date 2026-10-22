@@ -111,12 +111,6 @@ class ReplayError(Exception):
         )
 
 
-class ReplayStartupError(Exception):
-    """
-    Raised when start_game emits error events in strict mode.
-    """
-
-
 class ReplayStepLimitError(Exception):
     """
     Raised when replay exceeds max allowed steps.

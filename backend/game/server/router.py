@@ -4,7 +4,6 @@ import structlog
 from pydantic import ValidationError
 
 from game.logic.enums import GameAction
-from game.logic.exceptions import GameRuleError
 from game.messaging.types import (
     ChatMessage,
     ChiMessage,
@@ -43,7 +42,10 @@ class MessageRouter:
     """
     Routes incoming messages to appropriate handlers.
 
-    This class contains pure business logic and can be tested without real WebSocket connections.
+    This class contains pure business logic and can be tested without real WebSocket connections. Each handler that
+    reaches a game is an error boundary: the connection's own dead socket (ConnectionError) propagates to the endpoint
+    as a disconnect, and any other exception is a server fault handed to `SessionManager.fail_connection` with the game
+    captured before the call.
     """
 
     def __init__(self, session_manager: SessionManager, *, game_ticket_secret: str) -> None:
@@ -119,11 +121,17 @@ class MessageRouter:
         if ticket is None:
             return
 
-        await self._session_manager.join_game(
-            connection=connection,
-            game_id=connection.game_id,
-            session_token=message.game_ticket,
-        )
+        game = self._session_manager.get_game(connection.game_id)
+        try:
+            await self._session_manager.join_game(
+                connection=connection,
+                game_id=connection.game_id,
+                session_token=message.game_ticket,
+            )
+        except ConnectionError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            await self._session_manager.fail_connection(connection, game, reason="join failed", exc=exc)
 
     async def _handle_reconnect(
         self,
@@ -137,11 +145,17 @@ class MessageRouter:
         if ticket is None:
             return
 
-        await self._session_manager.reconnect(
-            connection=connection,
-            game_id=connection.game_id,
-            session_token=message.game_ticket,
-        )
+        game = self._session_manager.get_game(connection.game_id)
+        try:
+            await self._session_manager.reconnect(
+                connection=connection,
+                game_id=connection.game_id,
+                session_token=message.game_ticket,
+            )
+        except ConnectionError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            await self._session_manager.fail_connection(connection, game, reason="reconnect failed", exc=exc)
 
     async def _handle_game_action(
         self,
@@ -149,32 +163,31 @@ class MessageRouter:
         message: DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
     ) -> None:
         """
-        Route a game action message, handling expected and fatal errors.
+        Route a game action message; an unexpected error is a server fault that fails the connection's game.
         """
+        game = self._session_manager.get_connection_game(connection)
         try:
-            data = message.model_dump(exclude={"t", "a"})
-            action = GameAction[message.a.name]
             await self._session_manager.handle_game_action(
                 connection=connection,
-                action=action,
-                data=data,
+                action=GameAction[message.a.name],
+                data=message.model_dump(exclude={"t", "a"}),
             )
-        except (GameRuleError, ValueError, KeyError, TypeError) as e:
-            logger.warning("action failed", error=str(e))
-            await connection.send_message(
-                ErrorMessage(code=SessionErrorCode.ACTION_FAILED, message=str(e)).model_dump(),
-            )
-        except Exception as exc:
-            game = self._session_manager.get_connection_game(connection)
-            if game is None:
-                logger.exception("fatal error during game action outside a game")
-                return
-
-            self._session_manager.fail_game(game, reason="game action failed", exc=exc)
+        except ConnectionError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            await self._session_manager.fail_connection(connection, game, reason="game action failed", exc=exc)
 
     async def handle_connect(self, connection: ConnectionProtocol) -> None:
         self._session_manager.register_connection(connection)
 
     async def handle_disconnect(self, connection: ConnectionProtocol) -> None:
-        await self._session_manager.leave_game(connection, notify_player=False)
-        self._session_manager.unregister_connection(connection)
+        """
+        Remove a closed connection from its game; an unexpected error is a server fault that fails that game.
+        """
+        game = self._session_manager.get_connection_game(connection)
+        try:
+            await self._session_manager.leave_game(connection, notify_player=False)
+        except Exception as exc:  # noqa: BLE001
+            await self._session_manager.fail_connection(connection, game, reason="disconnect failed", exc=exc)
+        finally:
+            self._session_manager.unregister_connection(connection)

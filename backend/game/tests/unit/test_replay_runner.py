@@ -20,7 +20,6 @@ from game.replay.models import (
     ReplayInputAfterGameEndError,
     ReplayInputEvent,
     ReplayInvariantError,
-    ReplayStartupError,
     ReplayStepLimitError,
     ReplayTrace,
 )
@@ -130,7 +129,7 @@ async def test_run_replay_async__when_non_strict_and_action_invalid__should_reco
     assert len(error_events) == 1
 
 
-async def test_run_replay_async__when_service_raises_invalid_action__should_raise_or_record_by_strictness():
+async def test_run_replay_async__when_non_strict_and_service_raises_invalid_action__should_fail_the_replay():
 
     class RaisingService(_StubService):
         async def handle_action(
@@ -144,17 +143,8 @@ async def test_run_replay_async__when_service_raises_invalid_action__should_rais
             raise InvalidGameActionError(action="discard", seat=0, reason="test error")
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
-    # Strict mode: raises ReplayError
-    with pytest.raises(ReplayError) as exc_info:
-        await run_replay_async(replay, service_factory=RaisingService)
-    assert exc_info.value.step_index == 0
-
-    # Non-strict mode: converts to error event step
-    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=RaisingService)
-    assert len(trace.steps) == 1
-    error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
-    assert len(error_events) == 1
-    assert error_events[0].data.code == GameErrorCode.INVALID_ACTION
+    with pytest.raises(InvalidGameActionError, match="test error"):
+        await run_replay_async(replay, ReplayOptions(strict=False), service_factory=RaisingService)
 
 
 async def test_run_replay_async__when_service_factory_given__should_use_it_and_clean_up():
@@ -286,64 +276,6 @@ async def test_run_replay_async__when_non_strict_and_input_after_game_end__shoul
     trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=FinishedService)
     assert trace.final_state.game_phase == GamePhase.FINISHED
     assert len(trace.steps) == 0
-
-
-async def test_run_replay_async__when_strict_and_startup_emits_error__should_raise_startup_error():
-
-    class ErrorStartupService(_StubService):
-        async def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            settings: GameSettings | None = None,
-            wall: list[int] | None = None,
-        ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
-            error_event = ServiceEvent(
-                event=EventType.ERROR,
-                data=ErrorEvent(
-                    code=GameErrorCode.GAME_ERROR,
-                    message="test startup error",
-                    target="all",
-                ),
-                target=BroadcastTarget(),
-            )
-            return [error_event, *events]
-
-    replay = _build_replay()
-    with pytest.raises(ReplayStartupError, match="test startup error"):
-        await run_replay_async(replay, service_factory=ErrorStartupService)
-
-
-async def test_run_replay_async__when_non_strict_and_startup_emits_error__should_return_trace():
-
-    class ErrorStartupService(_StubService):
-        async def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            settings: GameSettings | None = None,
-            wall: list[int] | None = None,
-        ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
-            error_event = ServiceEvent(
-                event=EventType.ERROR,
-                data=ErrorEvent(
-                    code=GameErrorCode.GAME_ERROR,
-                    message="test startup error",
-                    target="all",
-                ),
-                target=BroadcastTarget(),
-            )
-            return [error_event, *events]
-
-    replay = _build_replay()
-    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=ErrorStartupService)
-    assert isinstance(trace, ReplayTrace)
 
 
 async def test_run_replay_async__when_game_state_disappears__should_raise_invariant_error():

@@ -39,6 +39,8 @@ class ConnectionProtocol(ABC):
     async def receive_bytes(self) -> bytes:
         """
         Receive raw bytes from the client.
+
+        Raises ConnectionError when the socket is gone and DecodeError for a frame that carries no bytes.
         """
         ...
 

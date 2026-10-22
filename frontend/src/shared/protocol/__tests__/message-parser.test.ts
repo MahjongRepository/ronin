@@ -222,12 +222,12 @@ describe("parseServerMessage", () => {
         });
 
         it("parses an error event", () => {
-            const raw = { cd: "action_failed", msg: "Not your turn", t: EVENT_TYPE.ERROR };
+            const raw = { cd: "not_your_turn", msg: "not your turn", t: EVENT_TYPE.ERROR };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
-                code: "action_failed",
-                message: "Not your turn",
+                code: "not_your_turn",
+                message: "not your turn",
                 type: "error",
             });
         });

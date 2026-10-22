@@ -12,8 +12,10 @@ per-game lock.
   ones, and an absent human's session is marked disconnected, so it can RECONNECT later.
 * **Disconnect** from a started game: an AI player takes the seat, the player's timer stops and the
   remaining bank time is saved on the session, and any pending turn, call or round confirmation for
-  that seat is resolved. A provably invalid action (`InvalidGameActionError`) disconnects the
-  offending seat with code 1008; an ordinary rule error only answers with an error. When the last human leaves,
+  that seat is resolved. Structurally impossible input (`InvalidGameActionError`, always the acting
+  human's own seat) disconnects that player with code 1008 and seats an AI player; a rule judgment or
+  race only answers with an `ErrorEvent`; an error while replacing the kicked player is a server
+  fault (`fail_game`). A timeout or AI action is never a kick. When the last human leaves,
   the game is torn down: there are never all-AI games, and no reconnect after that.
 * **Reconnect:** the router verifies the ticket; the session must be disconnected and belong to the
   path's game. Under the lock: evict stale connections, remove the AI player

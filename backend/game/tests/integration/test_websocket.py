@@ -96,6 +96,16 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_TICKET
 
+    def test_websocket__when_client_sends_a_text_frame__should_count_a_decode_strike_and_keep_connection(self, client):
+        with client.websocket_connect("/ws/test_game") as ws:
+            ws.send_text("not a binary frame")
+            response = recv_ws(ws)
+            assert response["type"] == SessionMessageType.ERROR
+            assert response["code"] == SessionErrorCode.INVALID_MESSAGE
+
+            send_ws(ws, {"t": WireClientMessageType.PING})
+            assert recv_ws(ws)["type"] == SessionMessageType.PONG
+
     def test_websocket__when_game_id_invalid__should_reject_before_accept(self, client):
         with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/invalid game!"):
             pass

@@ -31,10 +31,9 @@ from game.logic.events import (
     RoundEndEvent,
 )
 from game.logic.exceptions import (
-    InvalidActionError,
-    InvalidMeldError,
+    ImpossibleActionError,
     InvalidRiichiError,
-    InvalidWinError,
+    ScoringError,
 )
 from game.logic.melds import (
     call_added_kan,
@@ -267,11 +266,12 @@ def _validate_riichi_discard(
     """
     Validate riichi declaration and that the discard keeps hand in tenpai.
 
-    Raises InvalidRiichiError if conditions are not met.
+    Raises ImpossibleActionError when riichi was not offered or the tile is not in hand, and InvalidRiichiError when the
+    discard would leave the hand not tenpai.
     """
     if not can_declare_riichi(player, round_state, settings=settings):
-        logger.error("cannot declare riichi: conditions not met", seat=player.seat)
-        raise InvalidRiichiError("cannot declare riichi: conditions not met")
+        logger.warning("cannot declare riichi: conditions not met", seat=player.seat)
+        raise ImpossibleActionError("cannot declare riichi: conditions not met")
 
     removed = False
     simulated: list[int] = []
@@ -283,7 +283,7 @@ def _validate_riichi_discard(
         simulated.append(t)
 
     if not removed:
-        raise InvalidRiichiError(f"tile {tile_id} not in hand")
+        raise ImpossibleActionError(f"tile {tile_id} not in hand")
 
     if not is_tempai(tuple(simulated), player.melds):
         raise InvalidRiichiError(f"hand is not tenpai after discarding tile {tile_id}")
@@ -521,7 +521,7 @@ def process_ron_call(
         hand_result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_win, win_tile=tile_id)
         if hand_result.error:
             logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
-            raise InvalidWinError(f"ron calculation error: {hand_result.error}")
+            raise ScoringError(f"ron calculation error: {hand_result.error}")
 
         new_round_state, new_game_state, result = apply_ron_score(
             game_state,
@@ -564,7 +564,7 @@ def process_ron_call(
             hand_result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_win, win_tile=tile_id)
             if hand_result.error:
                 logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
-                raise InvalidWinError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
+                raise ScoringError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
 
             winners.append((winner_seat, hand_result))
 
@@ -602,8 +602,8 @@ def process_tsumo_call(
     settings = game_state.settings
     winner = round_state.players[winner_seat]
     if not can_declare_tsumo(winner, round_state, settings=settings):
-        logger.error("cannot declare tsumo: conditions not met", seat=winner_seat)
-        raise InvalidWinError("cannot declare tsumo: conditions not met")
+        logger.warning("cannot declare tsumo: conditions not met", seat=winner_seat)
+        raise ImpossibleActionError("cannot declare tsumo: conditions not met")
 
     # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
     # scores before the deferred dora indicator would have been revealed
@@ -616,7 +616,7 @@ def process_tsumo_call(
     hand_result = calculate_hand_value(ctx, win_tile)
     if hand_result.error:
         logger.error("tsumo calculation error", winner_seat=winner_seat, error=hand_result.error)
-        raise InvalidWinError(f"tsumo calculation error: {hand_result.error}")
+        raise ScoringError(f"tsumo calculation error: {hand_result.error}")
 
     # apply score changes
     new_game_state = game_state.model_copy(update={"round_state": new_round_state})
@@ -925,7 +925,7 @@ def process_meld_call(
         case MeldCallType.CHI:
             if meld_input.sequence_tiles is None:
                 logger.error("chi call missing sequence_tiles", caller_seat=caller_seat)
-                raise InvalidMeldError("chi call requires sequence_tiles")
+                raise AssertionError("chi call requires sequence_tiles")
 
             return _process_chi_call(
                 round_state,
@@ -944,4 +944,4 @@ def process_meld_call(
             return _process_added_kan_call(round_state, game_state, caller_seat=caller_seat, tile_id=tile_id)
 
     logger.error("unknown call_type", call_type=call_type, caller_seat=caller_seat)  # pragma: no cover (exhaustive)
-    raise InvalidActionError(f"unknown call_type: {call_type}")  # pragma: no cover (exhaustive)
+    raise AssertionError(f"unknown call_type: {call_type}")  # pragma: no cover (exhaustive)

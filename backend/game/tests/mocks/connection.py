@@ -34,14 +34,14 @@ class MockConnection(ConnectionProtocol):
 
     async def send_bytes(self, data: bytes) -> None:
         if self._closed:
-            raise RuntimeError("Connection is closed")
+            raise ConnectionError("Connection is closed")
 
         await asyncio.sleep(0)
         self._outbox.append(decode(data))
 
     async def receive_bytes(self) -> bytes:
         if self._closed:
-            raise RuntimeError("Connection is closed")
+            raise ConnectionError("Connection is closed")
 
         return await self._inbox.get()
 

@@ -4,14 +4,15 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
+from game.logic.action_handlers import handle_ron, handle_tsumo
 from game.logic.actions import get_available_actions
-from game.logic.enums import CallType, MeldCallType, PlayerAction, RoundPhase, RoundResultType
+from game.logic.enums import CallType, GameAction, MeldCallType, PlayerAction, RoundPhase, RoundResultType
 from game.logic.events import CallPromptEvent, DrawEvent, RoundEndEvent
-from game.logic.exceptions import InvalidMeldError, InvalidRiichiError, InvalidWinError
+from game.logic.exceptions import InvalidRiichiError, ScoringError
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.scoring import HandResult
+from game.logic.scoring import HandResult, ScoringContext, calculate_hand_value_with_tiles
 from game.logic.settings import GameSettings
-from game.logic.state import Discard
+from game.logic.state import CallResponse, Discard, PendingCallPrompt
 from game.logic.turn import (
     _maybe_emit_dora_event,
     _validate_riichi_discard,
@@ -284,12 +285,12 @@ class TestSingleRonHandError:
             mock_calc.return_value = HandResult(error="mock error")
 
             ron_input = RonCallInput(ron_callers=[1], tile_id=discard_tile, discarder_seat=0)
-            with pytest.raises(InvalidWinError, match="ron calculation error"):
+            with pytest.raises(ScoringError, match="ron calculation error"):
                 process_ron_call(round_state, game_state, ron_input=ron_input)
 
 
 class TestDoubleRonHandError:
-    def test_double_ron__when_hand_result_error__should_raise(self):
+    def test_double_ron__when_second_winner_scoring_fails__should_raise_scoring_error_blaming_nobody(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
         players = (
@@ -301,6 +302,14 @@ class TestDoubleRonHandError:
 
         wall = tuple(TilesConverter.string_to_136_array(man="5555"))
         dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
+        first_winner_already_called_ron = PendingCallPrompt(
+            call_type=CallType.DISCARD,
+            tile_id=discard_tile,
+            from_seat=0,
+            pending_seats=frozenset({2}),
+            callers=(1, 2),
+            responses=(CallResponse(seat=1, action=GameAction.CALL_RON),),
+        )
         round_state = create_round_state(
             players=players,
             wall=wall,
@@ -308,19 +317,25 @@ class TestDoubleRonHandError:
             dora_indicators=(dead_wall[2],),
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
+            pending_call_prompt=first_winner_already_called_ron,
         )
         game_state = create_game_state(round_state)
 
-        with patch("game.logic.turn.calculate_hand_value_with_tiles") as mock_calc:
-            mock_calc.return_value = HandResult(error="mock error")
+        def fail_for_second_winner(ctx: ScoringContext, *, tiles: list[int], win_tile: int) -> HandResult:
+            if ctx.player.seat == 2:
+                return HandResult(error="mock error")
 
-            ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
-            with pytest.raises(InvalidWinError, match="ron calculation error for seat 1"):
-                process_ron_call(round_state, game_state, ron_input=ron_input)
+            return calculate_hand_value_with_tiles(ctx, tiles=tiles, win_tile=win_tile)
+
+        with (
+            patch("game.logic.turn.calculate_hand_value_with_tiles", side_effect=fail_for_second_winner),
+            pytest.raises(ScoringError, match="ron calculation error for seat 2"),
+        ):
+            handle_ron(round_state, game_state, seat=2)
 
 
 class TestTsumoHandError:
-    def test_tsumo__when_hand_result_error__should_raise(self):
+    def test_tsumo__when_scoring_library_fails__should_raise_scoring_error_not_kick(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
         players = (
             create_player(seat=0, tiles=hand_tiles),
@@ -344,8 +359,8 @@ class TestTsumoHandError:
         with patch("game.logic.turn.calculate_hand_value") as mock_calc:
             mock_calc.return_value = HandResult(error="mock error")
 
-            with pytest.raises(InvalidWinError, match="tsumo calculation error"):
-                process_tsumo_call(round_state, game_state, winner_seat=0)
+            with pytest.raises(ScoringError, match="tsumo calculation error"):
+                handle_tsumo(round_state, game_state, seat=0)
 
 
 class TestAddedKanChankan:
@@ -415,7 +430,7 @@ class TestChiSequenceTilesValidation:
             tile_id=discard_tile,
             sequence_tiles=None,
         )
-        with pytest.raises(InvalidMeldError, match="chi call requires sequence_tiles"):
+        with pytest.raises(AssertionError, match="chi call requires sequence_tiles"):
             process_meld_call(round_state, game_state, meld_input=meld_input)
 
 

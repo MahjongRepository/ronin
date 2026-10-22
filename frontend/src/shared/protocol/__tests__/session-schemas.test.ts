@@ -7,14 +7,14 @@ describe("parseSessionMessage", () => {
     describe("session_error", () => {
         it("parses error with code and message", () => {
             const wire = {
-                code: "action_failed",
-                message: "Invalid discard: tile not in hand",
+                code: "not_in_game",
+                message: "You must join a game first",
                 type: SESSION_MESSAGE_TYPE.ERROR,
             };
             const result = parseSessionMessage(wire);
             expect(result).toEqual({
-                code: "action_failed",
-                message: "Invalid discard: tile not in hand",
+                code: "not_in_game",
+                message: "You must join a game first",
                 type: "session_error",
             });
         });

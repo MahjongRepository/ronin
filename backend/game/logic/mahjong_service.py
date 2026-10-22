@@ -1,10 +1,8 @@
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from pydantic import ValidationError
 
 from game.logic.action_handlers import (
-    TURN_ACTIONS,
     handle_chi,
     handle_discard,
     handle_kan,
@@ -33,7 +31,7 @@ from game.logic.events import (
     extract_round_result,
     parse_event_target,
 )
-from game.logic.exceptions import InvalidActionError, InvalidGameActionError, UnsupportedSettingsError
+from game.logic.exceptions import GeneratedActionError, InvalidGameActionError
 from game.logic.furiten_tracker import FuritenTracker
 from game.logic.game import (
     check_game_end,
@@ -79,10 +77,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-# Safety limits for AI player processing loops
-MAX_AI_PLAYER_TURN_ITERATIONS = 100
-MAX_AI_PLAYER_CALL_ITERATIONS = 10
-
 _AI_PLAYER_TYPE_TO_STRATEGY: dict[AIPlayerType, AIPlayerStrategy] = {
     AIPlayerType.TSUMOGIRI: AIPlayerStrategy.TSUMOGIRI,
 }
@@ -122,13 +116,8 @@ class MahjongGameService(GameService):
         game_seed = seed if seed is not None else generate_seed()
 
         game_settings = settings or self._settings
-        try:
-            seat_configs = fill_seats(player_names, seed=game_seed)
-            frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings, wall=wall)
-        except (UnsupportedSettingsError, ValueError, TypeError) as e:
-            logger.warning("game start failed", error=str(e))
-            return self._create_error_event(code=GameErrorCode.INVALID_ACTION, message=str(e))
-
+        seat_configs = fill_seats(player_names, seed=game_seed)
+        frozen_game = init_game(seat_configs, seed=game_seed, settings=game_settings, wall=wall)
         self._games[game_id] = frozen_game
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
@@ -262,88 +251,76 @@ class MahjongGameService(GameService):
                 target=f"seat_{seat}",
             )
 
-        # turn actions are never valid while a call prompt is pending
-        if game_state.round_state.pending_call_prompt is not None and action in TURN_ACTIONS:
-            logger.warning("action rejected: call prompt pending", action=action.value)
-            raise InvalidGameActionError(
-                action=action.value,
-                seat=seat,
-                reason="cannot perform turn action while a call prompt is pending",
-            )
+        result = self._dispatch_action(game_state, seat=seat, action=action, data=data)
+        events = await self._commit_and_process(game_id, result)
+        return await self._continue_with_ai_players(game_id, events)
 
-        events = await self._dispatch_and_process(game_id=game_id, seat=seat, action=action, data=data)
+    async def _continue_with_ai_players(self, game_id: str, events: list[ServiceEvent]) -> list[ServiceEvent]:
+        """
+        Run the AI players' turns after an action, when the round still plays and no call prompt waits.
 
-        # trigger AI player followup if round is playing and no pending callers
-        # Re-fetch state safely: game may have been cleaned up during game-end handling
+        The game may be gone by now: a game end cleans it up.
+        """
         game_state = self._games.get(game_id)
         if game_state is None:
             return events
 
         round_state = game_state.round_state
         if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
-            ai_player_events = await self._process_ai_player_followup(game_id)
-            events.extend(ai_player_events)
+            events.extend(await self._process_ai_player_followup(game_id))
 
         return events
 
-    async def _dispatch_and_process(
-        self,
-        game_id: str,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> list[ServiceEvent]:
+    async def _commit_and_process(self, game_id: str, result: ActionResult) -> list[ServiceEvent]:
         """
-        Dispatch action to handler and process result.
+        Store a handler's result and run what follows it (round end, post-discard calls and draw, chankan).
 
-        Updates stored state from ActionResult.new_game_state. Does NOT trigger
-        AI player followup to avoid recursion - AI player followup is handled by the top-level caller.
+        Does NOT trigger AI player turns, to avoid recursion: the top-level caller runs them. Anything raised from here
+        on comes after the commit and is a server fault.
         """
-        game_state = self._games[game_id]
-
-        try:
-            result = self._dispatch_action(game_state, seat=seat, action=action, data=data)
-        except ValidationError as e:
-            logger.warning("validation error", action=action, error=str(e))
-            return self._create_error_event(
-                code=GameErrorCode.VALIDATION_ERROR,
-                message=f"invalid action data: {e}",
-                target=f"seat_{seat}",
-            )
-
-        if result is None:
-            logger.warning("unknown action", action=action)
-            return self._create_error_event(
-                code=GameErrorCode.UNKNOWN_ACTION,
-                message=f"unknown action: {action}",
-                target=f"seat_{seat}",
-            )
-
         self._update_state_from_result(game_id, result)
         events = await self._process_action_result_internal(game_id, result)
         return self._append_furiten_changes(game_id, events)
 
-    def _dispatch_action(  # noqa: PLR0911, C901
+    def _dispatch_generated_action(
+        self,
+        game_id: str,
+        *,
+        seat: int,
+        action: GameAction,
+        data: dict[str, Any],
+    ) -> ActionResult:
+        """
+        Dispatch an action the server made for a seat: an AI decision or a timeout default.
+
+        The server generated it, so a refusal, structural or a soft ErrorEvent, is a server fault: raise
+        GeneratedActionError, never kick the seat or count the refusal as progress.
+        """
+        try:
+            result = self._dispatch_action(self._games[game_id], seat=seat, action=action, data=data)
+        except InvalidGameActionError as e:
+            raise GeneratedActionError(f"seat {seat} {action.value} refused: {e.reason}") from e
+
+        error = next((e for e in result.events if isinstance(e, ErrorEvent)), None)
+        if error is not None:
+            raise GeneratedActionError(f"seat {seat} {action.value} refused: {error.code.value}: {error.message}")
+
+        return result
+
+    def _dispatch_action(  # noqa: PLR0911
         self,
         game_state: MahjongGameState,
         seat: int,
         action: GameAction,
-        data: dict[str, Any] | None = None,
-    ) -> ActionResult | None:
+        data: dict[str, Any],
+    ) -> ActionResult:
         """
         Dispatch a game action to the appropriate handler.
 
-        Single entry point for all synchronous action dispatch -- used by both player action processing and AI player
-        call response handling.
-
+        Single entry point for all synchronous action dispatch: player actions, AI decisions and timeout defaults.
         CONFIRM_ROUND is handled separately by the async confirmation path.
-
-        Returns None for unknown actions.
         """
         round_state = game_state.round_state
-        if data is None:
-            data = {}
-
         match action:
             # No-data actions
             case GameAction.DECLARE_TSUMO:
@@ -365,8 +342,8 @@ class MahjongGameService(GameService):
                 return handle_chi(round_state, game_state, seat=seat, data=ChiActionData(**data))
             case GameAction.CALL_KAN:
                 return handle_kan(round_state, game_state, seat=seat, data=KanActionData(**data))
-            case _:
-                return None
+            case _:  # pragma: no cover (exhaustive)
+                raise AssertionError(f"action {action} has no handler")
 
     def _update_state_from_result(self, game_id: str, result: ActionResult) -> None:
         """
@@ -414,13 +391,12 @@ class MahjongGameService(GameService):
         """
         Handle chankan prompt using the pending call prompt system.
         """
-        game_state = self._games[game_id]
-        round_state = game_state.round_state
-        if round_state.pending_call_prompt is None:
+        prompt = self._games[game_id].round_state.pending_call_prompt
+        if prompt is None:
             return events
 
         # dispatch AI player call responses through standard handlers
-        self._dispatch_ai_player_call_responses(game_id, events)
+        self._dispatch_ai_player_call_responses(game_id, prompt, events)
 
         # Re-fetch state after AI player responses
         game_state = self._games[game_id]
@@ -496,75 +472,71 @@ class MahjongGameService(GameService):
             logger.warning("timeout for unknown player")
             return []
 
-        if timeout_type == TimeoutType.TURN:
-            return await self._handle_turn_timeout(game_id=game_id, player_name=player_name, seat=seat)
+        match timeout_type:
+            case TimeoutType.TURN:
+                return await self._handle_turn_timeout(game_id, seat)
+            case TimeoutType.MELD:
+                return await self._handle_meld_timeout(game_id, seat)
+            case TimeoutType.ROUND_ADVANCE:
+                return await self._handle_round_advance_timeout(game_id, seat)
+            case _:  # pragma: no cover (exhaustive)
+                raise AssertionError(f"unknown timeout type: {timeout_type}")
 
-        if timeout_type == TimeoutType.MELD:
-            return await self._handle_meld_timeout(game_id=game_id, player_name=player_name, seat=seat)
-
-        if timeout_type == TimeoutType.ROUND_ADVANCE:
-            return await self._handle_confirm_round(game_id, seat)
-
-        logger.error("unknown timeout type", timeout_type=timeout_type)
-        raise InvalidActionError(f"Unknown timeout type: {timeout_type}")
-
-    async def _handle_turn_timeout(
+    async def _run_generated_action(
         self,
         game_id: str,
-        player_name: str,
+        *,
         seat: int,
+        action: GameAction,
+        data: dict[str, Any],
     ) -> list[ServiceEvent]:
+        """
+        Run a timeout's default action for a seat, then the AI players' turns it leads to.
+        """
+        result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
+        events = await self._commit_and_process(game_id, result)
+        return await self._continue_with_ai_players(game_id, events)
+
+    async def _handle_turn_timeout(self, game_id: str, seat: int) -> list[ServiceEvent]:
         """
         Handle TURN timeout: make the default discard (choose_default_discard).
         """
-        game_state = self._games.get(game_id)
-        if game_state is None:
+        round_state = self._games[game_id].round_state
+        if round_state.phase != RoundPhase.PLAYING or round_state.current_player_seat != seat:
+            logger.debug("turn timeout ignored: not the seat's turn")
             return []
 
-        if game_state.round_state.current_player_seat != seat:
-            logger.debug("turn timeout ignored: not current player")
-            return []
-
-        if game_state.round_state.pending_call_prompt is not None:
+        if round_state.pending_call_prompt is not None:
             logger.debug("turn timeout ignored: call prompt pending")
             return []
 
-        tile_id = choose_default_discard(game_state.round_state.players[seat])
+        tile_id = choose_default_discard(round_state.players[seat])
         logger.info("turn timeout, auto-discarding", tile_id=tile_id)
-        try:
-            return await self.handle_action(
-                game_id=game_id, player_name=player_name, action=GameAction.DISCARD, data={"tile_id": tile_id}
-            )
-        except InvalidGameActionError as e:
-            if e.seat != seat:
-                raise
+        return await self._run_generated_action(
+            game_id, seat=seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
+        )
 
-            logger.warning("turn timeout: InvalidGameActionError (race), ignoring")
-            return []
-
-    async def _handle_meld_timeout(
-        self,
-        game_id: str,
-        player_name: str,
-        seat: int,
-    ) -> list[ServiceEvent]:
+    async def _handle_meld_timeout(self, game_id: str, seat: int) -> list[ServiceEvent]:
         """
         Handle MELD timeout: pass on the call opportunity.
-
-        Lets InvalidGameActionError propagate to the session manager for disconnect handling. A meld timeout PASS can
-        trigger prompt resolution, which may fail if another caller previously submitted invalid data (defense-in-depth
-        safety net). The session manager must handle disconnect + AI player replacement for the offending seat.
         """
-        game_state = self._games.get(game_id)
-        if game_state is None:
-            return []
-
-        prompt = game_state.round_state.pending_call_prompt
+        prompt = self._games[game_id].round_state.pending_call_prompt
         if prompt is None or seat not in prompt.pending_seats:
             return []
 
         logger.info("meld timeout, auto-passing")
-        return await self.handle_action(game_id=game_id, player_name=player_name, action=GameAction.PASS, data={})
+        return await self._run_generated_action(game_id, seat=seat, action=GameAction.PASS, data={})
+
+    async def _handle_round_advance_timeout(self, game_id: str, seat: int) -> list[ServiceEvent]:
+        """
+        Handle ROUND_ADVANCE timeout: confirm the round end for the seat.
+
+        The timer runs only while the seat's confirmation is pending, so finding none is a server fault.
+        """
+        if not self._round_advance.is_pending(game_id):
+            raise GeneratedActionError(f"round advance timeout for seat {seat} with no round pending confirmation")
+
+        return await self._handle_confirm_round(game_id, seat)
 
     def _find_player_seat(
         self,
@@ -639,7 +611,7 @@ class MahjongGameService(GameService):
 
         if round_state.pending_call_prompt is not None:
             # dispatch AI player call responses through handlers
-            self._dispatch_ai_player_call_responses(game_id, events)
+            self._dispatch_ai_player_call_responses(game_id, round_state.pending_call_prompt, events)
 
             # Re-fetch state after AI player responses
             game_state = self._games[game_id]
@@ -664,95 +636,34 @@ class MahjongGameService(GameService):
 
         return events
 
-    def _dispatch_ai_player_call_responses(self, game_id: str, events: list[ServiceEvent]) -> None:
+    def _dispatch_ai_player_call_responses(
+        self,
+        game_id: str,
+        prompt: PendingCallPrompt,
+        events: list[ServiceEvent],
+    ) -> None:
         """
-        Dispatch AI player responses to pending call prompt.
+        Dispatch AI player responses to the pending call prompt.
 
-        Each AI player's response goes through the same handler functions as player responses. Resolution happens when
-        all callers respond. Updates stored state from each handler result.
+        Each AI player's response goes through the same handler functions as player responses, seat by seat in order;
+        resolution happens when the last caller responds. Updates stored state from each handler result. A refused
+        response is a server fault (GeneratedActionError), never a silent pass.
         """
         ai_player_controller = self._ai_player_controllers[game_id]
-
-        # Process AI player responses one at a time, re-fetching state each time
-        for _ in range(MAX_AI_PLAYER_CALL_ITERATIONS):
-            game_state = self._games[game_id]
-            round_state = game_state.round_state
-            prompt = round_state.pending_call_prompt
-            if prompt is None:
-                break  # resolved
-
-            # Find next AI player that needs to respond
-            ai_player_seats = [s for s in sorted(prompt.pending_seats) if ai_player_controller.is_ai_player(s)]
-            if not ai_player_seats:
-                break  # No more AI players to respond
-
-            seat = ai_player_seats[0]
-            caller_info = self._find_caller_info(prompt, seat)
+        ai_player_seats = sorted(s for s in prompt.pending_seats if ai_player_controller.is_ai_player(s))
+        for seat in ai_player_seats:
             response = ai_player_controller.get_call_response(
                 seat=seat,
-                round_state=round_state,
+                round_state=self._games[game_id].round_state,
                 call_type=prompt.call_type,
                 tile_id=prompt.tile_id,
-                caller_info=caller_info,
+                caller_info=self._find_caller_info(prompt, seat),
             )
-
-            if response is not None:
-                action, data = response
-            else:
-                action, data = GameAction.PASS, {}
-
+            action, data = response if response is not None else (GameAction.PASS, {})
             logger.debug("AI player call response", action=action.value, ai_seat=seat)
-            result = self._dispatch_ai_player_call_action(game_id=game_id, seat=seat, action=action, data=data)
-            if result is None:
-                break
-
+            result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
             self._update_state_from_result(game_id, result)
             events.extend(convert_events(result.events))
-
-    def _try_ai_player_dispatch(
-        self,
-        game_id: str,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> ActionResult | None:
-        """
-        Attempt an AI player dispatch, returning None on own-seat failure.
-
-        Re-raises InvalidGameActionError if the error blames a different seat (e.g. resolution failed on a player's
-        prior invalid data).
-        """
-        game_state = self._games[game_id]
-        try:
-            return self._dispatch_action(game_state, seat=seat, action=action, data=data)
-        except InvalidGameActionError as e:
-            if e.seat != seat:
-                raise
-
-            logger.exception("AI player dispatch failed", ai_seat=seat, action=action)
-            return None
-
-    def _dispatch_ai_player_call_action(
-        self,
-        game_id: str,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> ActionResult | None:
-        """
-        Dispatch an AI player call response, falling back to PASS on failure.
-
-        Returns ActionResult on success, or None if both the original action and the PASS fallback fail. Re-raises if
-        the error blames a different seat (e.g. resolution failed on a player's prior invalid data).
-        """
-        result = self._try_ai_player_dispatch(game_id=game_id, seat=seat, action=action, data=data)
-        if result is not None:
-            return result
-
-        if action == GameAction.PASS:
-            return None
-
-        return self._try_ai_player_dispatch(game_id=game_id, seat=seat, action=GameAction.PASS, data={})
 
     def _find_caller_info(self, prompt: PendingCallPrompt, seat: int) -> int | MeldCaller:
         """
@@ -776,11 +687,7 @@ class MahjongGameService(GameService):
         frozen_game = self._games[game_id]
 
         if round_result is None:
-            logger.error("round finished but no round result found in events")
-            return self._create_error_event(
-                code=GameErrorCode.MISSING_ROUND_RESULT,
-                message="round finished but no round result found",
-            )
+            raise AssertionError("round finished but no round result found in events")
 
         logger.info("round ended", result_type=type(round_result).__name__)
 
@@ -1009,7 +916,7 @@ class MahjongGameService(GameService):
         # if the replaced player had a pending call prompt, resolve their response as AI player
         prompt = round_state.pending_call_prompt
         if prompt is not None and seat in prompt.pending_seats:
-            self._dispatch_ai_player_call_responses(game_id, events)
+            self._dispatch_ai_player_call_responses(game_id, prompt, events)
             self._append_furiten_changes(game_id, events)
 
             # Re-fetch state after AI player responses
@@ -1069,111 +976,41 @@ class MahjongGameService(GameService):
         """
         Process AI player turn actions iteratively.
 
-        Loop until a player's turn is reached, a pending call prompt awaits player input, or the round ends.
+        Loop until a player's turn is reached, a pending call prompt awaits player input, or the round ends. Each AI
+        turn discards (or ends the round), so the loop always progresses; a refused AI action raises instead.
         """
         all_events: list[ServiceEvent] = []
         ai_player_controller = self._ai_player_controllers.get(game_id)
         if ai_player_controller is None:
             return all_events
 
-        for _ in range(MAX_AI_PLAYER_TURN_ITERATIONS):
-            # Re-fetch state each iteration as it may have been updated
-            game_state = self._games.get(game_id)
-            if game_state is None:
-                break
-
+        while (game_state := self._games.get(game_id)) is not None:
             round_state = game_state.round_state
-            if round_state.phase != RoundPhase.PLAYING:
+            if round_state.phase != RoundPhase.PLAYING or round_state.pending_call_prompt is not None:
                 break
-
-            if round_state.pending_call_prompt is not None:
-                break  # waiting for player caller
 
             current_seat = round_state.current_player_seat
             if not ai_player_controller.is_ai_player(current_seat):
                 break
 
-            events = await self._execute_ai_player_turn(
-                game_id=game_id, ai_player_controller=ai_player_controller, seat=current_seat
-            )
-            if events is None:
-                break
-
-            all_events.extend(events)
+            all_events.extend(await self._execute_ai_player_turn(game_id, ai_player_controller, seat=current_seat))
 
         return all_events
-
-    async def _try_ai_player_dispatch_async(
-        self,
-        game_id: str,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-        label: str,
-    ) -> list[ServiceEvent] | None:
-        """
-        Attempt an async AI player dispatch, returning None on own-seat failure.
-
-        Re-raises InvalidGameActionError if the error blames a different seat.
-        """
-        try:
-            return await self._dispatch_and_process(game_id=game_id, seat=seat, action=action, data=data)
-        except InvalidGameActionError as e:
-            if e.seat != seat:
-                raise
-
-            logger.exception("AI player error", ai_seat=seat, label=label, action=action)
-            return None
 
     async def _execute_ai_player_turn(
         self,
         game_id: str,
         ai_player_controller: AIPlayerController,
         seat: int,
-    ) -> list[ServiceEvent] | None:
+    ) -> list[ServiceEvent]:
         """
-        Execute a single AI player turn action, falling back to tsumogiri on failure.
-
-        Returns events on success, or None if the AI player has no action or all fallbacks fail. Re-raises
-        InvalidGameActionError when the error blames a different seat (player).
+        Execute a single AI player turn action; an AI that has no action or makes a refused one is a server fault.
         """
-        round_state = self._games[game_id].round_state
-        action_data = ai_player_controller.get_turn_action(seat, round_state)
+        action_data = ai_player_controller.get_turn_action(seat, self._games[game_id].round_state)
         if action_data is None:
-            return None
+            raise GeneratedActionError(f"AI seat {seat} returned no turn action")
 
         action, data = action_data
         logger.debug("AI player action", action=action.value, ai_seat=seat)
-        result = await self._try_ai_player_dispatch_async(
-            game_id=game_id,
-            seat=seat,
-            action=action,
-            data=data,
-            label="turn failed, falling back to tsumogiri",
-        )
-        if result is not None:
-            return result
-
-        return await self._ai_player_tsumogiri_fallback(game_id, seat)
-
-    async def _ai_player_tsumogiri_fallback(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
-        """
-        Fallback to tsumogiri (discard last tile) when an AI player's turn action fails.
-
-        Uses choose_default_discard, so the fallback is always a legal discard. Returns events on success, or None if
-        the fallback also fails.
-        """
-        fallback_state = self._games.get(game_id)
-        if fallback_state is None:
-            return None
-
-        fallback_player = fallback_state.round_state.players[seat]
-        tile_id = choose_default_discard(fallback_player)
-        logger.debug("AI player tsumogiri fallback", ai_seat=seat, tile_id=tile_id)
-        return await self._try_ai_player_dispatch_async(
-            game_id=game_id,
-            seat=seat,
-            action=GameAction.DISCARD,
-            data={"tile_id": tile_id},
-            label="tsumogiri fallback also failed",
-        )
+        result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
+        return await self._commit_and_process(game_id, result)

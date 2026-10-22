@@ -4,9 +4,6 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
-    _find_offending_seat_from_prompt,
-    _resolve_call_prompt_safe,
-    _validate_caller_action_matches_prompt,
     handle_chi,
     handle_discard,
     handle_kan,
@@ -18,7 +15,7 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult
-from game.logic.ai_player import AIPlayer, AIPlayerStrategy
+from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import (
     AIPlayerType,
@@ -28,9 +25,10 @@ from game.logic.enums import (
     KanType,
     MeldCallType,
     RoundPhase,
+    TimeoutType,
 )
 from game.logic.events import ErrorEvent
-from game.logic.exceptions import GameRuleError, InvalidGameActionError, InvalidMeldError
+from game.logic.exceptions import GeneratedActionError, InvalidGameActionError, InvalidMeldError
 from game.logic.game import init_game
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
@@ -44,11 +42,11 @@ from game.logic.melds import (
 from game.logic.round import draw_tile
 from game.logic.settings import GameSettings
 from game.logic.state import (
-    CallResponse,
     Discard,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
+from game.logic.tiles import tile_to_34
 from game.logic.types import (
     ChiActionData,
     DiscardActionData,
@@ -59,6 +57,7 @@ from game.logic.types import (
     SeatConfig,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.unit.helpers import _update_player
 
 
 def _default_seat_configs():
@@ -308,29 +307,6 @@ class TestResponseActionMatchesPrompt:
             handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
 
 
-class TestUnknownPromptTypeFailsClosed:
-    def test_response_action__when_prompt_type_unknown__should_raise(self):
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-        )
-        fake_call_type = type("FakeCallType", (), {"value": "unknown"})()
-        mock_prompt = type(
-            "FakePrompt",
-            (),
-            {
-                "call_type": fake_call_type,
-                "callers": prompt.callers,
-                "pending_seats": prompt.pending_seats,
-            },
-        )()
-        with pytest.raises(InvalidGameActionError, match="unknown prompt type"):
-            _validate_caller_action_matches_prompt(mock_prompt, seat=1, action=GameAction.CALL_PON)
-
-
 class TestOpenKanEarlyValidation:
     def _create_open_kan_state(self):
         tile_1m = 0
@@ -393,43 +369,6 @@ class TestOpenKanEarlyValidation:
 
         with pytest.raises(InvalidGameActionError, match="only ron is valid"):
             handle_kan(round_state, game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN))
-
-
-class TestKanRoutingStateChecks:
-    def test_closed_kan__when_prompt_pending__should_raise(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        data = KanActionData(tile_id=0, kan_type=KanType.CLOSED)
-        with pytest.raises(InvalidGameActionError, match="call prompt is pending"):
-            handle_kan(round_state, game_state, seat=0, data=data)
-
-    def test_added_kan__when_prompt_pending__should_raise(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError, match="call prompt is pending"):
-            handle_kan(round_state, game_state, seat=0, data=KanActionData(tile_id=0, kan_type=KanType.ADDED))
 
 
 class TestClosedKanRiichiWaitPreservation:
@@ -652,7 +591,7 @@ class TestKanExecutionGuards:
 
 
 class TestRiichiDiscardTenpaiValidation:
-    def test_riichi_discard__when_discard_breaks_tenpai__should_raise(self):
+    def test_riichi_discard__when_discard_breaks_tenpai__should_answer_invalid_riichi_and_keep_the_turn(self):
         # Hand: 112345m 456p 789s 11z (14 tiles)
         # can_declare_riichi passes because discarding 5m keeps tenpai
         # But discarding 3m (tile 8) breaks tenpai
@@ -675,8 +614,10 @@ class TestRiichiDiscardTenpaiValidation:
         game_state = create_game_state(round_state)
 
         # Discard 3m (tile 8) - breaks tenpai
-        with pytest.raises(InvalidGameActionError, match="not tenpai"):
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=8))
+        result = handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=8))
+        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_RIICHI, "seat_0")]
+        assert result.new_round_state is round_state
+        assert result.needs_post_discard is False
 
     def test_riichi_discard__when_discard_keeps_tenpai__should_succeed(self):
         # Hand: 112345m 456p 789s 11z (14 tiles)
@@ -729,12 +670,25 @@ class TestKyuushuRuleGate:
 
 
 class TestPendingCallPromptStateGate:
-    async def test_discard__when_prompt_pending__should_raise(self):
+    @pytest.mark.parametrize(
+        ("action", "data"),
+        [
+            (GameAction.DISCARD, {"tile_id": "own"}),
+            (GameAction.DECLARE_RIICHI, {"tile_id": "own"}),
+            (GameAction.DECLARE_TSUMO, {}),
+            (GameAction.CALL_KYUUSHU, {}),
+            (GameAction.CALL_KAN, {"tile_id": "own", "kan_type": KanType.CLOSED}),
+            (GameAction.CALL_KAN, {"tile_id": "own", "kan_type": KanType.ADDED}),
+        ],
+        ids=["discard", "riichi", "tsumo", "kyuushu", "closed_kan", "added_kan"],
+    )
+    async def test_turn_action__when_prompt_pending__should_answer_not_your_turn_without_kick(self, action, data):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
+        own_tile = round_state.players[0].tiles[-1]
 
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            call_type=CallType.DISCARD,
             tile_id=0,
             from_seat=0,
             pending_seats=frozenset({1}),
@@ -748,11 +702,12 @@ class TestPendingCallPromptStateGate:
         service = MahjongGameService()
         service._games["test"] = game_state
         service._ai_player_controllers["test"] = AIPlayerController({})
+        service._furiten_tracker.init_game("test")
 
-        with pytest.raises(InvalidGameActionError, match=r"turn action.*call prompt is pending"):
-            await service.handle_action(
-                game_id="test", player_name="Player", action=GameAction.DISCARD, data={"tile_id": 0}
-            )
+        action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
+        events = await service.handle_action(game_id="test", player_name="Player", action=action, data=action_data)
+        assert [(e.data.code, e.data.target) for e in events] == [(GameErrorCode.NOT_YOUR_TURN, "seat_0")]
+        assert service._games["test"] is game_state
 
 
 class TestCallChiDefenseInDepth:
@@ -776,6 +731,21 @@ class TestCallChiDefenseInDepth:
 
 
 class TestSoftErrorsRemainUnchanged:
+    @pytest.mark.parametrize("forbidding_rule", ["kuikae", "riichi_tsumogiri"])
+    def test_discard__when_rule_forbids_the_tile__should_answer_invalid_discard_and_keep_the_turn(
+        self, forbidding_rule
+    ):
+        game_state = _create_frozen_game_state()
+        first_tile = game_state.round_state.players[0].tiles[0]
+        fields = {"kuikae_tiles": (tile_to_34(first_tile),)} if forbidding_rule == "kuikae" else {"is_riichi": True}
+        round_state = update_player(game_state.round_state, 0, **fields)
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        result = handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=first_tile))
+        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_DISCARD, "seat_0")]
+        assert result.new_round_state is round_state
+        assert result.needs_post_discard is False
+
     def test_soft_error__when_not_your_turn__should_return_error_event(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
@@ -972,286 +942,65 @@ class TestKanRaisesInvalidGameActionError:
             handle_kan(round_state, game_state, seat=0, data=data)
 
 
-class TestResolutionSafetyNet:
-    def test_resolution_blame__when_ron_caller_responded__should_blame_that_seat(self):
-        prompt = PendingCallPrompt(
-            call_type=CallType.RON,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(1, 2),
-            responses=(CallResponse(seat=1, action=GameAction.CALL_RON),),
-        )
-        # Ron caller (seat 1) should be identified as offender, not fallback (seat 3)
-        assert _find_offending_seat_from_prompt(prompt, fallback_seat=3) == 1
-
-    def test_resolution_blame__when_meld_caller_responded__should_blame_that_seat(self):
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(MeldCaller(seat=2, call_type=MeldCallType.PON),),
-            responses=(CallResponse(seat=2, action=GameAction.CALL_PON),),
-        )
-        assert _find_offending_seat_from_prompt(prompt, fallback_seat=3) == 2
-
-    def test_resolution_blame__when_no_responses__should_blame_fallback_seat(self):
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-            responses=(),
-        )
-        assert _find_offending_seat_from_prompt(prompt, fallback_seat=3) == 3
-
-
-class TestResolutionSafetyNetExecution:
-    def test_resolve_call_prompt_safe__when_resolution_fails__should_blame_responding_caller(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(MeldCaller(seat=1, call_type=MeldCallType.PON),),
-            responses=(CallResponse(seat=1, action=GameAction.CALL_PON),),
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with patch(
-            "game.logic.action_handlers.resolve_call_prompt",
-            side_effect=GameRuleError("test error"),
-        ):
-            with pytest.raises(InvalidGameActionError, match="test error") as exc_info:
-                _resolve_call_prompt_safe(round_state, game_state, prompt=prompt, triggering_seat=3)
-            # Blame should go to the pon caller (seat 1), not the triggering seat (3)
-            assert exc_info.value.seat == 1
-            assert exc_info.value.action == "resolve_call"
-
-    def test_handle_pass__when_resolution_fails__should_blame_responding_caller(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # Create prompt where seat 3 passes (the last pending seat)
-        # and seat 1 has a chi response that fails at resolution
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({3}),
-            callers=(
-                MeldCaller(seat=1, call_type=MeldCallType.CHI, options=((4, 8),)),
-                3,
-            ),
-            responses=(CallResponse(seat=1, action=GameAction.CALL_CHI, sequence_tiles=(4, 8)),),
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with patch(
-            "game.logic.action_handlers.resolve_call_prompt",
-            side_effect=GameRuleError("chi resolution failed"),
-        ):
-            with pytest.raises(InvalidGameActionError) as exc_info:
-                handle_pass(round_state, game_state, seat=3)
-            # Blame should go to the chi caller (seat 1), not the passer (seat 3)
-            assert exc_info.value.seat == 1
-            assert exc_info.value.action == "resolve_call"
-
-
-class TestAIPlayerSafetyNets:
-    async def test_ai_call_response__when_action_invalid__should_swallow_error_and_keep_prompt(self):
+class TestServerGeneratedActionRefusals:
+    @pytest.fixture
+    async def service(self):
         service = MahjongGameService()
         await service.start_game("test", ["Player"], seed="a" * 192)
+        return service
 
+    def _make_ai_seat_current(self, service):
+        ai_player_seat = min(service._ai_player_controllers["test"].ai_player_seats)
+        round_state = service._games["test"].round_state.model_copy(update={"current_player_seat": ai_player_seat})
+        service._games["test"] = service._games["test"].model_copy(update={"round_state": round_state})
+        return ai_player_seat
+
+    async def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
         game_state = service._games["test"]
-        ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-
-        # Set up a pending prompt for an AI player
+        ai_player_seat = min(service._ai_player_controllers["test"].ai_player_seats)
         prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
+            call_type=CallType.DISCARD,
             tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({ai_player_seats[0]}),
-            callers=(MeldCaller(seat=ai_player_seats[0], call_type=MeldCallType.PON),),
+            from_seat=(ai_player_seat + 1) % 4,
+            pending_seats=frozenset({ai_player_seat}),
+            callers=(MeldCaller(seat=ai_player_seat, call_type=MeldCallType.PON),),
         )
-        round_state = game_state.round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
+        round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
         service._games["test"] = game_state.model_copy(update={"round_state": round_state})
-
-        # Make _dispatch_action raise InvalidGameActionError
-        with patch.object(
-            service,
-            "_dispatch_action",
-            side_effect=InvalidGameActionError(action="call_pon", seat=ai_player_seats[0], reason="test"),
-        ):
-            events = []
-            service._dispatch_ai_player_call_responses("test", events)
-        # The safety net should have caught the error - no propagation
-        # The prompt should still be there since the AI player response was not processed
-        assert service._games["test"].round_state.pending_call_prompt is not None
-
-    async def test_ai_call_action__when_dispatch_raises_invalid_action__should_return_none(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
-
-        ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seat = min(ai_player_controller.ai_player_seats)
-
-        with patch.object(
-            service,
-            "_dispatch_action",
-            side_effect=InvalidGameActionError(action="call_pon", seat=ai_player_seat, reason="test"),
-        ):
-            result = service._dispatch_ai_player_call_action(
-                game_id="test",
-                seat=ai_player_seat,
-                action=GameAction.CALL_PON,
-                data={},
-            )
-        assert result is None
-
-    async def test_ai_call_action__when_pass_fallback_blames_player__should_reraise(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
-
-        ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seat = min(ai_player_controller.ai_player_seats)
-        player_seat = service.get_player_seat("test", "Player")
 
         with (
-            patch.object(
-                service,
-                "_dispatch_action",
-                side_effect=[
-                    # First call (non-PASS action) fails with AI player's own seat
-                    InvalidGameActionError(action="call_pon", seat=ai_player_seat, reason="ai_player error"),
-                    # Second call (PASS fallback) fails with player seat (resolution blame)
-                    InvalidGameActionError(action="resolve_call", seat=player_seat, reason="player error"),
-                ],
-            ),
-            pytest.raises(InvalidGameActionError, match="player error"),
+            patch.object(AIPlayer, "should_call_pon", return_value=True),
+            pytest.raises(GeneratedActionError, match="call_pon refused"),
         ):
-            service._dispatch_ai_player_call_action(
-                game_id="test",
-                seat=ai_player_seat,
-                action=GameAction.CALL_PON,
-                data={},
-            )
+            service._dispatch_ai_player_call_responses("test", prompt, [])
+        assert service._games["test"].round_state.pending_call_prompt == prompt
 
-    async def test_ai_call_response__when_offender_is_player__should_reraise(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
+    async def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service):
+        ai_player_seat = self._make_ai_seat_current(service)
+        _update_player(service, game_id="test", seat=ai_player_seat, is_riichi=True)
+        state_before = service._games["test"]
 
-        game_state = service._games["test"]
-        ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-        player_seat = service.get_player_seat("test", "Player")
-
-        prompt = PendingCallPrompt(
-            call_type=CallType.MELD,
-            tile_id=0,
-            from_seat=3,
-            pending_seats=frozenset({ai_player_seats[0]}),
-            callers=(MeldCaller(seat=ai_player_seats[0], call_type=MeldCallType.PON),),
-        )
-        round_state = game_state.round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
-        service._games["test"] = game_state.model_copy(update={"round_state": round_state})
-
-        # Error blames player seat (e.g. resolution failed on player's bad data)
-        with patch.object(
-            service,
-            "_dispatch_action",
-            side_effect=InvalidGameActionError(action="resolve_call", seat=player_seat, reason="test"),
-        ):
-            events = []
-            with pytest.raises(InvalidGameActionError, match="resolve_call"):
-                service._dispatch_ai_player_call_responses("test", events)
-
-    async def test_ai_followup__when_action_invalid__should_return_events_without_raising(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
-
-        # Make the current seat an AI player so the followup loop enters
-        game_state = service._games["test"]
-        ai_player_controller = service._ai_player_controllers["test"]
-        current_seat = game_state.round_state.current_player_seat
-
-        # If the current player is not an AI player, make them one
-        if not ai_player_controller.is_ai_player(current_seat):
-            ai_player_controller.add_ai_player(current_seat, AIPlayer(strategy=AIPlayerStrategy.TSUMOGIRI))
-
-        # Make _dispatch_and_process raise InvalidGameActionError
-        with patch.object(
-            service,
-            "_dispatch_and_process",
-            side_effect=InvalidGameActionError(action="discard", seat=current_seat, reason="test"),
-        ):
-            events = await service._process_ai_player_followup("test")
-        # The safety net caught the error - returned whatever was accumulated
-        assert isinstance(events, list)
-
-    async def test_ai_followup__when_offender_is_player__should_reraise(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
-
-        game_state = service._games["test"]
-        ai_player_controller = service._ai_player_controllers["test"]
-        # Use an existing AI player seat (not the player seat 0) as current player
-        ai_player_seat = min(ai_player_controller.ai_player_seats)
-        player_seat = service.get_player_seat("test", "Player")
-        assert ai_player_seat != player_seat
-
-        # Make the AI player the current player
-        round_state = game_state.round_state.model_copy(update={"current_player_seat": ai_player_seat})
-        service._games["test"] = game_state.model_copy(update={"round_state": round_state})
-
-        # Error blames the player seat (e.g. resolution failed on player's bad data)
         with (
-            patch.object(
-                service,
-                "_dispatch_and_process",
-                side_effect=InvalidGameActionError(action="resolve_call", seat=player_seat, reason="test"),
-            ),
-            pytest.raises(InvalidGameActionError, match="resolve_call"),
+            patch.object(AIPlayer, "select_discard", lambda _self, player, _round_state: player.tiles[0]),
+            pytest.raises(GeneratedActionError, match="invalid_discard"),
         ):
             await service._process_ai_player_followup("test")
+        assert service._games["test"] is state_before
 
-    async def test_ai_tsumogiri_fallback__when_game_cleaned_up__should_return_none(self):
-        service = MahjongGameService()
-        result = await service._ai_player_tsumogiri_fallback("nonexistent", 0)
-        assert result is None
-
-    async def test_ai_tsumogiri_fallback__when_offender_is_player__should_reraise(self):
-        service = MahjongGameService()
-        await service.start_game("test", ["Player"], seed="a" * 192)
-
-        ai_player_controller = service._ai_player_controllers["test"]
-        ai_player_seat = min(ai_player_controller.ai_player_seats)
+    async def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service):
         player_seat = service.get_player_seat("test", "Player")
+        assert service._games["test"].round_state.current_player_seat == player_seat
 
         with (
-            patch.object(
-                service,
-                "_dispatch_and_process",
-                side_effect=InvalidGameActionError(action="resolve_call", seat=player_seat, reason="test"),
-            ),
-            pytest.raises(InvalidGameActionError, match="resolve_call"),
+            patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
+            pytest.raises(GeneratedActionError, match="discard refused") as exc_info,
         ):
-            await service._ai_player_tsumogiri_fallback("test", ai_player_seat)
+            await service.handle_timeout(game_id="test", player_name="Player", timeout_type=TimeoutType.TURN)
+        assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
+
+    async def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service):
+        with pytest.raises(GeneratedActionError, match="no round pending confirmation"):
+            await service.handle_timeout(game_id="test", player_name="Player", timeout_type=TimeoutType.ROUND_ADVANCE)
 
 
 class TestOpenKanDefenseInDepthGuards:

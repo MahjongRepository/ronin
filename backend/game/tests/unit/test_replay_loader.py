@@ -348,12 +348,13 @@ def test_load_replay__when_seed_missing__should_raise():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{no_seed}")
 
 
-def test_load_replay__when_seed_is_not_hex__should_raise():
+@pytest.mark.parametrize("seed", ["not-hex-seed" + "0" * 180, 12345])
+def test_load_replay__when_seed_is_not_a_hex_string__should_raise(seed: str | int):
     bad_seed = json.dumps(
         {
             "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
             "gid": "test",
-            "sd": "not-hex-seed" + "0" * 180,
+            "sd": seed,
             "rv": RNG_VERSION,
             "p": [
                 {"s": 0, "nm": "A", "ai": 0},

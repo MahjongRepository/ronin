@@ -222,20 +222,6 @@ class TestRoundAdvanceCleanup:
         assert not service.is_round_advance_pending("game1")
 
 
-class TestRoundAdvanceHandleRoundEndNone:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    async def test_handle_round_end__when_result_none__should_return_missing_round_result_error(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events = await service._handle_round_end("game1", round_result=None)
-        assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert events[0].data.code == GameErrorCode.MISSING_ROUND_RESULT
-
-
 class TestRoundAdvanceManager:
     @pytest.fixture
     def manager(self):
