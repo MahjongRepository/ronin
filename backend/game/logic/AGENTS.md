@@ -45,7 +45,9 @@ changes.
   goes through `MahjongGameService`.
 * Player type is a service-layer fact: `MahjongPlayer` has no AI flag, only
   `AIPlayerController.is_ai_player(seat)` knows. Names and AI flags go out once in `game_started`;
-  later events use seats.
+  later events use seats. `handle_action` and `handle_timeout` act only for a human seat: one for a
+  seat an AI player controls is a server fault (`AssertionError`), since the session only ever acts
+  for a connected human.
 * The seat is a player's only identity. `start_game` returns `GameStart` with each input player's seat
   in input order (the `fill_seats` sample, which the replay loader inverts, so it never changes), and
   every later call takes a seat. Names are display only: nothing looks a player up by name, and AI

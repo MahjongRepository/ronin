@@ -9,10 +9,10 @@ from game.messaging.types import (
 )
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
-from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
-from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
+from game.tests.helpers.session import make_session_manager
+from game.tests.mocks import MockConnection, MockGameService
 from game.tests.unit.session.helpers import create_started_game, wait_for_background_tasks
 
 
@@ -28,7 +28,7 @@ class TestMessageRouterBranches:
     @pytest.fixture
     async def setup(self):
         game_service = MockGameService()
-        session_manager = SessionManager(game_service, game_repository=FakeGameRepository())
+        session_manager = make_session_manager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         connection = MockConnection()
         router.handle_connect(connection)
@@ -167,7 +167,7 @@ class TestMessageRouterEntryPointFailures:
     async def test_message_router__when_the_final_join_starts_the_game_and_start_raises__should_fail_the_game(self):
         game_service = MockGameService()
         game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
-        session_manager = SessionManager(game_service, game_repository=FakeGameRepository())
+        session_manager = make_session_manager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
@@ -183,7 +183,7 @@ class TestMessageRouterEntryPointFailures:
 
     async def test_message_router__when_the_ai_replacement_on_disconnect_raises__should_fail_the_game(self):
         game_service = MockGameService()
-        session_manager = SessionManager(game_service, game_repository=FakeGameRepository())
+        session_manager = make_session_manager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = await create_started_game(session_manager, player_names=["Alice", "Bob"])
         game_service.process_ai_player_actions_after_replacement = MagicMock(

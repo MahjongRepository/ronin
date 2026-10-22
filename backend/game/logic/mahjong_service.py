@@ -197,9 +197,10 @@ class MahjongGameService(GameService):
         Handle a game action from the player at a seat.
 
         Processes the action and triggers AI player turns as needed. The game must exist: the session never acts on a
-        game that ended, so a missing one is a server fault (KeyError).
+        game that ended, so a missing one is a server fault (KeyError), as is an action for an AI player's seat.
         """
         call = self._begin_call(game_id)
+        self._require_human_seat(game_id, seat)
         logger.debug("player action", action=action, action_data=data)
         events = self._run_action(game_id, call.state, seat=seat, action=action, data=data)
         return GameUpdate(events=events, awaiting=self._end_call(game_id, call))
@@ -367,6 +368,13 @@ class MahjongGameService(GameService):
         kind, seats = self._current_wait(game_id)
         return _CallStart(state=self._games[game_id], kind=kind, seats=seats)
 
+    def _require_human_seat(self, game_id: str, seat: int) -> None:
+        """
+        Refuse a call on behalf of a seat an AI player controls: the session only ever acts for a connected human.
+        """
+        if self._ai_player_controllers[game_id].is_ai_player(seat):
+            raise AssertionError(f"seat {seat} is controlled by an AI player")
+
     def _end_call(self, game_id: str, call: _CallStart) -> Awaiting:
         """
         Return what the game waits for after a call, bumping the wait id when the call ended the wait it began in.
@@ -460,9 +468,11 @@ class MahjongGameService(GameService):
         For TURN timeout: the default discard (the drawn tile unless kuikae forbids it).
         For MELD timeout: pass on the call opportunity.
         For ROUND_ADVANCE timeout: auto-confirm round advancement.
-        The game must exist: the session never times out a game that ended, so a missing one is a server fault.
+        The game must exist: the session never times out a game that ended, so a missing one is a server fault, as is a
+        timeout for an AI player's seat.
         """
         call = self._begin_call(game_id)
+        self._require_human_seat(game_id, seat)
         match timeout_type:
             case TimeoutType.TURN:
                 events = self._handle_turn_timeout(game_id, seat)

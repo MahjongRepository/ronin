@@ -3,16 +3,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-import structlog
-
 from game.logic.enums import TimeoutType
-from game.session.timer import TimerConfig, TurnTimer
 from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
-    from game.session.models import Game
-
-logger = structlog.get_logger()
+    from game.session.models import Participant
+    from game.session.timer import TurnTimer
 
 
 @dataclass(frozen=True)
@@ -24,168 +20,47 @@ class TimerFiring:
     timer: TurnTimer
     generation: int
 
+    @property
+    def is_superseded(self) -> bool:
+        """
+        Whether the timer was stopped, cancelled or re-armed since it fired.
+        """
+        return self.timer.generation != self.generation
 
-TimeoutCallback = Callable[[str, TimeoutType, int, TimerFiring], Awaitable[None]]
+
+TimeoutCallback = Callable[["Participant", TimeoutType, TimerFiring], Awaitable[None]]
 
 
 class TimerManager:
     """
-    Manage per-player turn timer lifecycle for all active games.
+    Arm participants' timers and track the timeout callbacks that are running.
 
-    This class handles timer creation, start, stop, and cleanup. It does NOT inspect event types -- the caller
-    (SessionManager) extracts relevant information from events and calls the appropriate methods.
-
-    A fired timer has already detached its task from its `TurnTimer`, so no cancel path cancels a running callback; the
-    manager keeps those callbacks in `_running` until they finish, and `shutdown` awaits them. A stop, cancel or
-    restart of that seat while the callback waits for the game lock supersedes it instead: `is_superseded` tells the
-    callback to drop its default action.
+    Each participant owns its `TurnTimer` for the whole game; this class only arms it with the session's callback. A
+    fired timer has already detached its task from its `TurnTimer`, so no cancel path cancels a running callback; the
+    manager keeps those callbacks in `_running` until they finish, and `shutdown` awaits them. A stop, cancel or restart
+    of that timer while the callback waits for the game lock supersedes it instead (`TimerFiring.is_superseded`).
     """
 
     def __init__(self, on_timeout: TimeoutCallback) -> None:
-        self._timers: dict[str, dict[int, TurnTimer]] = {}
         self._on_timeout = on_timeout
         self._running: set[asyncio.Task[None]] = set()
 
-    def create_timers(self, *, game_id: str, seats: list[int], config: TimerConfig | None = None) -> None:
-        """
-        Create TurnTimer instances for the given player seats.
-        """
-        self._timers[game_id] = {seat: TurnTimer(config=config) for seat in seats}
+    def start_turn_timer(self, participant: Participant) -> None:
+        timer = participant.timer
+        timer.start_turn_timer(lambda: self._run_callback(participant, TimeoutType.TURN, timer))
 
-    def get_timer(self, game_id: str, seat: int) -> TurnTimer | None:
-        """
-        Get the timer for a specific seat in a game.
-        """
-        timers = self._timers.get(game_id)
-        return timers.get(seat) if timers else None
+    def start_meld_timer(self, participant: Participant) -> None:
+        timer = participant.timer
+        timer.start_meld_timer(lambda: self._run_callback(participant, TimeoutType.MELD, timer))
 
-    def add_timer(
-        self,
-        game_id: str,
-        seat: int,
-        config: TimerConfig | None = None,
-        bank_seconds: float | None = None,
-    ) -> None:
-        """
-        Create a timer for a single seat (used on reconnection).
+    def start_round_advance_timer(self, participant: Participant) -> None:
+        timer = participant.timer
+        timer.start_fixed_timer(
+            participant.game.timer_config.round_advance_timeout_seconds,
+            lambda: self._run_callback(participant, TimeoutType.ROUND_ADVANCE, timer),
+        )
 
-        If bank_seconds is provided, the timer is initialized with that bank time instead of the default
-        initial_bank_seconds (preserves bank across disconnect).
-        """
-        timers = self._timers.get(game_id)
-        if timers is not None:
-            timers[seat] = TurnTimer(config=config, bank_seconds=bank_seconds)
-
-    def remove_timer(self, game_id: str, seat: int) -> TurnTimer | None:
-        """
-        Remove and return the timer for a seat (used on disconnect).
-        """
-        timers = self._timers.get(game_id)
-        if timers is None:
-            return None
-
-        return timers.pop(seat, None)
-
-    def cleanup_game(self, game_id: str) -> None:
-        """
-        Cancel all timers and remove timer storage for a game.
-        """
-        timers = self._timers.pop(game_id, None)
-        if timers:
-            for timer in timers.values():
-                timer.cancel()
-
-    def stop_player_timer(self, game_id: str, seat: int) -> None:
-        """
-        Stop a player's timer, deducting elapsed bank time.
-        """
-        timer = self.get_timer(game_id, seat)
-        if timer:
-            timer.stop()
-
-    def cancel_other_timers(self, game_id: str, exclude_seat: int) -> None:
-        """
-        Cancel meld timers for all seats except the given one.
-        """
-        timers = self._timers.get(game_id)
-        if timers:
-            for seat, timer in timers.items():
-                if seat != exclude_seat:
-                    timer.cancel()
-
-    def cancel_all(self, game_id: str) -> None:
-        """
-        Cancel all timers for a game without removing them.
-        """
-        timers = self._timers.get(game_id)
-        if timers:
-            for timer in timers.values():
-                timer.cancel()
-
-    def consume_bank(self, game_id: str, seat: int) -> None:
-        """
-        Deduct elapsed bank time without cancelling (for timeout callbacks).
-        """
-        timer = self.get_timer(game_id, seat)
-        if timer:
-            timer.consume_bank()
-
-    def add_round_bonus(self, game_id: str) -> None:
-        """
-        Add round bonus time to all timers for a game.
-        """
-        timers = self._timers.get(game_id)
-        if timers:
-            for timer in timers.values():
-                timer.add_round_bonus()
-
-    def start_turn_timer(self, game_id: str, seat: int) -> None:
-        """
-        Start a turn timer for the given seat.
-        """
-        timer = self.get_timer(game_id, seat)
-        if timer is not None:
-            timer.start_turn_timer(lambda gid=game_id, s=seat, t=timer: self._run_callback(gid, TimeoutType.TURN, s, t))
-
-    def start_meld_timer(self, game_id: str, seat: int) -> None:
-        """
-        Start a meld timer for the given seat.
-        """
-        timer = self.get_timer(game_id, seat)
-        if timer is not None:
-            timer.start_meld_timer(lambda gid=game_id, s=seat, t=timer: self._run_callback(gid, TimeoutType.MELD, s, t))
-
-    def start_round_advance_timers(self, game: Game) -> None:
-        """
-        Start fixed-duration timers for players to confirm round advancement.
-        """
-        game_id = game.game_id
-        timers = self._timers.get(game_id)
-        if timers is None:
-            return
-
-        timeout = game.timer_config.round_advance_timeout_seconds
-        for player in list(game.players.values()):
-            if player.seat is not None:
-                timer = timers.get(player.seat)
-                if timer is not None:
-                    timer.start_fixed_timer(
-                        timeout,
-                        lambda gid=game_id, s=player.seat, t=timer: self._run_callback(
-                            gid,
-                            TimeoutType.ROUND_ADVANCE,
-                            s,
-                            t,
-                        ),
-                    )
-
-    def is_superseded(self, game_id: str, seat: int, firing: TimerFiring) -> bool:
-        """
-        Check whether the seat's timer was replaced, stopped, cancelled or re-armed since it fired.
-        """
-        return self.get_timer(game_id, seat) is not firing.timer or firing.timer.generation != firing.generation
-
-    async def _run_callback(self, game_id: str, timeout_type: TimeoutType, seat: int, timer: TurnTimer) -> None:
+    async def _run_callback(self, participant: Participant, timeout_type: TimeoutType, timer: TurnTimer) -> None:
         """
         Run the timeout callback inside the fired timer's task, tracked until it finishes.
         """
@@ -193,14 +68,13 @@ class TimerManager:
         task = cast("asyncio.Task[None]", asyncio.current_task())
         self._running.add(task)
         try:
-            await self._on_timeout(game_id, timeout_type, seat, firing)
+            await self._on_timeout(participant, timeout_type, firing)
         finally:
             self._running.discard(task)
 
-    async def shutdown(self) -> None:
+    async def shutdown(self, timers: list[TurnTimer]) -> None:
         """
-        Cancel every sleeping timer and wait for the callbacks already running.
+        Cancel the given timers' sleeping tasks and wait for the callbacks already running.
         """
-        sleeping = [timer.task for timers in self._timers.values() for timer in timers.values()]
-        self._timers.clear()
-        await cancel_and_wait([task for task in sleeping if task is not None], finalizing=list(self._running))
+        sleeping = [timer.task for timer in timers if timer.task is not None]
+        await cancel_and_wait(sleeping, finalizing=list(self._running))

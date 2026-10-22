@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from mahjong.tile import TilesConverter
 
 from game.messaging.types import SessionMessageType
-from game.session.models import Game, Player, PlayerSpec
-from game.session.timer import TimerConfig, TurnTimer
+from game.session.models import PlayerSpec
+from game.session.timer import TimerConfig
 from game.session.timer_manager import TimerFiring
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection
@@ -15,6 +15,19 @@ if TYPE_CHECKING:
     from game.logic.enums import TimeoutType
     from game.logic.mahjong_service import MahjongGameService
     from game.session.manager import SessionManager
+    from game.session.models import GameSession, Participant
+
+ENGINE_SEED = "a" * 192
+
+
+def participant_of(manager: SessionManager, conn: MockConnection) -> Participant:
+    return manager._bound[conn.connection_id]
+
+
+def game_of(manager: SessionManager, game_id: str = "game1") -> GameSession:
+    game = manager.get_game(game_id)
+    assert game is not None
+    return game
 
 
 async def create_started_game(
@@ -47,32 +60,12 @@ async def create_started_game(
     return connections
 
 
-def make_game_with_player(manager: SessionManager) -> tuple[Game, Player, MockConnection]:
-    conn = MockConnection()
-    game = Game(game_id="game1")
-    session = manager._session_store.create_session(player_name="Alice", game_id="game1")
-    player = Player(
-        connection=conn,
-        name="Alice",
-        session_token=session.session_token,
-        game_id="game1",
-        seat=0,
-    )
-    game.players[conn.connection_id] = player
-
-    manager._games["game1"] = game
-    manager._players[conn.connection_id] = player
-    manager._connections[conn.connection_id] = conn
-    return game, player, conn
-
-
 async def disconnect_and_reconnect(
     manager: SessionManager,
     conn: MockConnection,
     game_id: str = "game1",
 ) -> tuple[MockConnection, str]:
-    player = manager._players[conn.connection_id]
-    token = player.session_token
+    token = participant_of(manager, conn).ticket
     await manager.leave_game(conn, notify_player=False)
 
     new_conn = MockConnection()
@@ -85,8 +78,7 @@ async def disconnect_and_reconnect(
 
 
 def current_wait_id(manager: SessionManager, game_id: str = "game1") -> int:
-    game = manager.get_game(game_id)
-    assert game is not None
+    game = game_of(manager, game_id)
     assert game.awaiting is not None
     return game.awaiting.wait_id
 
@@ -97,12 +89,13 @@ async def wait_for_background_tasks(manager: SessionManager) -> None:
 
 
 def fire_turn_timer_now(manager: SessionManager, *, game_id: str, seat: int) -> asyncio.Task[None]:
-    timer = manager._timer_manager.get_timer(game_id, seat)
-    assert timer is not None
+    participant = game_of(manager, game_id).at_seat(seat)
+    assert participant is not None
+    timer = participant.timer
     configured = timer._config
     timer._config = TimerConfig(base_turn_seconds=0)
     timer._bank_seconds = 0
-    manager._timer_manager.start_turn_timer(game_id, seat)
+    manager._timer_manager.start_turn_timer(participant)
     timer._config = configured
     assert timer.task is not None
     return timer.task
@@ -145,6 +138,7 @@ def arrange_pon_now_and_on_the_next_draw(engine: MahjongGameService, *, discarde
 
 
 async def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
-    timer = manager._timer_manager.get_timer(game_id, seat) or TurnTimer()
-    firing = TimerFiring(timer=timer, generation=timer.generation)
-    await manager._handle_timeout(game_id, timeout_type, seat, firing)
+    participant = game_of(manager, game_id).at_seat(seat)
+    assert participant is not None
+    firing = TimerFiring(timer=participant.timer, generation=participant.timer.generation)
+    await manager._handle_timeout(participant, timeout_type, firing)

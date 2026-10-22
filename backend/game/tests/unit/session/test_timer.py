@@ -5,9 +5,18 @@ from pydantic import ValidationError
 
 from game.session.timer import TimerConfig, TurnTimer
 
+BASE_AND_BANK = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20)
+
 
 async def _noop() -> None:
     pass
+
+
+def _recording_callback(calls: list[str], name: str):
+    async def on_timeout() -> None:
+        calls.append(name)
+
+    return on_timeout
 
 
 def test_timer_config__when_max_bank_below_initial_bank__should_raise():
@@ -15,10 +24,9 @@ def test_timer_config__when_max_bank_below_initial_bank__should_raise():
         TimerConfig(max_bank_seconds=5, initial_bank_seconds=20)
 
 
-class TestTurnTimerTurnTimer:
+class TestTurnTimerDeadline:
     async def test_turn_timer__when_bank_exhausted__should_fire_callback(self):
-        config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05)
-        timer = TurnTimer(config)
+        timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05))
         callback_called = asyncio.Event()
 
         async def on_timeout():
@@ -28,88 +36,86 @@ class TestTurnTimerTurnTimer:
         await asyncio.wait_for(callback_called.wait(), timeout=1.0)
         assert callback_called.is_set()
 
-    async def test_turn_timer__when_stopped__should_deduct_elapsed_time_from_bank(self):
-        config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
+    async def test_turn_timer__when_base_and_bank_set__should_sleep_for_their_sum(self, held_sleep):
+        timer = TurnTimer(BASE_AND_BANK)
+        calls: list[str] = []
+
+        timer.start_turn_timer(_recording_callback(calls, "timeout"))
+        await asyncio.sleep(0)
+        assert held_sleep.durations == [25.0]
+
+        await held_sleep.release_all()
+        assert calls == ["timeout"]
+
+    async def test_meld_timer__when_started__should_sleep_for_the_fixed_meld_time(self, held_sleep):
+        timer = TurnTimer(TimerConfig(meld_decision_seconds=3))
+        calls: list[str] = []
+
+        timer.start_meld_timer(_recording_callback(calls, "timeout"))
+        await asyncio.sleep(0)
+        assert held_sleep.durations == [3]
+
+        await held_sleep.release_all()
+        assert calls == ["timeout"]
+
+
+class TestTurnTimerBank:
+    @pytest.mark.parametrize(
+        ("elapsed", "bank_after"),
+        [(3.0, 20.0), (7.5, 17.5), (40.0, 0.0)],
+    )
+    async def test_turn_timer__when_stopped__should_drain_only_the_time_past_base_from_the_bank(
+        self, fake_clock, held_sleep, elapsed, bank_after
+    ):
+        timer = TurnTimer(BASE_AND_BANK)
 
         timer.start_turn_timer(_noop)
-        await asyncio.sleep(0.1)
+        fake_clock.advance(elapsed)
         timer.stop()
-        # bank should be reduced by approximately 0.1 seconds
-        assert timer._bank_seconds < 10.0
-        assert timer._bank_seconds > 9.0
+        assert timer._bank_seconds == bank_after
 
-    async def test_turn_timer__when_stopped__should_not_fire_callback(self):
-        timer = TurnTimer()
-        callback_called = False
-
-        async def on_timeout():
-            nonlocal callback_called
-            callback_called = True
-
-        timer.start_turn_timer(on_timeout)
-        timer.stop()
-        await asyncio.sleep(0.05)
-        assert callback_called is False
-
-
-class TestTurnTimerMeldTimer:
-    async def test_meld_timer__when_started__should_fire_after_fixed_timeout(self):
-        config = TimerConfig(meld_decision_seconds=0.05)
-        timer = TurnTimer(config)
-        callback_called = asyncio.Event()
-
-        async def on_timeout():
-            callback_called.set()
-
-        timer.start_meld_timer(on_timeout)
-        await asyncio.wait_for(callback_called.wait(), timeout=1.0)
-        assert callback_called.is_set()
-
-    async def test_meld_timer__when_cancelled__should_keep_bank_unchanged(self):
-        config = TimerConfig(initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
+    async def test_meld_timer__when_cancelled__should_keep_bank_unchanged(self, fake_clock, held_sleep):
+        timer = TurnTimer(BASE_AND_BANK)
 
         timer.start_meld_timer(_noop)
-        await asyncio.sleep(0.05)
+        fake_clock.advance(4)
         timer.cancel()
-        # bank time should not change for meld timers
-        assert timer._bank_seconds == 10.0
+        assert timer._bank_seconds == 20.0
 
 
-class TestTurnTimerBankEdgeCases:
-    async def test_turn_timer__when_running_past_bank__should_clamp_bank_at_zero(self):
-        config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05)
-        timer = TurnTimer(config)
+class TestTurnTimerCancel:
+    async def test_turn_timer__when_stopped__should_not_fire_callback(self, held_sleep):
+        timer = TurnTimer(BASE_AND_BANK)
+        calls: list[str] = []
 
-        timer.start_turn_timer(_noop)
-        await asyncio.sleep(0.15)
+        timer.start_turn_timer(_recording_callback(calls, "timeout"))
+        sleeping = timer.task
         timer.stop()
-        assert timer._bank_seconds == 0.0
+        await asyncio.sleep(0)
+        assert sleeping.cancelled()
 
-    async def test_turn_timer__when_new_timer_started__should_cancel_previous_callback(self):
-        timer = TurnTimer()
-        first_called = False
-        second_called = False
+        await held_sleep.release_all()
+        assert calls == []
 
-        async def first_callback():
-            nonlocal first_called
-            first_called = True
+    async def test_turn_timer__when_new_timer_started__should_cancel_previous_callback(self, held_sleep):
+        timer = TurnTimer(BASE_AND_BANK)
+        calls: list[str] = []
 
-        async def second_callback():
-            nonlocal second_called
-            second_called = True
+        timer.start_turn_timer(_recording_callback(calls, "first"))
+        first = timer.task
+        timer.start_turn_timer(_recording_callback(calls, "second"))
+        await asyncio.sleep(0)
+        assert first.cancelled()
 
-        timer.start_turn_timer(first_callback)
-        timer.start_turn_timer(second_callback)
-        await asyncio.sleep(0.05)
-        timer.cancel()
-        assert first_called is False
+        await held_sleep.release_all()
+        assert calls == ["second"]
 
 
 class TestTimerCallbackOwnership:
-    async def test_turn_timer__when_callback_restarts_its_own_timer__should_finish_and_keep_the_successor(self):
-        timer = TurnTimer(TimerConfig(base_turn_seconds=0), bank_seconds=0)
+    async def test_turn_timer__when_callback_restarts_its_own_timer__should_finish_and_keep_the_successor(
+        self, held_sleep
+    ):
+        timer = TurnTimer(BASE_AND_BANK)
         finished: list[str] = []
 
         async def restart_then_suspend():
@@ -121,6 +127,8 @@ class TestTimerCallbackOwnership:
         fired = timer.task
         assert fired is not None
 
+        await asyncio.sleep(0)
+        await held_sleep.release_all()
         await fired
         assert finished == ["callback"]
         assert timer.task is not None
@@ -129,61 +137,15 @@ class TestTimerCallbackOwnership:
         timer.cancel()
 
 
-class TestBaseTimeBehavior:
-    async def test_turn_timer__when_acting_within_base_time__should_keep_bank(self):
-        config = TimerConfig(base_turn_seconds=1.0, initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
-
-        timer.start_turn_timer(_noop)
-        await asyncio.sleep(0.1)  # well within 1s base time
-        timer.stop()
-        assert timer.bank_seconds == 10.0
-
-    async def test_turn_timer__when_acting_after_base_time__should_drain_only_excess(self):
-        config = TimerConfig(base_turn_seconds=0.1, initial_bank_seconds=10.0)
-        timer = TurnTimer(config)
-
-        timer.start_turn_timer(_noop)
-        await asyncio.sleep(0.2)  # ~0.1s over base time
-        timer.stop()
-        # should drain ~0.1s from bank; wide tolerance for CI scheduling jitter
-        assert 9.5 < timer.bank_seconds < 10.0
-
-    async def test_turn_timer__when_base_and_bank_set__should_fire_after_their_sum(self):
-        config = TimerConfig(base_turn_seconds=0.05, initial_bank_seconds=0.05)
-        timer = TurnTimer(config)
-        callback_called = asyncio.Event()
-
-        async def on_timeout():
-            callback_called.set()
-
-        loop = asyncio.get_running_loop()
-        started_at = loop.time()
-        timer.start_turn_timer(on_timeout)
-        # should fire at ~0.1s (0.05 base + 0.05 bank)
-        await asyncio.wait_for(callback_called.wait(), timeout=1.0)
-        assert loop.time() - started_at >= 0.09
-
-
 class TestBankCap:
     def test_round_bonus__when_exceeding_max_bank__should_cap_at_max(self):
-        config = TimerConfig(
-            initial_bank_seconds=55.0,
-            max_bank_seconds=60.0,
-            round_bonus_seconds=10.0,
-        )
-        timer = TurnTimer(config)
+        timer = TurnTimer(TimerConfig(initial_bank_seconds=55.0, max_bank_seconds=60.0, round_bonus_seconds=10.0))
 
         timer.add_round_bonus()
-        assert timer.bank_seconds == 60.0  # capped, not 65
+        assert timer._bank_seconds == 60.0
 
     def test_round_bonus__when_below_cap__should_add_full_bonus(self):
-        config = TimerConfig(
-            initial_bank_seconds=10.0,
-            max_bank_seconds=60.0,
-            round_bonus_seconds=10.0,
-        )
-        timer = TurnTimer(config)
+        timer = TurnTimer(TimerConfig(initial_bank_seconds=10.0, max_bank_seconds=60.0, round_bonus_seconds=10.0))
 
         timer.add_round_bonus()
-        assert timer.bank_seconds == 20.0
+        assert timer._bank_seconds == 20.0

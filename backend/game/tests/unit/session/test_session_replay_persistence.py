@@ -1,61 +1,32 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
     ServiceEvent,
 )
+from game.logic.rng import RNG_VERSION
 from game.logic.types import PlayerStanding
-from game.session.manager import SessionManager
-from game.session.models import PlayerSpec
+from game.messaging.types import SessionErrorCode
 from game.session.replay_collector import ReplayCollector
-from game.tests.helpers.auth import make_test_game_ticket
-from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, FakeGameRepository, MockConnection, MockGameService
+from game.tests.helpers.session import make_session_manager
+from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, FakeGameRepository, FakeReplayStorage
+from shared.dal.models import GameEndReason
 
-from .helpers import make_game_with_player
-
-
-def _make_manager_with_collector() -> tuple[SessionManager, MagicMock, MockGameService]:
-    game_service = MockGameService()
-    collector = MagicMock(spec=ReplayCollector)
-    manager = SessionManager(game_service, replay_collector=collector, game_repository=FakeGameRepository())
-    return manager, collector, game_service
+from .helpers import ENGINE_SEED, create_started_game, game_of, wait_for_background_tasks
 
 
 def _make_game_end_event() -> ServiceEvent:
     return ServiceEvent(
         data=GameEndedEvent(
             winner_seat=0,
-            standings=[
-                PlayerStanding(
-                    seat=0,
-                    score=25000,
-                    final_score=0,
-                ),
-            ],
+            standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
         ),
     )
 
 
 def _make_discard_event() -> ServiceEvent:
-    return ServiceEvent(
-        data=DiscardEvent(seat=0, tile_id=10),
-    )
-
-
-async def _create_started_game_with_collector(
-    manager: SessionManager,
-    game_id: str = "game1",
-) -> list[MockConnection]:
-    ticket = make_test_game_ticket(username="Alice", room_id=game_id, user_id="user-0")
-    specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-    manager.create_pending_game(game_id=game_id, player_specs=specs)
-
-    conn = MockConnection()
-    manager.register_connection(conn)
-    await manager.join_game(conn, game_id=game_id, session_token=ticket)
-    conn._outbox.clear()
-    return [conn]
+    return ServiceEvent(data=DiscardEvent(seat=0, tile_id=10))
 
 
 class TestReplayCollectorMerge:
@@ -64,61 +35,62 @@ class TestReplayCollectorMerge:
         assert result == "{}"
 
 
-class TestSessionReplayStart:
-    async def test_replay_start__when_game_starts__should_start_collector_with_seed(self):
-        manager, collector, game_service = _make_manager_with_collector()
-        await _create_started_game_with_collector(manager)
+class TestSessionReplay:
+    async def test_replay_start__when_game_starts__should_record_with_the_engine_seed(self, seeded_engine):
+        manager = make_session_manager(seeded_engine)
+        await create_started_game(manager)
 
-        seed = game_service.get_game_seed("game1")
-        collector.start_game.assert_called_once_with(game_id="game1", seed=seed, rng_version="pcg64dxsm-v1")
+        replay = game_of(manager).replay
+        assert replay is not None
+        assert (replay.seed, replay.rng_version) == (ENGINE_SEED, RNG_VERSION)
+        await manager.shutdown()
 
+    async def test_replay_collect__when_events_broadcast__should_append_them_without_saving(self):
+        storage = FakeReplayStorage()
+        manager = make_session_manager(storage=storage)
+        await create_started_game(manager)
+        game = game_of(manager)
+        recorded_before = len(game.replay.lines)
 
-class TestSessionReplayCollect:
-    async def test_replay_collect__when_events_broadcast__should_collect_them(self):
-        manager, collector, _game_service = _make_manager_with_collector()
-        game, _player, _conn = make_game_with_player(manager)
+        manager._broadcast_events(game, [_make_discard_event()], MOCK_AWAITING)
+        await wait_for_background_tasks(manager)
+        assert len(game.replay.lines) == recorded_before + 1
+        assert storage.saved == {}
 
-        events = [_make_discard_event()]
-        await manager._broadcast_events(game, events, MOCK_AWAITING)
-        collector.collect_events.assert_called_once_with("game1", events)
+    async def test_replay_save__when_game_end_event__should_save_the_detached_lines(self):
+        storage = FakeReplayStorage()
+        manager = make_session_manager(storage=storage)
+        await create_started_game(manager)
+        game = game_of(manager)
 
+        manager._broadcast_events(game, [_make_game_end_event()], MOCK_GAME_OVER)
+        assert game.replay is None
 
-class TestSessionReplaySave:
-    async def test_replay_save__when_game_end_event__should_save_and_cleanup(self):
-        manager, collector, _game_service = _make_manager_with_collector()
-        game, _player, _conn = make_game_with_player(manager)
+        await wait_for_background_tasks(manager)
+        assert list(storage.saved) == ["game1"]
 
-        events = [_make_game_end_event()]
-        await manager._broadcast_events(game, events, MOCK_GAME_OVER)
-        collector.save.assert_awaited_once_with("game1", collector.detach_game.return_value)
+    async def test_replay_save__when_it_raises_after_a_completion__should_record_an_error_end_and_close_with_1011(
+        self, monkeypatch
+    ):
+        game_repo = FakeGameRepository()
+        manager = make_session_manager(repository=game_repo)
+        conns = await create_started_game(manager)
+        game = game_of(manager)
+        monkeypatch.setattr(manager._replay_collector, "save", AsyncMock(side_effect=RuntimeError("disk gone")))
 
-    async def test_replay_save__when_no_game_end_event__should_not_save(self):
-        manager, collector, _game_service = _make_manager_with_collector()
-        game, _player, _conn = make_game_with_player(manager)
+        manager._broadcast_events(game, [_make_game_end_event()], MOCK_GAME_OVER)
+        await wait_for_background_tasks(manager)
+        assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
+        assert [m.get("code") for m in conns[0].sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
+        assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 
-        events = [_make_discard_event()]
-        await manager._broadcast_events(game, events, MOCK_AWAITING)
-        collector.save.assert_not_called()
+    async def test_replay_discard__when_game_abandoned__should_save_nothing(self):
+        storage = FakeReplayStorage()
+        game_repo = FakeGameRepository()
+        manager = make_session_manager(repository=game_repo, storage=storage)
+        conns = await create_started_game(manager)
 
-
-class TestSessionReplayCleanup:
-    async def test_replay_cleanup__when_game_abandoned__should_cleanup_collector(self):
-        manager, collector, _game_service = _make_manager_with_collector()
-        conns = await _create_started_game_with_collector(manager)
-
-        # leave the game, making it empty -- should trigger cleanup
         await manager.leave_game(conns[0])
-        collector.cleanup_game.assert_called_once_with("game1")
-
-    async def test_replay_cleanup__when_no_collector_on_abandon__should_not_raise(self):
-        game_service = MockGameService()
-        manager = SessionManager(game_service, game_repository=FakeGameRepository())
-
-        ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
-        specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        manager.create_pending_game(game_id="game1", player_specs=specs)
-        conn = MockConnection()
-        manager.register_connection(conn)
-        await manager.join_game(conn, game_id="game1", session_token=ticket)
-
-        await manager.leave_game(conn)  # should not raise
+        await wait_for_background_tasks(manager)
+        assert game_repo.games["game1"].end_reason == GameEndReason.ABANDONED
+        assert storage.saved == {}

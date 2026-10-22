@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import patch
 
 from game.session import manager as manager_module
@@ -11,23 +10,16 @@ class TestAuthTimeout:
     async def test_auth_timeout__when_connection_unauthenticated__should_close_and_unregister_after_timeout(
         self, manager
     ):
-        with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0.05):
-            conn = MockConnection()
+        conn = MockConnection()
+        with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0):
             manager.register_connection(conn)
-            await asyncio.sleep(0.1)
+            await manager._auth_timeouts[conn.connection_id]
 
         assert conn.is_closed
         assert conn._close_code == 4001
         # Connection must be removed from _connections to prevent a concurrent
         # join_game/reconnect from registering this closing connection.
         assert conn.connection_id not in manager._connections
-
-    async def test_auth_timeout__when_connection_authenticated__should_not_close(self, manager):
-        with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0.05):
-            conns = await create_started_game(manager)
-            await asyncio.sleep(0.1)
-
-        assert not conns[0].is_closed
 
     async def test_auth_timeout__when_connection_unregistered__should_cancel_timeout(self, manager):
         conn = MockConnection()
@@ -74,12 +66,9 @@ class TestAuthTimeout:
 
     async def test_auth_timeout__when_connection_already_removed__should_not_close(self, manager):
         conn = MockConnection()
-        with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0.01):
+        with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0):
             manager.register_connection(conn)
-            # Remove from connections but don't cancel the timeout
-            manager._connections.pop(conn.connection_id, None)
-
-            # Run the timeout coroutine directly
+            manager.unregister_connection(conn)
             await manager._auth_timeout(conn)
 
         # Should not close (connection is gone from registry)

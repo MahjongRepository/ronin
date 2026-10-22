@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from mahjong.tile import TilesConverter
 
 from game.logic.ai_player import AIPlayer
-from game.logic.enums import GameAction, WaitKind
-from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
+from game.logic.enums import GameAction, TimeoutType, WaitKind
+from game.logic.events import EventType, GameEndedEvent, ServiceEvent
 from game.logic.exceptions import InvalidGameActionError, ScoringError
 from game.logic.scoring import HandResult
 from game.logic.types import PlayerStanding
@@ -19,16 +19,16 @@ from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
 from game.session import manager as manager_module
 from game.session.manager import SessionManager
-from game.session.models import Player, PlayerSpec
+from game.session.models import GameLifecycle, PlayerSpec
 from game.session.replay_collector import ReplayCollector
+from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET
+from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import (
-    MOCK_AWAITING,
     MOCK_GAME_OVER,
     FakeGameRepository,
     MockConnection,
     MockGameService,
-    MockResultEvent,
     mock_update,
 )
 from game.tests.unit.helpers import _update_player, _update_round_state
@@ -41,7 +41,9 @@ from .helpers import (
     create_started_game,
     current_wait_id,
     fire_turn_timer_now,
-    make_game_with_player,
+    game_of,
+    participant_of,
+    run_timeout,
     wait_for_background_tasks,
 )
 
@@ -60,70 +62,20 @@ def _make_game_end_events() -> list[ServiceEvent]:
     ]
 
 
-class TestSessionManagerGameEnd:
-    def _make_game_end_event(self) -> ServiceEvent:
-        return ServiceEvent(
-            data=GameEndedEvent(
-                type=EventType.GAME_END,
-                winner_seat=0,
-                standings=[
-                    PlayerStanding(seat=0, score=25000, final_score=0),
-                ],
-            ),
-        )
-
-    async def test_game_end__when_game_end_event__should_close_connection_with_1000(self, manager):
-        game, _player, conn = make_game_with_player(manager)
-
-        events = [self._make_game_end_event()]
-        await manager._broadcast_events(game, events, MOCK_GAME_OVER)
-        assert conn.is_closed is True
-        assert conn._close_code == 1000
-        assert conn._close_reason == "game_ended"
-
-    async def test_game_end__when_events_lack_game_end__should_keep_connection_open(self, manager):
-        game, _player, conn = make_game_with_player(manager)
-
-        generic_event = ServiceEvent(
-            data=MockResultEvent(
-                type=EventType.DRAW,
-                target=BroadcastTarget(),
-                seat=0,
-                action=GameAction.DISCARD,
-                input={},
-                success=True,
-            ),
-        )
-        await manager._broadcast_events(game, [generic_event], MOCK_AWAITING)
-        assert conn.is_closed is False
-
-    async def test_game_end__when_game_end_event_with_two_players__should_close_both(self, manager):
-        game, _player, conn1 = make_game_with_player(manager)
-
-        conn2 = MockConnection()
-        player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
-        game.players[conn2.connection_id] = player2
-
-        events = [self._make_game_end_event()]
-        await manager._broadcast_events(game, events, MOCK_GAME_OVER)
-        assert conn1.is_closed is True
-        assert conn2.is_closed is True
-
-
 class TestFailGame:
     async def test_fail_game__when_game_running__should_send_internal_error_record_error_and_close_with_1011(self):
         game_repo = FakeGameRepository()
-        manager = SessionManager(MockGameService(), game_repository=game_repo)
+        manager = make_session_manager(repository=game_repo)
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        game = manager.get_game("game1")
+        game = game_of(manager)
 
         assert manager.fail_game(game, reason="engine fault", exc=RuntimeError("boom")) is True
         assert manager.fail_game(game, reason="engine fault again") is False
-        assert game.ended is True
+        assert game.lifecycle is GameLifecycle.ENDING
         assert manager.get_game("game1") is None
-        assert "game1" not in manager._game_locks
 
         await wait_for_background_tasks(manager)
+        assert game.lifecycle is GameLifecycle.CLOSED
         for conn in conns:
             assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
             assert conn._close_code == 1011
@@ -134,7 +86,7 @@ class TestFailGame:
 
     async def test_fail_game__when_game_still_pending__should_close_joined_player_and_drop_pending_game(self):
         game_repo = FakeGameRepository()
-        manager = SessionManager(MockGameService(), game_repository=game_repo)
+        manager = make_session_manager(repository=game_repo)
         manager.create_pending_game(
             game_id="game1",
             player_specs=[
@@ -145,13 +97,13 @@ class TestFailGame:
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
-        timeout_task = manager._pending_games["game1"].timeout_task
+        timeout_task = game_of(manager).pending_timeout
 
-        manager.fail_game(manager.get_game("game1"), reason="join failed")
+        manager.fail_game(game_of(manager), reason="join failed")
         await wait_for_background_tasks(manager)
         assert timeout_task.cancelled()
         assert manager.pending_game_count == 0
-        assert manager._session_store.get_session("ticket-1") is None
+        assert "ticket-1" not in manager._participants_by_ticket
         assert conn._close_code == 1011
         assert game_repo.finishes == []
 
@@ -172,18 +124,18 @@ class TestFailGame:
 
         assert [r.msg["event"] for r in caplog.records if r.levelno == logging.ERROR] == [
             "game failed",
-            "failed to record the finish of a failed game",
-            "failed to save the replay of a failed game",
+            "failed to save the replay of a finished game",
+            "failed to record the finish of a game",
             "failed to close a connection of a failed game",
         ]
         assert game_repo.finishes == []
         assert conns[0]._close_code == 1011
         assert conns[1]._close_code == 1011
 
-    async def test_pending_game_timeout__when_game_start_raises__should_fail_the_game(self, short_pending_timeout):
+    async def test_pending_game_timeout__when_game_start_raises__should_fail_the_game(self):
         game_service = MockGameService()
         game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
-        manager = SessionManager(game_service, game_repository=FakeGameRepository())
+        manager = make_session_manager(game_service, timer_config=TimerConfig(pending_game_timeout_seconds=0.01))
         manager.create_pending_game(
             game_id="game1",
             player_specs=[
@@ -195,7 +147,7 @@ class TestFailGame:
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
 
-        timeout_task = manager._pending_games["game1"].timeout_task
+        timeout_task = game_of(manager).pending_timeout
         assert timeout_task is not None
 
         await timeout_task
@@ -207,10 +159,10 @@ class TestFailGame:
     async def test_game_action__when_the_scoring_library_fails_on_tsumo__should_fail_the_game_with_that_error(
         self, seeded_engine, caplog
     ):
-        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
+        manager = make_session_manager(seeded_engine)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = await create_started_game(manager, player_names=["Alice"])
-        alice_seat = manager._players[conns[0].connection_id].seat
+        alice_seat = participant_of(manager, conns[0]).seat
         winning_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
         _update_player(seeded_engine, game_id="game1", seat=alice_seat, tiles=winning_hand)
         _update_round_state(seeded_engine, "game1", current_player_seat=alice_seat, pending_call_prompt=None)
@@ -238,10 +190,10 @@ class TestFailGame:
     async def test_game_action__when_an_ai_turn_after_the_committed_discard_is_refused__should_fail_the_game(
         self, seeded_engine, monkeypatch
     ):
-        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
+        manager = make_session_manager(seeded_engine)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = await create_started_game(manager, player_names=["Alice"])
-        alice_seat = manager._players[conns[0].connection_id].seat
+        alice_seat = participant_of(manager, conns[0]).seat
         round_state = seeded_engine.get_game_state("game1").round_state
         assert round_state.current_player_seat == alice_seat
         assert round_state.pending_call_prompt is None
@@ -266,18 +218,18 @@ class TestFailGame:
     async def test_fail_game__when_the_game_id_is_reused_before_the_finalizer_runs__should_leave_the_new_game_alone(
         self, seeded_engine, tmp_path
     ):
-        collector = ReplayCollector(LocalReplayStorage(tmp_path))
-        manager = SessionManager(seeded_engine, replay_collector=collector, game_repository=FakeGameRepository())
+        manager = make_session_manager(seeded_engine, storage=LocalReplayStorage(tmp_path))
         old_conns = await create_started_game(manager, player_names=["Alice"])
-        assert manager.fail_game(manager.get_game("game1"), reason="engine fault") is True
+        assert manager.fail_game(game_of(manager), reason="engine fault") is True
 
         new_conns = await create_started_game(manager, player_names=["Bob"])
         await wait_for_background_tasks(manager)
         assert old_conns[0]._close_code == 1011
         assert replay_file_path(tmp_path, "game1").exists()
         assert not new_conns[0].is_closed
-        assert manager.get_game("game1").ended is False
-        assert "game1" in collector._buffers
+        new_game = game_of(manager)
+        assert new_game.lifecycle is GameLifecycle.PLAYING
+        assert new_game.replay is not None
 
         await manager.shutdown()
 
@@ -287,46 +239,42 @@ class TestGameEndOwnership:
         self, seeded_engine, tmp_path, monkeypatch
     ):
         game_repo = FakeGameRepository()
-        collector = ReplayCollector(LocalReplayStorage(tmp_path))
-        manager = SessionManager(seeded_engine, replay_collector=collector, game_repository=game_repo)
+        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
+        collector = manager._replay_collector
         conns = await create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
-        alice_seat = manager._players[alice.connection_id].seat
+        alice_seat = participant_of(manager, alice).seat
+        game = game_of(manager)
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
         replay_saving = asyncio.Event()
         resume_saving = asyncio.Event()
         save = collector.save
 
-        async def pause_the_replay_save(game_id: str, lines: list[str] | None) -> None:
+        async def pause_the_replay_save(game_id: str, lines: list[str]) -> None:
             replay_saving.set()
             await resume_saving.wait()
             await save(game_id, lines)
 
         monkeypatch.setattr(collector, "save", pause_the_replay_save)
-        fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
+        await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await replay_saving.wait()
 
-        assert manager.fail_game(manager.get_game("game1"), reason="engine fault") is False
+        assert manager.fail_game(game, reason="engine fault") is False
         resume_saving.set()
-        await fired
         await wait_for_background_tasks(manager)
         assert (alice._close_code, alice._close_reason) == (1000, "game_ended")
         assert SessionErrorCode.INTERNAL_ERROR not in [m.get("code") for m in alice.sent_messages]
         assert len(game_repo.finishes) == 1
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
 
-    async def test_game_end__when_sending_the_end_raises_unexpectedly__should_escalate_to_a_persisted_failure(
+    async def test_game_end__when_sending_the_end_raises_unexpectedly__should_end_as_a_persisted_failure(
         self, seeded_engine, tmp_path, monkeypatch
     ):
         game_repo = FakeGameRepository()
-        manager = SessionManager(
-            seeded_engine,
-            replay_collector=ReplayCollector(LocalReplayStorage(tmp_path)),
-            game_repository=game_repo,
-        )
+        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
         conns = await create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
-        alice_seat = manager._players[alice.connection_id].seat
+        alice_seat = participant_of(manager, alice).seat
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
         send_bytes = alice.send_bytes
 
@@ -362,40 +310,23 @@ class TestGameEndFromAction:
         )
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        await wait_for_background_tasks(manager)
         assert (conns[0]._close_code, conns[0]._close_reason) == (1008, "invalid_game_action")
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
 
-    async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
+    async def test_game_end__when_action_ends_game__should_release_the_game_at_once_and_then_close_all_connections(
+        self, manager
+    ):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
         )
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
-        assert conns[0].is_closed
-        assert conns[0]._close_code == 1000
-        assert conns[0]._close_reason == "game_ended"
-        assert conns[1].is_closed
+        assert (manager.game_count, manager.get_playing_game_id("user-0")) == (0, None)
 
-    async def test_game_end__when_ai_replacement_after_invalid_action_ends_game__should_close_remaining_with_1000(
-        self, manager
-    ):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-
-        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER),
-        )
-        error = InvalidGameActionError(action="discard", seat=0, reason="bad tile")
-        manager._game_service.handle_action = MagicMock(side_effect=error)
-
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
-        # Offender closed with 1008 (invalid action)
-        assert conns[0].is_closed
-        assert conns[0]._close_code == 1008
-        # Bob closed with 1000 (game ended via AI replacement)
-        assert conns[1].is_closed
-        assert conns[1]._close_code == 1000
-        assert conns[1]._close_reason == "game_ended"
+        await wait_for_background_tasks(manager)
+        assert [(conn._close_code, conn._close_reason) for conn in conns] == [(1000, "game_ended")] * 2
 
 
 class TestGameEndFromTimeout:
@@ -403,24 +334,20 @@ class TestGameEndFromTimeout:
         self, seeded_engine, tmp_path
     ):
         game_repo = FakeGameRepository()
-        manager = SessionManager(
-            seeded_engine,
-            replay_collector=ReplayCollector(LocalReplayStorage(tmp_path)),
-            game_repository=game_repo,
-        )
+        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_seat = manager._players[conns[0].connection_id].seat
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        alice, bob = (participant_of(manager, conn) for conn in conns)
+        arrange_final_discard(seeded_engine, game_id="game1", seat=alice.seat)
 
         assert manager.get_playing_game_id("user-0") == "game1"
 
-        timed_out = manager.get_game("game1").awaiting
-        bob_seat = manager._players[conns[1].connection_id].seat
-        bob_timer = manager._timer_manager.get_timer("game1", bob_seat)
-        manager._timer_manager.start_meld_timer("game1", bob_seat)
-        fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
-        await fired
-        final_wait = manager.get_game("game1").awaiting
+        game = game_of(manager)
+        timed_out = game.awaiting
+        bob_timer = bob.timer
+        manager._timer_manager.start_meld_timer(bob)
+        await fire_turn_timer_now(manager, game_id="game1", seat=alice.seat)
+        await wait_for_background_tasks(manager)
+        final_wait = game.awaiting
         assert (final_wait.kind, final_wait.wait_id) == (WaitKind.NONE, timed_out.wait_id + 1)
         assert bob_timer.task is None
         assert manager.get_playing_game_id("user-0") is None
@@ -432,6 +359,22 @@ class TestGameEndFromTimeout:
         assert [line for line in replay_lines if WAIT_ID_KEY in line] == []
         assert [(c._close_code, c._close_reason) for c in conns] == [(1000, "game_ended"), (1000, "game_ended")]
 
+    async def test_game_message__when_sent_after_the_end_claim_before_the_close__should_get_no_answer(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine)
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
+        alice_seat = participant_of(manager, conns[0]).seat
+        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
+        assert manager.get_game("game1") is None
+
+        manager.broadcast_chat(conns[1], "gg")
+        await manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=0)
+        await wait_for_background_tasks(manager)
+        assert conns[1].sent_messages[-1]["t"] == EVENT_TYPE_INT[EventType.GAME_END]
+        assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
+
 
 class TestGameEndFromLeaveGame:
     async def test_game_end__when_ai_replacement_after_leave_ends_game__should_close_remaining_with_1000(self, manager):
@@ -442,7 +385,7 @@ class TestGameEndFromLeaveGame:
         )
 
         await manager.leave_game(conns[0])
-        # Bob's connection should be closed with game_ended
+        await wait_for_background_tasks(manager)
         assert conns[1].is_closed
         assert conns[1]._close_code == 1000
         assert conns[1]._close_reason == "game_ended"

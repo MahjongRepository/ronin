@@ -1,20 +1,19 @@
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 
 from game.logic import mahjong_service as mahjong_service_module
 from game.logic.mahjong_service import MahjongGameService
-from game.session import manager as manager_module
-from game.session.manager import SessionManager
-from game.session.models import Game
-from game.session.timer import TimerConfig
-from game.tests.mocks import FakeGameRepository, MockGameService
+from game.session import timer as timer_module
+from game.tests.helpers.session import make_session_manager
 
-ENGINE_SEED = "a" * 192
+from .helpers import ENGINE_SEED
 
 
 @pytest.fixture
 def manager():
-    game_service = MockGameService()
-    return SessionManager(game_service, game_repository=FakeGameRepository())
+    return make_session_manager()
 
 
 @pytest.fixture
@@ -23,9 +22,45 @@ def seeded_engine(monkeypatch):
     return MahjongGameService()
 
 
-@pytest.fixture
-def short_pending_timeout(monkeypatch):
-    def game_with_short_pending_timeout(**fields) -> Game:
-        return Game(timer_config=TimerConfig(pending_game_timeout_seconds=0.01), **fields)
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
 
-    monkeypatch.setattr(manager_module, "Game", game_with_short_pending_timeout)
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class HeldSleep:
+    def __init__(self) -> None:
+        self.durations: list[float] = []
+        self._releases: list[asyncio.Event] = []
+
+    async def sleep(self, seconds: float) -> None:
+        release = asyncio.Event()
+        self.durations.append(seconds)
+        self._releases.append(release)
+        await release.wait()
+
+    async def release_all(self) -> None:
+        for release in self._releases:
+            release.set()
+
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    clock = FakeClock()
+    monkeypatch.setattr(timer_module, "time", SimpleNamespace(monotonic=clock.monotonic))
+    return clock
+
+
+@pytest.fixture
+def held_sleep(monkeypatch):
+    held = HeldSleep()
+    monkeypatch.setattr(timer_module, "asyncio", SimpleNamespace(create_task=asyncio.create_task, sleep=held.sleep))
+    return held

@@ -12,15 +12,15 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server import websocket as ws_module
 from game.server.app import _read_request_body, create_app
-from game.session.manager import SessionManager
 from game.tests.helpers.auth import make_test_game_ticket
+from game.tests.helpers.session import make_session_manager
 from game.tests.helpers.websocket import (
     create_pending_game,
     join_game_and_start,
     recv_ws,
     send_ws,
 )
-from game.tests.mocks import MOCK_AWAITING, FakeGameRepository, MockGameService
+from game.tests.mocks import MOCK_AWAITING, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
 CHAT_OUTSIDE_A_GAME = {"t": WireClientMessageType.CHAT, "text": "hi"}
@@ -32,7 +32,7 @@ class TestWebSocketIntegration:
         game_service = MockGameService()
         app = create_app(
             game_service=game_service,
-            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+            session_manager=make_session_manager(game_service),
         )
         with TestClient(app) as client:
             yield client
@@ -197,7 +197,7 @@ class TestHealthEndpoint:
         game_service = MockGameService()
         app = create_app(
             game_service=game_service,
-            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+            session_manager=make_session_manager(game_service),
         )
         with TestClient(app) as client:
             yield client
@@ -217,7 +217,7 @@ class TestStatusEndpoint:
         game_service = MockGameService()
         app = create_app(
             game_service=game_service,
-            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+            session_manager=make_session_manager(game_service),
         )
         with TestClient(app) as client:
             yield client
@@ -250,7 +250,7 @@ class TestCreateGameEndpoint:
         game_service = MockGameService()
         app = create_app(
             game_service=game_service,
-            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+            session_manager=make_session_manager(game_service),
         )
         with TestClient(app) as client:
             yield client
@@ -295,21 +295,6 @@ class TestCreateGameEndpoint:
             json={
                 "game_id": "dupe",
                 "players": [{"name": "Player5", "user_id": "user-5", "game_ticket": ticket}],
-            },
-        )
-        assert response.status_code == 409
-        assert response.json() == {"error": "Game with this ID already exists"}
-
-    def test_create_game_endpoint__when_game_active__should_return_409(self, client):
-        sm = client.app.state.session_manager
-        sm._games["active-game"] = object()
-        ticket = make_test_game_ticket(username="Player1", room_id="active-game", user_id="user-0")
-
-        response = client.post(
-            "/games",
-            json={
-                "game_id": "active-game",
-                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
             },
         )
         assert response.status_code == 409

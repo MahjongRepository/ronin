@@ -48,7 +48,7 @@ class TestSessionManager:
                 target=SeatTarget(seat=0),
             ),
         )
-        await manager._broadcast_events(game, [seat_event], MOCK_AWAITING)
+        manager._broadcast_events(game, [seat_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the event
         assert len(conns[0].sent_messages) == 1
         assert len(conns[1].sent_messages) == 0
@@ -67,7 +67,7 @@ class TestSessionManager:
                 target=SeatTarget(seat=0),
             ),
         )
-        await manager._broadcast_events(game, [call_event], MOCK_AWAITING)
+        manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
@@ -91,7 +91,7 @@ class TestSessionManager:
                 target=SeatTarget(seat=0),
             ),
         )
-        await manager._broadcast_events(game, [call_event], MOCK_AWAITING)
+        manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # seat 0 should receive the call_prompt exactly once
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]

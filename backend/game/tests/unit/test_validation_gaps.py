@@ -948,8 +948,17 @@ class TestServerGeneratedActionRefusals:
         assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
 
     def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service):
+        player_seat = _find_player(service._games["test"].round_state, "Player").seat
         with pytest.raises(GeneratedActionError, match="no round pending confirmation"):
-            service.handle_timeout(game_id="test", seat=0, timeout_type=TimeoutType.ROUND_ADVANCE)
+            service.handle_timeout(game_id="test", seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
+
+    def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service):
+        ai_player_seat = self._make_ai_seat_current(service)
+        state_before = service._games["test"]
+
+        with pytest.raises(AssertionError, match=f"seat {ai_player_seat} is controlled by an AI player"):
+            service.handle_action(game_id="test", seat=ai_player_seat, action=GameAction.DISCARD, data={"tile_id": 0})
+        assert service._games["test"] is state_before
 
 
 class TestOpenKanDefenseInDepthGuards:

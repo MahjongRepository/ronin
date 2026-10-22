@@ -1,4 +1,5 @@
 import asyncio
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -9,16 +10,19 @@ from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server import websocket as ws_module
 from game.server.router import MessageRouter
 from game.server.websocket import websocket_endpoint
-from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.fake_websocket import ClosedWith, FakeWebSocketClient
-from game.tests.mocks import FakeGameRepository, MockConnection
+from game.tests.helpers.session import make_session_manager
+from game.tests.mocks import MockConnection
 from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
 
 from .helpers import arrange_final_discard, run_timeout
+
+if TYPE_CHECKING:
+    from game.session.manager import SessionManager
 
 _TIMEOUT_OF_WAIT = {
     WaitKind.TURN: TimeoutType.TURN,
@@ -61,10 +65,9 @@ class _Table:
         return client, endpoint
 
     def seat_of(self, name: str) -> int:
-        session = self.manager._session_store.get_session(self.tickets[name])
-        assert session is not None
-        assert session.seat is not None
-        return session.seat
+        seat = self.manager._participants_by_ticket[self.tickets[name]].seat
+        assert seat is not None
+        return seat
 
     async def advance_to_turn_of(self, seat: int) -> None:
         game = self.manager.get_game("game1")
@@ -85,7 +88,7 @@ class _Table:
 
 @pytest.fixture
 async def table(seeded_engine):
-    table = _Table(SessionManager(seeded_engine, game_repository=FakeGameRepository()))
+    table = _Table(make_session_manager(seeded_engine))
     yield table
     await table.close()
 
@@ -122,16 +125,15 @@ class TestConnectionWriters:
         self, table, seeded_engine
     ):
         alice, bob = await _start_over_sockets(table)
-        game = table.manager.get_game("game1")
         alice_seat = table.seat_of("Alice")
         await table.advance_to_turn_of(alice_seat)
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
         alice.hold_writes()
 
         await run_timeout(table.manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
-        assert game.end_reason is GameEndReason.COMPLETED
         assert await bob.wait_for_close() == ClosedWith(code=1000, reason="game_ended")
         assert bob.messages[-1]["t"] == EVENT_TYPE_INT[EventType.GAME_END]
+        assert table.manager._game_repository.games["game1"].end_reason is GameEndReason.COMPLETED
 
     async def test_send_queue_overflow__when_a_held_reader_overflows__should_seat_an_ai_player_through_the_disconnect(
         self, table, monkeypatch
@@ -147,8 +149,7 @@ class TestConnectionWriters:
         await alice_endpoint
         assert alice.written == []
         assert [m for m in bob.sent_messages if m.get("type") == SessionMessageType.CHAT] == []
-        alice_session = table.manager._session_store.get_session(table.tickets["Alice"])
-        assert alice_session.disconnected_at is not None
+        assert not table.manager._participants_by_ticket[table.tickets["Alice"]].is_connected
         snapshot = table.manager._game_service.build_reconnection_snapshot("game1", table.seat_of("Bob"))
         assert snapshot.players[table.seat_of("Alice")].is_ai_player is True
         assert {"type": SessionMessageType.PLAYER_LEFT, "player_name": "Alice"} in bob.sent_messages

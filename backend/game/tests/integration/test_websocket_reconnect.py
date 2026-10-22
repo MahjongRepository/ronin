@@ -1,4 +1,5 @@
-import time
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 import pytest
 from starlette.testclient import TestClient
@@ -13,16 +14,17 @@ from game.logic.types import (
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
-from game.session.manager import SessionManager
-from game.session.models import Player, SessionData
+from game.tests.helpers.session import make_session_manager
 from game.tests.helpers.websocket import (
     create_pending_game,
     join_game_and_start,
     recv_ws,
     send_ws,
 )
-from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
 from game.wire.events import EVENT_TYPE_INT
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSnapshot:
@@ -53,49 +55,23 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
     )
 
 
-def _start_game_and_get_ticket(client: TestClient) -> str:
-    sm = client.app.state.session_manager
-    tickets = create_pending_game(client, game_id="test_game")
-    ticket = tickets[0]
+@contextmanager
+def _game_with_player1_dropped(client: TestClient) -> Generator[str]:
+    tickets = create_pending_game(client, game_id="test_game", num_ai_players=2)
+    with client.websocket_connect("/ws/test_game") as player2:
+        send_ws(player2, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[1]})
+        with client.websocket_connect("/ws/test_game") as player1:
+            join_game_and_start(player1, tickets[0])
 
-    # Player1 joins and starts the game via WebSocket
-    with client.websocket_connect("/ws/test_game") as ws:
-        join_game_and_start(ws, ticket)
-
-        # Inject a "Player2" mock connection into the game so it survives Player1 leaving
-        p2_conn = MockConnection()
-        p2_session = sm._session_store.create_session(player_name="Player2", game_id="test_game", token="p2-token")
-        sm._session_store.bind_seat(p2_session.session_token, 1)
-
-        game = sm._games["test_game"]
-        p2_player = Player(
-            connection=p2_conn,
-            name="Player2",
-            session_token=p2_session.session_token,
-            game_id="test_game",
-            seat=1,
-        )
-        game.players[p2_conn.connection_id] = p2_player
-        sm._players[p2_conn.connection_id] = p2_player
-
-    # WebSocket close triggers leave_game for Player1; game survives via Player2
-    assert sm.get_game("test_game") is not None
-
-    # Stub get_game_state to return None so _send_turn_state_on_reconnect
-    # skips cleanly (MockGameService's _MockGameState lacks round_state)
-    sm._game_service.get_game_state = lambda gid: None
-
-    return ticket
+        assert client.app.state.session_manager.get_game("test_game") is not None
+        yield tickets[0]
 
 
 class TestWebSocketReconnect:
     @pytest.fixture
     def client(self):
-        game_service = MockGameService()
-        app = create_app(
-            game_service=game_service,
-            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
-        )
+        session_manager = make_session_manager()
+        app = create_app(game_service=session_manager._game_service, session_manager=session_manager)
         with TestClient(app) as client:
             yield client
 
@@ -103,9 +79,7 @@ class TestWebSocketReconnect:
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-        ticket = _start_game_and_get_ticket(client)
-
-        with client.websocket_connect("/ws/test_game") as ws:
+        with _game_with_player1_dropped(client) as ticket, client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,
                 {
@@ -119,9 +93,7 @@ class TestWebSocketReconnect:
             assert msg["s"] == 0
 
     def test_reconnect__when_ticket_invalid__should_return_invalid_ticket_error(self, client):
-        _start_game_and_get_ticket(client)
-
-        with client.websocket_connect("/ws/test_game") as ws:
+        with _game_with_player1_dropped(client), client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,
                 {
@@ -133,52 +105,24 @@ class TestWebSocketReconnect:
             assert msg["type"] == SessionMessageType.ERROR
             assert msg["code"] == SessionErrorCode.INVALID_TICKET
 
-    def test_reconnect__when_game_already_cleaned_up__should_return_game_gone_error(self, client):
-        sm = client.app.state.session_manager
+    def test_reconnect__when_game_already_ended__should_return_no_session_error(self, client):
         tickets = create_pending_game(client, game_id="test_game")
-
-        # Start and leave via WebSocket (1 human = game gets cleaned up)
-        ticket = None
         with client.websocket_connect("/ws/test_game") as ws:
             join_game_and_start(ws, tickets[0])
-            for session in sm._session_store._sessions.values():
-                if session.player_name == "Player1" and session.game_id == "test_game":
-                    ticket = session.session_token
-                    break
-            assert ticket is not None
 
-        # game was cleaned up (last human left)
-        assert sm.get_game("test_game") is None
-
-        # re-inject a disconnected session for the gone game (keyed by the ticket string)
-        session = SessionData(
-            session_token=ticket,
-            player_name="Player1",
-            game_id="test_game",
-            seat=0,
-            disconnected_at=time.monotonic(),
-        )
-        sm._session_store._sessions[ticket] = session
+        assert client.app.state.session_manager.get_game("test_game") is None
 
         with client.websocket_connect("/ws/test_game") as ws:
-            send_ws(
-                ws,
-                {
-                    "t": WireClientMessageType.RECONNECT,
-                    "game_ticket": ticket,
-                },
-            )
+            send_ws(ws, {"t": WireClientMessageType.RECONNECT, "game_ticket": tickets[0]})
             msg = recv_ws(ws)
             assert msg["type"] == SessionMessageType.ERROR
-            assert msg["code"] == SessionErrorCode.RECONNECT_GAME_GONE
+            assert msg["code"] == SessionErrorCode.RECONNECT_NO_SESSION
 
     def test_reconnect__when_action_sent_after_reconnect__should_process_it(self, client):
         sm = client.app.state.session_manager
         snapshot = _make_snapshot("test_game", seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-        ticket = _start_game_and_get_ticket(client)
-
-        with client.websocket_connect("/ws/test_game") as ws:
+        with _game_with_player1_dropped(client) as ticket, client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,
                 {

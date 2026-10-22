@@ -39,9 +39,9 @@ class TurnTimer:
     (drains only when base time expires). Meld decisions use a separate fixed timer.
     """
 
-    def __init__(self, config: TimerConfig | None = None, bank_seconds: float | None = None) -> None:
-        self._config = config or TimerConfig()
-        self._bank_seconds: float = bank_seconds if bank_seconds is not None else self._config.initial_bank_seconds
+    def __init__(self, config: TimerConfig) -> None:
+        self._config = config
+        self._bank_seconds: float = config.initial_bank_seconds
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
         self._generation = 0
@@ -60,13 +60,6 @@ class TurnTimer:
         superseded while it waited.
         """
         return self._generation
-
-    @property
-    def bank_seconds(self) -> float:
-        """
-        Remaining bank time (seconds).
-        """
-        return self._bank_seconds
 
     def add_round_bonus(self) -> None:
         """
@@ -105,12 +98,6 @@ class TurnTimer:
         Stop the active timer and deduct elapsed time from bank.
         """
         self.cancel()
-        self._deduct_bank_time()
-
-    def consume_bank(self) -> None:
-        """
-        Deduct elapsed bank time without touching the task (for the timeout callback of this timer).
-        """
         self._deduct_bank_time()
 
     def cancel(self) -> None:

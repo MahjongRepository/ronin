@@ -1,22 +1,24 @@
+import asyncio
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.session.timer import TimerConfig
-
 if TYPE_CHECKING:
     from game.logic.service import Awaiting
     from game.messaging.protocol import ConnectionProtocol
-    from shared.dal.models import GameEndReason, PlayedGame
+    from game.session.replay_collector import ReplayRecord
+    from game.session.timer import TimerConfig, TurnTimer
+    from shared.dal.models import PlayedGame
 
 
 class PlayerSpec(BaseModel):
     """
     Player info for direct game creation.
 
-    The game_ticket field is the signed game ticket string -- the game server uses it as the session token in
-    SessionStore, so clients can later present the same ticket in JOIN_GAME to match their session.
+    The game_ticket field is the signed game ticket string: the game server keys the player's participant by it for the
+    whole game, so clients present the same ticket in JOIN_GAME and RECONNECT.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -26,78 +28,90 @@ class PlayerSpec(BaseModel):
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
-@dataclass
-class SessionData:
+class GameLifecycle(StrEnum):
     """
-    Persistent session identity that survives WebSocket disconnects.
+    Where a game is in its life: PENDING → PLAYING → ENDING → CLOSED, or PENDING → ENDING.
 
-    Track a player's session across connection lifecycle events. A session is created when the lobby creates a pending
-    game and cleaned up when the game ends.
+    PENDING waits for the expected humans' JOIN_GAME; PLAYING is set synchronously at the start; ENDING is claimed once,
+    synchronously, by the one end (completion, failure or abandonment), which also releases the game from the registry;
+    CLOSED is set by the finalizer once the end's effects (replay, finish record, closes) are done.
     """
 
-    session_token: str
-    player_name: str
-    game_id: str
-    user_id: str = ""  # from verified game ticket, for audit/logging
+    PENDING = "pending"
+    PLAYING = "playing"
+    ENDING = "ending"
+    CLOSED = "closed"
+
+
+@dataclass(eq=False)
+class Participant:
+    """
+    One expected human of a game, from POST /games to the game's end, across any number of connections.
+
+    The seat is bound once, at the start, from the engine's assignment for this participant's spec. The participant is
+    connected while it has a connection. Its timer lives as long as the participant, so its bank survives a disconnect.
+    """
+
+    spec: PlayerSpec
+    game: GameSession
+    timer: TurnTimer
     seat: int | None = None
-    disconnected_at: float | None = None  # time.monotonic() timestamp, None if connected
-    remaining_bank_seconds: float | None = None  # preserved bank time for reconnection
-
-
-@dataclass
-class Player:
-    """
-    Represent a connected player in the session layer.
-
-    Lifecycle:
-    - Created when joining a pending game via JOIN_GAME (game_id is set)
-    - On game start (_start_mahjong_game): seat is assigned
-    - On leave_game: game_id and seat are cleared to None
-    - On unregister: Player is removed from the registry entirely
-    """
-
-    connection: ConnectionProtocol
-    name: str
-    session_token: str
-    user_id: str = ""  # from verified game ticket
-    game_id: str | None = None
-    seat: int | None = None
+    connection: ConnectionProtocol | None = None
 
     @property
-    def connection_id(self) -> str:
-        return self.connection.connection_id
+    def name(self) -> str:
+        return self.spec.name
+
+    @property
+    def user_id(self) -> str:
+        return self.spec.user_id
+
+    @property
+    def ticket(self) -> str:
+        return self.spec.game_ticket
+
+    @property
+    def is_connected(self) -> bool:
+        return self.connection is not None
 
 
-@dataclass
-class Game:
+@dataclass(eq=False)
+class GameSession:
     """
-    A game in the session layer: its players, pacing and lifecycle.
+    A game in the session layer: its participants, pacing, lifecycle and what its end needs.
 
-    awaiting is what the engine last reported the game waits for (set from the game start on); the session drives the
-    timers from it and checks an action's wait id against it. start_record is the game's record as posted at start (seat
-    order, every seat's name and user_id), set once right after the engine starts the game; its finish record is built
-    from it, whichever path ends the game.
+    awaiting is what the engine last reported the game waits for (set from the start on); the session drives the timers
+    from it and checks an action's wait id against it. start_record is the game's record as posted at the start (seat
+    order, every seat's name and user_id); every finish record is built from it. replay holds the lines recorded since
+    the start until the end claim detaches them. The lock serializes everything that touches the game, for its whole
+    life.
     """
 
     game_id: str
-    started: bool = False
-    end_reason: GameEndReason | None = None
-    players: dict[str, Player] = field(default_factory=dict)
-    timer_config: TimerConfig = field(default_factory=TimerConfig)
+    timer_config: TimerConfig
+    participants: list[Participant] = field(default_factory=list)
+    lifecycle: GameLifecycle = GameLifecycle.PENDING
     awaiting: Awaiting | None = None
     start_record: PlayedGame | None = None
+    replay: ReplayRecord | None = None
+    pending_timeout: asyncio.Task[None] | None = None
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
-    def ended(self) -> bool:
+    def is_active(self) -> bool:
         """
-        Whether a path claimed the game's end: set once, by the completion or by fail_game, before any await.
+        Whether the game is pending or playing: its end has not been claimed.
         """
-        return self.end_reason is not None
+        return self.lifecycle in (GameLifecycle.PENDING, GameLifecycle.PLAYING)
 
-    @property
-    def player_count(self) -> int:
-        return len(self.players)
+    def connected(self) -> list[Participant]:
+        """
+        Return the participants with a connection, in input order.
+        """
+        return [participant for participant in self.participants if participant.is_connected]
 
-    @property
-    def is_empty(self) -> bool:
-        return self.player_count == 0
+    def at_seat(self, seat: int) -> Participant | None:
+        """
+        Return the participant bound to a seat, or None for an AI seat.
+        """
+        return next((participant for participant in self.participants if participant.seat == seat), None)

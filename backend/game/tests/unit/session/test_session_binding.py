@@ -1,88 +1,25 @@
-from game.logic.exceptions import InvalidGameActionError
-from game.session.models import Game, Player
+from game.messaging.types import SessionErrorCode
 from game.tests.mocks import MockConnection
 
-from .helpers import create_started_game
+from .helpers import create_started_game, participant_of
 
 
 class TestSeatBindingOnStart:
-    async def test_session_binding__when_game_starts__should_bind_seat_to_each_session(self, manager):
+    async def test_session_binding__when_game_starts__should_bind_seat_to_each_participant(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        player1 = manager._players.get(conns[0].connection_id)
-        player2 = manager._players.get(conns[1].connection_id)
-        session1 = manager._session_store._sessions.get(player1.session_token)
-        session2 = manager._session_store._sessions.get(player2.session_token)
-        assert session1 is not None
-        assert session2 is not None
-        assert session1.seat == 0
-        assert session2.seat == 1
-
-
-class TestSessionDisconnect:
-    async def test_session_binding__when_player_leaves_started_game__should_mark_session_disconnected(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-
-        player1 = manager._players.get(conns[0].connection_id)
-        token1 = player1.session_token
-
-        await manager.leave_game(conns[0])
-        session = manager._session_store._sessions.get(token1)
-        assert session is not None
-        assert session.disconnected_at is not None
-
-    async def test_session_binding__when_game_missing_on_leave__should_remove_session(self, manager):
-        conns = await create_started_game(manager)
-
-        player = manager._players.get(conns[0].connection_id)
-        token = player.session_token
-
-        # simulate game mapping disappearing (race condition / defensive path)
-        manager._games.pop("game1", None)
-        await manager.leave_game(conns[0])
-        session = manager._session_store._sessions.get(token)
-        assert session is None
+        assert [participant_of(manager, conn).seat for conn in conns] == [0, 1]
 
 
 class TestSessionCleanup:
-    async def test_session_binding__when_all_players_leave__should_remove_sessions_and_game(self, manager):
+    async def test_session_binding__when_all_players_leave__should_release_the_game_and_its_tickets(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
+        alice_ticket = participant_of(manager, conns[0]).ticket
 
-        player1 = manager._players.get(conns[0].connection_id)
-        player2 = manager._players.get(conns[1].connection_id)
-        token1 = player1.session_token
-        token2 = player2.session_token
-
-        # both leave, triggering cleanup
         await manager.leave_game(conns[0])
         await manager.leave_game(conns[1])
-        assert manager._session_store._sessions.get(token1) is None
-        assert manager._session_store._sessions.get(token2) is None
         assert manager.get_game("game1") is None
 
-
-class TestInvalidActionSessionTracking:
-    async def test_session_binding__when_invalid_action_handled__should_mark_session_disconnected(self, manager):
-        conn = MockConnection()
-        manager.register_connection(conn)
-        game_obj = Game(game_id="game1")
-        game_obj.started = True
-        manager._games["game1"] = game_obj
-
-        # manually create player with session
-        session = manager._session_store.create_session(player_name="Alice", game_id="game1")
-        player = Player(
-            connection=conn,
-            name="Alice",
-            session_token=session.session_token,
-            game_id="game1",
-            seat=0,
-        )
-        game_obj.players[conn.connection_id] = player
-        manager._players[conn.connection_id] = player
-        manager._connections[conn.connection_id] = conn
-
-        error = InvalidGameActionError(seat=0, action="discard", reason="test error")
-        await manager._kick_player(game_obj, conn, player=player, error=error)
-        session_after = manager._session_store._sessions.get(session.session_token)
-        assert session_after is not None
-        assert session_after.disconnected_at is not None
+        reconnecting = MockConnection()
+        manager.register_connection(reconnecting)
+        await manager.reconnect(reconnecting, game_id="game1", session_token=alice_ticket)
+        assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_NO_SESSION]
