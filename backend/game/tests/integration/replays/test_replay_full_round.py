@@ -3,7 +3,7 @@ from pathlib import Path
 from game.logic.enums import GamePhase
 from game.logic.events import EventType, GameEndedEvent
 from game.logic.rng import RNG_VERSION
-from game.replay import run_replay_async
+from game.replay import run_replay
 from game.replay.loader import load_replay_from_file
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "full_round"
@@ -12,14 +12,14 @@ PLAYERS = {"Akagi", "Wanjirou", "Ichihime", "Ojisan"}
 STARTING_SCORE = 25000
 
 
-async def test_replay_runner__when_full_game_replayed__should_end_with_conserved_ordered_standings():
+def test_replay_runner__when_full_game_replayed__should_end_with_conserved_ordered_standings():
     replay = load_replay_from_file(FIXTURES_DIR / "full_game.txt")
     assert isinstance(replay.seed, str)
     assert len(replay.seed) == 192
     assert replay.rng_version == RNG_VERSION
     assert set(replay.player_names) == PLAYERS
 
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     # --- Trace structure ---
     assert trace.seed == replay.seed
     assert trace.rng_version == RNG_VERSION

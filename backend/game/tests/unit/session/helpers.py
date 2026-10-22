@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING
 
 from game.logic.enums import WindName
 from game.logic.settings import NUM_PLAYERS
-from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import GameView, PlayerView
 from game.messaging.types import SessionMessageType
 from game.session.models import Game, Player, PlayerSpec
+from game.session.timer import TimerConfig, TurnTimer
 from game.session.timer_manager import TimerFiring
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection
@@ -121,7 +121,7 @@ def fire_turn_timer_now(manager: SessionManager, *, game_id: str, seat: int) -> 
     timer = manager._timer_manager.get_timer(game_id, seat)
     assert timer is not None
     configured = timer._config
-    timer._config = TimerConfig(base_turn_seconds=0, initial_bank_seconds=0)
+    timer._config = TimerConfig(base_turn_seconds=0)
     timer._bank_seconds = 0
     manager._timer_manager.start_turn_timer(game_id, seat)
     timer._config = configured

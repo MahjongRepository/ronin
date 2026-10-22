@@ -24,6 +24,10 @@ changes.
 * Player type is a service-layer fact: `MahjongPlayer` has no AI flag, only
   `AIPlayerController.is_ai_player(seat)` knows. Names and AI flags go out once in `game_started`;
   later events use seats.
+* The engine never suspends: no asyncio, no clock. Every `GameService` method is synchronous and returns
+  with its state committed, so a caller needs no liveness re-check around an engine call. Pacing (turn,
+  bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`), never a
+  `GameSettings` field.
 * Per-game side state lives in narrow trackers with a `cleanup_game()`: `FuritenTracker` (emits
   `FuritenEvent` on change) and `RoundAdvanceManager` (who still has to confirm the round end; AI
   seats are pre-confirmed).

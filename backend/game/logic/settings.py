@@ -53,7 +53,7 @@ class GameSettings(BaseModel):
     All fields have default values matching the current hardcoded behavior.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     # --- Game Structure ---
     game_type: GameType = GameType.HANCHAN
@@ -137,15 +137,6 @@ class GameSettings(BaseModel):
     daisangen_pao_set_threshold: int = 3
     daisuushii_pao_set_threshold: int = 4
 
-    # --- Timer / Round Pacing Settings ---
-    base_turn_seconds: float = 5
-    initial_bank_seconds: float = 20
-    max_bank_seconds: float = 60
-    round_bonus_seconds: float = 10
-    meld_decision_seconds: float = 5
-    round_advance_timeout_seconds: float = 15
-    pending_game_timeout_seconds: float = 10
-
 
 NUM_PLAYERS = 4
 MAX_AI_PLAYERS = NUM_PLAYERS - 1
@@ -154,32 +145,6 @@ MAX_AI_PLAYERS = NUM_PLAYERS - 1
 # NUM_PLAYERS.  The caller (check_game_end) selects which threshold is the
 # primary wind boundary based on game_type.
 WIND_THRESHOLDS: tuple[int, int, int] = (NUM_PLAYERS, NUM_PLAYERS * 2, NUM_PLAYERS * 3)
-
-
-def _validate_timer_settings(settings: GameSettings, errors: list[str]) -> None:
-    """
-    Validate timer-related settings are within acceptable ranges.
-    """
-    if settings.base_turn_seconds < 0:
-        errors.append("base_turn_seconds must be non-negative")
-
-    if settings.initial_bank_seconds <= 0:
-        errors.append("initial_bank_seconds must be positive")
-
-    if settings.max_bank_seconds < settings.initial_bank_seconds:
-        errors.append("max_bank_seconds must be >= initial_bank_seconds")
-
-    if settings.round_bonus_seconds < 0:
-        errors.append("round_bonus_seconds must be non-negative")
-
-    if settings.meld_decision_seconds <= 0:
-        errors.append("meld_decision_seconds must be positive")
-
-    if settings.round_advance_timeout_seconds <= 0:
-        errors.append("round_advance_timeout_seconds must be positive")
-
-    if settings.pending_game_timeout_seconds <= 0:
-        errors.append("pending_game_timeout_seconds must be positive")
 
 
 def validate_settings(settings: GameSettings) -> None:
@@ -204,8 +169,6 @@ def validate_settings(settings: GameSettings) -> None:
 
     if sum(settings.uma) != 0:
         errors.append(f"uma values must sum to zero, got {sum(settings.uma)}")
-
-    _validate_timer_settings(settings, errors)
 
     if errors:
         raise UnsupportedSettingsError("; ".join(errors))

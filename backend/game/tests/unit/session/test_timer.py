@@ -1,10 +1,18 @@
 import asyncio
 
-from game.logic.timer import TimerConfig, TurnTimer
+import pytest
+from pydantic import ValidationError
+
+from game.session.timer import TimerConfig, TurnTimer
 
 
 async def _noop() -> None:
     pass
+
+
+def test_timer_config__when_max_bank_below_initial_bank__should_raise():
+    with pytest.raises(ValidationError, match="max_bank_seconds must be >= initial_bank_seconds"):
+        TimerConfig(max_bank_seconds=5, initial_bank_seconds=20)
 
 
 class TestTurnTimerTurnTimer:
@@ -101,7 +109,7 @@ class TestTurnTimerBankEdgeCases:
 
 class TestTimerCallbackOwnership:
     async def test_turn_timer__when_callback_restarts_its_own_timer__should_finish_and_keep_the_successor(self):
-        timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0))
+        timer = TurnTimer(TimerConfig(base_turn_seconds=0), bank_seconds=0)
         finished: list[str] = []
 
         async def restart_then_suspend():

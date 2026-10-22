@@ -1,7 +1,7 @@
 import asyncio
 import threading
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 
 from game.logic.enums import CallType, GameAction, MeldViewType, TimeoutType
 from game.logic.events import (
@@ -16,7 +16,6 @@ from game.logic.events import (
     SeatTarget,
     ServiceEvent,
 )
-from game.logic.timer import TimerConfig, TurnTimer
 from game.logic.types import (
     ExhaustiveDrawResult,
     PlayerStanding,
@@ -26,6 +25,7 @@ from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
 from game.session.models import Game, Player
 from game.session.replay_collector import ReplayCollector
+from game.session.timer import TimerConfig, TurnTimer
 from game.tests.mocks import MockConnection, MockGameRepository, MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
@@ -106,7 +106,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-        await manager._maybe_start_timer(game, [draw_event])
+        manager._maybe_start_timer(game, [draw_event])
         # timer should have an active task (turn timer started)
         assert timer._active_task is not None
 
@@ -129,7 +129,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-        await manager._maybe_start_timer(game, [meld_event])
+        manager._maybe_start_timer(game, [meld_event])
         # timer should have an active task (turn timer started from pon meld)
         assert timer._active_task is not None
 
@@ -153,7 +153,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-        await manager._maybe_start_timer(game, [call_event])
+        manager._maybe_start_timer(game, [call_event])
         # timer should have an active task (meld timer started)
         assert timer._active_task is not None
 
@@ -174,7 +174,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-        await manager._maybe_start_timer(game, [round_event])
+        manager._maybe_start_timer(game, [round_event])
         config = TimerConfig()
         assert timer._bank_seconds == initial_bank + config.round_bonus_seconds
 
@@ -199,7 +199,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-        await manager._maybe_start_timer(game, [round_end_event])
+        manager._maybe_start_timer(game, [round_end_event])
         # timer should have an active task (round advance timer started)
         assert timer._active_task is not None
         # fixed timer doesn't consume bank time
@@ -224,7 +224,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=BroadcastTarget(),
         )
-        await manager._maybe_start_timer(game, [game_end_event])
+        manager._maybe_start_timer(game, [game_end_event])
         # timer task should not be started (game ended)
         assert timer._active_task is None
 
@@ -245,7 +245,7 @@ class TestSessionManagerTimerIntegration:
             target=BroadcastTarget(),
         )
         # should return without error
-        await manager._maybe_start_timer(game, [generic_event])
+        manager._maybe_start_timer(game, [generic_event])
 
     async def test_maybe_start_timer__when_no_player_at_event_seat__should_not_start_timer(self, manager):
         game = Game(game_id="game1")
@@ -268,7 +268,7 @@ class TestSessionManagerTimerIntegration:
             ),
             target=SeatTarget(seat=0),
         )
-        await manager._maybe_start_timer(game, [draw_event])
+        manager._maybe_start_timer(game, [draw_event])
         assert timer._active_task is None
 
 
@@ -317,7 +317,7 @@ class TestPerPlayerTimers:
             ),
             target=SeatTarget(seat=0),
         )
-        await manager._maybe_start_timer(game, [round_event])
+        manager._maybe_start_timer(game, [round_event])
         config = TimerConfig()
         assert timer0._bank_seconds == initial_bank_0 + config.round_bonus_seconds
         assert timer1._bank_seconds == initial_bank_1 + config.round_bonus_seconds
@@ -353,7 +353,7 @@ class TestPerPlayerTimers:
                 target=SeatTarget(seat=1),
             ),
         ]
-        await manager._maybe_start_timer(game, call_events)
+        manager._maybe_start_timer(game, call_events)
         # both timers should have active tasks (meld timer started for each)
         assert timer0._active_task is not None
         assert timer1._active_task is not None
@@ -392,7 +392,7 @@ class TestPerPlayerTimers:
                 target=SeatTarget(seat=1),
             ),
         ]
-        await manager._maybe_start_timer(game, call_events)
+        manager._maybe_start_timer(game, call_events)
         assert timer0._active_task is not None
         assert timer1._active_task is not None
 
@@ -435,12 +435,12 @@ class TestPerPlayerTimers:
                 target=SeatTarget(seat=1),
             ),
         ]
-        await manager._maybe_start_timer(game, call_events)
+        manager._maybe_start_timer(game, call_events)
         assert timer0._active_task is not None
         assert timer1._active_task is not None
 
         # mock returns empty events (partial pass, other callers still pending)
-        manager._game_service.handle_action = AsyncMock(return_value=[])
+        manager._game_service.handle_action = MagicMock(return_value=[])
         conn1._outbox.clear()
         await manager.handle_game_action(conn1, action=GameAction.PASS, data={})
         # seat 0's timer should be stopped, seat 1's timer should still be running
@@ -525,7 +525,7 @@ class TestTimerCallbackLifecycle:
         )
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
-        seeded_engine.handle_timeout = AsyncMock(side_effect=RuntimeError("engine fault"))
+        seeded_engine.handle_timeout = MagicMock(side_effect=RuntimeError("engine fault"))
 
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await wait_for_background_tasks(manager)

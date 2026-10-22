@@ -16,7 +16,6 @@ from game.replay.models import (
 from game.replay.runner import (
     ReplayServiceProtocol,
     run_replay,
-    run_replay_async,
 )
 
 __all__ = [
@@ -33,5 +32,4 @@ __all__ = [
     "load_replay_from_file",
     "load_replay_from_string",
     "run_replay",
-    "run_replay_async",
 ]

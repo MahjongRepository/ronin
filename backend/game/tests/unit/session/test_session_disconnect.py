@@ -1,5 +1,6 @@
 import asyncio
-from unittest.mock import AsyncMock
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
@@ -8,6 +9,13 @@ from game.tests.mocks import MockConnection, MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game, run_timeout
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    import pytest
+
+    from game.session.manager import SessionManager
 
 
 class TestSessionManagerDisconnect:
@@ -83,7 +91,7 @@ class TestSessionManagerDisconnect:
             ),
             target=BroadcastTarget(),
         )
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=[ai_player_event],
         )
 
@@ -134,74 +142,73 @@ class TestSessionManagerDisconnect:
         assert session.disconnected_at is not None
 
 
+class _FirstSendHold:
+    def __init__(self, send: Callable[[bytes], Awaitable[None]], order: list[str]) -> None:
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self._order = order
+        self._send = send
+
+    async def send(self, data: bytes) -> None:
+        if self.entered.is_set():
+            await self._send(data)
+            return
+
+        self.entered.set()
+        await self.release.wait()
+        await self._send(data)
+        self._order.append("held_send_done")
+
+
+async def _let_ready_tasks_run() -> None:
+    for _ in range(20):
+        await asyncio.sleep(0)
+
+
+def _track_replacements(manager: SessionManager, order: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    original_replace = manager._game_service.replace_with_ai_player
+
+    def tracking_replace(game_id: str, player_name: str) -> None:
+        order.append(f"replace {player_name}")
+        return original_replace(game_id, player_name)
+
+    monkeypatch.setattr(manager._game_service, "replace_with_ai_player", tracking_replace)
+
+
 class TestLockBoundaryRaces:
-    async def test_lock_boundary__when_leave_races_game_action__should_not_replace_mid_action(self, manager):
+    async def test_lock_boundary__when_leave_arrives_during_action_broadcast__should_replace_after_the_send(
+        self, manager, monkeypatch
+    ):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        order: list[str] = []
+        _track_replacements(manager, order, monkeypatch)
+        bob_send = _FirstSendHold(conns[1].send_bytes, order)
+        monkeypatch.setattr(conns[1], "send_bytes", bob_send.send)
 
-        execution_order = []
-        original_handle = manager._game_service.handle_action
-        original_replace = manager._game_service.replace_with_ai_player
-        original_process = manager._game_service.process_ai_player_actions_after_replacement
+        action = asyncio.create_task(manager.handle_game_action(conns[1], action=GameAction.DISCARD, data={}))
+        await bob_send.entered.wait()
+        leave = asyncio.create_task(manager.leave_game(conns[0]))
+        await _let_ready_tasks_run()
+        bob_send.release.set()
+        await asyncio.gather(action, leave)
+        assert order == ["held_send_done", "replace Alice"]
 
-        async def slow_handle_action(*, game_id, player_name, action, data):
-            execution_order.append("action_start")
-            await asyncio.sleep(0)
-            result = await original_handle(game_id=game_id, player_name=player_name, action=action, data=data)
-            execution_order.append("action_end")
-            return result
-
-        def tracking_replace(game_id, player_name):
-            execution_order.append("replace_start")
-            return original_replace(game_id, player_name)
-
-        async def tracking_process(game_id, seat):
-            execution_order.append("process_ai_player")
-            return await original_process(game_id, seat)
-
-        manager._game_service.handle_action = slow_handle_action
-        manager._game_service.replace_with_ai_player = tracking_replace
-        manager._game_service.process_ai_player_actions_after_replacement = tracking_process
-
-        # run action and leave concurrently -- they should be serialized by the lock
-        await asyncio.gather(
-            manager.handle_game_action(conns[1], action=GameAction.DISCARD, data={}),
-            manager.leave_game(conns[0]),
-        )
-        assert execution_order == ["action_start", "action_end", "replace_start", "process_ai_player"]
-
-    async def test_lock_boundary__when_leave_races_timeout__should_not_replace_mid_timeout(self, manager):
+    async def test_lock_boundary__when_leave_arrives_during_timeout_broadcast__should_replace_after_the_send(
+        self, manager, monkeypatch
+    ):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
+        order: list[str] = []
+        _track_replacements(manager, order, monkeypatch)
+        bob_send = _FirstSendHold(conns[1].send_bytes, order)
+        monkeypatch.setattr(conns[1], "send_bytes", bob_send.send)
 
-        execution_order = []
-        original_timeout = manager._game_service.handle_timeout
-        original_replace = manager._game_service.replace_with_ai_player
-        original_process = manager._game_service.process_ai_player_actions_after_replacement
-
-        async def slow_timeout(*, game_id, player_name, timeout_type):
-            execution_order.append("timeout_start")
-            await asyncio.sleep(0)
-            result = await original_timeout(game_id=game_id, player_name=player_name, timeout_type=timeout_type)
-            execution_order.append("timeout_end")
-            return result
-
-        def tracking_replace(game_id, player_name):
-            execution_order.append("replace_start")
-            return original_replace(game_id, player_name)
-
-        async def tracking_process(game_id, seat):
-            execution_order.append("process_ai_player")
-            return await original_process(game_id, seat)
-
-        manager._game_service.handle_timeout = slow_timeout
-        manager._game_service.replace_with_ai_player = tracking_replace
-        manager._game_service.process_ai_player_actions_after_replacement = tracking_process
-
-        # run timeout and leave concurrently
-        await asyncio.gather(
-            run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=1),
-            manager.leave_game(conns[0]),
-        )
-        assert execution_order == ["timeout_start", "timeout_end", "replace_start", "process_ai_player"]
+        timeout = asyncio.create_task(run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=1))
+        await bob_send.entered.wait()
+        leave = asyncio.create_task(manager.leave_game(conns[0]))
+        await _let_ready_tasks_run()
+        bob_send.release.set()
+        await asyncio.gather(timeout, leave)
+        assert order == ["held_send_done", "replace Alice"]
 
     async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
@@ -236,7 +243,7 @@ class TestLockBoundaryRaces:
 
         lock_was_held = False
 
-        async def check_lock_process(game_id, seat):
+        def check_lock_process(game_id, seat):
             nonlocal lock_was_held
             # the lock should be held (locked) when this is called
             lock_was_held = lock.locked()

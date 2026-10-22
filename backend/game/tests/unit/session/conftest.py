@@ -2,10 +2,10 @@ import pytest
 
 from game.logic import mahjong_service as mahjong_service_module
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.settings import GameSettings
 from game.session import manager as manager_module
 from game.session.manager import SessionManager
 from game.session.models import Game
+from game.session.timer import TimerConfig
 from game.tests.mocks import MockGameService
 
 ENGINE_SEED = "a" * 192
@@ -26,6 +26,6 @@ def seeded_engine(monkeypatch):
 @pytest.fixture
 def short_pending_timeout(monkeypatch):
     def game_with_short_pending_timeout(**fields) -> Game:
-        return Game(settings=GameSettings(pending_game_timeout_seconds=0.01), **fields)
+        return Game(timer_config=TimerConfig(pending_game_timeout_seconds=0.01), **fields)
 
     monkeypatch.setattr(manager_module, "Game", game_with_short_pending_timeout)

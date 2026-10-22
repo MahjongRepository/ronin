@@ -20,7 +20,6 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.logic.exceptions import InvalidGameActionError
-from game.logic.timer import TimerConfig
 from game.messaging.event_payload import service_event_payload, shape_call_prompt_payload
 from game.messaging.types import (
     ErrorMessage,
@@ -458,10 +457,10 @@ class SessionManager:
         # process AI player actions if the replaced player had a pending turn or call.
         # the caller (leave_game) already holds the game lock, so no separate
         # lock acquisition is needed here.
-        events = await self._game_service.process_ai_player_actions_after_replacement(game.game_id, seat)
+        events = self._game_service.process_ai_player_actions_after_replacement(game.game_id, seat)
         if events:
             await self._broadcast_events(game, events)
-            await self._maybe_start_timer(game, events)
+            self._maybe_start_timer(game, events)
 
     async def _kick_player(
         self,
@@ -516,7 +515,7 @@ class SessionManager:
                 self._timer_manager.cancel_other_timers(game_id, player.seat)
 
         await self._broadcast_events(game, events)
-        await self._maybe_start_timer(game, events)
+        self._maybe_start_timer(game, events)
 
     async def _close_kicked_and_cleanup(self, connection: ConnectionProtocol, game: Game) -> None:
         """
@@ -568,7 +567,7 @@ class SessionManager:
                 return
 
             try:
-                events = await self._game_service.handle_action(
+                events = self._game_service.handle_action(
                     game_id=game_id,
                     player_name=player.name,
                     action=action,
@@ -848,11 +847,10 @@ class SessionManager:
         game.players[connection.connection_id] = player
         self._cancel_auth_timeout(connection.connection_id)
 
-        timer_config = TimerConfig.from_settings(game.settings)
         self._timer_manager.add_timer(
             game_id=game.game_id,
             seat=seat,
-            config=timer_config,
+            config=game.timer_config,
             bank_seconds=saved_bank_seconds,
         )
         return player
@@ -927,7 +925,7 @@ class SessionManager:
         self._pending_games[game_id] = pending
 
         pending.timeout_task = self._spawn(
-            self._pending_game_timeout(game, game.settings.pending_game_timeout_seconds),
+            self._pending_game_timeout(game, game.timer_config.pending_game_timeout_seconds),
         )
         logger.info("pending game created", game_id=game_id, expected_count=expected_count)
 
@@ -1248,36 +1246,27 @@ class SessionManager:
         The game may legitimately have no connected player yet (all seats then go to AI substitutes), so the liveness
         checks allow an empty game. Every expected human's seat is bound while the engine still knows them as human; an
         absent one is marked disconnected, so it can RECONNECT, and then replaced by an AI player.
+
+        The liveness check after recording the start guards the only await teardown can interleave with; today's SQLite
+        repository never suspends, so it goes live only once persistence moves off the event loop.
         """
         if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             return
 
         game.started = True
         player_names = [spec.name for spec in player_specs]
-        events = await self._game_service.start_game(game.game_id, player_names, settings=game.settings)
-
-        # Second liveness check: if all players disconnected during the
-        # start_game await, leave_game may have cleaned the game from _games.
-        # Clean up the service state that start_game just created and bail out.
-        if not self._is_game_alive(game):  # pragma: no cover — race condition guard
-            self._game_service.cleanup_game(game.game_id)
-            return
+        events = self._game_service.start_game(game.game_id, player_names, settings=game.settings)
 
         self._start_replay_collection(game.game_id)
         await self._record_game_start(game, user_ids_by_name={spec.name: spec.user_id for spec in player_specs})
 
-        # Third liveness check: if all players disconnected during the
-        # _record_game_start await, _cleanup_empty_game already removed
-        # the game and cleaned up service/replay state. Bail out to
-        # avoid creating stale lock/timer/heartbeat entries.
         if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             return
 
         absent_seats = self._bind_seats(game, player_specs)
 
         seats = [p.seat for p in game.players.values() if p.seat is not None]
-        timer_config = TimerConfig.from_settings(game.settings)
-        self._timer_manager.create_timers(game_id=game.game_id, seats=seats, config=timer_config)
+        self._timer_manager.create_timers(game_id=game.game_id, seats=seats, config=game.timer_config)
         self._game_locks[game.game_id] = asyncio.Lock()
         self._heartbeat.start_for_game(
             game.game_id,
@@ -1287,7 +1276,7 @@ class SessionManager:
 
         async with self._game_locks[game.game_id]:
             await self._broadcast_events(game, events)
-            await self._maybe_start_timer(game, events)
+            self._maybe_start_timer(game, events)
             await self._replace_absent_players(game, absent_seats)
 
     def _bind_seats(self, game: Game, player_specs: list[PlayerSpec]) -> dict[str, int]:
@@ -1379,7 +1368,7 @@ class SessionManager:
     ) -> None:
         await broadcast_to_players(players=game.players, message=message, exclude_connection_id=exclude_connection_id)
 
-    async def _maybe_start_timer(self, game: Game, events: list[ServiceEvent]) -> None:
+    def _maybe_start_timer(self, game: Game, events: list[ServiceEvent]) -> None:
         """
         Inspect events and delegate timer actions to TimerManager.
         """
@@ -1674,8 +1663,8 @@ class SessionManager:
             if timeout_type == TimeoutType.TURN:
                 self._timer_manager.consume_bank(game_id, seat)
 
-            events = await self._game_service.handle_timeout(
+            events = self._game_service.handle_timeout(
                 game_id=game_id, player_name=player.name, timeout_type=timeout_type
             )
             await self._broadcast_events(game, events)
-            await self._maybe_start_timer(game, events)
+            self._maybe_start_timer(game, events)

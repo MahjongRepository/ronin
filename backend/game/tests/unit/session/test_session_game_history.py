@@ -1,5 +1,5 @@
 from datetime import datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -106,7 +106,7 @@ class TestGameCompletionRecording:
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
-        manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
 
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         game_repo.finish_game.assert_called_once()
@@ -142,7 +142,7 @@ class TestGameCompletionRecording:
                 target=BroadcastTarget(),
             ),
         ]
-        manager_with_repo._game_service.handle_action = AsyncMock(return_value=events)
+        manager_with_repo._game_service.handle_action = MagicMock(return_value=events)
 
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         call_kwargs = game_repo.finish_game.call_args.kwargs
@@ -173,7 +173,7 @@ class TestGameCompletionRecording:
             player_names=["Alice", "Bob"],
         )
 
-        manager_with_repo._game_service.handle_action = AsyncMock(
+        manager_with_repo._game_service.handle_action = MagicMock(
             return_value=_make_game_end_events(num_rounds=8),
         )
 
@@ -187,7 +187,7 @@ class TestGameCompletionRecording:
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
-        manager_with_repo._game_service.handle_timeout = AsyncMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_timeout = MagicMock(return_value=_make_game_end_events())
 
         await run_timeout(manager_with_repo, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         recorded = game_repo.games["game1"]
@@ -203,7 +203,7 @@ class TestGameCompletionRecording:
         )
 
         game_repo.finish_game = AsyncMock(side_effect=RuntimeError("DB write failed"))
-        manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
 
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         # connections should still be closed despite the DB error
@@ -220,7 +220,7 @@ class TestGameCompletionRecording:
         )
 
         game_repo.get_game = AsyncMock(side_effect=RuntimeError("DB read failed"))
-        manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
 
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert conns[0].is_closed
@@ -244,7 +244,7 @@ class TestGameAbandonmentRecording:
             num_ai_players=2,
             player_names=["Alice", "Bob"],
         )
-        manager_with_repo._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
 
         await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         # finish_game should be called exactly once with "completed".

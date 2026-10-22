@@ -60,7 +60,9 @@ per-game lock.
   timeout fail their game on an unexpected error.
 * **Timers** (`TurnTimer`, one per player): each turn gets base time (5s), then a bank (20s start,
   +10s per round, 60s cap) that drains only past the base time. Meld-call and round-advance timers
-  are fixed and never touch the bank.
+  are fixed and never touch the bank. Every game pacing duration (turn, bank, meld, round advance,
+  pending timeout) comes from the game's `TimerConfig` (`Game.timer_config`), the session's one pacing
+  model; the engine has none. Connection-level timing (auth timeout, heartbeat) is not pacing.
 * **Replays:** `ReplayCollector` keeps broadcast events plus each seat's draws (without available
   actions), merges the per-seat `round_started` views into one record holding every hand, adds the
   seed to `game_started`, and saves gzip NDJSON with a version line on game end.

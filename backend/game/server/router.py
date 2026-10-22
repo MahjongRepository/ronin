@@ -177,7 +177,7 @@ class MessageRouter:
         except Exception as exc:  # noqa: BLE001
             await self._session_manager.fail_connection(connection, game, reason="game action failed", exc=exc)
 
-    async def handle_connect(self, connection: ConnectionProtocol) -> None:
+    def handle_connect(self, connection: ConnectionProtocol) -> None:
         self._session_manager.register_connection(connection)
 
     async def handle_disconnect(self, connection: ConnectionProtocol) -> None:

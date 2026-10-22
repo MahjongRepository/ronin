@@ -177,7 +177,7 @@ class TestFailGame:
 
     async def test_pending_game_timeout__when_game_start_raises__should_fail_the_game(self, short_pending_timeout):
         game_service = MockGameService()
-        game_service.start_game = AsyncMock(side_effect=RuntimeError("start failed"))
+        game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
         manager = SessionManager(game_service)
         manager.create_pending_game(
             game_id="game1",
@@ -402,10 +402,10 @@ class TestGameEndFromAction:
         self, manager
     ):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=_make_game_end_events(),
         )
-        manager._game_service.handle_action = AsyncMock(
+        manager._game_service.handle_action = MagicMock(
             side_effect=InvalidGameActionError(action="discard", seat=0, reason="tile not in hand"),
         )
 
@@ -415,7 +415,7 @@ class TestGameEndFromAction:
 
     async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
-        manager._game_service.handle_action = AsyncMock(return_value=_make_game_end_events())
+        manager._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert conns[0].is_closed
@@ -428,11 +428,11 @@ class TestGameEndFromAction:
     ):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=_make_game_end_events(),
         )
         error = InvalidGameActionError(action="discard", seat=0, reason="bad tile")
-        manager._game_service.handle_action = AsyncMock(side_effect=error)
+        manager._game_service.handle_action = MagicMock(side_effect=error)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         # Offender closed with 1008 (invalid action)
@@ -473,7 +473,7 @@ class TestGameEndFromLeaveGame:
     async def test_game_end__when_ai_replacement_after_leave_ends_game__should_close_remaining_with_1000(self, manager):
         conns = await create_started_game(manager, num_ai_players=2, player_names=["Alice", "Bob"])
 
-        manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=_make_game_end_events(),
         )
 

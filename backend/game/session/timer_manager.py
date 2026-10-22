@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, cast
 import structlog
 
 from game.logic.enums import TimeoutType
-from game.logic.timer import TimerConfig, TurnTimer
+from game.session.timer import TimerConfig, TurnTimer
 from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
@@ -164,7 +164,7 @@ class TimerManager:
         if timers is None:
             return
 
-        timeout = game.settings.round_advance_timeout_seconds
+        timeout = game.timer_config.round_advance_timeout_seconds
         for player in list(game.players.values()):
             if player.seat is not None:
                 timer = timers.get(player.seat)

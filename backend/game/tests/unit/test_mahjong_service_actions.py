@@ -26,8 +26,8 @@ class TestMahjongGameServiceErrors:
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_action__when_game_not_found__should_return_error_event(self, service):
-        events = await service.handle_action(
+    def test_handle_action__when_game_not_found__should_return_error_event(self, service):
+        events = service.handle_action(
             game_id="nonexistent", player_name="Player", action=GameAction.DISCARD, data={"tile_id": 0}
         )
         assert any(e.event == EventType.ERROR for e in events)
@@ -35,10 +35,10 @@ class TestMahjongGameServiceErrors:
         assert isinstance(error_event.data, ErrorEvent)
         assert "not found" in error_event.data.message
 
-    async def test_handle_action__when_player_not_in_game__should_return_error_event(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_action__when_player_not_in_game__should_return_error_event(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action(
+        events = service.handle_action(
             game_id="game1", player_name="Unknown", action=GameAction.DISCARD, data={"tile_id": 0}
         )
         assert any(e.event == EventType.ERROR for e in events)
@@ -52,8 +52,8 @@ class TestMahjongGameServiceProcessActionResult:
     def service(self):
         return MahjongGameService()
 
-    async def test_process_action_result__when_chankan_prompt_for_ai_player__should_return_events(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_process_action_result__when_chankan_prompt_for_ai_player__should_return_events(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -86,7 +86,7 @@ class TestMahjongGameServiceProcessActionResult:
             "game.logic.call_resolution.complete_closed_kan_after_chankan_decline",
             return_value=(cleared_round, game_state, []),
         ):
-            events = await service._process_action_result_internal("game1", result)
+            events = service._process_action_result_internal("game1", result)
 
         assert [e.event for e in events] == [EventType.CALL_PROMPT]
 
@@ -96,8 +96,8 @@ class TestProcessActionResultRoundEnd:
     def service(self):
         return MahjongGameService()
 
-    async def test_process_action_result__when_round_ended__should_return_round_end_event(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_process_action_result__when_round_ended__should_return_round_end_event(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
         scores = {i: service._games["game1"].round_state.players[i].score for i in range(4)}
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
@@ -115,7 +115,7 @@ class TestProcessActionResultRoundEnd:
         )
         result = ActionResult(events=[round_end], needs_post_discard=False)
 
-        events = await service._process_action_result_internal("game1", result)
+        events = service._process_action_result_internal("game1", result)
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) == 1
 
@@ -125,8 +125,8 @@ class TestMahjongGameServiceHandleChankanPrompt:
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_chankan_prompt__when_caller_is_human_player__should_return_events_unchanged(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_chankan_prompt__when_caller_is_human_player__should_return_events_unchanged(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
 
@@ -152,11 +152,11 @@ class TestMahjongGameServiceHandleChankanPrompt:
         )
         events = [chankan_prompt]
 
-        result = await service._handle_chankan_prompt("game1", events)
+        result = service._handle_chankan_prompt("game1", events)
         assert result == events
 
-    async def test_handle_chankan_prompt__when_caller_is_ai_player__should_process_its_response(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_chankan_prompt__when_caller_is_ai_player__should_process_its_response(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
 
         ai_player_controller = service._ai_player_controllers["game1"]
@@ -189,12 +189,12 @@ class TestMahjongGameServiceHandleChankanPrompt:
             "game.logic.call_resolution.complete_closed_kan_after_chankan_decline",
             return_value=(cleared_round, game_state, []),
         ):
-            result = await service._handle_chankan_prompt("game1", events)
+            result = service._handle_chankan_prompt("game1", events)
 
         assert [e.event for e in result] == [EventType.CALL_PROMPT]
 
-    async def test_handle_chankan_prompt__when_no_pending_prompt__should_return_events_unchanged(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_chankan_prompt__when_no_pending_prompt__should_return_events_unchanged(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
         chankan_prompt = ServiceEvent(
             event=EventType.CALL_PROMPT,
@@ -209,7 +209,7 @@ class TestMahjongGameServiceHandleChankanPrompt:
         )
         events = [chankan_prompt]
 
-        result = await service._handle_chankan_prompt("game1", events)
+        result = service._handle_chankan_prompt("game1", events)
         assert result == events
 
 
@@ -222,13 +222,13 @@ class TestNoDataActionDispatchRouting:
         "action",
         [GameAction.DECLARE_TSUMO, GameAction.CALL_KYUUSHU],
     )
-    async def test_handle_action__when_no_data_action_out_of_turn__should_return_error_event(self, service, action):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_action__when_no_data_action_out_of_turn__should_return_error_event(self, service, action):
+        service.start_game("game1", ["Player"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Player")
         other_seat = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
-        events = await service.handle_action(game_id="game1", player_name="Player", action=action, data={})
+        events = service.handle_action(game_id="game1", player_name="Player", action=action, data={})
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
 
@@ -239,12 +239,10 @@ class TestNoDataActionDispatchRouting:
             (GameAction.CALL_CHI, {"tile_id": 0, "sequence_tiles": (4, 8)}, GameErrorCode.INVALID_CHI),
         ],
     )
-    async def test_handle_action__when_call_without_call_prompt__should_return_error_event(
-        self, service, action, data, code
-    ):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_action__when_call_without_call_prompt__should_return_error_event(self, service, action, data, code):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
-        events = await service.handle_action(game_id="game1", player_name="Player", action=action, data=data)
+        events = service.handle_action(game_id="game1", player_name="Player", action=action, data=data)
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == code
@@ -255,8 +253,8 @@ class TestChankanPromptResolvedPath:
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_chankan_prompt__when_ai_responses_resolve_prompt__should_check_round_end(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_chankan_prompt__when_ai_responses_resolve_prompt__should_check_round_end(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["game1"]
         ai_player_seats = sorted(ai_player_controller.ai_player_seats)
@@ -282,7 +280,7 @@ class TestChankanPromptResolvedPath:
             ),
             patch.object(service, "_check_and_handle_round_end") as mock_round_end,
         ):
-            result = await service._handle_chankan_prompt("game1", events)
+            result = service._handle_chankan_prompt("game1", events)
 
         assert isinstance(result, list)
         mock_round_end.assert_called_once_with("game1", events)

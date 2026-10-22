@@ -26,7 +26,6 @@ from game.replay.models import (
 from game.replay.runner import (
     ReplayOptions,
     run_replay,
-    run_replay_async,
 )
 
 if TYPE_CHECKING:
@@ -49,7 +48,7 @@ class _StubService:
     def __init__(self) -> None:
         self._inner = MahjongGameService(auto_cleanup=False)
 
-    async def start_game(
+    def start_game(
         self,
         game_id: str,
         player_names: list[str],
@@ -58,9 +57,9 @@ class _StubService:
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
     ) -> list[ServiceEvent]:
-        return await self._inner.start_game(game_id, player_names, seed=seed, wall=wall)
+        return self._inner.start_game(game_id, player_names, seed=seed, wall=wall)
 
-    async def handle_action(
+    def handle_action(
         self,
         *,
         game_id: str,
@@ -68,7 +67,7 @@ class _StubService:
         action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
-        return await self._inner.handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+        return self._inner.handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     def cleanup_game(self, game_id: str) -> None:
         self._inner.cleanup_game(game_id)
@@ -83,9 +82,9 @@ class _StubService:
         return self._inner.get_pending_round_advance_player_names(game_id)
 
 
-async def _async_probe_current_player_discard() -> tuple[str, int]:
+def _probe_current_player_discard() -> tuple[str, int]:
     svc = MahjongGameService(auto_cleanup=False)
-    await svc.start_game("probe", list(PLAYER_NAMES), seed=SEED)
+    svc.start_game("probe", list(PLAYER_NAMES), seed=SEED)
     state = svc.get_game_state("probe")
     assert state is not None
 
@@ -95,11 +94,11 @@ async def _async_probe_current_player_discard() -> tuple[str, int]:
     return player.name, player.tiles[-1]
 
 
-async def test_run_replay_async__when_discard_input__should_trace_discard_step():
-    name, tile = await _async_probe_current_player_discard()
+def test_run_replay__when_discard_input__should_trace_discard_step():
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     assert isinstance(trace, ReplayTrace)
     assert trace.seed == SEED
     assert len(trace.steps) >= 1
@@ -111,28 +110,28 @@ async def test_run_replay_async__when_discard_input__should_trace_discard_step()
     assert trace.steps[0].state_after != trace.steps[0].state_before
 
 
-async def test_run_replay_async__when_strict_and_action_invalid__should_raise_replay_error():
+def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error():
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
 
     with pytest.raises(ReplayError) as exc_info:
-        await run_replay_async(replay)
+        run_replay(replay)
     assert exc_info.value.step_index == 0
     assert exc_info.value.event.player_name == "Bob"
 
 
-async def test_run_replay_async__when_non_strict_and_action_invalid__should_record_error_step():
+def test_run_replay__when_non_strict_and_action_invalid__should_record_error_step():
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
 
-    trace = await run_replay_async(replay, ReplayOptions(strict=False))
+    trace = run_replay(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1
     error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
     assert len(error_events) == 1
 
 
-async def test_run_replay_async__when_non_strict_and_service_raises_invalid_action__should_fail_the_replay():
+def test_run_replay__when_non_strict_and_service_raises_invalid_action__should_fail_the_replay():
 
     class RaisingService(_StubService):
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -144,10 +143,10 @@ async def test_run_replay_async__when_non_strict_and_service_raises_invalid_acti
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(InvalidGameActionError, match="test error"):
-        await run_replay_async(replay, ReplayOptions(strict=False), service_factory=RaisingService)
+        run_replay(replay, ReplayOptions(strict=False), service_factory=RaisingService)
 
 
-async def test_run_replay_async__when_service_factory_given__should_use_it_and_clean_up():
+def test_run_replay__when_service_factory_given__should_use_it_and_clean_up():
     factory_called = False
     cleanup_called = False
 
@@ -163,13 +162,13 @@ async def test_run_replay_async__when_service_factory_given__should_use_it_and_c
             super().cleanup_game(game_id)
 
     replay = _build_replay()
-    trace = await run_replay_async(replay, service_factory=WrappedService)
+    trace = run_replay(replay, service_factory=WrappedService)
     assert isinstance(trace, ReplayTrace)
     assert factory_called
     assert cleanup_called
 
 
-async def test_run_replay_async__when_replay_succeeds_or_fails__should_clean_up_game():
+def test_run_replay__when_replay_succeeds_or_fails__should_clean_up_game():
     cleanup_calls: list[str] = []
 
     class TrackingService(MahjongGameService):
@@ -179,7 +178,7 @@ async def test_run_replay_async__when_replay_succeeds_or_fails__should_clean_up_
 
     # Success case
     replay = _build_replay()
-    await run_replay_async(
+    run_replay(
         replay,
         service_factory=lambda: TrackingService(auto_cleanup=False),
     )
@@ -189,7 +188,7 @@ async def test_run_replay_async__when_replay_succeeds_or_fails__should_clean_up_
     cleanup_calls.clear()
     replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
     with pytest.raises(ReplayError):
-        await run_replay_async(
+        run_replay(
             replay,
             service_factory=lambda: TrackingService(auto_cleanup=False),
         )
@@ -203,32 +202,26 @@ def test_run_replay__should_return_trace_with_seed():
     assert trace.seed == SEED
 
 
-async def test_run_replay__when_called_in_async_context__should_raise():
-    replay = _build_replay()
-    with pytest.raises(RuntimeError, match="cannot be used in async context"):
-        run_replay(replay)
-
-
-async def test_run_replay_async__when_max_steps_zero__should_raise_step_limit_error():
-    name, tile = await _async_probe_current_player_discard()
+def test_run_replay__when_max_steps_zero__should_raise_step_limit_error():
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
     with pytest.raises(ReplayStepLimitError, match="exceeded 0 steps"):
-        await run_replay_async(replay, ReplayOptions(max_steps=0))
+        run_replay(replay, ReplayOptions(max_steps=0))
 
 
-async def test_run_replay_async__should_map_every_player_to_a_seat():
+def test_run_replay__should_map_every_player_to_a_seat():
     replay = _build_replay()
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     assert len(trace.seat_by_player) == 4
     for name in PLAYER_NAMES:
         assert name in trace.seat_by_player
         assert trace.seat_by_player[name] in range(4)
 
 
-async def test_run_replay_async__when_strict_and_input_after_game_end__should_raise():
+def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 
     class FinishedService(_StubService):
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -237,7 +230,7 @@ async def test_run_replay_async__when_strict_and_input_after_game_end__should_ra
             settings: GameSettings | None = None,
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
+            events = super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
@@ -248,13 +241,13 @@ async def test_run_replay_async__when_strict_and_input_after_game_end__should_ra
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
-        await run_replay_async(replay, service_factory=FinishedService)
+        run_replay(replay, service_factory=FinishedService)
 
 
-async def test_run_replay_async__when_non_strict_and_input_after_game_end__should_skip_input():
+def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input():
 
     class FinishedService(_StubService):
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -263,7 +256,7 @@ async def test_run_replay_async__when_non_strict_and_input_after_game_end__shoul
             settings: GameSettings | None = None,
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
+            events = super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
@@ -273,15 +266,15 @@ async def test_run_replay_async__when_non_strict_and_input_after_game_end__shoul
             return events
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
-    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=FinishedService)
+    trace = run_replay(replay, ReplayOptions(strict=False), service_factory=FinishedService)
     assert trace.final_state.game_phase == GamePhase.FINISHED
     assert len(trace.steps) == 0
 
 
-async def test_run_replay_async__when_game_state_disappears__should_raise_invariant_error():
+def test_run_replay__when_game_state_disappears__should_raise_invariant_error():
 
     class DisappearingStateService(_StubService):
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -294,10 +287,10 @@ async def test_run_replay_async__when_game_state_disappears__should_raise_invari
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(ReplayInvariantError, match="game state disappeared after replay action"):
-        await run_replay_async(replay, ReplayOptions(strict=False), service_factory=DisappearingStateService)
+        run_replay(replay, ReplayOptions(strict=False), service_factory=DisappearingStateService)
 
 
-async def test_round_confirmation__when_round_advance_pending__should_inject_synthetic_confirm_steps():
+def test_round_confirmation__when_round_advance_pending__should_inject_synthetic_confirm_steps():
 
     class RoundAdvanceService(_StubService):
         def __init__(self) -> None:
@@ -305,7 +298,7 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
             self._advance_pending = False
             self._advance_players: list[str] = []
 
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -315,9 +308,9 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
             self._advance_players = list(player_names)
-            return await super().start_game(game_id, player_names, seed=seed)
+            return super().start_game(game_id, player_names, seed=seed)
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -334,7 +327,7 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
 
                 return []
 
-            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             self._advance_pending = True
             state = self._inner.get_game_state(game_id)
             assert state is not None
@@ -348,7 +341,7 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
         def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
             return list(self._advance_players) if self._advance_pending else []
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(
         actions=(
             (name, GameAction.DISCARD, {"tile_id": tile}),
@@ -356,21 +349,21 @@ async def test_round_confirmation__when_round_advance_pending__should_inject_syn
         ),
     )
 
-    trace = await run_replay_async(replay, ReplayOptions(strict=False), service_factory=RoundAdvanceService)
+    trace = run_replay(replay, ReplayOptions(strict=False), service_factory=RoundAdvanceService)
     synthetic_confirm_steps = [
         s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND
     ]
     assert len(synthetic_confirm_steps) == 12
 
 
-async def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():
+def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():
 
     class ConfirmErrorService(_StubService):
         def __init__(self) -> None:
             super().__init__()
             self._advance_pending = False
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -391,7 +384,7 @@ async def test_round_confirmation__when_strict_and_confirm_returns_error__should
                     ),
                 ]
 
-            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             self._advance_pending = True
             return events
 
@@ -401,7 +394,7 @@ async def test_round_confirmation__when_strict_and_confirm_returns_error__should
         def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
             return ["Alice"] if self._advance_pending else []
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(
         actions=(
             (name, GameAction.DISCARD, {"tile_id": tile}),
@@ -410,17 +403,17 @@ async def test_round_confirmation__when_strict_and_confirm_returns_error__should
     )
 
     with pytest.raises(ReplayError, match="confirm_round error"):
-        await run_replay_async(replay, service_factory=ConfirmErrorService)
+        run_replay(replay, service_factory=ConfirmErrorService)
 
 
-async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise_before_next_input():
+def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise_before_next_input():
 
     class RoundAdvanceService(_StubService):
         def __init__(self) -> None:
             super().__init__()
             self._advance_pending = False
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -432,7 +425,7 @@ async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise
                 self._advance_pending = False
                 return []
 
-            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             self._advance_pending = True
             return events
 
@@ -442,7 +435,7 @@ async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise
         def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
             return list(PLAYER_NAMES[:2]) if self._advance_pending else []
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     # First discard (step 0->1) triggers round advance; 2 synthetic confirms follow
     # (step 1->2, 2->3). With max_steps=3, the post-injection check catches
     # step_count=3 >= max_steps=3 after confirmations complete, before the
@@ -455,33 +448,33 @@ async def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise
     )
 
     with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
-        await run_replay_async(replay, ReplayOptions(max_steps=3, strict=False), service_factory=RoundAdvanceService)
+        run_replay(replay, ReplayOptions(max_steps=3, strict=False), service_factory=RoundAdvanceService)
 
 
-async def test_auto_confirm_rounds__when_input_has_confirm_round__should_raise_load_error():
+def test_auto_confirm_rounds__when_input_has_confirm_round__should_raise_load_error():
     replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
 
     with pytest.raises(ReplayLoadError, match=r"CONFIRM_ROUND.*auto_confirm_rounds=True"):
-        await run_replay_async(replay)
+        run_replay(replay)
 
 
-async def test_auto_confirm_rounds__when_disabled_and_input_has_confirm_round__should_run_it_as_game_action():
+def test_auto_confirm_rounds__when_disabled_and_input_has_confirm_round__should_run_it_as_game_action():
     replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
 
     # This should not raise ValueError; it may raise ReplayError due to
     # "no round pending confirmation" but that's a game-logic error, not validation.
     with pytest.raises(ReplayError):
-        await run_replay_async(replay, ReplayOptions(auto_confirm_rounds=False))
+        run_replay(replay, ReplayOptions(auto_confirm_rounds=False))
 
 
-async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other_seats():
+def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other_seats():
 
     class CallPromptService(_StubService):
         def __init__(self) -> None:
             super().__init__()
             self._inject_prompt = False
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -509,7 +502,7 @@ async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for
 
                 return []
 
-            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             # Inject a fake call prompt after a discard
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
@@ -533,10 +526,10 @@ async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for
 
             return events
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
-    trace = await run_replay_async(
+    trace = run_replay(
         replay,
         ReplayOptions(strict=False),
         service_factory=CallPromptService,
@@ -547,29 +540,29 @@ async def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for
         assert step.input_event.action == GameAction.PASS
 
 
-async def test_auto_pass_calls__when_input_has_pass__should_raise_load_error():
+def test_auto_pass_calls__when_input_has_pass__should_raise_load_error():
     replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
 
     with pytest.raises(ReplayLoadError, match=r"PASS.*auto_pass_calls=True"):
-        await run_replay_async(replay)
+        run_replay(replay)
 
 
-async def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_game_action():
+def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_game_action():
     replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
 
     # This should not raise ValueError; it may raise ReplayError due to
     # "no call prompt pending" but that's a game-logic error, not validation.
     with pytest.raises(ReplayError):
-        await run_replay_async(
+        run_replay(
             replay,
             ReplayOptions(auto_pass_calls=False),
         )
 
 
-async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_others():
+def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_others():
     # Discover actual seat assignments (seed-dependent)
     svc_probe = MahjongGameService(auto_cleanup=False)
-    await svc_probe.start_game("probe-seats", list(PLAYER_NAMES), seed=SEED)
+    svc_probe.start_game("probe-seats", list(PLAYER_NAMES), seed=SEED)
     probe_state = svc_probe.get_game_state("probe-seats")
     assert probe_state is not None
 
@@ -589,7 +582,7 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
             super().__init__()
             self._pass_calls: list[str] = []
 
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -598,7 +591,7 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
             settings: GameSettings | None = None,
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
+            events = super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
@@ -617,7 +610,7 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
             )
             return events
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -656,12 +649,12 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
                 )
                 return []
 
-            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            return super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
     replay = _build_replay(actions=((pon_player, GameAction.CALL_PON, {"tile_id": 0}),))
     svc_instance = CallResponseService()
 
-    trace = await run_replay_async(
+    trace = run_replay(
         replay,
         ReplayOptions(strict=False),
         service_factory=lambda: svc_instance,
@@ -674,13 +667,13 @@ async def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only
     assert synthetic_steps[0].input_event.action == GameAction.PASS
 
 
-async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_replay_error():
+def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_replay_error():
 
     class PassErrorService(_StubService):
         def __init__(self) -> None:
             super().__init__()
 
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -689,7 +682,7 @@ async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_ra
             settings: GameSettings | None = None,
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
+            events = super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
@@ -709,7 +702,7 @@ async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_ra
             )
             return events
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -730,26 +723,26 @@ async def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_ra
                     ),
                 ]
 
-            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            return super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
     with pytest.raises(ReplayError, match="synthetic pass error"):
-        await run_replay_async(
+        run_replay(
             replay,
             service_factory=PassErrorService,
         )
 
 
-async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_remaining_seats():
+def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_remaining_seats():
 
     class TrailingPromptService(_StubService):
         def __init__(self) -> None:
             super().__init__()
             self._pass_calls: list[str] = []
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -776,7 +769,7 @@ async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pas
 
                 return []
 
-            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
                 assert state is not None
@@ -799,12 +792,12 @@ async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pas
 
             return events
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     # Single discard is the only input; the trailing block handles the prompt
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
     svc_instance = TrailingPromptService()
-    trace = await run_replay_async(
+    trace = run_replay(
         replay,
         ReplayOptions(strict=False, auto_confirm_rounds=False),
         service_factory=lambda: svc_instance,
@@ -818,24 +811,24 @@ async def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pas
     assert len(svc_instance._pass_calls) == 3
 
 
-async def test_run_replay_async__when_replay_has_rng_version__should_carry_it_to_trace():
+def test_run_replay__when_replay_has_rng_version__should_carry_it_to_trace():
     custom_version = "test-rng-v99"
     replay = _build_replay()
     replay = replay.model_copy(update={"rng_version": custom_version})
 
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     assert trace.rng_version == custom_version
     assert trace.rng_version != RNG_VERSION
 
 
-async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_input_after_game_end():
+def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_input_after_game_end():
 
     class GameEndingPassService(_StubService):
         def __init__(self) -> None:
             super().__init__()
             self._pass_count = 0
 
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -844,7 +837,7 @@ async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_ra
             settings: GameSettings | None = None,
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
+            events = super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
@@ -864,7 +857,7 @@ async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_ra
             )
             return events
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -889,25 +882,25 @@ async def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_ra
                 )
                 return []
 
-            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            return super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
-        await run_replay_async(
+        run_replay(
             replay,
             service_factory=GameEndingPassService,
         )
 
 
-async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip_later_inputs():
+def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip_later_inputs():
 
     class GameEndingPassService(_StubService):
         def __init__(self) -> None:
             super().__init__()
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -930,7 +923,7 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
                 )
                 return []
 
-            events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
             if action == GameAction.DISCARD:
                 state = self._inner.get_game_state(game_id)
                 assert state is not None
@@ -953,7 +946,7 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
 
             return events
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     # Two discards, but game ends during auto-pass after first discard
     replay = _build_replay(
         actions=(
@@ -962,7 +955,7 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
         ),
     )
 
-    trace = await run_replay_async(
+    trace = run_replay(
         replay,
         ReplayOptions(strict=False),
         service_factory=GameEndingPassService,
@@ -974,14 +967,14 @@ async def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__shoul
     assert non_synthetic[0].input_event.action == GameAction.DISCARD
 
 
-async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_passing():
+def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_passing():
 
     class EarlyResolveService(_StubService):
         def __init__(self) -> None:
             super().__init__()
             self._pass_count = 0
 
-        async def start_game(
+        def start_game(
             self,
             game_id: str,
             player_names: list[str],
@@ -990,7 +983,7 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
             settings: GameSettings | None = None,
             wall: list[int] | None = None,
         ) -> list[ServiceEvent]:
-            events = await super().start_game(game_id, player_names, seed=seed)
+            events = super().start_game(game_id, player_names, seed=seed)
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
@@ -1009,7 +1002,7 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
             )
             return events
 
-        async def handle_action(
+        def handle_action(
             self,
             *,
             game_id: str,
@@ -1032,7 +1025,7 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
 
             if action == GameAction.DISCARD:
                 # Use real discard but ensure no new prompt is created
-                events = await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+                events = super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
                 state = self._inner.get_game_state(game_id)
                 assert state is not None
 
@@ -1046,13 +1039,13 @@ async def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_st
 
                 return events
 
-            return await super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
+            return super().handle_action(game_id=game_id, player_name=player_name, action=action, data=data)
 
-    name, tile = await _async_probe_current_player_discard()
+    name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
 
     svc_instance = EarlyResolveService()
-    trace = await run_replay_async(
+    trace = run_replay(
         replay,
         ReplayOptions(strict=False),
         service_factory=lambda: svc_instance,

@@ -4,37 +4,31 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from game.logic.settings import GameSettings
-
 
 class TimerConfig(BaseModel):
     """
-    Configuration for player turn timers.
+    Pacing of a game: turn base and bank time, fixed meld, round-advance and pending-game timeouts (seconds).
     """
 
-    base_turn_seconds: float = 5
-    initial_bank_seconds: float = 20
+    base_turn_seconds: float = Field(default=5, ge=0)
+    initial_bank_seconds: float = Field(default=20, gt=0)
     max_bank_seconds: float = 60
-    round_bonus_seconds: float = 10
-    meld_decision_seconds: float = 5
+    round_bonus_seconds: float = Field(default=10, ge=0)
+    meld_decision_seconds: float = Field(default=5, gt=0)
+    round_advance_timeout_seconds: float = Field(default=15, gt=0)
+    pending_game_timeout_seconds: float = Field(default=10, gt=0)
 
-    @classmethod
-    def from_settings(cls, settings: GameSettings) -> TimerConfig:
-        """
-        Build TimerConfig from GameSettings.
-        """
-        return cls(
-            base_turn_seconds=settings.base_turn_seconds,
-            initial_bank_seconds=settings.initial_bank_seconds,
-            max_bank_seconds=settings.max_bank_seconds,
-            round_bonus_seconds=settings.round_bonus_seconds,
-            meld_decision_seconds=settings.meld_decision_seconds,
-        )
+    @model_validator(mode="after")
+    def _validate_bank_cap(self) -> TimerConfig:
+        if self.max_bank_seconds < self.initial_bank_seconds:
+            raise ValueError("max_bank_seconds must be >= initial_bank_seconds")
+
+        return self
 
 
 class TurnTimer:

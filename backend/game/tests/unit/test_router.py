@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -31,7 +31,7 @@ class TestMessageRouterBranches:
         session_manager = SessionManager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         connection = MockConnection()
-        await router.handle_connect(connection)
+        router.handle_connect(connection)
         return router, connection, session_manager
 
     async def test_message_router__when_reconnect_without_session__should_return_no_session_error(self, setup):
@@ -173,14 +173,14 @@ class TestMessageRouterBranches:
 class TestMessageRouterEntryPointFailures:
     async def test_message_router__when_the_final_join_starts_the_game_and_start_raises__should_fail_the_game(self):
         game_service = MockGameService()
-        game_service.start_game = AsyncMock(side_effect=RuntimeError("start failed"))
+        game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
         session_manager = SessionManager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
         session_manager.create_pending_game(game_id="game1", player_specs=specs, num_ai_players=3)
         connection = MockConnection(game_id="game1")
-        await router.handle_connect(connection)
+        router.handle_connect(connection)
 
         await router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
         await wait_for_background_tasks(session_manager)
@@ -192,7 +192,7 @@ class TestMessageRouterEntryPointFailures:
         session_manager = SessionManager(MockGameService())
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = await create_started_game(session_manager, num_ai_players=2, player_names=["Alice", "Bob"])
-        session_manager._game_service.process_ai_player_actions_after_replacement = AsyncMock(
+        session_manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             side_effect=ValueError("engine state broke"),
         )
 

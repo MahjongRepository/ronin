@@ -18,8 +18,8 @@ hands each player a signed game ticket; players then connect to `/ws/{game_id}` 
 * `wire/` — the wire format both the server and the replay tool read: integer event and result
   codes (`enums.py`, `events.py`), the packed draw/discard codec (`compact.py`) and
   `REPLAY_VERSION` (`replay_format.py`).
-* `logic/` — the rules engine behind the `GameService` interface (`MahjongGameService`); returns
-  `list[ServiceEvent]` and knows nothing about connections.
+* `logic/` — the rules engine behind the `GameService` interface (`MahjongGameService`): synchronous,
+  returns `list[ServiceEvent]` and knows nothing about connections or time.
 * `replay/` — runs recorded games through the public `GameService` API (`runner.py`: `run_replay`;
   `loader.py`: `load_replay_from_file` / `load_replay_from_string`) for tests and profiling. It
   depends on `logic` and `wire` only.

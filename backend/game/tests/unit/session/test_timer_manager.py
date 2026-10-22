@@ -3,8 +3,8 @@ import asyncio
 import pytest
 
 from game.logic.enums import TimeoutType
-from game.logic.timer import TimerConfig
 from game.session.models import Game, Player
+from game.session.timer import TimerConfig
 from game.session.timer_manager import TimerFiring, TimerManager
 from game.tests.mocks import MockConnection
 

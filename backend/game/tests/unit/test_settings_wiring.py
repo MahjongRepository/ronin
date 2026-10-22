@@ -54,40 +54,6 @@ class TestValidateSettings:
     def test_validate_settings__when_uma_valid__should_pass(self):
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))
 
-    def test_validate_settings__when_base_turn_seconds_negative__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="base_turn_seconds must be non-negative"):
-            validate_settings(GameSettings(base_turn_seconds=-1))
-
-    def test_validate_settings__when_base_turn_seconds_zero__should_pass(self):
-        validate_settings(GameSettings(base_turn_seconds=0))
-
-    def test_validate_settings__when_initial_bank_seconds_zero__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="initial_bank_seconds must be positive"):
-            validate_settings(GameSettings(initial_bank_seconds=0))
-
-    def test_validate_settings__when_max_bank_below_initial_bank__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="max_bank_seconds must be >= initial_bank_seconds"):
-            validate_settings(GameSettings(max_bank_seconds=5, initial_bank_seconds=20))
-
-    def test_validate_settings__when_round_bonus_seconds_negative__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="round_bonus_seconds must be non-negative"):
-            validate_settings(GameSettings(round_bonus_seconds=-1))
-
-    def test_validate_settings__when_round_bonus_seconds_zero__should_pass(self):
-        validate_settings(GameSettings(round_bonus_seconds=0))
-
-    def test_validate_settings__when_meld_decision_seconds_zero__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="meld_decision_seconds must be positive"):
-            validate_settings(GameSettings(meld_decision_seconds=0))
-
-    def test_validate_settings__when_round_advance_timeout_seconds_zero__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="round_advance_timeout_seconds must be positive"):
-            validate_settings(GameSettings(round_advance_timeout_seconds=0))
-
-    def test_validate_settings__when_pending_game_timeout_seconds_zero__should_raise(self):
-        with pytest.raises(UnsupportedSettingsError, match="pending_game_timeout_seconds must be positive"):
-            validate_settings(GameSettings(pending_game_timeout_seconds=0))
-
     def test_init_game__when_settings_unsupported__should_raise(self):
         configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):

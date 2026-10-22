@@ -10,8 +10,8 @@ class TestGameCreationAndJoin:
     def service(self):
         return MahjongGameService()
 
-    async def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
-        events = await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
+        events = service.start_game("game1", ["Player"], seed="a" * 192)
         game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
         event = game_started_events[0]
@@ -30,8 +30,8 @@ class TestGameServiceIntegration:
     def service(self):
         return MahjongGameService()
 
-    async def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
         actions_processed = 0
         # play several discards (AI players will respond automatically)
@@ -46,7 +46,7 @@ class TestGameServiceIntegration:
 
             if player.name == "Player" and player.tiles:
                 tile_to_discard = player.tiles[-1]
-                await service.handle_action(
+                service.handle_action(
                     game_id="game1",
                     player_name=player.name,
                     action=GameAction.DISCARD,
@@ -62,8 +62,8 @@ class TestUnifiedDiscardClaimIntegration:
     def service(self):
         return MahjongGameService()
 
-    async def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
-        await service.start_game("game1", ["Player"], seed="a" * 192)
+    def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
+        service.start_game("game1", ["Player"], seed="a" * 192)
 
         found_prompt = False
         for _ in range(20):
@@ -78,7 +78,7 @@ class TestUnifiedDiscardClaimIntegration:
                 break
 
             tile_to_discard = player.tiles[-1]
-            events = await service.handle_action(
+            events = service.handle_action(
                 game_id="game1",
                 player_name="Player",
                 action=GameAction.DISCARD,

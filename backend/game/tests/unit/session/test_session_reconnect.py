@@ -493,7 +493,7 @@ class TestReconnectEdgeCases:
 
         manager._game_service.build_reconnection_snapshot = raise_error
         new_conn = MockConnection(game_id="game1")
-        await router.handle_connect(new_conn)
+        router.handle_connect(new_conn)
 
         await router.handle_message(new_conn, {"t": WireClientMessageType.RECONNECT, "game_ticket": alice_token})
         await router.handle_disconnect(new_conn)

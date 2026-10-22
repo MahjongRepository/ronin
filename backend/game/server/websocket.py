@@ -87,7 +87,7 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
 
     connection = WebSocketConnection(websocket, game_id=game_id)
     logger.info("websocket connected", connection_id=connection.connection_id)
-    await router.handle_connect(connection)
+    router.handle_connect(connection)
 
     bucket = TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
     decode_errors = 0

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
@@ -32,7 +31,7 @@ class ReplayServiceProtocol(Protocol):
     Replay-facing protocol for game service interaction.
     """
 
-    async def start_game(
+    def start_game(
         self,
         game_id: str,
         player_names: list[str],
@@ -41,7 +40,7 @@ class ReplayServiceProtocol(Protocol):
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
     ) -> list[ServiceEvent]: ...
-    async def handle_action(
+    def handle_action(
         self,
         *,
         game_id: str,
@@ -99,27 +98,6 @@ def run_replay(
     service_factory: Callable[[], ReplayServiceProtocol] | None = None,
 ) -> ReplayTrace:
     """
-    Sync wrapper for non-async contexts.
-
-    Raises RuntimeError if called inside an active event loop (use run_replay_async instead).
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(
-            run_replay_async(replay, opts, service_factory=service_factory),
-        )
-
-    raise RuntimeError("run_replay() cannot be used in async context; use await run_replay_async(...)")
-
-
-async def run_replay_async(
-    replay: ReplayInput,
-    opts: ReplayOptions | None = None,
-    *,
-    service_factory: Callable[[], ReplayServiceProtocol] | None = None,
-) -> ReplayTrace:
-    """
     Run a deterministic replay through the game service.
 
     Feed replay input events through the service and capture a full trace with state_before/state_after for each
@@ -140,12 +118,12 @@ async def run_replay_async(
     ctx = _ReplayRunContext(service=service, opts=resolved_opts)
 
     try:
-        return await _execute_replay(ctx, replay)
+        return _execute_replay(ctx, replay)
     finally:
         service.cleanup_game(resolved_opts.game_id)
 
 
-async def _execute_replay(
+def _execute_replay(
     ctx: _ReplayRunContext,
     replay: ReplayInput,
 ) -> ReplayTrace:
@@ -161,7 +139,7 @@ async def _execute_replay(
     if opts.auto_pass_calls:
         _reject_manual_pass(replay)
 
-    startup_events = await service.start_game(
+    startup_events = service.start_game(
         opts.game_id,
         list(replay.player_names),
         seed=replay.seed,
@@ -188,16 +166,16 @@ async def _execute_replay(
 
             break
 
-        step_count = await _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
+        step_count = _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
 
         if opts.auto_pass_calls:
-            step_count = await _handle_auto_pass_for_input(
+            step_count = _handle_auto_pass_for_input(
                 ctx, input_event=input_event, seat_by_player=seat_by_player, steps=steps, step_count=step_count
             )
 
         # Auto-pass resolution may end the round (e.g. exhaustive draw after
         # the last call prompt resolves). Re-check for round advance.
-        step_count = await _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
+        step_count = _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
 
         # Re-check game phase: auto-pass or round confirmation may have ended the game
         post_synthetic_state = _require_state(
@@ -213,14 +191,14 @@ async def _execute_replay(
 
             break
 
-        step_count = await _process_input_event(ctx, input_event=input_event, steps=steps, step_count=step_count)
+        step_count = _process_input_event(ctx, input_event=input_event, steps=steps, step_count=step_count)
 
     # Handle any trailing call prompt after all input events are consumed
     if opts.auto_pass_calls:
-        step_count = await _inject_pass_calls(ctx, steps, step_count)
+        step_count = _inject_pass_calls(ctx, steps, step_count)
 
     # Handle any trailing round advance after all input events are consumed
-    step_count = await _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
+    step_count = _maybe_confirm_round(ctx, steps=steps, step_count=step_count)
 
     final_state = _require_state(service, game_id=opts.game_id, message="replay finished but final state is missing")
     return ReplayTrace(
@@ -284,7 +262,7 @@ def _require_state(
     return state
 
 
-async def _process_input_event(
+def _process_input_event(
     ctx: _ReplayRunContext,
     input_event: ReplayInputEvent,
     steps: list[ReplayStep],
@@ -300,7 +278,7 @@ async def _process_input_event(
         ctx.service, game_id=ctx.opts.game_id, message="game state disappeared before replay action"
     )
 
-    events = await ctx.service.handle_action(
+    events = ctx.service.handle_action(
         game_id=ctx.opts.game_id,
         player_name=input_event.player_name,
         action=input_event.action,
@@ -326,7 +304,7 @@ async def _process_input_event(
     return step_count + 1
 
 
-async def _maybe_confirm_round(
+def _maybe_confirm_round(
     ctx: _ReplayRunContext,
     steps: list[ReplayStep],
     step_count: int,
@@ -335,13 +313,13 @@ async def _maybe_confirm_round(
     Inject round confirmations if a round advance is pending.
     """
     if ctx.opts.auto_confirm_rounds and ctx.service.is_round_advance_pending(ctx.opts.game_id):
-        step_count = await _inject_round_confirmations(ctx, steps=steps, step_count=step_count)
+        step_count = _inject_round_confirmations(ctx, steps=steps, step_count=step_count)
         _check_step_limit(step_count, ctx.opts.max_steps)
 
     return step_count
 
 
-async def _inject_round_confirmations(
+def _inject_round_confirmations(
     ctx: _ReplayRunContext,
     steps: list[ReplayStep],
     step_count: int,
@@ -359,7 +337,7 @@ async def _inject_round_confirmations(
             message="game state disappeared before synthetic confirm_round",
         )
 
-        confirm_events = await ctx.service.handle_action(
+        confirm_events = ctx.service.handle_action(
             game_id=game_id, player_name=player_name, action=GameAction.CONFIRM_ROUND, data={}
         )
 
@@ -394,7 +372,7 @@ async def _inject_round_confirmations(
     return step_count
 
 
-async def _handle_auto_pass_for_input(
+def _handle_auto_pass_for_input(
     ctx: _ReplayRunContext,
     input_event: ReplayInputEvent,
     seat_by_player: dict[str, int],
@@ -421,10 +399,10 @@ async def _handle_auto_pass_for_input(
         input_event.action in _CALL_RESPONSE_ACTIONS and input_seat is not None and input_seat in prompt.pending_seats
     )
     exclude_seats = frozenset({input_seat}) if is_call_response and input_seat is not None else frozenset()
-    return await _inject_pass_calls(ctx, steps, step_count, exclude_seats=exclude_seats)
+    return _inject_pass_calls(ctx, steps, step_count, exclude_seats=exclude_seats)
 
 
-async def _inject_pass_calls(
+def _inject_pass_calls(
     ctx: _ReplayRunContext,
     steps: list[ReplayStep],
     step_count: int,
@@ -460,7 +438,7 @@ async def _inject_pass_calls(
             ctx.service, game_id=game_id, message="game state disappeared before synthetic pass"
         )
 
-        pass_events = await ctx.service.handle_action(
+        pass_events = ctx.service.handle_action(
             game_id=game_id, player_name=player_name, action=GameAction.PASS, data={}
         )
 

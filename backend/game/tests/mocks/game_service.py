@@ -78,7 +78,7 @@ class MockGameService(GameService):
 
         return game_seats.get(player_name)
 
-    async def handle_action(
+    def handle_action(
         self,
         *,
         game_id: str,
@@ -102,7 +102,7 @@ class MockGameService(GameService):
             ),
         ]
 
-    async def start_game(
+    def start_game(
         self,
         game_id: str,
         player_names: list[str],
@@ -191,7 +191,7 @@ class MockGameService(GameService):
     def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
         return []
 
-    async def process_ai_player_actions_after_replacement(
+    def process_ai_player_actions_after_replacement(
         self,
         game_id: str,
         seat: int,
@@ -204,7 +204,7 @@ class MockGameService(GameService):
     def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
         return []
 
-    async def handle_timeout(
+    def handle_timeout(
         self,
         *,
         game_id: str,

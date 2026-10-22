@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.settings import MAX_AI_PLAYERS, GameSettings
+from game.session.timer import TimerConfig
 
 if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
@@ -83,6 +84,7 @@ class Game:
     end_reason: GameEndReason | None = None
     players: dict[str, Player] = field(default_factory=dict)
     settings: GameSettings = field(default_factory=GameSettings)
+    timer_config: TimerConfig = field(default_factory=TimerConfig)
 
     def __post_init__(self) -> None:
         """

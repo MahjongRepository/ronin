@@ -3,13 +3,13 @@ from pathlib import Path
 from game.logic.enums import GameAction
 from game.logic.events import EventType, SeatTarget
 from game.logic.rng import RNG_VERSION
-from game.replay import run_replay_async
+from game.replay import run_replay
 from game.replay.loader import load_replay_from_file
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "simple_cases"
 
 
-async def test_replay_runner__when_single_discard_replay_loaded__should_produce_consistent_trace():
+def test_replay_runner__when_single_discard_replay_loaded__should_produce_consistent_trace():
     replay = load_replay_from_file(FIXTURES_DIR / "single_discard.txt")
     # Verify loaded replay metadata
     assert isinstance(replay.seed, str)
@@ -20,7 +20,7 @@ async def test_replay_runner__when_single_discard_replay_loaded__should_produce_
     assert replay.events[0].action == GameAction.DISCARD
 
     # Play the replay
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     # Verify trace structure
     assert trace.seed == replay.seed
     assert trace.rng_version == RNG_VERSION

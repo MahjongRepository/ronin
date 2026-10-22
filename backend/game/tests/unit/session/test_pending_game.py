@@ -512,7 +512,7 @@ class TestJoinGameViaRouter:
         manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=3)
 
         conn = MockConnection(game_id=game_id)
-        await router.handle_connect(conn)
+        router.handle_connect(conn)
 
         await router.handle_message(
             conn,
@@ -531,7 +531,7 @@ class TestJoinGameViaRouter:
         manager.create_pending_game(game_id=game_id, player_specs=specs, num_ai_players=3)
 
         conn = MockConnection(game_id=game_id)
-        await router.handle_connect(conn)
+        router.handle_connect(conn)
 
         await router.handle_message(
             conn,

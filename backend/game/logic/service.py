@@ -21,7 +21,7 @@ class GameService(ABC):
     """
 
     @abstractmethod
-    async def handle_action(
+    def handle_action(
         self,
         *,
         game_id: str,
@@ -37,7 +37,7 @@ class GameService(ABC):
         ...
 
     @abstractmethod
-    async def start_game(
+    def start_game(
         self,
         game_id: str,
         player_names: list[str],
@@ -77,7 +77,7 @@ class GameService(ABC):
         ...
 
     @abstractmethod
-    async def handle_timeout(
+    def handle_timeout(
         self,
         *,
         game_id: str,
@@ -110,7 +110,7 @@ class GameService(ABC):
         ...
 
     @abstractmethod
-    async def process_ai_player_actions_after_replacement(
+    def process_ai_player_actions_after_replacement(
         self,
         game_id: str,
         seat: int,

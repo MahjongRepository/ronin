@@ -1,7 +1,7 @@
 from game.logic.enums import GameAction
 from game.logic.events import DoraRevealedEvent, EventType
 from game.logic.tiles import tile_to_34
-from game.replay import run_replay_async
+from game.replay import run_replay
 from game.replay.models import ReplayInput, ReplayInputEvent
 
 # Seed determines seat assignment via fill_seats(names, seed):
@@ -68,14 +68,14 @@ def _build_added_kan_events() -> tuple[ReplayInputEvent, ...]:
     )
 
 
-async def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
+def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
         wall=_build_added_kan_wall(),
         events=_build_added_kan_events(),
     )
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     # Find the kan step
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_steps = [s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN]
@@ -105,14 +105,14 @@ async def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before
 
 
-async def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
+def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
         wall=_build_added_kan_wall(),
         events=_build_added_kan_events(),
     )
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
     alice_after_kan = kan_step.state_after.round_state.players[2]
@@ -129,14 +129,14 @@ async def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
         assert count <= 4, f"tile_34={t34} appears {count} times in hand"
 
 
-async def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard():
+def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
         wall=_build_added_kan_wall(),
         events=_build_added_kan_events(),
     )
-    trace = await run_replay_async(replay)
+    trace = run_replay(replay)
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
     kan_step_idx = non_synthetic_steps.index(kan_step)
