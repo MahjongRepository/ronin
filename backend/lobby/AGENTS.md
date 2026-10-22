@@ -24,10 +24,23 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   matchmaking; `websocket_utils.py` — `check_origin` and the transport contract. After accept, a
   dead peer raises only `WebSocketDisconnect` (the first failed send) or `RuntimeError` (every later
   send or close), never `ConnectionError`. `send_or_drop` and `close_quietly` absorb exactly those,
-  and rooms send through them.
+  and rooms and matchmaking send to other players through them.
 
 Services are created in `create_app()` and stored on `app.state`; handlers read them from
 `request.app.state`. Tests build the app with `create_app(settings=..., auth_settings=...)`.
+
+## Game start
+
+* A matchmaking match is resolved once, in the handler of the join that completed it: the four
+  matched players leave the queue for an in-flight set and are released from it whatever happens,
+  so none of them is ever left queued without a handler. A failed creation is terminal: all four
+  get `match_failed` and a 4000 close, the client offers to search again, and nothing is retried
+  or requeued. A matched player who disconnected meanwhile keeps the seat; the game server replaces
+  a seat nobody joins with AI.
+* Every game start attempt, room or matchmaking, signs and creates under a fresh `game_id` (a
+  room's id is not its game's id). A `GameTransitionError` may mean the game server created the
+  game anyway (a timeout after the POST arrived), so a game id is never reused: a retry under the
+  same id would collide with the orphan (409) until its pending timeout cancels it.
 
 ## Auth model
 

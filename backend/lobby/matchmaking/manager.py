@@ -77,18 +77,6 @@ class MatchmakingManager:
 
         return None
 
-    def requeue_at_front(self, entries: list[QueueEntry]) -> None:
-        """
-        Re-insert entries at the front of the queue.
-
-        Used when game creation fails after popping a match. Caller must hold self._lock.
-        """
-        for entry in reversed(entries):
-            self._in_flight.discard(entry.user_id)
-            if entry.user_id not in self._user_ids:
-                self._queue.insert(0, entry)
-                self._user_ids.add(entry.user_id)
-
     @property
     def lock(self) -> asyncio.Lock:
         return self._lock
@@ -109,9 +97,7 @@ class MatchmakingManager:
         """
         Remove user IDs from the in-flight set.
 
-        Called after match resolution for users not being requeued. Caller must hold self._lock.
+        Called once a match is resolved, whether its game was created or not, so every matched user may queue again.
+        Caller must hold self._lock.
         """
         self._in_flight -= user_ids
-
-    def has_user(self, user_id: str) -> bool:
-        return user_id in self._user_ids or user_id in self._in_flight

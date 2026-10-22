@@ -224,17 +224,19 @@ async def _transition_to_game(room: LobbyRoom, ctx: _RoomContext) -> bool:
     """
     Create the game, then deliver ``game_starting`` and dispose of the room.
 
-    Return True when the game was created. Before the game server answers 201 any exception is undone by
-    ``_recover_failed_start`` (a cancellation, which only server shutdown causes, is not). After it the game exists
-    with every signed ticket and a retry would get 409, so delivery is best-effort and the room is removed and its
-    connections closed whatever happens: transitioning is never cleared, the state is never rebroadcast and creation
-    is never retried.
+    Return True when the game was created. Each attempt gets a fresh game id: a failure may mean the game server created
+    the game anyway (a timeout after the POST arrived), and that orphan must not make the next start collide with it.
+    Before the game server answers 201 any exception is undone by ``_recover_failed_start`` (a cancellation, which only
+    server shutdown causes, is not). After it the game exists with every signed ticket, so delivery is best-effort and
+    the room is removed and its connections closed whatever happens: transitioning is never cleared, the state is never
+    rebroadcast and creation is never retried.
     """
-    log = logger.bind(room_id=room.room_id)
+    game_id = str(uuid.uuid4())
+    log = logger.bind(room_id=room.room_id, game_id=game_id)
     log.info("game transition starting", player_count=room.player_count)
 
     try:
-        ws_url, ticket_map = await _create_game(room, ctx)
+        ws_url, ticket_map = await _create_game(room, ctx, game_id=game_id)
     except GameTransitionError as e:
         log.exception("failed to create game")
         await _recover_failed_start(room, ctx, reason=str(e))
@@ -245,7 +247,7 @@ async def _transition_to_game(room: LobbyRoom, ctx: _RoomContext) -> bool:
         return False
 
     try:
-        await _deliver_game_starting(room, ctx, ws_url=ws_url, ticket_map=ticket_map)
+        await _deliver_game_starting(room, ctx, game_id=game_id, ws_url=ws_url, ticket_map=ticket_map)
     finally:
         ctx.room_manager.remove_room(room.room_id)
         await ctx.room_connections.close_connections(room_id=room.room_id)
@@ -254,18 +256,18 @@ async def _transition_to_game(room: LobbyRoom, ctx: _RoomContext) -> bool:
     return True
 
 
-async def _create_game(room: LobbyRoom, ctx: _RoomContext) -> tuple[str, dict[str, str]]:
+async def _create_game(room: LobbyRoom, ctx: _RoomContext, *, game_id: str) -> tuple[str, dict[str, str]]:
     """
     Sign a ticket per seated human and create the game; return the game server URL and the tickets by connection.
     """
     players_for_tickets = [(player.user_id, player.username, conn_id) for conn_id, player in room.players.items()]
     player_specs, ticket_map = sign_player_tickets(
         players=players_for_tickets,
-        game_id=room.room_id,
+        game_id=game_id,
         ticket_secret=ctx.auth_settings.game_ticket_secret,
     )
     ws_url = await create_game_on_server(
-        game_id=room.room_id,
+        game_id=game_id,
         players=player_specs,
         num_ai_players=room.num_ai_players,
         registry=ctx.registry,
@@ -304,6 +306,7 @@ async def _deliver_game_starting(
     room: LobbyRoom,
     ctx: _RoomContext,
     *,
+    game_id: str,
     ws_url: str,
     ticket_map: dict[str, str],
 ) -> None:
@@ -312,7 +315,7 @@ async def _deliver_game_starting(
 
     A player who left during the transition is skipped: their socket is gone, and the game server replaces them with AI.
     """
-    log = logger.bind(room_id=room.room_id)
+    log = logger.bind(room_id=room.room_id, game_id=game_id)
     recipients = [(conn_id, player) for conn_id, player in room.players.items() if not player.departed]
     failed_count = 0
     for conn_id, player in recipients:
@@ -322,7 +325,7 @@ async def _deliver_game_starting(
                 "type": "game_starting",
                 "ws_url": ws_url,
                 "game_ticket": ticket_map[conn_id],
-                "game_id": room.room_id,
+                "game_id": game_id,
                 "game_client_url": ctx.settings.game_client_url,
             },
         )

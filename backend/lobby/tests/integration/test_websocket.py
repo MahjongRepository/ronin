@@ -443,7 +443,7 @@ class TestGameTransition:
                 assert msg["type"] == "game_starting"
                 assert "ws_url" in msg
                 assert "game_ticket" in msg
-                assert msg["game_id"] == "game-room"
+                assert msg["game_id"] == mock_client.post.call_args.kwargs["json"]["game_id"]
 
         # Room should be removed after transition
         assert app.state.room_manager.get_room("game-room") is None
@@ -571,6 +571,45 @@ class TestGameTransition:
                 msg = ws.receive_json()  # error
                 assert msg["type"] == "error"
                 assert "Failed to start game" in msg["message"]
+
+    def test_room_websocket__when_start_retried_after_ambiguous_failure__should_start_under_a_fresh_game_id(
+        self, client, app
+    ):
+        room = app.state.room_manager.create_room("retry-room")
+        self._set_servers_healthy(app)
+        created_game_ids: list[str] = []
+
+        async def game_server_post(_url, *, json):
+            if json["game_id"] in created_game_ids:
+                return httpx.Response(409, text="Game already exists")
+
+            created_game_ids.append(json["game_id"])
+            if len(created_game_ids) == 1:
+                raise httpx.ReadTimeout("timed out after the game server created the game")
+
+            return httpx.Response(201)
+
+        with (
+            patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
+            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client.post = game_server_post
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
+                ws.receive_json()
+                ws.send_text(json.dumps({"type": "start_game"}))
+                assert ws.receive_json()["type"] == "player_ready_changed"
+                assert ws.receive_json()["type"] == "error"
+
+                ws.send_text(json.dumps({"type": "start_game"}))
+                game_starting = ws.receive_json()
+                assert game_starting["type"] == "game_starting"
+                assert game_starting["game_id"] == created_game_ids[1]
+                assert len(created_game_ids) == 2
 
     def test_room_websocket__when_no_healthy_game_server__should_resync_and_send_error(self, client, app):
         room = app.state.room_manager.create_room("no-servers-room")

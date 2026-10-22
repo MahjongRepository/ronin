@@ -14,8 +14,9 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   instead of waiting. It then signs a ticket per human and calls the game server's `POST /games`
   (with `num_ai_players` from the bot seats). Before a 201, any exception clears `transitioning`,
   which resets the ready flags, and rebroadcasts the room state; a cancellation (only server
-  shutdown causes one) does not. After a 201 the game exists with
-  every signed ticket and a retry would get 409: `game_starting` goes best-effort to every seated
+  shutdown causes one) does not. Each attempt runs under a fresh game id, so a start after a
+  failure that created the game anyway never collides with that orphan. After a 201 the game
+  exists with every signed ticket: `game_starting` goes best-effort to every seated
   player, then the room is removed and its connections closed whatever happens. Transitioning is
   never cleared, the state never rebroadcast and creation never retried.
 * A player who leaves a transitioning room keeps the seat: the ticket is already signed and sent

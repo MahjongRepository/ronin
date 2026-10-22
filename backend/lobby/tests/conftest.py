@@ -34,6 +34,9 @@ class AsgiPeer:
         if message["type"] == "websocket.close":
             self._inbox.put_nowait({"type": "websocket.disconnect", "code": message.get("code", 1000)})
 
+    def disconnect(self, code: int = 1000) -> None:
+        self._inbox.put_nowait({"type": "websocket.disconnect", "code": code})
+
     def received_json(self) -> list[dict]:
         return [json.loads(m["text"]) for m in self.sent if m["type"] == "websocket.send"]
 

@@ -1,15 +1,19 @@
+import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 from starlette.testclient import TestClient
-from starlette.websockets import WebSocketState
 
-from lobby.matchmaking.models import QueueEntry
+from lobby.auth.models import AuthenticatedPlayer
+from lobby.game_transition import GameTransitionError
+from lobby.matchmaking import websocket as matchmaking_websocket_module
+from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
+from lobby.tests.conftest import AsgiPeer, make_websocket
 from lobby.tests.integration.conftest import register_with_csrf
+from shared.auth.game_ticket import verify_game_ticket
 from shared.auth.settings import AuthSettings
 
 
@@ -42,17 +46,17 @@ servers:
     )
 
 
-def _make_mock_entry(user_id: str, username: str, connection_id: str) -> QueueEntry:
-    ws = MagicMock()
-    ws.client_state = WebSocketState.CONNECTED
-    ws.send_json = AsyncMock()
-    ws.close = AsyncMock()
-    return QueueEntry(
-        connection_id=connection_id,
-        user_id=user_id,
-        username=username,
-        websocket=ws,
-    )
+def _matchmaking_socket(app, peer, *, username):
+    return make_websocket(peer, app=app, user=AuthenticatedPlayer(user_id=f"{username}-id", username=username))
+
+
+async def _queue_player(app, username):
+    peer = AsgiPeer()
+    peer.send_gate = asyncio.Event()
+    handler = asyncio.create_task(matchmaking_websocket(_matchmaking_socket(app, peer, username=username)))
+    await peer.send_waiting.wait()
+    peer.send_gate.set()
+    return peer, handler
 
 
 class TestMatchmakingWebSocket:
@@ -184,115 +188,68 @@ class TestMatchmakingGameTransition:
     def app(self, tmp_path):
         return _make_app(tmp_path)
 
-    @pytest.fixture
-    def client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "player4")
-            yield c
+    async def test_matchmaking_websocket__when_game_creation_fails__should_close_all_four_and_let_them_queue_again(
+        self, app, monkeypatch
+    ):
+        monkeypatch.setattr(
+            matchmaking_websocket_module,
+            "create_game_on_server",
+            AsyncMock(side_effect=GameTransitionError("read timed out after the game server got the request")),
+        )
+        queued = [await _queue_player(app, f"queued-{i}") for i in range(3)]
+        fourth_peer = AsgiPeer()
 
-    def _set_servers_healthy(self, app):
-        for server in app.state.registry._servers:
-            server.healthy = True
+        await matchmaking_websocket(_matchmaking_socket(app, fourth_peer, username="fourth"))
+        for peer in [*(peer for peer, _handler in queued), fourth_peer]:
+            assert peer.received_json()[-1] == {"type": "error", "message": "match_failed"}
+            assert peer.close_codes() == [4000]
 
-    def _queue_mock_players_without_websockets(self, app, count=3):
-        mgr = app.state.matchmaking_manager
-        entries = []
-        for i in range(count):
-            entry = _make_mock_entry(
-                user_id=f"fake-uid-{i}", username=f"fake-player-{i}", connection_id=f"fake-conn-{i}"
-            )
-            mgr.add_player(entry)
-            entries.append(entry)
+        for _peer, handler in queued:
+            await handler
 
-        return entries
+        rejoining_peer = AsgiPeer()
+        rejoining_peer.disconnect()
+        await matchmaking_websocket(_matchmaking_socket(app, rejoining_peer, username="queued-0"))
+        assert rejoining_peer.received_json()[0]["type"] == "queue_joined"
 
-    def test_matchmaking_websocket__when_fourth_player_joins__should_send_game_starting_to_all(self, app, client):
-        self._set_servers_healthy(app)
-        mock_entries = self._queue_mock_players_without_websockets(app, 3)
+    async def test_matchmaking_websocket__when_a_matched_peer_is_dead__should_start_the_game_for_the_rest(
+        self, app, monkeypatch, caplog
+    ):
+        create_game = AsyncMock(return_value="ws://localhost:8711/ws/game")
+        monkeypatch.setattr(matchmaking_websocket_module, "create_game_on_server", create_game)
+        queued = [await _queue_player(app, f"queued-{i}") for i in range(3)]
+        dead_peer, _dead_handler = queued[1]
+        dead_peer.broken = True
+        fourth_peer = AsgiPeer()
 
-        mock_response = AsyncMock(spec=httpx.Response)
-        mock_response.status_code = 201
-        mock_response.text = ""
+        await matchmaking_websocket(_matchmaking_socket(app, fourth_peer, username="fourth"))
+        healthy_peers = {"queued-0": queued[0][0], "queued-2": queued[2][0], "fourth": fourth_peer}
+        for username, peer in healthy_peers.items():
+            game_starting = peer.received_json()[-1]
+            ticket = verify_game_ticket(game_starting["game_ticket"], "test-secret")
+            assert game_starting["type"] == "game_starting"
+            assert game_starting["game_id"] == create_game.call_args.kwargs["game_id"]
+            assert ticket is not None
+            assert ticket.username == username
+            assert peer.close_codes() == [1000]
+        assert caplog.text.count("failed to deliver game_starting") == 1
 
-        with (
-            patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
-            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=mock_response)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            with client.websocket_connect("/ws/matchmaking") as ws:
-                msg = ws.receive_json()
-                assert msg["type"] == "game_starting"
-                assert "ws_url" in msg
-                assert "game_ticket" in msg
-                assert "game_id" in msg
-
-        # Mock players should have received game_starting too
-        for entry in mock_entries:
-            entry.websocket.send_json.assert_called_once()
-            call_args = entry.websocket.send_json.call_args[0][0]
-            assert call_args["type"] == "game_starting"
-            assert "ws_url" in call_args
-            assert "game_ticket" in call_args
-
-        # Queue should be empty
+        dead_peer.disconnect(code=1006)
+        for _peer, handler in queued:
+            await handler
         assert app.state.matchmaking_manager.queue_size == 0
 
-    def test_matchmaking_websocket__when_game_server_unreachable__should_requeue_players(self, app, client):
-        self._set_servers_healthy(app)
-        self._queue_mock_players_without_websockets(app, 3)
-
-        with (
-            patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
-            patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(
-                side_effect=httpx.ConnectError("Connection refused"),
-            )
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            with client.websocket_connect("/ws/matchmaking") as ws:
-                msg = ws.receive_json()
-                assert msg["type"] == "error"
-                assert "Failed to start game" in msg["message"]
-
-        # 3 mock players re-queued; the real client disconnected and was cleaned up
-        assert app.state.matchmaking_manager.queue_size == 3
-
-    def test_matchmaking_websocket__when_queued_player_disconnected__should_requeue_only_connected_players(
-        self, app, client
+    async def test_matchmaking_websocket__when_another_task_closed_the_socket_mid_join__should_end_without_error(
+        self, app, caplog
     ):
-        self._set_servers_healthy(app)
-        mgr = app.state.matchmaking_manager
+        peer = AsgiPeer()
+        peer.send_gate = asyncio.Event()
+        websocket = _matchmaking_socket(app, peer, username="late")
+        handler = asyncio.create_task(matchmaking_websocket(websocket))
+        await peer.send_waiting.wait()
 
-        # Add 2 connected mock entries
-        connected_entries = []
-        for i in range(2):
-            entry = _make_mock_entry(
-                user_id=f"fake-uid-{i}", username=f"fake-player-{i}", connection_id=f"fake-conn-{i}"
-            )
-            mgr.add_player(entry)
-            connected_entries.append(entry)
-
-        # Add 1 disconnected mock entry
-        disc_entry = _make_mock_entry(user_id="fake-uid-disc", username="disc-player", connection_id="fake-conn-disc")
-        disc_entry.websocket.client_state = WebSocketState.DISCONNECTED
-        mgr.add_player(disc_entry)
-
-        # 4th player connects, triggering match but finding a disconnected player
-        with client.websocket_connect("/ws/matchmaking") as ws:
-            msg = ws.receive_json()
-            assert msg["type"] == "queue_update"
-
-        # Connected mock entries should have been re-queued
-        for entry in connected_entries:
-            assert mgr.has_user(entry.user_id)
-        # Disconnected player should NOT have been re-queued
-        assert not mgr.has_user("fake-uid-disc")
+        await websocket.close(code=4000, reason="match_failed")
+        peer.send_gate.set()
+        await handler
+        assert "unexpected error in matchmaking websocket" not in caplog.text
+        assert app.state.matchmaking_manager.queue_size == 0

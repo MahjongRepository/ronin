@@ -28,7 +28,8 @@ async def create_game_on_server(
     """
     Call POST /games on a game server.
 
-    Return the game server WebSocket URL.
+    Return the game server WebSocket URL. A ``GameTransitionError`` may mean the game was created anyway (a timeout
+    after the request arrived), so a caller must never reuse the game id for another attempt.
     """
     await registry.check_health()
     healthy_servers = registry.get_healthy_servers()
