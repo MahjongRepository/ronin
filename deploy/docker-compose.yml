@@ -40,7 +40,9 @@ services:
       uvicorn --factory lobby.server.app:get_app
       --host 0.0.0.0 --port 8710
       --proxy-headers --forwarded-allow-ips=*
+      --timeout-graceful-shutdown 5
       --log-level info
+    stop_grace_period: 15s
     ports:
       - "127.0.0.1:8710:8710"
     environment:
@@ -81,7 +83,9 @@ services:
       uvicorn --factory game.server.app:get_app
       --host 0.0.0.0 --port 8711
       --proxy-headers --forwarded-allow-ips=*
+      --timeout-graceful-shutdown 5
       --log-level info
+    stop_grace_period: 15s
     ports:
       - "127.0.0.1:8711:8711"
     environment:

@@ -59,7 +59,7 @@ class TestSessionManagerDefensiveChecks:
         # remove the game from the internal mapping
         manager._games.pop("game1", None)
         # should return silently without error
-        await manager.broadcast_chat(conns[0], "hello")
+        manager.broadcast_chat(conns[0], "hello")
         assert len(conns[0].sent_messages) == 0
 
     async def test_shutdown__when_game_pending__should_cancel_timeout_task(self):

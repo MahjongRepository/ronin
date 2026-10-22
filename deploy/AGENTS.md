@@ -36,6 +36,9 @@ a workstation through `make -C deploy <target> TARGET=dev` (`TARGET` picks `spot
 * **Deploy never goes through `down`.** `docker compose up -d --remove-orphans` recreates only the
   changed services; a change to service names or port bindings needs a manual `down` first. The
   deploy gates on lobby `:8710/health`, game `:8711/health` and a running Traefik.
+* **Bounded shutdown.** Both uvicorn commands pass `--timeout-graceful-shutdown 5` (uvicorn waits
+  forever for a client whose transport is stalled otherwise), and `stop_grace_period: 15s` leaves
+  room after it for the lifespan shutdown and the database drain before docker's SIGKILL.
 * Per-service settings live in compose `environment:` (`AUTH_*`, `LOBBY_*`, `GAME_*`,
   `LOG_FORMAT: json`), secrets only in `.env`. A deployment-specific setting has no default
   (`backend/AGENTS.md`), so a new one must be added here or the service fails to start and the

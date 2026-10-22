@@ -2,7 +2,7 @@
 
 `SessionManager` owns game and player lifecycle, delegating to `SessionStore` (in-memory sessions),
 `TimerManager`, `HeartbeatMonitor` and `ReplayCollector`. Work that touches a game runs under its
-per-game lock.
+per-game lock, and under it only enqueues to sockets: a send or close never waits on a client.
 
 * **Pending game.** `POST /games` registers a session per player, keyed by the player's game ticket
   string — the ticket is the session token for the whole game, never rotated. The game waits for
@@ -31,10 +31,9 @@ per-game lock.
   game-end broadcast the same path saves the detached replay, records the finish and closes the
   sockets. If the broadcast or the replay save raises, it escalates its own claim to a failure,
   finished by the fail_game finalizer; once the finish record is posted (best-effort, as all
-  persistence) the completion stands, and a socket whose close fails is logged while the rest still
-  close. Only the claimer escalates; a concurrent `fail_game` still finds the game ended and does
-  nothing. An action, a timeout or a reconnect that reaches an ended game is refused (reconnect with
-  `reconnect_game_gone`, before any eviction or seat restore).
+  persistence) the completion stands. Only the claimer escalates; a concurrent `fail_game` still
+  finds the game ended and does nothing. An action, a timeout or a reconnect that reaches an ended
+  game is refused (reconnect with `reconnect_game_gone`, before any eviction or seat restore).
 * **Playing.** A user plays a game while they have a session in a registered game that has not
   ended: from `POST /games` (pending included) until the game's end is claimed or it is torn down.
   A disconnected session still counts, deliberately: the lobby keeps that user out of rooms and

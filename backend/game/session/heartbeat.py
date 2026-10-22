@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import time
 from collections.abc import Callable
 from typing import Any, Protocol
@@ -130,15 +129,14 @@ class HeartbeatMonitor:
                 if entity is None:
                     return
 
-                await self._close_stale_connections(entity, entity_id=entity_id, entity_type=entity_type)
+                self._close_stale_connections(entity, entity_id=entity_id, entity_type=entity_type)
         except Exception as exc:  # noqa: BLE001
             on_error(exc)
 
-    async def _close_stale_connections(self, entity: _HasPlayers, *, entity_id: str, entity_type: str) -> None:
+    def _close_stale_connections(self, entity: _HasPlayers, *, entity_id: str, entity_type: str) -> None:
         now = time.monotonic()
         for player in list(entity.players.values()):
             last_ping = self._last_ping.get(player.connection_id)
             if last_ping is not None and now - last_ping > HEARTBEAT_TIMEOUT:
                 logger.info("heartbeat timeout, disconnecting", entity_type=entity_type, entity_id=entity_id)
-                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-                    await player.connection.close(code=1000, reason="heartbeat_timeout")
+                player.connection.close(code=1000, reason="heartbeat_timeout")

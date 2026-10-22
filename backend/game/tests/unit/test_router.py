@@ -155,19 +155,6 @@ class TestMessageRouterBranches:
         assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
         assert connection._close_code == 1011
 
-    async def test_message_router__when_own_socket_dies_during_an_action__should_propagate_it_as_a_disconnect(
-        self, setup
-    ):
-        router, connection, session_manager = setup
-        await _setup_player_in_game(session_manager, connection)
-        session_manager.handle_game_action = AsyncMock(side_effect=ConnectionError("socket gone"))
-
-        with pytest.raises(ConnectionError):
-            await router.handle_message(
-                connection, {"t": WireClientMessageType.GAME_ACTION, "wi": 0, "a": WireGameAction.DISCARD, "ti": 0}
-            )
-        assert session_manager.get_game("game1") is not None
-
     async def test_message_router__when_join_raises_outside_any_game__should_log_and_close_with_1011(
         self, setup, caplog
     ):

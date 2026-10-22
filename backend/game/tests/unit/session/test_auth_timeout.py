@@ -58,11 +58,11 @@ class TestAuthTimeout:
 
     async def test_auth_timeout__when_closing_raises_unexpectedly__should_log_and_close_with_1011(self, manager):
         class FirstCloseFailsConnection(MockConnection):
-            async def close(self, code: int = 1000, reason: str = "") -> None:
+            def close(self, code: int = 1000, reason: str = "") -> None:
                 if code == 4001:
                     raise ValueError("close failed")
 
-                await super().close(code, reason)
+                super().close(code, reason)
 
         conn = FirstCloseFailsConnection()
         with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0):

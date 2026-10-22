@@ -55,18 +55,26 @@ Mandatory for all game server code; review must catch violations.
   timer is cancelled when its game or connection goes; once it fires it detaches itself, so no
   cancel path cancels it while it finishes a game, and a fired timer that a stop, cancel or re-arm
   superseded while it waited for the game lock drops its default action. Heartbeat loops are
-  cancelled whenever their game goes, even mid-close. The app lifespan opens the database and, on
+  cancelled whenever their game goes, even mid-close. A connection's writer task is owned by its
+  endpoint (`websocket_endpoint`): started after accept and stopped once the disconnect is handled,
+  so `SessionManager` holds no socket state. The app lifespan opens the database and, on
   the way out, awaits `SessionManager.shutdown()` (sleeping tasks and heartbeats cancelled, fired
   ones awaited) before draining and closing it. An unexpected error in a task that has a game ends that game
   through `fail_game`; the auth timeout, which has none, logs and closes the socket. A new kind of
   task joins these paths.
+* Sends and closes never raise or wait for a dead or slow socket (an encoding error still raises
+  at the caller): `WebSocketConnection` queues them (bounded) for its writer, FIFO, a close last and
+  nothing after it. A connection whose queue overflows, whose send outlasts the send deadline or
+  whose write fails is terminated without a close frame, and a dead socket surfaces only at
+  receive, as `ConnectionError`, so the endpoint's disconnect path seats an AI player. The endpoint
+  lets the writer flush a close it queued (within the send deadline) before returning, so the
+  client gets its close code.
 * The router's game action, JOIN_GAME, RECONNECT and disconnect handlers are the same kind of
-  boundary (`SessionManager.fail_connection`, with the game captured before the call): the
-  connection's own dead socket (`ConnectionError`; `WebSocketConnection` turns every transport
-  failure into one) propagates as a disconnect, any other exception fails that game, or with no game
-  is logged and the socket closed with 1011. Inside its message loop `websocket_endpoint` closes with
-  1011 on anything else that reaches it, so no exception from handling a message leaves the ASGI
-  app; a non-binary frame is client input and counts as a decode strike.
+  boundary (`SessionManager.fail_connection`, with the game captured before the call): any exception
+  fails that game, or with no game is logged and the socket closed with 1011. Inside its message
+  loop `websocket_endpoint` closes with 1011 on anything else that reaches it, so no exception from
+  handling a message leaves the ASGI app; a non-binary frame is client input and counts as a decode
+  strike.
 * Concealed hand tiles are logged at DEBUG only; game tickets and session tokens are never logged at
   INFO or above.
 
@@ -77,6 +85,8 @@ Mandatory for all game server code; review must catch violations.
 * `MockConnection` and `MockGameService` (`tests/mocks/`) test routing and sessions without sockets;
   `tests/unit/session/helpers.py` (`create_started_game`, `disconnect_and_reconnect`) drives the
   session lifecycle; `tests/helpers/auth.py` (`make_test_game_ticket`) signs tickets;
-  `tests/helpers/websocket.py` drives a `TestClient` WebSocket.
+  `tests/helpers/websocket.py` drives a `TestClient` WebSocket; `tests/helpers/fake_websocket.py`
+  (`FakeWebSocketClient`) is the ASGI client side of a real Starlette WebSocket whose writes can be
+  held or failed, for the connection writer and the endpoint.
 * Whole-game flows use the replay runner with fixtures in `tests/integration/replays/fixtures/` or a
   built `ReplayInput`, asserting on each step's `state_before` / `state_after`.

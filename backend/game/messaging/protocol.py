@@ -9,7 +9,7 @@ class ConnectionProtocol(ABC):
     Abstract interface for a client connection.
 
     This abstraction allows message handling logic to be tested without real WebSocket connections. Uses MessagePack
-    binary protocol.
+    binary protocol. Sends and closes are queued, never awaited, so no caller waits on a client's socket.
     """
 
     @property
@@ -29,9 +29,12 @@ class ConnectionProtocol(ABC):
         ...
 
     @abstractmethod
-    async def send_bytes(self, data: bytes) -> None:
+    def send_bytes(self, data: bytes) -> None:
         """
-        Send raw bytes to the client.
+        Queue raw bytes for the client without waiting on the socket.
+
+        Never raises for a dead or slow socket: what cannot be delivered is dropped, and the connection's own receive
+        reports it gone.
         """
         ...
 
@@ -45,14 +48,14 @@ class ConnectionProtocol(ABC):
         ...
 
     @abstractmethod
-    async def close(self, code: int = 1000, reason: str = "") -> None:
+    def close(self, code: int = 1000, reason: str = "") -> None:
         """
-        Close the connection.
+        Queue a close after everything already sent; idempotent, and nothing is sent after it.
         """
         ...
 
-    async def send_message(self, data: dict[str, Any]) -> None:
+    def send_message(self, data: dict[str, Any]) -> None:
         """
-        Send a message to the client using MessagePack encoding.
+        Encode a message with MessagePack and queue it; an encoding error raises here, at the caller.
         """
-        await self.send_bytes(encode(data))
+        self.send_bytes(encode(data))

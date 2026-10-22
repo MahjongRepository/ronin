@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -32,7 +31,6 @@ from game.messaging.types import (
     SessionErrorCode,
     SessionMessageType,
 )
-from game.session.broadcast import broadcast_to_players
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
 from game.session.played_game import build_finish_record
@@ -224,9 +222,9 @@ class SessionManager:
             ),
         )
 
-    async def _send_error(self, connection: ConnectionProtocol, *, code: SessionErrorCode, message: str) -> None:
+    def _send_error(self, connection: ConnectionProtocol, *, code: SessionErrorCode, message: str) -> None:
         logger.warning("session error sent to client", error_code=code.value, error_message=message)
-        await connection.send_message(ErrorMessage(code=code, message=message).model_dump())
+        connection.send_message(ErrorMessage(code=code, message=message).model_dump())
 
     async def leave_game(
         self,
@@ -260,7 +258,7 @@ class SessionManager:
             async with lock:
                 self._session_store.mark_disconnected(player.session_token)
                 self._remove_player_from_game(game, connection_id=connection.connection_id, player=player)
-                await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
+                self._notify_player_left(connection, game, player_name, notify_player=notify_player)
                 # replace disconnected player with AI player (only if other players remain)
                 if not game.is_empty and player_seat is not None:
                     await self._replace_with_ai_player(game, seat=player_seat, session_token=player.session_token)
@@ -269,7 +267,7 @@ class SessionManager:
         else:
             self._session_store.remove_session(player.session_token)
             self._remove_player_from_game(game, connection_id=connection.connection_id, player=player)
-            await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
+            self._notify_player_left(connection, game, player_name, notify_player=notify_player)
 
         # Don't clean up pending games when they become empty - the timeout
         # task will handle starting the game (with AI substitutes) or cleanup.
@@ -298,14 +296,14 @@ class SessionManager:
                     return
 
                 pending.connected_count = max(0, pending.connected_count - 1)
-                await self._disconnect_pending_player(game, connection, player, notify_player=notify_player)
+                self._disconnect_pending_player(game, connection, player, notify_player=notify_player)
         else:  # pragma: no cover — defensive: unreachable in asyncio single-threaded model
             if player.game_id is None:
                 return
 
-            await self._disconnect_pending_player(game, connection, player, notify_player=notify_player)
+            self._disconnect_pending_player(game, connection, player, notify_player=notify_player)
 
-    async def _disconnect_pending_player(
+    def _disconnect_pending_player(
         self,
         game: Game,
         connection: ConnectionProtocol,
@@ -318,7 +316,7 @@ class SessionManager:
         """
         self._session_store.mark_disconnected(player.session_token)
         self._remove_player_from_game(game, connection_id=connection.connection_id, player=player)
-        await self._notify_player_left(connection, game, player.name, notify_player=notify_player)
+        self._notify_player_left(connection, game, player.name, notify_player=notify_player)
 
     @staticmethod
     def _remove_player_from_game(game: Game, connection_id: str, player: Player) -> None:
@@ -329,7 +327,7 @@ class SessionManager:
         player.game_id = None
         player.seat = None
 
-    async def _notify_player_left(
+    def _notify_player_left(
         self,
         connection: ConnectionProtocol,
         game: Game,
@@ -341,10 +339,9 @@ class SessionManager:
         Send leave notification to the player and broadcast departure to the game.
         """
         if notify_player:
-            with contextlib.suppress(RuntimeError, OSError):
-                await connection.send_message(GameLeftMessage().model_dump())
+            connection.send_message(GameLeftMessage().model_dump())
 
-        await self._broadcast_to_game(
+        self._broadcast_to_game(
             game=game,
             message=PlayerLeftMessage(player_name=player_name).model_dump(),
         )
@@ -429,7 +426,7 @@ class SessionManager:
         self._session_store.mark_disconnected(player.session_token)
         self._remove_player_from_game(game, connection_id=connection.connection_id, player=player)
 
-        await self._broadcast_to_game(
+        self._broadcast_to_game(
             game=game,
             message=PlayerLeftMessage(player_name=player_name).model_dump(),
         )
@@ -512,8 +509,7 @@ class SessionManager:
         Called OUTSIDE the per-game lock to avoid deadlock risk from connection.close() triggering WebSocket disconnect
         handler.
         """
-        with contextlib.suppress(RuntimeError, OSError):
-            await connection.close(code=1008, reason="invalid_game_action")
+        connection.close(code=1008, reason="invalid_game_action")
 
         await self._cleanup_empty_game(game.game_id, game)
 
@@ -536,7 +532,7 @@ class SessionManager:
         """
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await self._send_error(connection, code=SessionErrorCode.NOT_IN_GAME, message="You must join a game first")
+            self._send_error(connection, code=SessionErrorCode.NOT_IN_GAME, message="You must join a game first")
             return
 
         game = self._game_of(player)
@@ -547,9 +543,7 @@ class SessionManager:
         structlog.contextvars.bind_contextvars(seat=player.seat)
         lock = self._get_game_lock(game_id)
         if lock is None:
-            await self._send_error(
-                connection, code=SessionErrorCode.GAME_NOT_STARTED, message="Game has not started yet"
-            )
+            self._send_error(connection, code=SessionErrorCode.GAME_NOT_STARTED, message="Game has not started yet")
             return
 
         kicked = False
@@ -559,7 +553,7 @@ class SessionManager:
 
             seat = self._seat_of(player)
             if game.awaiting is None or wait_id != game.awaiting.wait_id:
-                await self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
+                self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
                 return
 
             try:
@@ -573,7 +567,7 @@ class SessionManager:
         if kicked:
             await self._close_kicked_and_cleanup(connection, game)
 
-    async def _send_stale_action(
+    def _send_stale_action(
         self,
         connection: ConnectionProtocol,
         *,
@@ -590,23 +584,23 @@ class SessionManager:
             message="the wait this action answers has already ended",
             target=SeatTarget(seat=seat),
         )
-        await connection.send_message(service_event_payload(ServiceEvent(data=error)))
+        connection.send_message(service_event_payload(ServiceEvent(data=error)))
 
-    async def broadcast_chat(
+    def broadcast_chat(
         self,
         connection: ConnectionProtocol,
         text: str,
     ) -> None:
         player = self._players.get(connection.connection_id)
         if player is None or player.game_id is None:
-            await self._send_error(connection, code=SessionErrorCode.NOT_IN_GAME, message="You must join a game first")
+            self._send_error(connection, code=SessionErrorCode.NOT_IN_GAME, message="You must join a game first")
             return
 
         game = self._game_of(player)
         if game is None:
             return
 
-        await self._broadcast_to_game(
+        self._broadcast_to_game(
             game=game,
             message=SessionChatMessage(
                 player_name=player.name,
@@ -614,12 +608,12 @@ class SessionManager:
             ).model_dump(),
         )
 
-    async def handle_ping(self, connection: ConnectionProtocol) -> None:
+    def handle_ping(self, connection: ConnectionProtocol) -> None:
         """
         Respond to client ping with pong and update activity timestamp.
         """
         self._heartbeat.record_ping(connection.connection_id)
-        await connection.send_message(PongMessage().model_dump())
+        connection.send_message(PongMessage().model_dump())
 
     # --- Reconnection ---
 
@@ -633,7 +627,7 @@ class SessionManager:
         """
         Handle a player reconnecting to an active game.
         """
-        result = await self._validate_reconnect(connection, game_id=game_id, session_token=session_token)
+        result = self._validate_reconnect(connection, game_id=game_id, session_token=session_token)
         if result is None:
             return
 
@@ -650,7 +644,7 @@ class SessionManager:
                     return
 
                 if game.ended:
-                    await self._send_error(
+                    self._send_error(
                         connection,
                         code=SessionErrorCode.RECONNECT_GAME_GONE,
                         message="Game has ended",
@@ -661,7 +655,7 @@ class SessionManager:
                 # concurrent reconnect that completed while we waited for the lock.
                 current_session = self._session_store.get_session(session_token)
                 if current_session is None or current_session.disconnected_at is None:
-                    await self._send_error(
+                    self._send_error(
                         connection,
                         code=SessionErrorCode.RECONNECT_NO_SESSION,
                         message="No disconnected session found",
@@ -679,7 +673,7 @@ class SessionManager:
                 snapshot = self._game_service.build_reconnection_snapshot(game_id, seat)
                 if snapshot is None:
                     self._game_service.replace_with_ai_player(game_id, seat)
-                    await self._send_error(
+                    self._send_error(
                         connection,
                         code=SessionErrorCode.RECONNECT_SNAPSHOT_FAILED,
                         message="Failed to build game state",
@@ -706,9 +700,9 @@ class SessionManager:
                 payload = snapshot.model_dump(by_alias=True, exclude_none=True)
                 payload["type"] = SessionMessageType.GAME_RECONNECTED
                 payload[WAIT_ID_KEY] = awaiting.wait_id
-                await connection.send_message(payload)
+                connection.send_message(payload)
 
-                await self._broadcast_to_game(
+                self._broadcast_to_game(
                     game=game,
                     message=PlayerReconnectedMessage(
                         player_name=session.player_name,
@@ -716,18 +710,17 @@ class SessionManager:
                     exclude_connection_id=connection.connection_id,
                 )
 
-                await self._send_turn_state_on_reconnect(game, seat=seat, player=player, awaiting=awaiting)
+                self._send_turn_state_on_reconnect(game, seat=seat, player=player, awaiting=awaiting)
         finally:
             # Close stale sockets outside the game lock, including on failure
             # paths where early returns would otherwise orphan them.
             for stale_conn in stale_connections:
-                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-                    await stale_conn.close(code=1000, reason="replaced_by_reconnect")
+                stale_conn.close(code=1000, reason="replaced_by_reconnect")
 
         structlog.contextvars.bind_contextvars(seat=seat)
         logger.info("player reconnected")
 
-    async def _validate_reconnect(
+    def _validate_reconnect(
         self,
         connection: ConnectionProtocol,
         game_id: str,
@@ -738,14 +731,14 @@ class SessionManager:
 
         Returns (session, game, lock, seat) or None on error.
         """
-        result = await self._validate_reconnect_session(connection, game_id=game_id, session_token=session_token)
+        result = self._validate_reconnect_session(connection, game_id=game_id, session_token=session_token)
         if result is None:
             return None
 
         session, game, lock, seat = result
 
         if self.is_in_active_game(connection.connection_id):
-            await self._send_error(
+            self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_ALREADY_ACTIVE,
                 message="Connection already in a game",
@@ -754,7 +747,7 @@ class SessionManager:
 
         return session, game, lock, seat
 
-    async def _validate_reconnect_session(
+    def _validate_reconnect_session(
         self,
         connection: ConnectionProtocol,
         game_id: str,
@@ -777,11 +770,11 @@ class SessionManager:
                 if session is not None
                 else "No disconnected session found"
             )
-            await self._send_error(connection, code=code, message=message)
+            self._send_error(connection, code=code, message=message)
             return None
 
         if session.game_id != game_id:
-            await self._send_error(
+            self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_GAME_MISMATCH,
                 message="Session token is not valid for this game",
@@ -790,7 +783,7 @@ class SessionManager:
 
         seat = session.seat
         if seat is None:
-            await self._send_error(
+            self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_NO_SEAT,
                 message="Session has no seat assignment",
@@ -800,7 +793,7 @@ class SessionManager:
         game = self._games.get(session.game_id)
         if game is None:
             self._session_store.remove_session(session_token)
-            await self._send_error(
+            self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_GAME_GONE,
                 message="Game no longer exists",
@@ -809,7 +802,7 @@ class SessionManager:
 
         lock = self._get_game_lock(session.game_id)
         if lock is None:
-            await self._send_error(
+            self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_RETRY_LATER,
                 message="Game is starting, retry shortly",
@@ -868,7 +861,7 @@ class SessionManager:
         )
         return player
 
-    async def _send_turn_state_on_reconnect(
+    def _send_turn_state_on_reconnect(
         self,
         game: Game,
         *,
@@ -888,8 +881,7 @@ class SessionManager:
         events = self._game_service.build_draw_event_for_seat(game.game_id, seat)
         for event in events:
             message = stamp_wait_id(service_event_payload(event), event, awaiting)
-            with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-                await player.connection.send_message(message)
+            player.connection.send_message(message)
 
         self._timer_manager.start_turn_timer(game.game_id, seat)
 
@@ -941,7 +933,7 @@ class SessionManager:
         # Check for already-started game before looking at pending state
         game = self._games.get(game_id)
         if game is not None and game.started:
-            await self._send_error(
+            self._send_error(
                 connection,
                 code=SessionErrorCode.JOIN_GAME_ALREADY_STARTED,
                 message="Game already started, use RECONNECT",
@@ -950,7 +942,7 @@ class SessionManager:
 
         pending = self._pending_games.get(game_id)
         if pending is None:
-            await self._send_error(connection, code=SessionErrorCode.JOIN_GAME_NOT_FOUND, message="Game not found")
+            self._send_error(connection, code=SessionErrorCode.JOIN_GAME_NOT_FOUND, message="Game not found")
             return
 
         stale_conn: ConnectionProtocol | None = None
@@ -968,7 +960,7 @@ class SessionManager:
                 )
                 if error is not None:
                     code, message = error
-                    await self._send_error(connection, code=code, message=message)
+                    self._send_error(connection, code=code, message=message)
                     return
 
                 stale_conn = await self._register_pending_player(
@@ -978,8 +970,7 @@ class SessionManager:
             # Close evicted stale socket outside the lock to avoid deadlock
             # (close triggers disconnect handler which calls leave_game).
             if stale_conn is not None:
-                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-                    await stale_conn.close(code=1000, reason="replaced_by_new_connection")
+                stale_conn.close(code=1000, reason="replaced_by_new_connection")
 
     def _validate_join_game(
         self,
@@ -1208,13 +1199,12 @@ class SessionManager:
 
         self._auth_timeouts.pop(connection.connection_id, None)
         try:
-            await self._close_unauthenticated(connection)
+            self._close_unauthenticated(connection)
         except Exception:
             logger.exception("auth timeout failed", connection_id=connection.connection_id)
-            with contextlib.suppress(RuntimeError, OSError):
-                await connection.close(code=1011, reason="internal_error")
+            connection.close(code=1011, reason="internal_error")
 
-    async def _close_unauthenticated(self, connection: ConnectionProtocol) -> None:
+    def _close_unauthenticated(self, connection: ConnectionProtocol) -> None:
         cid = connection.connection_id
 
         # Connection already authenticated or removed
@@ -1229,8 +1219,7 @@ class SessionManager:
         self._heartbeat.record_disconnect(cid)
 
         logger.info("auth timeout, closing unauthenticated connection", connection_id=cid)
-        with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-            await connection.close(code=4001, reason="auth_timeout")
+        connection.close(code=4001, reason="auth_timeout")
 
     def _is_game_alive(self, game: Game) -> bool:
         """
@@ -1317,7 +1306,7 @@ class SessionManager:
         """
         claimed = self._claim_completion(game, awaiting)
         try:
-            await self._send_events(game, events, awaiting)
+            self._send_events(game, events, awaiting)
         except Exception as exc:
             if not claimed:
                 raise
@@ -1332,7 +1321,7 @@ class SessionManager:
     def _detach_replay(self, game: Game) -> list[str] | None:
         return self._replay_collector.detach_game(game.game_id) if self._replay_collector else None
 
-    async def _send_events(self, game: Game, events: list[ServiceEvent], awaiting: Awaiting) -> None:
+    def _send_events(self, game: Game, events: list[ServiceEvent], awaiting: Awaiting) -> None:
         """
         Record the events for the replay, then send each to its target, the wait's opening messages stamped with `wi`.
         """
@@ -1348,20 +1337,24 @@ class SessionManager:
 
             message = stamp_wait_id(message, event, awaiting)
             if isinstance(event.target, BroadcastTarget):
-                await self._broadcast_to_game(game, message=message)
+                self._broadcast_to_game(game, message=message)
             elif isinstance(event.target, SeatTarget):
                 player = seat_to_player.get(event.target.seat)
                 if player:
-                    with contextlib.suppress(RuntimeError, OSError):
-                        await player.connection.send_message(message)
+                    player.connection.send_message(message)
 
-    async def _broadcast_to_game(
-        self,
+    @staticmethod
+    def _broadcast_to_game(
         game: Game,
         message: dict[str, Any],
         exclude_connection_id: str | None = None,
     ) -> None:
-        await broadcast_to_players(players=game.players, message=message, exclude_connection_id=exclude_connection_id)
+        """
+        Send a message to every player of the game, skipping one connection if excluded.
+        """
+        for player in game.players.values():
+            if player.connection_id != exclude_connection_id:
+                player.connection.send_message(message)
 
     def fail_game(self, game: Game, *, reason: str, exc: BaseException | None = None) -> bool:
         """
@@ -1392,7 +1385,7 @@ class SessionManager:
         self._spawn(self._finish_failed_game(self._detach_failed_game(game, replay_lines=self._detach_replay(game))))
         return True
 
-    async def fail_connection(
+    def fail_connection(
         self,
         connection: ConnectionProtocol,
         game: Game | None,
@@ -1415,7 +1408,7 @@ class SessionManager:
             logger.error("connection failed outside a game", reason=reason, exc_info=exc)
 
         if not seated:
-            await self._close_with_internal_error(connection)
+            self._close_with_internal_error(connection)
 
     def _escalate_completion(self, game: Game, *, exc: Exception, replay_lines: list[str] | None) -> None:
         """
@@ -1481,17 +1474,15 @@ class SessionManager:
             logger.exception("failed to save the replay of a failed game", game_id=game_id)
 
         for player in failed.players:
-            await self._close_with_internal_error(player.connection)
+            self._close_with_internal_error(player.connection)
 
-    async def _close_with_internal_error(self, connection: ConnectionProtocol) -> None:
+    def _close_with_internal_error(self, connection: ConnectionProtocol) -> None:
         message = ErrorMessage(code=SessionErrorCode.INTERNAL_ERROR, message="The game ended on a server error")
         try:
             try:
-                await connection.send_message(message.model_dump())
+                connection.send_message(message.model_dump())
             finally:
-                await connection.close(code=1011, reason="internal_error")
-        except RuntimeError, OSError:
-            logger.info("connection already gone while failing its game", connection_id=connection.connection_id)
+                connection.close(code=1011, reason="internal_error")
         except Exception:
             logger.exception("failed to close a connection of a failed game", connection_id=connection.connection_id)
 
@@ -1507,9 +1498,9 @@ class SessionManager:
 
         Runs in the path that claimed the game's end, right after its broadcast, on the replay lines and players
         detached there. An unexpected error saving the replay escalates the claim to a failure, which finishes the game
-        with 1011. Once the finish record is posted (best-effort) the completion stands: a socket whose close fails is
-        logged and the next one is closed. The WebSocket disconnect handlers clean up session state when the connections
-        close.
+        with 1011. Once the finish record is posted (best-effort) the completion stands; each close is queued after the
+        GAME_END already queued to that socket. The WebSocket disconnect handlers clean up session state when the
+        connections close.
         """
         try:
             if self._replay_collector:
@@ -1521,15 +1512,7 @@ class SessionManager:
         game_ended_event = next((e.data for e in events if isinstance(e.data, GameEndedEvent)), None)
         self._record_game_finish(game, GameEndReason.COMPLETED, game_ended_event=game_ended_event)
         for player in players:
-            await self._close_game_ended(player.connection)
-
-    async def _close_game_ended(self, connection: ConnectionProtocol) -> None:
-        try:
-            await connection.close(code=1000, reason="game_ended")
-        except RuntimeError, OSError:
-            logger.info("connection already gone at game end", connection_id=connection.connection_id)
-        except Exception:
-            logger.exception("failed to close a connection at game end", connection_id=connection.connection_id)
+            player.connection.close(code=1000, reason="game_ended")
 
     def _claim_completion(self, game: Game, awaiting: Awaiting) -> bool:
         """

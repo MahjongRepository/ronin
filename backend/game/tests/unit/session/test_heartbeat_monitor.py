@@ -171,28 +171,6 @@ class TestHeartbeatMonitorLoop:
         # verify sleep was called (loop attempted one iteration)
         mock_sleep.assert_called_once()
 
-    async def test_heartbeat_monitor__when_closing_stale_connection_fails__should_suppress_error(self):
-        monitor = HeartbeatMonitor()
-        conn = MockConnection()
-        monitor.record_connect(conn.connection_id)
-        # set ping to past timeout
-        monitor._last_ping[conn.connection_id] = time.monotonic() - HEARTBEAT_TIMEOUT - 10
-
-        game = Game(game_id="game1")
-        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
-        game.players[conn.connection_id] = player
-
-        # make close raise a ConnectionError
-        failing_close = AsyncMock(side_effect=ConnectionError("connection lost"))
-        conn.close = failing_close
-
-        with patch("game.session.heartbeat.HEARTBEAT_CHECK_INTERVAL", 0):
-            await monitor._check_loop(
-                entity_id="game1", entity_type="game", get_entity=_resolve_once(game), on_error=_fail_on_loop_error
-            )
-
-        failing_close.assert_awaited_once_with(code=1000, reason="heartbeat_timeout")
-
     async def test_heartbeat_monitor__when_one_of_two_connections_stale__should_close_only_stale_one(self):
         monitor = HeartbeatMonitor()
         conn1 = MockConnection()

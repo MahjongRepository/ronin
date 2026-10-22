@@ -128,8 +128,9 @@ class TestWebSocketIntegration:
                 recv_ws(ws)  # drain INVALID_MESSAGE error
 
             # Server closed the connection after 3 decode errors
-            with pytest.raises(WebSocketDisconnect):
+            with pytest.raises(WebSocketDisconnect) as closed:
                 ws.receive_bytes()
+            assert (closed.value.code, closed.value.reason) == (4004, "too_many_decode_errors")
 
     def test_websocket__when_valid_message_follows_decode_errors__should_reset_error_counter(self, client):
         with patch.object(ws_module, "_MAX_DECODE_ERRORS", 3), client.websocket_connect("/ws/test_game") as ws:

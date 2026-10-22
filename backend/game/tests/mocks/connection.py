@@ -32,12 +32,9 @@ class MockConnection(ConnectionProtocol):
     def is_closed(self) -> bool:
         return self._closed
 
-    async def send_bytes(self, data: bytes) -> None:
-        if self._closed:
-            raise ConnectionError("Connection is closed")
-
-        await asyncio.sleep(0)
-        self._outbox.append(decode(data))
+    def send_bytes(self, data: bytes) -> None:
+        if not self._closed:
+            self._outbox.append(decode(data))
 
     async def receive_bytes(self) -> bytes:
         if self._closed:
@@ -45,10 +42,9 @@ class MockConnection(ConnectionProtocol):
 
         return await self._inbox.get()
 
-    async def close(self, code: int = 1000, reason: str = "") -> None:
-        await asyncio.sleep(0)
+    def close(self, code: int = 1000, reason: str = "") -> None:
         if self._closed:
-            raise RuntimeError("Cannot close an already closed websocket")
+            return
 
         self._closed = True
         self._close_code = code

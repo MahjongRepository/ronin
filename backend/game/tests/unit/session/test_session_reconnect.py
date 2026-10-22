@@ -412,8 +412,8 @@ class TestReconnectEdgeCases:
         # to simulate a concurrent reconnect having completed.
         original_validate = manager._validate_reconnect
 
-        async def patched_validate(connection, game_id, session_token):
-            result = await original_validate(connection, game_id=game_id, session_token=session_token)
+        def patched_validate(connection, game_id, session_token):
+            result = original_validate(connection, game_id=game_id, session_token=session_token)
             if result is not None:
                 # Simulate concurrent reconnect completing before lock acquisition
                 session.disconnected_at = None
@@ -447,8 +447,8 @@ class TestReconnectEdgeCases:
         # connection from _connections between prevalidation and lock acquisition.
         original_validate = manager._validate_reconnect
 
-        async def patched_validate(connection, game_id, session_token):
-            result = await original_validate(connection, game_id=game_id, session_token=session_token)
+        def patched_validate(connection, game_id, session_token):
+            result = original_validate(connection, game_id=game_id, session_token=session_token)
             if result is not None:
                 manager._connections.pop(connection.connection_id, None)
 

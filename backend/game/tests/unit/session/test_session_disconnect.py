@@ -1,5 +1,4 @@
 import asyncio
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from game.logic.enums import GameAction, TimeoutType
@@ -9,12 +8,7 @@ from game.session.manager import SessionManager
 from game.tests.mocks import FakeGameRepository, MockConnection, MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, current_wait_id, run_timeout
-
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
-    import pytest
+from .helpers import create_started_game, run_timeout
 
 
 class TestSessionManagerDisconnect:
@@ -101,76 +95,7 @@ class TestSessionManagerDisconnect:
         assert len(conns[1].sent_messages) == 0
 
 
-class _FirstSendHold:
-    def __init__(self, send: Callable[[bytes], Awaitable[None]], order: list[str]) -> None:
-        self.entered = asyncio.Event()
-        self.release = asyncio.Event()
-        self._order = order
-        self._send = send
-
-    async def send(self, data: bytes) -> None:
-        if self.entered.is_set():
-            await self._send(data)
-            return
-
-        self.entered.set()
-        await self.release.wait()
-        await self._send(data)
-        self._order.append("held_send_done")
-
-
-async def _let_ready_tasks_run() -> None:
-    for _ in range(20):
-        await asyncio.sleep(0)
-
-
-def _track_replacements(manager: SessionManager, order: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
-    original_replace = manager._game_service.replace_with_ai_player
-
-    def tracking_replace(game_id: str, seat: int) -> None:
-        order.append(f"replace seat {seat}")
-        return original_replace(game_id, seat)
-
-    monkeypatch.setattr(manager._game_service, "replace_with_ai_player", tracking_replace)
-
-
 class TestLockBoundaryRaces:
-    async def test_lock_boundary__when_leave_arrives_during_action_broadcast__should_replace_after_the_send(
-        self, manager, monkeypatch
-    ):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        order: list[str] = []
-        _track_replacements(manager, order, monkeypatch)
-        bob_send = _FirstSendHold(conns[1].send_bytes, order)
-        monkeypatch.setattr(conns[1], "send_bytes", bob_send.send)
-
-        action = asyncio.create_task(
-            manager.handle_game_action(conns[1], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
-        )
-        await bob_send.entered.wait()
-        leave = asyncio.create_task(manager.leave_game(conns[0]))
-        await _let_ready_tasks_run()
-        bob_send.release.set()
-        await asyncio.gather(action, leave)
-        assert order == ["held_send_done", "replace seat 0"]
-
-    async def test_lock_boundary__when_leave_arrives_during_timeout_broadcast__should_replace_after_the_send(
-        self, manager, monkeypatch
-    ):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        order: list[str] = []
-        _track_replacements(manager, order, monkeypatch)
-        bob_send = _FirstSendHold(conns[1].send_bytes, order)
-        monkeypatch.setattr(conns[1], "send_bytes", bob_send.send)
-
-        timeout = asyncio.create_task(run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=1))
-        await bob_send.entered.wait()
-        leave = asyncio.create_task(manager.leave_game(conns[0]))
-        await _let_ready_tasks_run()
-        bob_send.release.set()
-        await asyncio.gather(timeout, leave)
-        assert order == ["held_send_done", "replace seat 0"]
-
     async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
@@ -224,7 +149,7 @@ class TestHeartbeat:
 
         # small delay so monotonic time advances
         await asyncio.sleep(0.01)
-        await manager.handle_ping(conn)
+        manager.handle_ping(conn)
         assert len(conn.sent_messages) == 1
         assert conn.sent_messages[0]["type"] == SessionMessageType.PONG
         assert manager._heartbeat._last_ping.get(conn.connection_id) > initial_time
