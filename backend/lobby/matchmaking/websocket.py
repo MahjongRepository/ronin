@@ -15,6 +15,7 @@ from lobby.websocket_utils import check_origin, close_quietly, send_or_drop
 
 if TYPE_CHECKING:
     from lobby.matchmaking.manager import MatchmakingManager
+    from lobby.occupancy import Occupancy
     from lobby.registry.manager import RegistryManager
     from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
@@ -33,6 +34,7 @@ class _MatchmakingContext:
         "auth_settings",
         "connection_id",
         "matchmaking_manager",
+        "occupancy",
         "registry",
         "settings",
         "user_id",
@@ -44,6 +46,7 @@ class _MatchmakingContext:
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
         self.matchmaking_manager: MatchmakingManager = websocket.app.state.matchmaking_manager
         self.registry: RegistryManager = websocket.app.state.registry
+        self.occupancy: Occupancy = websocket.app.state.occupancy
 
         self.connection_id: str = str(uuid.uuid4())
         self.user_id: str = websocket.user.user_id
@@ -86,7 +89,9 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
     Attempt to join the matchmaking queue.
 
     Return True if the player is queued and should enter the message loop. Return False if the connection was rejected
-    or this join completed a match, whether its game was created or not: either way the socket is closed.
+    or this join completed a match, whether its game was created or not: either way the socket is closed. The check that
+    the user is not playing a game, which asks the game servers, runs before the lock; ``add_player`` checks the rest of
+    the occupancy rule under it, including a start that handed the user to a game while that lookup was in flight.
     """
     log = logger.bind(username=ctx.username, connection_id=ctx.connection_id)
 
@@ -99,15 +104,17 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
 
     matched = None
     position = 0
-    rejection: str | None = None
-    async with ctx.matchmaking_manager.lock:
-        try:
-            ctx.matchmaking_manager.add_player(entry)
-        except ValueError as e:
-            rejection = str(e)
-        else:
-            position = ctx.matchmaking_manager.queue_size
-            matched = ctx.matchmaking_manager.try_match()
+    with ctx.occupancy.admitting(ctx.user_id):
+        rejection = await ctx.occupancy.find_game_conflict(ctx.user_id)
+        if rejection is None:
+            async with ctx.matchmaking_manager.lock:
+                try:
+                    ctx.matchmaking_manager.add_player(entry)
+                except ValueError as e:
+                    rejection = str(e)
+                else:
+                    position = ctx.matchmaking_manager.queue_size
+                    matched = ctx.matchmaking_manager.try_match()
 
     if rejection is not None:
         log.info("matchmaking rejected", reason=rejection)
@@ -207,6 +214,9 @@ async def _create_game(
 ) -> tuple[str, dict[str, str]]:
     """
     Sign a ticket per matched player and create the game; return the game server URL and the tickets by connection.
+
+    The attempt hands the matched users to the game whatever its outcome, before the caller releases them from the
+    in-flight set: a failure may mean the game server created the game anyway.
     """
     players_for_tickets = [(entry.user_id, entry.username, entry.connection_id) for entry in matched]
     player_specs, ticket_map = sign_player_tickets(
@@ -214,12 +224,16 @@ async def _create_game(
         game_id=game_id,
         ticket_secret=ctx.auth_settings.game_ticket_secret,
     )
-    ws_url = await create_game_on_server(
-        game_id=game_id,
-        players=player_specs,
-        num_ai_players=0,
-        registry=ctx.registry,
-    )
+    try:
+        ws_url = await create_game_on_server(
+            game_id=game_id,
+            players=player_specs,
+            num_ai_players=0,
+            registry=ctx.registry,
+        )
+    finally:
+        ctx.occupancy.hand_to_game(entry.user_id for entry in matched)
+
     return ws_url, ticket_map
 
 

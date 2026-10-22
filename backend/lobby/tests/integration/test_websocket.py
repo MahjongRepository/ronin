@@ -7,16 +7,19 @@ import httpx
 import pytest
 from starlette.testclient import TestClient
 
+from lobby import game_transition as game_transition_module
 from lobby.auth.models import AuthenticatedPlayer
+from lobby.matchmaking.websocket import matchmaking_websocket
+from lobby.rooms import websocket as rooms_websocket_module
 from lobby.rooms.websocket import room_websocket
 from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
-from lobby.tests.conftest import AsgiPeer, make_websocket
+from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket, nobody_playing
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
 from shared.auth.settings import AuthSettings
 
 
-def _make_app(tmp_path, **settings_kwargs):
+def _make_app(tmp_path, *, is_playing=nobody_playing, **settings_kwargs):
     config_file = tmp_path / "servers.yaml"
     servers_yaml = """
 servers:
@@ -45,6 +48,7 @@ servers:
             database_path=str(tmp_path / "test.db"),
             cookie_secure=False,
         ),
+        is_playing=is_playing,
     )
 
 
@@ -694,6 +698,128 @@ class TestRoomWebSocketRaces:
         await handler
         assert app.state.room_manager.get_room("reap-room") is None
         assert "reap-room" not in app.state.room_connections._connections
+
+
+async def _hold_open(handler_coroutine, peer):
+    peer.send_gate = asyncio.Event()
+    handler = asyncio.create_task(handler_coroutine)
+    await peer.send_waiting.wait()
+    peer.send_gate.set()
+    return handler
+
+
+async def _join_room_and_leave(app, *, room_id, username):
+    peer = AsgiPeer()
+    peer.disconnect()
+    await room_websocket(_room_socket(app, peer, room_id=room_id, username=username))
+    return peer
+
+
+def _route_game_server_lookups(monkeypatch, game_server):
+    real_async_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        game_transition_module.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_async_client(transport=httpx.MockTransport(game_server), **kwargs),
+    )
+
+
+class TestRoomOccupancy:
+    @pytest.fixture
+    def app(self, tmp_path):
+        return _make_app(tmp_path)
+
+    async def test_room_websocket__when_user_is_queued__should_reject_with_already_in_queue(self, app):
+        room = app.state.room_manager.create_room("queued-room")
+        queue_peer = AsgiPeer()
+        queue_socket = make_websocket(
+            queue_peer, app=app, user=AuthenticatedPlayer(user_id="alice-id", username="alice")
+        )
+        queue_handler = await _hold_open(matchmaking_websocket(queue_socket), queue_peer)
+
+        room_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
+        assert room_peer.received_json() == [{"type": "error", "message": "already_in_queue"}]
+        assert room_peer.close_codes() == [4000]
+        assert room.is_empty
+
+        queue_peer.disconnect()
+        await queue_handler
+
+    async def test_room_websocket__when_user_is_seated_in_another_room__should_reject_with_already_in_room(self, app):
+        first_room = app.state.room_manager.create_room("first-room")
+        second_room = app.state.room_manager.create_room("second-room")
+        seated_peer = AsgiPeer()
+        seated_handler = await _hold_open(
+            room_websocket(_room_socket(app, seated_peer, room_id=first_room.room_id, username="alice")), seated_peer
+        )
+
+        second_peer = await _join_room_and_leave(app, room_id=second_room.room_id, username="alice")
+        assert second_peer.received_json() == [{"type": "error", "message": "already_in_room"}]
+        assert second_peer.close_codes() == [4000]
+        assert second_room.is_empty
+
+        seated_peer.disconnect()
+        await seated_handler
+
+    async def test_room_websocket__when_the_users_room_starts_during_the_lookup__should_reject_with_already_in_game(
+        self, tmp_path, monkeypatch
+    ):
+        held_lookup = HeldLookup()
+        app = _make_app(tmp_path, is_playing=held_lookup)
+        monkeypatch.setattr(
+            rooms_websocket_module, "create_game_on_server", AsyncMock(return_value="ws://localhost:8711/ws/game")
+        )
+        first_room = app.state.room_manager.create_room("first-room")
+        second_room = app.state.room_manager.create_room("second-room")
+        seated_peer = AsgiPeer()
+        seated_handler = await _hold_open(
+            room_websocket(_room_socket(app, seated_peer, room_id=first_room.room_id, username="alice")), seated_peer
+        )
+
+        held_lookup.held_user_id = "alice-id"
+        late_join = asyncio.create_task(_join_room_and_leave(app, room_id=second_room.room_id, username="alice"))
+        await held_lookup.started.wait()
+        seated_peer.send_from_client(json.dumps({"type": "start_game"}))
+        await seated_handler
+        assert seated_peer.received_json()[-1]["type"] == "game_starting"
+        assert app.state.room_manager.get_room(first_room.room_id) is None
+
+        held_lookup.release.set()
+        late_peer = await late_join
+        assert late_peer.received_json() == [{"type": "error", "message": "already_in_game"}]
+        assert second_room.is_empty
+
+    async def test_room_websocket__when_app_wires_the_game_server_lookup__should_reject_only_the_playing_user(
+        self, tmp_path, monkeypatch
+    ):
+        def game_server(request):
+            if request.url.path == "/players/alice-id":
+                return httpx.Response(200, json={"game_id": "game-1"})
+
+            return httpx.Response(404)
+
+        _route_game_server_lookups(monkeypatch, game_server)
+        app = _make_app(tmp_path, is_playing=None)
+        room = app.state.room_manager.create_room("wired-room")
+
+        alice_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
+        assert alice_peer.received_json() == [{"type": "error", "message": "already_in_game"}]
+        bob_peer = await _join_room_and_leave(app, room_id=room.room_id, username="bob")
+        assert bob_peer.received_json()[0]["type"] == "room_joined"
+
+    async def test_room_websocket__when_game_server_unreachable__should_let_the_user_join_and_warn(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        def unreachable_game_server(_request):
+            raise httpx.ConnectError("connection refused")
+
+        _route_game_server_lookups(monkeypatch, unreachable_game_server)
+        app = _make_app(tmp_path, is_playing=None)
+        room = app.state.room_manager.create_room("fail-open-room")
+
+        alice_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
+        assert alice_peer.received_json()[0]["type"] == "room_joined"
+        assert caplog.text.count("playing lookup failed") == 1
 
 
 class TestWebSocketOriginCheck:

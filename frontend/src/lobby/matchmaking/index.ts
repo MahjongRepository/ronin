@@ -1,9 +1,12 @@
 import { LobbySocket } from "@/lobby/lobby-socket";
+import { describeOccupancyError } from "@/lobby/occupancy-errors";
 import { storeGameSession } from "@/shared/session";
 
 const MATCH_FAILED = "match_failed";
+const RETRYABLE_ERRORS: ReadonlySet<unknown> = new Set([MATCH_FAILED, "already_in_game"]);
 const TERMINAL_ERRORS: ReadonlySet<unknown> = new Set([
     MATCH_FAILED,
+    "already_in_game",
     "already_in_queue",
     "already_in_room",
 ]);
@@ -53,15 +56,19 @@ function onGameStarting(
     window.location.href = `${gameClientUrl}/${gameId}`;
 }
 
+function describeError(message: unknown): string {
+    if (message === MATCH_FAILED) {
+        return "The match could not be started.";
+    }
+    return describeOccupancyError(message) ?? `Error: ${String(message)}`;
+}
+
 function showError(message: unknown, page: MatchmakingPage): void {
     const { elements } = page;
-    const matchFailed = message === MATCH_FAILED;
     page.endedWithError = TERMINAL_ERRORS.has(message);
-    elements.status.textContent = matchFailed
-        ? "The match could not be started."
-        : `Error: ${String(message)}`;
+    elements.status.textContent = describeError(message);
     elements.queueCount.textContent = "";
-    elements.retry.hidden = !matchFailed;
+    elements.retry.hidden = !RETRYABLE_ERRORS.has(message);
 }
 
 function handleMessage(

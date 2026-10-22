@@ -1,6 +1,6 @@
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from starlette.testclient import TestClient
@@ -11,13 +11,13 @@ from lobby.matchmaking import websocket as matchmaking_websocket_module
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
-from lobby.tests.conftest import AsgiPeer, make_websocket
+from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket, nobody_playing
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.game_ticket import verify_game_ticket
 from shared.auth.settings import AuthSettings
 
 
-def _make_app(tmp_path, **settings_kwargs):
+def _make_app(tmp_path, *, is_playing=nobody_playing, **settings_kwargs):
     config_file = tmp_path / "servers.yaml"
     servers_yaml = """
 servers:
@@ -43,6 +43,7 @@ servers:
             database_path=str(tmp_path / "test.db"),
             cookie_secure=False,
         ),
+        is_playing=is_playing,
     )
 
 
@@ -113,18 +114,29 @@ class TestMatchmakingWebSocket:
             assert app.state.matchmaking_manager.queue_size == 1
         assert app.state.matchmaking_manager.queue_size == 0
 
-    def test_matchmaking_websocket__when_already_in_queue__should_send_error(self, app, client):
-        with (
-            patch.object(
-                app.state.matchmaking_manager,
-                "add_player",
-                side_effect=ValueError("already_in_queue"),
-            ),
-            client.websocket_connect("/ws/matchmaking") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "error"
-            assert msg["message"] == "already_in_queue"
+    async def test_matchmaking_websocket__when_already_in_queue__should_reject_the_second_socket(self, app):
+        first_peer, first_handler = await _queue_player(app, "alice")
+
+        second_peer = AsgiPeer()
+        await matchmaking_websocket(_matchmaking_socket(app, second_peer, username="alice"))
+        assert second_peer.received_json() == [{"type": "error", "message": "already_in_queue"}]
+        assert second_peer.close_codes() == [4000]
+        assert app.state.matchmaking_manager.queue_size == 1
+
+        first_peer.disconnect()
+        await first_handler
+
+    async def test_matchmaking_websocket__when_user_is_playing__should_reject_with_already_in_game(self, tmp_path):
+        async def alice_playing(user_id):
+            return user_id == "alice-id"
+
+        app = _make_app(tmp_path, is_playing=alice_playing)
+
+        peer = AsgiPeer()
+        await matchmaking_websocket(_matchmaking_socket(app, peer, username="alice"))
+        assert peer.received_json() == [{"type": "error", "message": "already_in_game"}]
+        assert peer.close_codes() == [4000]
+        assert app.state.matchmaking_manager.queue_size == 0
 
     def test_matchmaking_websocket__when_already_in_room__should_send_error(self, app, client):
         room = app.state.room_manager.create_room("test-room")
@@ -237,6 +249,40 @@ class TestMatchmakingGameTransition:
         dead_peer.disconnect(code=1006)
         for _peer, handler in queued:
             await handler
+        assert app.state.matchmaking_manager.queue_size == 0
+
+    @pytest.mark.parametrize(
+        ("create_game", "first_player_last_message"),
+        [
+            (AsyncMock(return_value="ws://localhost:8711/ws/game"), "game_starting"),
+            (
+                AsyncMock(side_effect=GameTransitionError("read timed out after the game server got the request")),
+                "error",
+            ),
+        ],
+        ids=["created", "creation_failed_after_the_game_server_got_it"],
+    )
+    async def test_matchmaking_websocket__when_a_match_starts_during_the_lookup__should_reject_with_already_in_game(
+        self, tmp_path, monkeypatch, create_game, first_player_last_message
+    ):
+        held_lookup = HeldLookup()
+        app = _make_app(tmp_path, is_playing=held_lookup)
+        monkeypatch.setattr(matchmaking_websocket_module, "create_game_on_server", create_game)
+        queued = [await _queue_player(app, username) for username in ("alice", "bob", "carol")]
+
+        held_lookup.held_user_id = "alice-id"
+        late_peer = AsgiPeer()
+        late_peer.disconnect()
+        late_join = asyncio.create_task(matchmaking_websocket(_matchmaking_socket(app, late_peer, username="alice")))
+        await held_lookup.started.wait()
+        await matchmaking_websocket(_matchmaking_socket(app, AsgiPeer(), username="dave"))
+        for _peer, handler in queued:
+            await handler
+        assert queued[0][0].received_json()[-1]["type"] == first_player_last_message
+
+        held_lookup.release.set()
+        await late_join
+        assert late_peer.received_json() == [{"type": "error", "message": "already_in_game"}]
         assert app.state.matchmaking_manager.queue_size == 0
 
     async def test_matchmaking_websocket__when_another_task_closed_the_socket_mid_join__should_end_without_error(

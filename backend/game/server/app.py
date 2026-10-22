@@ -54,6 +54,18 @@ async def status(request: Request) -> JSONResponse:
     )
 
 
+async def player_game(request: Request) -> JSONResponse:
+    """
+    Answer 200 with the id of the game a user is playing, or 404 (internal: the lobby's occupancy check).
+    """
+    session_manager: SessionManager = request.app.state.session_manager
+    game_id = session_manager.get_playing_game_id(request.path_params["user_id"])
+    if game_id is None:
+        return JSONResponse({"error": "Player is not in a game"}, status_code=404)
+
+    return JSONResponse({"game_id": game_id})
+
+
 _MAX_REQUEST_BODY_SIZE = 4096
 
 
@@ -73,6 +85,31 @@ def _validate_player_tickets(game_request: CreateGameRequest, secret: str) -> st
 
         if ticket.username != player_spec.name or ticket.user_id != player_spec.user_id:
             return "Ticket identity mismatch"
+
+    return None
+
+
+def _reject_game_request(
+    game_request: CreateGameRequest,
+    *,
+    session_manager: SessionManager,
+    settings: GameServerSettings,
+) -> JSONResponse | None:
+    """
+    Return the error response for a game that must not be created, or None.
+
+    A player already playing a game here (pending included) is refused with 409: the lobby's occupancy check runs before
+    the game is created, and this is its backstop.
+    """
+    ticket_error = _validate_player_tickets(game_request, settings.game_ticket_secret)
+    if ticket_error is not None:
+        return JSONResponse({"error": ticket_error}, status_code=400)
+
+    if any(session_manager.get_playing_game_id(player.user_id) is not None for player in game_request.players):
+        return JSONResponse({"error": "Player already in a game"}, status_code=409)
+
+    if session_manager.game_count >= settings.max_capacity:
+        return JSONResponse({"error": "Server at capacity"}, status_code=503)
 
     return None
 
@@ -113,12 +150,9 @@ async def create_game(request: Request) -> JSONResponse:
     except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, ValidationError):  # fmt: skip
         return JSONResponse({"error": "Invalid request body"}, status_code=400)
 
-    ticket_error = _validate_player_tickets(game_request, settings.game_ticket_secret)
-    if ticket_error is not None:
-        return JSONResponse({"error": ticket_error}, status_code=400)
-
-    if session_manager.game_count >= settings.max_capacity:
-        return JSONResponse({"error": "Server at capacity"}, status_code=503)
+    rejection = _reject_game_request(game_request, session_manager=session_manager, settings=settings)
+    if rejection is not None:
+        return rejection
 
     try:
         session_manager.create_pending_game(
@@ -173,6 +207,7 @@ def create_app(
         Route("/health", health, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
         Route("/games", create_game, methods=["POST"]),
+        Route("/players/{user_id}", player_game, methods=["GET"]),
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 

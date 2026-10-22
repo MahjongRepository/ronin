@@ -15,11 +15,18 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
+def _no_conflict(_user_id: str) -> str | None:
+    return None
+
+
 class LobbyRoomManager:
     """
     Manages pre-game rooms on the lobby server.
 
     Purely state management — no WebSocket I/O. The WebSocket handler calls manager methods and sends responses.
+    ``find_conflict`` is the occupancy rule ``create_app()`` injects (``lobby.occupancy``), the only link to the
+    matchmaking feature: it returns why a user cannot take a seat (seated in any room, this one included, or queued), or
+    None.
     """
 
     def __init__(
@@ -27,7 +34,9 @@ class LobbyRoomManager:
         room_ttl_seconds: int = 300,
         reaper_interval_seconds: float = 30,
         on_room_expired: Callable[[str, list[str]], Awaitable[None]] | None = None,
+        find_conflict: Callable[[str], str | None] = _no_conflict,
     ) -> None:
+        self._find_conflict = find_conflict
         self._rooms: dict[str, LobbyRoom] = {}
         self._player_rooms: dict[str, str] = {}  # connection_id -> room_id
         self._room_ttl_seconds = room_ttl_seconds
@@ -67,8 +76,9 @@ class LobbyRoomManager:
         if room.is_full:
             return "room_full"
 
-        if room.has_user(user_id):
-            return "already_in_room"
+        conflict = self._find_conflict(user_id)
+        if conflict is not None:
+            return conflict
 
         seat = room.first_open_seat()
         if seat is None:  # pragma: no cover — guarded by is_full above

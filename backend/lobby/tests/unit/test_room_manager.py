@@ -68,13 +68,13 @@ class TestJoinRoom:
         result = mgr.join_room(connection_id="conn-5", room_id="room-1", user_id="user-5", username="P5")
         assert result == "room_full"
 
-    def test_room_manager_join_room__when_user_already_in_room__should_return_already_in_room(self):
-        mgr = LobbyRoomManager()
-        mgr.create_room("room-1")
-        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+    def test_room_manager_join_room__when_occupancy_reports_a_conflict__should_return_it_without_seating(self):
+        mgr = LobbyRoomManager(find_conflict=lambda user_id: "already_in_queue" if user_id == "queued-user" else None)
+        room = mgr.create_room("room-1")
 
-        result = mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-1", username="Alice2")
-        assert result == "already_in_room"
+        result = mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="queued-user", username="Alice")
+        assert result == "already_in_queue"
+        assert room.is_empty
 
     def test_room_manager_join_room__when_room_transitioning__should_return_room_transitioning(self):
         mgr = LobbyRoomManager()

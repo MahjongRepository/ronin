@@ -383,8 +383,11 @@ class TestGameEndFromTimeout:
         alice_seat = manager._players[conns[0].connection_id].seat
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
 
+        assert manager.get_playing_game_id("user-0") == "game1"
+
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await fired
+        assert manager.get_playing_game_id("user-0") is None
         assert game_repo.games["game1"]["end_reason"] == GameEndReason.COMPLETED
         assert game_repo.games["game1"]["ended_at"] is not None
         assert replay_file_path(tmp_path, "game1").exists()

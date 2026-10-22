@@ -193,6 +193,7 @@ class TestPendingGameTimeout:
     ):
         manager = SessionManager(seeded_engine)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2), num_ai_players=2)
+        assert manager.get_playing_game_id("user-1") == "game1"
         conn = MockConnection()
         manager.register_connection(conn)
         await manager.join_game(conn, game_id="game1", session_token="ticket-0")
@@ -200,6 +201,7 @@ class TestPendingGameTimeout:
         assert timeout_task is not None
 
         await timeout_task
+        assert manager.get_playing_game_id("user-1") == "game1"
         game_started = [m for m in conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.GAME_STARTED]]
         assert len(game_started) == 1
         connected_seat = manager._session_store.get_session("ticket-0").seat

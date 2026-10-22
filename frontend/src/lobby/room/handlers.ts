@@ -1,3 +1,4 @@
+import { describeOccupancyError } from "@/lobby/occupancy-errors";
 import {
     LOG_TYPE_SYSTEM,
     type PlayerInfo,
@@ -102,7 +103,11 @@ function buildMessageHandlers(state: RoomState, updateUI: UpdateUICallbacks): Me
 
     return {
         chat: (msg) => appendChat(msg.player_name as string, msg.text as string),
-        error: (msg) => appendChat(LOG_TYPE_SYSTEM, `Error: ${msg.message}`),
+        error: (msg) =>
+            appendChat(
+                LOG_TYPE_SYSTEM,
+                describeOccupancyError(msg.message) ?? `Error: ${String(msg.message)}`,
+            ),
         game_starting: onGameStarting,
         owner_changed: onOwnerChanged,
         player_joined: onPlayerJoined,

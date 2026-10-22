@@ -161,7 +161,7 @@ layers = [
     "lobby.server",
     "lobby.views",
     "lobby.rooms | lobby.matchmaking",
-    "lobby.game_transition | lobby.websocket_utils",
+    "lobby.game_transition | lobby.websocket_utils | lobby.occupancy",
     "lobby.auth | lobby.registry",
     "lobby.settings",
 ]

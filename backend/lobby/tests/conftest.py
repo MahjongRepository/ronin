@@ -34,6 +34,9 @@ class AsgiPeer:
         if message["type"] == "websocket.close":
             self._inbox.put_nowait({"type": "websocket.disconnect", "code": message.get("code", 1000)})
 
+    def send_from_client(self, text: str) -> None:
+        self._inbox.put_nowait({"type": "websocket.receive", "text": text})
+
     def disconnect(self, code: int = 1000) -> None:
         self._inbox.put_nowait({"type": "websocket.disconnect", "code": code})
 
@@ -42,6 +45,24 @@ class AsgiPeer:
 
     def close_codes(self) -> list[int]:
         return [m.get("code", 1000) for m in self.sent if m["type"] == "websocket.close"]
+
+
+async def nobody_playing(_user_id: str) -> bool:
+    return False
+
+
+class HeldLookup:
+    def __init__(self) -> None:
+        self.held_user_id: str | None = None
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def __call__(self, user_id: str) -> bool:
+        if user_id == self.held_user_id:
+            self.started.set()
+            await self.release.wait()
+
+        return False
 
 
 def make_websocket(peer: AsgiPeer, **scope: object) -> WebSocket:

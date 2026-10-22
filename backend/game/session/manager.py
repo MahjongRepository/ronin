@@ -1179,6 +1179,21 @@ class SessionManager:
 
         await self._complete_pending_game(game_id)
 
+    def get_playing_game_id(self, user_id: str) -> str | None:
+        """
+        Return the id of the game the user is playing, or None.
+
+        A user plays a game from its creation (pending included) until it ends: any session of theirs in a registered
+        game that has not ended counts, connected or not. A disconnected player keeps counting on purpose, so the lobby
+        keeps them out of rooms and matchmaking until that game ends.
+        """
+        for session in self._session_store.get_user_sessions(user_id):
+            game = self._games.get(session.game_id)
+            if game is not None and not game.ended:
+                return game.game_id
+
+        return None
+
     def is_in_active_game(self, connection_id: str) -> bool:
         player = self._players.get(connection_id)
         return player is not None and player.game_id is not None

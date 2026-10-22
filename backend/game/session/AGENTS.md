@@ -30,6 +30,12 @@ per-game lock.
   whose close fails is logged while the rest still close. Only the claimer escalates; a concurrent
   `fail_game` still finds the game ended and does nothing. An action, a timeout or a reconnect that reaches an ended game is refused
   (reconnect with `reconnect_game_gone`, before any eviction or seat restore).
+* **Playing.** A user plays a game while they have a session in a registered game that has not
+  ended: from `POST /games` (pending included) until the game's end is claimed or it is torn down.
+  A disconnected session still counts, deliberately: the lobby keeps that user out of rooms and
+  matchmaking until the game ends. The internal per-user
+  lookup the lobby asks and the 409 `POST /games` gives a user already playing both answer from
+  this rule.
 * **Game ids are reusable** once a game leaves the registry. Teardown releases everything keyed by
   the id before its first await, delayed effects use only objects detached synchronously, and a
   player's game is resolved by membership (`_game_of`), never by id alone.

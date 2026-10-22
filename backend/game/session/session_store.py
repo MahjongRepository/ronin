@@ -66,6 +66,12 @@ class SessionStore:
         """
         return self._sessions.get(token)
 
+    def get_user_sessions(self, user_id: str) -> list[SessionData]:
+        """
+        Return every session that belongs to a user.
+        """
+        return [session for session in self._sessions.values() if session.user_id == user_id]
+
     def mark_reconnected(self, token: str) -> None:
         """
         Clear disconnect state for a reconnected session.

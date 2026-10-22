@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 from http import HTTPStatus
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import httpx
+import structlog
 
 from shared.auth.game_ticket import create_signed_ticket
 
 if TYPE_CHECKING:
     from lobby.registry.manager import RegistryManager
+    from lobby.registry.types import GameServer
+
+logger = structlog.get_logger()
 
 
 class GameTransitionError(Exception):
@@ -16,6 +22,7 @@ class GameTransitionError(Exception):
 
 
 _HTTP_CREATED = HTTPStatus.CREATED
+_PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
 
 
 async def create_game_on_server(
@@ -56,6 +63,43 @@ async def create_game_on_server(
 
     ws_url = server.client_url.replace("http://", "ws://").replace("https://", "wss://")
     return f"{ws_url}/ws/{game_id}"
+
+
+async def is_user_playing(user_id: str, *, registry: RegistryManager) -> bool:
+    """
+    Ask every game server the registry knows, concurrently, whether the user is playing a game on it.
+
+    The whole lookup takes at most ``_PLAYING_LOOKUP_TIMEOUT_SECONDS``: each server's request runs under that one
+    deadline. Fail open: a server that cannot be reached in time, or answers anything but 200 or 404, is logged and
+    counted as "not playing", so a game server outage never locks users out of rooms and matchmaking.
+    """
+
+    async with httpx.AsyncClient() as client, asyncio.TaskGroup() as lookups:
+        answers = [
+            lookups.create_task(_is_user_playing_on(client, server, user_id)) for server in registry.get_servers()
+        ]
+
+    return any(answer.result() for answer in answers)
+
+
+async def _is_user_playing_on(client: httpx.AsyncClient, server: GameServer, user_id: str) -> bool:
+    log = logger.bind(server_name=server.name)
+    try:
+        async with asyncio.timeout(_PLAYING_LOOKUP_TIMEOUT_SECONDS):
+            response = await client.get(f"{server.url}/players/{quote(user_id, safe='')}")
+    except (httpx.HTTPError, TimeoutError) as e:
+        log.warning("playing lookup failed, treating the user as not playing", error=repr(e))
+        return False
+
+    if response.status_code == HTTPStatus.OK:
+        return True
+
+    if response.status_code != HTTPStatus.NOT_FOUND:
+        log.warning(
+            "playing lookup got an unexpected status, treating the user as not playing", status=response.status_code
+        )
+
+    return False
 
 
 def sign_player_tickets(

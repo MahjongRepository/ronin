@@ -23,14 +23,8 @@ class TestAddPlayer:
         mgr.add_player(_make_entry())
         assert mgr.queue_size == 1
 
-    def test_matchmaking_queue_add__when_user_already_queued__should_raise(self):
-        mgr = MatchmakingManager()
-        mgr.add_player(_make_entry(user_id="u1", connection_id="c1"))
-        with pytest.raises(ValueError, match="already_in_queue"):
-            mgr.add_player(_make_entry(user_id="u1", connection_id="c2"))
-
-    def test_matchmaking_queue_add__when_user_is_in_a_room__should_raise_before_queueing(self):
-        mgr = MatchmakingManager(is_user_in_room=lambda user_id: user_id == "u1")
+    def test_matchmaking_queue_add__when_occupancy_reports_a_conflict__should_raise_it_before_queueing(self):
+        mgr = MatchmakingManager(find_conflict=lambda user_id: "already_in_room" if user_id == "u1" else None)
         with pytest.raises(ValueError, match="already_in_room"):
             mgr.add_player(_make_entry(user_id="u1"))
         assert mgr.queue_size == 0
@@ -93,11 +87,13 @@ class TestTryMatch:
         assert len(matched) == MATCHMAKING_SEATS
         assert mgr.queue_size == 2
 
-    def test_matchmaking_try_match__when_player_in_flight__should_reject_rejoin(self):
+    def test_matchmaking_has_user__when_player_matched__should_count_until_the_match_is_resolved(self):
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
 
+        assert mgr.has_user("u0") is True
         mgr.try_match()
-        with pytest.raises(ValueError, match="already_in_queue"):
-            mgr.add_player(_make_entry(user_id="u0", connection_id="c_new"))
+        assert mgr.has_user("u0") is True
+        mgr.clear_in_flight({f"u{i}" for i in range(MATCHMAKING_SEATS)})
+        assert mgr.has_user("u0") is False

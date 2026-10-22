@@ -256,13 +256,13 @@ class TestCreateGameEndpoint:
 
     def test_create_game_endpoint__when_pending_game_exists__should_return_409(self, client):
         create_pending_game(client, game_id="dupe")
-        ticket = make_test_game_ticket(username="Player1", room_id="dupe", user_id="user-0")
+        ticket = make_test_game_ticket(username="Player5", room_id="dupe", user_id="user-5")
 
         response = client.post(
             "/games",
             json={
                 "game_id": "dupe",
-                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
+                "players": [{"name": "Player5", "user_id": "user-5", "game_ticket": ticket}],
             },
         )
         assert response.status_code == 409
@@ -282,6 +282,24 @@ class TestCreateGameEndpoint:
         )
         assert response.status_code == 409
         assert response.json() == {"error": "Game with this ID already exists"}
+
+    def test_create_game_endpoint__when_a_player_is_already_playing__should_report_the_game_and_return_409(
+        self, client
+    ):
+        create_pending_game(client, game_id="first")
+        ticket = make_test_game_ticket(username="Player1", room_id="second", user_id="user-0")
+
+        response = client.post(
+            "/games",
+            json={
+                "game_id": "second",
+                "players": [{"name": "Player1", "user_id": "user-0", "game_ticket": ticket}],
+            },
+        )
+        assert response.status_code == 409
+        assert response.json() == {"error": "Player already in a game"}
+        assert client.get("/players/user-0").json() == {"game_id": "first"}
+        assert client.get("/players/user-9").status_code == 404
 
     def test_create_game_endpoint__when_server_at_capacity__should_return_503(self, client):
         for i in range(100):

@@ -20,6 +20,7 @@ from lobby.rooms.messages import (
 from lobby.websocket_utils import check_origin
 
 if TYPE_CHECKING:
+    from lobby.occupancy import Occupancy
     from lobby.registry.manager import RegistryManager
     from lobby.rooms.connections import RoomConnectionManager
     from lobby.rooms.manager import LobbyRoomManager
@@ -38,6 +39,7 @@ class _RoomContext:
     __slots__ = (
         "auth_settings",
         "connection_id",
+        "occupancy",
         "registry",
         "room_connections",
         "room_id",
@@ -53,6 +55,7 @@ class _RoomContext:
         self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.room_connections: RoomConnectionManager = websocket.app.state.room_connections
         self.registry: RegistryManager = websocket.app.state.registry
+        self.occupancy: Occupancy = websocket.app.state.occupancy
 
         self.connection_id: str = str(uuid.uuid4())
         self.username: str = websocket.user.username
@@ -95,7 +98,9 @@ async def _join(websocket: WebSocket, ctx: _RoomContext) -> bool:
     The whole flow (join, ack, register, broadcast) runs under the room's ``join_lock`` so concurrent joins cannot
     interleave: otherwise another player's broadcast could reach a connection that has not received its own
     ``room_joined`` yet. It runs inside the handler's ``try/finally``, so a failed ack still frees the seat (and the
-    host).
+    host). The check that the user is not playing a game, which asks the game servers, runs before the lock;
+    ``join_room`` checks the rest of the occupancy rule under it, including a start that handed the user to a game
+    while that lookup was in flight.
     """
     log = logger.bind(room_id=ctx.room_id, username=ctx.username)
     room = ctx.room_manager.get_room(ctx.room_id)
@@ -103,21 +108,27 @@ async def _join(websocket: WebSocket, ctx: _RoomContext) -> bool:
         await _reject_join(websocket, ctx, reason="room_not_found")
         return False
 
-    async with room.join_lock:
-        result = ctx.room_manager.join_room(
-            connection_id=ctx.connection_id,
-            room_id=ctx.room_id,
-            user_id=websocket.user.user_id,
-            username=ctx.username,
-        )
-        if isinstance(result, str):
-            await _reject_join(websocket, ctx, reason=result)
+    with ctx.occupancy.admitting(websocket.user.user_id):
+        game_conflict = await ctx.occupancy.find_game_conflict(websocket.user.user_id)
+        if game_conflict is not None:
+            await _reject_join(websocket, ctx, reason=game_conflict)
             return False
 
-        await websocket.send_json(result)
-        ctx.room_connections.add(room_id=ctx.room_id, connection_id=ctx.connection_id, websocket=websocket)
-        log.info("player joined room", player_count=room.player_count)
-        await _broadcast_player_joined(ctx, room)
+        async with room.join_lock:
+            result = ctx.room_manager.join_room(
+                connection_id=ctx.connection_id,
+                room_id=ctx.room_id,
+                user_id=websocket.user.user_id,
+                username=ctx.username,
+            )
+            if isinstance(result, str):
+                await _reject_join(websocket, ctx, reason=result)
+                return False
+
+            await websocket.send_json(result)
+            ctx.room_connections.add(room_id=ctx.room_id, connection_id=ctx.connection_id, websocket=websocket)
+            log.info("player joined room", player_count=room.player_count)
+            await _broadcast_player_joined(ctx, room)
 
     return True
 
@@ -259,6 +270,9 @@ async def _transition_to_game(room: LobbyRoom, ctx: _RoomContext) -> bool:
 async def _create_game(room: LobbyRoom, ctx: _RoomContext, *, game_id: str) -> tuple[str, dict[str, str]]:
     """
     Sign a ticket per seated human and create the game; return the game server URL and the tickets by connection.
+
+    The attempt hands the seated users to the game whatever its outcome, before the caller releases their seats: a
+    failure may mean the game server created the game anyway.
     """
     players_for_tickets = [(player.user_id, player.username, conn_id) for conn_id, player in room.players.items()]
     player_specs, ticket_map = sign_player_tickets(
@@ -266,12 +280,16 @@ async def _create_game(room: LobbyRoom, ctx: _RoomContext, *, game_id: str) -> t
         game_id=game_id,
         ticket_secret=ctx.auth_settings.game_ticket_secret,
     )
-    ws_url = await create_game_on_server(
-        game_id=game_id,
-        players=player_specs,
-        num_ai_players=room.num_ai_players,
-        registry=ctx.registry,
-    )
+    try:
+        ws_url = await create_game_on_server(
+            game_id=game_id,
+            players=player_specs,
+            num_ai_players=room.num_ai_players,
+            registry=ctx.registry,
+        )
+    finally:
+        ctx.occupancy.hand_to_game(player.user_id for player in room.players.values())
+
     return ws_url, ticket_map
 
 

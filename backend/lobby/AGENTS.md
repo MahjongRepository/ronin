@@ -15,16 +15,17 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   resolves the Vite manifest (or the Vite dev server under `LOBBY_VITE_DEV_URL`) into template
   globals.
 * `rooms/` and `matchmaking/` — managers, WebSocket handlers and message models; matchmaking is a
-  FIFO queue that starts a 4-human game once 4 players wait, and rejects users already in a room
-  (`already_in_room`, through the `is_user_in_room` callable `create_app()` injects from the room
-  manager) or already queued (`already_in_queue`). The two packages never import each other.
+  FIFO queue that starts a 4-human game once 4 players wait. The two packages never import each
+  other: each gets the occupancy rule (below) as an injected callable.
 * `registry/` — game servers from `servers.yaml`, health-checked on every request that needs one,
   with no caching.
-* `game_transition.py` — `sign_player_tickets` and `create_game_on_server`, shared by rooms and
-  matchmaking; `websocket_utils.py` — `check_origin` and the transport contract. After accept, a
-  dead peer raises only `WebSocketDisconnect` (the first failed send) or `RuntimeError` (every later
-  send or close), never `ConnectionError`. `send_or_drop` and `close_quietly` absorb exactly those,
-  and rooms and matchmaking send to other players through them.
+* `game_transition.py` — `sign_player_tickets`, `create_game_on_server` and `is_user_playing`,
+  shared by rooms and matchmaking; `websocket_utils.py` — `check_origin` and the transport
+  contract. After accept, a dead peer raises only `WebSocketDisconnect` (the first failed send) or
+  `RuntimeError` (every later send or close), never `ConnectionError`. `send_or_drop` and
+  `close_quietly` absorb exactly those, and rooms and matchmaking send to other players through
+  them.
+* `occupancy.py` — `Occupancy`, the one owner of the occupancy rule.
 
 Services are created in `create_app()` and stored on `app.state`; handlers read them from
 `request.app.state`. Tests build the app with `create_app(settings=..., auth_settings=...)`.
@@ -41,6 +42,27 @@ Services are created in `create_app()` and stored on `app.state`; handlers read 
   room's id is not its game's id). A `GameTransitionError` may mean the game server created the
   game anyway (a timeout after the POST arrived), so a game id is never reused: a retry under the
   same id would collide with the orphan (409) until its pending timeout cancels it.
+
+## Occupancy
+
+* A user is in at most one place: one room seat, the matchmaking queue (queued, or matched while
+  their game is created), or one game they are playing. A playing user can neither join a room nor
+  queue, and a rejected join gets an `error` naming the reason and a 4000 close.
+* Room and queue occupancy is checked synchronously inside `join_room` / `add_player`, in the step
+  that seats or queues the user, so the two exclude each other atomically on the event loop.
+* "Playing" comes only from the game servers' in-memory sessions (their internal per-user lookup),
+  never from `played_games`, whose `ended_at` stays NULL after a crash. The WebSocket handlers ask
+  every server in the registry, concurrently under one short deadline, before taking the lock. The
+  answer can be stale by then: a start may hand the user's seat or queue place to a new game while
+  the lookup is in flight. So each join runs inside an `Occupancy.admitting` window, every attempt
+  to create a game calls `hand_to_game` once the game server call is over, whatever its outcome (a
+  failure may mean the game exists), and before the seats or the matched players are released, and
+  the locked check rejects an admission that was open at that moment as already in a game.
+* The lookup fails open (warning, treated as not playing) on a transport error, timeout or
+  unexpected status, so a game server outage never locks users out of the lobby. `POST /games`
+  refuses a user already playing with 409 as the backstop, which surfaces as an ordinary failed
+  start.
+* The WebSocket joins are the only gates: room creation and the bot session routes do not check.
 
 ## Auth model
 

@@ -84,15 +84,28 @@ describe("initMatchmakingPage", () => {
         );
     });
 
-    test("keeps a rejection error without offering a retry", () => {
-        const container = renderPage();
+    test.each([
+        [
+            "already_in_game",
+            "You are already playing a game. Finish it before joining another.",
+            false,
+        ],
+        ["already_in_queue", "You are already searching for a match. Leave the queue first.", true],
+        ["already_in_room", "You are already seated in a room. Leave it first.", true],
+    ])(
+        "keeps the %s rejection as a sentence, offering a retry only after a game",
+        (code, sentence, retryHidden) => {
+            const container = renderPage();
 
-        capturedMessageHandler?.({ message: "already_in_room", type: "error" });
-        capturedStatusHandler?.("disconnected");
+            capturedMessageHandler?.({ message: code, type: "error" });
+            capturedStatusHandler?.("disconnected");
 
-        expect(query(container, ".matchmaking-status").textContent).toBe("Error: already_in_room");
-        expect(query<HTMLButtonElement>(container, ".matchmaking-retry").hidden).toBe(true);
-    });
+            expect(query(container, ".matchmaking-status").textContent).toBe(sentence);
+            expect(query<HTMLButtonElement>(container, ".matchmaking-retry").hidden).toBe(
+                retryHidden,
+            );
+        },
+    );
 
     test("shows a disconnect after a non-terminal error", () => {
         const container = renderPage();

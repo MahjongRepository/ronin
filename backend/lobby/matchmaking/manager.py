@@ -13,8 +13,8 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
-def _nobody_in_room(_user_id: str) -> bool:
-    return False
+def _no_conflict(_user_id: str) -> str | None:
+    return None
 
 
 class MatchmakingManager:
@@ -22,11 +22,12 @@ class MatchmakingManager:
     Manage the matchmaking queue.
 
     Pure state management -- no WebSocket I/O. The WebSocket handler calls manager methods and handles responses.
-    `is_user_in_room` is the only link to the rooms feature: a user seated in a room cannot queue.
+    `find_conflict` is the occupancy rule ``create_app()`` injects (``lobby.occupancy``), the only link to the rooms
+    feature: it returns why a user cannot queue, or None.
     """
 
-    def __init__(self, *, is_user_in_room: Callable[[str], bool] = _nobody_in_room) -> None:
-        self._is_user_in_room = is_user_in_room
+    def __init__(self, *, find_conflict: Callable[[str], str | None] = _no_conflict) -> None:
+        self._find_conflict = find_conflict
         self._queue: list[QueueEntry] = []
         self._user_ids: set[str] = set()
         self._in_flight: set[str] = set()
@@ -36,17 +37,20 @@ class MatchmakingManager:
         """
         Add a player to the matchmaking queue.
 
-        Caller must hold self._lock. Raise ValueError("already_in_room") or ValueError("already_in_queue") when the user
-        cannot queue.
+        Caller must hold self._lock. Raise ValueError with the occupancy conflict when the user cannot queue.
         """
-        if self._is_user_in_room(entry.user_id):
-            raise ValueError("already_in_room")
-
-        if entry.user_id in self._user_ids or entry.user_id in self._in_flight:
-            raise ValueError("already_in_queue")
+        conflict = self._find_conflict(entry.user_id)
+        if conflict is not None:
+            raise ValueError(conflict)
 
         self._queue.append(entry)
         self._user_ids.add(entry.user_id)
+
+    def has_user(self, user_id: str) -> bool:
+        """
+        Check if a user is queued, or matched and waiting for their game to be created.
+        """
+        return user_id in self._user_ids or user_id in self._in_flight
 
     def remove_player(self, connection_id: str) -> None:
         """
