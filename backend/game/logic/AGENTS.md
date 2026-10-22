@@ -24,6 +24,11 @@ changes.
 * Player type is a service-layer fact: `MahjongPlayer` has no AI flag, only
   `AIPlayerController.is_ai_player(seat)` knows. Names and AI flags go out once in `game_started`;
   later events use seats.
+* The seat is a player's only identity. `start_game` returns `GameStart` with each input player's seat
+  in input order (the `fill_seats` sample, which the replay loader inverts, so it never changes), and
+  every later call takes a seat. Names are display only: nothing looks a player up by name, and AI
+  names ("Tsumogiri N") skip the names in use without touching the RNG, so names in a game stay unique
+  for the replay format and the name-carrying session messages.
 * The engine never suspends: no asyncio, no clock. Every `GameService` method is synchronous and returns
   with its state committed, so a caller needs no liveness re-check around an engine call. Pacing (turn,
   bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`), never a

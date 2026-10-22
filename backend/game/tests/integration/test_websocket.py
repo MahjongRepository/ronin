@@ -62,7 +62,7 @@ class TestWebSocketIntegration:
             send_ws(ws, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0})
             response = recv_ws(ws)
             assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
-            assert response["player"] == "Player1"
+            assert response["seat"] == 0
             assert response["action"] == GameAction.DISCARD
             assert response["success"] is True
 

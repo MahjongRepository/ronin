@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from game.logic.enums import GameAction, TimeoutType
@@ -11,32 +11,40 @@ if TYPE_CHECKING:
     from game.logic.types import ReconnectionSnapshot
 
 
-class GameService(ABC):
+@dataclass(frozen=True)
+class GameStart:
     """
-    Abstract interface for game logic.
+    The outcome of starting a game: its initial events and the seat of each input player, in input order.
+    """
 
-    Events returned by methods include a 'target' field:
+    events: list[ServiceEvent]
+    seats: tuple[int, ...]
+
+
+class GameService(Protocol):
+    """
+    Interface of the game logic, used by the session and the replay runner.
+
+    Players are identified by seat; names are display only. Events returned by methods include a 'target' field:
     - "all": broadcast to all players in the game
     - "seat_0", "seat_1", etc.: send only to player at that seat
     """
 
-    @abstractmethod
     def handle_action(
         self,
         *,
         game_id: str,
-        player_name: str,
+        seat: int,
         action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
         """
-        Handle a game action from a player.
+        Handle a game action from the player at a seat.
 
         Returns a list of service events to broadcast.
         """
         ...
 
-    @abstractmethod
     def start_game(
         self,
         game_id: str,
@@ -45,47 +53,38 @@ class GameService(ABC):
         seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
-    ) -> list[ServiceEvent]:
+    ) -> GameStart:
         """
-        Start a game with the given players.
+        Start a game with the given players, seating AI players in the empty seats.
 
-        Returns a list of initial state events (one per player with their view). When seed is provided, the game is
-        deterministically reproducible. When seed is None, a random seed is generated. When settings is provided, the
-        game uses the given settings. When wall is provided, use it instead of generating from seed.
+        Returns the initial state events (one per player with their view) and each input player's seat, in input order.
+        When seed is provided, the game is deterministically reproducible. When seed is None, a random seed is
+        generated. When settings is provided, the game uses the given settings. When wall is provided, use it instead of
+        generating from seed.
         """
         ...
 
-    @abstractmethod
-    def get_player_seat(self, game_id: str, player_name: str) -> int | None:
-        """
-        Get the seat number for a player by name.
-        """
-        ...
-
-    @abstractmethod
     def get_game_seed(self, game_id: str) -> str | None:
         """
         Return the seed for a game, or None if game doesn't exist.
         """
         ...
 
-    @abstractmethod
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
         """
         Return the current game state, or None if game doesn't exist.
         """
         ...
 
-    @abstractmethod
     def handle_timeout(
         self,
         *,
         game_id: str,
-        player_name: str,
+        seat: int,
         timeout_type: TimeoutType,
     ) -> list[ServiceEvent]:
         """
-        Handle a player timeout by performing the default action.
+        Handle a seat's timeout by performing the default action.
 
         For TURN timeout: tsumogiri (discard last drawn tile).
         For MELD timeout: pass on the call opportunity.
@@ -93,15 +92,13 @@ class GameService(ABC):
         """
         ...
 
-    @abstractmethod
     def cleanup_game(self, game_id: str) -> None:
         """
         Remove all game state for a game that was abandoned or cleaned up externally.
         """
         ...
 
-    @abstractmethod
-    def replace_with_ai_player(self, game_id: str, player_name: str) -> None:
+    def replace_with_ai_player(self, game_id: str, seat: int) -> None:
         """
         Replace a disconnected player with an AI player at their seat.
 
@@ -109,7 +106,6 @@ class GameService(ABC):
         """
         ...
 
-    @abstractmethod
     def process_ai_player_actions_after_replacement(
         self,
         game_id: str,
@@ -122,14 +118,12 @@ class GameService(ABC):
         """
         ...
 
-    @abstractmethod
     def restore_human_player(self, game_id: str, seat: int) -> None:
         """
         Remove the AI player at a seat and restore it for human control.
         """
         ...
 
-    @abstractmethod
     def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
         """
         Build a full game state snapshot for a reconnecting player at the given seat.
@@ -138,23 +132,20 @@ class GameService(ABC):
         """
         ...
 
-    @abstractmethod
     def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
         """
         Rebuild the draw event with available actions for a specific seat.
         """
         ...
 
-    @abstractmethod
     def is_round_advance_pending(self, game_id: str) -> bool:
         """
         Check if a round advance is waiting for player confirmation.
         """
         ...
 
-    @abstractmethod
-    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
+    def get_pending_round_advance_seats(self, game_id: str) -> list[int]:
         """
-        Return player names that still need to confirm round advance.
+        Return the seats that still need to confirm round advance, in seat order.
         """
         ...

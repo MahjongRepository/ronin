@@ -13,10 +13,7 @@ from game.replay.models import (
     ReplayStepLimitError,
     ReplayTrace,
 )
-from game.replay.runner import (
-    ReplayServiceProtocol,
-    run_replay,
-)
+from game.replay.runner import run_replay
 
 __all__ = [
     "ReplayError",
@@ -25,7 +22,6 @@ __all__ = [
     "ReplayInputEvent",
     "ReplayInvariantError",
     "ReplayLoadError",
-    "ReplayServiceProtocol",
     "ReplayStep",
     "ReplayStepLimitError",
     "ReplayTrace",

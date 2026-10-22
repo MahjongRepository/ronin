@@ -115,7 +115,7 @@ class TestFuritenEventsInGameFlow:
         service._furiten_tracker._state["game1"][player.seat] = True
         tile_id = player.tiles[-1]
         events = service.handle_action(
-            game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
+            game_id="game1", seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
         )
         furiten_events = [e for e in events if e.event == EventType.FURITEN and isinstance(e.data, FuritenEvent)]
         assert len(furiten_events) == 1
@@ -123,6 +123,6 @@ class TestFuritenEventsInGameFlow:
         assert furiten_events[0].target == SeatTarget(seat=player.seat)
 
     def test_furiten_events__when_game_starts__should_emit_none(self, service):
-        events = service.start_game("game1", ["Player"], seed="a" * 192)
+        events = service.start_game("game1", ["Player"], seed="a" * 192).events
         furiten_events = [e for e in events if e.event == EventType.FURITEN]
         assert len(furiten_events) == 0

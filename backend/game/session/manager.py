@@ -177,13 +177,9 @@ class SessionManager:
                 rng_version = game_state.rng_version if game_state is not None else ""
                 self._replay_collector.start_game(game_id=game_id, seed=seed, rng_version=rng_version)
 
-    async def _record_game_start(
-        self,
-        game: Game,
-        user_ids_by_name: dict[str, str] | None = None,
-    ) -> None:
+    async def _record_game_start(self, game: Game, user_ids_by_seat: dict[int, str]) -> None:
         """
-        Best-effort persist game start to the game repository.
+        Best-effort persist game start to the game repository; seats missing from user_ids_by_seat are AI players.
         """
         if self._game_repository is None:
             return
@@ -192,15 +188,11 @@ class SessionManager:
         if game_state is None:
             return
 
-        # Map names to user_ids: use override for pending games (includes never-connected
-        # humans), fall back to connected players only (normal start flow).
-        name_to_uid = user_ids_by_name or {p.name: p.user_id for p in game.players.values() if p.user_id}
-
         standings = [
             PlayedGameStanding(
                 name=p.name,
                 seat=p.seat,
-                user_id=name_to_uid.get(p.name, ""),
+                user_id=user_ids_by_seat.get(p.seat, ""),
             )
             for p in game_state.round_state.players
         ]
@@ -306,9 +298,7 @@ class SessionManager:
                 await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
                 # replace disconnected player with AI player (only if other players remain)
                 if not game.is_empty and player_seat is not None:
-                    await self._replace_with_ai_player(
-                        game, player_name=player_name, seat=player_seat, session_token=player.session_token
-                    )
+                    await self._replace_with_ai_player(game, seat=player_seat, session_token=player.session_token)
         elif game_id in self._pending_games:
             await self._leave_pending_game(game, connection, player, notify_player=notify_player)
         else:
@@ -430,7 +420,6 @@ class SessionManager:
     async def _replace_with_ai_player(
         self,
         game: Game,
-        player_name: str,
         seat: int,
         session_token: str | None = None,
     ) -> None:
@@ -441,7 +430,7 @@ class SessionManager:
         check, and only when other players remain in the game. AI events that end the game finish it through
         `_broadcast_events`.
         """
-        self._game_service.replace_with_ai_player(game.game_id, player_name)
+        self._game_service.replace_with_ai_player(game.game_id, seat)
 
         # stop (not cancel) the timer to deduct elapsed bank time, then save remaining bank
         player_timer = self._timer_manager.remove_timer(game.game_id, seat)
@@ -488,9 +477,7 @@ class SessionManager:
         )
 
         if not game.is_empty and player_seat is not None:
-            await self._replace_with_ai_player(
-                game, player_name=player_name, seat=player_seat, session_token=player.session_token
-            )
+            await self._replace_with_ai_player(game, seat=player_seat, session_token=player.session_token)
 
     async def _process_successful_action(
         self,
@@ -567,7 +554,7 @@ class SessionManager:
             try:
                 events = self._game_service.handle_action(
                     game_id=game_id,
-                    player_name=player.name,
+                    seat=self._seat_of(player),
                     action=action,
                     data=data,
                 )
@@ -666,7 +653,7 @@ class SessionManager:
 
                 snapshot = self._game_service.build_reconnection_snapshot(game_id, seat)
                 if snapshot is None:
-                    self._game_service.replace_with_ai_player(game_id, session.player_name)
+                    self._game_service.replace_with_ai_player(game_id, seat)
                     await self._send_error(
                         connection,
                         code=SessionErrorCode.RECONNECT_SNAPSHOT_FAILED,
@@ -1236,8 +1223,8 @@ class SessionManager:
         Start the mahjong game for every expected human, connected or not.
 
         The game may legitimately have no connected player yet (all seats then go to AI substitutes), so the liveness
-        checks allow an empty game. Every expected human's seat is bound while the engine still knows them as human; an
-        absent one is marked disconnected, so it can RECONNECT, and then replaced by an AI player.
+        checks allow an empty game. Every expected human's session is bound to the seat the engine assigned to their
+        spec; an absent one is marked disconnected, so it can RECONNECT, and then replaced by an AI player.
 
         The liveness check after recording the start guards the only await teardown can interleave with; today's SQLite
         repository never suspends, so it goes live only once persistence moves off the event loop.
@@ -1246,16 +1233,16 @@ class SessionManager:
             return
 
         game.started = True
-        player_names = [spec.name for spec in player_specs]
-        events = self._game_service.start_game(game.game_id, player_names)
+        start = self._game_service.start_game(game.game_id, [spec.name for spec in player_specs])
+        spec_seats = list(zip(player_specs, start.seats, strict=True))
 
         self._start_replay_collection(game.game_id)
-        await self._record_game_start(game, user_ids_by_name={spec.name: spec.user_id for spec in player_specs})
+        await self._record_game_start(game, user_ids_by_seat={seat: spec.user_id for spec, seat in spec_seats})
 
         if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             return
 
-        absent_seats = self._bind_seats(game, player_specs)
+        absent_seats = self._bind_seats(game, spec_seats)
 
         seats = [p.seat for p in game.players.values() if p.seat is not None]
         self._timer_manager.create_timers(game_id=game.game_id, seats=seats, config=game.timer_config)
@@ -1267,41 +1254,37 @@ class SessionManager:
         )
 
         async with self._game_locks[game.game_id]:
-            await self._broadcast_events(game, events)
-            self._maybe_start_timer(game, events)
+            await self._broadcast_events(game, start.events)
+            self._maybe_start_timer(game, start.events)
             await self._replace_absent_players(game, absent_seats)
 
-    def _bind_seats(self, game: Game, player_specs: list[PlayerSpec]) -> dict[str, int]:
+    def _bind_seats(self, game: Game, spec_seats: list[tuple[PlayerSpec, int]]) -> list[int]:
         """
-        Bind every expected human's session to its seat; return the seats of those not connected, by name.
-
-        Must run before any AI replacement: the engine finds a seat by name only while its player is human.
+        Bind every expected human's session to the seat the engine gave them; return the seats of those not connected.
         """
         connected = {player.session_token: player for player in game.players.values()}
-        absent_seats: dict[str, int] = {}
-        for spec in player_specs:
-            seat = self._game_service.get_player_seat(game.game_id, spec.name)
+        absent_seats: list[int] = []
+        for spec, seat in spec_seats:
+            self._session_store.bind_seat(spec.game_ticket, seat)
             player = connected.get(spec.game_ticket)
-            if seat is not None and player is not None:
+            if player is not None:
                 player.seat = seat
-                self._session_store.bind_seat(spec.game_ticket, seat)
-            elif seat is not None:
-                self._session_store.bind_seat(spec.game_ticket, seat)
+            else:
                 self._session_store.mark_disconnected(spec.game_ticket)
-                absent_seats[spec.name] = seat
+                absent_seats.append(seat)
 
         return absent_seats
 
-    async def _replace_absent_players(self, game: Game, absent_seats: dict[str, int]) -> None:
+    async def _replace_absent_players(self, game: Game, absent_seats: list[int]) -> None:
         """
         Seat AI players for the humans absent at start (never connected, or left before the lock existed).
 
         Called under the per-game lock. A replacement after one that ended the game is a no-op on the finished engine
         state.
         """
-        for name, seat in absent_seats.items():
+        for seat in absent_seats:
             if not game.is_empty:
-                await self._replace_with_ai_player(game, player_name=name, seat=seat)
+                await self._replace_with_ai_player(game, seat=seat)
 
     async def _broadcast_events(
         self,
@@ -1605,6 +1588,16 @@ class SessionManager:
 
         return None
 
+    @staticmethod
+    def _seat_of(player: Player) -> int:
+        """
+        Return the seat of a player in a started game, where every player is bound to one.
+        """
+        if player.seat is None:
+            raise AssertionError("player in a started game has no seat")
+
+        return player.seat
+
     def _has_game_ended(self, events: list[ServiceEvent]) -> bool:
         return any(isinstance(event.data, GameEndedEvent) for event in events)
 
@@ -1645,8 +1638,7 @@ class SessionManager:
             if game.ended or self._games.get(game_id) is not game or superseded:
                 return
 
-            player = self._get_player_at_seat(game, seat)
-            if player is None:
+            if self._get_player_at_seat(game, seat) is None:
                 return
 
             # only consume bank for TURN timeouts.
@@ -1655,8 +1647,6 @@ class SessionManager:
             if timeout_type == TimeoutType.TURN:
                 self._timer_manager.consume_bank(game_id, seat)
 
-            events = self._game_service.handle_timeout(
-                game_id=game_id, player_name=player.name, timeout_type=timeout_type
-            )
+            events = self._game_service.handle_timeout(game_id=game_id, seat=seat, timeout_type=timeout_type)
             await self._broadcast_events(game, events)
             self._maybe_start_timer(game, events)

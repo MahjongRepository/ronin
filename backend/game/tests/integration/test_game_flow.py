@@ -11,7 +11,7 @@ class TestGameCreationAndJoin:
         return MahjongGameService()
 
     def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
-        events = service.start_game("game1", ["Player"], seed="a" * 192)
+        events = service.start_game("game1", ["Player"], seed="a" * 192).events
         game_started_events = [e for e in events if e.event == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
         event = game_started_events[0]
@@ -31,7 +31,7 @@ class TestGameServiceIntegration:
         return MahjongGameService()
 
     def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
+        human_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
         actions_processed = 0
         # play several discards (AI players will respond automatically)
@@ -44,11 +44,11 @@ class TestGameServiceIntegration:
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
 
-            if player.name == "Player" and player.tiles:
+            if current_seat == human_seat and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 service.handle_action(
                     game_id="game1",
-                    player_name=player.name,
+                    seat=human_seat,
                     action=GameAction.DISCARD,
                     data={"tile_id": tile_to_discard},
                 )
@@ -63,7 +63,7 @@ class TestUnifiedDiscardClaimIntegration:
         return MahjongGameService()
 
     def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
+        human_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
         found_prompt = False
         for _ in range(20):
@@ -74,13 +74,13 @@ class TestUnifiedDiscardClaimIntegration:
             round_state = game_state.round_state
             current_seat = round_state.current_player_seat
             player = round_state.players[current_seat]
-            if player.name != "Player" or not player.tiles:
+            if current_seat != human_seat or not player.tiles:
                 break
 
             tile_to_discard = player.tiles[-1]
             events = service.handle_action(
                 game_id="game1",
-                player_name="Player",
+                seat=human_seat,
                 action=GameAction.DISCARD,
                 data={"tile_id": tile_to_discard},
             )

@@ -237,7 +237,7 @@ class TestSessionManagerTimerIntegration:
             data=MockResultEvent(
                 type=EventType.DRAW,
                 target="all",
-                player="Alice",
+                seat=0,
                 action=GameAction.DISCARD,
                 input={},
                 success=True,

@@ -59,8 +59,8 @@ class TestRoundAdvanceWaiting:
             assert seat not in unconfirmed
 
     def test_round_advance__when_all_players_ai__should_start_next_round_immediately(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-        service.replace_with_ai_player("game1", "Player")
+        player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
+        service.replace_with_ai_player("game1", player_seat)
 
         result = _make_exhaustive_draw_result()
         events = service._handle_round_end("game1", result)
@@ -75,12 +75,12 @@ class TestConfirmRound:
         return MahjongGameService()
 
     def test_confirm_round__when_last_player_confirms__should_start_next_round(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
+        player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
         result = _make_exhaustive_draw_result()
         service._handle_round_end("game1", result)
 
-        events = service.handle_action(game_id="game1", player_name="Player", action=GameAction.CONFIRM_ROUND, data={})
+        events = service.handle_action(game_id="game1", seat=player_seat, action=GameAction.CONFIRM_ROUND, data={})
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
         assert not service.is_round_advance_pending("game1")
@@ -94,7 +94,7 @@ class TestConfirmRound:
         result = _make_exhaustive_draw_result()
         service._handle_round_end("game1", result)
 
-        events = service.handle_action(game_id="game1", player_name="Alice", action=GameAction.CONFIRM_ROUND, data={})
+        events = service.handle_action(game_id="game1", seat=alice.seat, action=GameAction.CONFIRM_ROUND, data={})
         assert events == []
         assert service.is_round_advance_pending("game1")
 
@@ -103,9 +103,9 @@ class TestConfirmRound:
         assert bob.seat in unconfirmed
 
     def test_confirm_round__when_no_advance_pending__should_return_invalid_action_error(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
+        player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
-        events = service.handle_action(game_id="game1", player_name="Player", action=GameAction.CONFIRM_ROUND, data={})
+        events = service.handle_action(game_id="game1", seat=player_seat, action=GameAction.CONFIRM_ROUND, data={})
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert isinstance(events[0].data, ErrorEvent)
@@ -122,7 +122,7 @@ class TestConfirmRound:
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
         events = service.handle_action(
-            game_id="game1", player_name="Player", action=GameAction.DISCARD, data={"tile_id": tile_id}
+            game_id="game1", seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
         )
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
@@ -137,12 +137,12 @@ class TestRoundAdvanceTimeout:
         return MahjongGameService()
 
     def test_round_advance_timeout__when_player_times_out__should_auto_confirm_and_advance(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
+        player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
         result = _make_exhaustive_draw_result()
         service._handle_round_end("game1", result)
 
-        events = service.handle_timeout(game_id="game1", player_name="Player", timeout_type=TimeoutType.ROUND_ADVANCE)
+        events = service.handle_timeout(game_id="game1", seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
 
@@ -160,7 +160,7 @@ class TestRoundAdvanceAIPlayerReplacement:
         result = _make_exhaustive_draw_result()
         service._handle_round_end("game1", result)
 
-        service.replace_with_ai_player("game1", "Alice")
+        service.replace_with_ai_player("game1", alice.seat)
         events = service.process_ai_player_actions_after_replacement("game1", alice.seat)
         assert events == []
         assert service.is_round_advance_pending("game1")
@@ -176,7 +176,7 @@ class TestRoundAdvanceAIPlayerReplacement:
         result = _make_exhaustive_draw_result()
         service._handle_round_end("game1", result)
 
-        service.replace_with_ai_player("game1", "Player")
+        service.replace_with_ai_player("game1", player.seat)
         events = service.process_ai_player_actions_after_replacement("game1", player.seat)
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) >= 4

@@ -189,10 +189,11 @@ class TestMessageRouterEntryPointFailures:
         assert connection._close_code == 1011
 
     async def test_message_router__when_the_ai_replacement_on_disconnect_raises__should_fail_the_game(self):
-        session_manager = SessionManager(MockGameService())
+        game_service = MockGameService()
+        session_manager = SessionManager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = await create_started_game(session_manager, player_names=["Alice", "Bob"])
-        session_manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
+        game_service.process_ai_player_actions_after_replacement = MagicMock(
             side_effect=ValueError("engine state broke"),
         )
 

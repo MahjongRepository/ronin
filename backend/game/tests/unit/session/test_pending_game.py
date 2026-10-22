@@ -209,6 +209,8 @@ class TestPendingGameTimeout:
         assert absent_session.seat is not None
         assert absent_session.seat != connected_seat
         assert absent_session.disconnected_at is not None
+        snapshot = seeded_engine.build_reconnection_snapshot("game1", connected_seat)
+        assert snapshot.players[absent_session.seat].is_ai_player is True
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)

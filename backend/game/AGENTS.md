@@ -18,11 +18,12 @@ hands each player a signed game ticket; players then connect to `/ws/{game_id}` 
 * `wire/` — the wire format both the server and the replay tool read: integer event and result
   codes (`enums.py`, `events.py`), the packed draw/discard codec (`compact.py`) and
   `REPLAY_VERSION` (`replay_format.py`).
-* `logic/` — the rules engine behind the `GameService` interface (`MahjongGameService`): synchronous,
-  returns `list[ServiceEvent]` and knows nothing about connections or time.
-* `replay/` — runs recorded games through the public `GameService` API (`runner.py`: `run_replay`;
+* `logic/` — the rules engine behind the `GameService` protocol (`MahjongGameService`): synchronous,
+  seat-keyed, returns `list[ServiceEvent]` and knows nothing about connections, time or accounts.
+* `replay/` — runs recorded games through the same `GameService` protocol (`runner.py`: `run_replay`;
   `loader.py`: `load_replay_from_file` / `load_replay_from_string`) for tests and profiling. It
-  depends on `logic` and `wire` only.
+  depends on `logic` and `wire` only. Replay input stays name-keyed; the runner maps names to the seats
+  `start_game` returns once, at its boundary.
 
 Import direction is `server` → `session` → `messaging` → `wire` → `logic`, enforced by the
 import-linter contracts in `pyproject.toml` (see `backend/AGENTS.md`, "Boundaries"). Something two

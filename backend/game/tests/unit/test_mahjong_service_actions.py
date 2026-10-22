@@ -27,24 +27,11 @@ class TestMahjongGameServiceErrors:
         return MahjongGameService()
 
     def test_handle_action__when_game_not_found__should_return_error_event(self, service):
-        events = service.handle_action(
-            game_id="nonexistent", player_name="Player", action=GameAction.DISCARD, data={"tile_id": 0}
-        )
+        events = service.handle_action(game_id="nonexistent", seat=0, action=GameAction.DISCARD, data={"tile_id": 0})
         assert any(e.event == EventType.ERROR for e in events)
         error_event = next(e for e in events if e.event == EventType.ERROR)
         assert isinstance(error_event.data, ErrorEvent)
         assert "not found" in error_event.data.message
-
-    def test_handle_action__when_player_not_in_game__should_return_error_event(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-
-        events = service.handle_action(
-            game_id="game1", player_name="Unknown", action=GameAction.DISCARD, data={"tile_id": 0}
-        )
-        assert any(e.event == EventType.ERROR for e in events)
-        error_event = next(e for e in events if e.event == EventType.ERROR)
-        assert isinstance(error_event.data, ErrorEvent)
-        assert "not in game" in error_event.data.message
 
 
 class TestMahjongGameServiceProcessActionResult:
@@ -228,7 +215,7 @@ class TestNoDataActionDispatchRouting:
         other_seat = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
-        events = service.handle_action(game_id="game1", player_name="Player", action=action, data={})
+        events = service.handle_action(game_id="game1", seat=player.seat, action=action, data={})
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
 
@@ -240,9 +227,9 @@ class TestNoDataActionDispatchRouting:
         ],
     )
     def test_handle_action__when_call_without_call_prompt__should_return_error_event(self, service, action, data, code):
-        service.start_game("game1", ["Player"], seed="a" * 192)
+        player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
-        events = service.handle_action(game_id="game1", player_name="Player", action=action, data=data)
+        events = service.handle_action(game_id="game1", seat=player_seat, action=action, data=data)
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == code

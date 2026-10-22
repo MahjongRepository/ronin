@@ -11,7 +11,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
-from game.logic.service import GameService
+from game.logic.service import GameService, GameStart
 from game.logic.settings import GameSettings, GameType
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class MockResultEvent(GameEvent):
-    player: str
+    seat: int
     action: GameAction | str
     input: dict[str, Any]
     success: bool
@@ -66,23 +66,15 @@ class _MockGameState:
 
 class MockGameService(GameService):
     def __init__(self) -> None:
-        self._player_seats: dict[str, dict[str, int]] = {}  # game_id -> {player_name -> seat}
         self._seeds: dict[str, str] = {}  # game_id -> seed
         self._all_player_names: dict[str, list[str]] = {}  # game_id -> all player names (including AI)
         self._game_types: dict[str, str] = {}  # game_id -> game_type string
-
-    def get_player_seat(self, game_id: str, player_name: str) -> int | None:
-        game_seats = self._player_seats.get(game_id)
-        if game_seats is None:
-            return None
-
-        return game_seats.get(player_name)
 
     def handle_action(
         self,
         *,
         game_id: str,
-        player_name: str,
+        seat: int,
         action: GameAction,
         data: dict[str, Any],
     ) -> list[ServiceEvent]:
@@ -93,7 +85,7 @@ class MockGameService(GameService):
                 data=MockResultEvent(
                     type=event_type,
                     target="all",
-                    player=player_name,
+                    seat=seat,
                     action=action,
                     input=data,
                     success=True,
@@ -110,9 +102,7 @@ class MockGameService(GameService):
         seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
-    ) -> list[ServiceEvent]:
-        # store player seat assignments (seat 0 for first player)
-        self._player_seats[game_id] = {name: i for i, name in enumerate(player_names)}
+    ) -> GameStart:
         self._seeds[game_id] = seed if seed is not None else ""
         if settings is not None:
             self._game_types[game_id] = str(settings.game_type)
@@ -124,7 +114,7 @@ class MockGameService(GameService):
         players = [
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
         ]
-        return [
+        events = [
             ServiceEvent(
                 event=EventType.GAME_STARTED,
                 data=GameStartedEvent(
@@ -153,6 +143,7 @@ class MockGameService(GameService):
                 target=SeatTarget(seat=0),
             ),
         ]
+        return GameStart(events=events, seats=tuple(range(player_count)))
 
     def get_game_seed(self, game_id: str) -> str | None:
         return self._seeds.get(game_id)
@@ -170,16 +161,11 @@ class MockGameService(GameService):
         )
 
     def cleanup_game(self, game_id: str) -> None:
-        self._player_seats.pop(game_id, None)
         self._seeds.pop(game_id, None)
         self._all_player_names.pop(game_id, None)
         self._game_types.pop(game_id, None)
 
-    def replace_with_ai_player(
-        self,
-        game_id: str,
-        player_name: str,
-    ) -> None:
+    def replace_with_ai_player(self, game_id: str, seat: int) -> None:
         pass
 
     def restore_human_player(self, game_id: str, seat: int) -> None:
@@ -201,14 +187,14 @@ class MockGameService(GameService):
     def is_round_advance_pending(self, game_id: str) -> bool:
         return False
 
-    def get_pending_round_advance_player_names(self, game_id: str) -> list[str]:
+    def get_pending_round_advance_seats(self, game_id: str) -> list[int]:
         return []
 
     def handle_timeout(
         self,
         *,
         game_id: str,
-        player_name: str,
+        seat: int,
         timeout_type: TimeoutType,
     ) -> list[ServiceEvent]:
         event_type = EventType.DRAW
@@ -218,7 +204,7 @@ class MockGameService(GameService):
                 data=MockResultEvent(
                     type=event_type,
                     target="all",
-                    player=player_name,
+                    seat=seat,
                     action=f"timeout_{timeout_type.value}",
                     input={},
                     success=True,

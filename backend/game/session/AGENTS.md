@@ -8,8 +8,9 @@ per-game lock.
   string — the ticket is the session token for the whole game, never rotated. The game waits for
   every player in the request to send `JOIN_GAME`; it starts when they all have, or when the pending
   timeout (10s) fires, with AI players in the empty seats. With no humans it is cancelled. At
-  start every expected human's session is bound to its seat before AI players fill the absent
-  ones, and an absent human's session is marked disconnected, so it can RECONNECT later.
+  start every expected human's session is bound to the seat `start_game` returned for its spec (by
+  input order, never by name), and an absent human's session is marked disconnected and its seat
+  given to an AI player, so it can RECONNECT later. Every engine call names the player by seat.
 * **Disconnect** from a started game: an AI player takes the seat, the player's timer stops and the
   remaining bank time is saved on the session, and any pending turn, call or round confirmation for
   that seat is resolved. Structurally impossible input (`InvalidGameActionError`, always the acting
@@ -67,4 +68,5 @@ per-game lock.
   actions), merges the per-seat `round_started` views into one record holding every hand, adds the
   seed to `game_started`, and saves gzip NDJSON with a version line on game end.
 * **Persistence** of game starts and ends (`GameRepository`) is best-effort: log a database failure,
-  never let it block gameplay or socket cleanup.
+  never let it block gameplay or socket cleanup. The start record takes each human's `user_id` by
+  seat, so AI seats get none even when a human shares an AI-style name.

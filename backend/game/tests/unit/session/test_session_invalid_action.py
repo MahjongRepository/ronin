@@ -32,16 +32,16 @@ class TestSessionManagerInvalidAction:
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
+        def tracking_replace(game_id, seat):
+            replace_calls.append((game_id, seat))
+            return original_replace(game_id, seat)
 
         manager._game_service.replace_with_ai_player = tracking_replace
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
         await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
         assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", "Alice")
+        assert replace_calls[0] == ("game1", 0)
 
     async def test_invalid_action__when_player_sends_it__should_broadcast_player_left(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
@@ -83,7 +83,7 @@ class TestSessionManagerInvalidAction:
             data=MockResultEvent(
                 type=EventType.DRAW,
                 target="all",
-                player="AI",
+                seat=0,
                 action=GameAction.DISCARD,
                 input={},
                 success=True,
@@ -124,9 +124,9 @@ class TestSessionManagerInvalidAction:
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
+        def tracking_replace(game_id, seat):
+            replace_calls.append((game_id, seat))
+            return original_replace(game_id, seat)
 
         manager._game_service.replace_with_ai_player = tracking_replace
 

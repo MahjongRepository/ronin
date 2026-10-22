@@ -4,56 +4,43 @@ from game.logic.settings import NUM_PLAYERS
 from game.logic.types import SeatConfig
 
 
-def _ai_player_names(num_ai: int) -> set[str]:
+def _generate_ai_player_names(count: int, taken_names: list[str]) -> list[str]:
     """
-    Return the set of AI player names that will be generated.
+    Return `count` AI player names "Tsumogiri N", numbered up from 1 and skipping the names already taken.
     """
-    return {f"Tsumogiri {i}" for i in range(1, num_ai + 1)}
+    names: list[str] = []
+    number = 1
+    while len(names) < count:
+        name = f"Tsumogiri {number}"
+        if name not in taken_names:
+            names.append(name)
+
+        number += 1
+
+    return names
 
 
-def fill_seats(player_names: list[str], seed: str | None = None) -> list[SeatConfig]:
+def fill_seats(player_names: list[str], seed: str | None = None) -> tuple[list[SeatConfig], tuple[int, ...]]:
     """
-    Create seat configurations for a game.
+    Create seat configurations for a game; return them by seat, with the seat of each input player in input order.
 
-    Assigns players to random seats and fills remaining with tsumogiri AI players. The sample ordering determines which
-    seats get players AND the order of name assignment, so seat randomization works correctly even with all-player
-    games.
+    Assigns players to random seats and fills the remaining ones with tsumogiri AI players, whose names skip the
+    players' names. The sample ordering determines which seats get players AND which player sits where, so seat
+    randomization works correctly even with all-player games; the replay loader inverts this exact sample.
     """
     if not player_names or len(player_names) > NUM_PLAYERS:
         raise ValueError(f"Expected 1 to {NUM_PLAYERS} player names, got {len(player_names)}")
 
-    player_names = [name.strip() for name in player_names]
-    if any(not name for name in player_names):
-        raise ValueError("Player names must not be empty or whitespace")
-
-    if len(player_names) != len(set(player_names)):
-        raise ValueError("Player names must be unique")
-
-    num_ai = NUM_PLAYERS - len(player_names)
-    collisions = _ai_player_names(num_ai) & set(player_names)
-    if collisions:
-        raise ValueError(f"Player names must not match AI player names: {sorted(collisions)}")
-
     rng = create_seat_rng(seed)
-
-    # sample determines which seats get players AND the order of name assignment
-    player_seat_order = rng.sample(range(NUM_PLAYERS), len(player_names))
-
-    # map seat -> player name
-    seat_to_player: dict[int, str] = dict(zip(player_seat_order, player_names, strict=True))
+    player_seats = tuple(rng.sample(range(NUM_PLAYERS), len(player_names)))
+    seat_to_player = dict(zip(player_seats, player_names, strict=True))
+    ai_player_names = iter(_generate_ai_player_names(NUM_PLAYERS - len(player_names), player_names))
 
     configs: list[SeatConfig] = []
-    ai_player_number = 1
     for seat in range(NUM_PLAYERS):
         if seat in seat_to_player:
             configs.append(SeatConfig(name=seat_to_player[seat]))
         else:
-            configs.append(
-                SeatConfig(
-                    name=f"Tsumogiri {ai_player_number}",
-                    ai_player_type=AIPlayerType.TSUMOGIRI,
-                ),
-            )
-            ai_player_number += 1
+            configs.append(SeatConfig(name=next(ai_player_names), ai_player_type=AIPlayerType.TSUMOGIRI))
 
-    return configs
+    return configs, player_seats

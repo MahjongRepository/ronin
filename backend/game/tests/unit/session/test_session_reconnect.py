@@ -327,9 +327,9 @@ class TestReconnectEdgeCases:
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
+        def tracking_replace(game_id, seat):
+            replace_calls.append((game_id, seat))
+            return original_replace(game_id, seat)
 
         manager._game_service.replace_with_ai_player = tracking_replace
         await manager.leave_game(alice_conn, notify_player=False)
@@ -341,7 +341,7 @@ class TestReconnectEdgeCases:
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert any(m["code"] == SessionErrorCode.RECONNECT_SNAPSHOT_FAILED for m in error_msgs)
         assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", "Alice")
+        assert replace_calls[0] == ("game1", 0)
 
     @pytest.mark.asyncio
     async def test_reconnect__when_session_has_no_seat__should_return_no_seat_error(self, manager):
@@ -604,7 +604,7 @@ class TestReconnectThenPlay:
         await manager.handle_game_action(new_conn, action=GameAction.DISCARD, data={"tile_id": 1})
         action_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(action_msgs) == 1
-        assert action_msgs[0]["player"] == "Alice"
+        assert action_msgs[0]["seat"] == 0
         assert action_msgs[0]["action"] == GameAction.DISCARD
 
 

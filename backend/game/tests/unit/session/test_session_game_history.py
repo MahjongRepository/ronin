@@ -74,6 +74,27 @@ class TestGameStartRecording:
         # No scores at game start
         assert all(s.score is None for s in played_game.standings)
 
+    async def test_start_game__when_human_is_named_like_an_ai__should_seat_them_and_record_their_user_id(
+        self, seeded_engine, game_repo
+    ):
+        manager = SessionManager(seeded_engine, game_repository=game_repo)
+        conns = await create_started_game(manager, player_names=["Tsumogiri 1"])
+        human_seat = manager._players[conns[0].connection_id].seat
+        assert human_seat is not None
+        ai_seats = sorted(set(range(4)) - {human_seat})
+        standings = {s.seat: (s.name, s.user_id) for s in game_repo.stored_games["game1"].standings}
+        assert standings == {
+            human_seat: ("Tsumogiri 1", "user-0"),
+            **{seat: (f"Tsumogiri {number}", "") for number, seat in enumerate(ai_seats, start=2)},
+        }
+
+        human = seeded_engine.get_game_state("game1").round_state.players[human_seat]
+        assert seeded_engine.get_game_state("game1").round_state.current_player_seat == human_seat
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"tile_id": human.tiles[-1]})
+        human_after = seeded_engine.get_game_state("game1").round_state.players[human_seat]
+        assert [d.tile_id for d in human_after.discards] == [human.tiles[-1]]
+        assert manager.get_game("game1").ended is False
+
     async def test_game_history__when_game_starts__should_record_hanchan_game_type(self, manager_with_repo, game_repo):
         await create_started_game(manager_with_repo)
         played_game = game_repo.stored_games["game1"]

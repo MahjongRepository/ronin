@@ -196,5 +196,5 @@ class TestWebSocketReconnect:
             )
             action_msg = recv_ws(ws)
             assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
-            assert action_msg["player"] == "Player1"
+            assert action_msg["seat"] == 0
             assert action_msg["success"] is True

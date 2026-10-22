@@ -58,7 +58,7 @@ from game.logic.types import (
     SeatConfig,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
-from game.tests.unit.helpers import _update_player
+from game.tests.unit.helpers import _find_player, _update_player
 
 
 def _default_seat_configs():
@@ -678,7 +678,7 @@ class TestPendingCallPromptStateGate:
         service._furiten_tracker.init_game("test")
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
-        events = service.handle_action(game_id="test", player_name="Player", action=action, data=action_data)
+        events = service.handle_action(game_id="test", seat=0, action=action, data=action_data)
         assert [(e.data.code, e.data.target) for e in events] == [(GameErrorCode.NOT_YOUR_TURN, "seat_0")]
         assert service._games["test"] is game_state
 
@@ -961,19 +961,19 @@ class TestServerGeneratedActionRefusals:
         assert service._games["test"] is state_before
 
     def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service):
-        player_seat = service.get_player_seat("test", "Player")
+        player_seat = _find_player(service._games["test"].round_state, "Player").seat
         assert service._games["test"].round_state.current_player_seat == player_seat
 
         with (
             patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
             pytest.raises(GeneratedActionError, match="discard refused") as exc_info,
         ):
-            service.handle_timeout(game_id="test", player_name="Player", timeout_type=TimeoutType.TURN)
+            service.handle_timeout(game_id="test", seat=player_seat, timeout_type=TimeoutType.TURN)
         assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
 
     def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service):
         with pytest.raises(GeneratedActionError, match="no round pending confirmation"):
-            service.handle_timeout(game_id="test", player_name="Player", timeout_type=TimeoutType.ROUND_ADVANCE)
+            service.handle_timeout(game_id="test", seat=0, timeout_type=TimeoutType.ROUND_ADVANCE)
 
 
 class TestOpenKanDefenseInDepthGuards:

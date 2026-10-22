@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.messaging.types import SessionMessageType
+from game.session.manager import SessionManager
 from game.tests.mocks import MockConnection, MockResultEvent
 from game.wire.events import EVENT_TYPE_INT
 
@@ -15,30 +16,19 @@ if TYPE_CHECKING:
 
     import pytest
 
-    from game.session.manager import SessionManager
-
 
 class TestSessionManagerDisconnect:
-    async def test_disconnect__when_one_of_two_humans_leaves__should_replace_with_ai_and_keep_game(self, manager):
+    async def test_disconnect__when_one_of_two_humans_leaves__should_replace_with_ai_and_keep_game(self, seeded_engine):
+        manager = SessionManager(seeded_engine)
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        game = manager.get_game("game1")
-        assert game.started is True
-
-        # track replace_with_ai_player calls
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
+        alice_seat = manager._players[conns[0].connection_id].seat
+        bob_seat = manager._players[conns[1].connection_id].seat
 
         await manager.leave_game(conns[0])
-        assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", "Alice")
-        # game should still exist (Bob is still in)
         assert manager.get_game("game1") is not None
+        snapshot = seeded_engine.build_reconnection_snapshot("game1", bob_seat)
+        assert snapshot.players[alice_seat].is_ai_player is True
+        assert snapshot.players[bob_seat].is_ai_player is False
 
     async def test_disconnect__when_last_human_leaves__should_not_replace_with_ai_and_clean_up_game(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
@@ -48,9 +38,9 @@ class TestSessionManagerDisconnect:
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
+        def tracking_replace(game_id, seat):
+            replace_calls.append((game_id, seat))
+            return original_replace(game_id, seat)
 
         manager._game_service.replace_with_ai_player = tracking_replace
 
@@ -84,7 +74,7 @@ class TestSessionManagerDisconnect:
             data=MockResultEvent(
                 type=EventType.DRAW,
                 target="all",
-                player="AI",
+                seat=0,
                 action=GameAction.DISCARD,
                 input={},
                 success=True,
@@ -126,9 +116,9 @@ class TestSessionManagerDisconnect:
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
-        def tracking_replace(game_id, player_name):
-            replace_calls.append((game_id, player_name))
-            return original_replace(game_id, player_name)
+        def tracking_replace(game_id, seat):
+            replace_calls.append((game_id, seat))
+            return original_replace(game_id, seat)
 
         manager._game_service.replace_with_ai_player = tracking_replace
 
@@ -168,9 +158,9 @@ async def _let_ready_tasks_run() -> None:
 def _track_replacements(manager: SessionManager, order: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
     original_replace = manager._game_service.replace_with_ai_player
 
-    def tracking_replace(game_id: str, player_name: str) -> None:
-        order.append(f"replace {player_name}")
-        return original_replace(game_id, player_name)
+    def tracking_replace(game_id: str, seat: int) -> None:
+        order.append(f"replace seat {seat}")
+        return original_replace(game_id, seat)
 
     monkeypatch.setattr(manager._game_service, "replace_with_ai_player", tracking_replace)
 
@@ -191,7 +181,7 @@ class TestLockBoundaryRaces:
         await _let_ready_tasks_run()
         bob_send.release.set()
         await asyncio.gather(action, leave)
-        assert order == ["held_send_done", "replace Alice"]
+        assert order == ["held_send_done", "replace seat 0"]
 
     async def test_lock_boundary__when_leave_arrives_during_timeout_broadcast__should_replace_after_the_send(
         self, manager, monkeypatch
@@ -208,7 +198,7 @@ class TestLockBoundaryRaces:
         await _let_ready_tasks_run()
         bob_send.release.set()
         await asyncio.gather(timeout, leave)
-        assert order == ["held_send_done", "replace Alice"]
+        assert order == ["held_send_done", "replace seat 0"]
 
     async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])

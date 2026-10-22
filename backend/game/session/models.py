@@ -83,10 +83,6 @@ class Game:
         return self.end_reason is not None
 
     @property
-    def player_names(self) -> list[str]:
-        return [p.name for p in self.players.values()]
-
-    @property
     def player_count(self) -> int:
         return len(self.players)
 
