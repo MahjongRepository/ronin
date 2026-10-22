@@ -33,7 +33,9 @@ class GameAction(StrEnum):
 
 class GameErrorCode(StrEnum):
     """
-    Error codes of an ErrorEvent: the engine refused an action and changed nothing.
+    Error codes of an ErrorEvent: the action was refused and nothing changed.
+
+    STALE_ACTION comes from the session, not the engine: the action echoed the id of a wait that already ended.
     """
 
     NOT_YOUR_TURN = "not_your_turn"
@@ -44,8 +46,8 @@ class GameErrorCode(StrEnum):
     INVALID_CHI = "invalid_chi"
     INVALID_KAN = "invalid_kan"
     INVALID_PASS = "invalid_pass"  # noqa: S105
-    GAME_ERROR = "game_error"
     INVALID_ACTION = "invalid_action"
+    STALE_ACTION = "stale_action"
 
 
 class MeldCallType(StrEnum):
@@ -209,6 +211,17 @@ class TimeoutType(StrEnum):
     TURN = "turn"
     MELD = "meld"
     ROUND_ADVANCE = "round_advance"
+
+
+class WaitKind(StrEnum):
+    """
+    What the game waits for: a seat's turn, call prompt responses, round-end confirmations, or nothing (game over).
+    """
+
+    TURN = "turn"
+    CALL = "call"
+    ROUND_ADVANCE = "round_advance"
+    NONE = "none"
 
 
 class MeldViewType(StrEnum):

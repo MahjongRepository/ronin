@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, cast
 import structlog
 
 from game.logic.events import (
-    BroadcastTarget,
     CallPromptEvent,
     DrawEvent,
     ErrorEvent,
@@ -112,10 +111,7 @@ class ReplayCollector:
         if isinstance(event.target, SeatTarget):
             return isinstance(event.data, _SEAT_TARGET_INCLUDED)
 
-        if isinstance(event.target, BroadcastTarget):
-            return not isinstance(event.data, _EXCLUDED_EVENT_TYPES)
-
-        return False
+        return not isinstance(event.data, _EXCLUDED_EVENT_TYPES)
 
     def _inject_seed_if_game_started(
         self,

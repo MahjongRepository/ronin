@@ -1,9 +1,10 @@
 import logging
+from dataclasses import replace
 
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import GamePhase, PlayerAction, PromptKind, RoundPhase
+from game.logic.enums import GameAction, GamePhase, KanType, PlayerAction, PromptKind, RoundPhase, WaitKind
 from game.logic.events import (
     DiscardEvent,
     EventType,
@@ -72,7 +73,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         service.start_game("game1", ["Alice"])
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
 
-        events = service.process_ai_player_actions_after_replacement("game1", seat=0)
+        events = service.process_ai_player_actions_after_replacement("game1", seat=0).events
         assert events == []
 
     def test_ai_actions_after_replacement__when_replaced_player_has_turn__should_play_turn(self, service):
@@ -108,7 +109,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         )
 
         service.replace_with_ai_player("game1", player_seat)
-        events = service.process_ai_player_actions_after_replacement("game1", player_seat)
+        events = service.process_ai_player_actions_after_replacement("game1", player_seat).events
         assert events[0].data == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     def test_ai_actions_after_replacement__when_replaced_right_after_own_chi__should_discard_legally(
@@ -149,7 +150,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         )
 
         service.replace_with_ai_player("game1", alice.seat)
-        events = service.process_ai_player_actions_after_replacement("game1", alice.seat)
+        events = service.process_ai_player_actions_after_replacement("game1", alice.seat).events
         discard = events[0].data
         assert isinstance(discard, DiscardEvent)
         assert discard.seat == alice.seat
@@ -193,9 +194,12 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             callers=(Caller(seat=alice.seat, can_ron=True), Caller(seat=bob.seat, can_ron=True)),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
+        waiting = service.get_awaiting("game1")
 
         service.replace_with_ai_player("game1", alice.seat)
-        events = service.process_ai_player_actions_after_replacement("game1", alice.seat)
+        update = service.process_ai_player_actions_after_replacement("game1", alice.seat)
+        events = update.events
+        assert update.awaiting == replace(waiting, seats=frozenset({bob.seat}))
         updated_round = service._games["game1"].round_state
         assert updated_round.pending_call_prompt is not None
         assert bob.seat in updated_round.pending_call_prompt.pending_seats
@@ -222,9 +226,28 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         _update_round_state(service, "game1", wall=Wall(), pending_call_prompt=prompt)
 
         service.replace_with_ai_player("game1", alice.seat)
-        events = service.process_ai_player_actions_after_replacement("game1", alice.seat)
+        events = service.process_ai_player_actions_after_replacement("game1", alice.seat).events
         round_end_events = [e for e in events if e.event == EventType.ROUND_END]
         assert len(round_end_events) == 1
+
+
+class TestAwaiting:
+    def test_awaiting__when_closed_kan_draws_a_replacement__should_open_a_new_wait_for_the_same_seat(self):
+        service = MahjongGameService()
+        seat = service.start_game("game1", ["Alice"], seed="a" * 192).seats[0]
+        hand = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="2345")
+        _update_player(service, game_id="game1", seat=seat, tiles=tuple(hand))
+        waiting = service.get_awaiting("game1")
+        assert (waiting.kind, waiting.seats) == (WaitKind.TURN, frozenset({seat}))
+
+        update = service.handle_action(
+            game_id="game1",
+            seat=seat,
+            action=GameAction.CALL_KAN,
+            data={"tile_id": hand[0], "kan_type": KanType.CLOSED},
+        )
+        assert [e.event for e in update.events if e.event == EventType.DRAW] == [EventType.DRAW]
+        assert update.awaiting == replace(waiting, wait_id=waiting.wait_id + 1)
 
 
 class TestSeedDeterminism:
@@ -343,10 +366,6 @@ class TestServiceGuardClauses:
     def test_get_pending_round_advance_seats__when_no_advance_pending__should_return_empty(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
         assert service.get_pending_round_advance_seats("game1") == []
-
-    def test_ai_actions_after_replacement__when_game_does_not_exist__should_return_no_events(self, service):
-        events = service.process_ai_player_actions_after_replacement("nonexistent", seat=0)
-        assert events == []
 
 
 class TestMahjongGameServiceRestoreHumanPlayer:

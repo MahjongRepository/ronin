@@ -2,7 +2,6 @@ import json
 
 from game.logic.enums import CallType, GameErrorCode, MeldViewType, WindName
 from game.logic.events import (
-    BroadcastTarget,
     CallPromptEvent,
     DiscardEvent,
     DoraRevealedEvent,
@@ -66,15 +65,12 @@ _SEAT_TILES = {
 
 def _make_discard_event(seat: int = 0, tile_id: int = 10) -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.DISCARD,
         data=DiscardEvent(seat=seat, tile_id=tile_id),
-        target=BroadcastTarget(),
     )
 
 
 def _make_meld_event() -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.MELD,
         data=MeldEvent(
             meld_type=MeldViewType.PON,
             caller_seat=1,
@@ -82,56 +78,44 @@ def _make_meld_event() -> ServiceEvent:
             tile_ids=[10, 11, 12],
             called_tile_id=10,
         ),
-        target=BroadcastTarget(),
     )
 
 
 def _make_riichi_event(seat: int = 0) -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.RIICHI_DECLARED,
-        data=RiichiDeclaredEvent(seat=seat, target="all"),
-        target=BroadcastTarget(),
+        data=RiichiDeclaredEvent(seat=seat),
     )
 
 
 def _make_dora_event() -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.DORA_REVEALED,
         data=DoraRevealedEvent(tile_id=5),
-        target=BroadcastTarget(),
     )
 
 
 def _make_game_started_event(game_id: str = "game1") -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.GAME_STARTED,
         data=GameStartedEvent(
             game_id=game_id,
             players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
             dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),
         ),
-        target=BroadcastTarget(),
     )
 
 
 def _make_game_ended_event() -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.GAME_END,
         data=GameEndedEvent(
-            target="all",
             winner_seat=0,
             standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
         ),
-        target=BroadcastTarget(),
     )
 
 
 def _make_round_end_event() -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.ROUND_END,
         data=RoundEndEvent(
-            target="all",
             result=ExhaustiveDrawResult(
                 tempai_seats=[0],
                 noten_seats=[1, 2, 3],
@@ -140,52 +124,42 @@ def _make_round_end_event() -> ServiceEvent:
                 score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
             ),
         ),
-        target=BroadcastTarget(),
     )
 
 
 def _make_draw_event(seat: int = 0, tile_id: int = 1) -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.DRAW,
-        data=DrawEvent(seat=seat, tile_id=tile_id, target=f"seat_{seat}"),
-        target=SeatTarget(seat=seat),
+        data=DrawEvent(seat=seat, tile_id=tile_id, target=SeatTarget(seat=seat)),
     )
 
 
 def _make_call_prompt_event(seat: int = 1) -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.CALL_PROMPT,
         data=CallPromptEvent(
             call_type=CallType.MELD,
             tile_id=10,
             from_seat=0,
             callers=[seat],
-            target=f"seat_{seat}",
+            target=SeatTarget(seat=seat),
         ),
-        target=SeatTarget(seat=seat),
     )
 
 
 def _make_error_event(seat: int = 0) -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.ERROR,
-        data=ErrorEvent(code=GameErrorCode.INVALID_ACTION, message="nope", target=f"seat_{seat}"),
-        target=SeatTarget(seat=seat),
+        data=ErrorEvent(code=GameErrorCode.INVALID_ACTION, message="nope", target=SeatTarget(seat=seat)),
     )
 
 
 def _make_furiten_event(seat: int = 0) -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.FURITEN,
-        data=FuritenEvent(is_furiten=True, target=f"seat_{seat}"),
-        target=SeatTarget(seat=seat),
+        data=FuritenEvent(is_furiten=True, target=SeatTarget(seat=seat)),
     )
 
 
 def _make_round_started_event(seat: int = 0) -> ServiceEvent:
     players = [PlayerView(seat=s, score=25000) for s in range(4)]
     return ServiceEvent(
-        event=EventType.ROUND_STARTED,
         data=RoundStartedEvent(
             seat=seat,
             round_wind=WindName.EAST,
@@ -197,9 +171,8 @@ def _make_round_started_event(seat: int = 0) -> ServiceEvent:
             riichi_sticks=0,
             my_tiles=_SEAT_TILES[seat],
             players=players,
-            target=f"seat_{seat}",
+            target=SeatTarget(seat=seat),
         ),
-        target=SeatTarget(seat=seat),
     )
 
 
@@ -307,14 +280,12 @@ class TestReplayCollectorFiltering:
         collector = ReplayCollector(storage)
 
         draw_with_actions = ServiceEvent(
-            event=EventType.DRAW,
             data=DrawEvent(
                 seat=0,
                 tile_id=42,
-                target="seat_0",
+                target=SeatTarget(seat=0),
                 available_actions=[AvailableActionItem(action="discard", tiles=[42])],
             ),
-            target=SeatTarget(seat=0),
         )
 
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
@@ -358,24 +329,6 @@ class TestReplayCollectorFiltering:
             EVENT_TYPE_INT[EventType.GAME_END],
         ]
         assert types == expected
-
-    async def test_replay_collector__when_event_target_unknown__should_exclude_it(self):
-        storage = FakeStorage()
-        collector = ReplayCollector(storage)
-
-        unknown_event = ServiceEvent.model_construct(
-            event=EventType.DISCARD,
-            data=DiscardEvent(seat=0, tile_id=10, target="all"),
-            target="unknown_target",
-        )
-
-        collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)
-        collector.collect_events("game1", [unknown_event, _make_discard_event()])
-
-        await collector.save("game1", collector.detach_game("game1"))
-        lines = _parse_saved_replay(storage.saved["game1"])
-        assert len(lines) == 1
-        assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
 
 
 class TestReplayCollectorRoundStartedMerge:
@@ -491,9 +444,7 @@ class TestReplayCollectorJsonLines:
         collector = ReplayCollector(storage)
 
         riichi_discard = ServiceEvent(
-            event=EventType.DISCARD,
             data=DiscardEvent(seat=0, tile_id=10, is_riichi=True),
-            target=BroadcastTarget(),
         )
 
         collector.start_game(game_id="game1", seed="b" * 192, rng_version=RNG_VERSION)

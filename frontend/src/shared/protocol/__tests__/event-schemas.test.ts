@@ -295,6 +295,7 @@ describe("meldSchema", () => {
         expect(result.fromSeat).toBeNull();
         expect(result.tileIds).toEqual([0, 1, 2, 3]);
         expect(result.calledTileId).toBeNull();
+        expect(result.waitId).toBeNull();
     });
 });
 

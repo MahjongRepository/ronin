@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, cast
 
-from game.logic.enums import GameAction, TimeoutType, WindName
+from game.logic.enums import GameAction, TimeoutType, WaitKind, WindName
 from game.logic.events import (
     BroadcastTarget,
     EventType,
@@ -11,7 +11,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
-from game.logic.service import GameService, GameStart
+from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
 from game.logic.settings import GameSettings, GameType
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
@@ -64,6 +64,14 @@ class _MockGameState:
         self.round_number = round_number
 
 
+MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), wait_id=1, round_number=0)
+MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), wait_id=2, round_number=0)
+
+
+def mock_update(events: list[ServiceEvent], awaiting: Awaiting = MOCK_AWAITING) -> GameUpdate:
+    return GameUpdate(events=events, awaiting=awaiting)
+
+
 class MockGameService(GameService):
     def __init__(self) -> None:
         self._seeds: dict[str, str] = {}  # game_id -> seed
@@ -77,22 +85,16 @@ class MockGameService(GameService):
         seat: int,
         action: GameAction,
         data: dict[str, Any],
-    ) -> list[ServiceEvent]:
-        event_type = EventType.DRAW
-        return [
-            ServiceEvent(
-                event=event_type,
-                data=MockResultEvent(
-                    type=event_type,
-                    target="all",
-                    seat=seat,
-                    action=action,
-                    input=data,
-                    success=True,
-                ),
-                target=BroadcastTarget(),
-            ),
-        ]
+    ) -> GameUpdate:
+        event = MockResultEvent(
+            type=EventType.DRAW,
+            target=BroadcastTarget(),
+            seat=seat,
+            action=action,
+            input=data,
+            success=True,
+        )
+        return GameUpdate(events=[ServiceEvent(data=event)], awaiting=MOCK_AWAITING)
 
     def start_game(
         self,
@@ -116,17 +118,14 @@ class MockGameService(GameService):
         ]
         events = [
             ServiceEvent(
-                event=EventType.GAME_STARTED,
                 data=GameStartedEvent(
                     game_id=game_id,
                     players=players,
                     dealer_seat=0,
                     dealer_dice=((1, 1), (1, 1)),
                 ),
-                target=BroadcastTarget(),
             ),
             ServiceEvent(
-                event=EventType.ROUND_STARTED,
                 data=RoundStartedEvent(
                     seat=0,
                     round_wind=WindName.EAST,
@@ -138,15 +137,17 @@ class MockGameService(GameService):
                     riichi_sticks=0,
                     my_tiles=[],
                     players=[PlayerView(seat=i, score=25000) for i in range(4)],
-                    target="seat_0",
+                    target=SeatTarget(seat=0),
                 ),
-                target=SeatTarget(seat=0),
             ),
         ]
-        return GameStart(events=events, seats=tuple(range(player_count)))
+        return GameStart(events=events, awaiting=MOCK_AWAITING, seats=tuple(range(player_count)))
 
     def get_game_seed(self, game_id: str) -> str | None:
         return self._seeds.get(game_id)
+
+    def get_awaiting(self, game_id: str) -> Awaiting:
+        return MOCK_AWAITING
 
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
         if game_id not in self._seeds:
@@ -181,8 +182,8 @@ class MockGameService(GameService):
         self,
         game_id: str,
         seat: int,
-    ) -> list[ServiceEvent]:
-        return []
+    ) -> GameUpdate:
+        return GameUpdate(events=[], awaiting=MOCK_AWAITING)
 
     def is_round_advance_pending(self, game_id: str) -> bool:
         return False
@@ -196,19 +197,13 @@ class MockGameService(GameService):
         game_id: str,
         seat: int,
         timeout_type: TimeoutType,
-    ) -> list[ServiceEvent]:
-        event_type = EventType.DRAW
-        return [
-            ServiceEvent(
-                event=event_type,
-                data=MockResultEvent(
-                    type=event_type,
-                    target="all",
-                    seat=seat,
-                    action=f"timeout_{timeout_type.value}",
-                    input={},
-                    success=True,
-                ),
-                target=BroadcastTarget(),
-            ),
-        ]
+    ) -> GameUpdate:
+        event = MockResultEvent(
+            type=EventType.DRAW,
+            target=BroadcastTarget(),
+            seat=seat,
+            action=f"timeout_{timeout_type.value}",
+            input={},
+            success=True,
+        )
+        return GameUpdate(events=[ServiceEvent(data=event)], awaiting=MOCK_AWAITING)

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from game.logic.enums import GameAction, TimeoutType
+    from game.logic.enums import GameAction, TimeoutType, WaitKind
     from game.logic.events import ServiceEvent
     from game.logic.settings import GameSettings
     from game.logic.state import MahjongGameState
@@ -12,12 +12,41 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class GameStart:
+class Awaiting:
     """
-    The outcome of starting a game: its initial events and the seat of each input player, in input order.
+    The input the game waits for after an engine call.
+
+    seats are the awaited seats an AI player does not hold: the turn's seat, the callers still to respond to the call
+    prompt, or the seats still to confirm the round end; none once the game is over. wait_id identifies the wait: it
+    changes exactly when a call ends the current wait (an error result, a partial prompt response or confirmation, and a
+    replacement that resolves nothing keep it), so a later wait of the same kind for the same seat gets a new one.
+    round_number is the round the wait belongs to; a round advance belongs to the round that ended.
+    """
+
+    kind: WaitKind
+    seats: frozenset[int]
+    wait_id: int
+    round_number: int
+
+
+@dataclass(frozen=True)
+class GameUpdate:
+    """
+    The outcome of an engine call: the events to deliver and what the game waits for next.
     """
 
     events: list[ServiceEvent]
+    awaiting: Awaiting
+
+
+@dataclass(frozen=True)
+class GameStart:
+    """
+    The outcome of starting a game: its initial events, what it waits for, and each input player's seat in input order.
+    """
+
+    events: list[ServiceEvent]
+    awaiting: Awaiting
     seats: tuple[int, ...]
 
 
@@ -25,9 +54,9 @@ class GameService(Protocol):
     """
     Interface of the game logic, used by the session and the replay runner.
 
-    Players are identified by seat; names are display only. Events returned by methods include a 'target' field:
-    - "all": broadcast to all players in the game
-    - "seat_0", "seat_1", etc.: send only to player at that seat
+    Players are identified by seat; names are display only. Every event carries its routing target: a BroadcastTarget
+    (every player in the game) or a SeatTarget (only the player at that seat). Every call that can change the game
+    returns what it waits for next (Awaiting).
     """
 
     def handle_action(
@@ -37,11 +66,11 @@ class GameService(Protocol):
         seat: int,
         action: GameAction,
         data: dict[str, Any],
-    ) -> list[ServiceEvent]:
+    ) -> GameUpdate:
         """
         Handle a game action from the player at a seat.
 
-        Returns a list of service events to broadcast.
+        Returns the events to deliver and the next wait.
         """
         ...
 
@@ -57,10 +86,10 @@ class GameService(Protocol):
         """
         Start a game with the given players, seating AI players in the empty seats.
 
-        Returns the initial state events (one per player with their view) and each input player's seat, in input order.
-        When seed is provided, the game is deterministically reproducible. When seed is None, a random seed is
-        generated. When settings is provided, the game uses the given settings. When wall is provided, use it instead of
-        generating from seed.
+        Returns the initial state events (one per player with their view), the first wait and each input player's seat,
+        in input order. When seed is provided, the game is deterministically reproducible. When seed is None, a random
+        seed is generated. When settings is provided, the game uses the given settings. When wall is provided, use it
+        instead of generating from seed.
         """
         ...
 
@@ -76,13 +105,19 @@ class GameService(Protocol):
         """
         ...
 
+    def get_awaiting(self, game_id: str) -> Awaiting:
+        """
+        Return what a running game waits for now, with the seats as the AI players hold them at this moment.
+        """
+        ...
+
     def handle_timeout(
         self,
         *,
         game_id: str,
         seat: int,
         timeout_type: TimeoutType,
-    ) -> list[ServiceEvent]:
+    ) -> GameUpdate:
         """
         Handle a seat's timeout by performing the default action.
 
@@ -110,7 +145,7 @@ class GameService(Protocol):
         self,
         game_id: str,
         seat: int,
-    ) -> list[ServiceEvent]:
+    ) -> GameUpdate:
         """
         Process pending AI player actions after a player was replaced with an AI player.
 

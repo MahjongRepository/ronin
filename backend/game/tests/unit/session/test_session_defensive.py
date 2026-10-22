@@ -3,9 +3,9 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import MOCK_AWAITING, MockConnection, MockGameService
 
-from .helpers import create_started_game
+from .helpers import create_started_game, current_wait_id
 
 
 class TestSessionManagerDefensiveChecks:
@@ -13,7 +13,7 @@ class TestSessionManagerDefensiveChecks:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.handle_game_action(conn, action=GameAction.DISCARD, data={})
+        await manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=MOCK_AWAITING.wait_id)
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR
@@ -37,7 +37,7 @@ class TestSessionManagerDefensiveChecks:
         # remove the game from the internal mapping
         manager._games.pop("game1", None)
         # should return silently without error
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=MOCK_AWAITING.wait_id)
         assert len(conns[0].sent_messages) == 0
 
     async def test_handle_game_action__when_game_lock_missing__should_return_game_not_started_error(self, manager):
@@ -46,7 +46,7 @@ class TestSessionManagerDefensiveChecks:
 
         # remove lock to simulate edge case
         manager._game_locks.pop("game1", None)
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR

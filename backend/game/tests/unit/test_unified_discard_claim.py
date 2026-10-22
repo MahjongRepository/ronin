@@ -12,7 +12,7 @@ from game.logic.enums import (
     RoundPhase,
     RoundResultType,
 )
-from game.logic.events import CallPromptEvent, DrawEvent, MeldEvent, RiichiDeclaredEvent, RoundEndEvent
+from game.logic.events import CallPromptEvent, DrawEvent, MeldEvent, RiichiDeclaredEvent, RoundEndEvent, SeatTarget
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.state import (
     Caller,
@@ -58,7 +58,7 @@ class TestRonPlusMeldCallersRonWins:
 
         # process_discard_phase creates a unified DISCARD prompt
         new_round, new_game, events = process_discard_phase(round_state, game_state, discard_tile)
-        assert [e.target for e in events if isinstance(e, CallPromptEvent)] == ["seat_1", "seat_2"]
+        assert [e.target for e in events if isinstance(e, CallPromptEvent)] == [SeatTarget(seat=1), SeatTarget(seat=2)]
         prompt = new_round.pending_call_prompt
         assert prompt is not None
         assert prompt.callers == (
@@ -635,7 +635,7 @@ class TestLastDiscardRestriction:
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, "seat_1")]
+        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, SeatTarget(seat=1))]
 
     def test_discard_claim__when_last_discard_pon_and_ron_possible__should_offer_ron_only(self):
         discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
@@ -665,4 +665,4 @@ class TestLastDiscardRestriction:
 
         _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, "seat_1")]
+        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, SeatTarget(seat=1))]

@@ -92,6 +92,19 @@ function setupPlayingAndReconnect(): void {
     mockSend.mockClear();
 }
 
+const TSUMO_ROUND_END = {
+    ct: [0, 4, 8],
+    hr: { fu: 30, han: 3, yk: [{ han: 1, yi: 0 }] },
+    ml: [],
+    rc: 0,
+    rt: 0,
+    sch: { "0": 30, "1": -10, "2": -10, "3": -10 },
+    scs: { "0": 280, "1": 240, "2": 240, "3": 240 },
+    t: 4,
+    ws: 0,
+    wt: 12,
+};
+
 describe("game view message handling", () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -244,31 +257,29 @@ describe("game view message handling", () => {
     });
 
     describe("game events", () => {
-        test("round end triggers auto-confirm after delay", () => {
+        test("round end triggers auto-confirm after delay, echoing its wait id", () => {
             setupConnection();
             mockSend.mockClear();
 
-            capturedMessageHandler!({
-                ct: [0, 4, 8],
-                hr: { fu: 30, han: 3, yk: [{ han: 1, yi: 0 }] },
-                ml: [],
-                rc: 0,
-                rt: 0,
-                sch: { "0": 30, "1": -10, "2": -10, "3": -10 },
-                scs: { "0": 280, "1": 240, "2": 240, "3": 240 },
-                t: 4,
-                ws: 0,
-                wt: 12,
-            });
+            capturedMessageHandler!({ ...TSUMO_ROUND_END, wi: 5 });
 
             expect(mockSend).not.toHaveBeenCalled();
             vi.advanceTimersByTime(1500);
-            expect(mockSend).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    a: GAME_ACTION.CONFIRM_ROUND,
-                    t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-                }),
-            );
+            expect(mockSend).toHaveBeenCalledWith({
+                a: GAME_ACTION.CONFIRM_ROUND,
+                t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                wi: 5,
+            });
+        });
+
+        test("round end of a finished game, with no wait id, is not confirmed", () => {
+            setupConnection();
+            mockSend.mockClear();
+
+            capturedMessageHandler!(TSUMO_ROUND_END);
+
+            vi.advanceTimersByTime(1500);
+            expect(mockSend).not.toHaveBeenCalled();
         });
 
         test("parse failure logs fallback without crashing", () => {

@@ -61,6 +61,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         tr: 52,
         type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
         w: 0,
+        wi: 9,
         ...overrides,
     };
 }
@@ -79,6 +80,7 @@ describe("gameReconnectedSchema", () => {
         expect(result.dealerSeat).toBe(0);
         expect(result.roundNumber).toBe(2);
         expect(result.wind).toBe(0);
+        expect(result.waitId).toBe(9);
     });
 
     it("parses sticks, tiles remaining, seat info and the seat's furiten", () => {

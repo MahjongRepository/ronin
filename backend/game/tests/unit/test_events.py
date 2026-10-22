@@ -1,9 +1,5 @@
-import pytest
-from mahjong.tile import TilesConverter
-
 from game.logic.enums import CallType, MeldCallType, PromptKind
 from game.logic.events import (
-    BroadcastTarget,
     DrawEvent,
     EventType,
     RoundEndEvent,
@@ -12,7 +8,6 @@ from game.logic.events import (
     build_call_prompt_events,
     convert_events,
     extract_round_result,
-    parse_event_target,
 )
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.types import (
@@ -25,39 +20,9 @@ from game.logic.types import (
 from game.tests.unit.helpers import _string_to_136_tile
 
 
-class TestServiceEvent:
-    def test_service_event__when_event_type_mismatches_data__should_raise_value_error(self):
-        tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        with pytest.raises(ValueError, match=r"does not match data\.type"):
-            ServiceEvent(
-                event=EventType.DISCARD,
-                data=DrawEvent(seat=0, tile_id=tile_id, target="seat_0"),
-            )
-
-
-class TestParseEventTarget:
-    def test_parse_event_target__when_broadcast__should_return_broadcast_target(self):
-        result = parse_event_target("all")
-        assert isinstance(result, BroadcastTarget)
-
-    def test_parse_event_target__when_seat_n__should_return_seat_target(self):
-        for seat in range(4):
-            result = parse_event_target(f"seat_{seat}")
-            assert isinstance(result, SeatTarget)
-            assert result.seat == seat
-
-    def test_parse_event_target__when_invalid_value__should_raise_value_error(self):
-        with pytest.raises(ValueError, match="invalid target value"):
-            parse_event_target("bogus")
-
-    def test_parse_event_target__when_negative_seat__should_raise_value_error(self):
-        with pytest.raises(ValueError, match="invalid seat number"):
-            parse_event_target("seat_-1")
-
-
 class TestConvertEvents:
     def test_convert_events__when_typed_event__should_wrap_in_service_event(self):
-        events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0")]
+        events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0))]
 
         result = convert_events(events)
         assert len(result) == 1
@@ -90,8 +55,8 @@ class TestBuildCallPromptEvents:
 
         events = build_call_prompt_events(prompt)
         assert [(e.target, e.call_type, e.tile_id, e.from_seat) for e in events] == [
-            ("seat_3", CallType.RON, 55, 0),
-            ("seat_1", CallType.MELD, 55, 0),
+            (SeatTarget(seat=3), CallType.RON, 55, 0),
+            (SeatTarget(seat=1), CallType.MELD, 55, 0),
         ]
         assert events[0].callers == [3]
         assert events[1].callers == [
@@ -110,21 +75,9 @@ class TestBuildCallPromptEvents:
 
         events = build_call_prompt_events(prompt)
         assert [(e.target, e.call_type, e.callers) for e in events] == [
-            ("seat_0", CallType.CHANKAN, [0]),
-            ("seat_1", CallType.CHANKAN, [1]),
+            (SeatTarget(seat=0), CallType.CHANKAN, [0]),
+            (SeatTarget(seat=1), CallType.CHANKAN, [1]),
         ]
-
-
-class TestConvertEventsTargetValidation:
-    def test_convert_events__when_negative_seat_target__should_raise_value_error(self):
-        event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_-1")
-        with pytest.raises(ValueError, match="invalid seat number"):
-            convert_events([event])
-
-    def test_convert_events__when_invalid_target_string__should_raise_value_error(self):
-        event = DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="bogus")
-        with pytest.raises(ValueError, match="invalid target value"):
-            convert_events([event])
 
 
 class TestExtractRoundResult:
@@ -141,14 +94,10 @@ class TestExtractRoundResult:
         )
         events = [
             ServiceEvent(
-                event=EventType.DRAW,
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
-                target=SeatTarget(seat=0),
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0)),
             ),
             ServiceEvent(
-                event=EventType.ROUND_END,
-                data=RoundEndEvent(result=tsumo_result, target="all"),
-                target=BroadcastTarget(),
+                data=RoundEndEvent(result=tsumo_result),
             ),
         ]
 
@@ -161,14 +110,10 @@ class TestExtractRoundResult:
     def test_extract_round_result__when_no_round_end_event__should_return_none(self):
         events = [
             ServiceEvent(
-                event=EventType.DRAW,
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
-                target=SeatTarget(seat=0),
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0)),
             ),
             ServiceEvent(
-                event=EventType.DRAW,
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target="seat_0"),
-                target=SeatTarget(seat=0),
+                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0)),
             ),
         ]
 

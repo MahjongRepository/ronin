@@ -170,7 +170,8 @@ class MessageRouter:
             await self._session_manager.handle_game_action(
                 connection=connection,
                 action=GameAction[message.a.name],
-                data=message.model_dump(exclude={"t", "a"}),
+                data=message.model_dump(exclude={"t", "a", "wait_id"}),
+                wait_id=message.wait_id,
             )
         except ConnectionError:
             raise

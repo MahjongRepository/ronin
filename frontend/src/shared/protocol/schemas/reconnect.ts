@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { SESSION_MESSAGE_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
-import { gamePlayerInfoSchema, seatSchema, tileIdSchema } from "./common";
+import { gamePlayerInfoSchema, seatSchema, tileIdSchema, waitIdSchema } from "./common";
 
 // --- Discard info (inside player state `dsc` array) ---
 
@@ -57,6 +57,7 @@ export const gameReconnectedSchema = z
         tr: z.number().int(),
         type: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
         w: z.number().int(),
+        wi: waitIdSchema,
     })
     .transform((raw) => ({
         currentPlayerSeat: raw.cp,
@@ -75,6 +76,7 @@ export const gameReconnectedSchema = z
         seat: raw.s,
         tilesRemaining: raw.tr,
         type: "game_reconnected" as const,
+        waitId: raw.wi,
         wind: raw.w,
     }));
 

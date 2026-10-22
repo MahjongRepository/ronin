@@ -107,6 +107,7 @@ describe("parseServerMessage", () => {
                 tr: 60,
                 type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
                 w: 0,
+                wi: 12,
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -117,7 +118,7 @@ describe("parseServerMessage", () => {
     describe("game events (integer t field)", () => {
         it("parses a draw event", () => {
             // seat=0, tileId=5 -> d = 0*136 + 5 = 5
-            const raw = { d: 5, t: EVENT_TYPE.DRAW };
+            const raw = { d: 5, t: EVENT_TYPE.DRAW, wi: 3 };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
@@ -125,6 +126,7 @@ describe("parseServerMessage", () => {
                 seat: 0,
                 tileId: 5,
                 type: "draw",
+                waitId: 3,
             });
         });
 
@@ -179,6 +181,7 @@ describe("parseServerMessage", () => {
                 fromSeat: 1,
                 tileId: 50,
                 type: "call_prompt",
+                waitId: null,
             });
         });
 

@@ -20,7 +20,7 @@ from game.tests.helpers.websocket import (
     recv_ws,
     send_ws,
 )
-from game.tests.mocks import MockGameService
+from game.tests.mocks import MOCK_AWAITING, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
 
@@ -59,7 +59,15 @@ class TestWebSocketIntegration:
         with client.websocket_connect("/ws/test_game") as ws:
             join_game_and_start(ws, tickets[0])
 
-            send_ws(ws, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0})
+            send_ws(
+                ws,
+                {
+                    "t": WireClientMessageType.GAME_ACTION,
+                    "wi": MOCK_AWAITING.wait_id,
+                    "a": WireGameAction.DISCARD,
+                    "ti": 0,
+                },
+            )
             response = recv_ws(ws)
             assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert response["seat"] == 0

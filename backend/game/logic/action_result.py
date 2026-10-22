@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, NamedTuple
 
 from game.logic.actions import get_available_actions
-from game.logic.events import DrawEvent, GameEvent
+from game.logic.events import DrawEvent, GameEvent, SeatTarget
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongRoundState
@@ -38,5 +38,5 @@ def create_draw_event(
         seat=seat,
         tile_id=tile_id,
         available_actions=available_actions,
-        target=f"seat_{seat}",
+        target=SeatTarget(seat=seat),
     )

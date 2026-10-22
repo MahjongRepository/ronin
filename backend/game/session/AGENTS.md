@@ -20,19 +20,21 @@ per-game lock.
   the game is torn down: there are never all-AI games, and no reconnect after that.
 * **Reconnect:** the router verifies the ticket; the session must be disconnected and belong to the
   path's game. Under the lock: evict stale connections, remove the AI player
-  (`restore_human_player`), send the `game_reconnected` snapshot, broadcast `player_reconnected`, and
-  re-send the draw if it is that player's turn (directly, so the replay collector does not record it
-  twice). Close evicted connections outside the lock.
+  (`restore_human_player`), send the `game_reconnected` snapshot with the current wait id, broadcast
+  `player_reconnected`, and, when the engine's current wait (`get_awaiting`) is that seat's turn,
+  re-send the draw (directly, so the replay collector does not record it twice) and start its turn
+  timer. Close evicted connections outside the lock.
 * **Game end.** Exactly one path finalizes a game, and it claims `Game.end_reason` synchronously
-  before its first await: a completion claims it as soon as the engine's events end the game,
-  before the game-end broadcast, unless `fail_game` claimed it first; `fail_game` claims it the same
-  way. The claimer is bound to finish: right after its game-end broadcast the same path saves the
-  detached replay, records the finish and closes the sockets. If the broadcast or the replay save
-  raises, it escalates its own claim to a failure, finished by the fail_game finalizer; once the
-  finish record is written (best-effort, as all persistence) the completion stands, and a socket
-  whose close fails is logged while the rest still close. Only the claimer escalates; a concurrent
-  `fail_game` still finds the game ended and does nothing. An action, a timeout or a reconnect that reaches an ended game is refused
-  (reconnect with `reconnect_game_gone`, before any eviction or seat restore).
+  before its first await: a completion claims it as soon as the engine reports the game waits for
+  nothing (`Awaiting.kind` NONE), before the game-end broadcast, unless `fail_game` claimed it
+  first; `fail_game` claims it the same way. The claimer is bound to finish: right after its
+  game-end broadcast the same path saves the detached replay, records the finish and closes the
+  sockets. If the broadcast or the replay save raises, it escalates its own claim to a failure,
+  finished by the fail_game finalizer; once the finish record is written (best-effort, as all
+  persistence) the completion stands, and a socket whose close fails is logged while the rest still
+  close. Only the claimer escalates; a concurrent `fail_game` still finds the game ended and does
+  nothing. An action, a timeout or a reconnect that reaches an ended game is refused (reconnect with
+  `reconnect_game_gone`, before any eviction or seat restore).
 * **Playing.** A user plays a game while they have a session in a registered game that has not
   ended: from `POST /games` (pending included) until the game's end is claimed or it is torn down.
   A disconnected session still counts, deliberately: the lobby keeps that user out of rooms and
@@ -61,9 +63,21 @@ per-game lock.
   timeout fail their game on an unexpected error.
 * **Timers** (`TurnTimer`, one per player): each turn gets base time (5s), then a bank (20s start,
   +10s per round, 60s cap) that drains only past the base time. Meld-call and round-advance timers
-  are fixed and never touch the bank. Every game pacing duration (turn, bank, meld, round advance,
-  pending timeout) comes from the game's `TimerConfig` (`Game.timer_config`), the session's one pacing
-  model; the engine has none. Connection-level timing (auth timeout, heartbeat) is not pacing.
+  are fixed and never touch the bank. The engine's `Awaiting` drives them, never the events
+  (`_follow_engine`, `Game.awaiting` holds the last one): when an action, timeout, replacement or
+  the game start brings a new wait id, the actor's timer stops (deducting its bank on a turn) and
+  the others are cancelled before the events go out, then the new wait's connected seats get their
+  turn, meld or round-advance timers; the first wait of a round adds the round bonus to every bank,
+  the game start's included; a game over cancels them all. With the wait id unchanged only an actor
+  that left the wait (a partial pass or confirmation) has its timer stopped, and a refused action
+  leaves the running deadline alone. Every game pacing duration (turn, bank, meld, round advance,
+  pending timeout) comes from the game's `TimerConfig` (`Game.timer_config`), the session's one
+  pacing model; the engine has none. Connection-level timing (auth timeout, heartbeat) is not
+  pacing.
+* **Stale actions.** Every game action echoes the wait id (`wi`) the server stamped on the message
+  that opened the wait. Under the lock, after the ended check, an action whose id is not
+  `Game.awaiting.wait_id` gets a `stale_action` ErrorEvent to its seat and touches neither the
+  engine nor a timer.
 * **Replays:** `ReplayCollector` keeps broadcast events plus each seat's draws (without available
   actions), merges the per-seat `round_started` views into one record holding every hand, adds the
   seed to `game_started`, and saves gzip NDJSON with a version line on game end.

@@ -100,6 +100,19 @@ class TestMessageRouterBranches:
         assert response["type"] == SessionMessageType.ERROR
         assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
+    async def test_message_router__when_game_action_lacks_the_wait_id__should_refuse_it_as_invalid_message(self, setup):
+        router, connection, session_manager = setup
+        await _setup_player_in_game(session_manager, connection)
+        session_manager.handle_game_action = AsyncMock()
+
+        await router.handle_message(
+            connection, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0}
+        )
+        assert [(m["type"], m["code"]) for m in connection.sent_messages] == [
+            (SessionMessageType.ERROR, SessionErrorCode.INVALID_MESSAGE)
+        ]
+        session_manager.handle_game_action.assert_not_awaited()
+
     async def test_message_router__when_chat_without_game__should_return_not_in_game_error(self, setup):
         router, connection, _ = setup
 
@@ -132,6 +145,7 @@ class TestMessageRouterBranches:
             connection,
             {
                 "t": WireClientMessageType.GAME_ACTION,
+                "wi": 0,
                 "a": WireGameAction.DISCARD,
                 "ti": 0,
             },
@@ -150,7 +164,7 @@ class TestMessageRouterBranches:
 
         with pytest.raises(ConnectionError):
             await router.handle_message(
-                connection, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0}
+                connection, {"t": WireClientMessageType.GAME_ACTION, "wi": 0, "a": WireGameAction.DISCARD, "ti": 0}
             )
         assert session_manager.get_game("game1") is not None
 

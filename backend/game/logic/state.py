@@ -3,11 +3,12 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import GameAction, GamePhase, MeldCallType, PromptKind, RoundPhase, WindName
+from game.logic.events import RoundStartedEvent, SeatTarget
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import WINDS_34
-from game.logic.types import GameView, PlayerView
+from game.logic.types import PlayerView
 from game.logic.wall import Wall
 
 _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
@@ -152,6 +153,8 @@ class MahjongGameState(BaseModel):
 
     NOTE: round_state defaults to an empty MahjongRoundState.
     For actual game initialization, always provide a properly initialized round_state.
+
+    wait_id identifies the current wait (see `Awaiting`): the service bumps it once per call that ends the wait.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -167,11 +170,12 @@ class MahjongGameState(BaseModel):
     settings: GameSettings = Field(default_factory=GameSettings)
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
     starting_dealer_seat: int = 0
+    wait_id: int = 0
 
 
-def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
+def get_player_view(game_state: MahjongGameState, seat: int) -> RoundStartedEvent:
     """
-    Return the round-start view for a specific player.
+    Return the round-start view for a specific player, as the round_started event sent to that seat.
     """
     round_state = game_state.round_state
 
@@ -193,7 +197,8 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> GameView:
     if not found:
         raise ValueError(f"No player found at seat {seat}")
 
-    return GameView(
+    return RoundStartedEvent(
+        target=SeatTarget(seat=seat),
         seat=seat,
         round_wind=wind_name(round_state.round_wind),
         round_number=game_state.round_number,

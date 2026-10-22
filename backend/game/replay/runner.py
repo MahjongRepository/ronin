@@ -276,7 +276,7 @@ def _process_input_event(
         seat=seat,
         action=input_event.action,
         data=dict(input_event.data),
-    )
+    ).events
 
     if ctx.opts.strict:
         errors = [e for e in events if e.event == EventType.ERROR]
@@ -333,7 +333,9 @@ def _inject_round_confirmations(
             message="game state disappeared before synthetic confirm_round",
         )
 
-        confirm_events = ctx.service.handle_action(game_id=game_id, seat=seat, action=GameAction.CONFIRM_ROUND, data={})
+        confirm_events = ctx.service.handle_action(
+            game_id=game_id, seat=seat, action=GameAction.CONFIRM_ROUND, data={}
+        ).events
 
         if ctx.opts.strict:
             errors = [e for e in confirm_events if e.event == EventType.ERROR]
@@ -430,7 +432,7 @@ def _inject_pass_calls(
             ctx.service, game_id=game_id, message="game state disappeared before synthetic pass"
         )
 
-        pass_events = ctx.service.handle_action(game_id=game_id, seat=seat, action=GameAction.PASS, data={})
+        pass_events = ctx.service.handle_action(game_id=game_id, seat=seat, action=GameAction.PASS, data={}).events
 
         if ctx.opts.strict:
             errors = [e for e in pass_events if e.event == EventType.ERROR]

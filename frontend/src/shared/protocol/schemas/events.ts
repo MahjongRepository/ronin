@@ -5,7 +5,7 @@ import { decodeDiscard } from "@/shared/protocol/decoders/discard";
 import { decodeDraw } from "@/shared/protocol/decoders/draw";
 import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
-import { gamePlayerInfoSchema, seatSchema, tileIdSchema } from "./common";
+import { gamePlayerInfoSchema, seatSchema, tileIdSchema, waitIdSchema } from "./common";
 
 // --- Available action item (inside draw event `aa` array) ---
 
@@ -131,11 +131,13 @@ export const drawSchema = z
         aa: z.array(availableActionSchema).optional(),
         d: z.number().int(),
         t: z.literal(EVENT_TYPE.DRAW),
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         ...decodeDraw(raw.d),
         availableActions: raw.aa ?? [],
         type: "draw" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Discard (t=2) ---
@@ -156,10 +158,12 @@ export const meldSchema = z
     .object({
         m: z.number().int(),
         t: z.literal(EVENT_TYPE.MELD),
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         ...decodeMeldCompact(raw.m),
         type: "meld" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Riichi Declared (t=5) ---

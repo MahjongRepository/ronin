@@ -399,6 +399,20 @@ describe("parseRoundEnd", () => {
             expect(result.tenpaiHands[0].melds).toEqual([5000, 5100, 5200]);
         });
 
+        it("reads the wait id of the round advance it opens, and null without one", () => {
+            const wire = {
+                ns: [1],
+                rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
+                sch: { "0": 30, "1": -30 },
+                scs: { "0": 280, "1": 220 },
+                t: EVENT_TYPE.ROUND_END,
+                th: [{ ct: [0], ml: [], s: 0 }],
+                ts: [0],
+            };
+            expect(parseRoundEnd({ ...wire, wi: 6 }).waitId).toBe(6);
+            expect(parseRoundEnd(wire).waitId).toBeNull();
+        });
+
         it("decodes wire scores (265 -> 26500)", () => {
             const wire = {
                 ns: [1],

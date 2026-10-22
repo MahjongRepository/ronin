@@ -83,7 +83,7 @@ class TestUnifiedDiscardClaimIntegration:
                 seat=human_seat,
                 action=GameAction.DISCARD,
                 data={"tile_id": tile_to_discard},
-            )
+            ).events
             call_prompt_events = [e for e in events if e.event == EventType.CALL_PROMPT]
             for cp_event in call_prompt_events:
                 found_prompt = True

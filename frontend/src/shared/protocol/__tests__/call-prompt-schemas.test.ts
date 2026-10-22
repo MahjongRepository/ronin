@@ -12,6 +12,7 @@ describe("parseCallPrompt", () => {
                 frs: 0,
                 t: EVENT_TYPE.CALL_PROMPT,
                 ti: 42,
+                wi: 4,
             };
             const result = parseCallPrompt(wire);
             expect(result).toEqual({
@@ -20,6 +21,7 @@ describe("parseCallPrompt", () => {
                 fromSeat: 0,
                 tileId: 42,
                 type: "call_prompt",
+                waitId: 4,
             });
         });
     });
@@ -40,6 +42,7 @@ describe("parseCallPrompt", () => {
                 fromSeat: 1,
                 tileId: 100,
                 type: "call_prompt",
+                waitId: null,
             });
         });
     });

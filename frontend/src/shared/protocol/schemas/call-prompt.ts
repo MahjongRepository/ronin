@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 
-import { seatSchema, tileIdSchema } from "./common";
+import { seatSchema, tileIdSchema, waitIdSchema } from "./common";
 
 // --- Available call option (inside meld prompt `ac` array) ---
 
@@ -34,6 +34,7 @@ const ronPromptSchema = z
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         callType: CALL_TYPE.RON as typeof CALL_TYPE.RON,
@@ -41,6 +42,7 @@ const ronPromptSchema = z
         fromSeat: raw.frs,
         tileId: raw.ti,
         type: "call_prompt" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Chankan prompt (clt=2) ---
@@ -52,6 +54,7 @@ const chankanPromptSchema = z
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         callType: CALL_TYPE.CHANKAN as typeof CALL_TYPE.CHANKAN,
@@ -59,6 +62,7 @@ const chankanPromptSchema = z
         fromSeat: raw.frs,
         tileId: raw.ti,
         type: "call_prompt" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Meld prompt (clt=1) ---
@@ -71,6 +75,7 @@ const meldPromptSchema = z
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         availableCalls: raw.ac,
@@ -79,6 +84,7 @@ const meldPromptSchema = z
         fromSeat: raw.frs,
         tileId: raw.ti,
         type: "call_prompt" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Dispatch ---

@@ -6,10 +6,10 @@ from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.messaging.types import SessionMessageType
 from game.session.manager import SessionManager
-from game.tests.mocks import MockConnection, MockResultEvent
+from game.tests.mocks import MockConnection, MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, run_timeout
+from .helpers import create_started_game, current_wait_id, run_timeout
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -70,19 +70,17 @@ class TestSessionManagerDisconnect:
 
         # make process_ai_player_actions_after_replacement return an event
         ai_player_event = ServiceEvent(
-            event=EventType.DRAW,
             data=MockResultEvent(
                 type=EventType.DRAW,
-                target="all",
+                target=BroadcastTarget(),
                 seat=0,
                 action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
-            target=BroadcastTarget(),
         )
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            return_value=[ai_player_event],
+            return_value=mock_update([ai_player_event]),
         )
 
         await manager.leave_game(conns[0])
@@ -175,7 +173,9 @@ class TestLockBoundaryRaces:
         bob_send = _FirstSendHold(conns[1].send_bytes, order)
         monkeypatch.setattr(conns[1], "send_bytes", bob_send.send)
 
-        action = asyncio.create_task(manager.handle_game_action(conns[1], action=GameAction.DISCARD, data={}))
+        action = asyncio.create_task(
+            manager.handle_game_action(conns[1], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        )
         await bob_send.entered.wait()
         leave = asyncio.create_task(manager.leave_game(conns[0]))
         await _let_ready_tasks_run()
@@ -237,7 +237,7 @@ class TestLockBoundaryRaces:
             nonlocal lock_was_held
             # the lock should be held (locked) when this is called
             lock_was_held = lock.locked()
-            return []
+            return mock_update([])
 
         manager._game_service.process_ai_player_actions_after_replacement = check_lock_process
 

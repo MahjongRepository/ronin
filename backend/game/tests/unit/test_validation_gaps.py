@@ -27,7 +27,7 @@ from game.logic.enums import (
     RoundPhase,
     TimeoutType,
 )
-from game.logic.events import ErrorEvent
+from game.logic.events import ErrorEvent, SeatTarget
 from game.logic.exceptions import GeneratedActionError, InvalidGameActionError, InvalidMeldError
 from game.logic.game import init_game
 from game.logic.mahjong_service import MahjongGameService
@@ -588,7 +588,7 @@ class TestRiichiDiscardTenpaiValidation:
 
         # Discard 3m (tile 8) - breaks tenpai
         result = handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=8))
-        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_RIICHI, "seat_0")]
+        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_RIICHI, SeatTarget(seat=0))]
         assert result.new_round_state is round_state
         assert result.needs_post_discard is False
 
@@ -678,9 +678,12 @@ class TestPendingCallPromptStateGate:
         service._furiten_tracker.init_game("test")
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
-        events = service.handle_action(game_id="test", seat=0, action=action, data=action_data)
-        assert [(e.data.code, e.data.target) for e in events] == [(GameErrorCode.NOT_YOUR_TURN, "seat_0")]
+        update = service.handle_action(game_id="test", seat=0, action=action, data=action_data)
+        assert [(e.data.code, e.data.target) for e in update.events] == [
+            (GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))
+        ]
         assert service._games["test"] is game_state
+        assert update.awaiting.wait_id == game_state.wait_id
 
 
 class TestCallChiDefenseInDepth:
@@ -715,7 +718,7 @@ class TestSoftErrorsRemainUnchanged:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=first_tile))
-        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_DISCARD, "seat_0")]
+        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_DISCARD, SeatTarget(seat=0))]
         assert result.new_round_state is round_state
         assert result.needs_post_discard is False
 

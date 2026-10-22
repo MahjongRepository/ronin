@@ -283,13 +283,14 @@ function handleJoinGameError(code: string): boolean {
     return true;
 }
 
-function autoConfirmRoundEnd(): void {
-    if (!conn.socket) {
+/** Confirm a round end that opened a round advance; the round end of a finished game carries no wait id. */
+function autoConfirmRoundEnd(waitId: number | null): void {
+    if (!conn.socket || waitId === null) {
         return;
     }
     const currentSocket = conn.socket;
     setTimeout(() => {
-        currentSocket.send(buildConfirmRoundAction());
+        currentSocket.send(buildConfirmRoundAction(waitId));
     }, 1000);
 }
 
@@ -342,7 +343,7 @@ function handleGameMessage(message: Record<string, unknown>): void {
     logAndUpdate(JSON.stringify(parsed, null, 2), parsed.type);
 
     if (parsed.type === "round_end") {
-        autoConfirmRoundEnd();
+        autoConfirmRoundEnd(parsed.waitId);
     }
 }
 

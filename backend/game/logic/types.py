@@ -337,24 +337,6 @@ class PlayerView(BaseModel):
     score: WireScore = Field(serialization_alias="sc")
 
 
-class GameView(BaseModel):
-    """
-    Complete game view for a specific player.
-    """
-
-    seat: int
-    round_wind: WindName
-    round_number: int
-    dealer_seat: int
-    current_player_seat: int
-    dora_indicators: list[int]
-    honba_sticks: int
-    riichi_sticks: int
-    my_tiles: list[int]
-    players: list[PlayerView]
-    dice: tuple[int, int] = (1, 1)
-
-
 class DiscardInfo(BaseModel):
     """
     Discard tile information for reconnection snapshot.

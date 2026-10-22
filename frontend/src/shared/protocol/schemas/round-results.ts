@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
 
-import { seatSchema, tileIdSchema, wireScoreMapSchema } from "./common";
+import { seatSchema, tileIdSchema, waitIdSchema, wireScoreMapSchema } from "./common";
 import { handResultSchema } from "./events";
 
 // --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
@@ -55,6 +55,7 @@ const tsumoSchema = z
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
         ud: z.array(tileIdSchema).optional(),
+        wi: waitIdSchema.optional(),
         ws: seatSchema,
         wt: tileIdSchema,
     })
@@ -69,6 +70,7 @@ const tsumoSchema = z
         scores: raw.scs,
         type: "round_end" as const,
         uraDoraIndicators: raw.ud ?? null,
+        waitId: raw.wi ?? null,
         winnerSeat: raw.ws,
         winningTile: raw.wt,
     }));
@@ -88,6 +90,7 @@ const ronSchema = z
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
         ud: z.array(tileIdSchema).optional(),
+        wi: waitIdSchema.optional(),
         ws: seatSchema,
         wt: tileIdSchema,
     })
@@ -103,6 +106,7 @@ const ronSchema = z
         scores: raw.scs,
         type: "round_end" as const,
         uraDoraIndicators: raw.ud ?? null,
+        waitId: raw.wi ?? null,
         winnerSeat: raw.ws,
         winningTile: raw.wt,
     }));
@@ -116,6 +120,7 @@ const doubleRonSchema = z
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
+        wi: waitIdSchema.optional(),
         wn: z.array(doubleRonWinnerSchema),
         wt: tileIdSchema,
     })
@@ -125,6 +130,7 @@ const doubleRonSchema = z
         scoreChanges: raw.sch,
         scores: raw.scs,
         type: "round_end" as const,
+        waitId: raw.wi ?? null,
         winners: raw.wn,
         winningTile: raw.wt,
     }));
@@ -140,6 +146,7 @@ const exhaustiveDrawSchema = z
         t: z.literal(EVENT_TYPE.ROUND_END),
         th: z.array(tenpaiHandSchema),
         ts: z.array(seatSchema),
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         notenSeats: raw.ns,
@@ -149,6 +156,7 @@ const exhaustiveDrawSchema = z
         tenpaiHands: raw.th,
         tenpaiSeats: raw.ts,
         type: "round_end" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Abortive Draw (rt=4) ---
@@ -161,6 +169,7 @@ const abortiveDrawSchema = z
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         reason: raw.rn,
@@ -169,6 +178,7 @@ const abortiveDrawSchema = z
         scores: raw.scs,
         seat: raw.s ?? null,
         type: "round_end" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Nagashi Mangan (rt=5) ---
@@ -183,6 +193,7 @@ const nagashiManganSchema = z
         t: z.literal(EVENT_TYPE.ROUND_END),
         th: z.array(tenpaiHandSchema),
         ts: z.array(seatSchema),
+        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         notenSeats: raw.ns,
@@ -193,6 +204,7 @@ const nagashiManganSchema = z
         tenpaiHands: raw.th,
         tenpaiSeats: raw.ts,
         type: "round_end" as const,
+        waitId: raw.wi ?? null,
     }));
 
 // --- Dispatch ---

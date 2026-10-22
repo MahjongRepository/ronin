@@ -6,7 +6,6 @@ from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, GameErrorCode, PromptKind, RoundPhase, RoundResultType
 from game.logic.events import (
     CallPromptEvent,
-    ErrorEvent,
     EventType,
     RoundEndEvent,
     SeatTarget,
@@ -26,12 +25,9 @@ class TestMahjongGameServiceErrors:
     def service(self):
         return MahjongGameService()
 
-    def test_handle_action__when_game_not_found__should_return_error_event(self, service):
-        events = service.handle_action(game_id="nonexistent", seat=0, action=GameAction.DISCARD, data={"tile_id": 0})
-        assert any(e.event == EventType.ERROR for e in events)
-        error_event = next(e for e in events if e.event == EventType.ERROR)
-        assert isinstance(error_event.data, ErrorEvent)
-        assert "not found" in error_event.data.message
+    def test_handle_action__when_game_not_found__should_raise_a_server_fault(self, service):
+        with pytest.raises(KeyError):
+            service.handle_action(game_id="nonexistent", seat=0, action=GameAction.DISCARD, data={"tile_id": 0})
 
 
 class TestMahjongGameServiceProcessActionResult:
@@ -61,7 +57,7 @@ class TestMahjongGameServiceProcessActionResult:
             tile_id=0,
             from_seat=player.seat,
             callers=[ai_player_seats[0]],
-            target="all",
+            target=SeatTarget(seat=ai_player_seats[0]),
         )
         result = ActionResult(
             events=[chankan_prompt],
@@ -98,7 +94,6 @@ class TestProcessActionResultRoundEnd:
                 scores=scores,
                 score_changes={},
             ),
-            target="all",
         )
         result = ActionResult(events=[round_end], needs_post_discard=False)
 
@@ -127,15 +122,13 @@ class TestMahjongGameServiceHandleChankanPrompt:
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         chankan_prompt = ServiceEvent(
-            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.CHANKAN,
                 tile_id=0,
                 from_seat=0,
                 callers=[player.seat],
-                target="all",
+                target=SeatTarget(seat=player.seat),
             ),
-            target=SeatTarget(seat=player.seat),
         )
         events = [chankan_prompt]
 
@@ -159,15 +152,13 @@ class TestMahjongGameServiceHandleChankanPrompt:
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
         chankan_prompt = ServiceEvent(
-            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.CHANKAN,
                 tile_id=0,
                 from_seat=ai_player_seats[0],
                 callers=[ai_player_seats[1]],
-                target="all",
+                target=SeatTarget(seat=ai_player_seats[1]),
             ),
-            target=SeatTarget(seat=ai_player_seats[1]),
         )
         events = [chankan_prompt]
 
@@ -184,15 +175,13 @@ class TestMahjongGameServiceHandleChankanPrompt:
         service.start_game("game1", ["Player"], seed="a" * 192)
 
         chankan_prompt = ServiceEvent(
-            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.CHANKAN,
                 tile_id=0,
                 from_seat=0,
                 callers=[1],
-                target="all",
+                target=SeatTarget(seat=1),
             ),
-            target=SeatTarget(seat=1),
         )
         events = [chankan_prompt]
 
@@ -215,7 +204,7 @@ class TestNoDataActionDispatchRouting:
         other_seat = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
-        events = service.handle_action(game_id="game1", seat=player.seat, action=action, data={})
+        events = service.handle_action(game_id="game1", seat=player.seat, action=action, data={}).events
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
 
@@ -229,7 +218,7 @@ class TestNoDataActionDispatchRouting:
     def test_handle_action__when_call_without_call_prompt__should_return_error_event(self, service, action, data, code):
         player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
-        events = service.handle_action(game_id="game1", seat=player_seat, action=action, data=data)
+        events = service.handle_action(game_id="game1", seat=player_seat, action=action, data=data).events
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == code

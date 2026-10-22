@@ -1,42 +1,29 @@
 import asyncio
 import threading
+from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
-from game.logic.enums import CallType, GameAction, MeldViewType, TimeoutType
+from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
 from game.logic.events import (
-    BroadcastTarget,
-    CallPromptEvent,
-    DrawEvent,
     EventType,
-    GameEndedEvent,
-    MeldEvent,
-    RoundEndEvent,
-    RoundStartedEvent,
-    SeatTarget,
-    ServiceEvent,
-)
-from game.logic.types import (
-    ExhaustiveDrawResult,
-    PlayerStanding,
-    TenpaiHand,
 )
 from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
-from game.session.models import Game, Player
 from game.session.replay_collector import ReplayCollector
-from game.session.timer import TimerConfig, TurnTimer
-from game.tests.mocks import MockConnection, MockGameRepository, MockResultEvent
+from game.session.timer import TimerConfig
+from game.tests.mocks import MockGameRepository
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
 
 from .helpers import (
+    arrange_exhaustive_draw,
     arrange_final_discard,
+    arrange_ron_and_pon_on_a_discard,
     create_started_game,
+    current_wait_id,
     fire_turn_timer_now,
-    make_dummy_game_view,
-    make_game_with_player,
     run_timeout,
     wait_for_background_tasks,
 )
@@ -89,365 +76,89 @@ class TestSessionManagerTimers:
         assert len(conns[0].sent_messages) == 0
 
 
-class TestSessionManagerTimerIntegration:
-    async def test_maybe_start_timer__when_draw_event__should_start_turn_timer(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        draw_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(
-                target="seat_0",
-                seat=0,
-                tile_id=42,
-                available_actions=[],
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._maybe_start_timer(game, [draw_event])
-        # timer should have an active task (turn timer started)
-        assert timer._active_task is not None
-
-        timer.cancel()
-
-    async def test_maybe_start_timer__when_pon_meld_event__should_start_turn_timer(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        meld_event = ServiceEvent(
-            event=EventType.MELD,
-            data=MeldEvent(
-                meld_type=MeldViewType.PON,
-                caller_seat=0,
-                from_seat=1,
-                tile_ids=[0, 1, 2],
-                called_tile_id=2,
-            ),
-            target=BroadcastTarget(),
-        )
-        manager._maybe_start_timer(game, [meld_event])
-        # timer should have an active task (turn timer started from pon meld)
-        assert timer._active_task is not None
-
-        timer.cancel()
-
-    async def test_maybe_start_timer__when_call_prompt_event__should_start_meld_timer(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        call_event = ServiceEvent(
-            event=EventType.CALL_PROMPT,
-            data=CallPromptEvent(
-                type=EventType.CALL_PROMPT,
-                target="all",
-                call_type=CallType.MELD,
-                tile_id=0,
-                from_seat=1,
-                callers=[0],
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._maybe_start_timer(game, [call_event])
-        # timer should have an active task (meld timer started)
-        assert timer._active_task is not None
-
-        timer.cancel()
-
-    async def test_maybe_start_timer__when_round_started_event__should_add_round_bonus_to_bank(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-        initial_bank = timer._bank_seconds
-
-        round_event = ServiceEvent(
-            event=EventType.ROUND_STARTED,
-            data=RoundStartedEvent(
-                type=EventType.ROUND_STARTED,
-                target="seat_0",
-                **make_dummy_game_view().model_dump(),
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._maybe_start_timer(game, [round_event])
-        config = TimerConfig()
-        assert timer._bank_seconds == initial_bank + config.round_bonus_seconds
-
-    async def test_maybe_start_timer__when_round_end_event__should_start_fixed_round_advance_timer(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        round_end_event = ServiceEvent(
-            event=EventType.ROUND_END,
-            data=RoundEndEvent(
-                type=EventType.ROUND_END,
-                target="all",
-                result=ExhaustiveDrawResult(
-                    tempai_seats=[0],
-                    noten_seats=[1, 2, 3],
-                    tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
-                    scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-                    score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
-                ),
-            ),
-            target=BroadcastTarget(),
-        )
-        manager._maybe_start_timer(game, [round_end_event])
-        # timer should have an active task (round advance timer started)
-        assert timer._active_task is not None
-        # fixed timer doesn't consume bank time
-        assert timer._turn_start_time is None
-
-        timer.cancel()
-
-    async def test_maybe_start_timer__when_game_end_event__should_not_start_timer(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer}
-
-        game_end_event = ServiceEvent(
-            event=EventType.GAME_END,
-            data=GameEndedEvent(
-                type=EventType.GAME_END,
-                target="all",
-                winner_seat=0,
-                standings=[
-                    PlayerStanding(seat=0, score=25000, final_score=0),
-                ],
-            ),
-            target=BroadcastTarget(),
-        )
-        manager._maybe_start_timer(game, [game_end_event])
-        # timer task should not be started (game ended)
-        assert timer._active_task is None
-
-    async def test_maybe_start_timer__when_game_has_no_timers__should_not_raise(self, manager):
-        game, _player, _conn = make_game_with_player(manager)
-        # do not set up a timer for the game
-
-        generic_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=MockResultEvent(
-                type=EventType.DRAW,
-                target="all",
-                seat=0,
-                action=GameAction.DISCARD,
-                input={},
-                success=True,
-            ),
-            target=BroadcastTarget(),
-        )
-        # should return without error
-        manager._maybe_start_timer(game, [generic_event])
-
-    async def test_maybe_start_timer__when_no_player_at_event_seat__should_not_start_timer(self, manager):
-        game = Game(game_id="game1")
-        conn = MockConnection()
-        # player at seat 1, but draw event targets seat 0 (no player there)
-        player = Player(connection=conn, name="Alice", session_token="tok-alice", game_id="game1", seat=1)
-        game.players[conn.connection_id] = player
-        manager._games["game1"] = game
-
-        timer = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer, 1: TurnTimer()}
-
-        draw_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(
-                target="seat_0",
-                seat=0,
-                tile_id=42,
-                available_actions=[],
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._maybe_start_timer(game, [draw_event])
-        assert timer._active_task is None
-
-
 class TestPerPlayerTimers:
-    def _make_pvp_game_with_two_players(
-        self,
-        manager,
-    ) -> tuple[Game, Player, Player, MockConnection, MockConnection]:
-        conn1 = MockConnection()
-        conn2 = MockConnection()
-        game = Game(game_id="game1")
-        player1 = Player(connection=conn1, name="Alice", session_token="tok-alice", game_id="game1", seat=0)
-        player2 = Player(connection=conn2, name="Bob", session_token="tok-bob", game_id="game1", seat=1)
-        game.players[conn1.connection_id] = player1
-        game.players[conn2.connection_id] = player2
-
-        manager._games["game1"] = game
-        manager._players[conn1.connection_id] = player1
-        manager._players[conn2.connection_id] = player2
-        manager._connections[conn1.connection_id] = conn1
-        manager._connections[conn2.connection_id] = conn2
-        return game, player1, player2, conn1, conn2
-
     async def test_per_player_timers__when_four_humans_start_game__should_create_timer_per_seat(self, manager):
         await create_started_game(manager, player_names=["P0", "P1", "P2", "P3"])
         for seat in range(4):
             timer = manager._timer_manager.get_timer("game1", seat)
             assert timer is not None
 
-    async def test_per_player_timers__when_round_started__should_add_round_bonus_to_every_timer(self, manager):
-        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
-        timer0 = TurnTimer()
-        timer1 = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
-        manager._game_locks["game1"] = asyncio.Lock()
 
-        initial_bank_0 = timer0._bank_seconds
-        initial_bank_1 = timer1._bank_seconds
-
-        round_event = ServiceEvent(
-            event=EventType.ROUND_STARTED,
-            data=RoundStartedEvent(
-                type=EventType.ROUND_STARTED,
-                target="seat_0",
-                **make_dummy_game_view().model_dump(),
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._maybe_start_timer(game, [round_event])
-        config = TimerConfig()
-        assert timer0._bank_seconds == initial_bank_0 + config.round_bonus_seconds
-        assert timer1._bank_seconds == initial_bank_1 + config.round_bonus_seconds
-
-    async def test_per_player_timers__when_call_prompts_for_two_seats__should_start_meld_timer_for_each(self, manager):
-        game, _p1, _p2, _c1, _c2 = self._make_pvp_game_with_two_players(manager)
-        timer0 = TurnTimer()
-        timer1 = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        call_events = [
-            ServiceEvent(
-                event=EventType.CALL_PROMPT,
-                data=CallPromptEvent(
-                    target="all",
-                    call_type=CallType.MELD,
-                    tile_id=42,
-                    from_seat=2,
-                    callers=[0],
-                ),
-                target=SeatTarget(seat=0),
-            ),
-            ServiceEvent(
-                event=EventType.CALL_PROMPT,
-                data=CallPromptEvent(
-                    target="all",
-                    call_type=CallType.MELD,
-                    tile_id=42,
-                    from_seat=2,
-                    callers=[1],
-                ),
-                target=SeatTarget(seat=1),
-            ),
-        ]
-        manager._maybe_start_timer(game, call_events)
-        # both timers should have active tasks (meld timer started for each)
-        assert timer0._active_task is not None
-        assert timer1._active_task is not None
-
-        timer0.cancel()
-        timer1.cancel()
-
-    async def test_per_player_timers__when_one_caller_acts__should_cancel_sibling_meld_timer(self, manager):
-        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_players(manager)
-        timer0 = TurnTimer()
-        timer1 = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
-        manager._game_locks["game1"] = asyncio.Lock()
-
-        call_events = [
-            ServiceEvent(
-                event=EventType.CALL_PROMPT,
-                data=CallPromptEvent(
-                    target="all",
-                    call_type=CallType.MELD,
-                    tile_id=42,
-                    from_seat=2,
-                    callers=[0],
-                ),
-                target=SeatTarget(seat=0),
-            ),
-            ServiceEvent(
-                event=EventType.CALL_PROMPT,
-                data=CallPromptEvent(
-                    target="all",
-                    call_type=CallType.MELD,
-                    tile_id=42,
-                    from_seat=2,
-                    callers=[1],
-                ),
-                target=SeatTarget(seat=1),
-            ),
-        ]
-        manager._maybe_start_timer(game, call_events)
-        assert timer0._active_task is not None
-        assert timer1._active_task is not None
-
-        # player at seat 0 acts (handle_game_action)
-        conn1._outbox.clear()
-        await manager.handle_game_action(conn1, action=GameAction.DISCARD, data={})
-        # seat 0's timer should be stopped (bank time deducted), seat 1's cancelled
-        assert timer1._active_task is None
-
-    async def test_per_player_timers__when_one_caller_passes_and_others_pending__should_stop_only_their_timer(
-        self, manager
+class TestWaitTimers:
+    async def test_turn_timer__when_the_players_action_is_refused__should_keep_the_running_deadline(
+        self, seeded_engine
     ):
-        game, _p1, _p2, conn1, _c2 = self._make_pvp_game_with_two_players(manager)
-        timer0 = TurnTimer()
-        timer1 = TurnTimer()
-        manager._timer_manager._timers["game1"] = {0: timer0, 1: timer1}
-        manager._game_locks["game1"] = asyncio.Lock()
+        manager = SessionManager(seeded_engine)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        timer = manager._timer_manager.get_timer("game1", alice_seat)
+        deadline, bank = timer.task, timer.bank_seconds
 
-        call_events = [
-            ServiceEvent(
-                event=EventType.CALL_PROMPT,
-                data=CallPromptEvent(
-                    target="all",
-                    call_type=CallType.MELD,
-                    tile_id=42,
-                    from_seat=2,
-                    callers=[0],
-                ),
-                target=SeatTarget(seat=0),
-            ),
-            ServiceEvent(
-                event=EventType.CALL_PROMPT,
-                data=CallPromptEvent(
-                    target="all",
-                    call_type=CallType.MELD,
-                    tile_id=42,
-                    from_seat=2,
-                    callers=[1],
-                ),
-                target=SeatTarget(seat=1),
-            ),
-        ]
-        manager._maybe_start_timer(game, call_events)
-        assert timer0._active_task is not None
-        assert timer1._active_task is not None
+        await manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=current_wait_id(manager))
+        assert [m["cd"] for m in conns[0].sent_messages] == [GameErrorCode.INVALID_PASS]
+        assert timer.task is deadline
+        assert not deadline.done()
+        assert timer.bank_seconds == bank
 
-        # mock returns empty events (partial pass, other callers still pending)
-        manager._game_service.handle_action = MagicMock(return_value=[])
-        conn1._outbox.clear()
-        await manager.handle_game_action(conn1, action=GameAction.PASS, data={})
-        # seat 0's timer should be stopped, seat 1's timer should still be running
-        assert timer0._active_task is None
-        assert timer1._active_task is not None
+        await manager.shutdown()
 
-        timer1.cancel()
+    async def test_meld_timers__when_one_of_two_callers_passes__should_keep_the_other_callers_deadline(
+        self, seeded_engine
+    ):
+        manager = SessionManager(seeded_engine)
+        conns = await create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
+        alice, bob, carol = (manager._players[conn.connection_id].seat for conn in conns)
+        discarded_four_pin = arrange_ron_and_pon_on_a_discard(seeded_engine, discarder=alice, ron=bob, pon=carol)
+
+        await manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+        )
+        prompt = manager.get_game("game1").awaiting
+        assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob, carol}))
+        carol_timer = manager._timer_manager.get_timer("game1", carol)
+        carol_deadline = carol_timer.task
+
+        await manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=prompt.wait_id)
+        assert manager.get_game("game1").awaiting == replace(prompt, seats=frozenset({carol}))
+        assert manager._timer_manager.get_timer("game1", bob).task is None
+        assert carol_timer.task is carol_deadline
+        assert not carol_deadline.done()
+
+        await manager.shutdown()
+
+    async def test_round_bonus__when_rounds_start_and_end__should_add_it_once_per_round_from_the_first(
+        self, seeded_engine
+    ):
+        manager = SessionManager(seeded_engine)
+        conns = await create_started_game(manager, player_names=["Alice"])
+        alice_seat = manager._players[conns[0].connection_id].seat
+        timer = manager._timer_manager.get_timer("game1", alice_seat)
+        config = TimerConfig()
+        first_round_bank = config.initial_bank_seconds + config.round_bonus_seconds
+        assert timer.bank_seconds == first_round_bank
+
+        arrange_exhaustive_draw(seeded_engine, game_id="game1")
+        drawn_tile = seeded_engine.get_game_state("game1").round_state.players[alice_seat].tiles[-1]
+        await manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+        )
+        assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_ADVANCE
+        assert timer.bank_seconds == first_round_bank
+
+        await manager.handle_game_action(
+            conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager)
+        )
+        second_round = manager.get_game("game1").awaiting
+        assert (second_round.kind, second_round.round_number) == (WaitKind.CALL, 1)
+        assert timer.bank_seconds == first_round_bank + config.round_bonus_seconds
+
+        await manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=second_round.wait_id)
+        next_wait = manager.get_game("game1").awaiting
+        assert next_wait.round_number == 1
+        assert next_wait.wait_id != second_round.wait_id
+        assert timer.bank_seconds == first_round_bank + config.round_bonus_seconds
+
+        await manager.shutdown()
 
 
 class _GatedReplayStorage(LocalReplayStorage):
@@ -484,7 +195,9 @@ class TestTimerCallbackLifecycle:
         await lock.acquire()
 
         discard = asyncio.create_task(
-            manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile})
+            manager.handle_game_action(
+                conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+            )
         )
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await _yield_until(lambda: len(lock._waiters or ()) == 2)
@@ -503,9 +216,13 @@ class TestTimerCallbackLifecycle:
         conns = await create_started_game(manager, player_names=["Alice"])
         alice_seat = manager._players[conns[0].connection_id].seat
         timer = manager._timer_manager.get_timer("game1", alice_seat)
+        timed_out = manager.get_game("game1").awaiting
 
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await fired
+        successor = manager.get_game("game1").awaiting
+        assert (successor.kind, successor.seats) == (timed_out.kind, timed_out.seats)
+        assert successor.wait_id != timed_out.wait_id
         draws_after_timeout = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(draws_after_timeout) == 1
         assert timer.task is not None

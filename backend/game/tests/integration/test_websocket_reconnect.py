@@ -190,6 +190,7 @@ class TestWebSocketReconnect:
                 ws,
                 {
                     "t": WireClientMessageType.GAME_ACTION,
+                    "wi": reconnect_msg["wi"],
                     "a": WireGameAction.DISCARD,
                     "ti": 0,
                 },

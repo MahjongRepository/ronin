@@ -116,7 +116,7 @@ class TestFuritenEventsInGameFlow:
         tile_id = player.tiles[-1]
         events = service.handle_action(
             game_id="game1", seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
-        )
+        ).events
         furiten_events = [e for e in events if e.event == EventType.FURITEN and isinstance(e.data, FuritenEvent)]
         assert len(furiten_events) == 1
         assert furiten_events[0].data.is_furiten is False

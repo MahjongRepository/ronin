@@ -8,6 +8,8 @@ export const tileIdSchema = z.number().int().min(0).max(135);
 // Seat: integer 0-3 (4-player game)
 export const seatSchema = z.number().int().min(0).max(3);
 
+export const waitIdSchema = z.number().int().min(0);
+
 // Wire score map: Record of string-keyed scores divided by WIRE_SCORE_DIVISOR.
 // Transforms wire values (e.g. 250) back to real scores (e.g. 25000).
 // Uses plain objects (not Map) so JSON.stringify works correctly.

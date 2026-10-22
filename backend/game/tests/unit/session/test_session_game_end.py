@@ -1,16 +1,19 @@
 import asyncio
+import gzip
+import json
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from mahjong.tile import TilesConverter
 
 from game.logic.ai_player import AIPlayer
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, WaitKind
 from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
 from game.logic.exceptions import InvalidGameActionError, ScoringError
 from game.logic.scoring import HandResult
 from game.logic.types import PlayerStanding
 from game.messaging.encoder import decode
+from game.messaging.event_payload import WAIT_ID_KEY
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
@@ -19,7 +22,15 @@ from game.session.manager import SessionManager
 from game.session.models import Player, PlayerSpec
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import TEST_TICKET_SECRET
-from game.tests.mocks import MockConnection, MockGameRepository, MockGameService, MockResultEvent
+from game.tests.mocks import (
+    MOCK_AWAITING,
+    MOCK_GAME_OVER,
+    MockConnection,
+    MockGameRepository,
+    MockGameService,
+    MockResultEvent,
+    mock_update,
+)
 from game.tests.unit.helpers import _update_player, _update_round_state
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
@@ -28,6 +39,7 @@ from shared.storage import LocalReplayStorage, replay_file_path
 from .helpers import (
     arrange_final_discard,
     create_started_game,
+    current_wait_id,
     fire_turn_timer_now,
     make_game_with_player,
     wait_for_background_tasks,
@@ -37,16 +49,13 @@ from .helpers import (
 def _make_game_end_events() -> list[ServiceEvent]:
     return [
         ServiceEvent(
-            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
-                target="all",
                 winner_seat=0,
                 standings=[
                     PlayerStanding(seat=0, score=25000, final_score=0),
                 ],
             ),
-            target=BroadcastTarget(),
         ),
     ]
 
@@ -54,23 +63,20 @@ def _make_game_end_events() -> list[ServiceEvent]:
 class TestSessionManagerGameEnd:
     def _make_game_end_event(self) -> ServiceEvent:
         return ServiceEvent(
-            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
-                target="all",
                 winner_seat=0,
                 standings=[
                     PlayerStanding(seat=0, score=25000, final_score=0),
                 ],
             ),
-            target=BroadcastTarget(),
         )
 
     async def test_game_end__when_game_end_event__should_close_connection_with_1000(self, manager):
         game, _player, conn = make_game_with_player(manager)
 
         events = [self._make_game_end_event()]
-        await manager._broadcast_events(game, events)
+        await manager._broadcast_events(game, events, MOCK_GAME_OVER)
         assert conn.is_closed is True
         assert conn._close_code == 1000
         assert conn._close_reason == "game_ended"
@@ -79,18 +85,16 @@ class TestSessionManagerGameEnd:
         game, _player, conn = make_game_with_player(manager)
 
         generic_event = ServiceEvent(
-            event=EventType.DRAW,
             data=MockResultEvent(
                 type=EventType.DRAW,
-                target="all",
+                target=BroadcastTarget(),
                 seat=0,
                 action=GameAction.DISCARD,
                 input={},
                 success=True,
             ),
-            target=BroadcastTarget(),
         )
-        await manager._broadcast_events(game, [generic_event])
+        await manager._broadcast_events(game, [generic_event], MOCK_AWAITING)
         assert conn.is_closed is False
 
     async def test_game_end__when_game_end_event_with_two_players__should_close_both(self, manager):
@@ -101,7 +105,7 @@ class TestSessionManagerGameEnd:
         game.players[conn2.connection_id] = player2
 
         events = [self._make_game_end_event()]
-        await manager._broadcast_events(game, events)
+        await manager._broadcast_events(game, events, MOCK_GAME_OVER)
         assert conn1.is_closed is True
         assert conn2.is_closed is True
 
@@ -214,7 +218,12 @@ class TestFailGame:
             caplog.at_level(logging.ERROR),
         ):
             await router.handle_message(
-                conns[0], {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DECLARE_TSUMO}
+                conns[0],
+                {
+                    "t": WireClientMessageType.GAME_ACTION,
+                    "wi": current_wait_id(manager),
+                    "a": WireGameAction.DECLARE_TSUMO,
+                },
             )
             await wait_for_background_tasks(manager)
 
@@ -243,6 +252,7 @@ class TestFailGame:
             conns[0],
             {
                 "t": WireClientMessageType.GAME_ACTION,
+                "wi": current_wait_id(manager),
                 "a": WireGameAction.DISCARD,
                 "ti": round_state.players[alice_seat].tiles[-1],
             },
@@ -400,21 +410,23 @@ class TestGameEndFromAction:
     ):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            return_value=_make_game_end_events(),
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER),
         )
         manager._game_service.handle_action = MagicMock(
             side_effect=InvalidGameActionError(action="discard", seat=0, reason="tile not in hand"),
         )
 
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
         assert (conns[0]._close_code, conns[0]._close_reason) == (1008, "invalid_game_action")
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
 
     async def test_game_end__when_action_ends_game__should_close_all_connections(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        manager._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
+        manager._game_service.handle_action = MagicMock(
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
+        )
 
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
         assert conns[0].is_closed
         assert conns[0]._close_code == 1000
         assert conns[0]._close_reason == "game_ended"
@@ -426,12 +438,12 @@ class TestGameEndFromAction:
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            return_value=_make_game_end_events(),
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER),
         )
         error = InvalidGameActionError(action="discard", seat=0, reason="bad tile")
         manager._game_service.handle_action = MagicMock(side_effect=error)
 
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
         # Offender closed with 1008 (invalid action)
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
@@ -457,12 +469,22 @@ class TestGameEndFromTimeout:
 
         assert manager.get_playing_game_id("user-0") == "game1"
 
+        timed_out = manager.get_game("game1").awaiting
+        bob_seat = manager._players[conns[1].connection_id].seat
+        bob_timer = manager._timer_manager.get_timer("game1", bob_seat)
+        manager._timer_manager.start_meld_timer("game1", bob_seat)
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await fired
+        final_wait = manager.get_game("game1").awaiting
+        assert (final_wait.kind, final_wait.wait_id) == (WaitKind.NONE, timed_out.wait_id + 1)
+        assert bob_timer.task is None
         assert manager.get_playing_game_id("user-0") is None
         assert game_repo.games["game1"]["end_reason"] == GameEndReason.COMPLETED
         assert game_repo.games["game1"]["ended_at"] is not None
-        assert replay_file_path(tmp_path, "game1").exists()
+        replay_text = gzip.decompress(replay_file_path(tmp_path, "game1").read_bytes()).decode()
+        replay_lines = [json.loads(line) for line in replay_text.splitlines()]
+        assert EVENT_TYPE_INT[EventType.DRAW] in [line.get("t") for line in replay_lines]
+        assert [line for line in replay_lines if WAIT_ID_KEY in line] == []
         assert [(c._close_code, c._close_reason) for c in conns] == [(1000, "game_ended"), (1000, "game_ended")]
 
 
@@ -471,7 +493,7 @@ class TestGameEndFromLeaveGame:
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
 
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            return_value=_make_game_end_events(),
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER),
         )
 
         await manager.leave_game(conns[0])

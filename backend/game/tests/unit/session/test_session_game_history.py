@@ -4,12 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from game.logic.enums import GameAction, TimeoutType
-from game.logic.events import BroadcastTarget, EventType, GameEndedEvent, ServiceEvent
+from game.logic.events import EventType, GameEndedEvent, ServiceEvent
 from game.logic.types import PlayerStanding
 from game.session.manager import SessionManager
-from game.tests.mocks import MockGameRepository, MockGameService
+from game.tests.mocks import MOCK_GAME_OVER, MockGameRepository, MockGameService, mock_update
 
-from .helpers import create_started_game, run_timeout
+from .helpers import create_started_game, current_wait_id, run_timeout
 
 
 @pytest.fixture
@@ -26,17 +26,14 @@ def manager_with_repo(game_repo):
 def _make_game_end_events(*, num_rounds: int = 1) -> list[ServiceEvent]:
     return [
         ServiceEvent(
-            event=EventType.GAME_END,
             data=GameEndedEvent(
                 type=EventType.GAME_END,
-                target="all",
                 winner_seat=0,
                 standings=[
                     PlayerStanding(seat=0, score=25000, final_score=0),
                 ],
                 num_rounds=num_rounds,
             ),
-            target=BroadcastTarget(),
         ),
     ]
 
@@ -90,7 +87,9 @@ class TestGameStartRecording:
 
         human = seeded_engine.get_game_state("game1").round_state.players[human_seat]
         assert seeded_engine.get_game_state("game1").round_state.current_player_seat == human_seat
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"tile_id": human.tiles[-1]})
+        await manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={"tile_id": human.tiles[-1]}, wait_id=current_wait_id(manager)
+        )
         human_after = seeded_engine.get_game_state("game1").round_state.players[human_seat]
         assert [d.tile_id for d in human_after.discards] == [human.tiles[-1]]
         assert manager.get_game("game1").ended is False
@@ -125,9 +124,13 @@ class TestGameCompletionRecording:
             manager_with_repo,
             player_names=["Alice", "Bob"],
         )
-        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
+        )
 
-        await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager_with_repo.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+        )
         game_repo.finish_game.assert_called_once()
         call_args = game_repo.finish_game.call_args
         assert call_args.kwargs["game_id"] == "game1"
@@ -144,10 +147,8 @@ class TestGameCompletionRecording:
 
         events = [
             ServiceEvent(
-                event=EventType.GAME_END,
                 data=GameEndedEvent(
                     type=EventType.GAME_END,
-                    target="all",
                     winner_seat=1,
                     standings=[
                         PlayerStanding(seat=1, score=40000, final_score=50),
@@ -157,12 +158,13 @@ class TestGameCompletionRecording:
                     ],
                     num_rounds=8,
                 ),
-                target=BroadcastTarget(),
             ),
         ]
-        manager_with_repo._game_service.handle_action = MagicMock(return_value=events)
+        manager_with_repo._game_service.handle_action = MagicMock(return_value=mock_update(events, MOCK_GAME_OVER))
 
-        await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager_with_repo.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+        )
         call_kwargs = game_repo.finish_game.call_args.kwargs
         standings = call_kwargs["standings"]
         assert len(standings) == 4
@@ -191,10 +193,12 @@ class TestGameCompletionRecording:
         )
 
         manager_with_repo._game_service.handle_action = MagicMock(
-            return_value=_make_game_end_events(num_rounds=8),
+            return_value=mock_update(_make_game_end_events(num_rounds=8), MOCK_GAME_OVER),
         )
 
-        await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager_with_repo.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+        )
         call_kwargs = game_repo.finish_game.call_args.kwargs
         assert call_kwargs["num_rounds_played"] == 8
 
@@ -203,7 +207,9 @@ class TestGameCompletionRecording:
             manager_with_repo,
             player_names=["Alice", "Bob"],
         )
-        manager_with_repo._game_service.handle_timeout = MagicMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_timeout = MagicMock(
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
+        )
 
         await run_timeout(manager_with_repo, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         recorded = game_repo.games["game1"]
@@ -218,9 +224,13 @@ class TestGameCompletionRecording:
         )
 
         game_repo.finish_game = AsyncMock(side_effect=RuntimeError("DB write failed"))
-        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
+        )
 
-        await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager_with_repo.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+        )
         # connections should still be closed despite the DB error
         assert conns[0].is_closed
         assert conns[1].is_closed
@@ -234,9 +244,13 @@ class TestGameCompletionRecording:
         )
 
         game_repo.get_game = AsyncMock(side_effect=RuntimeError("DB read failed"))
-        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
+        )
 
-        await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager_with_repo.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+        )
         assert conns[0].is_closed
         assert conns[1].is_closed
 
@@ -257,9 +271,13 @@ class TestGameAbandonmentRecording:
             manager_with_repo,
             player_names=["Alice", "Bob"],
         )
-        manager_with_repo._game_service.handle_action = MagicMock(return_value=_make_game_end_events())
+        manager_with_repo._game_service.handle_action = MagicMock(
+            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
+        )
 
-        await manager_with_repo.handle_game_action(conns[0], action=GameAction.DISCARD, data={})
+        await manager_with_repo.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+        )
         # finish_game should be called exactly once with "completed".
         # The cleanup path (_cleanup_empty_game) must skip the "abandoned" call
         # because game.ended is already True.

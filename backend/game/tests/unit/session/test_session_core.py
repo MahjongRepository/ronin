@@ -8,9 +8,10 @@ from game.logic.events import (
 )
 from game.logic.types import MeldCaller
 from game.messaging.types import SessionMessageType
+from game.tests.mocks import MOCK_AWAITING
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game
+from .helpers import create_started_game, current_wait_id
 
 
 class TestSessionManager:
@@ -25,7 +26,9 @@ class TestSessionManager:
     async def test_handle_game_action__when_service_returns_event__should_broadcast_it(self, manager):
         conns = await create_started_game(manager)
 
-        await manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={"key": "value"})
+        await manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={"key": "value"}, wait_id=current_wait_id(manager)
+        )
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
@@ -38,16 +41,14 @@ class TestSessionManager:
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
         seat_event = ServiceEvent(
-            event=EventType.DRAW,
             data=DrawEvent(
                 seat=0,
                 tile_id=42,
                 available_actions=[],
-                target="seat_0",
+                target=SeatTarget(seat=0),
             ),
-            target=SeatTarget(seat=0),
         )
-        await manager._broadcast_events(game, [seat_event])
+        await manager._broadcast_events(game, [seat_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the event
         assert len(conns[0].sent_messages) == 1
         assert len(conns[1].sent_messages) == 0
@@ -58,17 +59,15 @@ class TestSessionManager:
         # per-seat call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
         call_event = ServiceEvent(
-            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.RON,
                 tile_id=42,
                 from_seat=2,
                 callers=[0],
-                target="all",
+                target=SeatTarget(seat=0),
             ),
-            target=SeatTarget(seat=0),
         )
-        await manager._broadcast_events(game, [call_event])
+        await manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
@@ -84,17 +83,15 @@ class TestSessionManager:
             MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
         ]
         call_event = ServiceEvent(
-            event=EventType.CALL_PROMPT,
             data=CallPromptEvent(
                 call_type=CallType.MELD,
                 tile_id=55,
                 from_seat=3,
                 callers=callers,
-                target="all",
+                target=SeatTarget(seat=0),
             ),
-            target=SeatTarget(seat=0),
         )
-        await manager._broadcast_events(game, [call_event])
+        await manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # seat 0 should receive the call_prompt exactly once
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]

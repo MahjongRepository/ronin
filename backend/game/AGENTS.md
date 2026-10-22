@@ -19,7 +19,9 @@ hands each player a signed game ticket; players then connect to `/ws/{game_id}` 
   codes (`enums.py`, `events.py`), the packed draw/discard codec (`compact.py`) and
   `REPLAY_VERSION` (`replay_format.py`).
 * `logic/` — the rules engine behind the `GameService` protocol (`MahjongGameService`): synchronous,
-  seat-keyed, returns `list[ServiceEvent]` and knows nothing about connections, time or accounts.
+  seat-keyed; every call that can change a game returns its events and what the game waits for next
+  (`GameUpdate`: `ServiceEvent`s plus an `Awaiting`), and it knows nothing about connections, time or
+  accounts.
 * `replay/` — runs recorded games through the same `GameService` protocol (`runner.py`: `run_replay`;
   `loader.py`: `load_replay_from_file` / `load_replay_from_string`) for tests and profiling. It
   depends on `logic` and `wire` only. Replay input stays name-keyed; the runner maps names to the seats

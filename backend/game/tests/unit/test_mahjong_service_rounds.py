@@ -2,9 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from game.logic.enums import CallType, GameAction, MeldCallType, PromptKind, RoundPhase, TimeoutType
+from game.logic.enums import CallType, GameAction, MeldCallType, PromptKind, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
-    BroadcastTarget,
     CallPromptEvent,
     DiscardEvent,
     ErrorEvent,
@@ -15,6 +14,7 @@ from game.logic.events import (
 )
 from game.logic.exceptions import GeneratedActionError
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.service import Awaiting
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.types import (
@@ -38,7 +38,7 @@ class TestMahjongGameServiceHandleTimeout:
     def test_handle_timeout__when_meld_timeout_without_pending_prompt__should_return_no_events(self, service):
         player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
-        events = service.handle_timeout(game_id="game1", seat=player_seat, timeout_type=TimeoutType.MELD)
+        events = service.handle_timeout(game_id="game1", seat=player_seat, timeout_type=TimeoutType.MELD).events
         assert events == []
 
     def test_handle_timeout__when_meld_timeout_with_pending_prompt__should_pass_for_the_seat(self, service):
@@ -56,7 +56,7 @@ class TestMahjongGameServiceHandleTimeout:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.MELD)
+        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.MELD).events
         assert not any(isinstance(e.data, ErrorEvent) for e in events)
         assert service._games["game1"].round_state.pending_call_prompt != prompt
 
@@ -75,7 +75,7 @@ class TestMahjongGameServiceHandleTimeout:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN)
+        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN).events
         assert events == []
 
 
@@ -97,9 +97,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         )
         events = [
             ServiceEvent(
-                event=EventType.ROUND_END,
-                data=RoundEndEvent(result=round_result, target="all"),
-                target=BroadcastTarget(),
+                data=RoundEndEvent(result=round_result),
             ),
         ]
 
@@ -133,9 +131,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         )
         events = [
             ServiceEvent(
-                event=EventType.ROUND_END,
-                data=RoundEndEvent(result=round_result, target="all"),
-                target=BroadcastTarget(),
+                data=RoundEndEvent(result=round_result),
             ),
         ]
 
@@ -158,15 +154,13 @@ class TestMahjongGameServiceProcessPostDiscard:
 
         events: list[ServiceEvent] = [
             ServiceEvent(
-                event=EventType.CALL_PROMPT,
                 data=CallPromptEvent(
                     call_type=CallType.MELD,
                     tile_id=0,
                     from_seat=0,
                     callers=[player.seat],
-                    target="all",
+                    target=SeatTarget(seat=player.seat),
                 ),
-                target=SeatTarget(seat=player.seat),
             ),
         ]
 
@@ -202,7 +196,6 @@ class TestMahjongGameServiceProcessPostDiscard:
 
         events: list[ServiceEvent] = [
             ServiceEvent(
-                event=EventType.CALL_PROMPT,
                 data=CallPromptEvent(
                     call_type=CallType.MELD,
                     tile_id=ai_player_tile,
@@ -213,9 +206,8 @@ class TestMahjongGameServiceProcessPostDiscard:
                             call_type=MeldCallType.PON,
                         ),
                     ],
-                    target="all",
+                    target=SeatTarget(seat=ai_player_seat),
                 ),
-                target=SeatTarget(seat=ai_player_seat),
             ),
         ]
 
@@ -256,7 +248,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         new_wall = game_state.round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)})
         _update_round_state(service, "game1", current_player_seat=player.seat, wall=new_wall)
 
-        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN)
+        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN).events
         assert events[0].data == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     def test_handle_timeout__when_turn_timeout_off_players_turn__should_return_no_events(self, service):
@@ -267,7 +259,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         other_seat = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=other_seat)
 
-        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN)
+        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN).events
         assert events == []
 
 
@@ -419,11 +411,15 @@ class TestGameEndCleanupSafety:
         player = _find_player(game_state.round_state, "Player")
         tile_id = player.tiles[-1]
 
-        events = service.handle_action(
+        waiting = service.get_awaiting("game1")
+        update = service.handle_action(
             game_id="game1", seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
         )
-        game_end_events = [e for e in events if e.event == EventType.GAME_END]
+        game_end_events = [e for e in update.events if e.event == EventType.GAME_END]
         assert len(game_end_events) == 1
+        assert update.awaiting == Awaiting(
+            kind=WaitKind.NONE, seats=frozenset(), wait_id=waiting.wait_id + 1, round_number=waiting.round_number
+        )
         assert "game1" not in service._games
 
 
@@ -450,7 +446,7 @@ class TestTurnTimeoutKuikaeIntegration:
         )
         _update_round_state(service, "game1", current_player_seat=player.seat)
 
-        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN)
+        events = service.handle_timeout(game_id="game1", seat=player.seat, timeout_type=TimeoutType.TURN).events
         player_discard = events[0].data
         assert isinstance(player_discard, DiscardEvent)
         assert player_discard.seat == player.seat
@@ -461,9 +457,6 @@ class TestServiceGuardClauses:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
-
-    def test_handle_timeout__when_game_does_not_exist__should_return_no_events(self, service):
-        assert service.handle_timeout(game_id="nonexistent", seat=0, timeout_type=TimeoutType.TURN) == []
 
     def test_process_ai_player_followup__when_game_has_no_ai_controller__should_return_no_events(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)

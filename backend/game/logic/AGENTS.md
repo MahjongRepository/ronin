@@ -11,8 +11,19 @@ changes.
   `state_utils.py`. Settings live only on `MahjongGameState`. The wall is a frozen `Wall`
   (`wall.py`); melds are `FrozenMeld` (`meld_wrapper.py`), converted to the `mahjong` library's
   `Meld` only at its boundary.
-* Domain events (`events.py`) carry integer tile ids only (136-format); `convert_events()` wraps
-  them in `ServiceEvent` with a `BroadcastTarget` or `SeatTarget`.
+* Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing
+  target, a `BroadcastTarget` or a `SeatTarget`; `ServiceEvent` wraps one and reads its type and
+  target from it.
+* Every `GameService` call that can change a game returns what the game waits for next
+  (`Awaiting`: a turn, a call prompt, round-end confirmations, or nothing once the game is over,
+  with the awaited seats AI players do not hold and the round the wait belongs to);
+  `get_awaiting()` answers the same for a reconnect. Its `wait_id` lives on `MahjongGameState` and
+  changes exactly when a call ends the current wait: `_end_call()` keeps it when the wait is of the
+  same kind and either lost seats (a partial prompt response or confirmation, an AI answering for a
+  replaced seat) or kept its seats on an untouched state (an error, a no-op timeout or
+  replacement); anything else bumps it once, a turn that came back to the same seat and a kan's
+  replacement draw included. The session drives its timers from it and checks client actions
+  against it, so the engine API carries no wire id.
 * One dispatch pipeline for humans, AI and timeouts: `_dispatch_action()` picks the action handler
   (a player's action from `handle_action()`; an AI decision or timeout default through
   `_dispatch_generated_action()`, which turns any refusal into a fault), `_commit_and_process()`
@@ -76,13 +87,13 @@ Every refusal or failure has exactly one outcome (`exceptions.py` holds the clas
 * **Kick**: structurally impossible input (a tile not in hand, an action, tile or chi shape the wire
   did not offer). Domain code raises `ImpossibleActionError`; only the handler validating the acting
   seat turns it into `InvalidGameActionError`, and the session disconnects that human (1008) and
-  seats an AI player. A stale action from an earlier wait that lands on a newer one (a discard of a
-  tile the turn timeout already discarded, a ron arriving at a later prompt where the seat may only
-  meld) looks the same as bad input, because the wire carries no wait identity, so it is still
-  kicked; telling them apart needs that identity on the wire.
+  seats an AI player. A stale action, one answering a wait that already ended (a discard racing its
+  own turn timeout, a pass or ron arriving after a newer prompt opened), never reaches the engine:
+  every action echoes the wait id, and the session answers a stale one with `STALE_ACTION`.
 * **Server fault, the session ends the game through `fail_game`**: everything else, with no blame
   guessing and no fabricated pass, win or retry. That covers wall and engine invariants
-  (`AssertionError`), the scoring library failing on a hand judged a win (`ScoringError`), anything
+  (`AssertionError`), a call for a game the service does not hold (`KeyError`: the session never
+  acts on a game that ended), the scoring library failing on a hand judged a win (`ScoringError`), anything
   raised during call resolution (responses were validated on submit) or after a result is stored,
   and an action the server made itself: an AI decision or a timeout default that is refused, or an
   AI turn with no action, raises `GeneratedActionError` (`_dispatch_generated_action`), so a soft

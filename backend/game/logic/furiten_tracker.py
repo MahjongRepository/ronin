@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from game.logic.enums import RoundPhase
-from game.logic.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
+from game.logic.events import FuritenEvent, SeatTarget, ServiceEvent
 from game.logic.settings import NUM_PLAYERS
 from game.logic.win import is_effective_furiten
 
@@ -69,14 +69,7 @@ class FuritenTracker:
             if current != previous:
                 furiten_state[seat] = current
                 events.append(
-                    ServiceEvent.model_construct(
-                        event=EventType.FURITEN,
-                        data=FuritenEvent(
-                            is_furiten=current,
-                            target=f"seat_{seat}",
-                        ),
-                        target=SeatTarget(seat=seat),
-                    ),
+                    ServiceEvent.model_construct(data=FuritenEvent(is_furiten=current, target=SeatTarget(seat=seat))),
                 )
 
         return events

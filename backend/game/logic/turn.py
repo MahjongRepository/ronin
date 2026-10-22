@@ -148,7 +148,7 @@ def process_draw_phase(
 
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
-        events.append(RoundEndEvent(result=result, target="all"))
+        events.append(RoundEndEvent(result=result))
         return new_round_state, new_game_state, events
 
     logger.debug("tile drawn", tile_id=drawn_tile)
@@ -286,7 +286,7 @@ def _check_abortive_draw(
 
     new_round = round_state.model_copy(update={"phase": RoundPhase.FINISHED})
     new_game = game_state.model_copy(update={"round_state": new_round})
-    events.append(RoundEndEvent(result=result, target="all"))
+    events.append(RoundEndEvent(result=result))
     return new_round, new_game, events
 
 
@@ -331,7 +331,7 @@ def _finalize_no_callers(
 
     if riichi_pending:
         new_round, new_game = declare_riichi(new_round, new_game, seat=current_seat, settings=settings)
-        events.append(RiichiDeclaredEvent(seat=current_seat, target="all"))
+        events.append(RiichiDeclaredEvent(seat=current_seat))
 
         if settings.has_suucha_riichi and check_four_riichi(new_round):
             return _check_abortive_draw(new_round, new_game, draw_type=AbortiveDrawType.FOUR_RIICHI, events=events)
@@ -511,7 +511,7 @@ def process_ron_call(
 
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
-        events.append(RoundEndEvent(result=result, target="all"))
+        events.append(RoundEndEvent(result=result))
 
     else:
         # double ron
@@ -552,7 +552,7 @@ def process_ron_call(
 
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
-        events.append(RoundEndEvent(result=result, target="all"))
+        events.append(RoundEndEvent(result=result))
 
     return new_round_state, new_game_state, events
 
@@ -603,7 +603,7 @@ def process_tsumo_call(
 
     new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
     new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
-    events.append(RoundEndEvent(result=result, target="all"))
+    events.append(RoundEndEvent(result=result))
 
     return new_round_state, new_game_state, events
 
@@ -689,7 +689,7 @@ def _check_four_kans_abort(
 
         new_round_state = round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = new_game_state.model_copy(update={"round_state": new_round_state})
-        events.append(RoundEndEvent(result=result, target="all"))
+        events.append(RoundEndEvent(result=result))
         return new_round_state, new_game_state, events, True
 
     new_game_state = game_state.model_copy(update={"round_state": round_state})

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import CallType, GameErrorCode, MeldViewType, PromptKind
 from game.logic.types import (
@@ -48,23 +48,6 @@ EventTarget = BroadcastTarget | SeatTarget
 _BROADCAST = BroadcastTarget()
 
 
-def parse_event_target(value: str) -> EventTarget:
-    """
-    Parse a string target into a typed EventTarget.
-    """
-    if value == "all":
-        return BroadcastTarget()
-
-    if value.startswith("seat_"):
-        seat = int(value.split("_")[1])
-        if seat < 0:
-            raise ValueError(f"invalid seat number in target: {value}")
-
-        return SeatTarget(seat=seat)
-
-    raise ValueError(f"invalid target value: {value}")
-
-
 # ---------------------------------------------------------------------------
 # Event type enum
 # ---------------------------------------------------------------------------
@@ -96,13 +79,13 @@ class EventType(StrEnum):
 
 class GameEvent(BaseModel):
     """
-    Base class for all domain game events.
+    Base class for all domain game events, each addressed to everyone or to one seat.
     """
 
     model_config = ConfigDict(frozen=True)
 
     type: EventType
-    target: str
+    target: EventTarget
 
 
 class DrawEvent(GameEvent):
@@ -122,7 +105,7 @@ class DiscardEvent(GameEvent):
     """
 
     type: Literal[EventType.DISCARD] = EventType.DISCARD
-    target: str = "all"
+    target: EventTarget = _BROADCAST
     seat: int
     tile_id: int
     is_tsumogiri: bool = False
@@ -135,7 +118,7 @@ class MeldEvent(GameEvent):
     """
 
     type: Literal[EventType.MELD] = EventType.MELD
-    target: str = "all"
+    target: EventTarget = _BROADCAST
     meld_type: MeldViewType
     caller_seat: int
     from_seat: int | None = None
@@ -161,6 +144,7 @@ class RoundEndEvent(GameEvent):
     """
 
     type: Literal[EventType.ROUND_END] = EventType.ROUND_END
+    target: EventTarget = _BROADCAST
     result: RoundResult
 
 
@@ -170,6 +154,7 @@ class RiichiDeclaredEvent(GameEvent):
     """
 
     type: Literal[EventType.RIICHI_DECLARED] = EventType.RIICHI_DECLARED
+    target: EventTarget = _BROADCAST
     seat: int = Field(serialization_alias="s")
 
 
@@ -179,7 +164,7 @@ class DoraRevealedEvent(GameEvent):
     """
 
     type: Literal[EventType.DORA_REVEALED] = EventType.DORA_REVEALED
-    target: str = "all"
+    target: EventTarget = _BROADCAST
     tile_id: int = Field(serialization_alias="ti")
 
 
@@ -199,7 +184,7 @@ class GameStartedEvent(GameEvent):
     """
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
-    target: str = "all"
+    target: EventTarget = _BROADCAST
     game_id: str = Field(serialization_alias="gid")
     players: list[GamePlayerInfo] = Field(serialization_alias="p")
     dealer_seat: int = Field(serialization_alias="dl")
@@ -231,6 +216,7 @@ class GameEndedEvent(GameEvent):
     """
 
     type: Literal[EventType.GAME_END] = EventType.GAME_END
+    target: EventTarget = _BROADCAST
     winner_seat: int = Field(serialization_alias="ws")
     standings: list[PlayerStanding] = Field(serialization_alias="st")
     num_rounds: int = Field(default=0, serialization_alias="nr")
@@ -268,25 +254,24 @@ Event = (
 
 class ServiceEvent(BaseModel):
     """
-    Event transport container for game service layer.
-
-    Uses typed internal targets (BroadcastTarget / SeatTarget) for routing.
+    Event transport container for game service layer: the domain event, with its type and routing target read from it.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-
-    event: EventType
     data: GameEvent
-    target: EventTarget = BroadcastTarget()
 
-    @model_validator(mode="after")
-    def _ensure_event_matches_data(self) -> ServiceEvent:
-        if self.event.value != self.data.type.value:
-            raise ValueError(
-                f"ServiceEvent.event '{self.event.value}' does not match data.type '{self.data.type.value}'",
-            )
+    @property
+    def event(self) -> EventType:
+        """
+        The type of the wrapped event.
+        """
+        return self.data.type
 
-        return self
+    @property
+    def target(self) -> EventTarget:
+        """
+        Where the wrapped event goes: every player or one seat.
+        """
+        return self.data.target
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +303,7 @@ def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]
                 tile_id=prompt.tile_id,
                 from_seat=prompt.from_seat,
                 callers=callers,
-                target=f"seat_{caller.seat}",
+                target=SeatTarget(seat=caller.seat),
             ),
         )
 
@@ -327,31 +312,13 @@ def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]
 
 def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
     """
-    Convert typed events to service events with typed targets.
+    Wrap domain events in service events.
 
-    Builds each ServiceEvent with model_construct, skipping validation: its event is the data's own type, so they always
-    match. The target parse is parse_event_target inlined, as this runs for every event.
+    Builds each ServiceEvent with model_construct, skipping validation of an event that is already a validated model, as
+    this runs for every event.
     """
     _construct = ServiceEvent.model_construct
-    result: list[ServiceEvent] = []
-    for event in raw_events:
-        target_str = event.target
-        if target_str == "all":
-            target = _BROADCAST
-        elif target_str.startswith("seat_"):
-            seat = int(target_str[5:])
-            if seat < 0:
-                raise ValueError(f"invalid seat number in target: {target_str}")
-
-            target = SeatTarget(seat=seat)
-        else:
-            raise ValueError(f"invalid target value: {target_str}")
-
-        result.append(
-            _construct(event=event.type, data=event, target=target),
-        )
-
-    return result
+    return [_construct(data=event) for event in raw_events]
 
 
 def extract_round_result(events: list[ServiceEvent]) -> RoundResult | None:

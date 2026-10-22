@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from game.session.timer import TimerConfig
 
 if TYPE_CHECKING:
+    from game.logic.service import Awaiting
     from game.messaging.protocol import ConnectionProtocol
     from shared.dal.models import GameEndReason
 
@@ -69,11 +70,19 @@ class Player:
 
 @dataclass
 class Game:
+    """
+    A game in the session layer: its players, pacing and lifecycle.
+
+    awaiting is what the engine last reported the game waits for (set from the game start on); the session drives the
+    timers from it and checks an action's wait id against it.
+    """
+
     game_id: str
     started: bool = False
     end_reason: GameEndReason | None = None
     players: dict[str, Player] = field(default_factory=dict)
     timer_config: TimerConfig = field(default_factory=TimerConfig)
+    awaiting: Awaiting | None = None
 
     @property
     def ended(self) -> bool:

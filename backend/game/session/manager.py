@@ -6,21 +6,22 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from game.logic.enums import GameAction, MeldViewType, RoundPhase, TimeoutType
+from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
-    DrawEvent,
     ErrorEvent,
-    FuritenEvent,
     GameEndedEvent,
-    MeldEvent,
-    RoundEndEvent,
-    RoundStartedEvent,
     SeatTarget,
+    ServiceEvent,
 )
 from game.logic.exceptions import InvalidGameActionError
-from game.messaging.event_payload import service_event_payload, shape_call_prompt_payload
+from game.messaging.event_payload import (
+    WAIT_ID_KEY,
+    service_event_payload,
+    shape_call_prompt_payload,
+    stamp_wait_id,
+)
 from game.messaging.types import (
     ErrorMessage,
     GameLeftMessage,
@@ -42,8 +43,7 @@ from shared.tasks import cancel_and_wait
 if TYPE_CHECKING:
     from collections.abc import Coroutine
 
-    from game.logic.events import ServiceEvent
-    from game.logic.service import GameService
+    from game.logic.service import Awaiting, GameService
     from game.messaging.protocol import ConnectionProtocol
     from game.session.models import PlayerSpec
     from game.session.replay_collector import ReplayCollector
@@ -428,8 +428,12 @@ class SessionManager:
 
         Must be called under the per-game lock (leave_game acquires it). Must be called BEFORE the is_empty cleanup
         check, and only when other players remain in the game. AI events that end the game finish it through
-        `_broadcast_events`.
+        `_broadcast_events`. A game that ended has nothing left to play, nor a timer or bank worth keeping, for the
+        seat.
         """
+        if game.ended:
+            return
+
         self._game_service.replace_with_ai_player(game.game_id, seat)
 
         # stop (not cancel) the timer to deduct elapsed bank time, then save remaining bank
@@ -444,10 +448,8 @@ class SessionManager:
         # process AI player actions if the replaced player had a pending turn or call.
         # the caller (leave_game) already holds the game lock, so no separate
         # lock acquisition is needed here.
-        events = self._game_service.process_ai_player_actions_after_replacement(game.game_id, seat)
-        if events:
-            await self._broadcast_events(game, events)
-            self._maybe_start_timer(game, events)
+        update = self._game_service.process_ai_player_actions_after_replacement(game.game_id, seat)
+        await self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
     async def _kick_player(
         self,
@@ -479,28 +481,73 @@ class SessionManager:
         if not game.is_empty and player_seat is not None:
             await self._replace_with_ai_player(game, seat=player_seat, session_token=player.session_token)
 
-    async def _process_successful_action(
+    async def _follow_engine(
         self,
         game: Game,
-        game_id: str,
-        player: Player,
+        *,
         events: list[ServiceEvent],
+        awaiting: Awaiting,
+        actor: int | None,
     ) -> None:
         """
-        Handle timer management and broadcasting after a successful game action.
-        """
-        # failed actions (errors) should not consume bank time or cancel timers.
-        # successful actions that produce no events (e.g. partial pass while
-        # other callers are still pending) still stop the acting player's timer
-        # but don't cancel other players' meld timers.
-        if player.seat is not None and not self._has_error_events(events):
-            self._timer_manager.stop_player_timer(game_id, player.seat)
-            # cancel meld timers for other players only when the prompt resolved
-            if self._has_game_events(events):
-                self._timer_manager.cancel_other_timers(game_id, player.seat)
+        Deliver an engine call's events and drive the timers from the wait it reports.
 
-        await self._broadcast_events(game, events)
-        self._maybe_start_timer(game, events)
+        The call's actor is the seat that acted, timed out or was replaced; a game start has none. When the wait id
+        changed, the actor's timer stops (deducting its bank on a turn) and every other timer is cancelled before the
+        events go out, and the new wait's timers start after them. When it did not, only an actor that left the wait (a
+        partial prompt response or confirmation) has its timer stopped; an actor still awaited (an error) keeps it
+        running with nothing deducted.
+        """
+        previous = game.awaiting
+        game.awaiting = awaiting
+        new_wait = previous is None or awaiting.wait_id != previous.wait_id
+        if new_wait:
+            self._end_wait_timers(game, actor=actor)
+        elif actor is not None and actor in previous.seats and actor not in awaiting.seats:
+            self._timer_manager.stop_player_timer(game.game_id, actor)
+
+        await self._broadcast_events(game, events, awaiting)
+        if new_wait:
+            self._start_wait_timers(game, previous=previous, awaiting=awaiting)
+
+    def _end_wait_timers(self, game: Game, *, actor: int | None) -> None:
+        """
+        Stop the actor's timer and cancel the others when a wait ended.
+        """
+        if actor is None:
+            self._timer_manager.cancel_all(game.game_id)
+            return
+
+        self._timer_manager.stop_player_timer(game.game_id, actor)
+        self._timer_manager.cancel_other_timers(game.game_id, actor)
+
+    def _start_wait_timers(self, game: Game, *, previous: Awaiting | None, awaiting: Awaiting) -> None:
+        """
+        Start the timers of a new wait for its awaited seats that have a connected player.
+
+        A game over cancels every timer. The first wait of a round adds the round bonus to every bank, the first round
+        included.
+        """
+        game_id = game.game_id
+        if awaiting.kind == WaitKind.NONE:
+            self._timer_manager.cancel_all(game_id)
+            return
+
+        if previous is None or awaiting.round_number != previous.round_number:
+            self._timer_manager.add_round_bonus(game_id)
+
+        if awaiting.kind == WaitKind.ROUND_ADVANCE:
+            self._timer_manager.start_round_advance_timers(game)
+            return
+
+        for seat in sorted(awaiting.seats):
+            if self._get_player_at_seat(game, seat) is None:
+                continue
+
+            if awaiting.kind == WaitKind.TURN:
+                self._timer_manager.start_turn_timer(game_id, seat)
+            else:
+                self._timer_manager.start_meld_timer(game_id, seat)
 
     async def _close_kicked_and_cleanup(self, connection: ConnectionProtocol, game: Game) -> None:
         """
@@ -520,11 +567,14 @@ class SessionManager:
         *,
         action: GameAction,
         data: dict[str, Any],
+        wait_id: int,
     ) -> None:
         """
         Run a player's game action under the game lock.
 
-        A rule judgment or race comes back from the engine as an ErrorEvent for the seat. Structurally impossible input
+        An action whose wait id is not the current wait's answers to a wait that already ended (it raced its own timeout
+        or a newer prompt): the seat gets a `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A
+        rule judgment or race comes back from the engine as an ErrorEvent for the seat. Structurally impossible input
         (InvalidGameActionError, always the acting seat's) disconnects the player with 1008 and seats an AI player.
         Anything else the engine raises is a server fault and propagates to the caller's boundary, which fails the game.
         """
@@ -551,21 +601,40 @@ class SessionManager:
             if game.ended:
                 return
 
+            seat = self._seat_of(player)
+            if game.awaiting is None or wait_id != game.awaiting.wait_id:
+                await self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
+                return
+
             try:
-                events = self._game_service.handle_action(
-                    game_id=game_id,
-                    seat=self._seat_of(player),
-                    action=action,
-                    data=data,
-                )
+                update = self._game_service.handle_action(game_id=game_id, seat=seat, action=action, data=data)
             except InvalidGameActionError as e:
                 kicked = True
                 await self._kick_player(game, connection, player=player, error=e)
             else:
-                await self._process_successful_action(game, game_id=game_id, player=player, events=events)
+                await self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
         if kicked:
             await self._close_kicked_and_cleanup(connection, game)
+
+    async def _send_stale_action(
+        self,
+        connection: ConnectionProtocol,
+        *,
+        seat: int,
+        action: GameAction,
+        wait_id: int,
+    ) -> None:
+        """
+        Answer an action for a wait that already ended with a `stale_action` ErrorEvent to its seat.
+        """
+        logger.info("stale game action", action=action.value, wait_id=wait_id)
+        error = ErrorEvent(
+            code=GameErrorCode.STALE_ACTION,
+            message="the wait this action answers has already ended",
+            target=SeatTarget(seat=seat),
+        )
+        await connection.send_message(service_event_payload(ServiceEvent(data=error)))
 
     async def broadcast_chat(
         self,
@@ -676,8 +745,11 @@ class SessionManager:
                 self._session_store.mark_reconnected(session_token)
                 session.remaining_bank_seconds = None
 
+                awaiting = self._game_service.get_awaiting(game_id)
+                game.awaiting = awaiting
                 payload = snapshot.model_dump(by_alias=True, exclude_none=True)
                 payload["type"] = SessionMessageType.GAME_RECONNECTED
+                payload[WAIT_ID_KEY] = awaiting.wait_id
                 await connection.send_message(payload)
 
                 await self._broadcast_to_game(
@@ -688,7 +760,7 @@ class SessionManager:
                     exclude_connection_id=connection.connection_id,
                 )
 
-                await self._send_turn_state_on_reconnect(game_id=game_id, seat=seat, player=player)
+                await self._send_turn_state_on_reconnect(game, seat=seat, player=player, awaiting=awaiting)
         finally:
             # Close stale sockets outside the game lock, including on failure
             # paths where early returns would otherwise orphan them.
@@ -842,36 +914,28 @@ class SessionManager:
 
     async def _send_turn_state_on_reconnect(
         self,
-        game_id: str,
+        game: Game,
+        *,
         seat: int,
         player: Player,
+        awaiting: Awaiting,
     ) -> None:
         """
-        Send draw event for a reconnected player when it is currently their turn.
+        Re-send the draw and start the turn timer for a reconnected player whose turn the game awaits.
 
         Uses direct connection.send_message() instead of _broadcast_events() to avoid recording duplicate events in the
-        replay collector.
+        replay collector. Right after the seat's own pon or chi there is no draw to re-send; the timer still starts.
         """
-        game_state = self._game_service.get_game_state(game_id)
-        if game_state is None:
+        if awaiting.kind != WaitKind.TURN or seat not in awaiting.seats:
             return
 
-        round_state = game_state.round_state
-        if round_state.phase != RoundPhase.PLAYING or self._game_service.is_round_advance_pending(game_id):
-            return
+        events = self._game_service.build_draw_event_for_seat(game.game_id, seat)
+        for event in events:
+            message = stamp_wait_id(service_event_payload(event), event, awaiting)
+            with contextlib.suppress(RuntimeError, OSError, ConnectionError):
+                await player.connection.send_message(message)
 
-        prompt = round_state.pending_call_prompt
-        if prompt is not None:
-            return
-
-        if round_state.current_player_seat == seat:
-            events = self._game_service.build_draw_event_for_seat(game_id, seat)
-            for event in events:
-                message = service_event_payload(event)
-                with contextlib.suppress(RuntimeError, OSError, ConnectionError):
-                    await player.connection.send_message(message)
-
-            self._timer_manager.start_turn_timer(game_id, seat)
+        self._timer_manager.start_turn_timer(game.game_id, seat)
 
     # --- Pending game management (direct game creation from lobby) ---
 
@@ -1254,8 +1318,7 @@ class SessionManager:
         )
 
         async with self._game_locks[game.game_id]:
-            await self._broadcast_events(game, start.events)
-            self._maybe_start_timer(game, start.events)
+            await self._follow_engine(game, events=start.events, awaiting=start.awaiting, actor=None)
             await self._replace_absent_players(game, absent_seats)
 
     def _bind_seats(self, game: Game, spec_seats: list[tuple[PlayerSpec, int]]) -> list[int]:
@@ -1290,18 +1353,19 @@ class SessionManager:
         self,
         game: Game,
         events: list[ServiceEvent],
+        awaiting: Awaiting,
     ) -> None:
         """
         Broadcast events with target-based filtering using typed targets.
 
-        A batch that ends the game claims the completion before its first send, so a fail_game during the broadcast
-        finds the game already ended, and the claim's owner is bound to finish the game: after the broadcast it runs the
-        completion finalization on the detached replay and the players, and if the broadcast raises it escalates its own
-        claim to a failure instead.
+        A batch after which the game waits for nothing (it ended) claims the completion before its first send, so a
+        fail_game during the broadcast finds the game already ended, and the claim's owner is bound to finish the game:
+        after the broadcast it runs the completion finalization on the detached replay and the players, and if the
+        broadcast raises it escalates its own claim to a failure instead.
         """
-        claimed = self._claim_completion(game, events)
+        claimed = self._claim_completion(game, awaiting)
         try:
-            await self._send_events(game, events)
+            await self._send_events(game, events, awaiting)
         except Exception as exc:
             if not claimed:
                 raise
@@ -1316,7 +1380,10 @@ class SessionManager:
     def _detach_replay(self, game: Game) -> list[str] | None:
         return self._replay_collector.detach_game(game.game_id) if self._replay_collector else None
 
-    async def _send_events(self, game: Game, events: list[ServiceEvent]) -> None:
+    async def _send_events(self, game: Game, events: list[ServiceEvent], awaiting: Awaiting) -> None:
+        """
+        Record the events for the replay, then send each to its target, the wait's opening messages stamped with `wi`.
+        """
         if self._replay_collector:
             self._replay_collector.collect_events(game.game_id, events)
 
@@ -1327,6 +1394,7 @@ class SessionManager:
             if isinstance(event.data, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 
+            message = stamp_wait_id(message, event, awaiting)
             if isinstance(event.target, BroadcastTarget):
                 await self._broadcast_to_game(game, message=message)
             elif isinstance(event.target, SeatTarget):
@@ -1342,61 +1410,6 @@ class SessionManager:
         exclude_connection_id: str | None = None,
     ) -> None:
         await broadcast_to_players(players=game.players, message=message, exclude_connection_id=exclude_connection_id)
-
-    def _maybe_start_timer(self, game: Game, events: list[ServiceEvent]) -> None:
-        """
-        Inspect events and delegate timer actions to TimerManager.
-        """
-        game_id = game.game_id
-
-        # game ended -- cancel all timers
-        if self._has_game_ended(events):
-            self._timer_manager.cancel_all(game_id)
-            return
-
-        # add round bonus to all player timers when a new round starts
-        if any(isinstance(event.data, RoundStartedEvent) for event in events):
-            self._timer_manager.add_round_bonus(game_id)
-
-        # round end -- start round advance timers for players
-        if any(isinstance(event.data, RoundEndEvent) for event in events):
-            self._timer_manager.start_round_advance_timers(game)
-            return
-
-        if self._start_turn_timer_from_events(game, events):
-            return
-
-        self._start_meld_timers_from_events(game, events)
-
-    _PON_CHI_MELD_TYPES = frozenset({MeldViewType.PON, MeldViewType.CHI})
-
-    def _start_turn_timer_from_events(self, game: Game, events: list[ServiceEvent]) -> bool:
-        """
-        Start a turn timer if events contain a DrawEvent or a pon/chi MeldEvent.
-        """
-        for event in events:
-            if isinstance(event.data, DrawEvent):
-                seat = event.data.seat
-                if self._get_player_at_seat(game, seat) is not None:
-                    self._timer_manager.start_turn_timer(game.game_id, seat)
-                    return True
-            elif isinstance(event.data, MeldEvent) and event.data.meld_type in self._PON_CHI_MELD_TYPES:
-                seat = event.data.caller_seat
-                if self._get_player_at_seat(game, seat) is not None:
-                    self._timer_manager.start_turn_timer(game.game_id, seat)
-                    return True
-
-        return False
-
-    def _start_meld_timers_from_events(self, game: Game, events: list[ServiceEvent]) -> None:
-        """
-        Start meld timers for connected callers from per-seat CallPromptEvent wrappers.
-        """
-        for event in events:
-            if isinstance(event.data, CallPromptEvent) and isinstance(event.target, SeatTarget):
-                seat = event.target.seat
-                if self._get_player_at_seat(game, seat) is not None:
-                    self._timer_manager.start_meld_timer(game.game_id, seat)
 
     def fail_game(self, game: Game, *, reason: str, exc: BaseException | None = None) -> bool:
         """
@@ -1568,14 +1581,14 @@ class SessionManager:
         except Exception:
             logger.exception("failed to close a connection at game end", connection_id=connection.connection_id)
 
-    def _claim_completion(self, game: Game, events: list[ServiceEvent]) -> bool:
+    def _claim_completion(self, game: Game, awaiting: Awaiting) -> bool:
         """
-        Claim the normal end of a game whose events end it, synchronously, before anything can suspend.
+        Claim the normal end of a game the engine reports over, synchronously, before anything can suspend.
 
         Returns True when this call claimed it, which makes the caller the one path bound to finish the game; False when
-        the events do not end the game or another path (a failure) already claimed its end.
+        the game goes on or another path (a failure) already claimed its end.
         """
-        if not self._has_game_ended(events) or game.ended or self._games.get(game.game_id) is not game:
+        if awaiting.kind != WaitKind.NONE or game.ended or self._games.get(game.game_id) is not game:
             return False
 
         game.end_reason = GameEndReason.COMPLETED
@@ -1597,15 +1610,6 @@ class SessionManager:
             raise AssertionError("player in a started game has no seat")
 
         return player.seat
-
-    def _has_game_ended(self, events: list[ServiceEvent]) -> bool:
-        return any(isinstance(event.data, GameEndedEvent) for event in events)
-
-    def _has_game_events(self, events: list[ServiceEvent]) -> bool:
-        return any(not isinstance(event.data, (ErrorEvent, FuritenEvent)) for event in events)
-
-    def _has_error_events(self, events: list[ServiceEvent]) -> bool:
-        return any(isinstance(event.data, ErrorEvent) for event in events)
 
     async def _handle_timeout(self, game_id: str, timeout_type: TimeoutType, seat: int, firing: TimerFiring) -> None:
         """
@@ -1647,6 +1651,5 @@ class SessionManager:
             if timeout_type == TimeoutType.TURN:
                 self._timer_manager.consume_bank(game_id, seat)
 
-            events = self._game_service.handle_timeout(game_id=game_id, seat=seat, timeout_type=timeout_type)
-            await self._broadcast_events(game, events)
-            self._maybe_start_timer(game, events)
+            update = self._game_service.handle_timeout(game_id=game_id, seat=seat, timeout_type=timeout_type)
+            await self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)

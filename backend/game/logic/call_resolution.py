@@ -100,7 +100,7 @@ def _resolve_ron_responses(
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = update_game_with_round(game_state, new_round_state)
 
-        events: list[GameEvent] = [RoundEndEvent(result=result, target="all")]
+        events: list[GameEvent] = [RoundEndEvent(result=result)]
         return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
     # atamahane: cap to double_ron_count if double ron enabled, else single winner only
@@ -203,7 +203,7 @@ def _complete_kan_after_chankan_decline(
         result = process_abortive_draw(new_game_state, AbortiveDrawType.FOUR_KANS)
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = update_game_with_round(new_game_state, new_round_state)
-        events.append(RoundEndEvent(result=result, target="all"))
+        events.append(RoundEndEvent(result=result))
     # emit draw event for the dead wall tile with available actions
     elif new_round_state.phase == RoundPhase.PLAYING:
         player = new_round_state.players[caller_seat]
@@ -283,7 +283,7 @@ def _finalize_discard_post_ron_check(
             seat=prompt.from_seat,
             settings=settings,
         )
-        events.append(RiichiDeclaredEvent(seat=prompt.from_seat, target="all"))
+        events.append(RiichiDeclaredEvent(seat=prompt.from_seat))
         riichi_finalized = True
 
     return new_round_state, new_game_state, events, riichi_finalized
@@ -382,7 +382,7 @@ def resolve_call_prompt(
         new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
         new_game_state = update_game_with_round(resolved_game, new_round_state)
 
-        extra_events.append(RoundEndEvent(result=result, target="all"))
+        extra_events.append(RoundEndEvent(result=result))
         return ActionResult(extra_events, new_round_state=new_round_state, new_game_state=new_game_state)
 
     if meld_responses:

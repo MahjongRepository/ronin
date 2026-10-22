@@ -3,13 +3,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from game.logic.enums import GameAction, PlayerAction, RoundPhase, TimeoutType, WindName
+from game.logic.enums import GameAction, PlayerAction, TimeoutType, WaitKind, WindName
 from game.logic.events import (
     DrawEvent,
     EventType,
     SeatTarget,
     ServiceEvent,
 )
+from game.logic.service import Awaiting
 from game.logic.types import (
     AvailableActionItem,
     GamePlayerInfo,
@@ -27,6 +28,7 @@ from game.tests.mocks import MockConnection, MockGameService
 from game.tests.unit.session.helpers import (
     arrange_final_discard,
     create_started_game,
+    current_wait_id,
     disconnect_and_reconnect,
     run_timeout,
     wait_for_background_tasks,
@@ -63,21 +65,19 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
     )
 
 
-def _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.PLAYING, pending_call_prompt=None):
-    class _MockRoundState:
-        pass
+def _awaiting(kind: WaitKind, *, seat: int) -> Awaiting:
+    return Awaiting(kind=kind, seats=frozenset({seat}), wait_id=1, round_number=0)
 
-    round_state = _MockRoundState()
-    round_state.phase = phase
-    round_state.pending_call_prompt = pending_call_prompt
-    round_state.current_player_seat = current_seat
 
-    class _MockGameState:
-        pass
-
-    _MockGameState.round_state = round_state
-
-    manager._game_service.get_game_state = lambda gid: _MockGameState()
+def _make_draw_event(*, seat: int, tile_id: int) -> ServiceEvent:
+    return ServiceEvent(
+        data=DrawEvent(
+            seat=seat,
+            tile_id=tile_id,
+            available_actions=[AvailableActionItem(action=PlayerAction.DISCARD)],
+            target=SeatTarget(seat=seat),
+        ),
+    )
 
 
 class TestSessionManagerReconnect:
@@ -93,7 +93,6 @@ class TestSessionManagerReconnect:
 
         await manager.leave_game(alice_conn, notify_player=False)
         bob_conn._outbox.clear()
-        _stub_game_state_for_reconnect(manager)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
@@ -208,7 +207,6 @@ class TestSessionManagerReconnect:
         # override the bank time that leave_game saved
         session = manager._session_store.get_session(alice_token)
         session.remaining_bank_seconds = 1.5
-        _stub_game_state_for_reconnect(manager)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
@@ -267,38 +265,48 @@ class TestBankTimePreservation:
 
 
 class TestReconnectTurnState:
-    @pytest.mark.asyncio
     async def test_reconnect__when_it_is_players_turn__should_resend_draw_event(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
-        draw_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(
-                seat=0,
-                tile_id=42,
-                available_actions=[AvailableActionItem(action=PlayerAction.DISCARD)],
-                target="seat_0",
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-
-        _stub_game_state_for_reconnect(manager, current_seat=0)
-        manager._game_service.is_round_advance_pending = lambda gid: False
-        await manager.leave_game(alice_conn, notify_player=False)
+        alice_token = manager._players[conns[0].connection_id].session_token
+        manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
+        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
+        manager._game_service.get_awaiting = lambda gid: _awaiting(WaitKind.TURN, seat=0)
+        await manager.leave_game(conns[0], notify_player=False)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
+        reconnected = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
         draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
-        assert len(draw_msgs) == 1
-        assert draw_msgs[0]["d"] == encode_draw(0, 42)
+        assert reconnected["wi"] == 1
+        assert [(m["d"], m["wi"]) for m in draw_msgs] == [(encode_draw(0, 42), 1)]
+        assert manager._timer_manager.get_timer("game1", 0).task is not None
+
+        await manager.shutdown()
+
+    @pytest.mark.parametrize(
+        "awaiting",
+        [
+            _awaiting(WaitKind.TURN, seat=1),
+            _awaiting(WaitKind.CALL, seat=0),
+            _awaiting(WaitKind.ROUND_ADVANCE, seat=0),
+        ],
+    )
+    async def test_reconnect__when_the_game_awaits_no_turn_of_the_seat__should_send_no_draw_event(
+        self, manager, awaiting
+    ):
+        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
+        alice_token = manager._players[conns[0].connection_id].session_token
+        manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
+        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
+        manager._game_service.get_awaiting = lambda gid: awaiting
+        await manager.leave_game(conns[0], notify_player=False)
+
+        new_conn = MockConnection()
+        manager.register_connection(new_conn)
+        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
+        assert [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]] == []
+        assert manager._timer_manager.get_timer("game1", 0).task is None
 
 
 class TestReconnectEdgeCases:
@@ -376,7 +384,6 @@ class TestReconnectEdgeCases:
         game = manager._games["game1"]
         assert alice_conn.connection_id in game.players
 
-        _stub_game_state_for_reconnect(manager)
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
@@ -397,7 +404,6 @@ class TestReconnectEdgeCases:
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
 
         await manager.leave_game(alice_conn, notify_player=False)
-        _stub_game_state_for_reconnect(manager)
 
         session = manager._session_store.get_session(alice_token)
         # Bypass prevalidation by directly calling reconnect internals:
@@ -436,7 +442,6 @@ class TestReconnectEdgeCases:
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
 
         await manager.leave_game(alice_conn, notify_player=False)
-        _stub_game_state_for_reconnect(manager)
 
         # Patch _validate_reconnect to simulate auth timeout removing the
         # connection from _connections between prevalidation and lock acquisition.
@@ -461,27 +466,6 @@ class TestReconnectEdgeCases:
         manager._validate_reconnect = original_validate
 
     @pytest.mark.asyncio
-    async def test_reconnect__when_game_state_missing__should_send_no_draw_event(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-        manager._game_service.get_game_state = lambda gid: None
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        # reconnect succeeds, but no draw event sent
-        reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
-        assert len(reconnect_msgs) == 1
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
-        assert len(draw_msgs) == 0
-
-    @pytest.mark.asyncio
     async def test_reconnect__when_snapshot_raises__should_fail_the_game(self, manager):
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
@@ -501,73 +485,6 @@ class TestReconnectEdgeCases:
         assert manager.get_game("game1") is None
         assert (new_conn._close_code, new_conn._close_reason) == (1011, "internal_error")
         assert (conns[1]._close_code, conns[1]._close_reason) == (1011, "internal_error")
-
-    @pytest.mark.asyncio
-    async def test_reconnect__when_call_prompt_pending__should_send_no_draw_event(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
-        _stub_game_state_for_reconnect(manager, current_seat=0, pending_call_prompt=object())
-        manager._game_service.is_round_advance_pending = lambda gid: False
-
-        # Mock build_draw_event_for_seat to return a draw event so the assertion
-        # would fail if the pending_call_prompt check were missing.
-        draw_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(
-                seat=0,
-                tile_id=42,
-                available_actions=[AvailableActionItem(action=PlayerAction.DISCARD)],
-                target="seat_0",
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
-        assert len(draw_msgs) == 0
-
-    @pytest.mark.asyncio
-    async def test_reconnect__when_round_not_playing__should_send_no_draw_event(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_player = manager._players[alice_conn.connection_id]
-        alice_token = alice_player.session_token
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-        _stub_game_state_for_reconnect(manager, current_seat=0, phase=RoundPhase.FINISHED)
-        manager._game_service.is_round_advance_pending = lambda gid: False
-
-        # Mock build_draw_event_for_seat to return a draw event so the assertion
-        # would fail if the phase check were missing.
-        draw_event = ServiceEvent(
-            event=EventType.DRAW,
-            data=DrawEvent(
-                seat=0,
-                tile_id=42,
-                available_actions=[AvailableActionItem(action=PlayerAction.DISCARD)],
-                target="seat_0",
-            ),
-            target=SeatTarget(seat=0),
-        )
-        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [draw_event]
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        draw_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
-        assert len(draw_msgs) == 0
 
 
 class TestReconnectToEndedGame:
@@ -596,12 +513,13 @@ class TestReconnectThenPlay:
 
         snapshot = _make_snapshot("game1", seat=0)
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-        _stub_game_state_for_reconnect(manager)
 
         new_conn, _new_token = await disconnect_and_reconnect(manager, alice_conn, game_id="game1")
         new_conn._outbox.clear()
 
-        await manager.handle_game_action(new_conn, action=GameAction.DISCARD, data={"tile_id": 1})
+        await manager.handle_game_action(
+            new_conn, action=GameAction.DISCARD, data={"tile_id": 1}, wait_id=current_wait_id(manager)
+        )
         action_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(action_msgs) == 1
         assert action_msgs[0]["seat"] == 0
@@ -616,7 +534,6 @@ class TestMultipleReconnects:
 
         snapshot = _make_snapshot("game1", seat=0)
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-        _stub_game_state_for_reconnect(manager)
 
         bank_values = []
         current_conn = alice_conn

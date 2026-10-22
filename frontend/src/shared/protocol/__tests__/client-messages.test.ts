@@ -52,111 +52,123 @@ describe("client message builders", () => {
 
     describe("tile-based game actions", () => {
         it("buildDiscardAction creates correct wire format", () => {
-            const msg = buildDiscardAction(42);
+            const msg = buildDiscardAction(42, 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.DISCARD,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 42,
+                wi: 7,
             });
         });
 
         it("buildRiichiAction creates correct wire format", () => {
-            const msg = buildRiichiAction(99);
+            const msg = buildRiichiAction(99, 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.DECLARE_RIICHI,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 99,
+                wi: 7,
             });
         });
 
         it("buildPonAction creates correct wire format", () => {
-            const msg = buildPonAction(55);
+            const msg = buildPonAction(55, 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_PON,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 55,
+                wi: 7,
             });
         });
 
         it("buildChiAction creates correct wire format", () => {
-            const msg = buildChiAction(20, [16, 24]);
+            const msg = buildChiAction(20, [16, 24], 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_CHI,
                 sequence_tiles: [16, 24],
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 20,
+                wi: 7,
             });
         });
 
         it("buildKanAction creates correct wire format with open kan", () => {
-            const msg = buildKanAction(80, KAN_TYPE.OPEN);
+            const msg = buildKanAction(80, KAN_TYPE.OPEN, 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_KAN,
                 kan_type: "open",
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 80,
+                wi: 7,
             });
         });
 
         it("buildKanAction creates correct wire format with closed kan", () => {
-            const msg = buildKanAction(0, KAN_TYPE.CLOSED);
+            const msg = buildKanAction(0, KAN_TYPE.CLOSED, 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_KAN,
                 kan_type: "closed",
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 0,
+                wi: 7,
             });
         });
 
         it("buildKanAction creates correct wire format with added kan", () => {
-            const msg = buildKanAction(36, KAN_TYPE.ADDED);
+            const msg = buildKanAction(36, KAN_TYPE.ADDED, 7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_KAN,
                 kan_type: "added",
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 ti: 36,
+                wi: 7,
             });
         });
     });
 
     describe("simple game actions", () => {
         it("buildTsumoAction creates correct wire format", () => {
-            const msg = buildTsumoAction();
+            const msg = buildTsumoAction(7);
             expect(msg).toEqual({
                 a: GAME_ACTION.DECLARE_TSUMO,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                wi: 7,
             });
         });
 
         it("buildRonAction creates correct wire format", () => {
-            const msg = buildRonAction();
+            const msg = buildRonAction(7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_RON,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                wi: 7,
             });
         });
 
         it("buildKyuushuAction creates correct wire format", () => {
-            const msg = buildKyuushuAction();
+            const msg = buildKyuushuAction(7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CALL_KYUUSHU,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                wi: 7,
             });
         });
 
         it("buildPassAction creates correct wire format", () => {
-            const msg = buildPassAction();
+            const msg = buildPassAction(7);
             expect(msg).toEqual({
                 a: GAME_ACTION.PASS,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                wi: 7,
             });
         });
 
         it("buildConfirmRoundAction creates correct wire format", () => {
-            const msg = buildConfirmRoundAction();
+            const msg = buildConfirmRoundAction(7);
             expect(msg).toEqual({
                 a: GAME_ACTION.CONFIRM_ROUND,
                 t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                wi: 7,
             });
         });
     });

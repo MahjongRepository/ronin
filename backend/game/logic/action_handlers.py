@@ -19,6 +19,7 @@ from game.logic.events import (
     EventType,
     GameEvent,
     RoundEndEvent,
+    SeatTarget,
 )
 from game.logic.exceptions import GameRuleError, ImpossibleActionError, InvalidGameActionError
 from game.logic.state import (
@@ -74,7 +75,7 @@ def _create_error_result(
     Answer the acting seat with an ErrorEvent and leave the state unchanged.
     """
     return ActionResult(
-        events=[ErrorEvent(code=code, message=message, target=f"seat_{seat}")],
+        events=[ErrorEvent(code=code, message=message, target=SeatTarget(seat=seat))],
         new_round_state=round_state,
         new_game_state=game_state,
     )
@@ -121,7 +122,7 @@ def _validate_call_prompt(
                 ErrorEvent(
                     code=error_code,
                     message="no pending call prompt",
-                    target=f"seat_{seat}",
+                    target=SeatTarget(seat=seat),
                 ),
             ],
             new_round_state=round_state,
@@ -135,7 +136,7 @@ def _validate_call_prompt(
                 ErrorEvent(
                     code=error_code,
                     message="tile_id mismatch",
-                    target=f"seat_{seat}",
+                    target=SeatTarget(seat=seat),
                 ),
             ],
             new_round_state=round_state,
@@ -382,7 +383,7 @@ def handle_ron(
                 ErrorEvent(
                     code=GameErrorCode.INVALID_RON,
                     message="no pending call prompt",
-                    target=f"seat_{seat}",
+                    target=SeatTarget(seat=seat),
                 ),
             ],
             new_round_state=round_state,
@@ -645,7 +646,7 @@ def handle_kyuushu(
     new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.FINISHED})
     new_game_state = update_game_with_round(game_state, new_round_state)
 
-    events: list[GameEvent] = [RoundEndEvent(result=result, target="all")]
+    events: list[GameEvent] = [RoundEndEvent(result=result)]
     return ActionResult(events, new_round_state=new_round_state, new_game_state=new_game_state)
 
 
@@ -673,7 +674,7 @@ def handle_pass(
                 ErrorEvent(
                     code=GameErrorCode.INVALID_PASS,
                     message="no pending call prompt",
-                    target=f"seat_{seat}",
+                    target=SeatTarget(seat=seat),
                 ),
             ],
             new_round_state=round_state,

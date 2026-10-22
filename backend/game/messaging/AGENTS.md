@@ -19,5 +19,11 @@ messages and error codes in `types.py`, client codes in `wire_enums.py`, event c
   that seat's discard; a discard's call prompt is split per seat and a seat that can both ron and
   meld gets only the ron prompt; `furiten` goes only to its seat, and only on a change, so the
   `game_reconnected` snapshot carries the seat's current furiten.
+* Wait identity: the session stamps the current wait id as `wi` (`stamp_wait_id`) at send time on
+  the message that opens a wait: the draw to the awaited seat, or that seat's pon or chi when no
+  draw follows; each call prompt to an awaited seat; the round end (none when the game ended). The
+  reconnect draw re-send follows the same rule and `game_reconnected` always carries `wi`. Every
+  game action must echo it (`wi`, required); a missing one is `invalid_message`, an old one
+  `stale_action`. The replay collector shapes its own payloads, so `wi` never reaches a replay file.
 * The frontend mirrors this protocol in `frontend/src/shared/protocol/`; change both in the same
   change.

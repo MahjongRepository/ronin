@@ -1,9 +1,7 @@
 from unittest.mock import MagicMock
 
 from game.logic.events import (
-    BroadcastTarget,
     DiscardEvent,
-    EventType,
     GameEndedEvent,
     ServiceEvent,
 )
@@ -12,7 +10,7 @@ from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import make_test_game_ticket
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, MockConnection, MockGameService
 
 from .helpers import make_game_with_player
 
@@ -26,9 +24,7 @@ def _make_manager_with_collector() -> tuple[SessionManager, MagicMock, MockGameS
 
 def _make_game_end_event() -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.GAME_END,
         data=GameEndedEvent(
-            target="all",
             winner_seat=0,
             standings=[
                 PlayerStanding(
@@ -38,15 +34,12 @@ def _make_game_end_event() -> ServiceEvent:
                 ),
             ],
         ),
-        target=BroadcastTarget(),
     )
 
 
 def _make_discard_event() -> ServiceEvent:
     return ServiceEvent(
-        event=EventType.DISCARD,
         data=DiscardEvent(seat=0, tile_id=10),
-        target=BroadcastTarget(),
     )
 
 
@@ -86,7 +79,7 @@ class TestSessionReplayCollect:
         game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_discard_event()]
-        await manager._broadcast_events(game, events)
+        await manager._broadcast_events(game, events, MOCK_AWAITING)
         collector.collect_events.assert_called_once_with("game1", events)
 
 
@@ -96,7 +89,7 @@ class TestSessionReplaySave:
         game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_game_end_event()]
-        await manager._broadcast_events(game, events)
+        await manager._broadcast_events(game, events, MOCK_GAME_OVER)
         collector.save.assert_awaited_once_with("game1", collector.detach_game.return_value)
 
     async def test_replay_save__when_no_game_end_event__should_not_save(self):
@@ -104,7 +97,7 @@ class TestSessionReplaySave:
         game, _player, _conn = make_game_with_player(manager)
 
         events = [_make_discard_event()]
-        await manager._broadcast_events(game, events)
+        await manager._broadcast_events(game, events, MOCK_AWAITING)
         collector.save.assert_not_called()
 
 
