@@ -73,10 +73,6 @@ def _build_csp_headers(
     )
 
 
-# Module-level default for backward compatibility with tests
-SECURITY_HEADERS = _build_csp_headers("")[0]
-
-
 class SecurityHeadersMiddleware:
     """
     Inject standard security headers into every HTTP response.

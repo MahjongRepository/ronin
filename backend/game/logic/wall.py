@@ -47,7 +47,7 @@ class Wall(BaseModel):
     ura_dora_indicators: tuple[int, ...] = ()
     pending_dora_count: int = 0
     rinshan_draws_count: int = 0
-    dice: tuple[int, int] = (1, 1)  # Two dice values (each 1-6), default (1,1) for tests
+    dice: tuple[int, int] = (1, 1)
 
 
 def _extract_ura_dora(dead_wall_tiles: tuple[int, ...]) -> tuple[int, ...]:
@@ -141,15 +141,13 @@ def create_wall(*, seed: str, round_number: int, dealer_seat: int) -> Wall:
     )
 
 
-def create_wall_from_tiles(tiles: list[int], dice: tuple[int, int] = (1, 1)) -> Wall:
+def create_wall_from_tiles(tiles: list[int]) -> Wall:
     """
     Create wall from explicit tile order (for tests/replays).
 
     Uses simple positional split (last 14 = dead wall, first 122 = live wall)
     without dice-based rotation. This lets tests control exactly which tiles
     go where without needing to compute break positions.
-
-    The dice parameter stores the dice values as metadata for display tests.
     """
     if len(tiles) != NUM_TILES:
         raise ValueError(f"Expected {NUM_TILES} tiles, got {len(tiles)}")
@@ -168,7 +166,6 @@ def create_wall_from_tiles(tiles: list[int], dice: tuple[int, int] = (1, 1)) -> 
         dead_wall_tiles=dead_wall_tiles,
         dora_indicators=dora_indicators,
         ura_dora_indicators=_extract_ura_dora(dead_wall_tiles),
-        dice=dice,
     )
 
 

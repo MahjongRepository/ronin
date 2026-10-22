@@ -30,7 +30,7 @@ def _update_player(round_state, seat, **updates: object):
 
 class TestGetAvailableActions:
     def _create_game_state(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         # draw a tile for the dealer
         new_round_state, _tile = draw_tile(game_state.round_state)
         return game_state.model_copy(update={"round_state": new_round_state})
@@ -44,7 +44,7 @@ class TestGetAvailableActions:
         assert len(discard_actions) == 0
 
     def test_get_available_actions__when_kan_available__should_list_kan_tiles(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 4 of the same tile for closed kan
@@ -59,7 +59,7 @@ class TestGetAvailableActions:
         assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
 
     def test_get_available_actions__when_wall_empty__should_not_offer_kan(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 4 of the same tile plus 10 more to make 14 total
@@ -86,7 +86,7 @@ class TestGetAvailableActions:
 
 class TestTsumoAfterOwnCall:
     def test_tsumo__when_hand_complete_right_after_own_pon__should_be_neither_offered_nor_accepted(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
         haku_pon = FrozenMeld(
             meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, called_tile=haku_tiles[0], who=0, from_who=3
@@ -110,7 +110,7 @@ class TestTsumoAfterOwnCall:
 
 class TestAddedKanAction:
     def test_added_kan_action__when_pon_and_fourth_tile_in_hand__should_be_offered(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # set up player with a pon of 1m and 4th tile in hand

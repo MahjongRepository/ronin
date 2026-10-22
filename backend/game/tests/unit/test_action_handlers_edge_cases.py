@@ -60,7 +60,7 @@ def _default_seat_configs() -> list[SeatConfig]:
 
 
 def _create_frozen_game_state() -> MahjongGameState:
-    game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+    game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -93,7 +93,7 @@ class TestPickBestMeldResponse:
 
 class TestResolveMeldResponse:
     def test_resolve_meld_response__when_open_kan_with_minimal_live_wall__should_resolve_kan(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # wall needs at least min_wall_for_kan (2) tiles to pass the guard
@@ -136,7 +136,7 @@ class TestResolveMeldResponse:
         assert any(m.type == FrozenMeld.KAN for m in result.new_round_state.players[1].melds)
 
     def test_resolve_meld_response__when_open_kan_is_fourth_kan__should_abort_round(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # 3 existing kans across different players
@@ -196,7 +196,7 @@ class TestResolveMeldResponse:
 
 class TestCompleteAddedKanAfterChankanDecline:
     def test_complete_added_kan__when_fourth_kan_after_chankan_decline__should_abort_round(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # create 2 existing kans for player 0
@@ -275,7 +275,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
 class TestHandlePonMultiCaller:
     def test_handle_pon__when_other_callers_pending__should_wait_for_them(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = 0
@@ -311,7 +311,7 @@ class TestHandlePonMultiCaller:
 
 class TestHandleChiMultiCaller:
     def test_handle_chi__when_other_callers_pending__should_wait_for_them(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
@@ -346,7 +346,7 @@ class TestHandleChiMultiCaller:
 
 class TestHandleKanMultiCaller:
     def test_handle_kan__when_other_callers_pending__should_wait_for_them(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         tile_id = TilesConverter.string_to_136_array(man="5")[0]
@@ -412,7 +412,7 @@ class TestHandleChiTileMismatch:
 
 class TestHandleKanCausesDraw:
     def test_handle_kan__when_fourth_closed_kan_across_players__should_abort_round(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # create 2 existing kans for player 0
@@ -482,7 +482,7 @@ class TestHandleKanCausesDraw:
 
 class TestHandleKanChankanOpportunity:
     def test_handle_kan__when_chankan_possible__should_emit_chankan_prompt(self):
-        game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state, _tile = draw_tile(game_state.round_state)
 
         # player 0 has a pon of 1m that can be upgraded to added kan

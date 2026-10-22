@@ -2,7 +2,6 @@ import json
 import logging
 import logging.handlers
 from enum import Enum
-from unittest.mock import patch
 
 import pytest
 import structlog
@@ -17,12 +16,6 @@ def _cleanup_root_logger():
     for handler in root.handlers[:]:
         handler.close()
         root.removeHandler(handler)
-
-
-@pytest.fixture(autouse=True)
-def _allow_file_logging():
-    with patch("shared.logging._is_test", return_value=False):
-        yield
 
 
 class TestSetupLogging:

@@ -11,15 +11,22 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.testclient import TestClient
 
-from lobby.server.middleware import (
-    SECURITY_HEADERS,
-    SecurityHeadersMiddleware,
-    SlashNormalizationMiddleware,
-)
+from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.websockets import WebSocket
+
+_LOBBY_SECURITY_HEADERS = {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "content-security-policy": (
+        "default-src 'self'; script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; connect-src 'self'; "
+        "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
+    ),
+}
 
 
 async def _echo_path(request: Request) -> JSONResponse:
@@ -88,14 +95,14 @@ class TestSecurityHeadersMiddleware:
     def test_security_headers_middleware__when_success__should_add_headers(self, security_client: TestClient):
         response = security_client.get("/items")
         assert response.status_code == 200
-        for name, value in SECURITY_HEADERS:
-            assert response.headers[name.decode()] == value.decode()
+        for name, value in _LOBBY_SECURITY_HEADERS.items():
+            assert response.headers[name] == value
 
     def test_security_headers_middleware__when_404__should_add_headers(self, security_client: TestClient):
         response = security_client.get("/nonexistent")
         assert response.status_code == 404
-        for name, value in SECURITY_HEADERS:
-            assert response.headers[name.decode()] == value.decode()
+        for name, value in _LOBBY_SECURITY_HEADERS.items():
+            assert response.headers[name] == value
 
     def test_security_headers_middleware__when_websocket__should_pass_through(self, security_client: TestClient):
         with security_client.websocket_connect("/ws") as ws:

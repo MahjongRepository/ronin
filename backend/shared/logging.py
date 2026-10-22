@@ -36,10 +36,6 @@ def _serialize_enums(
     return event_dict
 
 
-def _is_test() -> bool:
-    return "pytest" in sys.modules
-
-
 class LoggingSettings(BaseSettings):
     model_config = {"env_prefix": ""}
 
@@ -142,7 +138,7 @@ def setup_logging(
     stdout_handler.setFormatter(stdout_formatter)
     root_logger.addHandler(stdout_handler)
 
-    if log_dir and not _is_test():
+    if log_dir:
         dir_path = Path(log_dir)
         dir_path.mkdir(parents=True, exist_ok=True)
         file_path = dir_path / "app.log"

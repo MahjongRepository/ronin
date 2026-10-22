@@ -100,24 +100,22 @@ def calculate_final_scores(
 
 def init_game(
     seat_configs: list[SeatConfig],
-    seed: str = "",
+    seed: str,
     settings: GameSettings | None = None,
     wall: list[int] | None = None,
 ) -> MahjongGameState:
     """
     Initialize a new mahjong game with seat configurations.
 
-    All players start with starting_score points (from settings). First dealer is determined by two-dice-roll method
-    (二度振り) when using seed-based RNG. When wall is provided (test mode), dealer defaults to seat 0. Returns a frozen
-    MahjongGameState.
+    All players start with starting_score points (from settings). The seed picks the first dealer by two dice rolls
+    (二度振り); with a fixed wall, dealer is seat 0. Returns a frozen MahjongGameState.
     """
     game_settings = settings or GameSettings()
 
     validate_settings(game_settings)
 
     # Determine first dealer using two-dice-roll method (二度振り)
-    # When wall is provided (test mode), skip RNG-based dealer selection
-    if wall is not None or not seed:
+    if wall is not None:
         dealer_seat = 0
         dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
     else:

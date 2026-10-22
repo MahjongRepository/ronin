@@ -7,7 +7,7 @@ from shared.lib.melds.compact import (
     encode_game_event,
     encode_meld_compact,
 )
-from shared.lib.melds.fixtures import build_all_fixtures
+from shared.tests.lib.melds.meld_fixtures import build_all_fixtures
 
 
 class TestRoundTrip:

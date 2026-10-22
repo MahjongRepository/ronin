@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from typing import Protocol, runtime_checkable
 
 import bcrypt
@@ -20,12 +19,16 @@ class PasswordHasher(Protocol):
 
 class BcryptHasher:
     """
-    Production hasher using bcrypt (async, off-thread).
+    Hash passwords with bcrypt at the given cost (async, off-thread).
     """
+
+    def __init__(self, rounds: int) -> None:
+        self._rounds = rounds
 
     async def hash(self, plain: str) -> str:
         encoded = plain.encode("utf-8")
-        return await to_thread.run_sync(lambda: bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8"))
+        salt = bcrypt.gensalt(rounds=self._rounds)
+        return await to_thread.run_sync(lambda: bcrypt.hashpw(encoded, salt).decode("utf-8"))
 
     async def verify(self, plain: str, hashed: str) -> bool:
         """
@@ -37,37 +40,3 @@ class BcryptHasher:
             return await to_thread.run_sync(lambda: bcrypt.checkpw(encoded_plain, encoded_hash))
         except ValueError:
             return False
-
-
-_SIMPLE_PREFIX = "simple$"
-
-
-class SimpleHasher:
-    """
-    Fast SHA-256 hasher for tests.
-
-    Not suitable for production use.
-    """
-
-    async def hash(self, plain: str) -> str:
-        return _SIMPLE_PREFIX + hashlib.sha256(plain.encode("utf-8")).hexdigest()
-
-    async def verify(self, plain: str, hashed: str) -> bool:
-        if not hashed.startswith(_SIMPLE_PREFIX):
-            return False
-
-        expected = _SIMPLE_PREFIX + hashlib.sha256(plain.encode("utf-8")).hexdigest()
-        return hashed == expected
-
-
-def get_hasher(name: str = "bcrypt") -> PasswordHasher:
-    """
-    Return a PasswordHasher by name ("bcrypt" or "simple").
-    """
-    if name == "bcrypt":
-        return BcryptHasher()
-
-    if name == "simple":
-        return SimpleHasher()
-
-    raise ValueError(f"Unknown password hasher: {name!r}")

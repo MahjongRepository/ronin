@@ -15,5 +15,4 @@ class AuthSettings(BaseSettings):
     # Cookie Secure flag -- True in production, False for local dev (HTTP)
     cookie_secure: bool = True
 
-    # Password hasher: "bcrypt" (production) or "simple" (tests)
-    password_hasher: str = "bcrypt"  # noqa: S105
+    bcrypt_rounds: int = Field(default=12, ge=4, le=31)

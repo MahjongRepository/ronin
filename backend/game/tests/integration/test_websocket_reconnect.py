@@ -64,7 +64,6 @@ def _start_game_and_get_ticket(client: TestClient) -> str:
 
         # Inject a "Player2" mock connection into the game so it survives Player1 leaving
         p2_conn = MockConnection()
-        sm.register_connection(p2_conn)
         p2_session = sm._session_store.create_session(player_name="Player2", game_id="test_game", token="p2-token")
         sm._session_store.bind_seat(p2_session.session_token, 1)
 

@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from shared.auth.password import SimpleHasher
+from shared.auth.password import BcryptHasher
 from shared.auth.service import AuthError, AuthService
 from shared.auth.settings import AuthSettings
 from shared.db import Database, SqlitePlayerRepository
@@ -13,16 +13,14 @@ async def main() -> None:
         sys.exit(1)
 
     bot_name = sys.argv[1]
-    db_path = AuthSettings().database_path
+    auth_settings = AuthSettings()
 
-    db = Database(db_path)
+    db = Database(auth_settings.database_path)
     db.connect()
 
     try:
         player_repo = SqlitePlayerRepository(db)
-        # Bot registration only hashes API keys with SHA-256 (not passwords),
-        # so the password hasher choice doesn't matter here.
-        auth_service = AuthService(player_repo, password_hasher=SimpleHasher())
+        auth_service = AuthService(player_repo, password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds))
         player, raw_api_key = await auth_service.register_bot(bot_name)
     except AuthError as e:
         print(f"Error: {e}")

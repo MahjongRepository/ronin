@@ -370,7 +370,7 @@ def _create_double_ron_game_state(
     waiting_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1112"))
     win_tile = TilesConverter.string_to_136_array(pin="22")[1]
 
-    game_state = init_game(_seat_configs(), settings=settings, wall=list(range(136)))
+    game_state = init_game(_seat_configs(), seed="a" * 192, settings=settings, wall=list(range(136)))
     round_state = game_state.round_state
     round_state = update_player(round_state, 1, tiles=waiting_tiles)
     round_state = update_player(round_state, 2, tiles=waiting_tiles)

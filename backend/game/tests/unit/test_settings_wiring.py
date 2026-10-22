@@ -57,7 +57,7 @@ class TestValidateSettings:
     def test_init_game__when_settings_unsupported__should_raise(self):
         configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
         with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
-            init_game(configs, settings=GameSettings(has_agariyame=True))
+            init_game(configs, seed="a" * 192, settings=GameSettings(has_agariyame=True))
 
 
 # ============================================================================

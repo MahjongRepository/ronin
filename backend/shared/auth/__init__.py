@@ -6,7 +6,7 @@ from shared.auth.game_ticket import (
     verify_game_ticket,
 )
 from shared.auth.models import AuthSession
-from shared.auth.password import BcryptHasher, PasswordHasher, SimpleHasher, get_hasher
+from shared.auth.password import BcryptHasher, PasswordHasher
 from shared.auth.service import AuthError, AuthService
 from shared.auth.session_store import AuthSessionStore
 from shared.auth.settings import AuthSettings
@@ -21,9 +21,7 @@ __all__ = [
     "BcryptHasher",
     "GameTicket",
     "PasswordHasher",
-    "SimpleHasher",
     "create_signed_ticket",
-    "get_hasher",
     "sign_game_ticket",
     "verify_game_ticket",
 ]

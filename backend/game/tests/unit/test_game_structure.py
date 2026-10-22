@@ -64,7 +64,7 @@ class TestStartingScore:
         seat_configs = [SeatConfig(name=f"P{i}") for i in range(4)]
         wall = list(range(136))
 
-        game_state = init_game(seat_configs, settings=GameSettings(starting_score=30000), wall=wall)
+        game_state = init_game(seat_configs, seed="a" * 192, settings=GameSettings(starting_score=30000), wall=wall)
         for player in game_state.round_state.players:
             assert player.score == 30000
 

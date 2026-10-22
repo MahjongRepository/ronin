@@ -71,7 +71,7 @@ def _default_seat_configs():
 
 
 def _create_frozen_game_state():
-    game_state = init_game(_default_seat_configs(), wall=list(range(136)))
+    game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 

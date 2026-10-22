@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from shared.auth.password import SimpleHasher
+from shared.auth.password import BcryptHasher
 from shared.auth.service import AuthError, AuthService
 from shared.auth.session_store import AuthSessionStore
 from shared.dal.models import AccountType, Player
@@ -33,7 +33,7 @@ def player_repo(tmp_path: Path):
 
 @pytest.fixture
 def auth_service(player_repo, session_store):
-    return AuthService(player_repo, session_store, password_hasher=SimpleHasher())
+    return AuthService(player_repo, session_store, password_hasher=BcryptHasher(rounds=4))
 
 
 class TestRegister:
@@ -222,7 +222,7 @@ class TestValidateApiKey:
 
 class TestSessionStoreRequired:
     async def test_auth_service_login__when_no_session_store__should_raise(self, player_repo):
-        svc = AuthService(player_repo, password_hasher=SimpleHasher())
+        svc = AuthService(player_repo, password_hasher=BcryptHasher(rounds=4))
         await svc.register("alice", "password123")
         with pytest.raises(RuntimeError, match="session_store is required"):
             await svc.login("alice", "password123")

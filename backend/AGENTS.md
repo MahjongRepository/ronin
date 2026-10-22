@@ -64,8 +64,8 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
   code reads the environment (never `os.environ`): `AuthSettings` (`shared/auth/settings.py`,
   `AUTH_`), `LobbyServerSettings` (`lobby/settings.py`, `LOBBY_`), `GameServerSettings`
   (`game/server/settings.py`, `GAME_`), `LoggingSettings` (`shared/logging.py`, no prefix).
-* A safe application default (timeouts, capacity, cookie and hasher choice, asset paths inside the
-  app layout) stays in the class. A deployment-specific value (secrets, the database, replay and
+* A safe application default (timeouts, capacity, the cookie flag and bcrypt cost, asset paths inside
+  the app layout) stays in the class. A deployment-specific value (secrets, the database, replay and
   server-list paths, allowed hosts and origins) is a required field with no default, so a
   misconfigured deployment fails at startup: `deploy/docker-compose.yml` supplies it in production,
   `bin/local-settings.sh` (sourced by `bin/run-local-server.sh`) locally, and `.env.tests` in tests,
@@ -73,6 +73,8 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
 * Both servers share `AUTH_GAME_TICKET_SECRET` (the lobby signs tickets, the game server verifies
   them) and the SQLite database at `AUTH_DATABASE_PATH`.
 * `AUTH_COOKIE_SECURE` defaults to `true`; `.env.local` and `.env.tests` set it to `false`.
+* `AUTH_BCRYPT_ROUNDS` defaults to 12; `.env.tests` sets bcrypt's minimum (4) so tests hash fast.
+  Production and tests run the same hasher: there is no test-only one.
 * Production values live in `deploy/docker-compose.yml` and the server's `/opt/ronin/.env`.
 
 ## Conventions

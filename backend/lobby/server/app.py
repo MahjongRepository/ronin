@@ -59,7 +59,7 @@ from lobby.views.auth_handlers import (
 )
 from lobby.views.bot_api_handlers import bot_auth, bot_create_room, bot_matchmaking_auth
 from shared.auth import AuthService, AuthSessionStore
-from shared.auth.password import get_hasher
+from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
 from shared.build_info import APP_VERSION, GIT_COMMIT
 from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository
@@ -256,7 +256,7 @@ def create_app(
     game_repo = SqliteGameRepository(db)
 
     session_store = AuthSessionStore()
-    hasher = get_hasher(auth_settings.password_hasher)
+    hasher = BcryptHasher(rounds=auth_settings.bcrypt_rounds)
     auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
 
     @contextlib.asynccontextmanager
