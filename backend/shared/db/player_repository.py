@@ -1,9 +1,7 @@
-import asyncio
 import json
 import sqlite3
+from functools import partial
 from typing import TYPE_CHECKING
-
-import structlog
 
 from shared.dal.models import Player
 from shared.dal.player_repository import PlayerRepository
@@ -11,20 +9,17 @@ from shared.dal.player_repository import PlayerRepository
 if TYPE_CHECKING:
     from shared.db.connection import Database
 
-logger = structlog.get_logger()
-
 
 class SqlitePlayerRepository(PlayerRepository):
     """
     SQLite implementation of PlayerRepository.
 
-    Uses a single INSERT under an asyncio lock to avoid race windows between existence checks and inserts. Relies on
-    database uniqueness constraints and maps IntegrityError to domain ValueError.
+    A single INSERT, with no existence check before it, relies on the database's uniqueness constraints and maps their
+    IntegrityError to a domain ValueError.
     """
 
     def __init__(self, db: Database) -> None:
         self._db = db
-        self._lock = asyncio.Lock()
 
     async def create_player(self, player: Player) -> None:
         """
@@ -32,61 +27,50 @@ class SqlitePlayerRepository(PlayerRepository):
 
         Raises ValueError on duplicate id, username, or api_key_hash.
         """
-
-        async with self._lock:
-            try:
-                self._db.connection.execute(
-                    "INSERT INTO players (id, username, api_key_hash, data) VALUES (?, ?, ?, ?)",
-                    (
-                        player.user_id,
-                        player.username,
-                        player.api_key_hash,
-                        player.model_dump_json(),
-                    ),
-                )
-                self._db.connection.commit()
-            except sqlite3.IntegrityError as exc:
-                self._db.connection.rollback()
-                error_msg = str(exc).lower()
-                if "players.id" in error_msg:
-                    raise ValueError(
-                        f"Player with id '{player.user_id}' already exists",
-                    ) from exc
-
-                if "players.username" in error_msg or "idx_players_username" in error_msg:
-                    raise ValueError(
-                        f"Username '{player.username}' already taken",
-                    ) from exc
-
-                if "players.api_key_hash" in error_msg or "idx_players_api_key_hash" in error_msg:
-                    raise ValueError(
-                        "API key hash already in use",
-                    ) from exc
-
-                raise ValueError(str(exc)) from exc  # pragma: no cover
+        await self._db.submit_write(partial(_insert_player, player=player))
 
     async def get_by_username(self, username: str) -> Player | None:
         """
         Look up a player by username (case-insensitive).
         """
-        row = self._db.connection.execute(
-            "SELECT data FROM players WHERE username = ? COLLATE NOCASE",
-            (username,),
-        ).fetchone()
-        if row is None:
-            return None
-
-        return Player.model_validate(json.loads(row[0]))
+        query = "SELECT data FROM players WHERE username = ? COLLATE NOCASE"
+        return await self._db.submit_read(partial(_select_player, query=query, value=username))
 
     async def get_by_api_key_hash(self, api_key_hash: str) -> Player | None:
         """
         Look up a player by API key hash.
         """
-        row = self._db.connection.execute(
-            "SELECT data FROM players WHERE api_key_hash = ?",
-            (api_key_hash,),
-        ).fetchone()
-        if row is None:
-            return None
+        query = "SELECT data FROM players WHERE api_key_hash = ?"
+        return await self._db.submit_read(partial(_select_player, query=query, value=api_key_hash))
 
-        return Player.model_validate(json.loads(row[0]))
+
+def _insert_player(conn: sqlite3.Connection, *, player: Player) -> None:
+    try:
+        conn.execute(
+            "INSERT INTO players (id, username, api_key_hash, data) VALUES (?, ?, ?, ?)",
+            (player.user_id, player.username, player.api_key_hash, player.model_dump_json()),
+        )
+    except sqlite3.IntegrityError as exc:
+        raise _duplicate_player_error(player, exc) from exc
+
+
+def _duplicate_player_error(player: Player, exc: sqlite3.IntegrityError) -> ValueError:
+    error_msg = str(exc).lower()
+    if "players.id" in error_msg:
+        return ValueError(f"Player with id '{player.user_id}' already exists")
+
+    if "players.username" in error_msg or "idx_players_username" in error_msg:
+        return ValueError(f"Username '{player.username}' already taken")
+
+    if "players.api_key_hash" in error_msg or "idx_players_api_key_hash" in error_msg:
+        return ValueError("API key hash already in use")
+
+    return ValueError(str(exc))
+
+
+def _select_player(conn: sqlite3.Connection, *, query: str, value: str) -> Player | None:
+    row = conn.execute(query, (value,)).fetchone()
+    if row is None:
+        return None
+
+    return Player.model_validate(json.loads(row[0]))

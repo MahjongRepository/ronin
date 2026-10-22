@@ -7,6 +7,14 @@ repository interfaces) and the SQLite implementations (`shared/db/`), replay sto
 (`shared/storage.py`), logging, and the IMME meld encoding (`shared/lib/melds/`, see its
 `README.md`).
 
+Each process opens the database once, as a `shared.db.Database`: one worker thread owns the SQLite
+connection and runs the repositories' operations one at a time, in call order, so the event loop
+never waits on SQLite. Every write is its own `BEGIN IMMEDIATE` transaction, rolled back on any
+error. A caller awaits a read or a write whose result it needs; a write nobody waits for (the game
+records) is posted, and its failure is logged with the operation and game id, never raised. The
+lifespans open it and, last on the way out, drain and close it within a bounded wait that outlasts
+the busy timeout; a write still unfinished when the wait runs out is logged with its game.
+
 ## Boundaries
 
 `import-linter` (`[tool.importlinter]` in `pyproject.toml`, run by `make lint` as `lint-imports`)

@@ -30,7 +30,7 @@ per-game lock.
   first; `fail_game` claims it the same way. The claimer is bound to finish: right after its
   game-end broadcast the same path saves the detached replay, records the finish and closes the
   sockets. If the broadcast or the replay save raises, it escalates its own claim to a failure,
-  finished by the fail_game finalizer; once the finish record is written (best-effort, as all
+  finished by the fail_game finalizer; once the finish record is posted (best-effort, as all
   persistence) the completion stands, and a socket whose close fails is logged while the rest still
   close. Only the claimer escalates; a concurrent `fail_game` still finds the game ended and does
   nothing. An action, a timeout or a reconnect that reaches an ended game is refused (reconnect with
@@ -81,6 +81,13 @@ per-game lock.
 * **Replays:** `ReplayCollector` keeps broadcast events plus each seat's draws (without available
   actions), merges the per-seat `round_started` views into one record holding every hand, adds the
   seed to `game_started`, and saves gzip NDJSON with a version line on game end.
-* **Persistence** of game starts and ends (`GameRepository`) is best-effort: log a database failure,
-  never let it block gameplay or socket cleanup. The start record takes each human's `user_id` by
-  seat, so AI seats get none even when a human shares an AI-style name.
+* **Persistence** of game starts and ends (`GameRepository`, required) is best-effort and never
+  awaited: the session posts each record and goes on, so recording adds no suspension point, and
+  the repository logs a failed write. The start record (`Game.start_record`) is captured right after
+  `start_game`, every seat in seat order, each human's `user_id` by seat (so AI seats get none even
+  when a human shares an AI-style name). Every finish record, completed, abandoned or failed, is
+  built whole from it (`build_finish_record`) plus, for a completion, the `GameEndedEvent`
+  standings in placement order; never from engine or connection state at the end, so a
+  never-connected or departed seat keeps its name and `user_id`. A game with no start record (it
+  never started) records no finish. The finish is an upsert: it lands even when the start write
+  failed, and the first finish wins.

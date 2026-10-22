@@ -6,7 +6,7 @@ from game.logic.enums import GameAction, TimeoutType
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.messaging.types import SessionMessageType
 from game.session.manager import SessionManager
-from game.tests.mocks import MockConnection, MockResultEvent, mock_update
+from game.tests.mocks import FakeGameRepository, MockConnection, MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import create_started_game, current_wait_id, run_timeout
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 class TestSessionManagerDisconnect:
     async def test_disconnect__when_one_of_two_humans_leaves__should_replace_with_ai_and_keep_game(self, seeded_engine):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
         bob_seat = manager._players[conns[1].connection_id].seat
@@ -99,35 +99,6 @@ class TestSessionManagerDisconnect:
         # should be a no-op because _get_player_at_seat returns None for seat 0
         await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         assert len(conns[1].sent_messages) == 0
-
-    async def test_disconnect__when_game_lock_missing__should_skip_ai_replacement_and_mark_session_disconnected(
-        self, manager
-    ):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-
-        player = manager._players.get(conns[0].connection_id)
-        token = player.session_token
-        # remove the game lock to simulate the startup window where
-        # game.started is True but the lock hasn't been created yet
-        manager._game_locks.pop("game1", None)
-
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(game_id, seat):
-            replace_calls.append((game_id, seat))
-            return original_replace(game_id, seat)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-
-        # leave_game should skip AI player replacement (no lock) but use started-game
-        # session semantics (mark_disconnected, not remove_session)
-        await manager.leave_game(conns[0])
-        assert len(replace_calls) == 0
-        # session should be marked disconnected (not removed) since game.started is True
-        session = manager._session_store._sessions.get(token)
-        assert session is not None
-        assert session.disconnected_at is not None
 
 
 class _FirstSendHold:

@@ -20,7 +20,7 @@ from game.tests.helpers.websocket import (
     recv_ws,
     send_ws,
 )
-from game.tests.mocks import MOCK_AWAITING, MockGameService
+from game.tests.mocks import MOCK_AWAITING, FakeGameRepository, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
 
@@ -28,7 +28,10 @@ class TestWebSocketIntegration:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        app = create_app(
+            game_service=game_service,
+            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+        )
         with TestClient(app) as client:
             yield client
 
@@ -190,7 +193,10 @@ class TestHealthEndpoint:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        app = create_app(
+            game_service=game_service,
+            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+        )
         with TestClient(app) as client:
             yield client
 
@@ -207,7 +213,10 @@ class TestStatusEndpoint:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        app = create_app(
+            game_service=game_service,
+            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+        )
         with TestClient(app) as client:
             yield client
 
@@ -237,7 +246,10 @@ class TestCreateGameEndpoint:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        app = create_app(
+            game_service=game_service,
+            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+        )
         with TestClient(app) as client:
             yield client
 

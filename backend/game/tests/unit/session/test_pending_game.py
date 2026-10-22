@@ -12,7 +12,7 @@ from game.server.router import MessageRouter
 from game.server.types import CreateGameRequest, PlayerSpec
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
 
@@ -38,7 +38,7 @@ def _error_codes(conn: MockConnection) -> list[str]:
 class TestCreatePendingGame:
     @pytest.fixture
     def manager(self):
-        return SessionManager(MockGameService())
+        return SessionManager(MockGameService(), game_repository=FakeGameRepository())
 
     async def test_create_pending_game__when_created__should_register_game_and_session(self, manager: SessionManager):
         specs = _make_specs(1)
@@ -64,7 +64,7 @@ class TestCreatePendingGame:
 class TestJoinGame:
     @pytest.fixture
     def manager(self):
-        return SessionManager(MockGameService())
+        return SessionManager(MockGameService(), game_repository=FakeGameRepository())
 
     async def test_join_game__when_all_expected_players_connected__should_start_game(self, manager: SessionManager):
         specs = _make_specs(1)
@@ -186,12 +186,12 @@ class TestJoinGame:
 class TestPendingGameTimeout:
     @pytest.fixture
     def manager(self):
-        return SessionManager(MockGameService())
+        return SessionManager(MockGameService(), game_repository=FakeGameRepository())
 
     async def test_pending_game_timeout__when_a_human_never_connected__should_start_and_let_that_seat_reconnect(
         self, seeded_engine, short_pending_timeout
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         assert manager.get_playing_game_id("user-1") == "game1"
         conn = MockConnection()
@@ -256,7 +256,7 @@ class TestPendingGameTimeout:
 class TestPendingGameDisconnect:
     @pytest.fixture
     def manager(self):
-        return SessionManager(MockGameService())
+        return SessionManager(MockGameService(), game_repository=FakeGameRepository())
 
     async def test_pending_game_disconnect__when_player_leaves__should_mark_session_disconnected(
         self, manager: SessionManager
@@ -379,7 +379,7 @@ class TestPostGamesEndpoint:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        session_manager = SessionManager(game_service)
+        session_manager = SessionManager(game_service, game_repository=FakeGameRepository())
         app = create_app(game_service=game_service, session_manager=session_manager)
         with TestClient(app) as client:
             yield client
@@ -500,7 +500,7 @@ class TestPostGamesEndpoint:
 class TestJoinGameViaRouter:
     @pytest.fixture
     def manager(self):
-        return SessionManager(MockGameService())
+        return SessionManager(MockGameService(), game_repository=FakeGameRepository())
 
     @pytest.fixture
     def router(self, manager):
@@ -550,7 +550,7 @@ class TestJoinGameViaWebSocket:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        session_manager = SessionManager(game_service)
+        session_manager = SessionManager(game_service, game_repository=FakeGameRepository())
         app = create_app(game_service=game_service, session_manager=session_manager)
         with TestClient(app) as client:
             yield client
@@ -589,7 +589,7 @@ class TestJoinGameViaWebSocket:
 class TestPendingGameDefensivePaths:
     @pytest.fixture
     def manager(self):
-        return SessionManager(MockGameService())
+        return SessionManager(MockGameService(), game_repository=FakeGameRepository())
 
     async def test_leave_pending_game__when_pending_info_missing__should_not_raise(self, manager: SessionManager):
         specs = _make_specs(2)

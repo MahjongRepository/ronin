@@ -1,6 +1,8 @@
 import hashlib
 import json
 import secrets
+import sqlite3
+from contextlib import closing
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -88,8 +90,15 @@ def _register_user(client: TestClient, username: str, password: str = "securepas
     )
 
 
+def _insert_player(client, player: Player) -> None:
+    with closing(sqlite3.connect(client.app.state.auth_settings.database_path)) as conn, conn:
+        conn.execute(
+            "INSERT INTO players (id, username, api_key_hash, data) VALUES (?, ?, ?, ?)",
+            (player.user_id, player.username, player.api_key_hash, player.model_dump_json()),
+        )
+
+
 def _insert_bot(client, *, user_id: str, username: str) -> tuple[str, str]:
-    db = client.app.state.db
     raw_api_key = secrets.token_urlsafe(32)
     api_key_hash = hashlib.sha256(raw_api_key.encode()).hexdigest()
 
@@ -100,16 +109,11 @@ def _insert_bot(client, *, user_id: str, username: str) -> tuple[str, str]:
         account_type=AccountType.BOT,
         api_key_hash=api_key_hash,
     )
-    db.connection.execute(
-        "INSERT INTO players (id, username, api_key_hash, data) VALUES (?, ?, ?, ?)",
-        (player.user_id, player.username, player.api_key_hash, player.model_dump_json()),
-    )
-    db.connection.commit()
+    _insert_player(client, player)
     return player.user_id, raw_api_key
 
 
 def _insert_human_with_key(client, user_id: str, username: str, raw_key: str) -> None:
-    db = client.app.state.db
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
     player = Player(
@@ -119,11 +123,7 @@ def _insert_human_with_key(client, user_id: str, username: str, raw_key: str) ->
         account_type=AccountType.HUMAN,
         api_key_hash=key_hash,
     )
-    db.connection.execute(
-        "INSERT INTO players (id, username, api_key_hash, data) VALUES (?, ?, ?, ?)",
-        (player.user_id, player.username, player.api_key_hash, player.model_dump_json()),
-    )
-    db.connection.commit()
+    _insert_player(client, player)
 
 
 class TestAuthEndpoints:

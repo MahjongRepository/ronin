@@ -12,7 +12,7 @@ from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
 from game.session.timer import TimerConfig
-from game.tests.mocks import MockGameRepository
+from game.tests.mocks import FakeGameRepository
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
@@ -88,7 +88,7 @@ class TestWaitTimers:
     async def test_turn_timer__when_the_players_action_is_refused__should_keep_the_running_deadline(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice"])
         alice_seat = manager._players[conns[0].connection_id].seat
         timer = manager._timer_manager.get_timer("game1", alice_seat)
@@ -105,7 +105,7 @@ class TestWaitTimers:
     async def test_meld_timers__when_one_of_two_callers_passes__should_keep_the_other_callers_deadline(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (manager._players[conn.connection_id].seat for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(seeded_engine, discarder=alice, ron=bob, pon=carol)
@@ -129,7 +129,7 @@ class TestWaitTimers:
     async def test_round_bonus__when_rounds_start_and_end__should_add_it_once_per_round_from_the_first(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice"])
         alice_seat = manager._players[conns[0].connection_id].seat
         timer = manager._timer_manager.get_timer("game1", alice_seat)
@@ -187,7 +187,7 @@ class TestTimerCallbackLifecycle:
     async def test_turn_timeout__when_fired_while_the_players_own_discard_holds_the_lock__should_not_act_again(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice"])
         alice_seat = manager._players[conns[0].connection_id].seat
         drawn_tile = seeded_engine.get_game_state("game1").round_state.players[alice_seat].tiles[-1]
@@ -212,7 +212,7 @@ class TestTimerCallbackLifecycle:
     async def test_turn_timeout__when_ai_turns_lead_back_to_the_human__should_keep_the_successor_timer_armed(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice"])
         alice_seat = manager._players[conns[0].connection_id].seat
         timer = manager._timer_manager.get_timer("game1", alice_seat)
@@ -234,7 +234,7 @@ class TestTimerCallbackLifecycle:
     async def test_turn_timeout__when_callback_raises__should_fail_the_game_instead_of_stalling(
         self, seeded_engine, tmp_path
     ):
-        game_repo = MockGameRepository()
+        game_repo = FakeGameRepository()
         manager = SessionManager(
             seeded_engine,
             replay_collector=ReplayCollector(LocalReplayStorage(tmp_path)),
@@ -247,7 +247,7 @@ class TestTimerCallbackLifecycle:
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await wait_for_background_tasks(manager)
         assert manager.get_game("game1") is None
-        assert game_repo.games["game1"]["end_reason"] == GameEndReason.ERROR
+        assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
         assert replay_file_path(tmp_path, "game1").exists()
         for conn in conns:
             assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
@@ -256,7 +256,7 @@ class TestTimerCallbackLifecycle:
     async def test_shutdown__when_timer_callback_suspended_in_game_end__should_wait_for_it_and_leave_no_task(
         self, seeded_engine, tmp_path
     ):
-        game_repo = MockGameRepository()
+        game_repo = FakeGameRepository()
         storage = _GatedReplayStorage(tmp_path)
         manager = SessionManager(seeded_engine, replay_collector=ReplayCollector(storage), game_repository=game_repo)
         conns = await create_started_game(manager, player_names=["Alice"])
@@ -273,6 +273,6 @@ class TestTimerCallbackLifecycle:
         await shutdown
         assert fired.done()
         assert not fired.cancelled()
-        assert game_repo.games["game1"]["end_reason"] == GameEndReason.COMPLETED
+        assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
         assert conns[0]._close_code == 1000
         assert [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()] == []

@@ -192,8 +192,8 @@ def create_app(
         replay_collector = ReplayCollector(storage)
         session_manager = SessionManager(
             game_service,
-            replay_collector=replay_collector,
             game_repository=game_repository,
+            replay_collector=replay_collector,
         )
 
     if message_router is None:
@@ -214,7 +214,7 @@ def create_app(
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
         try:
             if owned_db is not None:
-                owned_db.connect()
+                await owned_db.open()
 
             yield
         finally:
@@ -222,7 +222,7 @@ def create_app(
                 await session_manager.shutdown()
             finally:
                 if owned_db is not None:
-                    owned_db.close()
+                    await owned_db.close()
 
     app = Starlette(routes=routes, lifespan=lifespan)
     app.add_middleware(

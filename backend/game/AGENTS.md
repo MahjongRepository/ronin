@@ -57,7 +57,7 @@ Mandatory for all game server code; review must catch violations.
   superseded while it waited for the game lock drops its default action. Heartbeat loops are
   cancelled whenever their game goes, even mid-close. The app lifespan opens the database and, on
   the way out, awaits `SessionManager.shutdown()` (sleeping tasks and heartbeats cancelled, fired
-  ones awaited) before closing it. An unexpected error in a task that has a game ends that game
+  ones awaited) before draining and closing it. An unexpected error in a task that has a game ends that game
   through `fail_game`; the auth timeout, which has none, logs and closes the socket. A new kind of
   task joins these paths.
 * The router's game action, JOIN_GAME, RECONNECT and disconnect handlers are the same kind of

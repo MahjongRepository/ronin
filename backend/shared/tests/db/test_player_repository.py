@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from typing import TYPE_CHECKING
 
 import pytest
@@ -9,6 +10,7 @@ from shared.db.connection import Database
 from shared.db.player_repository import SqlitePlayerRepository
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
 FAKE_BCRYPT_HASH = "$2b$12$fakehash"
@@ -29,11 +31,11 @@ def _bot(user_id: str = "bot1", username: str = "TestBot", api_key_hash: str = "
 
 
 @pytest.fixture
-def repo(tmp_path: Path):
+async def repo(tmp_path: Path) -> AsyncIterator[SqlitePlayerRepository]:
     db = Database(tmp_path / "test.db")
-    db.connect()
+    await db.open()
     yield SqlitePlayerRepository(db)
-    db.close()
+    await db.close()
 
 
 class TestCreateAndRead:
@@ -88,3 +90,28 @@ class TestCaseInsensitiveUsername:
         assert await repo.get_by_username("alice") is not None
         assert await repo.get_by_username("ALICE") is not None
         assert await repo.get_by_username("aLiCe") is not None
+
+
+async def test_player_repository__when_a_write_failed_on_a_held_lock__should_keep_the_connection_usable(tmp_path: Path):
+    db_path = tmp_path / "test.db"
+    db = Database(db_path, busy_timeout_ms=50)
+    await db.open()
+    repo = SqlitePlayerRepository(db)
+    other_server = sqlite3.connect(db_path, autocommit=True)
+
+    other_server.execute("BEGIN IMMEDIATE")
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        await repo.create_player(_human(user_id="u1", username="alice"))
+    other_server.execute("COMMIT")
+
+    assert await repo.get_by_username("alice") is None
+    other_server.execute(
+        "INSERT INTO players (id, username, data) VALUES (?, ?, ?)",
+        ("u2", "carol", _human(user_id="u2", username="carol").model_dump_json()),
+    )
+    await repo.create_player(_human(user_id="u3", username="bob"))
+
+    assert await repo.get_by_username("carol") is not None
+    assert other_server.execute("SELECT id FROM players WHERE username = 'bob'").fetchall() == [("u3",)]
+    other_server.close()
+    await db.close()

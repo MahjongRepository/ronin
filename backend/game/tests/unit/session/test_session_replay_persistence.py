@@ -10,7 +10,7 @@ from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import make_test_game_ticket
-from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, MockConnection, MockGameService
+from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, FakeGameRepository, MockConnection, MockGameService
 
 from .helpers import make_game_with_player
 
@@ -18,7 +18,7 @@ from .helpers import make_game_with_player
 def _make_manager_with_collector() -> tuple[SessionManager, MagicMock, MockGameService]:
     game_service = MockGameService()
     collector = MagicMock(spec=ReplayCollector)
-    manager = SessionManager(game_service, replay_collector=collector)
+    manager = SessionManager(game_service, replay_collector=collector, game_repository=FakeGameRepository())
     return manager, collector, game_service
 
 
@@ -112,7 +112,7 @@ class TestSessionReplayCleanup:
 
     async def test_replay_cleanup__when_no_collector_on_abandon__should_not_raise(self):
         game_service = MockGameService()
-        manager = SessionManager(game_service)
+        manager = SessionManager(game_service, game_repository=FakeGameRepository())
 
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]

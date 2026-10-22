@@ -6,7 +6,7 @@ from game.session import manager as manager_module
 from game.session.manager import SessionManager
 from game.session.models import Game
 from game.session.timer import TimerConfig
-from game.tests.mocks import MockGameService
+from game.tests.mocks import FakeGameRepository, MockGameService
 
 ENGINE_SEED = "a" * 192
 
@@ -14,7 +14,7 @@ ENGINE_SEED = "a" * 192
 @pytest.fixture
 def manager():
     game_service = MockGameService()
-    return SessionManager(game_service)
+    return SessionManager(game_service, game_repository=FakeGameRepository())
 
 
 @pytest.fixture

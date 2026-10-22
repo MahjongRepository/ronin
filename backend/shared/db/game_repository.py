@@ -1,15 +1,14 @@
-import asyncio
 import json
-import sqlite3
+from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
 
 from shared.dal.game_repository import GameRepository
-from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+from shared.dal.models import PlayedGame
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    import sqlite3
 
     from shared.db.connection import Database
 
@@ -20,107 +19,60 @@ class SqliteGameRepository(GameRepository):
     """
     SQLite implementation of GameRepository.
 
-    Stores full game snapshots as JSON with indexed columns for queries. Uses json_each for player-based lookups.
+    Stores full game snapshots as JSON with indexed columns for queries.
     """
 
     def __init__(self, db: Database) -> None:
         self._db = db
-        self._lock = asyncio.Lock()
 
-    async def create_game(self, game: PlayedGame) -> None:
-        """
-        Insert a game record.
+    def create_game(self, game: PlayedGame) -> None:
+        self._db.post_write(partial(_insert_game_start, game=game), operation="create_game", game_id=game.game_id)
 
-        Logs a warning and returns on duplicate game_id.
-        """
-
-        async with self._lock:
-            try:
-                self._db.connection.execute(
-                    "INSERT INTO played_games (id, started_at, ended_at, end_reason, data) VALUES (?, ?, ?, ?, ?)",
-                    (
-                        game.game_id,
-                        game.started_at.isoformat(),
-                        game.ended_at.isoformat() if game.ended_at else None,
-                        game.end_reason,
-                        game.model_dump_json(),
-                    ),
-                )
-                self._db.connection.commit()
-            except sqlite3.IntegrityError:
-                self._db.connection.rollback()
-                logger.warning("game already exists, ignoring duplicate create", game_id=game.game_id)
-
-    async def finish_game(
-        self,
-        game_id: str,
-        ended_at: datetime,
-        end_reason: GameEndReason,
-        num_rounds_played: int | None = None,
-        standings: list[PlayedGameStanding] | None = None,
-    ) -> None:
-        """
-        Update a game's end state.
-
-        Only updates games that have not already ended. When standings is None (abandoned games), preserves the existing
-        standings from game start (player names, seats, user_ids without scores).
-        """
-
-        async with self._lock:
-            ended_at_iso = ended_at.isoformat()
-            if standings is not None:
-                standings_json = json.dumps([s.model_dump() for s in standings])
-                cursor = self._db.connection.execute(
-                    "UPDATE played_games SET "
-                    "ended_at = ?, "
-                    "end_reason = ?, "
-                    "data = json_set(data, "
-                    "  '$.ended_at', ?, "
-                    "  '$.end_reason', ?, "
-                    "  '$.num_rounds_played', ?, "
-                    "  '$.standings', json(?) "
-                    ") "
-                    "WHERE id = ? AND ended_at IS NULL",
-                    (ended_at_iso, end_reason, ended_at_iso, end_reason, num_rounds_played, standings_json, game_id),
-                )
-            else:
-                # Abandoned: do NOT overwrite standings -- preserve start-time player data
-                cursor = self._db.connection.execute(
-                    "UPDATE played_games SET "
-                    "ended_at = ?, "
-                    "end_reason = ?, "
-                    "data = json_set(data, "
-                    "  '$.ended_at', ?, "
-                    "  '$.end_reason', ?, "
-                    "  '$.num_rounds_played', ? "
-                    ") "
-                    "WHERE id = ? AND ended_at IS NULL",
-                    (ended_at_iso, end_reason, ended_at_iso, end_reason, num_rounds_played, game_id),
-                )
-
-            self._db.connection.commit()
-            if cursor.rowcount == 0:
-                logger.warning("finish_game had no effect (not found or already ended)", game_id=game_id)
-
-    async def get_game(self, game_id: str) -> PlayedGame | None:
-        """
-        Retrieve a single game by its id.
-        """
-        row = self._db.connection.execute(
-            "SELECT data FROM played_games WHERE id = ?",
-            (game_id,),
-        ).fetchone()
-        if row is None:
-            return None
-
-        return PlayedGame.model_validate(json.loads(row[0]))
+    def finish_game(self, game: PlayedGame) -> None:
+        self._db.post_write(partial(_upsert_game_finish, game=game), operation="finish_game", game_id=game.game_id)
 
     async def get_recent_games(self, limit: int = 20) -> list[PlayedGame]:
         """
         Retrieve the most recent games, ordered by started_at descending.
         """
-        rows = self._db.connection.execute(
-            "SELECT data FROM played_games ORDER BY started_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-        return [PlayedGame.model_validate(json.loads(row[0])) for row in rows]
+        return await self._db.submit_read(partial(_select_recent_games, limit=limit))
+
+
+def _game_row(game: PlayedGame) -> tuple[str, str, str | None, str | None, str]:
+    return (
+        game.game_id,
+        game.started_at.isoformat(),
+        game.ended_at.isoformat() if game.ended_at else None,
+        game.end_reason,
+        game.model_dump_json(),
+    )
+
+
+def _insert_game_start(conn: sqlite3.Connection, *, game: PlayedGame) -> None:
+    cursor = conn.execute(
+        "INSERT INTO played_games (id, started_at, ended_at, end_reason, data) VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT (id) DO NOTHING",
+        _game_row(game),
+    )
+    if cursor.rowcount == 0:
+        logger.warning("game already recorded, ignoring its start", game_id=game.game_id)
+
+
+def _upsert_game_finish(conn: sqlite3.Connection, *, game: PlayedGame) -> None:
+    cursor = conn.execute(
+        "INSERT INTO played_games (id, started_at, ended_at, end_reason, data) VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT (id) DO UPDATE SET "
+        "ended_at = excluded.ended_at, end_reason = excluded.end_reason, data = excluded.data "
+        "WHERE played_games.ended_at IS NULL",
+        _game_row(game),
+    )
+    if cursor.rowcount == 0:
+        logger.warning("game already finished, keeping its first finish", game_id=game.game_id)
+
+
+def _select_recent_games(conn: sqlite3.Connection, *, limit: int) -> list[PlayedGame]:
+    rows = conn.execute(
+        "SELECT data FROM played_games ORDER BY started_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [PlayedGame.model_validate(json.loads(row[0])) for row in rows]

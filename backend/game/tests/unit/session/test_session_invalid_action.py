@@ -9,7 +9,7 @@ from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET
-from game.tests.mocks import MockResultEvent, mock_update
+from game.tests.mocks import FakeGameRepository, MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
 from .helpers import (
@@ -154,7 +154,7 @@ class TestStaleAction:
     async def test_stale_action__when_a_discard_raced_its_own_turn_timeout__should_be_refused_with_nothing_changed(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = await create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
@@ -189,7 +189,7 @@ class TestStaleAction:
     async def test_stale_action__when_a_pass_arrives_after_a_newer_prompt_opened__should_leave_that_prompt_pending(
         self, seeded_engine
     ):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (manager._players[conn.connection_id].seat for conn in conns)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(seeded_engine, discarder=alice, caller=bob)

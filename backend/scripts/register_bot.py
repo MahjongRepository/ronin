@@ -16,7 +16,7 @@ async def main() -> None:
     auth_settings = AuthSettings()
 
     db = Database(auth_settings.database_path)
-    db.connect()
+    await db.open()
 
     try:
         player_repo = SqlitePlayerRepository(db)
@@ -26,7 +26,7 @@ async def main() -> None:
         print(f"Error: {e}")
         sys.exit(1)
     finally:
-        db.close()
+        await db.close()
 
     print(f"Bot registered: {player.username} (id: {player.user_id})")
     print(f"API key: {raw_api_key}")

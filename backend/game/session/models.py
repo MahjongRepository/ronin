@@ -8,7 +8,7 @@ from game.session.timer import TimerConfig
 if TYPE_CHECKING:
     from game.logic.service import Awaiting
     from game.messaging.protocol import ConnectionProtocol
-    from shared.dal.models import GameEndReason
+    from shared.dal.models import GameEndReason, PlayedGame
 
 
 class PlayerSpec(BaseModel):
@@ -74,7 +74,9 @@ class Game:
     A game in the session layer: its players, pacing and lifecycle.
 
     awaiting is what the engine last reported the game waits for (set from the game start on); the session drives the
-    timers from it and checks an action's wait id against it.
+    timers from it and checks an action's wait id against it. start_record is the game's record as posted at start (seat
+    order, every seat's name and user_id), set once right after the engine starts the game; its finish record is built
+    from it, whichever path ends the game.
     """
 
     game_id: str
@@ -83,6 +85,7 @@ class Game:
     players: dict[str, Player] = field(default_factory=dict)
     timer_config: TimerConfig = field(default_factory=TimerConfig)
     awaiting: Awaiting | None = None
+    start_record: PlayedGame | None = None
 
     @property
     def ended(self) -> bool:

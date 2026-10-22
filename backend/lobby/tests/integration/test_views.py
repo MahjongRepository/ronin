@@ -1,4 +1,3 @@
-import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -413,7 +412,7 @@ class TestHistoryPage:
                 PlayedGameStanding(name="Fourth", seat=3, score=15000, final_score=-35),
             ],
         )
-        asyncio.run(client.app.state.game_repo.create_game(game))
+        client.app.state.game_repo.create_game(game)
 
         response = client.get("/history")
         assert response.status_code == 200
@@ -454,7 +453,7 @@ class TestHistoryPage:
             ],
         )
         for game in (completed, active, abandoned):
-            asyncio.run(client.app.state.game_repo.create_game(game))
+            client.app.state.game_repo.create_game(game)
 
         response = client.get("/history")
         assert response.status_code == 200

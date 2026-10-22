@@ -35,6 +35,7 @@ from game.messaging.types import (
 from game.session.broadcast import broadcast_to_players
 from game.session.heartbeat import HeartbeatMonitor
 from game.session.models import Game, Player, SessionData
+from game.session.played_game import build_finish_record
 from game.session.session_store import SessionStore
 from game.session.timer_manager import TimerFiring, TimerManager
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
@@ -92,8 +93,9 @@ class SessionManager:
     def __init__(
         self,
         game_service: GameService,
+        *,
+        game_repository: GameRepository,
         replay_collector: ReplayCollector | None = None,
-        game_repository: GameRepository | None = None,
     ) -> None:
         self._game_service = game_service
         self._game_repository = game_repository
@@ -177,13 +179,10 @@ class SessionManager:
                 rng_version = game_state.rng_version if game_state is not None else ""
                 self._replay_collector.start_game(game_id=game_id, seed=seed, rng_version=rng_version)
 
-    async def _record_game_start(self, game: Game, user_ids_by_seat: dict[int, str]) -> None:
+    def _record_game_start(self, game: Game, user_ids_by_seat: dict[int, str]) -> None:
         """
-        Best-effort persist game start to the game repository; seats missing from user_ids_by_seat are AI players.
+        Capture the game's start record and post it; seats missing from user_ids_by_seat are AI players.
         """
-        if self._game_repository is None:
-            return
-
         game_state = self._game_service.get_game_state(game.game_id)
         if game_state is None:
             return
@@ -196,68 +195,34 @@ class SessionManager:
             )
             for p in game_state.round_state.players
         ]
-
-        played_game = PlayedGame(
+        game.start_record = PlayedGame(
             game_id=game.game_id,
             started_at=datetime.now(UTC),
             game_type=game_state.settings.game_type,
             standings=standings,
         )
-        try:
-            await self._game_repository.create_game(played_game)
-        except Exception:
-            logger.exception("failed to persist game start")
+        self._game_repository.create_game(game.start_record)
 
-    async def _record_game_finish(
+    def _record_game_finish(
         self,
-        game_id: str,
+        game: Game,
         end_reason: GameEndReason,
         game_ended_event: GameEndedEvent | None = None,
     ) -> None:
         """
-        Best-effort persist game end to the game repository.
+        Post the finish record of a game that has a start record; one without (it never started) has nothing to finish.
         """
-        if self._game_repository is None:
+        if game.start_record is None:
             return
 
-        standings = None
-        num_rounds_played = None
-        if game_ended_event is not None:
-            num_rounds_played = game_ended_event.num_rounds if game_ended_event.num_rounds > 0 else None
-            try:
-                # Read existing game record to preserve user_ids and names from game start
-                # (game state is unavailable here -- auto_cleanup runs before events are returned)
-                existing = await self._game_repository.get_game(game_id)
-                uid_by_seat = {s.seat: s.user_id for s in existing.standings} if existing else {}
-                names_by_seat = {s.seat: s.name for s in existing.standings} if existing else {}
-            except Exception:
-                logger.exception("failed to read existing game for standings enrichment", game_id=game_id)
-                uid_by_seat = {}
-                names_by_seat = {}
-
-            # Preserve the game logic's placement order (handles tiebreaking by seat
-            # proximity to dealer) -- do NOT re-sort by final_score.
-            standings = [
-                PlayedGameStanding(
-                    name=names_by_seat.get(s.seat, ""),
-                    seat=s.seat,
-                    user_id=uid_by_seat.get(s.seat, ""),
-                    score=s.score,
-                    final_score=s.final_score,
-                )
-                for s in game_ended_event.standings
-            ]
-
-        try:
-            await self._game_repository.finish_game(
-                game_id=game_id,
-                ended_at=datetime.now(UTC),
+        self._game_repository.finish_game(
+            build_finish_record(
+                game.start_record,
                 end_reason=end_reason,
-                num_rounds_played=num_rounds_played,
-                standings=standings,
-            )
-        except Exception:
-            logger.exception("failed to persist game end")
+                ended_at=datetime.now(UTC),
+                game_ended_event=game_ended_event,
+            ),
+        )
 
     async def _send_error(self, connection: ConnectionProtocol, *, code: SessionErrorCode, message: str) -> None:
         logger.warning("session error sent to client", error_code=code.value, error_message=message)
@@ -302,16 +267,7 @@ class SessionManager:
         elif game_id in self._pending_games:
             await self._leave_pending_game(game, connection, player, notify_player=notify_player)
         else:
-            # Two cases without a lock:
-            # 1. Started game but lock not yet created (disconnect during _start_mahjong_game
-            #    setup, before lock/timer infrastructure is ready). _start_mahjong_game
-            #    handles AI player replacement for players who left during startup.
-            # 2. Pre-start game: no concurrent action/timeout paths.
-            if game.started:
-                self._session_store.mark_disconnected(player.session_token)
-            else:
-                self._session_store.remove_session(player.session_token)
-
+            self._session_store.remove_session(player.session_token)
             self._remove_player_from_game(game, connection_id=connection.connection_id, player=player)
             await self._notify_player_left(connection, game, player_name, notify_player=notify_player)
 
@@ -405,7 +361,9 @@ class SessionManager:
 
         logger.info("game is empty, cleaning up")
         self._games.pop(game_id)
-        abandoned = game.started and not game.ended
+        if not game.ended:
+            self._record_game_finish(game, GameEndReason.ABANDONED)
+
         self._session_store.cleanup_game(game_id)
         self._timer_manager.cleanup_game(game_id)
         self._game_locks.pop(game_id, None)
@@ -414,8 +372,6 @@ class SessionManager:
             self._replay_collector.cleanup_game(game_id)
 
         await self._heartbeat.stop_for_game(game_id)
-        if abandoned:
-            await self._record_game_finish(game_id=game_id, end_reason=GameEndReason.ABANDONED)
 
     async def _replace_with_ai_player(
         self,
@@ -1223,7 +1179,7 @@ class SessionManager:
 
         Sleeping pending, auth and turn timers and the heartbeat loops are cancelled; a task already past its sleep (a
         pending game completing, an auth close, a timer callback or a failed game's finalizer) is awaited, so its replay
-        save, database write and socket closes finish first. Games still running are not recorded as ended.
+        save, finish record post and socket closes happen first. Games still running are not recorded as ended.
         """
         sleeping = [pending.timeout_task for pending in self._pending_games.values() if pending.timeout_task]
         sleeping.extend(self._auth_timeouts.values())
@@ -1290,8 +1246,8 @@ class SessionManager:
         checks allow an empty game. Every expected human's session is bound to the seat the engine assigned to their
         spec; an absent one is marked disconnected, so it can RECONNECT, and then replaced by an AI player.
 
-        The liveness check after recording the start guards the only await teardown can interleave with; today's SQLite
-        repository never suspends, so it goes live only once persistence moves off the event loop.
+        Everything up to the game lock's creation is synchronous (the start record is posted, not awaited), so no
+        disconnect or teardown can find the game started without its lock.
         """
         if not self._is_game_alive(game):  # pragma: no cover — race condition guard
             return
@@ -1301,11 +1257,7 @@ class SessionManager:
         spec_seats = list(zip(player_specs, start.seats, strict=True))
 
         self._start_replay_collection(game.game_id)
-        await self._record_game_start(game, user_ids_by_seat={seat: spec.user_id for spec, seat in spec_seats})
-
-        if not self._is_game_alive(game):  # pragma: no cover — race condition guard
-            return
-
+        self._record_game_start(game, user_ids_by_seat={seat: spec.user_id for spec, seat in spec_seats})
         absent_seats = self._bind_seats(game, spec_seats)
 
         seats = [p.seat for p in game.players.values() if p.seat is not None]
@@ -1514,11 +1466,13 @@ class SessionManager:
         down to the last player's close, still run.
         """
         game_id = failed.game.game_id
+        try:
+            self._record_game_finish(failed.game, GameEndReason.ERROR)
+        except Exception:
+            logger.exception("failed to record the finish of a failed game", game_id=game_id)
+
         if failed.heartbeat is not None:
             await cancel_and_wait([failed.heartbeat])
-
-        if failed.game.started:
-            await self._record_game_finish(game_id=game_id, end_reason=GameEndReason.ERROR)
 
         try:
             if self._replay_collector:
@@ -1553,7 +1507,7 @@ class SessionManager:
 
         Runs in the path that claimed the game's end, right after its broadcast, on the replay lines and players
         detached there. An unexpected error saving the replay escalates the claim to a failure, which finishes the game
-        with 1011. Once the finish record is written (best-effort) the completion stands: a socket whose close fails is
+        with 1011. Once the finish record is posted (best-effort) the completion stands: a socket whose close fails is
         logged and the next one is closed. The WebSocket disconnect handlers clean up session state when the connections
         close.
         """
@@ -1565,11 +1519,7 @@ class SessionManager:
             return
 
         game_ended_event = next((e.data for e in events if isinstance(e.data, GameEndedEvent)), None)
-        await self._record_game_finish(
-            game_id=game.game_id,
-            end_reason=GameEndReason.COMPLETED,
-            game_ended_event=game_ended_event,
-        )
+        self._record_game_finish(game, GameEndReason.COMPLETED, game_ended_event=game_ended_event)
         for player in players:
             await self._close_game_ended(player.connection)
 

@@ -24,7 +24,7 @@ from game.session.manager import SessionManager
 from game.session.models import SessionData
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import TEST_TICKET_SECRET
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
 from game.tests.unit.session.helpers import (
     arrange_final_discard,
     create_started_game,
@@ -489,7 +489,7 @@ class TestReconnectEdgeCases:
 
 class TestReconnectToEndedGame:
     async def test_reconnect__when_game_ended_while_player_was_away__should_refuse_with_game_gone(self, seeded_engine):
-        manager = SessionManager(seeded_engine)
+        manager = SessionManager(seeded_engine, game_repository=FakeGameRepository())
         conns = await create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = manager._players[conns[0].connection_id].seat
         bob_token = manager._players[conns[1].connection_id].session_token
@@ -575,7 +575,9 @@ class TestAllHumansDisconnected:
         mock_replay.cleanup_game = MagicMock()
 
         game_service = MockGameService()
-        manager_with_replay = SessionManager(game_service, replay_collector=mock_replay)
+        manager_with_replay = SessionManager(
+            game_service, replay_collector=mock_replay, game_repository=FakeGameRepository()
+        )
 
         conns = await create_started_game(
             manager_with_replay,

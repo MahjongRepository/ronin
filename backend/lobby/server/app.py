@@ -262,14 +262,14 @@ def create_app(
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
         try:
-            db.connect()
+            await db.open()
             session_store.start_cleanup()
             room_manager.start_reaper()
             yield
         finally:
             await room_manager.stop_reaper()
             await session_store.stop_cleanup()
-            db.close()
+            await db.close()
 
     app = Starlette(
         routes=routes,
@@ -292,7 +292,6 @@ def create_app(
         settings=settings,
         auth_settings=auth_settings,
         registry=registry,
-        db=db,
         game_repo=game_repo,
         auth_service=auth_service,
         room_manager=room_manager,
@@ -311,7 +310,6 @@ def _attach_state(  # noqa: PLR0913
     settings: LobbyServerSettings,
     auth_settings: AuthSettings,
     registry: RegistryManager,
-    db: Database,
     game_repo: SqliteGameRepository,
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
@@ -319,7 +317,6 @@ def _attach_state(  # noqa: PLR0913
     matchmaking_manager: MatchmakingManager,
     occupancy: Occupancy,
 ) -> None:
-    app.state.db = db
     app.state.game_repo = game_repo
     app.state.settings = settings
     app.state.auth_settings = auth_settings

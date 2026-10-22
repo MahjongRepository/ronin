@@ -4,31 +4,28 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
-    from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+    from shared.dal.models import PlayedGame
 
 
 class GameRepository(ABC):
     """
     Abstract interface for played game persistence.
+
+    The two writes are posted: they return at once, run in call order, and a failure is logged, never raised, so a
+    game never waits on its own record.
     """
 
     @abstractmethod
-    async def create_game(self, game: PlayedGame) -> None: ...
+    def create_game(self, game: PlayedGame) -> None:
+        """
+        Record a game's start; a game already recorded keeps its row.
+        """
 
     @abstractmethod
-    async def finish_game(
-        self,
-        game_id: str,
-        ended_at: datetime,
-        end_reason: GameEndReason,
-        num_rounds_played: int | None = None,
-        standings: list[PlayedGameStanding] | None = None,
-    ) -> None: ...
-
-    @abstractmethod
-    async def get_game(self, game_id: str) -> PlayedGame | None: ...
+    def finish_game(self, game: PlayedGame) -> None:
+        """
+        Record a finished game whole, with or without its start row; a game already finished keeps its first finish.
+        """
 
     @abstractmethod
     async def get_recent_games(self, limit: int = 20) -> list[PlayedGame]: ...

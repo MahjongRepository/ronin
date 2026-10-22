@@ -21,7 +21,7 @@ from game.tests.helpers.websocket import (
     recv_ws,
     send_ws,
 )
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
 
@@ -92,7 +92,10 @@ class TestWebSocketReconnect:
     @pytest.fixture
     def client(self):
         game_service = MockGameService()
-        app = create_app(game_service=game_service, session_manager=SessionManager(game_service))
+        app = create_app(
+            game_service=game_service,
+            session_manager=SessionManager(game_service, game_repository=FakeGameRepository()),
+        )
         with TestClient(app) as client:
             yield client
 

@@ -14,6 +14,7 @@ from shared.dal.models import AccountType, Player
 from shared.db import Database, SqlitePlayerRepository
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
 
@@ -23,12 +24,11 @@ def session_store():
 
 
 @pytest.fixture
-def player_repo(tmp_path: Path):
+async def player_repo(tmp_path: Path) -> AsyncIterator[SqlitePlayerRepository]:
     db = Database(tmp_path / "test.db")
-    db.connect()
-    repo = SqlitePlayerRepository(db)
-    yield repo
-    db.close()
+    await db.open()
+    yield SqlitePlayerRepository(db)
+    await db.close()
 
 
 @pytest.fixture

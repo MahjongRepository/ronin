@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -23,6 +25,11 @@ def app(tmp_path):
     )
 
 
+def _assert_database_closed(app) -> None:
+    with pytest.raises(RuntimeError, match="not open"):
+        asyncio.run(app.state.game_repo.get_recent_games())
+
+
 class TestLobbyLifespan:
     def test_lobby_lifespan__when_startup_step_fails__should_close_database_and_stop_cleanup(self, app, monkeypatch):
         def fail_to_start_reaper(_self):
@@ -33,7 +40,7 @@ class TestLobbyLifespan:
         with pytest.raises(RuntimeError, match="reaper failed to start"), TestClient(app):
             pass
 
-        assert app.state.db._conn is None
+        _assert_database_closed(app)
         assert app.state.auth_service._session_store._cleanup_task is None
 
     def test_lobby_lifespan__when_reaper_died__should_still_close_database(self, app, monkeypatch):
@@ -45,4 +52,4 @@ class TestLobbyLifespan:
         with TestClient(app) as client:
             assert client.get("/health").status_code == 200
 
-        assert app.state.db._conn is None
+        _assert_database_closed(app)

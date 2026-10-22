@@ -14,7 +14,7 @@ from game.server.app import create_app
 from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.tests.helpers.auth import TEST_TICKET_SECRET
-from game.tests.mocks import MockConnection, MockGameService
+from game.tests.mocks import FakeGameRepository, MockConnection, MockGameService
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -139,7 +139,7 @@ def game_service():
 
 @pytest.fixture
 def session_manager(game_service):
-    return SessionManager(game_service)
+    return SessionManager(game_service, game_repository=FakeGameRepository())
 
 
 @pytest.fixture

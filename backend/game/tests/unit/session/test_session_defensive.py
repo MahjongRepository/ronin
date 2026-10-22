@@ -3,7 +3,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket
-from game.tests.mocks import MOCK_AWAITING, MockConnection, MockGameService
+from game.tests.mocks import MOCK_AWAITING, FakeGameRepository, MockConnection, MockGameService
 
 from .helpers import create_started_game, current_wait_id
 
@@ -64,7 +64,7 @@ class TestSessionManagerDefensiveChecks:
 
     async def test_shutdown__when_game_pending__should_cancel_timeout_task(self):
         game_service = MockGameService()
-        manager = SessionManager(game_service)
+        manager = SessionManager(game_service, game_repository=FakeGameRepository())
 
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
