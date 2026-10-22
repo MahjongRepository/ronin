@@ -10,17 +10,10 @@ from game.logic.types import AvailableActionItem
 from game.logic.win import can_declare_tsumo
 
 if TYPE_CHECKING:
-    from game.logic.state import (
-        MahjongGameState,
-        MahjongRoundState,
-    )
+    from game.logic.state import MahjongGameState
 
 
-def get_available_actions(
-    round_state: MahjongRoundState,
-    game_state: MahjongGameState,
-    seat: int,
-) -> list[AvailableActionItem]:
+def get_available_actions(game_state: MahjongGameState, seat: int) -> list[AvailableActionItem]:
     """
     Return available actions for a player at their turn.
 
@@ -34,6 +27,7 @@ def get_available_actions(
     - kyuushu kyuuhai (if enabled and eligible on the player's first uninterrupted draw)
     """
     settings = game_state.settings
+    round_state = game_state.round_state
     player = round_state.players[seat]
 
     result: list[AvailableActionItem] = []

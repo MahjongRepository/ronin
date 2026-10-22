@@ -403,7 +403,7 @@ class TestDoubleRonEnabled:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
+        result = resolve_call_prompt(game_state)
         round_end_events = [e for e in result.events if hasattr(e, "result")]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
@@ -428,7 +428,7 @@ class TestHeadBumpWhenDoubleRonDisabled:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
+        result = resolve_call_prompt(game_state)
         round_end_events = [e for e in result.events if hasattr(e, "result")]
         assert len(round_end_events) == 1
         # Head bump: should be a single RON, not double
@@ -454,7 +454,7 @@ class TestHeadBumpWhenDoubleRonDisabled:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
+        result = resolve_call_prompt(game_state)
         round_end_events = [e for e in result.events if hasattr(e, "result")]
         ron_result = round_end_events[0].result
         assert ron_result.type == RoundResultType.RON
@@ -484,9 +484,10 @@ class TestHeadBumpWhenDoubleRonDisabled:
         game_state = create_game_state(round_state, settings=GameSettings(has_double_ron=False))
 
         meld_input = MeldCallInput(caller_seat=2, call_type=MeldCallType.ADDED_KAN, tile_id=kan_tiles[3])
-        round_state, game_state, _events = process_meld_call(round_state, game_state, meld_input=meld_input)
-        first = handle_ron(round_state, game_state, seat=0)
-        result = handle_ron(first.new_round_state, first.new_game_state, seat=3)
+        game_state, _events = process_meld_call(game_state, meld_input=meld_input)
+        round_state = game_state.round_state
+        first = handle_ron(game_state, seat=0)
+        result = handle_ron(first.state, seat=3)
 
         round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_ends) == 1
@@ -510,7 +511,7 @@ class TestDoubleRonRiichiStickDistribution:
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
         # Loser seat 0, winners 1 and 3. CCW from 0: 1 is first.
-        _, _, result = apply_double_ron_score(
+        _, result = apply_double_ron_score(
             game_state,
             winners=[(1, hr), (3, hr)],
             loser_seat=0,
@@ -523,7 +524,7 @@ class TestDoubleRonRiichiStickDistribution:
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
         # Loser seat 2, winners 0 and 3. CCW from 2: 3 is first.
-        _, _, result = apply_double_ron_score(
+        _, result = apply_double_ron_score(
             game_state,
             winners=[(0, hr), (3, hr)],
             loser_seat=2,
@@ -535,12 +536,13 @@ class TestDoubleRonRiichiStickDistribution:
         game_state = _scoring_game_state(riichi=2)
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_double_ron_score(
+        new_game_state, _ = apply_double_ron_score(
             game_state,
             winners=[(1, hr), (3, hr)],
             loser_seat=0,
             winning_tile=0,
         )
+        new_rs = new_game_state.round_state
         # Seat 1 (riichi receiver): 25000 + 1000 (hand) + 2000 (riichi) = 28000
         assert new_rs.players[1].score == 25000 + 1000 + 2 * 1000
         # Seat 3 (non-receiver): 25000 + 1000 (hand only)
@@ -557,12 +559,13 @@ class TestDoubleRonHonbaBonus:
         game_state = _scoring_game_state(honba=3)
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_double_ron_score(
+        new_game_state, _ = apply_double_ron_score(
             game_state,
             winners=[(1, hr), (3, hr)],
             loser_seat=0,
             winning_tile=0,
         )
+        new_rs = new_game_state.round_state
         honba_bonus = 3 * 300  # 900 per winner
         # Each winner: 1000 + 900 = 1900
         assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
@@ -581,12 +584,13 @@ class TestDoubleRonHonbaBonus:
         )
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_double_ron_score(
+        new_game_state, _ = apply_double_ron_score(
             game_state,
             winners=[(1, hr), (3, hr)],
             loser_seat=0,
             winning_tile=0,
         )
+        new_rs = new_game_state.round_state
         honba_bonus = 2 * 500  # 1000 per winner with custom setting
         assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
         assert new_rs.players[3].score == 25000 + 1000 + honba_bonus
@@ -602,13 +606,14 @@ class TestDoubleRonHonbaBonus:
         )
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_ron_score(
+        new_game_state, _ = apply_ron_score(
             game_state,
             winner_seat=1,
             loser_seat=0,
             hand_result=hr,
             winning_tile=0,
         )
+        new_rs = new_game_state.round_state
         honba_bonus = 3 * 300
         assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
         assert new_rs.players[0].score == 25000 - 1000 - honba_bonus
@@ -625,7 +630,7 @@ class TestDoubleRonScoreConservation:
         hr1 = HandResult(han=2, fu=30, cost_main=2000, yaku=_yaku(0))
         hr2 = HandResult(han=3, fu=30, cost_main=3900, yaku=_yaku(0))
 
-        _, _, result = apply_double_ron_score(
+        _, result = apply_double_ron_score(
             game_state,
             winners=[(1, hr1), (3, hr2)],
             loser_seat=0,
@@ -638,7 +643,7 @@ class TestDoubleRonScoreConservation:
         game_state = _scoring_game_state(honba=0, riichi=3)
         hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
-        _, _, result = apply_double_ron_score(
+        _, result = apply_double_ron_score(
             game_state,
             winners=[(1, hr), (3, hr)],
             loser_seat=0,

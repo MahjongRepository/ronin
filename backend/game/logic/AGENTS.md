@@ -11,6 +11,15 @@ changes.
   `state_utils.py`. Settings live only on `MahjongGameState`. The wall is a frozen `Wall`
   (`wall.py`); melds are `FrozenMeld` (`meld_wrapper.py`), converted to the `mahjong` library's
   `Meld` only at its boundary.
+* One state flows through a round: the round-flow functions (handlers, `turn.py`, `call_resolution.py`, scoring,
+  draws) take and return the `MahjongGameState` alone and read its `round_state`, putting a changed round back with
+  `update_game_with_round`; helpers whose scope is a round or a player (`draw_tile`, `discard_tile`, `call_pon`, the
+  `can_*` predicates) take the round. A handler returns an `ActionResult` (its events and the one new state) or a
+  `Refusal`.
+* A round ends only through `finish_round()` (`state_utils.py`), which sets `phase=FINISHED` and the round's `result`
+  together and returns the `RoundEndEvent` for the caller to append where the round ended. The service handles the
+  round end when the stored round carries a result; the result stays through the round-advance wait, and `init_round`
+  starts the next round without one.
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing
   target, a `BroadcastTarget` or a `SeatTarget`; `ServiceEvent` wraps one and reads its type and
   target from it.
@@ -27,9 +36,11 @@ changes.
 * One dispatch pipeline for humans, AI and timeouts: `_dispatch_action()` picks the action handler
   (a player's action from `handle_action()`; an AI decision or timeout default through
   `_dispatch_generated_action()`, which turns any refusal into a fault), `_commit_and_process()`
-  stores the result and runs what follows it (round end, post-discard calls and draw, chankan), and
+  stores the result and runs what follows it (the round end; the AI seats' answers to a call prompt left pending,
+  a discard's or a kan's chankan alike; the draw after a discard nobody can call), and
   `_continue_with_ai_players()` → `_process_ai_player_followup()` runs the AI turns it leads to; AI
-  call responses go through the same handlers (`_dispatch_ai_player_call_responses()`).
+  call responses go through the same handlers (`_dispatch_ai_player_call_responses()`). A human's refused action
+  is answered before the commit: nothing is stored and no AI turn runs.
   `AIPlayerController` only decides (`get_turn_action`, `get_call_response`); every state change
   goes through `MahjongGameService`.
 * Player type is a service-layer fact: `MahjongPlayer` has no AI flag, only
@@ -78,7 +89,8 @@ MELD or CHANKAN) in the prompt's caller order, which is the order clients get th
 
 Every refusal or failure has exactly one outcome (`exceptions.py` holds the classes):
 
-* **ErrorEvent to the acting seat, nothing changes, the turn and its timer go on**: a rule judgment
+* **ErrorEvent to the acting seat, nothing changes, the turn and its timer go on**: the handler returns a
+  `Refusal` (its code and message) and the service answers the seat with the ErrorEvent. It covers a rule judgment
   the client cannot make from the wire (`GameRuleError`: kuikae or riichi tsumogiri is
   `INVALID_DISCARD`, a riichi discard that breaks tenpai is `INVALID_RIICHI`), and a race the server
   can detect from state alone: any turn action, closed or added kan included, out of turn or while
@@ -95,12 +107,12 @@ Every refusal or failure has exactly one outcome (`exceptions.py` holds the clas
   (`AssertionError`), a call for a game the service does not hold (`KeyError`: the session never
   acts on a game that ended), the scoring library failing on a hand judged a win (`ScoringError`), anything
   raised during call resolution (responses were validated on submit) or after a result is stored,
-  and an action the server made itself: an AI decision or a timeout default that is refused, or an
-  AI turn with no action, raises `GeneratedActionError` (`_dispatch_generated_action`), so a soft
-  error never counts as AI progress.
+  and an action the server made itself: an AI decision or a timeout default that is refused (a `Refusal` or
+  an `InvalidGameActionError`), or an AI turn with no action, raises `GeneratedActionError`
+  (`_dispatch_generated_action`), so a soft error never counts as AI progress.
 
-Validation completes before a handler returns, and the service stores a result only after its
-handler returned, so a refusal never leaves a partial state.
+Validation completes before a handler returns, and the service stores only an `ActionResult`, after its handler
+returned, so a refusal never leaves a partial state.
 
 ## Determinism
 

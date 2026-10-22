@@ -51,20 +51,14 @@ def can_declare_riichi(
     return is_tempai(player.tiles, player.melds)
 
 
-def declare_riichi(
-    round_state: MahjongRoundState,
-    game_state: MahjongGameState,
-    seat: int,
-    settings: GameSettings,
-) -> tuple[MahjongRoundState, MahjongGameState]:
+def declare_riichi(game_state: MahjongGameState, seat: int) -> MahjongGameState:
     """
     Execute riichi declaration for a player.
 
     Sets riichi flags, deducts 1000 points, and increments riichi sticks. Should be called after validating with
     can_declare_riichi.
-
-    Returns (new_round_state, new_game_state).
     """
+    round_state = game_state.round_state
     player = round_state.players[seat]
 
     # check for double riichi (daburi)
@@ -79,13 +73,12 @@ def declare_riichi(
         is_riichi=True,
         is_ippatsu=True,
         is_daburi=is_daburi,
-        score=player.score - settings.riichi_cost,
+        score=player.score - game_state.settings.riichi_cost,
     )
 
-    new_game_state = game_state.model_copy(
+    return game_state.model_copy(
         update={
             "riichi_sticks": game_state.riichi_sticks + 1,
             "round_state": new_round_state,
         },
     )
-    return new_round_state, new_game_state

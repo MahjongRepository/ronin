@@ -14,19 +14,17 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import create_draw_event
+from game.logic.action_result import Refusal, create_draw_event
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import CallType, GameAction, GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind
+from game.logic.enums import GameAction, GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
-    CallPromptEvent,
     ErrorEvent,
     GameEndedEvent,
     GameStartedEvent,
     SeatTarget,
     ServiceEvent,
     convert_events,
-    extract_round_result,
 )
 from game.logic.exceptions import GeneratedActionError, InvalidGameActionError
 from game.logic.furiten_tracker import FuritenTracker
@@ -143,10 +141,7 @@ class MahjongGameService(GameService):
         )
         events.extend(self._create_round_started_events(frozen_game))
 
-        _new_round_state, new_game_state, draw_events = process_draw_phase(
-            frozen_game.round_state,
-            frozen_game,
-        )
+        new_game_state, draw_events = process_draw_phase(frozen_game)
         self._games[game_id] = new_game_state
         events.extend(convert_events(draw_events))
 
@@ -239,6 +234,9 @@ class MahjongGameService(GameService):
             )
 
         result = self._dispatch_action(game_state, seat=seat, action=action, data=data)
+        if isinstance(result, Refusal):
+            return self._create_error_event(code=result.code, message=result.message, seat=seat)
+
         events = self._commit_and_process(game_id, result)
         return self._continue_with_ai_players(game_id, events)
 
@@ -260,12 +258,12 @@ class MahjongGameService(GameService):
 
     def _commit_and_process(self, game_id: str, result: ActionResult) -> list[ServiceEvent]:
         """
-        Store a handler's result and run what follows it (round end, post-discard calls and draw, chankan).
+        Store a handler's result and run what follows it (_process_action_result_internal).
 
         Does NOT trigger AI player turns, to avoid recursion: the top-level caller runs them. Anything raised from here
         on comes after the commit and is a server fault.
         """
-        self._update_state_from_result(game_id, result)
+        self._games[game_id] = result.state
         events = self._process_action_result_internal(game_id, result)
         return self._append_furiten_changes(game_id, events)
 
@@ -280,17 +278,16 @@ class MahjongGameService(GameService):
         """
         Dispatch an action the server made for a seat: an AI decision or a timeout default.
 
-        The server generated it, so a refusal, structural or a soft ErrorEvent, is a server fault: raise
-        GeneratedActionError, never kick the seat or count the refusal as progress.
+        The server generated it, so a refusal, structural or soft, is a server fault: raise GeneratedActionError, never
+        kick the seat or count the refusal as progress.
         """
         try:
             result = self._dispatch_action(self._games[game_id], seat=seat, action=action, data=data)
         except InvalidGameActionError as e:
             raise GeneratedActionError(f"seat {seat} {action.value} refused: {e.reason}") from e
 
-        error = next((e for e in result.events if isinstance(e, ErrorEvent)), None)
-        if error is not None:
-            raise GeneratedActionError(f"seat {seat} {action.value} refused: {error.code.value}: {error.message}")
+        if isinstance(result, Refusal):
+            raise GeneratedActionError(f"seat {seat} {action.value} refused: {result.code.value}: {result.message}")
 
         return result
 
@@ -300,101 +297,54 @@ class MahjongGameService(GameService):
         seat: int,
         action: GameAction,
         data: dict[str, Any],
-    ) -> ActionResult:
+    ) -> ActionResult | Refusal:
         """
         Dispatch a game action to the appropriate handler.
 
         Single entry point for all action dispatch: player actions, AI decisions and timeout defaults.
         CONFIRM_ROUND is handled separately by the round confirmation path.
         """
-        round_state = game_state.round_state
         match action:
             # No-data actions
             case GameAction.DECLARE_TSUMO:
-                return handle_tsumo(round_state, game_state, seat=seat)
+                return handle_tsumo(game_state, seat=seat)
             case GameAction.CALL_RON:
-                return handle_ron(round_state, game_state, seat=seat)
+                return handle_ron(game_state, seat=seat)
             case GameAction.CALL_KYUUSHU:
-                return handle_kyuushu(round_state, game_state, seat=seat)
+                return handle_kyuushu(game_state, seat=seat)
             case GameAction.PASS:
-                return handle_pass(round_state, game_state, seat=seat)
+                return handle_pass(game_state, seat=seat)
             # Data actions
             case GameAction.DISCARD:
-                return handle_discard(round_state, game_state, seat=seat, data=DiscardActionData(**data))
+                return handle_discard(game_state, seat=seat, data=DiscardActionData(**data))
             case GameAction.DECLARE_RIICHI:
-                return handle_riichi(round_state, game_state, seat=seat, data=RiichiActionData(**data))
+                return handle_riichi(game_state, seat=seat, data=RiichiActionData(**data))
             case GameAction.CALL_PON:
-                return handle_pon(round_state, game_state, seat=seat, data=PonActionData(**data))
+                return handle_pon(game_state, seat=seat, data=PonActionData(**data))
             case GameAction.CALL_CHI:
-                return handle_chi(round_state, game_state, seat=seat, data=ChiActionData(**data))
+                return handle_chi(game_state, seat=seat, data=ChiActionData(**data))
             case GameAction.CALL_KAN:
-                return handle_kan(round_state, game_state, seat=seat, data=KanActionData(**data))
+                return handle_kan(game_state, seat=seat, data=KanActionData(**data))
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"action {action} has no handler")
 
-    def _update_state_from_result(self, game_id: str, result: ActionResult) -> None:
-        """
-        Update stored state from ActionResult if new state was returned.
-        """
-        if result.new_game_state is not None:
-            self._games[game_id] = result.new_game_state
-
     def _process_action_result_internal(self, game_id: str, result: ActionResult) -> list[ServiceEvent]:
         """
-        Process action result without triggering AI player followup.
+        Run what follows a stored result, without the AI players' turns.
 
-        Handles round end checking, post-discard processing, and chankan prompts.
+        The round ended: handle its end. A call prompt is pending (a discard's or a kan's): the AI seats answer it.
+        Otherwise a discard nobody can call leads to the next player's draw.
         """
         events = convert_events(result.events)
-
-        # check if round ended
         if self._check_and_handle_round_end(game_id, events):
             return events
 
-        if result.needs_post_discard:
-            return self._process_post_discard(game_id, events)
-
-        # check for chankan prompt
-        chankan_prompt = self._find_chankan_prompt(events)
-        if chankan_prompt:
-            return self._handle_chankan_prompt(game_id, events)
-
-        return events
-
-    def _find_chankan_prompt(self, events: list[ServiceEvent]) -> ServiceEvent | None:
-        """
-        Find a chankan call prompt in events.
-        """
-        return next(
-            (e for e in events if isinstance(e.data, CallPromptEvent) and e.data.call_type == CallType.CHANKAN),
-            None,
-        )
-
-    def _handle_chankan_prompt(
-        self,
-        game_id: str,
-        events: list[ServiceEvent],
-    ) -> list[ServiceEvent]:
-        """
-        Handle chankan prompt using the pending call prompt system.
-        """
         prompt = self._games[game_id].round_state.pending_call_prompt
-        if prompt is None:
-            return events
+        if prompt is not None:
+            self._answer_call_prompt_for_ai_players(game_id, prompt, events)
+        elif result.needs_post_discard:
+            self._draw_after_discard(game_id, events)
 
-        # dispatch AI player call responses through standard handlers
-        self._dispatch_ai_player_call_responses(game_id, prompt, events)
-
-        # Re-fetch state after AI player responses
-        game_state = self._games[game_id]
-        round_state = game_state.round_state
-
-        # if player callers still pending, wait
-        if round_state.pending_call_prompt is not None:
-            return events
-
-        # resolved - check round end
-        self._check_and_handle_round_end(game_id, events)
         return events
 
     def get_game_state(self, game_id: str) -> MahjongGameState | None:
@@ -592,60 +542,44 @@ class MahjongGameService(GameService):
 
     def _check_and_handle_round_end(self, game_id: str, events: list[ServiceEvent]) -> bool:
         """
-        Check if round has ended and handle accordingly.
+        Handle the round's end when the stored round carries its result; return whether it did.
 
-        If the round is finished, appends round-end events to the events list and returns True. Returns False if the
-        round is still in progress.
+        Appends the round end's own events (game end, or the next round when no human has to confirm) to events; the
+        RoundEndEvent itself is already there. The result stays on the round through the round-advance wait, so finding
+        that wait already open means the round end would be applied twice: a server fault.
         """
-        game_state = self._games[game_id]
-        if game_state.round_state.phase != RoundPhase.FINISHED:
+        result = self._games[game_id].round_state.result
+        if result is None:
             return False
 
-        result = extract_round_result(events)
+        if self._round_advance.is_pending(game_id):
+            raise AssertionError("round end already handled: its round advance is pending")
+
         events.extend(self._handle_round_end(game_id, result))
         return True
 
-    def _process_post_discard(self, game_id: str, events: list[ServiceEvent]) -> list[ServiceEvent]:
+    def _answer_call_prompt_for_ai_players(
+        self,
+        game_id: str,
+        prompt: PendingCallPrompt,
+        events: list[ServiceEvent],
+    ) -> None:
         """
-        Process events after a discard.
+        Answer a pending call prompt for its AI seats, and handle the round end their answers may resolve it into.
 
-        Uses the pending call prompt system: dispatches AI player responses through handlers,
-        waits for player callers, or advances turn if no callers.
+        Human seats still pending keep the prompt open (and the round without a result).
         """
-        # check if round ended immediately (abortive draws)
-        if self._check_and_handle_round_end(game_id, events):
-            return events
+        self._dispatch_ai_player_call_responses(game_id, prompt, events)
+        self._check_and_handle_round_end(game_id, events)
 
-        # Re-fetch state after potential updates
-        game_state = self._games[game_id]
-        round_state = game_state.round_state
-
-        if round_state.pending_call_prompt is not None:
-            # dispatch AI player call responses through handlers
-            self._dispatch_ai_player_call_responses(game_id, round_state.pending_call_prompt, events)
-
-            # Re-fetch state after AI player responses
-            game_state = self._games[game_id]
-            round_state = game_state.round_state
-
-            # if player callers still pending, wait
-            if round_state.pending_call_prompt is not None:
-                return events
-
-            # prompt resolved - check round end
-            if self._check_and_handle_round_end(game_id, events):
-                return events
-        elif round_state.phase == RoundPhase.PLAYING:
-            # no callers - draw for next player (turn already advanced by process_discard_phase)
-            _new_round_state, new_game_state, draw_events = process_draw_phase(round_state, game_state)
-            self._games[game_id] = new_game_state
-
-            events.extend(convert_events(draw_events))
-
-            if self._check_and_handle_round_end(game_id, events):
-                return events
-
-        return events
+    def _draw_after_discard(self, game_id: str, events: list[ServiceEvent]) -> None:
+        """
+        Draw for the next player after a discard nobody can call (process_discard_phase already advanced the turn).
+        """
+        new_game_state, draw_events = process_draw_phase(self._games[game_id])
+        self._games[game_id] = new_game_state
+        events.extend(convert_events(draw_events))
+        self._check_and_handle_round_end(game_id, events)
 
     def _dispatch_ai_player_call_responses(
         self,
@@ -671,22 +605,14 @@ class MahjongGameService(GameService):
             action, data = response if response is not None else (GameAction.PASS, {})
             logger.debug("AI player call response", action=action.value, ai_seat=seat)
             result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
-            self._update_state_from_result(game_id, result)
+            self._games[game_id] = result.state
             events.extend(convert_events(result.events))
 
-    def _handle_round_end(
-        self,
-        game_id: str,
-        round_result: RoundResult | None = None,
-    ) -> list[ServiceEvent]:
+    def _handle_round_end(self, game_id: str, round_result: RoundResult) -> list[ServiceEvent]:
         """
         Handle the end of a round -- enter waiting state for confirmations.
         """
         frozen_game = self._games[game_id]
-
-        if round_result is None:
-            raise AssertionError("round finished but no round result found in events")
-
         logger.info("round ended", result_type=type(round_result).__name__)
 
         frozen_game = process_round_end(frozen_game, round_result)
@@ -865,7 +791,7 @@ class MahjongGameService(GameService):
 
         # The last tile in hand is the drawn tile
         tile_id = player.tiles[-1]
-        draw_event = create_draw_event(round_state, game_state, seat=seat, tile_id=tile_id)
+        draw_event = create_draw_event(game_state, seat=seat, tile_id=tile_id)
         return convert_events([draw_event])
 
     def _auto_confirm_pending_advance(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
@@ -959,10 +885,7 @@ class MahjongGameService(GameService):
 
         events = self._create_round_started_events(frozen_game)
 
-        _new_round_state, new_game_state, draw_events = process_draw_phase(
-            frozen_game.round_state,
-            frozen_game,
-        )
+        new_game_state, draw_events = process_draw_phase(frozen_game)
         self._games[game_id] = new_game_state
         events.extend(convert_events(draw_events))
 

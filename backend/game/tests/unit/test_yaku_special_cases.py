@@ -691,7 +691,7 @@ class TestNagashiManganDetection:
         settings = GameSettings(has_nagashi_mangan=False)
         game_state = create_game_state(round_state=round_state, settings=settings)
 
-        _new_rs, _new_gs, result = process_exhaustive_draw(game_state)
+        _new_gs, result = process_exhaustive_draw(game_state)
         # should be a regular exhaustive draw, not nagashi mangan
         assert not hasattr(result, "qualifying_seats")
 
@@ -706,7 +706,7 @@ class TestNagashiManganPayments:
         round_state = create_round_state(players=players, dealer_seat=0)
         game_state = create_game_state(round_state=round_state, settings=settings)
 
-        _rs, _gs, result = apply_nagashi_mangan_score(
+        _gs, result = apply_nagashi_mangan_score(
             game_state,
             qualifying_seats=[1],
             tempai_seats=[],
@@ -727,7 +727,7 @@ class TestNagashiManganPayments:
             honba_sticks=5,
         )
 
-        _rs, _gs, result = apply_nagashi_mangan_score(
+        _gs, result = apply_nagashi_mangan_score(
             game_state,
             qualifying_seats=[1],
             tempai_seats=[],

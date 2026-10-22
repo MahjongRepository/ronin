@@ -235,9 +235,9 @@ def _apply_score_changes(
     score_changes: dict[int, int],
     *,
     clear_riichi: bool = True,
-) -> tuple[MahjongRoundState, MahjongGameState]:
+) -> MahjongGameState:
     """
-    Apply score changes to round state and optionally clear riichi sticks.
+    Apply score changes to the round's players and optionally clear riichi sticks.
     """
     new_round_state = game_state.round_state
     for seat, change in score_changes.items():
@@ -248,8 +248,7 @@ def _apply_score_changes(
     if clear_riichi:
         updates["riichi_sticks"] = 0
 
-    new_game_state = game_state.model_copy(update=updates)
-    return new_round_state, new_game_state
+    return game_state.model_copy(update=updates)
 
 
 def _tsumo_payment_for_seat(
@@ -273,11 +272,11 @@ def apply_tsumo_score(
     game_state: MahjongGameState,
     winner_seat: int,
     hand_result: HandResult,
-) -> tuple[MahjongRoundState, MahjongGameState, TsumoResult]:
+) -> tuple[MahjongGameState, TsumoResult]:
     """
     Apply score changes for a tsumo win.
 
-    Returns (new_round_state, new_game_state, result).
+    Returns (new_game_state, result).
 
     Payment structure (normal):
     - If winner is dealer: each non-dealer pays main_cost
@@ -337,9 +336,8 @@ def apply_tsumo_score(
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
     score_changes[winner_seat] += riichi_bonus
 
-    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
+    new_game_state = _apply_score_changes(game_state, score_changes)
     return (
-        new_round_state,
         new_game_state,
         TsumoResult(
             winner_seat=winner_seat,
@@ -366,11 +364,11 @@ def apply_ron_score(
     loser_seat: int,
     hand_result: HandResult,
     winning_tile: int,
-) -> tuple[MahjongRoundState, MahjongGameState, RonResult]:
+) -> tuple[MahjongGameState, RonResult]:
     """
     Apply score changes for a ron win.
 
-    Returns (new_round_state, new_game_state, result).
+    Returns (new_game_state, result).
 
     Payment structure (normal):
     - Loser pays: main_cost + honba * 300
@@ -411,9 +409,8 @@ def apply_ron_score(
     # winner receives riichi sticks
     score_changes[winner_seat] += riichi_bonus
 
-    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
+    new_game_state = _apply_score_changes(game_state, score_changes)
     return (
-        new_round_state,
         new_game_state,
         RonResult(
             winner_seat=winner_seat,
@@ -440,11 +437,11 @@ def apply_double_ron_score(
     winners: list[tuple[int, HandResult]],  # list of (seat, hand_result)
     loser_seat: int,
     winning_tile: int,
-) -> tuple[MahjongRoundState, MahjongGameState, DoubleRonResult]:
+) -> tuple[MahjongGameState, DoubleRonResult]:
     """
     Apply score changes for a double ron.
 
-    Returns (new_round_state, new_game_state, result).
+    Returns (new_game_state, result).
 
     Payment structure:
     - Loser pays each winner separately: main_cost + honba * 300
@@ -511,9 +508,8 @@ def apply_double_ron_score(
             ),
         )
 
-    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes)
+    new_game_state = _apply_score_changes(game_state, score_changes)
     return (
-        new_round_state,
         new_game_state,
         DoubleRonResult(
             loser_seat=loser_seat,
@@ -531,11 +527,11 @@ def apply_nagashi_mangan_score(
     tempai_seats: list[int],
     noten_seats: list[int],
     tenpai_hands: list[TenpaiHand],
-) -> tuple[MahjongRoundState, MahjongGameState, NagashiManganResult]:
+) -> tuple[MahjongGameState, NagashiManganResult]:
     """
     Apply nagashi mangan scoring.
 
-    Returns (new_round_state, new_game_state, result).
+    Returns (new_game_state, result).
 
     Each qualifying player receives mangan tsumo payment:
     - Dealer: 4000 from each non-dealer (12000 total)
@@ -560,9 +556,8 @@ def apply_nagashi_mangan_score(
             score_changes[seat] -= payment
             score_changes[winner_seat] += payment
 
-    new_round_state, new_game_state = _apply_score_changes(game_state, score_changes, clear_riichi=False)
+    new_game_state = _apply_score_changes(game_state, score_changes, clear_riichi=False)
     return (
-        new_round_state,
         new_game_state,
         NagashiManganResult(
             qualifying_seats=qualifying_seats,

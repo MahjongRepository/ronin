@@ -8,10 +8,10 @@ class GameRuleError(Exception):
     A rule judgment refused the acting seat's action: one the wire offered, refused by a rule the client cannot apply
     without engine state it never receives (kuikae, a riichi player's tsumogiri, a riichi discard that breaks tenpai).
 
-    Raised only while validating an action, before anything changes. The action handler answers the acting seat with an
-    ErrorEvent carrying `code`; the turn and its timer continue. Any other exception the engine raises is either
-    structural input (ImpossibleActionError) or a server fault. Each judgment is a subclass with its own code; the base
-    answers with the generic INVALID_ACTION.
+    Raised only while validating an action, before anything changes. The action handler turns it into a Refusal carrying
+    `code`, which the service answers with an ErrorEvent to the acting seat; the turn and its timer continue. Any other
+    exception the engine raises is either structural input (ImpossibleActionError) or a server fault. Each judgment is a
+    subclass with its own code; the base answers with the generic INVALID_ACTION.
     """
 
     code: ClassVar[GameErrorCode] = GameErrorCode.INVALID_ACTION

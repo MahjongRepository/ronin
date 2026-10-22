@@ -2,20 +2,14 @@ from game.logic.enums import CallType, MeldCallType, PromptKind
 from game.logic.events import (
     DrawEvent,
     EventType,
-    RoundEndEvent,
     SeatTarget,
     ServiceEvent,
     build_call_prompt_events,
     convert_events,
-    extract_round_result,
 )
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.types import (
-    HandResultInfo,
     MeldCaller,
-    RoundResultType,
-    TsumoResult,
-    YakuInfo,
 )
 from game.tests.unit.helpers import _string_to_136_tile
 
@@ -78,44 +72,3 @@ class TestBuildCallPromptEvents:
             (SeatTarget(seat=0), CallType.CHANKAN, [0]),
             (SeatTarget(seat=1), CallType.CHANKAN, [1]),
         ]
-
-
-class TestExtractRoundResult:
-    def test_extract_round_result__when_round_end_event__should_return_result(self):
-        tsumo_result = TsumoResult(
-            winner_seat=0,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 1000},
-            riichi_sticks_collected=0,
-            closed_tiles=[0, 1, 2, 3],
-            melds=[],
-            win_tile=3,
-        )
-        events = [
-            ServiceEvent(
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0)),
-            ),
-            ServiceEvent(
-                data=RoundEndEvent(result=tsumo_result),
-            ),
-        ]
-
-        result = extract_round_result(events)
-        assert result is not None
-        assert isinstance(result, TsumoResult)
-        assert result.type == RoundResultType.TSUMO
-        assert result.winner_seat == 0
-
-    def test_extract_round_result__when_no_round_end_event__should_return_none(self):
-        events = [
-            ServiceEvent(
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0)),
-            ),
-            ServiceEvent(
-                data=DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0)),
-            ),
-        ]
-
-        result = extract_round_result(events)
-        assert result is None

@@ -52,7 +52,7 @@ class TestKyuushuKyuuhaiDrawPhase:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_draw_phase(round_state, game_state)
+        _new_game, events = process_draw_phase(game_state)
         draw_events = [e for e in events if isinstance(e, DrawEvent) and e.available_actions]
         assert len(draw_events) == 1
         available_actions = [a.action for a in draw_events[0].available_actions]
@@ -81,14 +81,13 @@ class TestRinshanTsumoAfterOpenKan:
         )
         game_state = create_game_state(round_state)
 
-        kan_round, kan_game, _events = process_meld_call(
-            round_state,
+        kan_game, _events = process_meld_call(
             game_state,
             meld_input=MeldCallInput(caller_seat=1, call_type=MeldCallType.OPEN_KAN, tile_id=man_1s[3]),
         )
-        assert PlayerAction.TSUMO in [a.action for a in get_available_actions(kan_round, kan_game, seat=1)]
+        assert PlayerAction.TSUMO in [a.action for a in get_available_actions(kan_game, seat=1)]
 
-        _round, _game, tsumo_events = process_tsumo_call(kan_round, kan_game, winner_seat=1)
+        _game, tsumo_events = process_tsumo_call(kan_game, winner_seat=1)
         assert tsumo_events[0].result.type == RoundResultType.TSUMO
 
 
@@ -97,7 +96,8 @@ class TestExhaustiveDrawPhase:
         round_state = create_round_state(wall=(), phase=RoundPhase.PLAYING, current_player_seat=0)
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, events = process_draw_phase(round_state, game_state)
+        new_game, events = process_draw_phase(game_state)
+        new_round = new_game.round_state
         assert new_round.phase == RoundPhase.FINISHED
         assert not any(isinstance(e, DrawEvent) for e in events)
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
@@ -134,7 +134,8 @@ class TestRiichiFuriten:
         )
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        new_game, _events = process_discard_phase(game_state, discard_tile)
+        new_round = new_game.round_state
         assert new_round.players[1].is_riichi_furiten is True
 
     def test_riichi_furiten__when_riichi_player_not_furiten__should_offer_ron_prompt(self):
@@ -159,7 +160,8 @@ class TestRiichiFuriten:
         )
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        new_game, _events = process_discard_phase(game_state, discard_tile)
+        new_round = new_game.round_state
         assert new_round.pending_call_prompt is not None
         assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
         assert new_round.players[1].is_riichi_furiten is False
@@ -190,7 +192,8 @@ class TestChiOpportunity:
         )
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        new_game, _events = process_discard_phase(game_state, discard_tile)
+        new_round = new_game.round_state
         prompt = new_round.pending_call_prompt
         assert prompt is not None
         assert [c.seat for c in prompt.callers] == [1]
@@ -220,7 +223,8 @@ class TestFindRonCallers:
         )
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        new_game, _events = process_discard_phase(game_state, discard_tile)
+        new_round = new_game.round_state
         assert new_round.pending_call_prompt is not None
         assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
 
@@ -246,7 +250,8 @@ class TestFindRonCallers:
         )
         game_state = create_game_state(round_state)
 
-        new_round, _new_game, _events = process_discard_phase(round_state, game_state, discard_tile)
+        new_game, _events = process_discard_phase(game_state, discard_tile)
+        new_round = new_game.round_state
         assert new_round.pending_call_prompt is not None
         assert [c.seat for c in new_round.pending_call_prompt.callers if c.can_ron] == [1, 3]
 
@@ -279,7 +284,7 @@ class TestSingleRonHandError:
 
             ron_input = RonCallInput(ron_callers=[1], tile_id=discard_tile, discarder_seat=0)
             with pytest.raises(ScoringError, match="ron calculation error"):
-                process_ron_call(round_state, game_state, ron_input=ron_input)
+                process_ron_call(game_state, ron_input=ron_input)
 
 
 class TestDoubleRonHandError:
@@ -324,7 +329,7 @@ class TestDoubleRonHandError:
             patch("game.logic.turn.calculate_hand_value_with_tiles", side_effect=fail_for_second_winner),
             pytest.raises(ScoringError, match="ron calculation error for seat 2"),
         ):
-            handle_ron(round_state, game_state, seat=2)
+            handle_ron(game_state, seat=2)
 
 
 class TestTsumoHandError:
@@ -353,7 +358,7 @@ class TestTsumoHandError:
             mock_calc.return_value = HandResult(error="mock error")
 
             with pytest.raises(ScoringError, match="tsumo calculation error"):
-                handle_tsumo(round_state, game_state, seat=0)
+                handle_tsumo(game_state, seat=0)
 
 
 class TestAddedKanChankan:
@@ -387,7 +392,7 @@ class TestAddedKanChankan:
         game_state = create_game_state(round_state)
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
-        _new_round, _new_game, events = process_meld_call(round_state, game_state, meld_input=meld_input)
+        _new_game, events = process_meld_call(game_state, meld_input=meld_input)
         call_prompts = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(call_prompts) == 1
 
@@ -424,7 +429,7 @@ class TestChiSequenceTilesValidation:
             sequence_tiles=None,
         )
         with pytest.raises(AssertionError, match="chi call requires sequence_tiles"):
-            process_meld_call(round_state, game_state, meld_input=meld_input)
+            process_meld_call(game_state, meld_input=meld_input)
 
 
 class TestAbortiveDrawIntegration:
@@ -451,7 +456,7 @@ class TestAbortiveDrawIntegration:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
+        _new_game, events = process_discard_phase(game_state, discard_tile)
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -479,7 +484,7 @@ class TestAbortiveDrawIntegration:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_discard_phase(round_state, game_state, discard_tile)
+        _new_game, events = process_discard_phase(game_state, discard_tile)
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
@@ -507,8 +512,7 @@ class TestAbortiveDrawIntegration:
         )
         game_state = create_game_state(round_state)
 
-        _new_round, _new_game, events = process_discard_phase(
-            round_state,
+        _new_game, events = process_discard_phase(
             game_state,
             discard_tile,
             is_riichi=True,
@@ -543,7 +547,7 @@ class TestDoubleRonScenario:
         game_state = create_game_state(round_state)
 
         ron_input = RonCallInput(ron_callers=[1, 2], tile_id=discard_tile, discarder_seat=0)
-        _new_round, _new_game, events = process_ron_call(round_state, game_state, ron_input=ron_input)
+        _new_game, events = process_ron_call(game_state, ron_input=ron_input)
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
@@ -579,7 +583,8 @@ class TestAddedKanNormalPath:
         game_state = create_game_state(round_state)
 
         meld_input = MeldCallInput(caller_seat=0, call_type=MeldCallType.ADDED_KAN, tile_id=fourth_tile)
-        new_round, _new_game, _events = process_meld_call(round_state, game_state, meld_input=meld_input)
+        new_game, _events = process_meld_call(game_state, meld_input=meld_input)
+        new_round = new_game.round_state
         assert any(m.type == FrozenMeld.SHOUMINKAN for m in new_round.players[0].melds)
 
 

@@ -1,3 +1,7 @@
+from typing import TYPE_CHECKING
+
+from game.logic.enums import RoundPhase
+from game.logic.events import RoundEndEvent
 from game.logic.state import (
     CallResponse,
     MahjongGameState,
@@ -5,6 +9,9 @@ from game.logic.state import (
     MahjongRoundState,
     PendingCallPrompt,
 )
+
+if TYPE_CHECKING:
+    from game.logic.types import RoundResult
 
 _PLAYER_FIELDS = set(MahjongPlayer.model_fields)
 
@@ -156,3 +163,17 @@ def clear_all_players_ippatsu(
             players[i] = p.model_copy(update={"is_ippatsu": False})
 
     return round_state.model_copy(update={"players": tuple(players)})
+
+
+def finish_round(
+    game_state: MahjongGameState,
+    result: RoundResult,
+) -> tuple[MahjongGameState, RoundEndEvent]:
+    """
+    End the round with its result: mark it finished, store the result, and return the round end event.
+
+    The only way a round finishes, so a finished round always carries its result. The caller appends the event where the
+    round ended, keeping the event order.
+    """
+    new_round_state = game_state.round_state.model_copy(update={"phase": RoundPhase.FINISHED, "result": result})
+    return update_game_with_round(game_state, new_round_state), RoundEndEvent(result=result)

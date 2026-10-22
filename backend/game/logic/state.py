@@ -8,7 +8,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import WINDS_34
-from game.logic.types import PlayerView
+from game.logic.types import PlayerView, RoundResult
 from game.logic.wall import Wall
 
 _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
@@ -126,6 +126,9 @@ class MahjongPlayer(BaseModel):
 class MahjongRoundState(BaseModel):
     """
     Immutable round state.
+
+    result is set together with phase FINISHED (finish_round) and kept through the round-advance wait; a new round
+    starts without one.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -137,6 +140,7 @@ class MahjongRoundState(BaseModel):
     round_wind: int = 0
     all_discards: tuple[int, ...] = ()
     phase: RoundPhase = RoundPhase.WAITING
+    result: RoundResult | None = None
     pending_call_prompt: PendingCallPrompt | None = None
     is_after_meld_call: bool = False
 

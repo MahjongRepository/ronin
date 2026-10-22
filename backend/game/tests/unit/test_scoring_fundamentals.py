@@ -58,7 +58,10 @@ class TestHonbaRonBonus:
         game_state = _scoring_game_state(honba=2, settings=settings)
         hand_result = HandResult(han=2, fu=30, cost_main=2000, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_ron_score(game_state, winner_seat=1, loser_seat=2, hand_result=hand_result, winning_tile=0)
+        new_game_state, _ = apply_ron_score(
+            game_state, winner_seat=1, loser_seat=2, hand_result=hand_result, winning_tile=0
+        )
+        new_rs = new_game_state.round_state
         # 2000 base + 2*500 honba = 3000
         assert new_rs.players[1].score == 25000 + 3000
         assert new_rs.players[2].score == 25000 - 3000
@@ -68,7 +71,10 @@ class TestHonbaRonBonus:
         hr1 = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
         hr2 = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_double_ron_score(game_state, winners=[(0, hr1), (2, hr2)], loser_seat=1, winning_tile=0)
+        new_game_state, _ = apply_double_ron_score(
+            game_state, winners=[(0, hr1), (2, hr2)], loser_seat=1, winning_tile=0
+        )
+        new_rs = new_game_state.round_state
         # each winner: 1000 + 3*300 = 1900
         assert new_rs.players[0].score == 25000 + 1900
         assert new_rs.players[2].score == 25000 + 1900
@@ -83,7 +89,8 @@ class TestHonbaTsumoBonus:
         # non-dealer tsumo: dealer pays 1000, non-dealers pay 500
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
-        new_rs, _, _ = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_game_state, _ = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
+        new_rs = new_game_state.round_state
         # dealer pays 1000+200=1200, non-dealers pay 500+200=700
         assert new_rs.players[0].score == 25000 - 1200
         assert new_rs.players[2].score == 25000 - 700
@@ -162,7 +169,8 @@ class TestNotenPenaltyConfigurable:
         settings = GameSettings(noten_penalty_total=6000)
         game_state = self._exhaust_game_state(tempai_seats=[0], settings=settings)
 
-        new_rs, _, result = process_exhaustive_draw(game_state)
+        new_game_state, result = process_exhaustive_draw(game_state)
+        new_rs = new_game_state.round_state
         assert result.score_changes[0] == 6000  # tempai receives 6000
         assert result.score_changes[1] == -2000
         assert result.score_changes[2] == -2000
@@ -172,7 +180,7 @@ class TestNotenPenaltyConfigurable:
     def test_process_exhaustive_draw__when_two_tempai_two_noten__should_transfer_1500_each(self):
         game_state = self._exhaust_game_state(tempai_seats=[0, 2])
 
-        _new_rs, _, result = process_exhaustive_draw(game_state)
+        _, result = process_exhaustive_draw(game_state)
         assert result.score_changes[0] == 1500
         assert result.score_changes[1] == -1500
         assert result.score_changes[2] == 1500
@@ -181,7 +189,7 @@ class TestNotenPenaltyConfigurable:
     def test_process_exhaustive_draw__when_three_tempai_one_noten__should_charge_noten_3000(self):
         game_state = self._exhaust_game_state(tempai_seats=[0, 1, 2])
 
-        _new_rs, _, result = process_exhaustive_draw(game_state)
+        _, result = process_exhaustive_draw(game_state)
         assert result.score_changes[0] == 1000
         assert result.score_changes[1] == 1000
         assert result.score_changes[2] == 1000
@@ -190,13 +198,13 @@ class TestNotenPenaltyConfigurable:
     def test_process_exhaustive_draw__when_all_tempai__should_not_transfer_points(self):
         game_state = self._exhaust_game_state(tempai_seats=[0, 1, 2, 3])
 
-        _, _, result = process_exhaustive_draw(game_state)
+        _, result = process_exhaustive_draw(game_state)
         assert all(v == 0 for v in result.score_changes.values())
 
     def test_process_exhaustive_draw__when_all_noten__should_not_transfer_points(self):
         game_state = self._exhaust_game_state(tempai_seats=[])
 
-        _, _, result = process_exhaustive_draw(game_state)
+        _, result = process_exhaustive_draw(game_state)
         assert all(v == 0 for v in result.score_changes.values())
 
 

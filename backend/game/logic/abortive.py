@@ -11,7 +11,6 @@ from game.logic.types import AbortiveDrawResult
 if TYPE_CHECKING:
     from game.logic.settings import GameSettings
     from game.logic.state import (
-        MahjongGameState,
         MahjongPlayer,
         MahjongRoundState,
     )
@@ -143,7 +142,7 @@ def check_four_winds(round_state: MahjongRoundState, settings: GameSettings) -> 
 
 
 def process_abortive_draw(
-    game_state: MahjongGameState,
+    round_state: MahjongRoundState,
     draw_type: AbortiveDrawType,
 ) -> AbortiveDrawResult:
     """
@@ -151,9 +150,9 @@ def process_abortive_draw(
 
     No score changes occur. Honba increment is handled by process_round_end.
     """
-    scores = {p.seat: p.score for p in game_state.round_state.players}
+    scores = {p.seat: p.score for p in round_state.players}
     return AbortiveDrawResult(
         reason=draw_type,
         scores=scores,
-        score_changes={p.seat: 0 for p in game_state.round_state.players},
+        score_changes={p.seat: 0 for p in round_state.players},
     )

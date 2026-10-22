@@ -37,9 +37,8 @@ class TestGetAvailableActions:
 
     def test_get_available_actions__should_not_include_discard(self):
         game_state = self._create_game_state()
-        round_state = game_state.round_state
 
-        actions = get_available_actions(round_state, game_state, seat=0)
+        actions = get_available_actions(game_state, seat=0)
         discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
         assert len(discard_actions) == 0
 
@@ -53,7 +52,7 @@ class TestGetAvailableActions:
         round_state = _update_player(round_state, 0, tiles=kan_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        actions = get_available_actions(round_state, game_state, seat=0)
+        actions = get_available_actions(game_state, seat=0)
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 1
         assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
@@ -69,7 +68,7 @@ class TestGetAvailableActions:
         round_state = round_state.model_copy(update={"wall": Wall()})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        actions = get_available_actions(round_state, game_state, seat=0)
+        actions = get_available_actions(game_state, seat=0)
         # no kan should be available since wall is empty
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 0
@@ -80,7 +79,7 @@ class TestGetAvailableActions:
         round_state = _update_player(round_state, 0, tiles=())
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        actions = get_available_actions(round_state, game_state, seat=0)
+        actions = get_available_actions(game_state, seat=0)
         assert len(actions) == 0
 
 
@@ -96,16 +95,14 @@ class TestTsumoAfterOwnCall:
         drawn_state = round_state.model_copy(update={"current_player_seat": 0})
         after_pon_state = drawn_state.model_copy(update={"is_after_meld_call": True})
 
-        drawn_actions = get_available_actions(
-            drawn_state, game_state.model_copy(update={"round_state": drawn_state}), seat=0
-        )
+        drawn_actions = get_available_actions(game_state.model_copy(update={"round_state": drawn_state}), seat=0)
         assert PlayerAction.TSUMO in [a.action for a in drawn_actions]
 
         after_pon_game = game_state.model_copy(update={"round_state": after_pon_state})
-        after_pon_actions = get_available_actions(after_pon_state, after_pon_game, seat=0)
+        after_pon_actions = get_available_actions(after_pon_game, seat=0)
         assert PlayerAction.TSUMO not in [a.action for a in after_pon_actions]
         with pytest.raises(InvalidGameActionError, match="cannot declare tsumo"):
-            handle_tsumo(after_pon_state, after_pon_game, seat=0)
+            handle_tsumo(after_pon_game, seat=0)
 
 
 class TestAddedKanAction:
@@ -136,7 +133,7 @@ class TestAddedKanAction:
         )
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        actions = get_available_actions(round_state, game_state, seat=0)
+        actions = get_available_actions(game_state, seat=0)
         added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]
         assert len(added_kan_actions) == 1
         assert added_kan_actions[0].tiles == [_string_to_34_tile(man="1")]

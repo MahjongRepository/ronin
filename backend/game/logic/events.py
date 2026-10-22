@@ -319,14 +319,3 @@ def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
     """
     _construct = ServiceEvent.model_construct
     return [_construct(data=event) for event in raw_events]
-
-
-def extract_round_result(events: list[ServiceEvent]) -> RoundResult | None:
-    """
-    Extract the round result from a list of service events.
-    """
-    for event in events:
-        if event.event == EventType.ROUND_END and isinstance(event.data, RoundEndEvent):
-            return event.data.result
-
-    return None

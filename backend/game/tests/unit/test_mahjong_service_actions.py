@@ -1,21 +1,31 @@
-from unittest.mock import patch
-
 import pytest
+from mahjong.tile import TilesConverter
 
 from game.logic.action_result import ActionResult
-from game.logic.enums import CallType, GameAction, GameErrorCode, PromptKind, RoundPhase, RoundResultType
+from game.logic.enums import (
+    CallType,
+    GameAction,
+    GameErrorCode,
+    KanType,
+    PromptKind,
+    RoundPhase,
+    RoundResultType,
+    WaitKind,
+)
 from game.logic.events import (
+    BroadcastTarget,
     CallPromptEvent,
     EventType,
     RoundEndEvent,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import Caller, PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
 from game.tests.unit.helpers import (
     _find_player,
+    _update_player,
     _update_round_state,
 )
 
@@ -30,48 +40,48 @@ class TestMahjongGameServiceErrors:
             service.handle_action(game_id="nonexistent", seat=0, action=GameAction.DISCARD, data={"tile_id": 0})
 
 
-class TestMahjongGameServiceProcessActionResult:
+class TestMahjongGameServiceAddedKanChankan:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_process_action_result__when_chankan_prompt_for_ai_player__should_return_events(self, service):
+    def test_handle_action__when_ai_robber_passes_on_added_kan__should_complete_the_kan_and_draw(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-        player = _find_player(game_state.round_state, "Player")
-
-        ai_player_controller = service._ai_player_controllers["game1"]
-        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.CHANKAN,
-            tile_id=0,
-            from_seat=player.seat,
-            pending_seats=frozenset({ai_player_seats[0]}),
-            callers=(Caller(seat=ai_player_seats[0], can_ron=True),),
+        player = _find_player(service._games["game1"].round_state, "Player")
+        robber_seat = (player.seat + 1) % 4
+        pin_3_copies = TilesConverter.string_to_136_array(pin="3333")
+        pon = FrozenMeld(
+            tiles=tuple(pin_3_copies[:3]),
+            meld_type=FrozenMeld.PON,
+            opened=True,
+            called_tile=pin_3_copies[0],
+            who=player.seat,
+            from_who=(player.seat + 3) % 4,
         )
-        _update_round_state(service, "game1", pending_call_prompt=prompt)
+        player_hand = (*TilesConverter.string_to_136_array(sou="123456789", honors="1"), pin_3_copies[3])
+        _update_player(service, game_id="game1", seat=player.seat, tiles=player_hand, melds=(pon,), discards=())
+        robber_hand_waits_3p = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
+        _update_player(service, game_id="game1", seat=robber_seat, tiles=robber_hand_waits_3p, melds=(), discards=())
+        _update_round_state(service, "game1", current_player_seat=player.seat, is_after_meld_call=False)
 
-        chankan_prompt = CallPromptEvent(
-            call_type=CallType.CHANKAN,
-            tile_id=0,
-            from_seat=player.seat,
-            callers=[ai_player_seats[0]],
-            target=SeatTarget(seat=ai_player_seats[0]),
+        update = service.handle_action(
+            game_id="game1",
+            seat=player.seat,
+            action=GameAction.CALL_KAN,
+            data={"tile_id": pin_3_copies[3], "kan_type": KanType.ADDED},
         )
-        result = ActionResult(
-            events=[chankan_prompt],
-            needs_post_discard=False,
-        )
-
-        cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
-        with patch(
-            "game.logic.call_resolution.complete_closed_kan_after_chankan_decline",
-            return_value=(cleared_round, game_state, []),
-        ):
-            events = service._process_action_result_internal("game1", result)
-
-        assert [e.event for e in events] == [EventType.CALL_PROMPT]
+        assert [(e.event, e.target) for e in update.events] == [
+            (EventType.CALL_PROMPT, SeatTarget(seat=robber_seat)),
+            (EventType.MELD, BroadcastTarget()),
+            (EventType.DRAW, SeatTarget(seat=player.seat)),
+            (EventType.FURITEN, SeatTarget(seat=robber_seat)),
+        ]
+        assert update.events[0].data.call_type == CallType.CHANKAN
+        round_state = service._games["game1"].round_state
+        assert round_state.pending_call_prompt is None
+        assert round_state.players[player.seat].melds[0].meld_type == FrozenMeld.SHOUMINKAN
+        assert update.awaiting.kind == WaitKind.TURN
+        assert update.awaiting.seats == frozenset({player.seat})
 
 
 class TestProcessActionResultRoundEnd:
@@ -83,8 +93,6 @@ class TestProcessActionResultRoundEnd:
         service.start_game("game1", ["Player"], seed="a" * 192)
 
         scores = {i: service._games["game1"].round_state.players[i].score for i in range(4)}
-        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
-
         round_end = RoundEndEvent(
             result=ExhaustiveDrawResult(
                 type=RoundResultType.EXHAUSTIVE_DRAW,
@@ -95,19 +103,20 @@ class TestProcessActionResultRoundEnd:
                 score_changes={},
             ),
         )
-        result = ActionResult(events=[round_end], needs_post_discard=False)
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED, result=round_end.result)
+        result = ActionResult(events=[round_end], state=service._games["game1"], needs_post_discard=True)
 
         events = service._process_action_result_internal("game1", result)
-        round_end_events = [e for e in events if e.event == EventType.ROUND_END]
-        assert len(round_end_events) == 1
+        assert [e.event for e in events] == [EventType.ROUND_END]
+        assert service.is_round_advance_pending("game1")
 
 
-class TestMahjongGameServiceHandleChankanPrompt:
+class TestMahjongGameServiceChankanPrompt:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_handle_chankan_prompt__when_caller_is_human_player__should_return_events_unchanged(self, service):
+    def test_process_action_result__when_chankan_prompt_waits_for_human_player__should_keep_it_open(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -120,73 +129,18 @@ class TestMahjongGameServiceHandleChankanPrompt:
             callers=(Caller(seat=player.seat, can_ron=True),),
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
-
-        chankan_prompt = ServiceEvent(
-            data=CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=0,
-                from_seat=0,
-                callers=[player.seat],
-                target=SeatTarget(seat=player.seat),
-            ),
-        )
-        events = [chankan_prompt]
-
-        result = service._handle_chankan_prompt("game1", events)
-        assert result == events
-
-    def test_handle_chankan_prompt__when_caller_is_ai_player__should_process_its_response(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
-
-        ai_player_controller = service._ai_player_controllers["game1"]
-        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.CHANKAN,
+        chankan_prompt = CallPromptEvent(
+            call_type=CallType.CHANKAN,
             tile_id=0,
-            from_seat=ai_player_seats[0],
-            pending_seats=frozenset({ai_player_seats[1]}),
-            callers=(Caller(seat=ai_player_seats[1], can_ron=True),),
+            from_seat=0,
+            callers=[player.seat],
+            target=SeatTarget(seat=player.seat),
         )
-        _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        chankan_prompt = ServiceEvent(
-            data=CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=0,
-                from_seat=ai_player_seats[0],
-                callers=[ai_player_seats[1]],
-                target=SeatTarget(seat=ai_player_seats[1]),
-            ),
-        )
-        events = [chankan_prompt]
-
-        cleared_round = game_state.round_state.model_copy(update={"pending_call_prompt": None})
-        with patch(
-            "game.logic.call_resolution.complete_closed_kan_after_chankan_decline",
-            return_value=(cleared_round, game_state, []),
-        ):
-            result = service._handle_chankan_prompt("game1", events)
-
-        assert [e.event for e in result] == [EventType.CALL_PROMPT]
-
-    def test_handle_chankan_prompt__when_no_pending_prompt__should_return_events_unchanged(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-
-        chankan_prompt = ServiceEvent(
-            data=CallPromptEvent(
-                call_type=CallType.CHANKAN,
-                tile_id=0,
-                from_seat=0,
-                callers=[1],
-                target=SeatTarget(seat=1),
-            ),
-        )
-        events = [chankan_prompt]
-
-        result = service._handle_chankan_prompt("game1", events)
-        assert result == events
+        result = ActionResult(events=[chankan_prompt], state=service._games["game1"])
+        events = service._process_action_result_internal("game1", result)
+        assert [e.data for e in events] == [chankan_prompt]
+        assert service._games["game1"].round_state.pending_call_prompt == prompt
 
 
 class TestNoDataActionDispatchRouting:
@@ -198,15 +152,17 @@ class TestNoDataActionDispatchRouting:
         "action",
         [GameAction.DECLARE_TSUMO, GameAction.CALL_KYUUSHU],
     )
-    def test_handle_action__when_no_data_action_out_of_turn__should_return_error_event(self, service, action):
+    def test_handle_action__when_no_data_action_out_of_turn__should_answer_error_and_run_nothing(self, service, action):
         service.start_game("game1", ["Player"], seed="a" * 192)
         player = _find_player(service._games["game1"].round_state, "Player")
-        other_seat = (player.seat + 1) % 4
-        _update_round_state(service, "game1", current_player_seat=other_seat)
+        ai_seat_on_turn = (player.seat + 1) % 4
+        _update_round_state(service, "game1", current_player_seat=ai_seat_on_turn)
+        game_state = service.get_game_state("game1")
 
-        events = service.handle_action(game_id="game1", seat=player.seat, action=action, data={}).events
-        assert events[0].event == EventType.ERROR
-        assert events[0].data.code == GameErrorCode.NOT_YOUR_TURN
+        update = service.handle_action(game_id="game1", seat=player.seat, action=action, data={})
+        assert [(e.event, e.data.code) for e in update.events] == [(EventType.ERROR, GameErrorCode.NOT_YOUR_TURN)]
+        assert service.get_game_state("game1") is game_state
+        assert update.awaiting.wait_id == game_state.wait_id
 
     @pytest.mark.parametrize(
         ("action", "data", "code"),
@@ -222,41 +178,3 @@ class TestNoDataActionDispatchRouting:
         assert len(events) == 1
         assert events[0].event == EventType.ERROR
         assert events[0].data.code == code
-
-
-class TestChankanPromptResolvedPath:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_handle_chankan_prompt__when_ai_responses_resolve_prompt__should_check_round_end(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-
-        ai_player_controller = service._ai_player_controllers["game1"]
-        ai_player_seats = sorted(ai_player_controller.ai_player_seats)
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.CHANKAN,
-            tile_id=0,
-            from_seat=ai_player_seats[0],
-            pending_seats=frozenset({ai_player_seats[1]}),
-            callers=(Caller(seat=ai_player_seats[1], can_ron=True),),
-        )
-        _update_round_state(service, "game1", pending_call_prompt=prompt)
-
-        def mock_dispatch_clearing_prompt(_game_id, _prompt, _evts):
-            _update_round_state(service, "game1", pending_call_prompt=None)
-
-        events: list[ServiceEvent] = []
-        with (
-            patch.object(
-                service,
-                "_dispatch_ai_player_call_responses",
-                side_effect=mock_dispatch_clearing_prompt,
-            ),
-            patch.object(service, "_check_and_handle_round_end") as mock_round_end,
-        ):
-            result = service._handle_chankan_prompt("game1", events)
-
-        assert isinstance(result, list)
-        mock_round_end.assert_called_once_with("game1", events)

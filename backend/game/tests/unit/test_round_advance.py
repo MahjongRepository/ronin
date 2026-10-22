@@ -80,6 +80,7 @@ class TestConfirmRound:
         player_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
 
         result = _make_exhaustive_draw_result()
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED, result=result)
         service._handle_round_end("game1", result)
 
         events = service.handle_action(
@@ -88,6 +89,7 @@ class TestConfirmRound:
         round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
         assert len(round_started) == 4
         assert not service.is_round_advance_pending("game1")
+        assert service._games["game1"].round_state.result is None
 
     def test_confirm_round__when_other_player_unconfirmed__should_keep_waiting(self, service):
         service.start_game("game1", ["Alice", "Bob"])

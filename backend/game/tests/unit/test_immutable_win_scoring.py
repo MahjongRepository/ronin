@@ -80,7 +80,8 @@ class TestProcessExhaustiveDrawPayment:
         round_state = MahjongRoundState(players=players, wall=Wall())
         game_state = MahjongGameState(round_state=round_state)
 
-        new_round, _new_game, result = process_exhaustive_draw(game_state)
+        new_game, result = process_exhaustive_draw(game_state)
+        new_round = new_game.round_state
         assert result.tempai_seats == [0]
         assert result.noten_seats == [1, 2, 3]
         assert len(result.tenpai_hands) == 1
@@ -118,12 +119,13 @@ class TestApplyDoubleRonWithPao:
         )
 
         winners = [(0, hand_result_0), (2, hand_result_2)]
-        new_round, _new_game, result = apply_double_ron_score(
+        new_game, result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=1,
             winning_tile=0,
         )
+        new_round = new_game.round_state
         # seat 0's 32000: split 50/50 between loser(1) and pao(3) -> 16000 each
         # seat 2's 2000: full from loser(1)
         assert new_round.players[0].score == 25000 + 32000
@@ -157,7 +159,8 @@ class TestProcessExhaustiveDrawNagashiTriggered:
         round_state = MahjongRoundState(players=players, wall=Wall(), dealer_seat=1)
         game_state = MahjongGameState(round_state=round_state)
 
-        new_round, _new_game, result = process_exhaustive_draw(game_state)
+        new_game, result = process_exhaustive_draw(game_state)
+        new_round = new_game.round_state
         # Nagashi mangan gives mangan payment (non-dealer: 2000/4000)
         # Player 0 is non-dealer: gets 2000 from each non-dealer + 4000 from dealer = 8000
         assert result.type == RoundResultType.NAGASHI_MANGAN

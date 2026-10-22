@@ -467,7 +467,8 @@ class TestKokushiChankanOnAnkan:
         )
         game_state = create_game_state(round_state)
 
-        new_rs, _new_gs, events = _process_closed_kan_call(round_state, game_state, caller_seat=0, tile_id=man_1m[0])
+        new_gs, events = _process_closed_kan_call(game_state, caller_seat=0, tile_id=man_1m[0])
+        new_rs = new_gs.round_state
         # should create a chankan prompt, not execute the kan
         chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(chankan_events) == 1
@@ -482,7 +483,8 @@ class TestKokushiChankanOnAnkan:
         round_state = _make_round_state(player0_tiles)
         game_state = create_game_state(round_state)
 
-        new_rs, _new_gs, events = _process_closed_kan_call(round_state, game_state, caller_seat=0, tile_id=man_1m[0])
+        new_gs, events = _process_closed_kan_call(game_state, caller_seat=0, tile_id=man_1m[0])
+        new_rs = new_gs.round_state
         # should execute the kan (MeldEvent, not CallPromptEvent)
         meld_events = [e for e in events if isinstance(e, MeldEvent) and e.meld_type == MeldViewType.CLOSED_KAN]
         assert len(meld_events) == 1
@@ -564,7 +566,8 @@ class TestChankanPreservation:
         )
         game_state = create_game_state(round_state)
 
-        new_rs, _new_gs, events = _process_added_kan_call(round_state, game_state, caller_seat=0, tile_id=pin_3[3])
+        new_gs, events = _process_added_kan_call(game_state, caller_seat=0, tile_id=pin_3[3])
+        new_rs = new_gs.round_state
         # chankan prompt should be created (not executing the kan)
         chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
         assert len(chankan_events) == 1
@@ -608,7 +611,8 @@ class TestChankanPreservation:
         game_state = create_game_state(round_state)
 
         initial_dora_count = len(round_state.wall.dora_indicators)
-        new_rs, _new_gs, _events = _process_added_kan_call(round_state, game_state, caller_seat=0, tile_id=pin_3[3])
+        new_gs, _events = _process_added_kan_call(game_state, caller_seat=0, tile_id=pin_3[3])
+        new_rs = new_gs.round_state
         # dora should not be revealed (kan not executed yet)
         assert len(new_rs.wall.dora_indicators) == initial_dora_count
         assert new_rs.wall.pending_dora_count == 0
@@ -629,7 +633,7 @@ class TestHandleSelfKanAfterMeld:
 
         data = KanActionData(tile_id=man_1m[0], kan_type=KanType.CLOSED)
         with pytest.raises(InvalidGameActionError, match="cannot declare kan after a meld call"):
-            _handle_self_kan(round_state, game_state, seat=0, data=data)
+            _handle_self_kan(game_state, seat=0, data=data)
 
 
 # ---------------------------------------------------------------------------
@@ -656,8 +660,7 @@ class TestResolveChankanDeclineClosedKan:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
-        assert result.new_round_state is not None
+        result = resolve_call_prompt(game_state)
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
@@ -699,11 +702,11 @@ class TestResolveChankanDeclineClosedKan:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
+        result = resolve_call_prompt(game_state)
         # should trigger four kans abort
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
-        assert result.new_round_state.phase == RoundPhase.FINISHED
+        assert result.state.round_state.phase == RoundPhase.FINISHED
 
 
 # ---------------------------------------------------------------------------

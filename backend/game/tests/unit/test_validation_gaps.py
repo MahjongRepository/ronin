@@ -14,7 +14,7 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import ActionResult
+from game.logic.action_result import ActionResult, Refusal
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import (
@@ -27,7 +27,7 @@ from game.logic.enums import (
     RoundPhase,
     TimeoutType,
 )
-from game.logic.events import ErrorEvent, SeatTarget
+from game.logic.events import SeatTarget
 from game.logic.exceptions import GeneratedActionError, InvalidGameActionError, InvalidMeldError
 from game.logic.game import init_game
 from game.logic.mahjong_service import MahjongGameService
@@ -109,17 +109,17 @@ class TestChiEarlyValidation:
                 ),
             ),
         )
-        game_state = create_game_state(round_state)
-        return round_state, game_state
+        return create_game_state(round_state)
 
     def test_chi_validation__when_tiles_not_in_hand__should_raise(self):
-        round_state, game_state = self._create_chi_state()
+        game_state = self._create_chi_state()
         data = ChiActionData(tile_id=0, sequence_tiles=(999, 8))
         with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_chi(round_state, game_state, seat=1, data=data)
+            handle_chi(game_state, seat=1, data=data)
 
     def test_chi_validation__when_invalid_sequence__should_raise(self):
-        round_state, game_state = self._create_chi_state()
+        game_state = self._create_chi_state()
+        round_state = game_state.round_state
         # Give seat 1 a tile that doesn't form a valid sequence with 1m
         tile_7m = 24  # 7m
         new_tiles = (4, 8, tile_7m, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104)
@@ -128,7 +128,7 @@ class TestChiEarlyValidation:
 
         data = ChiActionData(tile_id=0, sequence_tiles=(4, tile_7m))
         with pytest.raises(InvalidGameActionError, match="valid chi sequence"):
-            handle_chi(round_state, game_state, seat=1, data=data)
+            handle_chi(game_state, seat=1, data=data)
 
     def test_chi_validation__when_sequence_crosses_suit_boundary__should_raise(self):
         # 8m (type 7, suit 0) + 9m (type 8, suit 0) + 1p (type 9, suit 1)
@@ -165,10 +165,11 @@ class TestChiEarlyValidation:
 
         data = ChiActionData(tile_id=tile_9m, sequence_tiles=(tile_8m, tile_1p))
         with pytest.raises(InvalidGameActionError, match="valid chi sequence"):
-            handle_chi(round_state, game_state, seat=1, data=data)
+            handle_chi(game_state, seat=1, data=data)
 
     def test_chi_validation__when_sequence_not_among_options_and_pon_also_offered__should_raise(self):
-        round_state, game_state = self._create_chi_state()
+        game_state = self._create_chi_state()
+        round_state = game_state.round_state
         prompt = round_state.pending_call_prompt
         chi_offered_only_3m_4m = MeldOption(call_type=MeldCallType.CHI, options=((8, 12),))
         caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON), chi_offered_only_3m_4m))
@@ -181,17 +182,14 @@ class TestChiEarlyValidation:
         # Submit (2m, 3m) which IS a valid sequence with 1m but NOT among options
         data = ChiActionData(tile_id=0, sequence_tiles=(4, 8))
         with pytest.raises(InvalidGameActionError, match="not among available"):
-            handle_chi(round_state, game_state, seat=1, data=data)
+            handle_chi(game_state, seat=1, data=data)
 
     def test_chi_validation__when_valid_sequence__should_succeed(self):
-        round_state, game_state = self._create_chi_state()
+        game_state = self._create_chi_state()
         data = ChiActionData(tile_id=0, sequence_tiles=(4, 8))
 
-        result = handle_chi(round_state, game_state, seat=1, data=data)
+        result = handle_chi(game_state, seat=1, data=data)
         assert isinstance(result, ActionResult)
-        # No error events
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 0
 
 
 class TestPonEarlyValidation:
@@ -220,21 +218,22 @@ class TestPonEarlyValidation:
                 callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
             ),
         )
-        return round_state, create_game_state(round_state)
+        return create_game_state(round_state)
 
     def test_pon_validation__when_not_enough_matching_tiles__should_raise(self):
-        round_state, game_state = self._create_pon_state()
+        game_state = self._create_pon_state()
+        round_state = game_state.round_state
         # Remove matching tiles from seat 1's hand
         new_tiles = (8, 12, 16, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104)
         round_state = update_player(round_state, 1, tiles=new_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         with pytest.raises(InvalidGameActionError, match="not enough matching tiles"):
-            handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
+            handle_pon(game_state, seat=1, data=PonActionData(tile_id=0))
 
     def test_pon_validation__when_valid__should_succeed(self):
-        round_state, game_state = self._create_pon_state()
-        result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
+        game_state = self._create_pon_state()
+        result = handle_pon(game_state, seat=1, data=PonActionData(tile_id=0))
         assert isinstance(result, ActionResult)
 
 
@@ -270,23 +269,23 @@ class TestResponseActionMatchesPrompt:
                 ),
             ),
         )
-        return round_state, create_game_state(round_state)
+        return create_game_state(round_state)
 
     def test_response_action__when_meld_caller_calls_ron__should_raise(self):
-        round_state, game_state = self._create_meld_prompt_state()
+        game_state = self._create_meld_prompt_state()
         with pytest.raises(InvalidGameActionError, match="cannot call ron on a discard prompt"):
-            handle_ron(round_state, game_state, seat=1)
+            handle_ron(game_state, seat=1)
 
     def test_response_action__when_pon_caller_sends_chi__should_raise(self):
-        round_state, game_state = self._create_meld_prompt_state(caller_type=MeldCallType.PON)
+        game_state = self._create_meld_prompt_state(caller_type=MeldCallType.PON)
         # seat 1 is pon caller but sends chi
         with pytest.raises(InvalidGameActionError, match="does not match available call type"):
-            handle_chi(round_state, game_state, seat=1, data=ChiActionData(tile_id=0, sequence_tiles=(4, 8)))
+            handle_chi(game_state, seat=1, data=ChiActionData(tile_id=0, sequence_tiles=(4, 8)))
 
     def test_response_action__when_chi_caller_sends_pon__should_raise(self):
-        round_state, game_state = self._create_meld_prompt_state(caller_type=MeldCallType.CHI)
+        game_state = self._create_meld_prompt_state(caller_type=MeldCallType.CHI)
         with pytest.raises(InvalidGameActionError, match="does not match available call type"):
-            handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=0))
+            handle_pon(game_state, seat=1, data=PonActionData(tile_id=0))
 
 
 class TestOpenKanEarlyValidation:
@@ -312,36 +311,33 @@ class TestOpenKanEarlyValidation:
                 callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
             ),
         )
-        return round_state, create_game_state(round_state)
+        return create_game_state(round_state)
 
-    def test_open_kan_validation__when_no_pending_prompt__should_return_error(self):
+    def test_open_kan_validation__when_no_pending_prompt__should_refuse(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
         data = KanActionData(tile_id=0, kan_type=KanType.OPEN)
 
-        result = handle_kan(round_state, game_state, seat=0, data=data)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_KAN
+        result = handle_kan(game_state, seat=0, data=data)
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_KAN
 
     def test_open_kan_validation__when_not_enough_tiles__should_raise(self):
-        round_state, game_state = self._create_open_kan_state()
+        game_state = self._create_open_kan_state()
+        round_state = game_state.round_state
         # Remove matching tiles
         new_tiles = (8, 12, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108)
         round_state = update_player(round_state, 1, tiles=new_tiles)
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         with pytest.raises(InvalidGameActionError, match="not enough matching tiles"):
-            handle_kan(round_state, game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN))
+            handle_kan(game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN))
 
-    def test_open_kan_validation__when_tile_id_mismatches_prompt__should_return_soft_error(self):
-        round_state, game_state = self._create_open_kan_state()
+    def test_open_kan_validation__when_tile_id_mismatches_prompt__should_refuse(self):
+        game_state = self._create_open_kan_state()
         data = KanActionData(tile_id=999, kan_type=KanType.OPEN)
 
-        result = handle_kan(round_state, game_state, seat=1, data=data)
-        assert len(result.events) == 1
-        assert isinstance(result.events[0], ErrorEvent)
-        assert result.events[0].code == GameErrorCode.INVALID_KAN
+        result = handle_kan(game_state, seat=1, data=data)
+        assert result == Refusal(code=GameErrorCode.INVALID_KAN, message="tile_id mismatch")
 
 
 class TestClosedKanRiichiWaitPreservation:
@@ -564,7 +560,7 @@ class TestKanExecutionGuards:
 
 
 class TestRiichiDiscardTenpaiValidation:
-    def test_riichi_discard__when_discard_breaks_tenpai__should_answer_invalid_riichi_and_keep_the_turn(self):
+    def test_riichi_discard__when_discard_breaks_tenpai__should_refuse_with_invalid_riichi(self):
         # Hand: 112345m 456p 789s 11z (14 tiles)
         # can_declare_riichi passes because discarding 5m keeps tenpai
         # But discarding 3m (tile 8) breaks tenpai
@@ -587,10 +583,9 @@ class TestRiichiDiscardTenpaiValidation:
         game_state = create_game_state(round_state)
 
         # Discard 3m (tile 8) - breaks tenpai
-        result = handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=8))
-        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_RIICHI, SeatTarget(seat=0))]
-        assert result.new_round_state is round_state
-        assert result.needs_post_discard is False
+        result = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=8))
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_RIICHI
 
     def test_riichi_discard__when_discard_keeps_tenpai__should_succeed(self):
         # Hand: 112345m 456p 789s 11z (14 tiles)
@@ -614,7 +609,7 @@ class TestRiichiDiscardTenpaiValidation:
         game_state = create_game_state(round_state)
 
         # Discarding 5m (tile 16) preserves tenpai
-        result = handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=16))
+        result = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=16))
         assert isinstance(result, ActionResult)
         assert result.needs_post_discard is True
 
@@ -629,17 +624,14 @@ class TestKyuushuRuleGate:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         with pytest.raises(InvalidGameActionError, match="conditions not met"):
-            handle_kyuushu(round_state, game_state, seat=0)
+            handle_kyuushu(game_state, seat=0)
 
-    def test_kyuushu_kyuuhai__when_not_players_turn__should_return_error_event(self):
+    def test_kyuushu_kyuuhai__when_not_players_turn__should_refuse(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
-        result = handle_kyuushu(round_state, game_state, seat=1)
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
+        result = handle_kyuushu(game_state, seat=1)
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.NOT_YOUR_TURN
 
 
 class TestPendingCallPromptStateGate:
@@ -708,51 +700,39 @@ class TestCallChiDefenseInDepth:
 
 class TestSoftErrorsRemainUnchanged:
     @pytest.mark.parametrize("forbidding_rule", ["kuikae", "riichi_tsumogiri"])
-    def test_discard__when_rule_forbids_the_tile__should_answer_invalid_discard_and_keep_the_turn(
-        self, forbidding_rule
-    ):
+    def test_discard__when_rule_forbids_the_tile__should_refuse_with_invalid_discard(self, forbidding_rule):
         game_state = _create_frozen_game_state()
         first_tile = game_state.round_state.players[0].tiles[0]
         fields = {"kuikae_tiles": (tile_to_34(first_tile),)} if forbidding_rule == "kuikae" else {"is_riichi": True}
         round_state = update_player(game_state.round_state, 0, **fields)
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=first_tile))
-        assert [(e.code, e.target) for e in result.events] == [(GameErrorCode.INVALID_DISCARD, SeatTarget(seat=0))]
-        assert result.new_round_state is round_state
-        assert result.needs_post_discard is False
+        result = handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=first_tile))
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_DISCARD
 
-    def test_soft_error__when_not_your_turn__should_return_error_event(self):
+    def test_soft_error__when_not_your_turn__should_return_refusal(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
-        result = handle_discard(round_state, game_state, seat=1, data=DiscardActionData(tile_id=0))
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.NOT_YOUR_TURN
+        result = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=0))
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.NOT_YOUR_TURN
 
-    def test_soft_error__when_ron_without_pending_prompt__should_return_error_event(self):
+    def test_soft_error__when_ron_without_pending_prompt__should_return_refusal(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
-        result = handle_ron(round_state, game_state, seat=0)
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_RON
+        result = handle_ron(game_state, seat=0)
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_RON
 
-    def test_soft_error__when_pass_without_prompt__should_return_error_event(self):
+    def test_soft_error__when_pass_without_prompt__should_return_refusal(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
-        result = handle_pass(round_state, game_state, seat=0)
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_PASS
+        result = handle_pass(game_state, seat=0)
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_PASS
 
-    def test_soft_error__when_pon_tile_mismatches__should_return_error_event(self):
+    def test_soft_error__when_pon_tile_mismatches__should_return_refusal(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -767,13 +747,11 @@ class TestSoftErrorsRemainUnchanged:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         # Send wrong tile_id - this is a race condition
-        result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=999))
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_PON
+        result = handle_pon(game_state, seat=1, data=PonActionData(tile_id=999))
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_PON
 
-    def test_soft_error__when_seat_not_pending__should_return_error_event(self):
+    def test_soft_error__when_seat_not_pending__should_return_refusal(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -788,11 +766,9 @@ class TestSoftErrorsRemainUnchanged:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         # Seat 2 is not pending
-        result = handle_ron(round_state, game_state, seat=2)
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_RON
+        result = handle_ron(game_state, seat=2)
+        assert isinstance(result, Refusal)
+        assert result.code == GameErrorCode.INVALID_RON
 
 
 class TestOpenKanRiichiGuard:
@@ -821,20 +797,18 @@ class TestOpenKanRiichiGuard:
 class TestDiscardRaisesInvalidGameActionError:
     def test_discard__when_tile_not_in_hand__should_raise_invalid_game_action(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
         with pytest.raises(InvalidGameActionError, match="discard") as exc_info:
-            handle_discard(round_state, game_state, seat=0, data=DiscardActionData(tile_id=999))
+            handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=999))
         assert exc_info.value.seat == 0
 
 
 class TestRiichiRaisesInvalidGameActionError:
     def test_riichi__when_tile_not_in_hand__should_raise_invalid_game_action(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
         with pytest.raises(InvalidGameActionError, match="declare_riichi") as exc_info:
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=999))
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=999))
         assert exc_info.value.seat == 0
 
     def test_riichi__when_already_in_riichi__should_raise_invalid_game_action(self):
@@ -845,7 +819,7 @@ class TestRiichiRaisesInvalidGameActionError:
         tile_id = round_state.players[0].tiles[0]
 
         with pytest.raises(InvalidGameActionError, match="declare_riichi"):
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=tile_id))
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=tile_id))
 
     def test_riichi__when_not_enough_points__should_raise_invalid_game_action(self):
         all_tiles = tuple(TilesConverter.string_to_136_array(man="112345", pin="456", sou="789", honors="11"))
@@ -865,7 +839,7 @@ class TestRiichiRaisesInvalidGameActionError:
         game_state = create_game_state(round_state)
 
         with pytest.raises(InvalidGameActionError, match="declare_riichi"):
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=all_tiles[0]))
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=all_tiles[0]))
 
     def test_riichi__when_hand_open__should_raise_invalid_game_action(self):
         pon_meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=0)
@@ -886,16 +860,15 @@ class TestRiichiRaisesInvalidGameActionError:
         game_state = create_game_state(round_state)
 
         with pytest.raises(InvalidGameActionError, match="declare_riichi"):
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=all_tiles[0]))
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=all_tiles[0]))
 
 
 class TestTsumoRaisesInvalidGameActionError:
     def test_tsumo__when_hand_not_winning__should_raise_invalid_game_action(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
 
         with pytest.raises(InvalidGameActionError, match="declare_tsumo") as exc_info:
-            handle_tsumo(round_state, game_state, seat=0)
+            handle_tsumo(game_state, seat=0)
         assert exc_info.value.seat == 0
 
 
@@ -915,7 +888,7 @@ class TestKanRaisesInvalidGameActionError:
 
         data = KanActionData(tile_id=no_kan_tiles[0], kan_type=KanType.CLOSED)
         with pytest.raises(InvalidGameActionError, match="call_kan"):
-            handle_kan(round_state, game_state, seat=0, data=data)
+            handle_kan(game_state, seat=0, data=data)
 
 
 class TestServerGeneratedActionRefusals:
@@ -1053,4 +1026,4 @@ class TestRiichiTileNotInHandValidation:
 
         # tile_id 999 is not in hand (but hand IS tenpai so can_declare_riichi passes)
         with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_riichi(round_state, game_state, seat=0, data=RiichiActionData(tile_id=999))
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=999))

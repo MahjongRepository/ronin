@@ -2,12 +2,14 @@ from unittest.mock import patch
 
 import pytest
 
+from game.logic.action_result import ActionResult
 from game.logic.enums import CallType, GameAction, MeldCallType, PromptKind, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
     ErrorEvent,
     EventType,
+    GameEvent,
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
@@ -28,6 +30,10 @@ from game.tests.unit.helpers import (
     _update_player,
     _update_round_state,
 )
+
+
+def _post_discard_result(service: MahjongGameService, events: list[GameEvent]) -> ActionResult:
+    return ActionResult(events, state=service._games["game1"], needs_post_discard=True)
 
 
 class TestMahjongGameServiceHandleTimeout:
@@ -84,10 +90,9 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
     def service(self):
         return MahjongGameService()
 
-    def test_check_and_handle_round_end__when_round_finished__should_return_true_and_keep_round_end(self, service):
+    def test_check_and_handle_round_end__when_round_finished__should_handle_it_once(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
 
-        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
         round_result = ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
@@ -95,6 +100,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
             scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         )
+        _update_round_state(service, "game1", phase=RoundPhase.FINISHED, result=round_result)
         events = [
             ServiceEvent(
                 data=RoundEndEvent(result=round_result),
@@ -104,41 +110,18 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         result = service._check_and_handle_round_end("game1", events)
         assert result is True
         assert [e.event for e in events] == [EventType.ROUND_END]
+        assert service.is_round_advance_pending("game1")
 
-    def test_check_and_handle_round_end__when_events_have_no_round_result__should_raise(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
-
-        with pytest.raises(AssertionError, match="no round result"):
+        with pytest.raises(AssertionError, match="round end already handled"):
             service._check_and_handle_round_end("game1", [])
 
 
-class TestMahjongGameServiceProcessPostDiscard:
+class TestMahjongGameServiceAfterDiscard:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_process_post_discard__when_round_already_finished__should_return_events(self, service):
-        service.start_game("game1", ["Player"], seed="a" * 192)
-
-        _update_round_state(service, "game1", phase=RoundPhase.FINISHED)
-        round_result = ExhaustiveDrawResult(
-            tempai_seats=[],
-            noten_seats=[0, 1, 2, 3],
-            tenpai_hands=[],
-            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-            score_changes={0: 0, 1: 0, 2: 0, 3: 0},
-        )
-        events = [
-            ServiceEvent(
-                data=RoundEndEvent(result=round_result),
-            ),
-        ]
-
-        result = service._process_post_discard("game1", events)
-        assert [e.event for e in result] == [EventType.ROUND_END]
-
-    def test_process_post_discard__when_prompt_pending_for_human_player__should_return_events(self, service):
+    def test_process_action_result__when_discard_prompt_waits_for_human_player__should_return_its_events(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         player = _find_player(game_state.round_state, "Player")
@@ -152,22 +135,20 @@ class TestMahjongGameServiceProcessPostDiscard:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        events: list[ServiceEvent] = [
-            ServiceEvent(
-                data=CallPromptEvent(
-                    call_type=CallType.MELD,
-                    tile_id=0,
-                    from_seat=0,
-                    callers=[player.seat],
-                    target=SeatTarget(seat=player.seat),
-                ),
-            ),
-        ]
+        prompt_event = CallPromptEvent(
+            call_type=CallType.MELD,
+            tile_id=0,
+            from_seat=0,
+            callers=[player.seat],
+            target=SeatTarget(seat=player.seat),
+        )
 
-        result = service._process_post_discard("game1", events)
+        result = service._process_action_result_internal("game1", _post_discard_result(service, [prompt_event]))
         assert [(e.event, e.target) for e in result] == [(EventType.CALL_PROMPT, SeatTarget(seat=player.seat))]
 
-    def test_process_post_discard__when_prompt_pending_only_for_ai_player__should_return_events(self, service):
+    def test_process_action_result__when_discard_prompt_waits_only_for_ai_player__should_answer_it_and_draw(
+        self, service
+    ):
         service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -194,27 +175,18 @@ class TestMahjongGameServiceProcessPostDiscard:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt)
 
-        events: list[ServiceEvent] = [
-            ServiceEvent(
-                data=CallPromptEvent(
-                    call_type=CallType.MELD,
-                    tile_id=ai_player_tile,
-                    from_seat=0,
-                    callers=[
-                        MeldCaller(
-                            seat=ai_player_seat,
-                            call_type=MeldCallType.PON,
-                        ),
-                    ],
-                    target=SeatTarget(seat=ai_player_seat),
-                ),
-            ),
-        ]
+        prompt_event = CallPromptEvent(
+            call_type=CallType.MELD,
+            tile_id=ai_player_tile,
+            from_seat=0,
+            callers=[MeldCaller(seat=ai_player_seat, call_type=MeldCallType.PON)],
+            target=SeatTarget(seat=ai_player_seat),
+        )
 
-        result = service._process_post_discard("game1", events)
+        result = service._process_action_result_internal("game1", _post_discard_result(service, [prompt_event]))
         assert [e.event for e in result] == [EventType.CALL_PROMPT, EventType.DRAW]
 
-    def test_process_post_discard__when_round_continues__should_draw_for_next_player(self, service):
+    def test_process_action_result__when_discard_has_no_callers__should_draw_for_next_player(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
         game_state = service._games["game1"]
         round_state = game_state.round_state
@@ -224,8 +196,7 @@ class TestMahjongGameServiceProcessPostDiscard:
         if len(current_player.tiles) > 13:
             _update_player(service, game_id="game1", seat=current_seat, tiles=tuple(list(current_player.tiles)[:13]))
 
-        events: list[ServiceEvent] = []
-        result = service._process_post_discard("game1", events)
+        result = service._process_action_result_internal("game1", _post_discard_result(service, []))
         assert [(e.event, e.target) for e in result] == [(EventType.DRAW, SeatTarget(seat=current_seat))]
 
 
@@ -263,21 +234,20 @@ class TestMahjongGameServiceTimeoutIntegration:
         assert events == []
 
 
-class TestMahjongGameServicePostDiscardRoundEnd:
+class TestMahjongGameServiceAfterDiscardRoundEnd:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_process_post_discard__when_wall_is_empty__should_emit_round_end(self, service):
+    def test_process_action_result__when_discard_has_no_callers_and_wall_is_empty__should_emit_round_end(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
         _update_round_state(service, "game1", wall=Wall())
 
-        events: list[ServiceEvent] = []
-        result = service._process_post_discard("game1", events)
+        result = service._process_action_result_internal("game1", _post_discard_result(service, []))
         round_end = [e for e in result if e.event == EventType.ROUND_END]
         assert len(round_end) == 1
 
-    def test_process_post_discard__when_ai_call_resolves_with_empty_wall__should_return_events(self, service):
+    def test_process_action_result__when_ai_answers_resolve_prompt_with_empty_wall__should_end_round(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
 
         ai_player_controller = service._ai_player_controllers["game1"]
@@ -293,8 +263,7 @@ class TestMahjongGameServicePostDiscardRoundEnd:
         )
         _update_round_state(service, "game1", pending_call_prompt=prompt, wall=Wall())
 
-        events: list[ServiceEvent] = []
-        result = service._process_post_discard("game1", events)
+        result = service._process_action_result_internal("game1", _post_discard_result(service, []))
         assert [e.event for e in result] == [EventType.ROUND_END]
 
 

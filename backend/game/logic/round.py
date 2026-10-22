@@ -18,6 +18,7 @@ from game.logic.state import (
 )
 from game.logic.state_utils import (
     add_tile_to_player,
+    update_game_with_round,
     update_player,
 )
 from game.logic.tiles import NUM_TILE_TYPES, hand_to_34_array, is_terminal_or_honor, tile_to_34
@@ -290,11 +291,7 @@ def _is_pure_karaten(
 
 def process_exhaustive_draw(
     game_state: MahjongGameState,
-) -> tuple[
-    MahjongRoundState,
-    MahjongGameState,
-    ExhaustiveDrawResult | NagashiManganResult,
-]:
+) -> tuple[MahjongGameState, ExhaustiveDrawResult | NagashiManganResult]:
     """
     Process an exhaustive draw (wall empty, no winner).
 
@@ -356,17 +353,13 @@ def process_exhaustive_draw(
         for seat in tempai_seats:
             score_changes[seat] = payment_per_tempai
 
-    # apply score changes to create new round state
     new_round_state = round_state
     for seat, change in score_changes.items():
         player = new_round_state.players[seat]
         new_round_state = update_player(new_round_state, seat, score=player.score + change)
 
-    # update game state with new round state
-    new_game_state = game_state.model_copy(update={"round_state": new_round_state})
     return (
-        new_round_state,
-        new_game_state,
+        update_game_with_round(game_state, new_round_state),
         ExhaustiveDrawResult(
             tempai_seats=tempai_seats,
             noten_seats=noten_seats,

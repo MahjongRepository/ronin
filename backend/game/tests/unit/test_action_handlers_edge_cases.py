@@ -7,7 +7,7 @@ from game.logic.action_handlers import (
     handle_pass,
     handle_pon,
 )
-from game.logic.action_result import ActionResult
+from game.logic.action_result import ActionResult, Refusal
 from game.logic.call_resolution import (
     complete_added_kan_after_chankan_decline,
     pick_best_meld_response,
@@ -26,7 +26,6 @@ from game.logic.enums import (
 )
 from game.logic.events import (
     CallPromptEvent,
-    ErrorEvent,
     RoundEndEvent,
 )
 from game.logic.exceptions import InvalidGameActionError
@@ -128,12 +127,11 @@ class TestResolveMeldResponse:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
+        result = resolve_call_prompt(game_state)
         # open kan resolves successfully; the player gets a turn to discard
-        assert result.new_round_state is not None
-        assert result.new_round_state.phase == RoundPhase.PLAYING
+        assert result.state.round_state.phase == RoundPhase.PLAYING
         # verify the meld was processed (player 1 has a kan meld)
-        assert any(m.type == FrozenMeld.KAN for m in result.new_round_state.players[1].melds)
+        assert any(m.type == FrozenMeld.KAN for m in result.state.round_state.players[1].melds)
 
     def test_resolve_meld_response__when_open_kan_is_fourth_kan__should_abort_round(self):
         game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
@@ -185,10 +183,9 @@ class TestResolveMeldResponse:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = resolve_call_prompt(round_state, game_state)
+        result = resolve_call_prompt(game_state)
         # four kans abort: round is FINISHED
-        assert result.new_round_state is not None
-        assert result.new_round_state.phase == RoundPhase.FINISHED
+        assert result.state.round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
@@ -260,12 +257,12 @@ class TestCompleteAddedKanAfterChankanDecline:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         # complete the 4th kan (added kan)
-        new_round_state, _new_game_state, events = complete_added_kan_after_chankan_decline(
-            round_state,
+        new_game_state, events = complete_added_kan_after_chankan_decline(
             game_state,
             caller_seat=0,
             tile_id=fourth_tile,
         )
+        new_round_state = new_game_state.round_state
         # verify abortive draw for four kans
         assert new_round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
@@ -298,15 +295,14 @@ class TestHandlePonMultiCaller:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         # seat 1 calls pon
-        result = handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
+        result = handle_pon(game_state, seat=1, data=PonActionData(tile_id=tile_id))
         # verify empty events (waiting for seat 2)
         assert isinstance(result, ActionResult)
         assert len(result.events) == 0
-        assert result.new_round_state is not None
         # verify seat 1 removed from pending, seat 2 still pending
-        assert result.new_round_state.pending_call_prompt is not None
-        assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
-        assert 2 in result.new_round_state.pending_call_prompt.pending_seats
+        assert result.state.round_state.pending_call_prompt is not None
+        assert 1 not in result.state.round_state.pending_call_prompt.pending_seats
+        assert 2 in result.state.round_state.pending_call_prompt.pending_seats
 
 
 class TestHandleChiMultiCaller:
@@ -334,14 +330,13 @@ class TestHandleChiMultiCaller:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = handle_chi(
-            round_state,
             game_state,
             seat=1,
             data=ChiActionData(tile_id=tile_id, sequence_tiles=sequence_tiles),
         )
         assert len(result.events) == 0
-        assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
-        assert 2 in result.new_round_state.pending_call_prompt.pending_seats
+        assert 1 not in result.state.round_state.pending_call_prompt.pending_seats
+        assert 2 in result.state.round_state.pending_call_prompt.pending_seats
 
 
 class TestHandleKanMultiCaller:
@@ -367,18 +362,17 @@ class TestHandleKanMultiCaller:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = handle_kan(
-            round_state,
             game_state,
             seat=1,
             data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
         )
         assert len(result.events) == 0
-        assert 1 not in result.new_round_state.pending_call_prompt.pending_seats
-        assert 2 in result.new_round_state.pending_call_prompt.pending_seats
+        assert 1 not in result.state.round_state.pending_call_prompt.pending_seats
+        assert 2 in result.state.round_state.pending_call_prompt.pending_seats
 
 
 class TestHandleChiTileMismatch:
-    def test_handle_chi__when_tile_mismatches_prompt__should_emit_invalid_chi_error(self):
+    def test_handle_chi__when_tile_mismatches_prompt__should_refuse_with_invalid_chi(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state
 
@@ -397,17 +391,11 @@ class TestHandleChiTileMismatch:
         # call chi with mismatched tile_id
         wrong_tile_id = 999
         result = handle_chi(
-            round_state,
             game_state,
             seat=1,
             data=ChiActionData(tile_id=wrong_tile_id, sequence_tiles=(1, 2)),
         )
-        # verify error event
-        assert isinstance(result, ActionResult)
-        error_events = [e for e in result.events if isinstance(e, ErrorEvent)]
-        assert len(error_events) == 1
-        assert error_events[0].code == GameErrorCode.INVALID_CHI
-        assert "mismatch" in error_events[0].message
+        assert result == Refusal(code=GameErrorCode.INVALID_CHI, message="tile_id mismatch")
 
 
 class TestHandleKanCausesDraw:
@@ -467,14 +455,12 @@ class TestHandleKanCausesDraw:
 
         # declare the 4th closed kan
         result = handle_kan(
-            round_state,
             game_state,
             seat=0,
             data=KanActionData(tile_id=fourth_kan_tiles[0], kan_type=KanType.CLOSED),
         )
         # verify round ends with four kans abortive draw
-        assert result.new_round_state is not None
-        assert result.new_round_state.phase == RoundPhase.FINISHED
+        assert result.state.round_state.phase == RoundPhase.FINISHED
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
@@ -511,13 +497,11 @@ class TestHandleKanChankanOpportunity:
 
         # player 0 declares added kan on the 4th 1m tile
         result = handle_kan(
-            round_state,
             game_state,
             seat=0,
             data=KanActionData(tile_id=fourth_tile, kan_type=KanType.ADDED),
         )
         # verify chankan prompt is created (handle_kan returns early at line 727)
-        assert result.new_round_state is not None
         call_prompt_events = [e for e in result.events if isinstance(e, CallPromptEvent)]
         assert len(call_prompt_events) == 1
         assert call_prompt_events[0].call_type == CallType.CHANKAN
@@ -540,7 +524,7 @@ class TestDiscardPromptValidation:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         with pytest.raises(InvalidGameActionError, match="only ron is valid"):
-            handle_pon(round_state, game_state, seat=1, data=PonActionData(tile_id=tile_id))
+            handle_pon(game_state, seat=1, data=PonActionData(tile_id=tile_id))
 
     def test_discard_prompt__when_meld_caller_sends_wrong_action__should_reject(self):
         game_state = _create_frozen_game_state()
@@ -558,7 +542,7 @@ class TestDiscardPromptValidation:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         with pytest.raises(InvalidGameActionError, match="does not match available call types"):
-            handle_pon(round_state, game_state, seat=2, data=PonActionData(tile_id=tile_id))
+            handle_pon(game_state, seat=2, data=PonActionData(tile_id=tile_id))
 
 
 class TestChankanRiechiFuritenOnPass:
@@ -581,6 +565,5 @@ class TestChankanRiechiFuritenOnPass:
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        result = handle_pass(round_state, game_state, seat=1)
-        assert result.new_round_state is not None
-        assert result.new_round_state.players[1].is_riichi_furiten is True
+        result = handle_pass(game_state, seat=1)
+        assert result.state.round_state.players[1].is_riichi_furiten is True

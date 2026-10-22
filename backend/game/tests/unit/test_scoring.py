@@ -177,11 +177,12 @@ class TestApplyTsumoScore:
         game_state = self._create_game_state()
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, _result = apply_tsumo_score(
+        new_game_state, _result = apply_tsumo_score(
             game_state,
             winner_seat=0,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # dealer (seat 0) gets 6000 total (2000 * 3)
         assert new_round_state.players[0].score == 25000 + 6000
         # each non-dealer pays 2000
@@ -195,11 +196,12 @@ class TestApplyTsumoScore:
         game_state = game_state.model_copy(update={"honba_sticks": 2})
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, _result = apply_tsumo_score(
+        new_game_state, _result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # winner gets 2000 + 600 (300 * 2 honba, but per-loser so 100*2*3=600)
         assert new_round_state.players[1].score == 25000 + 2600
         # dealer pays 1000 + 200
@@ -214,11 +216,12 @@ class TestApplyTsumoScore:
         game_state = game_state.model_copy(update={"riichi_sticks": 2})
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
-        new_round_state, new_game_state, result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # winner gets 2000 + 2000 (riichi sticks)
         assert new_round_state.players[1].score == 25000 + 4000
         # riichi sticks should be cleared
@@ -230,7 +233,7 @@ class TestApplyTsumoScore:
         game_state = self._create_game_state()
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
+        _new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=0,
             hand_result=hand_result,
@@ -254,7 +257,7 @@ class TestApplyTsumoScore:
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        _new_round_state, _new_game_state, result = apply_tsumo_score(
+        _new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=0,
             hand_result=hand_result,
@@ -279,13 +282,14 @@ class TestApplyRonScore:
         game_state = game_state.model_copy(update={"honba_sticks": 3})
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, _result = apply_ron_score(
+        new_game_state, _result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
             hand_result=hand_result,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # winner gets 2000 + 900
         assert new_round_state.players[0].score == 25000 + 2900
         # loser pays 2000 + 900
@@ -297,13 +301,14 @@ class TestApplyRonScore:
         game_state = game_state.model_copy(update={"riichi_sticks": 3})
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, new_game_state, result = apply_ron_score(
+        new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
             hand_result=hand_result,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # winner gets 2000 + 3000
         assert new_round_state.players[0].score == 25000 + 5000
         # loser only pays 2000
@@ -327,7 +332,7 @@ class TestApplyRonScore:
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        _new_round_state, _new_game_state, result = apply_ron_score(
+        _new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
@@ -355,12 +360,13 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        new_round_state, _new_game_state, result = apply_double_ron_score(
+        new_game_state, result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=1,
             winning_tile=55,
         )
+        new_round_state = new_game_state.round_state
         # seat 0 wins 2000
         assert new_round_state.players[0].score == 25000 + 2000
         # seat 2 wins 4000
@@ -380,12 +386,13 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        new_round_state, _new_game_state, _result = apply_double_ron_score(
+        new_game_state, _result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=1,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # each winner gets 2000 + 600 honba
         assert new_round_state.players[0].score == 25000 + 2600
         assert new_round_state.players[2].score == 25000 + 2600
@@ -402,12 +409,13 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        new_round_state, new_game_state, result = apply_double_ron_score(
+        new_game_state, result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=1,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # seat 2 is closer (loser_seat + 1 = seat 2)
         # seat 2 gets 2000 + 2000 riichi
         assert new_round_state.players[2].score == 25000 + 4000
@@ -427,12 +435,13 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        new_round_state, _new_game_state, _result = apply_double_ron_score(
+        new_game_state, _result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=3,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # seat 0 is closer (loser_seat + 1 = seat 0)
         # seat 0 gets 2000 + 1000 riichi
         assert new_round_state.players[0].score == 25000 + 3000
@@ -457,7 +466,7 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=3, fu=30, cost_main=4000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        _new_round_state, _new_game_state, result = apply_double_ron_score(
+        _new_game_state, result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=1,
@@ -492,13 +501,14 @@ class TestApplyNagashiManganScore:
     def test_apply_nagashi_mangan_score__when_dealer_qualifies__should_collect_4000_from_each(self):
         game_state = self._create_game_state(dealer_seat=0)
 
-        new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
+        new_game_state, result = apply_nagashi_mangan_score(
             game_state,
             qualifying_seats=[0],
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
         )
+        new_round_state = new_game_state.round_state
         assert result.type == RoundResultType.NAGASHI_MANGAN
         assert result.qualifying_seats == [0]
         assert result.score_changes[0] == 12000
@@ -513,13 +523,14 @@ class TestApplyNagashiManganScore:
     def test_apply_nagashi_mangan_score__when_non_dealer_qualifies__should_charge_dealer_4000_and_others_2000(self):
         game_state = self._create_game_state(dealer_seat=0)
 
-        new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
+        new_game_state, result = apply_nagashi_mangan_score(
             game_state,
             qualifying_seats=[1],
             tempai_seats=[],
             noten_seats=[0, 1, 2, 3],
             tenpai_hands=[],
         )
+        new_round_state = new_game_state.round_state
         assert result.score_changes[1] == 8000
         assert result.score_changes[0] == -4000  # dealer pays 4000
         assert result.score_changes[2] == -2000  # non-dealer pays 2000
@@ -532,7 +543,7 @@ class TestApplyNagashiManganScore:
     def test_apply_nagashi_mangan_score__when_two_players_qualify__should_net_payments_to_zero_sum(self):
         game_state = self._create_game_state(dealer_seat=0)
 
-        _new_round_state, _new_game_state, result = apply_nagashi_mangan_score(
+        _new_game_state, result = apply_nagashi_mangan_score(
             game_state,
             qualifying_seats=[0, 2],
             tempai_seats=[],
@@ -570,11 +581,12 @@ class TestPaoTsumoScoring:
         game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # total would be: 16000 (from dealer) + 8000 + 8000 = 32000
         # pao player (seat 2) pays all 32000
         assert result.pao_seat == 2
@@ -591,11 +603,12 @@ class TestPaoTsumoScoring:
         game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=0,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # total would be: 16000 * 3 = 48000
         assert result.pao_seat == 3
         assert new_round_state.players[0].score == 25000 + 48000
@@ -609,11 +622,12 @@ class TestPaoTsumoScoring:
         game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # total tsumo: 32000 + 2000 riichi bonus
         assert new_round_state.players[1].score == 25000 + 34000
         assert new_round_state.players[2].score == 25000 - 32000
@@ -625,11 +639,12 @@ class TestPaoTsumoScoring:
         game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, _result = apply_tsumo_score(
+        new_game_state, _result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
         )
+        new_round_state = new_game_state.round_state
         # honba: 100 per loser * 2 sticks = 200 per loser, 600 total
         # total normal: 32000 + 600 honba = 32600
         assert new_round_state.players[1].score == 25000 + 32600
@@ -654,13 +669,14 @@ class TestPaoRonScoring:
         game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, result = apply_ron_score(
+        new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
             hand_result=hand_result,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # 32000 split: loser pays 16000, pao pays 16000
         assert result.pao_seat == 2
         assert new_round_state.players[0].score == 25000 + 32000
@@ -675,13 +691,14 @@ class TestPaoRonScoring:
         game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, result = apply_ron_score(
+        new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
             hand_result=hand_result,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # pao == loser: normal ron, loser pays full
         assert result.pao_seat == 1
         assert new_round_state.players[0].score == 25000 + 32000
@@ -695,13 +712,14 @@ class TestPaoRonScoring:
         game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, _result = apply_ron_score(
+        new_game_state, _result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
             hand_result=hand_result,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # total: 32000 + 600 honba = 32600, split: 16300 each
         assert new_round_state.players[0].score == 25000 + 32600
         assert new_round_state.players[1].score == 25000 - 16300
@@ -713,13 +731,14 @@ class TestPaoRonScoring:
         game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 1})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
-        new_round_state, _new_game_state, result = apply_ron_score(
+        new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
             hand_result=hand_result,
             winning_tile=0,
         )
+        new_round_state = new_game_state.round_state
         # 32000 split: loser 16000, pao 16000; winner also gets 1000 riichi
         assert new_round_state.players[0].score == 25000 + 33000
         assert new_round_state.players[1].score == 25000 - 16000
@@ -744,7 +763,7 @@ class TestPaoRonScoreConservation:
         game_state = game_state.model_copy(update={"round_state": round_state})
         hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
 
-        _new_round_state, _new_game_state, result = apply_ron_score(
+        _new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
@@ -895,7 +914,7 @@ class TestNagashiManganPreservesRiichiSticks:
         )
         game_state = create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=3)
 
-        _new_round_state, new_game_state, _result = apply_nagashi_mangan_score(
+        new_game_state, _result = apply_nagashi_mangan_score(
             game_state,
             qualifying_seats=[0],
             tempai_seats=[],

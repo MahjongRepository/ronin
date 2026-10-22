@@ -398,7 +398,7 @@ class TestClosedKanDoraEvents:
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, caller_seat=0, tile_id=0)
+        _new_gs, events = _process_closed_kan_call(gs, caller_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
@@ -406,7 +406,7 @@ class TestClosedKanDoraEvents:
         rs, settings = _make_kan_test_round_state(kandora_immediate_for_closed_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = _process_closed_kan_call(rs, gs, caller_seat=0, tile_id=0)
+        _new_gs, events = _process_closed_kan_call(gs, caller_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
@@ -416,7 +416,7 @@ class TestOpenKanDoraEvents:
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, caller_seat=1, discarder_seat=0, tile_id=0)
+        _new_gs, events = _process_open_kan_call(gs, caller_seat=1, discarder_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
@@ -424,7 +424,7 @@ class TestOpenKanDoraEvents:
         rs, settings = _make_open_kan_test_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = _process_open_kan_call(rs, gs, caller_seat=1, discarder_seat=0, tile_id=0)
+        _new_gs, events = _process_open_kan_call(gs, caller_seat=1, discarder_seat=0, tile_id=0)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
@@ -434,7 +434,7 @@ class TestAddedKanDoraEvents:
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, caller_seat=0, tile_id=3)
+        _new_gs, events = _process_added_kan_call(gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
 
@@ -442,7 +442,7 @@ class TestAddedKanDoraEvents:
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = _process_added_kan_call(rs, gs, caller_seat=0, tile_id=3)
+        _new_gs, events = _process_added_kan_call(gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
@@ -457,7 +457,7 @@ class TestChankanDeclineDoraEvents:
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=False)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, caller_seat=0, tile_id=3)
+        _new_gs, events = complete_added_kan_after_chankan_decline(gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 1
 
@@ -465,6 +465,6 @@ class TestChankanDeclineDoraEvents:
         rs, settings = _make_pon_round_state(kandora_deferred_for_open_kan=True)
         gs = create_game_state(round_state=rs, settings=settings)
 
-        _new_rs, _new_gs, events = complete_added_kan_after_chankan_decline(rs, gs, caller_seat=0, tile_id=3)
+        _new_gs, events = complete_added_kan_after_chankan_decline(gs, caller_seat=0, tile_id=3)
         dora_events = [e for e in events if isinstance(e, DoraRevealedEvent)]
         assert len(dora_events) == 0
