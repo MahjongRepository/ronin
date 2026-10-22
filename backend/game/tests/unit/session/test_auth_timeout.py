@@ -30,7 +30,7 @@ class TestAuthTimeout:
         assert conn.connection_id not in manager._auth_timeouts
 
     async def test_auth_timeout__when_player_joins_game__should_cancel_timeout(self, manager):
-        conns = await create_started_game(manager)
+        conns = create_started_game(manager)
         for conn in conns:
             assert conn.connection_id not in manager._auth_timeouts
 

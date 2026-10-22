@@ -29,7 +29,7 @@ def game_of(manager: SessionManager, game_id: str = "game1") -> GameSession:
     return game
 
 
-async def create_started_game(
+def create_started_game(
     manager: SessionManager,
     *,
     game_id: str = "game1",
@@ -49,7 +49,7 @@ async def create_started_game(
     for i, _name in enumerate(player_names):
         conn = MockConnection()
         manager.register_connection(conn)
-        await manager.join_game(conn, game_id=game_id, session_token=tickets[i])
+        manager.join_game(conn, game_id=game_id, session_token=tickets[i])
         connections.append(conn)
 
     # clear message history for clean test assertions
@@ -59,17 +59,17 @@ async def create_started_game(
     return connections
 
 
-async def disconnect_and_reconnect(
+def disconnect_and_reconnect(
     manager: SessionManager,
     conn: MockConnection,
     game_id: str = "game1",
 ) -> tuple[MockConnection, str]:
     token = participant_of(manager, conn).ticket
-    await manager.leave_game(conn, notify_player=False)
+    manager.leave_game(conn, notify_player=False)
 
     new_conn = MockConnection()
     manager.register_connection(new_conn)
-    await manager.reconnect(new_conn, game_id=game_id, session_token=token)
+    manager.reconnect(new_conn, game_id=game_id, session_token=token)
     reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
 
@@ -136,7 +136,7 @@ def arrange_pon_now_and_on_the_next_draw(engine: MahjongGameService, *, discarde
     return four_pins[2]
 
 
-async def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
+def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
     participant = game_of(manager, game_id).at_seat(seat)
     assert participant is not None
     manager._handle_timeout(participant, timeout_type)

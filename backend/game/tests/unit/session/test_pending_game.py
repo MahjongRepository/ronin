@@ -42,10 +42,10 @@ def _error_codes(conn: MockConnection) -> list[str]:
     return [m["code"] for m in _error_messages(conn)]
 
 
-async def _join(manager, ticket: str, game_id: str = "game1") -> MockConnection:
+def _join(manager, ticket: str, game_id: str = "game1") -> MockConnection:
     conn = MockConnection()
     manager.register_connection(conn)
-    await manager.join_game(conn, game_id=game_id, session_token=ticket)
+    manager.join_game(conn, game_id=game_id, session_token=ticket)
     return conn
 
 
@@ -71,26 +71,26 @@ class TestJoinGame:
     async def test_join_game__when_ticket_unknown__should_return_no_session_error(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(1))
 
-        conn = await _join(manager, "invalid-ticket")
+        conn = _join(manager, "invalid-ticket")
         assert _error_codes(conn) == [SessionErrorCode.JOIN_GAME_NO_SESSION]
 
     async def test_join_game__when_game_does_not_exist__should_return_not_found_error(self, manager):
-        conn = await _join(manager, "ticket-0", game_id="nonexistent")
+        conn = _join(manager, "ticket-0", game_id="nonexistent")
         assert _error_codes(conn) == [SessionErrorCode.JOIN_GAME_NOT_FOUND]
 
     async def test_join_game__when_game_already_started__should_return_already_started_error(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(1))
-        await _join(manager, "ticket-0")
+        _join(manager, "ticket-0")
         assert game_of(manager).lifecycle is GameLifecycle.PLAYING
 
-        conn2 = await _join(manager, "ticket-0")
+        conn2 = _join(manager, "ticket-0")
         assert _error_codes(conn2) == [SessionErrorCode.JOIN_GAME_ALREADY_STARTED]
 
     async def test_join_game__when_connection_already_joined__should_return_already_in_game_error(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        conn = await _join(manager, "ticket-0")
+        conn = _join(manager, "ticket-0")
 
-        await manager.join_game(conn, game_id="game1", session_token="ticket-1")
+        manager.join_game(conn, game_id="game1", session_token="ticket-1")
         assert _error_codes(conn) == [SessionErrorCode.ALREADY_IN_GAME]
 
     async def test_join_game__when_ticket_belongs_to_other_game__should_return_game_mismatch_error(self, manager):
@@ -100,16 +100,16 @@ class TestJoinGame:
             player_specs=[PlayerSpec(name="OtherPlayer", user_id="other", game_ticket="other-ticket")],
         )
 
-        conn = await _join(manager, "ticket-0", game_id="game2")
+        conn = _join(manager, "ticket-0", game_id="game2")
         assert _error_codes(conn) == [SessionErrorCode.RECONNECT_GAME_MISMATCH]
 
     async def test_join_game__when_token_reused_by_new_connection__should_evict_and_close_the_old_connection(
         self, manager
     ):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        conn1 = await _join(manager, "ticket-0")
+        conn1 = _join(manager, "ticket-0")
 
-        conn2 = await _join(manager, "ticket-0")
+        conn2 = _join(manager, "ticket-0")
         assert _error_messages(conn2) == []
         game = game_of(manager)
         assert game.lifecycle is GameLifecycle.PENDING
@@ -117,24 +117,24 @@ class TestJoinGame:
         assert conn1.connection_id not in manager._connections
         assert (conn1._close_code, conn1._close_reason) == (1000, "replaced_by_new_connection")
 
-        await manager.join_game(conn1, game_id="game1", session_token="ticket-0")
-        await manager.leave_game(conn1)
+        manager.join_game(conn1, game_id="game1", session_token="ticket-0")
+        manager.leave_game(conn1)
         assert [participant.connection for participant in game.connected()] == [conn2]
 
     async def test_join_game__when_second_of_two_humans_joins__should_start_game(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        await _join(manager, "ticket-0")
+        _join(manager, "ticket-0")
         assert game_of(manager).lifecycle is GameLifecycle.PENDING
 
-        await _join(manager, "ticket-1")
+        _join(manager, "ticket-1")
         assert game_of(manager).lifecycle is GameLifecycle.PLAYING
         assert manager.started_game_count == 1
 
     async def test_handle_game_action__when_game_still_pending__should_return_game_not_started_error(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        conn = await _join(manager, "ticket-0")
+        conn = _join(manager, "ticket-0")
 
-        await manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=0)
+        manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=0)
         assert _error_codes(conn) == [SessionErrorCode.GAME_NOT_STARTED]
 
 
@@ -145,7 +145,7 @@ class TestPendingGameTimeout:
         manager = make_session_manager(seeded_engine, timer_config=SHORT_PENDING_TIMEOUT)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         assert manager.get_playing_game_id("user-1") == "game1"
-        conn = await _join(manager, "ticket-0")
+        conn = _join(manager, "ticket-0")
         game = game_of(manager)
         timeout_task = game.pending_timeout
         assert timeout_task is not None
@@ -163,7 +163,7 @@ class TestPendingGameTimeout:
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        await manager.reconnect(reconnecting, game_id="game1", session_token="ticket-1")
+        manager.reconnect(reconnecting, game_id="game1", session_token="ticket-1")
         reconnected = [m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert [m["s"] for m in reconnected] == [absent.seat]
 
@@ -174,7 +174,7 @@ class TestPendingGameTimeout:
         timeout_task = game_of(manager).pending_timeout
         assert timeout_task is not None
 
-        await _join(manager, "ticket-0")
+        _join(manager, "ticket-0")
         with pytest.raises(asyncio.CancelledError):
             await timeout_task
 
@@ -197,15 +197,15 @@ class TestPendingGameDisconnect:
         self, manager
     ):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        conn1 = await _join(manager, "ticket-0")
+        conn1 = _join(manager, "ticket-0")
 
-        await manager.leave_game(conn1, notify_player=False)
+        manager.leave_game(conn1, notify_player=False)
         manager.unregister_connection(conn1)
         game = game_of(manager)
         assert game.lifecycle is GameLifecycle.PENDING
         assert game.connected() == []
 
-        conn2 = await _join(manager, "ticket-0")
+        conn2 = _join(manager, "ticket-0")
         assert _error_messages(conn2) == []
         assert [participant.connection for participant in game.connected()] == [conn2]
 
@@ -392,7 +392,7 @@ class TestJoinGameViaRouter:
         conn = MockConnection(game_id=game_id)
         router.handle_connect(conn)
 
-        await router.handle_message(
+        router.handle_message(
             conn,
             {
                 "t": WireClientMessageType.JOIN_GAME,
@@ -409,7 +409,7 @@ class TestJoinGameViaRouter:
         conn = MockConnection(game_id=game_id)
         router.handle_connect(conn)
 
-        await router.handle_message(
+        router.handle_message(
             conn,
             {
                 "t": WireClientMessageType.JOIN_GAME,

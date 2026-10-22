@@ -38,7 +38,7 @@ class TestReplayCollectorMerge:
 class TestSessionReplay:
     async def test_replay_start__when_game_starts__should_record_with_the_engine_seed(self, seeded_engine):
         manager = make_session_manager(seeded_engine)
-        await create_started_game(manager)
+        create_started_game(manager)
 
         replay = game_of(manager).replay
         assert replay is not None
@@ -48,7 +48,7 @@ class TestSessionReplay:
     async def test_replay_collect__when_events_broadcast__should_append_them_without_saving(self):
         storage = FakeReplayStorage()
         manager = make_session_manager(storage=storage)
-        await create_started_game(manager)
+        create_started_game(manager)
         game = game_of(manager)
         recorded_before = len(game.replay.lines)
 
@@ -60,7 +60,7 @@ class TestSessionReplay:
     async def test_replay_save__when_game_end_event__should_save_the_detached_lines(self):
         storage = FakeReplayStorage()
         manager = make_session_manager(storage=storage)
-        await create_started_game(manager)
+        create_started_game(manager)
         game = game_of(manager)
 
         manager._broadcast_events(game, [_make_game_end_event()], MOCK_GAME_OVER)
@@ -74,7 +74,7 @@ class TestSessionReplay:
     ):
         game_repo = FakeGameRepository()
         manager = make_session_manager(repository=game_repo)
-        conns = await create_started_game(manager)
+        conns = create_started_game(manager)
         game = game_of(manager)
         monkeypatch.setattr(manager._replay_collector, "save", AsyncMock(side_effect=RuntimeError("disk gone")))
 
@@ -88,9 +88,9 @@ class TestSessionReplay:
         storage = FakeReplayStorage()
         game_repo = FakeGameRepository()
         manager = make_session_manager(repository=game_repo, storage=storage)
-        conns = await create_started_game(manager)
+        conns = create_started_game(manager)
 
-        await manager.leave_game(conns[0])
+        manager.leave_game(conns[0])
         await wait_for_background_tasks(manager)
         assert game_repo.games["game1"].end_reason == GameEndReason.ABANDONED
         assert storage.saved == {}

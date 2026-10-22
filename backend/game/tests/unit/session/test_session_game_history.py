@@ -56,7 +56,7 @@ class TestGameStartRecording:
     async def test_game_history__when_game_starts__should_record_every_seat_in_seat_order(
         self, manager_with_repo, game_repo
     ):
-        await create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
+        create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
 
         recorded = game_repo.games["game1"]
         assert (recorded.game_type, recorded.ended_at, recorded.end_reason) == ("hanchan", None, None)
@@ -71,7 +71,7 @@ class TestGameStartRecording:
         self, seeded_engine, game_repo
     ):
         manager = make_session_manager(seeded_engine, repository=game_repo)
-        conns = await create_started_game(manager, player_names=["Tsumogiri 1"])
+        conns = create_started_game(manager, player_names=["Tsumogiri 1"])
         human_seat = participant_of(manager, conns[0]).seat
         assert human_seat is not None
         ai_seats = sorted(set(range(4)) - {human_seat})
@@ -83,7 +83,7 @@ class TestGameStartRecording:
 
         human = seeded_engine.get_game_state("game1").round_state.players[human_seat]
         assert seeded_engine.get_game_state("game1").round_state.current_player_seat == human_seat
-        await manager.handle_game_action(
+        manager.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={"tile_id": human.tiles[-1]}, wait_id=current_wait_id(manager)
         )
         human_after = seeded_engine.get_game_state("game1").round_state.players[human_seat]
@@ -94,9 +94,9 @@ class TestGameStartRecording:
         self, manager_with_repo, game_repo
     ):
         manager_with_repo._game_service.get_game_state = lambda _: None
-        conns = await create_started_game(manager_with_repo)
+        conns = create_started_game(manager_with_repo)
 
-        await manager_with_repo.leave_game(conns[0])
+        manager_with_repo.leave_game(conns[0])
         await wait_for_background_tasks(manager_with_repo)
         assert manager_with_repo.get_game("game1") is None
         assert game_repo.games == {}
@@ -107,7 +107,7 @@ class TestGameCompletionRecording:
     async def test_game_history__when_game_ends__should_record_standings_in_placement_order_and_round_count(
         self, manager_with_repo, game_repo
     ):
-        conns = await create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
+        conns = create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
         events = [
             ServiceEvent(
                 data=GameEndedEvent(
@@ -125,7 +125,7 @@ class TestGameCompletionRecording:
         ]
         manager_with_repo._game_service.handle_action = MagicMock(return_value=mock_update(events, MOCK_GAME_OVER))
 
-        await manager_with_repo.handle_game_action(
+        manager_with_repo.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
         )
         await wait_for_background_tasks(manager_with_repo)
@@ -141,12 +141,12 @@ class TestGameCompletionRecording:
         ]
 
     async def test_game_history__when_timeout_ends_game__should_record_completed(self, manager_with_repo, game_repo):
-        await create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
+        create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
         manager_with_repo._game_service.handle_timeout = MagicMock(
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
         )
 
-        await run_timeout(manager_with_repo, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
+        run_timeout(manager_with_repo, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         await wait_for_background_tasks(manager_with_repo)
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
 
@@ -165,7 +165,7 @@ class TestGameCompletionRecording:
         )
         alice = MockConnection()
         manager.register_connection(alice)
-        await manager.join_game(alice, game_id="game1", session_token="ticket-0")
+        manager.join_game(alice, game_id="game1", session_token="ticket-0")
         pending_timeout = game_of(manager).pending_timeout
         assert pending_timeout is not None
         await pending_timeout
@@ -192,9 +192,9 @@ class TestGameAbandonmentRecording:
     async def test_game_history__when_all_players_leave__should_record_abandoned_with_the_seat_order_roster(
         self, manager_with_repo, game_repo
     ):
-        conns = await create_started_game(manager_with_repo, player_names=["Alice"])
+        conns = create_started_game(manager_with_repo, player_names=["Alice"])
 
-        await manager_with_repo.leave_game(conns[0])
+        manager_with_repo.leave_game(conns[0])
         await wait_for_background_tasks(manager_with_repo)
         recorded = game_repo.games["game1"]
         assert recorded.end_reason == GameEndReason.ABANDONED
@@ -209,16 +209,16 @@ class TestGameAbandonmentRecording:
     async def test_game_history__when_completed_game_cleaned_up__should_not_record_abandoned(
         self, manager_with_repo, game_repo
     ):
-        conns = await create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
+        conns = create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
         manager_with_repo._game_service.handle_action = MagicMock(
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
         )
 
-        await manager_with_repo.handle_game_action(
+        manager_with_repo.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
         )
         for conn in conns:
-            await manager_with_repo.leave_game(conn)
+            manager_with_repo.leave_game(conn)
         await wait_for_background_tasks(manager_with_repo)
         assert manager_with_repo.get_game("game1") is None
         assert [game.end_reason for game in game_repo.finishes] == [GameEndReason.COMPLETED]

@@ -236,7 +236,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                 )
                 continue
 
-            await router.handle_message(connection, data)
+            router.handle_message(connection, data)
     except ConnectionError:
         pass
     except Exception:
@@ -244,4 +244,4 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
         connection.close(code=1011, reason="internal_error")
     finally:
         logger.info("websocket disconnected", connection_id=connection.connection_id)
-        await router.handle_disconnect(connection)
+        router.handle_disconnect(connection)

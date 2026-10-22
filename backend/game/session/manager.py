@@ -197,7 +197,7 @@ class SessionManager:
         game.pending_timeout = self._spawn(self._pending_game_timeout(game))
         logger.info("pending game created", game_id=game_id, expected_count=len(player_specs))
 
-    async def join_game(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
+    def join_game(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
         """
         Bind a connection to its participant in a pending game; the last expected join starts the game.
 
@@ -369,7 +369,7 @@ class SessionManager:
         )
         self._game_repository.create_game(game.start_record)
 
-    async def leave_game(self, connection: ConnectionProtocol, *, notify_player: bool = True) -> None:
+    def leave_game(self, connection: ConnectionProtocol, *, notify_player: bool = True) -> None:
         """
         Take a closed connection's participant out of its game.
 
@@ -427,7 +427,7 @@ class SessionManager:
         self._release_seat(participant)
         connection.close(code=1008, reason="invalid_game_action")
 
-    async def handle_game_action(
+    def handle_game_action(
         self,
         connection: ConnectionProtocol,
         *,
@@ -510,7 +510,7 @@ class SessionManager:
             SessionChatMessage(player_name=participant.name, text=text).model_dump(),
         )
 
-    async def reconnect(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
+    def reconnect(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
         """
         Bind a new connection to a disconnected participant of a playing game and send it the game's state.
 

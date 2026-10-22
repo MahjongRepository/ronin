@@ -5,13 +5,13 @@ transitions. A game is a `GameSession` (`models.py`): its participants, pacing (
 lifecycle, last engine wait, start record, replay lines and pending timeout.
 
 A transition (a join, an action, a disconnect, a reconnect, a timeout, the start, the end claim) is
-one synchronous step: validation, engine call, bookkeeping, timers and socket enqueues, with no
-suspension anywhere in it, so no other transition can interleave and none needs a lock. Sends and
-closes only enqueue: one never waits on a client. The only awaits in the session are the timers'
-sleeps, the end finalizer and shutdown. So the guards left are the ones at real I/O completions: a
-client message checks that its connection is still registered or bound (the server may have
-evicted it while the message was in flight), and an action checks its wait id. A sleeping task is
-superseded only by being cancelled.
+one synchronous step: validation, engine call, bookkeeping, timers and socket enqueues. Transitions
+are plain `def`s, as is `MessageRouter`'s dispatch to them, so none can suspend, no other
+transition can interleave, and none needs a lock. Sends and closes only enqueue: one never waits on
+a client. The only awaits in the session are the timers' sleeps, the end finalizer and shutdown.
+So the guards left are the ones at real I/O completions: a client message checks that its
+connection is still registered or bound (the server may have evicted it while the message was in
+flight), and an action checks its wait id. A sleeping task is superseded only by being cancelled.
 
 * **Registry.** It holds only pending and playing games (by id), their participants (by game
   ticket), the registered connections and which participant each authenticated connection is bound

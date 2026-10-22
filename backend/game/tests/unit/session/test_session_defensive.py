@@ -12,7 +12,7 @@ class TestSessionManagerDefensiveChecks:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        await manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=MOCK_AWAITING.wait_id)
+        manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=MOCK_AWAITING.wait_id)
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg["type"] == SessionMessageType.ERROR

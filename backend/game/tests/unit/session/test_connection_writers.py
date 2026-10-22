@@ -69,11 +69,11 @@ class _Table:
         assert seat is not None
         return seat
 
-    async def advance_to_turn_of(self, seat: int) -> None:
+    def advance_to_turn_of(self, seat: int) -> None:
         game = self.manager.get_game("game1")
         while not (game.awaiting.kind == WaitKind.TURN and seat in game.awaiting.seats):
             waiting_seat = min(game.awaiting.seats)
-            await run_timeout(
+            run_timeout(
                 self.manager, game_id="game1", timeout_type=_TIMEOUT_OF_WAIT[game.awaiting.kind], seat=waiting_seat
             )
 
@@ -107,7 +107,7 @@ class TestConnectionWriters:
     ):
         alice, bob = await _start_over_sockets(table)
         bob_seat = table.seat_of("Bob")
-        await table.advance_to_turn_of(bob_seat)
+        table.advance_to_turn_of(bob_seat)
         alice.hold_writes()
         wait_id = table.manager.get_game("game1").awaiting.wait_id
         tile = seeded_engine.get_game_state("game1").round_state.players[bob_seat].tiles[-1]
@@ -126,11 +126,11 @@ class TestConnectionWriters:
     ):
         alice, bob = await _start_over_sockets(table)
         alice_seat = table.seat_of("Alice")
-        await table.advance_to_turn_of(alice_seat)
+        table.advance_to_turn_of(alice_seat)
         arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
         alice.hold_writes()
 
-        await run_timeout(table.manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
+        run_timeout(table.manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert await bob.wait_for_close() == ClosedWith(code=1000, reason="game_ended")
         assert bob.messages[-1]["t"] == EVENT_TYPE_INT[EventType.GAME_END]
         assert table.manager._game_repository.games["game1"].end_reason is GameEndReason.COMPLETED
@@ -141,7 +141,7 @@ class TestConnectionWriters:
         monkeypatch.setattr(ws_module, "_SEND_QUEUE_LIMIT", 2)
         bob = MockConnection(game_id="game1")
         table.manager.register_connection(bob)
-        await table.manager.join_game(bob, game_id="game1", session_token=table.tickets["Bob"])
+        table.manager.join_game(bob, game_id="game1", session_token=table.tickets["Bob"])
         alice, alice_endpoint = table.join_over_socket("Alice", held=True)
         for n in range(5):
             alice.send({"t": WireClientMessageType.CHAT, "text": f"post-overflow-{n}"})

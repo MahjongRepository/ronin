@@ -41,17 +41,17 @@ class MessageRouter:
     """
     Routes incoming messages to appropriate handlers.
 
-    This class contains pure business logic and can be tested without real WebSocket connections. Each handler that
-    reaches a game is an error boundary: any exception is a server fault handed to `SessionManager.fail_connection`
-    with the game captured before the call. Sends never raise or wait for a dead or slow socket, so a dead socket
-    reaches the endpoint only at receive.
+    This class contains pure business logic and can be tested without real WebSocket connections. Handling a message is
+    synchronous: it runs its session transition in one step. Each handler that reaches a game is an error boundary: any
+    exception is a server fault handed to `SessionManager.fail_connection` with the game captured before the call.
+    Sends never raise or wait for a dead or slow socket, so a dead socket reaches the endpoint only at receive.
     """
 
     def __init__(self, session_manager: SessionManager, *, game_ticket_secret: str) -> None:
         self._session_manager = session_manager
         self._game_ticket_secret = game_ticket_secret
 
-    async def handle_message(
+    def handle_message(
         self,
         connection: ConnectionProtocol,
         raw_message: dict[str, Any],
@@ -66,11 +66,11 @@ class MessageRouter:
             return
 
         if isinstance(message, _GAME_ACTION_TYPES):
-            await self._handle_game_action(connection, message)
+            self._handle_game_action(connection, message)
         elif isinstance(message, JoinGameMessage):
-            await self._handle_join_game(connection, message)
+            self._handle_join_game(connection, message)
         elif isinstance(message, ReconnectMessage):
-            await self._handle_reconnect(connection, message)
+            self._handle_reconnect(connection, message)
         elif isinstance(message, ChatMessage):
             self._session_manager.broadcast_chat(connection, text=message.text)
 
@@ -106,7 +106,7 @@ class MessageRouter:
             ErrorMessage(code=SessionErrorCode.INVALID_TICKET, message=message).model_dump(),
         )
 
-    async def _handle_join_game(
+    def _handle_join_game(
         self,
         connection: ConnectionProtocol,
         message: JoinGameMessage,
@@ -120,7 +120,7 @@ class MessageRouter:
 
         game = self._session_manager.get_game(connection.game_id)
         try:
-            await self._session_manager.join_game(
+            self._session_manager.join_game(
                 connection=connection,
                 game_id=connection.game_id,
                 session_token=message.game_ticket,
@@ -128,7 +128,7 @@ class MessageRouter:
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="join failed", exc=exc)
 
-    async def _handle_reconnect(
+    def _handle_reconnect(
         self,
         connection: ConnectionProtocol,
         message: ReconnectMessage,
@@ -142,7 +142,7 @@ class MessageRouter:
 
         game = self._session_manager.get_game(connection.game_id)
         try:
-            await self._session_manager.reconnect(
+            self._session_manager.reconnect(
                 connection=connection,
                 game_id=connection.game_id,
                 session_token=message.game_ticket,
@@ -150,7 +150,7 @@ class MessageRouter:
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="reconnect failed", exc=exc)
 
-    async def _handle_game_action(
+    def _handle_game_action(
         self,
         connection: ConnectionProtocol,
         message: DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
@@ -160,7 +160,7 @@ class MessageRouter:
         """
         game = self._session_manager.get_connection_game(connection)
         try:
-            await self._session_manager.handle_game_action(
+            self._session_manager.handle_game_action(
                 connection=connection,
                 action=GameAction[message.a.name],
                 data=message.model_dump(exclude={"t", "a", "wait_id"}),
@@ -172,13 +172,13 @@ class MessageRouter:
     def handle_connect(self, connection: ConnectionProtocol) -> None:
         self._session_manager.register_connection(connection)
 
-    async def handle_disconnect(self, connection: ConnectionProtocol) -> None:
+    def handle_disconnect(self, connection: ConnectionProtocol) -> None:
         """
         Remove a closed connection from its game; an unexpected error is a server fault that fails that game.
         """
         game = self._session_manager.get_connection_game(connection)
         try:
-            await self._session_manager.leave_game(connection, notify_player=False)
+            self._session_manager.leave_game(connection, notify_player=False)
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="disconnect failed", exc=exc)
         finally:
