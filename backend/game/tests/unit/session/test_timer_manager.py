@@ -5,7 +5,7 @@ import pytest
 from game.logic.enums import TimeoutType
 from game.session.models import GameSession, Participant, PlayerSpec
 from game.session.timer import TimerConfig, TurnTimer
-from game.session.timer_manager import TimerFiring, TimerManager
+from game.session.timer_manager import TimerManager
 
 CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20, meld_decision_seconds=3)
 
@@ -17,8 +17,8 @@ def timeout_log():
 
 @pytest.fixture
 def timer_manager(timeout_log):
-    async def on_timeout(participant: Participant, timeout_type: TimeoutType, firing: TimerFiring) -> None:
-        timeout_log.append((participant, timeout_type, firing))
+    def on_timeout(participant: Participant, timeout_type: TimeoutType) -> None:
+        timeout_log.append((participant, timeout_type))
 
     return TimerManager(on_timeout=on_timeout)
 
@@ -52,17 +52,4 @@ class TestTimerManagerArming:
         assert held_sleep.durations == [duration]
 
         await held_sleep.release_all()
-        [(reported, reported_type, firing)] = timeout_log
-        assert (reported, reported_type) == (participant, timeout_type)
-        assert firing.is_superseded is False
-
-    async def test_timer_firing__when_its_timer_is_rearmed_after_firing__should_be_superseded(
-        self, timer_manager, timeout_log, participant, held_sleep
-    ):
-        timer_manager.start_turn_timer(participant)
-        await asyncio.sleep(0)
-        await held_sleep.release_all()
-        [(_reported, _type, firing)] = timeout_log
-
-        participant.timer.cancel()
-        assert firing.is_superseded is True
+        assert timeout_log == [(participant, timeout_type)]

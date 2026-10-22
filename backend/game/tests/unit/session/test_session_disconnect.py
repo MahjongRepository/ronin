@@ -1,14 +1,13 @@
-import asyncio
 from unittest.mock import MagicMock
 
-from game.logic.enums import GameAction, TimeoutType
+from game.logic.enums import GameAction
 from game.logic.events import BroadcastTarget, EventType, ServiceEvent
 from game.session.models import GameLifecycle
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, game_of, participant_of, run_timeout
+from .helpers import create_started_game, game_of, participant_of
 
 
 class TestSessionManagerDisconnect:
@@ -67,59 +66,3 @@ class TestSessionManagerDisconnect:
         # Bob should receive the AI player action event
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
-
-    async def test_disconnect__when_stale_timeout_fires_for_replaced_seat__should_send_nothing(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-
-        # Alice disconnects
-        await manager.leave_game(conns[0])
-        conns[1]._outbox.clear()
-
-        # stale timeout fires for Alice's old seat (seat 0)
-        await run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-        assert len(conns[1].sent_messages) == 0
-
-
-class TestLockBoundaryRaces:
-    async def test_lock_boundary__when_last_player_leaves_twice_concurrently__should_clean_up_once(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-
-        # Alice leaves first (not last)
-        await manager.leave_game(conns[0])
-        assert manager.get_game("game1") is not None
-
-        cleanup_count = 0
-        original_cleanup = manager._game_service.cleanup_game
-
-        def counting_cleanup(game_id):
-            nonlocal cleanup_count
-            cleanup_count += 1
-            return original_cleanup(game_id)
-
-        manager._game_service.cleanup_game = counting_cleanup
-
-        # Bob leaves -- triggers cleanup. Simulate a second leave_game concurrently.
-        await asyncio.gather(
-            manager.leave_game(conns[1]),
-            manager.leave_game(conns[1]),
-        )
-        assert cleanup_count == 1
-        assert manager.get_game("game1") is None
-
-    async def test_lock_boundary__when_ai_replacement_runs_on_leave__should_hold_game_lock(self, manager):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-
-        lock = game_of(manager).lock
-
-        lock_was_held = False
-
-        def check_lock_process(game_id, seat):
-            nonlocal lock_was_held
-            # the lock should be held (locked) when this is called
-            lock_was_held = lock.locked()
-            return mock_update([])
-
-        manager._game_service.process_ai_player_actions_after_replacement = check_lock_process
-
-        await manager.leave_game(conns[0])
-        assert lock_was_held is True

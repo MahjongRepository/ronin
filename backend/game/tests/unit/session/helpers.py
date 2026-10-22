@@ -6,7 +6,6 @@ from mahjong.tile import TilesConverter
 from game.messaging.types import SessionMessageType
 from game.session.models import PlayerSpec
 from game.session.timer import TimerConfig
-from game.session.timer_manager import TimerFiring
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MockConnection
 from game.tests.unit.helpers import _update_player, _update_round_state
@@ -140,5 +139,4 @@ def arrange_pon_now_and_on_the_next_draw(engine: MahjongGameService, *, discarde
 async def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutType, seat: int) -> None:
     participant = game_of(manager, game_id).at_seat(seat)
     assert participant is not None
-    firing = TimerFiring(timer=participant.timer, generation=participant.timer.generation)
-    await manager._handle_timeout(participant, timeout_type, firing)
+    manager._handle_timeout(participant, timeout_type)

@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -6,6 +5,8 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
+    import asyncio
+
     from game.logic.service import Awaiting
     from game.messaging.protocol import ConnectionProtocol
     from game.session.replay_collector import ReplayRecord
@@ -83,8 +84,7 @@ class GameSession:
     awaiting is what the engine last reported the game waits for (set from the start on); the session drives the timers
     from it and checks an action's wait id against it. start_record is the game's record as posted at the start (seat
     order, every seat's name and user_id); every finish record is built from it. replay holds the lines recorded since
-    the start until the end claim detaches them. The lock serializes everything that touches the game, for its whole
-    life.
+    the start until the end claim detaches them.
     """
 
     game_id: str
@@ -95,7 +95,6 @@ class GameSession:
     start_record: PlayedGame | None = None
     replay: ReplayRecord | None = None
     pending_timeout: asyncio.Task[None] | None = None
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
     def is_active(self) -> bool:

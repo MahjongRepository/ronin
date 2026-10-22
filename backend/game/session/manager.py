@@ -34,7 +34,7 @@ from game.session.models import GameLifecycle, GameSession, Participant
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
-from game.session.timer_manager import TimerFiring, TimerManager
+from game.session.timer_manager import TimerManager
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
 
@@ -125,7 +125,7 @@ class SessionManager:
         self._connections.pop(connection_id, None)
         self._cancel_auth_timeout(connection_id)
         participant = self._bound.pop(connection_id, None)
-        if participant is not None and participant.connection is connection:
+        if participant is not None:
             participant.connection = None
 
     def _bind(self, participant: Participant, connection: ConnectionProtocol) -> None:
@@ -202,22 +202,21 @@ class SessionManager:
         Bind a connection to its participant in a pending game; the last expected join starts the game.
 
         A participant that already has a connection (a stale socket) is moved to the new one, and the old one is evicted
-        and closed.
+        and closed. A JOIN_GAME on a connection the server already evicted is dropped unanswered.
         """
+        if self._connections.get(connection.connection_id) is not connection:
+            return
+
         game = self._games.get(game_id)
         if game is None:
             self._send_error(connection, code=SessionErrorCode.JOIN_GAME_NOT_FOUND, message="Game not found")
             return
 
-        async with game.lock:
-            if self._connections.get(connection.connection_id) is not connection:
-                return
+        participant = self._joining_participant(connection, game=game, session_token=session_token)
+        if participant is None:
+            return
 
-            participant = self._joining_participant(connection, game=game, session_token=session_token)
-            if participant is None:
-                return
-
-            self._admit(game, participant, connection)
+        self._admit(game, participant, connection)
 
     def _joining_participant(
         self,
@@ -235,10 +234,6 @@ class SessionManager:
                 code=SessionErrorCode.JOIN_GAME_ALREADY_STARTED,
                 message="Game already started, use RECONNECT",
             )
-            return None
-
-        if game.lifecycle is not GameLifecycle.PENDING:
-            self._send_error(connection, code=SessionErrorCode.JOIN_GAME_NOT_FOUND, message="Game not found")
             return None
 
         if connection.connection_id in self._bound:
@@ -299,33 +294,30 @@ class SessionManager:
         """
         Start the pending game with AI players in the empty seats, or abandon it when nobody is connected.
 
-        After its sleep the task detaches itself from the game, so the start it runs (or a final join racing it) never
-        cancels it. Any unexpected error ends the game through fail_game.
+        After its sleep the task detaches itself from the game, so the start or end it runs never cancels it. Every way
+        out of PENDING cancels the task, even once its sleep ended, so it only ever runs on a pending game. Any
+        unexpected error ends the game through fail_game.
         """
         await asyncio.sleep(game.timer_config.pending_game_timeout_seconds)
 
         game.pending_timeout = None
         try:
-            async with game.lock:
-                if game.lifecycle is not GameLifecycle.PENDING:
-                    return
+            if not game.connected():
+                logger.warning(
+                    "no players connected before timeout, cancelling game",
+                    game_id=game.game_id,
+                    expected=len(game.participants),
+                )
+                self._end_game(game, GameEndReason.ABANDONED)
+                return
 
-                if not game.connected():
-                    logger.warning(
-                        "no players connected before timeout, cancelling game",
-                        game_id=game.game_id,
-                        expected=len(game.participants),
-                    )
-                    self._end_game(game, GameEndReason.ABANDONED)
-                    return
-
-                self._start_game(game)
+            self._start_game(game)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason="pending game timeout failed", exc=exc)
 
     def _start_game(self, game: GameSession) -> None:
         """
-        Start the engine game for every participant, connected or not; called under the game lock.
+        Start the engine game for every participant, connected or not.
 
         Each participant is bound to the seat the engine assigned to its spec (by input order, never by name). An absent
         one gets an AI player in its seat right after the start's events go out, and can RECONNECT later.
@@ -389,22 +381,18 @@ class SessionManager:
             return
 
         game = participant.game
-        async with game.lock:
-            if participant.connection is not connection:
-                return
+        logger.info("player left game")
+        self._unbind(participant, connection)
+        if notify_player:
+            connection.send_message(GameLeftMessage().model_dump())
 
-            logger.info("player left game")
-            self._unbind(participant, connection)
-            if notify_player:
-                connection.send_message(GameLeftMessage().model_dump())
-
-            self._broadcast_to_game(game, PlayerLeftMessage(player_name=participant.name).model_dump())
-            if game.lifecycle is GameLifecycle.PLAYING:
-                self._release_seat(participant)
+        self._broadcast_to_game(game, PlayerLeftMessage(player_name=participant.name).model_dump())
+        if game.lifecycle is GameLifecycle.PLAYING:
+            self._release_seat(participant)
 
     def _release_seat(self, participant: Participant) -> None:
         """
-        Hand a participant's seat to an AI player, which plays any turn or call it owed; called under the game lock.
+        Hand a participant's seat to an AI player, which plays any turn or call it owed.
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
         abandoned instead: there are never all-AI games.
@@ -429,9 +417,9 @@ class SessionManager:
         """
         Disconnect a human who sent structurally impossible input for their own seat with 1008, and seat an AI player.
 
-        Called under the game lock. The connection leaves the registry first, so a RECONNECT pipelined on the closing
-        socket is dropped. An error while replacing the player propagates before the close: it is a server fault the
-        caller's boundary turns into fail_game, which closes the connection with 1011.
+        The connection leaves the registry first, so a RECONNECT pipelined on the closing socket is dropped. An error
+        while replacing the player propagates before the close: it is a server fault the caller's boundary turns into
+        fail_game, which closes the connection with 1011.
         """
         logger.warning("invalid game action", action=error.action, reason=error.reason)
         self._evict_connection(connection)
@@ -448,7 +436,7 @@ class SessionManager:
         wait_id: int,
     ) -> None:
         """
-        Run a player's game action under the game lock.
+        Run a player's game action.
 
         An action whose wait id is not the current wait's answers to a wait that already ended (it raced its own timeout
         or a newer prompt): the seat gets a `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A
@@ -465,30 +453,27 @@ class SessionManager:
             self._send_error(connection, code=SessionErrorCode.GAME_NOT_STARTED, message="Game has not started yet")
             return
 
-        structlog.contextvars.bind_contextvars(seat=participant.seat)
-        async with game.lock:
-            if game.lifecycle is not GameLifecycle.PLAYING or participant.connection is not connection:
-                return
+        seat = self._seat_of(participant)
+        structlog.contextvars.bind_contextvars(seat=seat)
+        if game.awaiting is None or wait_id != game.awaiting.wait_id:
+            self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
+            return
 
-            seat = self._seat_of(participant)
-            if game.awaiting is None or wait_id != game.awaiting.wait_id:
-                self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
-                return
+        try:
+            update = self._game_service.handle_action(game_id=game.game_id, seat=seat, action=action, data=data)
+        except InvalidGameActionError as e:
+            self._kick_player(participant, connection, error=e)
+            return
 
-            try:
-                update = self._game_service.handle_action(game_id=game.game_id, seat=seat, action=action, data=data)
-            except InvalidGameActionError as e:
-                self._kick_player(participant, connection, error=e)
-                return
-
-            self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
     def _bound_participant(self, connection: ConnectionProtocol) -> Participant | None:
         """
         Return the participant a game message's connection is bound to, or None after answering `not_in_game`.
 
-        A connection the server evicted (its game ended, or it was kicked) gets no answer: its close is already queued,
-        and a `not_in_game` ahead of it would read as a permanent error to a client still showing the game's end.
+        A connection the server evicted (its game ended, or it was kicked) gets no answer: its close is queued, or for a
+        game end follows from the finalizer, and a `not_in_game` ahead of it would read as a permanent error to a client
+        still showing the game's end.
         """
         participant = self._bound.get(connection.connection_id)
         if participant is None and self._connections.get(connection.connection_id) is connection:
@@ -529,57 +514,44 @@ class SessionManager:
         """
         Bind a new connection to a disconnected participant of a playing game and send it the game's state.
 
-        Under the lock: take the seat back from the AI player (`restore_human_player`), send the `game_reconnected`
-        snapshot with the current wait id, broadcast `player_reconnected`, and, when the game awaits that seat's turn,
-        re-send its draw and start its turn timer.
+        Take the seat back from the AI player (`restore_human_player`), send the `game_reconnected` snapshot with the
+        current wait id, broadcast `player_reconnected`, and, when the game awaits that seat's turn, re-send its draw
+        and start its turn timer. A RECONNECT on a connection the server already evicted is dropped unanswered.
         """
+        if self._connections.get(connection.connection_id) is not connection:
+            return
+
         participant = self._reconnecting_participant(connection, game_id=game_id, session_token=session_token)
         if participant is None:
             return
 
         game = participant.game
-        async with game.lock:
-            if self._connections.get(connection.connection_id) is not connection:
-                return
-
-            if game.lifecycle is not GameLifecycle.PLAYING:
-                self._send_error(connection, code=SessionErrorCode.RECONNECT_GAME_GONE, message="Game has ended")
-                return
-
-            if participant.is_connected:
-                self._send_error(
-                    connection,
-                    code=SessionErrorCode.RECONNECT_NO_SESSION,
-                    message="No disconnected session found",
-                )
-                return
-
-            seat = self._seat_of(participant)
-            self._game_service.restore_human_player(game.game_id, seat)
-            snapshot = self._game_service.build_reconnection_snapshot(game.game_id, seat)
-            if snapshot is None:
-                self._game_service.replace_with_ai_player(game.game_id, seat)
-                self._send_error(
-                    connection,
-                    code=SessionErrorCode.RECONNECT_SNAPSHOT_FAILED,
-                    message="Failed to build game state",
-                )
-                return
-
-            self._bind(participant, connection)
-            awaiting = self._game_service.get_awaiting(game.game_id)
-            game.awaiting = awaiting
-            payload = snapshot.model_dump(by_alias=True, exclude_none=True)
-            payload["type"] = SessionMessageType.GAME_RECONNECTED
-            payload[WAIT_ID_KEY] = awaiting.wait_id
-            connection.send_message(payload)
-
-            self._broadcast_to_game(
-                game,
-                PlayerReconnectedMessage(player_name=participant.name).model_dump(),
-                exclude=connection,
+        seat = self._seat_of(participant)
+        self._game_service.restore_human_player(game.game_id, seat)
+        snapshot = self._game_service.build_reconnection_snapshot(game.game_id, seat)
+        if snapshot is None:
+            self._game_service.replace_with_ai_player(game.game_id, seat)
+            self._send_error(
+                connection,
+                code=SessionErrorCode.RECONNECT_SNAPSHOT_FAILED,
+                message="Failed to build game state",
             )
-            self._send_turn_state_on_reconnect(participant, connection, awaiting=awaiting)
+            return
+
+        self._bind(participant, connection)
+        awaiting = self._game_service.get_awaiting(game.game_id)
+        game.awaiting = awaiting
+        payload = snapshot.model_dump(by_alias=True, exclude_none=True)
+        payload["type"] = SessionMessageType.GAME_RECONNECTED
+        payload[WAIT_ID_KEY] = awaiting.wait_id
+        connection.send_message(payload)
+
+        self._broadcast_to_game(
+            game,
+            PlayerReconnectedMessage(player_name=participant.name).model_dump(),
+            exclude=connection,
+        )
+        self._send_turn_state_on_reconnect(participant, connection, awaiting=awaiting)
 
         structlog.contextvars.bind_contextvars(seat=seat)
         logger.info("player reconnected")
@@ -791,22 +763,18 @@ class SessionManager:
 
         return participant.seat
 
-    async def _handle_timeout(self, participant: Participant, timeout_type: TimeoutType, firing: TimerFiring) -> None:
+    def _handle_timeout(self, participant: Participant, timeout_type: TimeoutType) -> None:
         """
-        Run a fired timer's default action under the game lock; any unexpected error ends the game through fail_game.
+        Run a fired timer's default action; any unexpected error ends the game through fail_game.
 
-        A timer that a stop, cancel or re-arm superseded while it waited for the lock, or whose participant is no longer
-        connected, does nothing.
+        It needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer, and a
+        cancel after its sleep ended still stops it before this runs.
         """
         game = participant.game
         try:
-            async with game.lock:
-                if game.lifecycle is not GameLifecycle.PLAYING or firing.is_superseded or not participant.is_connected:
-                    return
-
-                seat = self._seat_of(participant)
-                update = self._game_service.handle_timeout(game_id=game.game_id, seat=seat, timeout_type=timeout_type)
-                self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+            seat = self._seat_of(participant)
+            update = self._game_service.handle_timeout(game_id=game.game_id, seat=seat, timeout_type=timeout_type)
+            self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason=f"{timeout_type} timeout failed", exc=exc)
 
@@ -924,10 +892,10 @@ class SessionManager:
         """
         End a game on a server fault: the one terminal path for one, idempotent and callable from any context.
 
-        It claims the game's end as ERROR (`_end_game`): synchronously, before anything can suspend, so a new action,
-        timeout, join or reconnect finds no game; one already waiting on the game lock finds it ended and stops. The
-        finalizer records the error end, saves whatever replay history exists, and sends every connected participant an
-        `internal_error` session error before closing with 1011. The current task is never cancelled or awaited.
+        It claims the game's end as ERROR (`_end_game`) synchronously, so a later action, timeout, join or reconnect
+        finds no game. The finalizer records the error end, saves whatever replay history exists, and sends every
+        connected participant an `internal_error` session error before closing with 1011. The current task is never
+        cancelled or awaited.
 
         Returns True when this call ended the game; False when its end was already claimed. Either way the caller skips
         its normal broadcast and timers.
@@ -984,18 +952,20 @@ class SessionManager:
         """
         Stop every background task before the server's resources close.
 
-        Sleeping pending, auth and turn timers are cancelled; a task already past its sleep (a pending game starting, an
-        auth close, a timer callback or a game's finalizer) is awaited, so its replay save, finish record post and
-        socket closes happen first. Games still running are not recorded as ended.
+        Sleeping pending, auth and turn timers are cancelled, all in one step, so none of them can fire and end a game
+        meanwhile; the games' finalizers are awaited, so their replay saves, finish record posts and socket closes
+        happen first. Games still running are not recorded as ended.
         """
         sleeping = [game.pending_timeout for game in self._games.values() if game.pending_timeout is not None]
+        sleeping.extend(
+            participant.timer.task
+            for game in self._games.values()
+            for participant in game.participants
+            if participant.timer.task is not None
+        )
         sleeping.extend(self._auth_timeouts.values())
         self._auth_timeouts.clear()
         await cancel_and_wait(sleeping, finalizing=list(self._background_tasks))
-        await self._timer_manager.shutdown(
-            [participant.timer for game in self._games.values() for participant in game.participants],
-        )
-        await cancel_and_wait([], finalizing=list(self._background_tasks))
 
     def _cancel_auth_timeout(self, connection_id: str) -> None:
         task = self._auth_timeouts.pop(connection_id, None)
@@ -1006,8 +976,10 @@ class SessionManager:
         """
         Close an unauthenticated connection after a timeout.
 
-        The task detaches itself from `_auth_timeouts` after its sleep, so cancel paths leave the close alone. An
-        unexpected error is logged and the connection closed with 1011: there is no game to fail yet.
+        The task detaches itself from `_auth_timeouts` after its sleep, so cancel paths leave the close alone. Binding
+        or evicting the connection cancels it, even once its sleep ended, so it only ever closes a registered connection
+        that never authenticated. An unexpected error is logged and the connection closed with 1011: there is no game to
+        fail yet.
         """
         await asyncio.sleep(_AUTH_TIMEOUT_SECONDS)
 
@@ -1019,10 +991,6 @@ class SessionManager:
             connection.close(code=1011, reason="internal_error")
 
     def _close_unauthenticated(self, connection: ConnectionProtocol) -> None:
-        connection_id = connection.connection_id
-        if connection_id in self._bound or self._connections.get(connection_id) is not connection:
-            return
-
         self._evict_connection(connection)
-        logger.info("auth timeout, closing unauthenticated connection", connection_id=connection_id)
+        logger.info("auth timeout, closing unauthenticated connection", connection_id=connection.connection_id)
         connection.close(code=4001, reason="auth_timeout")

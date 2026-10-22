@@ -44,10 +44,12 @@ class HeldSleep:
         self._releases.append(release)
         await release.wait()
 
-    async def release_all(self) -> None:
+    def wake_all(self) -> None:
         for release in self._releases:
             release.set()
 
+    async def release_all(self) -> None:
+        self.wake_all()
         await asyncio.sleep(0)
         await asyncio.sleep(0)
 

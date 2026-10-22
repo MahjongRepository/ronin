@@ -1,5 +1,5 @@
 import time
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -174,7 +174,7 @@ class TestBankTimePreservation:
         alice_conn = conns[0]
         timer = participant_of(manager, alice_conn).timer
         initial_bank = timer._bank_seconds
-        timer.start_meld_timer(AsyncMock())
+        timer.start_meld_timer(MagicMock())
 
         await manager.leave_game(alice_conn, notify_player=False)
         assert timer._bank_seconds == initial_bank
@@ -264,70 +264,6 @@ class TestReconnectEdgeCases:
         assert any(m["code"] == SessionErrorCode.RECONNECT_SNAPSHOT_FAILED for m in error_msgs)
         assert len(replace_calls) == 1
         assert replace_calls[0] == ("game1", 0)
-
-    @pytest.mark.asyncio
-    async def test_reconnect__when_session_reconnected_concurrently_before_lock__should_return_no_session_error(
-        self, manager
-    ):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_token = participant_of(manager, alice_conn).ticket
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        original_validate = manager._reconnecting_participant
-
-        def patched_validate(connection, game_id, session_token):
-            result = original_validate(connection, game_id=game_id, session_token=session_token)
-            if result is not None:
-                result.connection = MockConnection()
-
-            return result
-
-        manager._reconnecting_participant = patched_validate
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
-        assert any(m["code"] == SessionErrorCode.RECONNECT_NO_SESSION for m in error_msgs)
-
-        manager._reconnecting_participant = original_validate
-
-    @pytest.mark.asyncio
-    async def test_reconnect__when_connection_removed_before_lock__should_return_silently_without_registering(
-        self, manager
-    ):
-        conns = await create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_token = participant_of(manager, alice_conn).ticket
-
-        snapshot = _make_snapshot("game1", seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
-
-        await manager.leave_game(alice_conn, notify_player=False)
-
-        original_validate = manager._reconnecting_participant
-
-        def patched_validate(connection, game_id, session_token):
-            result = original_validate(connection, game_id=game_id, session_token=session_token)
-            if result is not None:
-                manager._connections.pop(connection.connection_id, None)
-
-            return result
-
-        manager._reconnecting_participant = patched_validate
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        await manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        # Should silently return without registering or sending errors
-        reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
-        assert len(reconnect_msgs) == 0
-        assert new_conn.connection_id not in manager._bound
-
-        manager._reconnecting_participant = original_validate
 
     @pytest.mark.asyncio
     async def test_reconnect__when_snapshot_raises__should_fail_the_game(self, manager):

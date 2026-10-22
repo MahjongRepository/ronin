@@ -4,11 +4,14 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
+import pytest
+
 from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
 from game.logic.events import (
     EventType,
 )
 from game.messaging.types import SessionErrorCode
+from game.session.models import GameLifecycle
 from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import FakeGameRepository, MockConnection
@@ -31,6 +34,9 @@ from .helpers import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from game.session.manager import SessionManager
+    from game.session.models import Participant
 
 
 class TestSessionManagerTimers:
@@ -162,39 +168,45 @@ class _GatedReplayStorage(LocalReplayStorage):
         super().save_replay(game_id, content)
 
 
-async def _yield_until(condition) -> None:
-    for _ in range(100):
-        if condition():
-            return
+async def _discard_the_drawn_tile(manager: SessionManager, participant: Participant) -> None:
+    drawn_tile = manager._game_service.get_game_state("game1").round_state.players[participant.seat].tiles[-1]
+    await manager.handle_game_action(
+        participant.connection,
+        action=GameAction.DISCARD,
+        data={"tile_id": drawn_tile},
+        wait_id=current_wait_id(manager),
+    )
 
-        await asyncio.sleep(0)
 
-    raise AssertionError("condition never held")
+async def _disconnect(manager: SessionManager, participant: Participant) -> None:
+    await manager.leave_game(participant.connection, notify_player=False)
 
 
 class TestTimerCallbackLifecycle:
-    async def test_turn_timeout__when_fired_while_the_players_own_discard_holds_the_lock__should_not_act_again(
-        self, seeded_engine
+    @pytest.mark.parametrize(
+        ("player_names", "end_the_wait"),
+        [(["Alice"], _discard_the_drawn_tile), (["Alice", "Bob"], _disconnect)],
+        ids=["own_discard", "disconnect"],
+    )
+    async def test_turn_timeout__when_the_wait_ends_after_its_sleep_but_before_it_ran__should_drop_the_default_action(
+        self, seeded_engine, held_sleep, player_names, end_the_wait
     ):
         manager = make_session_manager(seeded_engine)
-        conns = await create_started_game(manager, player_names=["Alice"])
-        alice_seat = participant_of(manager, conns[0]).seat
-        drawn_tile = seeded_engine.get_game_state("game1").round_state.players[alice_seat].tiles[-1]
-        lock = game_of(manager).lock
-        await lock.acquire()
+        await create_started_game(manager, player_names=player_names)
+        game = game_of(manager)
+        [awaited_seat] = game.awaiting.seats
+        awaited = game.at_seat(awaited_seat)
+        await asyncio.sleep(0)
+        slept = awaited.timer.task
+        assert len(held_sleep.durations) == 1
 
-        discard = asyncio.create_task(
-            manager.handle_game_action(
-                conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
-            )
-        )
-        fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
-        await _yield_until(lambda: len(lock._waiters or ()) == 2)
-        lock.release()
-        await discard
-        await fired
-        assert len(seeded_engine.get_game_state("game1").round_state.players[alice_seat].discards) == 1
-        assert participant_of(manager, conns[0]).timer.task is not None
+        held_sleep.wake_all()
+        await end_the_wait(manager, awaited)
+        await asyncio.wait({slept})
+        assert game.lifecycle is GameLifecycle.PLAYING
+        assert len(seeded_engine.get_game_state("game1").round_state.players[awaited_seat].discards) == 1
+        successor = game.at_seat(min(game.awaiting.seats))
+        assert successor.timer.task not in (None, slept)
 
         await manager.shutdown()
 

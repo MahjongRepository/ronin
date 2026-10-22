@@ -53,13 +53,13 @@ Mandatory for all game server code; review must catch violations.
 * Validate the WebSocket `game_id` path parameter against `_GAME_ID_PATTERN` and
   `_MAX_GAME_ID_LENGTH` before accepting.
 * Every background task has an owner and an exception boundary. A sleeping pending, auth or turn
-  timer is cancelled when its game or connection goes; once it fires it detaches itself, so no
-  cancel path cancels it while it finishes a game, and a fired timer that a stop, cancel or re-arm
-  superseded while it waited for the game lock drops its default action. A connection's writer task
-  is owned by its endpoint (`websocket_endpoint`): started after accept and stopped once the
-  disconnect is handled, so `SessionManager` holds no socket state. The app lifespan opens the
-  database and, on the way out, awaits `SessionManager.shutdown()` (sleeping tasks cancelled, fired
-  ones awaited) before draining and closing it. An unexpected error in a task that has a game ends that game
+  timer is cancelled when its game, wait or connection goes, and a cancel stops it even after its
+  sleep ended; a fired timer detaches itself and runs its default action in one synchronous step,
+  so no cancel path cancels it while it finishes a game. A connection's writer task is owned by its
+  endpoint (`websocket_endpoint`): started after accept and stopped once the disconnect is handled,
+  so `SessionManager` holds no socket state. The app lifespan opens the database and, on the way
+  out, awaits `SessionManager.shutdown()` (sleeping tasks cancelled, game finalizers awaited) before
+  draining and closing it. An unexpected error in a task that has a game ends that game
   through `fail_game`; the auth timeout, which has none, logs and closes the socket. A new kind of
   task joins these paths.
 * Liveness is the WebSocket protocol ping, run by uvicorn (`deploy/AGENTS.md`); the server keeps no

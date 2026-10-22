@@ -2,10 +2,16 @@
 
 `SessionManager` is the registry of live games and connections and runs each game's lifecycle
 transitions. A game is a `GameSession` (`models.py`): its participants, pacing (`TimerConfig`),
-lifecycle, last engine wait, start record, replay lines, pending timeout and one lock for its whole
-life. Work that touches a game runs under that lock, and under it only enqueues to sockets: a send
-or close never waits on a client. Nothing under the lock suspends any more; C16 deletes it with the
-re-checks that follow its acquisition (connection identity, lifecycle, timer arm generations).
+lifecycle, last engine wait, start record, replay lines and pending timeout.
+
+A transition (a join, an action, a disconnect, a reconnect, a timeout, the start, the end claim) is
+one synchronous step: validation, engine call, bookkeeping, timers and socket enqueues, with no
+suspension anywhere in it, so no other transition can interleave and none needs a lock. Sends and
+closes only enqueue: one never waits on a client. The only awaits in the session are the timers'
+sleeps, the end finalizer and shutdown. So the guards left are the ones at real I/O completions: a
+client message checks that its connection is still registered or bound (the server may have
+evicted it while the message was in flight), and an action checks its wait id. A sleeping task is
+superseded only by being cancelled.
 
 * **Registry.** It holds only pending and playing games (by id), their participants (by game
   ticket), the registered connections and which participant each authenticated connection is bound
@@ -37,15 +43,17 @@ re-checks that follow its acquisition (connection identity, lifecycle, timer arm
   all-AI games.
 * **Reconnect:** the router verifies the ticket; the participant must belong to the path's game,
   which must be playing, and must be disconnected (a participant whose old connection the server has
-  not seen drop yet answers `reconnect_retry_later`). Under the lock: remove the AI player
+  not seen drop yet answers `reconnect_retry_later`). Then, in the same step: remove the AI player
   (`restore_human_player`), send the `game_reconnected` snapshot with the current wait id, broadcast
   `player_reconnected`, and, when the engine's current wait (`get_awaiting`) is that seat's turn,
   re-send the draw (directly, so the replay does not record it twice) and start its turn timer.
 * **Eviction.** `_evict_connection` drops a connection from the registry and from its participant
   and cancels its auth timeout. Every server-initiated close evicts first (auth timeout, kick, the
   JOIN_GAME duplicate, the game end, a connection a failure did not seat), so a message the client
-  pipelined on the closing socket finds it unregistered; a game message on an evicted socket gets no
-  answer, since a `not_in_game` ahead of the close would read as a permanent error to the client.
+  pipelined on the closing socket finds it unregistered. A JOIN_GAME, RECONNECT or game message on
+  an evicted socket gets no answer: its close is queued with the eviction, or, for a game end, by
+  the finalizer once the replay is saved, and an error ahead of that close would read as a permanent
+  error to the client.
 * **The end.** `_end_game(game, reason)` is the one claim, for every reason: COMPLETED (the engine
   reports the game waits for nothing, right after that batch's sends), ERROR (`fail_game`), ABANDONED
   (nobody connected remains, or the pending timeout found nobody). It is synchronous and idempotent:
@@ -67,12 +75,15 @@ re-checks that follow its acquisition (connection identity, lifecycle, timer arm
   The internal per-user lookup the lobby asks and the 409 `POST /games` gives a user already playing
   both answer from this rule.
 * **Background tasks.** Pending and auth timeouts and end finalizers are spawned through `_spawn`
-  and stay owned until done; `TimerManager` tracks running timer callbacks; a fired `TurnTimer`
-  detaches its task before its callback, so a stop, cancel or restart from inside the callback
-  leaves it running and keeps the timer it arms. Every start, stop and cancel bumps the timer's arm
-  generation: a fired callback that finds it changed once it holds the game lock, or whose
-  participant is no longer connected, does nothing. `shutdown` cancels the sleeping tasks and awaits
-  the rest. Timer callbacks and the pending timeout fail their game on an unexpected error.
+  and stay owned until done; a `TurnTimer` owns its sleeping task. A fired timer (turn, pending or
+  auth) detaches its task first, so a stop, cancel or end from inside its callback leaves it running
+  and keeps a timer it arms, then runs its callback synchronously. Every path that ends a wait,
+  releases a seat, leaves PENDING, authenticates or evicts a connection, or ends the game cancels
+  the timers it supersedes, and a cancel issued after the sleep ended but before the task resumed
+  still stops it (asyncio throws the cancel in at the resume): so a timer that runs at all runs on
+  the state it was armed for, and needs no generation or lifecycle check. `shutdown` cancels every
+  sleeping task in one step and awaits the finalizers. Timer callbacks and the pending timeout fail
+  their game on an unexpected error.
 * **Timers** (`TurnTimer`, one per participant): each turn gets base time (5s), then a bank (20s
   start, +10s per round, 60s cap) that drains only past the base time; the browser client's silence
   watchdog limit is derived from these defaults (`frontend/AGENTS.md`). Meld-call and round-advance
@@ -87,8 +98,8 @@ re-checks that follow its acquisition (connection identity, lifecycle, timer arm
   `TimerConfig`, the session's one pacing model; the engine has none. Connection-level timing (the
   auth timeout, the transport ping) is not pacing.
 * **Stale actions.** Every game action echoes the wait id (`wi`) the server stamped on the message
-  that opened the wait. Under the lock, an action whose id is not `GameSession.awaiting.wait_id`
-  gets a `stale_action` ErrorEvent to its seat and touches neither the engine nor a timer.
+  that opened the wait. An action whose id is not `GameSession.awaiting.wait_id` gets a
+  `stale_action` ErrorEvent to its seat and touches neither the engine nor a timer.
 * **Replays:** each game holds its `ReplayRecord` from the start until the end claim detaches it.
   `ReplayCollector` shapes the lines (broadcast events plus each seat's draws without available
   actions, the per-seat `round_started` views merged into one record holding every hand, the seed

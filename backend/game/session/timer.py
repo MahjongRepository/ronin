@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable
 
 
 class TimerConfig(BaseModel):
@@ -44,7 +44,6 @@ class TurnTimer:
         self._bank_seconds: float = config.initial_bank_seconds
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
-        self._generation = 0
 
     @property
     def task(self) -> asyncio.Task[None] | None:
@@ -52,14 +51,6 @@ class TurnTimer:
         The sleeping timer task, or None once it fired or was cancelled.
         """
         return self._active_task
-
-    @property
-    def generation(self) -> int:
-        """
-        Arm count, bumped by every start, stop and cancel: a fired callback whose captured value no longer matches was
-        superseded while it waited.
-        """
-        return self._generation
 
     def add_round_bonus(self) -> None:
         """
@@ -70,7 +61,7 @@ class TurnTimer:
             self._config.max_bank_seconds,
         )
 
-    def start_turn_timer(self, on_timeout: Callable[[], Awaitable[None]]) -> None:
+    def start_turn_timer(self, on_timeout: Callable[[], None]) -> None:
         """
         Start the turn timer using base time + bank time.
         """
@@ -79,13 +70,13 @@ class TurnTimer:
         total = self._config.base_turn_seconds + self._bank_seconds
         self._active_task = asyncio.create_task(self._run_timer(total, on_timeout))
 
-    def start_meld_timer(self, on_timeout: Callable[[], Awaitable[None]]) -> None:
+    def start_meld_timer(self, on_timeout: Callable[[], None]) -> None:
         """
         Start a fixed meld decision timer (does not consume bank time).
         """
         self.start_fixed_timer(self._config.meld_decision_seconds, on_timeout)
 
-    def start_fixed_timer(self, duration: float, on_timeout: Callable[[], Awaitable[None]]) -> None:
+    def start_fixed_timer(self, duration: float, on_timeout: Callable[[], None]) -> None:
         """
         Start a timer with a fixed duration (not using bank time).
         """
@@ -108,7 +99,6 @@ class TurnTimer:
             self._active_task.cancel()
 
         self._active_task = None
-        self._generation += 1
 
     def _deduct_bank_time(self) -> None:
         if self._turn_start_time is not None:
@@ -117,15 +107,15 @@ class TurnTimer:
             self._bank_seconds = max(0, self._bank_seconds - bank_used)
             self._turn_start_time = None
 
-    async def _run_timer(self, seconds: float, on_timeout: Callable[[], Awaitable[None]]) -> None:
+    async def _run_timer(self, seconds: float, on_timeout: Callable[[], None]) -> None:
         """
         Sleep, then detach this task from the timer and run the callback.
 
         Detaching first keeps the callback safe from its own timer: a cancel, stop or restart of this seat inside the
-        callback finds no active task, and a timer the callback arms stays armed. Such a cancel still bumps
-        `generation`, which is how a callback still waiting to act learns it was superseded. The callback owns its
-        errors.
+        callback finds no active task, and a timer the callback arms stays armed. The callback is synchronous, so
+        nothing can supersede it once it runs; a cancel after the sleep ended but before this task resumed still stops
+        it here. The callback owns its errors.
         """
         await asyncio.sleep(seconds)
         self._active_task = None
-        await on_timeout()
+        on_timeout()

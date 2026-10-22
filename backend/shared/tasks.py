@@ -17,10 +17,10 @@ async def cancel_and_wait(
     """
     Cancel background tasks and wait until they and the finalizing ones are done.
 
-    A finalizing task (a callback already past its sleep, finishing a game) is awaited, never cancelled, so its
-    persistence and socket closes complete; cancelling the waiter does not cancel it either. The current task is skipped
-    in both groups: a task never cancels or awaits itself. A task that died with an exception has it logged here instead
-    of re-raised, so one dead task cannot make a shutdown skip the steps after it.
+    A finalizing task (a game's finalizer saving its replay) is awaited, never cancelled, so its persistence and socket
+    closes complete; cancelling the waiter does not cancel it either. The current task is skipped in both groups: a task
+    never cancels or awaits itself. A task that died with an exception has it logged here instead of re-raised, so one
+    dead task cannot make a shutdown skip the steps after it.
     """
     current = asyncio.current_task()
     to_cancel = {task for task in tasks if task is not current}

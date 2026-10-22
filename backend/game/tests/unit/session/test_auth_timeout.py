@@ -63,13 +63,3 @@ class TestAuthTimeout:
 
         assert conn._close_code == 1011
         assert conn._close_reason == "internal_error"
-
-    async def test_auth_timeout__when_connection_already_removed__should_not_close(self, manager):
-        conn = MockConnection()
-        with patch.object(manager_module, "_AUTH_TIMEOUT_SECONDS", 0):
-            manager.register_connection(conn)
-            manager.unregister_connection(conn)
-            await manager._auth_timeout(conn)
-
-        # Should not close (connection is gone from registry)
-        assert not conn.is_closed

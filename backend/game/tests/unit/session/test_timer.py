@@ -8,12 +8,12 @@ from game.session.timer import TimerConfig, TurnTimer
 BASE_AND_BANK = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20)
 
 
-async def _noop() -> None:
+def _noop() -> None:
     pass
 
 
 def _recording_callback(calls: list[str], name: str):
-    async def on_timeout() -> None:
+    def on_timeout() -> None:
         calls.append(name)
 
     return on_timeout
@@ -29,7 +29,7 @@ class TestTurnTimerDeadline:
         timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05))
         callback_called = asyncio.Event()
 
-        async def on_timeout():
+        def on_timeout():
             callback_called.set()
 
         timer.start_turn_timer(on_timeout)
@@ -118,12 +118,11 @@ class TestTimerCallbackOwnership:
         timer = TurnTimer(BASE_AND_BANK)
         finished: list[str] = []
 
-        async def restart_then_suspend():
+        def restart():
             timer.start_meld_timer(_noop)
-            await asyncio.sleep(0)
             finished.append("callback")
 
-        timer.start_turn_timer(restart_then_suspend)
+        timer.start_turn_timer(restart)
         fired = timer.task
         assert fired is not None
 
