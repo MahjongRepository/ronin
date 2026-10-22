@@ -343,15 +343,14 @@ def _find_chankan_seats(
     """
     Find seats eligible for chankan (robbing a kan) on the given tile.
 
-    Iterates all seats except the caller, filtering by waiting tiles and furiten status. An optional extra_filter
-    predicate (e.g. kokushi tenpai check) can restrict eligibility further.
+    Iterates the other seats counter-clockwise from the kan caller, filtering by waiting tiles and furiten status, so
+    the result is in head-bump order. An optional extra_filter predicate (e.g. kokushi tenpai check) can restrict
+    eligibility further.
     """
     kan_tile_34 = tile_to_34(kan_tile)
     chankan_seats = []
-    for seat in range(NUM_PLAYERS):
-        if seat == caller_seat:
-            continue
-
+    for offset in range(1, NUM_PLAYERS):
+        seat = (caller_seat + offset) % NUM_PLAYERS
         player = round_state.players[seat]
         if extra_filter and not extra_filter(player):
             continue

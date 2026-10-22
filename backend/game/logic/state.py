@@ -68,7 +68,7 @@ class PendingCallPrompt(BaseModel):
 
     Callers are in prompt order, which is also the order of the per-seat prompt events and the order ron winners are
     ranked in: for a discard, ron callers by distance from the discarder, then meld callers by their best meld (kan >
-    pon > chi), then seat index.
+    pon > chi), then seat index; for a chankan, ron callers counter-clockwise from the kan caller.
     """
 
     model_config = ConfigDict(frozen=True)

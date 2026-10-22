@@ -16,7 +16,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 ### Calls & Turn Order
 
-- Call precedence: Ron > Pon/Kan > Chi; among same-type calls, closer counter-clockwise to discarder wins
+- Call precedence: Ron > Pon/Kan > Chi; among same-type calls, closer counter-clockwise to discarder wins (for chankan, to the kan caller)
 - Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chi, pon, or kan — only ron is allowed.
 - Tsumo wins on a self-drawn tile, including a kan replacement draw and the dealer's initial hand. Claiming a discard for chi or pon does not provide a tsumo opportunity.
 
@@ -88,7 +88,7 @@ Deferred Dora reveal applies even if the discard is subsequently claimed for a m
 - Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
 - Goshashonyu rounding (五捨六入): ≤500 rounds toward zero, ≥600 rounds away
 - Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
-- Double ron riichi sticks: the winner closest counter-clockwise to the discarder receives them.
+- Double ron riichi sticks: the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
 
 ### Liability (Pao)
 
@@ -155,7 +155,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
   - Suji restriction: For the discard immediately after chi, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
   - Red and ordinary fives share a tile type for kuikae.
   - A chi is legal only if at least one legal discard remains after the meld is formed; a chi shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
-- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds go to the winner closest counter-clockwise to the discarder. Both winners receive the honba bonus (+300 per counter each) — the discarder pays the honba bonus to each winner separately. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks.
+- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds go to the winner closest counter-clockwise to the discarder. Both winners receive the honba bonus (+300 per counter each) — the discarder pays the honba bonus to each winner separately. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
 
 ### Dora
 
