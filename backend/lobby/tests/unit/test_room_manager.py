@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from lobby.rooms.manager import LobbyRoomManager
@@ -187,6 +189,22 @@ class TestLeaveRoom:
         result = mgr.leave_room("conn-1")
         assert result == "room-1"
 
+    def test_room_manager_leave_room__when_transitioning__should_hold_seat_until_start_fails(self):
+        mgr = LobbyRoomManager()
+        room = mgr.create_room("room-1")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="conn-2", room_id="room-1", user_id="user-2", username="Bob")
+        mgr.set_ready("conn-2", ready=True)
+        mgr.start_game("conn-1")
+
+        mgr.leave_room("conn-2")
+        assert room.seats == ["conn-1", "conn-2", None, None]
+        assert room.players["conn-2"].departed is True
+
+        mgr.clear_transitioning("room-1")
+        assert room.seats == ["conn-1", None, None, None]
+        assert room.has_user("user-2") is False
+
 
 class TestSetReady:
     def test_room_manager_set_ready__when_all_ready__should_return_can_start(self):
@@ -355,6 +373,20 @@ class TestClearTransitioning:
         assert room.transitioning is False
         assert room.players["conn-2"].ready is False
 
+    def test_room_manager_clear_transitioning__when_host_and_guest_left_through_the_manager__should_drop_room(self):
+        mgr = LobbyRoomManager()
+        mgr.create_room("room-1")
+        mgr.join_room(connection_id="host", room_id="room-1", user_id="user-1", username="Alice")
+        mgr.join_room(connection_id="guest", room_id="room-1", user_id="user-2", username="Bob")
+        mgr.set_ready("guest", ready=True)
+        mgr.start_game("host")
+        mgr.leave_room("guest")
+        mgr.leave_room("host")
+        assert mgr.get_room("room-1") is not None
+
+        mgr.clear_transitioning("room-1")
+        assert mgr.get_room("room-1") is None
+
     def test_room_manager_clear_transitioning__when_room_missing__should_not_raise(self):
         mgr = LobbyRoomManager()
         mgr.clear_transitioning("nonexistent")
@@ -452,3 +484,42 @@ class TestRoomReaper:
 
         await mgr._reap_expired_rooms()
         assert mgr.get_room("room-1") is None
+
+    async def test_room_manager_reaper__when_a_start_won_the_room_lock__should_keep_room_and_its_sockets(self):
+        expired_rooms = []
+
+        async def on_expired(room_id, conn_ids):
+            expired_rooms.append(room_id)
+
+        mgr = LobbyRoomManager(room_ttl_seconds=0, on_room_expired=on_expired)
+        room = mgr.create_room("room-1")
+        mgr.join_room(connection_id="conn-1", room_id="room-1", user_id="user-1", username="Alice")
+
+        async with room.join_lock:
+            reaper_tick = asyncio.create_task(mgr._reap_expired_rooms())
+            await asyncio.sleep(0)
+            mgr.start_game("conn-1")
+
+        await reaper_tick
+        assert mgr.get_room("room-1") is room
+        assert expired_rooms == []
+
+    async def test_room_manager_reaper__when_a_tick_raises__should_log_and_keep_reaping(self, monkeypatch, caplog):
+        mgr = LobbyRoomManager(room_ttl_seconds=0, reaper_interval_seconds=0)
+        second_tick = asyncio.Event()
+        tick_count = 0
+
+        async def failing_first_tick():
+            nonlocal tick_count
+            tick_count += 1
+            if tick_count == 1:
+                raise RuntimeError("tick failed")
+
+            second_tick.set()
+
+        monkeypatch.setattr(mgr, "_reap_expired_rooms", failing_first_tick)
+        mgr.start_reaper()
+        await asyncio.wait_for(second_tick.wait(), timeout=1)
+        await mgr.stop_reaper()
+
+        assert "room reaper tick failed" in caplog.text

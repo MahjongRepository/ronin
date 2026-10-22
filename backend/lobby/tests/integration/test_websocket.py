@@ -1,12 +1,17 @@
+import asyncio
 import json
+import logging
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 from starlette.testclient import TestClient
 
+from lobby.auth.models import AuthenticatedPlayer
+from lobby.rooms.websocket import room_websocket
 from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
+from lobby.tests.conftest import AsgiPeer, make_websocket
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
 from shared.auth.settings import AuthSettings
 
@@ -40,6 +45,25 @@ servers:
             database_path=str(tmp_path / "test.db"),
             cookie_secure=False,
         ),
+    )
+
+
+def _break_server_socket(app, *, room_id, username):
+    room = app.state.room_manager.get_room(room_id)
+    connection_id = next(conn_id for conn_id, player in room.players.items() if player.username == username)
+
+    async def broken_send(_message):
+        raise OSError("broken pipe")
+
+    app.state.room_connections._connections[room_id][connection_id]._send = broken_send
+
+
+def _room_socket(app, peer, *, room_id, username):
+    return make_websocket(
+        peer,
+        app=app,
+        user=AuthenticatedPlayer(user_id=f"{username}-id", username=username),
+        path_params={"room_id": room_id},
     )
 
 
@@ -328,6 +352,20 @@ class TestMultiPlayerWebSocket:
             msg = ws_bob.receive_json()
             assert msg["type"] == "player_left"
 
+    def test_room_websocket__when_a_peer_is_dead__should_keep_the_chat_sender_seated(self, app, two_user_client):
+        room = app.state.room_manager.create_room("dead-peer-chat")
+        with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
+            ws_bob.receive_json()
+            login_with_csrf(two_user_client, "alice")
+            with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
+                ws_alice.receive_json()
+                ws_bob.receive_json()
+                _break_server_socket(app, room_id=room.room_id, username="bob")
+
+                ws_alice.send_text(json.dumps({"type": "chat", "text": "hello"}))
+                assert ws_alice.receive_json() == {"type": "chat", "player_name": "alice", "text": "hello"}
+                assert [player.username for player in room.players.values()] == ["bob", "alice"]
+
     def test_room_websocket__when_second_player_joins__should_broadcast_four_seat_player_list(
         self, app, two_user_client
     ):
@@ -410,27 +448,20 @@ class TestGameTransition:
         # Room should be removed after transition
         assert app.state.room_manager.get_room("game-room") is None
 
-    def test_room_websocket__when_game_starting_delivery_fails__should_log_failure(self, client, app, caplog):
-        room = app.state.room_manager.create_room("deliver-fail")
+    def test_room_websocket__when_a_peer_is_dead_at_game_start__should_deliver_to_the_rest_and_remove_room(
+        self, app, caplog
+    ):
+        room = app.state.room_manager.create_room("dead-peer-start")
         self._set_servers_healthy(app)
 
         mock_response = AsyncMock(spec=httpx.Response)
         mock_response.status_code = 201
         mock_response.text = ""
 
-        # Make send_to always return False to simulate delivery failure
-        original_send_to = app.state.room_connections.send_to
-
-        async def failing_send_to(connection_id, message):
-            if isinstance(message, dict) and message.get("type") == "game_starting":
-                return False
-
-            return await original_send_to(connection_id, message)
-
         with (
+            TestClient(app) as client,
             patch.object(app.state.registry, "check_health", new_callable=AsyncMock),
             patch("lobby.game_transition.httpx.AsyncClient") as mock_client_cls,
-            patch.object(app.state.room_connections, "send_to", side_effect=failing_send_to),
         ):
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_response)
@@ -438,11 +469,48 @@ class TestGameTransition:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
-                ws.receive_json()  # room_joined
-                ws.send_text(json.dumps({"type": "start_game"}))
+            register_with_csrf(client, "bob")
+            logout_with_csrf(client)
+            register_with_csrf(client, "carol")
+            logout_with_csrf(client)
+            register_with_csrf(client, "alice")
 
-        assert "failed to deliver game_starting message" in caplog.text
+            with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
+                ws_alice.receive_json()
+                login_with_csrf(client, "bob")
+                with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
+                    ws_bob.receive_json()
+                    ws_alice.receive_json()
+                    login_with_csrf(client, "carol")
+                    with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_carol:
+                        ws_carol.receive_json()
+                        ws_alice.receive_json()
+                        ws_bob.receive_json()
+                        for ws_ready in (ws_bob, ws_carol):
+                            ws_ready.send_text(json.dumps({"type": "set_ready", "ready": True}))
+                            for ws_seated in (ws_alice, ws_bob, ws_carol):
+                                ws_seated.receive_json()
+
+                        _break_server_socket(app, room_id=room.room_id, username="bob")
+                        ws_alice.send_text(json.dumps({"type": "start_game"}))
+                        assert ws_alice.receive_json()["type"] == "game_starting"
+                        assert ws_carol.receive_json()["type"] == "game_starting"
+
+        assert app.state.room_manager.get_room("dead-peer-start") is None
+        assert caplog.text.count("failed to deliver game_starting message") == 1
+
+    def test_room_websocket__when_ticket_signing_raises__should_clear_transitioning_and_resync(self, client, app):
+        room = app.state.room_manager.create_room("sign-fail-room")
+
+        with (
+            patch("lobby.rooms.websocket.sign_player_tickets", side_effect=ValueError("bad ticket secret")),
+            client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
+        ):
+            ws.receive_json()
+            ws.send_text(json.dumps({"type": "start_game"}))
+            assert ws.receive_json()["type"] == "player_ready_changed"
+            assert ws.receive_json() == {"type": "error", "message": "Failed to start game: internal error"}
+            assert room.transitioning is False
 
     def test_room_websocket__when_game_server_returns_error__should_resync_and_send_error(self, client, app):
         room = app.state.room_manager.create_room("fail-room")
@@ -521,6 +589,72 @@ class TestGameTransition:
             msg = ws.receive_json()  # error
             assert msg["type"] == "error"
             assert "Failed to start game" in msg["message"]
+
+
+class TestRoomWebSocketRaces:
+    @pytest.fixture
+    def app(self, tmp_path):
+        return _make_app(tmp_path)
+
+    async def test_room_websocket__when_room_joined_ack_fails__should_free_seat_and_drop_empty_room(self, app):
+        app.state.room_manager.create_room("ack-fail-room")
+        peer = AsgiPeer()
+        peer.broken = True
+
+        await room_websocket(_room_socket(app, peer, room_id="ack-fail-room", username="ghost"))
+        assert app.state.room_manager.get_room("ack-fail-room") is None
+        assert app.state.room_manager.has_user_in_any_room("ghost-id") is False
+
+    async def test_room_websocket__when_another_task_closed_the_socket_mid_join__should_end_without_error(
+        self, app, caplog
+    ):
+        caplog.set_level(logging.INFO)
+        app.state.room_manager.create_room("closed-mid-join")
+        peer = AsgiPeer()
+        peer.send_gate = asyncio.Event()
+        websocket = _room_socket(app, peer, room_id="closed-mid-join", username="late")
+        handler = asyncio.create_task(room_websocket(websocket))
+        await peer.send_waiting.wait()
+
+        await websocket.close(code=4002, reason="room_expired")
+        peer.send_gate.set()
+        await handler
+        assert "player left room" in caplog.text
+        assert "unexpected error in room websocket" not in caplog.text
+        assert app.state.room_manager.get_room("closed-mid-join") is None
+
+    async def test_room_websocket__when_handler_raises_unexpectedly__should_log_and_free_the_seat(
+        self, app, monkeypatch, caplog
+    ):
+        app.state.room_manager.create_room("bug-room")
+        peer = AsgiPeer()
+
+        def failing_add(**_kwargs):
+            raise ValueError("connection registry bug")
+
+        monkeypatch.setattr(app.state.room_connections, "add", failing_add)
+
+        await room_websocket(_room_socket(app, peer, room_id="bug-room", username="unlucky"))
+        assert "unexpected error in room websocket" in caplog.text
+        assert app.state.room_manager.get_room("bug-room") is None
+
+    async def test_room_websocket__when_reaper_runs_during_join_ack__should_close_the_joiner(self, app):
+        room = app.state.room_manager.create_room("reap-room")
+        room.created_at -= 1000
+        peer = AsgiPeer()
+        peer.send_gate = asyncio.Event()
+        handler = asyncio.create_task(room_websocket(_room_socket(app, peer, room_id=room.room_id, username="late")))
+        await peer.send_waiting.wait()
+
+        reaper_tick = asyncio.create_task(app.state.room_manager._reap_expired_rooms())
+        await asyncio.sleep(0)
+        peer.send_gate.set()
+        await reaper_tick
+        assert peer.close_codes() == [4002]
+
+        await handler
+        assert app.state.room_manager.get_room("reap-room") is None
+        assert "reap-room" not in app.state.room_connections._connections
 
 
 class TestWebSocketOriginCheck:

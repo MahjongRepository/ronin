@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 from pydantic import ValidationError
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketDisconnected
 
 from lobby.game_transition import GameTransitionError, create_game_on_server, sign_player_tickets
 from lobby.rooms.messages import (
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from lobby.registry.manager import RegistryManager
     from lobby.rooms.connections import RoomConnectionManager
     from lobby.rooms.manager import LobbyRoomManager
+    from lobby.rooms.models import LobbyRoom
     from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
 
@@ -60,6 +61,9 @@ class _RoomContext:
 async def room_websocket(websocket: WebSocket) -> None:
     """
     Handle a WebSocket connection for a lobby room.
+
+    ``WebSocketDisconnected`` is a normal end too: it is what the next receive raises once another task closed this
+    socket, or a send to it failed, while the handler was not waiting on a receive.
     """
     if not check_origin(websocket):
         await websocket.close(code=4003, reason="forbidden_origin")
@@ -71,21 +75,34 @@ async def room_websocket(websocket: WebSocket) -> None:
 
     await websocket.accept()
     ctx = _RoomContext(websocket)
-
     log = logger.bind(room_id=ctx.room_id, username=ctx.username)
 
+    try:
+        if await _join(websocket, ctx):
+            await _message_loop(websocket, ctx)
+    except WebSocketDisconnect, WebSocketDisconnected:
+        pass
+    except Exception:
+        log.exception("unexpected error in room websocket")
+    finally:
+        await _cleanup_connection(ctx)
+
+
+async def _join(websocket: WebSocket, ctx: _RoomContext) -> bool:
+    """
+    Seat the connection, acknowledge it and announce it; return False when the join was rejected.
+
+    The whole flow (join, ack, register, broadcast) runs under the room's ``join_lock`` so concurrent joins cannot
+    interleave: otherwise another player's broadcast could reach a connection that has not received its own
+    ``room_joined`` yet. It runs inside the handler's ``try/finally``, so a failed ack still frees the seat (and the
+    host).
+    """
+    log = logger.bind(room_id=ctx.room_id, username=ctx.username)
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
-        log.info("join rejected", reason="room_not_found")
-        await websocket.send_json({"type": "error", "message": "room_not_found"})
-        await websocket.close(code=4000, reason="room_not_found")
-        return
+        await _reject_join(websocket, ctx, reason="room_not_found")
+        return False
 
-    # Serialize the entire join flow (join -> ack -> register -> broadcast) under
-    # a per-room lock so that concurrent connections cannot interleave their
-    # join sequences.  Without this, coroutine scheduling at any ``await``
-    # inside the block can let another player's broadcast reach a connection
-    # that hasn't received its own ``room_joined`` yet.
     async with room.join_lock:
         result = ctx.room_manager.join_room(
             connection_id=ctx.connection_id,
@@ -94,39 +111,34 @@ async def room_websocket(websocket: WebSocket) -> None:
             username=ctx.username,
         )
         if isinstance(result, str):
-            log.info("join rejected", reason=result)
-            await websocket.send_json({"type": "error", "message": result})
-            await websocket.close(code=4000, reason=result)
-            return
+            await _reject_join(websocket, ctx, reason=result)
+            return False
 
         await websocket.send_json(result)
         ctx.room_connections.add(room_id=ctx.room_id, connection_id=ctx.connection_id, websocket=websocket)
         log.info("player joined room", player_count=room.player_count)
-        await _broadcast_player_joined(ctx)
+        await _broadcast_player_joined(ctx, room)
 
-    try:
-        await _message_loop(websocket, ctx)
-    except WebSocketDisconnect:
-        pass
-    except Exception:  # pragma: no cover — defensive catch-all
-        log.exception("unexpected error in room websocket")
-    finally:
-        await _cleanup_connection(ctx)
+    return True
 
 
-async def _broadcast_player_joined(ctx: _RoomContext) -> None:
-    room = ctx.room_manager.get_room(ctx.room_id)
-    if room is not None:
-        await ctx.room_connections.broadcast(
-            room_id=ctx.room_id,
-            message={
-                "type": "player_joined",
-                "player_name": ctx.username,
-                "players": [p.model_dump() for p in room.get_player_info()],
-                "can_start": room.can_start,
-            },
-            exclude=ctx.connection_id,
-        )
+async def _reject_join(websocket: WebSocket, ctx: _RoomContext, *, reason: str) -> None:
+    logger.info("join rejected", room_id=ctx.room_id, username=ctx.username, reason=reason)
+    await websocket.send_json({"type": "error", "message": reason})
+    await websocket.close(code=4000, reason=reason)
+
+
+async def _broadcast_player_joined(ctx: _RoomContext, room: LobbyRoom) -> None:
+    await ctx.room_connections.broadcast(
+        room_id=ctx.room_id,
+        message={
+            "type": "player_joined",
+            "player_name": ctx.username,
+            "players": [p.model_dump() for p in room.get_player_info()],
+            "can_start": room.can_start,
+        },
+        exclude=ctx.connection_id,
+    )
 
 
 async def _message_loop(websocket: WebSocket, ctx: _RoomContext) -> None:
@@ -205,99 +217,125 @@ async def _handle_start_game(websocket: WebSocket, ctx: _RoomContext) -> bool:
             await websocket.send_json({"type": "error", "message": error})
             return False
 
-    # Lock released. transitioning=True now guards against concurrent joins.
-    return await _transition_to_game(ctx.room_id, ctx)
+    return await _transition_to_game(room, ctx)
 
 
-async def _transition_to_game(room_id: str, ctx: _RoomContext) -> bool:
+async def _transition_to_game(room: LobbyRoom, ctx: _RoomContext) -> bool:
     """
-    Create a game on the game server and notify all players.
+    Create the game, then deliver ``game_starting`` and dispose of the room.
 
-    Return True when the game was created and connections were closed.
+    Return True when the game was created. Before the game server answers 201 any exception is undone by
+    ``_recover_failed_start`` (a cancellation, which only server shutdown causes, is not). After it the game exists
+    with every signed ticket and a retry would get 409, so delivery is best-effort and the room is removed and its
+    connections closed whatever happens: transitioning is never cleared, the state is never rebroadcast and creation
+    is never retried.
     """
-    room = ctx.room_manager.get_room(room_id)
-    if room is None:  # pragma: no cover — race condition guard
-        return False
-
-    log = logger.bind(room_id=room_id)
+    log = logger.bind(room_id=room.room_id)
     log.info("game transition starting", player_count=room.player_count)
 
-    # Sign game tickets for each player
+    try:
+        ws_url, ticket_map = await _create_game(room, ctx)
+    except GameTransitionError as e:
+        log.exception("failed to create game")
+        await _recover_failed_start(room, ctx, reason=str(e))
+        return False
+    except Exception:
+        log.exception("unexpected error creating game")
+        await _recover_failed_start(room, ctx, reason="internal error")
+        return False
+
+    try:
+        await _deliver_game_starting(room, ctx, ws_url=ws_url, ticket_map=ticket_map)
+    finally:
+        ctx.room_manager.remove_room(room.room_id)
+        await ctx.room_connections.close_connections(room_id=room.room_id)
+
+    log.info("game transition complete", ws_url=ws_url)
+    return True
+
+
+async def _create_game(room: LobbyRoom, ctx: _RoomContext) -> tuple[str, dict[str, str]]:
+    """
+    Sign a ticket per seated human and create the game; return the game server URL and the tickets by connection.
+    """
     players_for_tickets = [(player.user_id, player.username, conn_id) for conn_id, player in room.players.items()]
     player_specs, ticket_map = sign_player_tickets(
         players=players_for_tickets,
-        game_id=room_id,
+        game_id=room.room_id,
         ticket_secret=ctx.auth_settings.game_ticket_secret,
     )
+    ws_url = await create_game_on_server(
+        game_id=room.room_id,
+        players=player_specs,
+        num_ai_players=room.num_ai_players,
+        registry=ctx.registry,
+    )
+    return ws_url, ticket_map
 
-    try:
-        ws_url = await create_game_on_server(
-            game_id=room_id,
-            players=player_specs,
-            num_ai_players=room.num_ai_players,
-            registry=ctx.registry,
-        )
-    except GameTransitionError as e:
-        log.exception("failed to create game")
-        ctx.room_manager.clear_transitioning(room_id)
-        # Broadcast authoritative state so clients resync ready indicators
-        # and can_start after the server reset all ready flags.
-        room = ctx.room_manager.get_room(room_id)
-        if room is not None:
-            await ctx.room_connections.broadcast(
-                room_id=room_id,
-                message={
-                    "type": "player_ready_changed",
-                    "players": [p.model_dump() for p in room.get_player_info()],
-                    "can_start": room.can_start,
-                },
-            )
 
-        await ctx.room_connections.broadcast(
-            room_id=room_id,
-            message={"type": "error", "message": f"Failed to start game: {e}"},
-        )
-        return False
+async def _recover_failed_start(room: LobbyRoom, ctx: _RoomContext, *, reason: str) -> None:
+    """
+    Reopen the room after a start that failed before the game was created, and resync every client.
 
-    game_client_url = ctx.settings.game_client_url
+    ``clear_transitioning`` resets the ready flags and releases the seats of players who left meanwhile, dropping the
+    room when nobody is left. Through this handler the room always survives, since the host runs the transition in its
+    own handler and so cannot leave during it; the dropped-room return is kept for C20, whose shared ``start_game`` runs
+    the transition for rooms and matchmaking alike.
+    """
+    ctx.room_manager.clear_transitioning(room.room_id)
+    if ctx.room_manager.get_room(room.room_id) is None:
+        return
 
-    # Send game_starting to each player with their individual ticket
-    player_conn_ids = list(room.players)
-    total = len(player_conn_ids)
+    await ctx.room_connections.broadcast(
+        room_id=room.room_id,
+        message={
+            "type": "player_ready_changed",
+            "players": [p.model_dump() for p in room.get_player_info()],
+            "can_start": room.can_start,
+        },
+    )
+    await ctx.room_connections.broadcast(
+        room_id=room.room_id,
+        message={"type": "error", "message": f"Failed to start game: {reason}"},
+    )
+
+
+async def _deliver_game_starting(
+    room: LobbyRoom,
+    ctx: _RoomContext,
+    *,
+    ws_url: str,
+    ticket_map: dict[str, str],
+) -> None:
+    """
+    Send each seated player ``game_starting`` with their ticket, logging every connection it does not reach.
+
+    A player who left during the transition is skipped: their socket is gone, and the game server replaces them with AI.
+    """
+    log = logger.bind(room_id=room.room_id)
+    recipients = [(conn_id, player) for conn_id, player in room.players.items() if not player.departed]
     failed_count = 0
-    for conn_id in player_conn_ids:
-        ticket = ticket_map.get(conn_id, "")
+    for conn_id, player in recipients:
         delivered = await ctx.room_connections.send_to(
             conn_id,
             {
                 "type": "game_starting",
                 "ws_url": ws_url,
-                "game_ticket": ticket,
-                "game_id": room_id,
-                "game_client_url": game_client_url,
+                "game_ticket": ticket_map[conn_id],
+                "game_id": room.room_id,
+                "game_client_url": ctx.settings.game_client_url,
             },
         )
         if not delivered:
             failed_count += 1
-            player = room.players.get(conn_id)
-            player_name = player.username if player else "unknown"
             log.warning(
                 "failed to deliver game_starting message",
                 connection_id=conn_id,
-                player_name=player_name,
+                player_name=player.username,
             )
 
     if failed_count > 0:
-        log.error(
-            "game_starting delivery failures",
-            failed=failed_count,
-            total=total,
-        )
-
-    log.info("game transition complete", ws_url=ws_url)
-    ctx.room_manager.remove_room(room_id)
-    await ctx.room_connections.close_connections(room_id=room_id)
-    return True
+        log.error("game_starting delivery failures", failed=failed_count, total=len(recipients))
 
 
 async def _handle_chat(ctx: _RoomContext, message: LobbyChatMessage) -> None:
@@ -325,12 +363,12 @@ async def _cleanup_connection(ctx: _RoomContext) -> None:
 
     Acquires join_lock so that cleanup waits for any in-progress join to finish (including room_connections
     registration). This prevents a race where host transfer targets a joining player whose connection isn't registered
-    yet, causing the owner_changed message to be dropped.
+    yet, causing the owner_changed message to be dropped. A player leaving a transitioning room keeps the seat
+    (``leave_room``), so nothing is announced.
     """
     username = ctx.username
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
-        # Room already removed; just clean up connection tracking
         ctx.room_manager.leave_room(ctx.connection_id)
         ctx.room_connections.remove(ctx.connection_id)
         return
@@ -339,28 +377,31 @@ async def _cleanup_connection(ctx: _RoomContext) -> None:
         was_host = room.host_connection_id == ctx.connection_id
         room_id = ctx.room_manager.leave_room(ctx.connection_id)
         ctx.room_connections.remove(ctx.connection_id)
-        if room_id:
-            logger.info("player left room", room_id=room_id, username=username)
-            room = ctx.room_manager.get_room(room_id)
-            if room is not None:
-                # Notify the new owner if host was transferred
-                if was_host and room.host_connection_id is not None:
-                    await ctx.room_connections.send_to(
-                        room.host_connection_id,
-                        {
-                            "type": "owner_changed",
-                            "is_owner": True,
-                            "can_start": room.can_start,
-                            "players": [p.model_dump() for p in room.get_player_info()],
-                        },
-                    )
+        if room_id is None:
+            return
 
-                await ctx.room_connections.broadcast(
-                    room_id=room_id,
-                    message={
-                        "type": "player_left",
-                        "player_name": username,
-                        "players": [p.model_dump() for p in room.get_player_info()],
-                        "can_start": room.can_start,
-                    },
-                )
+        logger.info("player left room", room_id=room_id, username=username)
+        room = ctx.room_manager.get_room(room_id)
+        if room is None or room.transitioning:
+            return
+
+        if was_host and room.host_connection_id is not None:
+            await ctx.room_connections.send_to(
+                room.host_connection_id,
+                {
+                    "type": "owner_changed",
+                    "is_owner": True,
+                    "can_start": room.can_start,
+                    "players": [p.model_dump() for p in room.get_player_info()],
+                },
+            )
+
+        await ctx.room_connections.broadcast(
+            room_id=room_id,
+            message={
+                "type": "player_left",
+                "player_name": username,
+                "players": [p.model_dump() for p in room.get_player_info()],
+                "can_start": room.can_start,
+            },
+        )

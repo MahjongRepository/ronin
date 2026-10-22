@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from lobby.rooms.connections import RoomConnectionManager
+from lobby.tests.conftest import AsgiPeer, open_websocket
 
 
 def _mock_ws() -> AsyncMock:
@@ -60,18 +61,16 @@ class TestRoomConnectionManager:
         ws1.send_text.assert_not_called()
         ws2.send_text.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_room_connection_manager_broadcast__when_one_send_fails__should_still_reach_others(self):
+    async def test_room_connection_manager_broadcast__when_earlier_peer_is_dead__should_still_reach_later_peers(self):
         mgr = RoomConnectionManager()
-        ws1 = _mock_ws()
-        ws1.send_text.side_effect = ConnectionError("broken pipe")
-        ws2 = _mock_ws()
-        mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws1)
-        mgr.add(room_id="room-1", connection_id="conn-2", websocket=ws2)
+        dead_peer = AsgiPeer()
+        healthy_peer = AsgiPeer()
+        mgr.add(room_id="room-1", connection_id="dead", websocket=await open_websocket(dead_peer))
+        mgr.add(room_id="room-1", connection_id="healthy", websocket=await open_websocket(healthy_peer))
+        dead_peer.broken = True
 
         await mgr.broadcast(room_id="room-1", message={"type": "test"})
-        # ws2 should still receive the message despite ws1 failing
-        ws2.send_text.assert_called_once()
+        assert healthy_peer.received_json() == [{"type": "test"}]
 
     @pytest.mark.asyncio
     async def test_room_connection_manager_broadcast__when_room_unknown__should_not_raise(self):
@@ -93,15 +92,6 @@ class TestRoomConnectionManager:
     async def test_room_connection_manager_send_to__when_connection_unknown__should_return_false(self):
         mgr = RoomConnectionManager()
         assert await mgr.send_to("unknown", {"type": "test"}) is False
-
-    @pytest.mark.asyncio
-    async def test_room_connection_manager_send_to__when_send_fails__should_return_false(self):
-        mgr = RoomConnectionManager()
-        ws = _mock_ws()
-        ws.send_text.side_effect = RuntimeError("closed")
-        mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
-
-        assert await mgr.send_to("conn-1", {"type": "test"}) is False
 
     @pytest.mark.asyncio
     async def test_room_connection_manager_send_to__when_socket_missing_from_room__should_not_send(self):
@@ -128,17 +118,18 @@ class TestRoomConnectionManager:
         ws2.close.assert_called_once_with(code=4002, reason="expired")
         assert "room-1" not in mgr._connections
 
-    @pytest.mark.asyncio
-    async def test_room_connection_manager_close_connections__when_close_fails__should_still_drop_room(self):
+    async def test_room_connection_manager_close_connections__when_a_peer_is_dead__should_close_and_unindex_all(self):
         mgr = RoomConnectionManager()
-        ws = _mock_ws()
-        ws.close.side_effect = RuntimeError("already closed")
-        mgr.add(room_id="room-1", connection_id="conn-1", websocket=ws)
+        dead_peer = AsgiPeer()
+        healthy_peer = AsgiPeer()
+        mgr.add(room_id="room-1", connection_id="dead", websocket=await open_websocket(dead_peer))
+        mgr.add(room_id="room-1", connection_id="healthy", websocket=await open_websocket(healthy_peer))
+        dead_peer.broken = True
 
-        await mgr.close_connections(room_id="room-1")
-        ws.close.assert_called_once()
-        assert "room-1" not in mgr._connections
-        assert mgr.remove("conn-1") is None
+        await mgr.close_connections(room_id="room-1", code=4002, reason="room_expired")
+        assert healthy_peer.close_codes() == [4002]
+        assert mgr.remove("dead") is None
+        assert mgr.remove("healthy") is None
 
     @pytest.mark.asyncio
     async def test_room_connection_manager_close_connections__when_room_unknown__should_not_raise(self):

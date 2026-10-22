@@ -21,7 +21,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `registry/` — game servers from `servers.yaml`, health-checked on every request that needs one,
   with no caching.
 * `game_transition.py` — `sign_player_tickets` and `create_game_on_server`, shared by rooms and
-  matchmaking; `websocket_utils.py` — `check_origin`.
+  matchmaking; `websocket_utils.py` — `check_origin` and the transport contract. After accept, a
+  dead peer raises only `WebSocketDisconnect` (the first failed send) or `RuntimeError` (every later
+  send or close), never `ConnectionError`. `send_or_drop` and `close_quietly` absorb exactly those,
+  and rooms send through them.
 
 Services are created in `create_app()` and stored on `app.state`; handlers read them from
 `request.app.state`. Tests build the app with `create_app(settings=..., auth_settings=...)`.

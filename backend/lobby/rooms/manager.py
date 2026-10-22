@@ -25,11 +25,13 @@ class LobbyRoomManager:
     def __init__(
         self,
         room_ttl_seconds: int = 300,
+        reaper_interval_seconds: float = 30,
         on_room_expired: Callable[[str, list[str]], Awaitable[None]] | None = None,
     ) -> None:
         self._rooms: dict[str, LobbyRoom] = {}
         self._player_rooms: dict[str, str] = {}  # connection_id -> room_id
         self._room_ttl_seconds = room_ttl_seconds
+        self._reaper_interval_seconds = reaper_interval_seconds
         self._on_room_expired = on_room_expired
         self._reaper_task: asyncio.Task[None] | None = None
 
@@ -96,6 +98,10 @@ class LobbyRoomManager:
     def leave_room(self, connection_id: str) -> str | None:
         """
         Remove a player from their room, restoring their seat to a bot.
+
+        While the room is transitioning the seat is held instead (the player's ticket is already signed, and the game
+        server replaces a human who never connects with AI): no host transfer, and the room stays even when every player
+        has left. The transition settles it: ``clear_transitioning`` on failure, ``remove_room`` on success.
         """
         room_id = self._player_rooms.pop(connection_id, None)
         if room_id is None:
@@ -105,24 +111,26 @@ class LobbyRoomManager:
         if room is None:
             return room_id
 
-        # Clear the specific seat this player occupied
+        if room.transitioning:
+            room.players[connection_id].departed = True
+            return room_id
+
+        self._release_seat(room, connection_id)
+        if room.is_empty:
+            self._rooms.pop(room_id, None)
+
+        return room_id
+
+    @staticmethod
+    def _release_seat(room: LobbyRoom, connection_id: str) -> None:
         seat = room.seat_of(connection_id)
         if seat is not None:
             room.seats[seat] = None
 
         room.players.pop(connection_id, None)
 
-        # Host transfer
         if room.host_connection_id == connection_id:
-            if room.players:
-                room.host_connection_id = next(iter(room.players))
-            else:
-                room.host_connection_id = None
-
-        if room.is_empty:
-            self._rooms.pop(room_id, None)
-
-        return room_id
+            room.host_connection_id = next(iter(room.players), None)
 
     def set_ready(self, connection_id: str, *, ready: bool) -> tuple[str, bool] | str:
         """
@@ -179,15 +187,26 @@ class LobbyRoomManager:
 
     def clear_transitioning(self, room_id: str) -> None:
         """
-        Reset transitioning flag and all ready states on POST /games failure.
+        Undo a game start that failed before the game was created.
+
+        Reset the transitioning flag and every ready state, release the seats of players who left during the transition,
+        and drop the room if none is left. The rooms handler never empties a room this way (its host runs the transition
+        and cannot leave during it); the drop is kept for C20's shared ``start_game``.
         """
         room = self._rooms.get(room_id)
         if room is None:
             return
 
         room.transitioning = False
+        departed = [conn_id for conn_id, player in room.players.items() if player.departed]
+        for conn_id in departed:
+            self._release_seat(room, conn_id)
+
         for player in room.players.values():
             player.ready = False
+
+        if room.is_empty:
+            self._rooms.pop(room_id, None)
 
     def get_room(self, room_id: str) -> LobbyRoom | None:
         return self._rooms.get(room_id)
@@ -239,33 +258,44 @@ class LobbyRoomManager:
             await cancel_and_wait([self._reaper_task])
             self._reaper_task = None
 
-    async def _reaper_loop(self) -> None:  # pragma: no cover — long-running background loop
+    async def _reaper_loop(self) -> None:
         """
-        Periodically remove expired rooms.
+        Periodically remove expired rooms; a failed tick is logged and the next one still runs.
         """
         while True:
-            await asyncio.sleep(30)
-            await self._reap_expired_rooms()
+            await asyncio.sleep(self._reaper_interval_seconds)
+            try:
+                await self._reap_expired_rooms()
+            except Exception:
+                logger.exception("room reaper tick failed")
+
+    def _is_expired(self, room: LobbyRoom, now: float) -> bool:
+        return not room.transitioning and now - room.created_at > self._room_ttl_seconds
 
     async def _reap_expired_rooms(self) -> None:
         """
-        Remove rooms that have exceeded their TTL.
+        Remove rooms that have exceeded their TTL and disconnect their players.
+
+        Each room is re-checked, removed and closed under its ``join_lock``, so a join in progress finishes (and its
+        connection is registered) before the room's connections are closed, and a start that won the lock is kept.
         """
         now = time.monotonic()
-        expired: list[tuple[str, list[str]]] = []
-        for room_id, room in list(self._rooms.items()):
-            if room.transitioning:
-                continue
+        candidates = [(room_id, room) for room_id, room in self._rooms.items() if self._is_expired(room, now)]
+        for room_id, room in candidates:
+            async with room.join_lock:
+                if self._rooms.get(room_id) is not room or not self._is_expired(room, now):
+                    continue
 
-            if now - room.created_at > self._room_ttl_seconds:
                 connection_ids = list(room.players.keys())
                 self.remove_room(room_id)
-                expired.append((room_id, connection_ids))
                 logger.info("room expired", room_id=room_id)
+                await self._notify_room_expired(room_id, connection_ids)
 
-        if self._on_room_expired:
-            for room_id, connection_ids in expired:
-                try:
-                    await self._on_room_expired(room_id, connection_ids)
-                except Exception:
-                    logger.exception("error in on_room_expired callback", room_id=room_id)
+    async def _notify_room_expired(self, room_id: str, connection_ids: list[str]) -> None:
+        if self._on_room_expired is None:
+            return
+
+        try:
+            await self._on_room_expired(room_id, connection_ids)
+        except Exception:
+            logger.exception("error in on_room_expired callback", room_id=room_id)

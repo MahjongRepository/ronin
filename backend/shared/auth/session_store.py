@@ -104,8 +104,11 @@ class AuthSessionStore:
 
     async def _cleanup_loop(self) -> None:
         """
-        Periodically remove expired sessions.
+        Periodically remove expired sessions; a failed tick is logged and the next one still runs.
         """
         while True:
             await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
-            self.cleanup_expired()
+            try:
+                self.cleanup_expired()
+            except Exception:
+                logger.exception("session cleanup tick failed")

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import contextlib
 import json
 from typing import TYPE_CHECKING
 
 import structlog
+
+from lobby.websocket_utils import close_quietly, send_or_drop
 
 if TYPE_CHECKING:
     from starlette.websockets import WebSocket
@@ -15,6 +16,9 @@ logger = structlog.get_logger()
 class RoomConnectionManager:
     """
     Track WebSocket connections per room for message broadcasting.
+
+    Sends and closes never raise for a dead peer: its frame is dropped and logged, delivery continues to the other
+    peers, and the dead peer's own handler cleans up after it.
     """
 
     def __init__(self) -> None:
@@ -50,8 +54,8 @@ class RoomConnectionManager:
             if conn_id == exclude:
                 continue
 
-            with contextlib.suppress(ConnectionError, RuntimeError):
-                await ws.send_text(payload)
+            if not await send_or_drop(ws, payload):
+                logger.info("dropped message to dead room connection", room_id=room_id, connection_id=conn_id)
 
     async def send_to(self, connection_id: str, message: dict) -> bool:
         """
@@ -68,19 +72,21 @@ class RoomConnectionManager:
         if ws is None:
             return False
 
-        try:
-            await ws.send_text(json.dumps(message))
-        except ConnectionError, RuntimeError:
-            return False
+        delivered = await send_or_drop(ws, json.dumps(message))
+        if not delivered:
+            logger.info("dropped message to dead room connection", room_id=room_id, connection_id=connection_id)
 
-        return True
+        return delivered
 
     async def close_connections(self, room_id: str, code: int = 1000, reason: str = "") -> None:
         """
         Close all WebSocket connections in a room.
+
+        The room's index entries go before the first close, so none outlives a close that fails.
         """
         connections = self._connections.pop(room_id, {})
-        for conn_id, ws in connections.items():
+        for conn_id in connections:
             self._connection_rooms.pop(conn_id, None)
-            with contextlib.suppress(ConnectionError, RuntimeError):
-                await ws.close(code=code, reason=reason)
+
+        for ws in connections.values():
+            await close_quietly(ws, code=code, reason=reason)

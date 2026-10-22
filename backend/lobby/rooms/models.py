@@ -22,12 +22,16 @@ class LobbyPlayerInfo(BaseModel):
 class LobbyPlayer:
     """
     Player connected to a lobby room via WebSocket.
+
+    ``departed`` marks a player who left while the room was transitioning: the seat is held for the game being created
+    until the transition settles.
     """
 
     connection_id: str
     user_id: str
     username: str
     ready: bool = False
+    departed: bool = False
 
 
 TOTAL_SEATS = 4

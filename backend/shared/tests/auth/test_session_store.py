@@ -141,3 +141,20 @@ class TestCleanupLifecycle:
             await store._cleanup_loop()
 
         assert mock_cleanup.call_count == 2
+
+    async def test_session_store_cleanup__when_a_tick_raises__should_log_and_keep_cleaning(self, caplog):
+        store = AuthSessionStore()
+
+        with (
+            patch.object(store, "cleanup_expired", side_effect=[RuntimeError("tick failed"), 0]) as mock_cleanup,
+            patch(
+                "shared.auth.session_store.asyncio.sleep",
+                new_callable=AsyncMock,
+                side_effect=[None, None, asyncio.CancelledError()],
+            ),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await store._cleanup_loop()
+
+        assert mock_cleanup.call_count == 2
+        assert "session cleanup tick failed" in caplog.text
