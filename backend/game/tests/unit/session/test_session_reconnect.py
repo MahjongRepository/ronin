@@ -658,7 +658,7 @@ class TestAllHumansDisconnected:
         mock_replay = MagicMock(spec=ReplayCollector)
         mock_replay.start_game = MagicMock()
         mock_replay.collect_events = MagicMock()
-        mock_replay.save_and_cleanup = AsyncMock()
+        mock_replay.save = AsyncMock()
         mock_replay.cleanup_game = MagicMock()
 
         game_service = MockGameService()
@@ -677,5 +677,5 @@ class TestAllHumansDisconnected:
         # game should be cleaned up
         assert manager_with_replay.get_game("game1") is None
         # replay should be cleaned up (discarded), not saved
-        mock_replay.save_and_cleanup.assert_not_awaited()
+        mock_replay.save.assert_not_awaited()
         mock_replay.cleanup_game.assert_called_once_with("game1")

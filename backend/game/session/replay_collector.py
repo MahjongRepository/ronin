@@ -49,7 +49,7 @@ class ReplayCollector:
     Lifecycle per game:
     1. start_game(game_id, seed) - begin tracking with the game seed
     2. collect_events(game_id, events) - accumulate qualifying events
-    3. save_and_cleanup(game_id) - persist to storage and discard buffer
+    3. save(game_id, detach_game(game_id)) - stop collecting and persist the detached lines
     4. cleanup_game(game_id) - discard buffer without persisting (abandoned game)
     """
 
@@ -166,12 +166,6 @@ class ReplayCollector:
         base_payload.pop("s", None)
 
         return json.dumps(base_payload, default=str)
-
-    async def save_and_cleanup(self, game_id: str) -> None:
-        """
-        Persist collected events to storage and discard the buffer.
-        """
-        await self.save(game_id, self.detach_game(game_id))
 
     def detach_game(self, game_id: str) -> list[str] | None:
         """
