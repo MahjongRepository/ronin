@@ -1,131 +1,81 @@
 # Lobby server
 
 Accounts, rooms, matchmaking, game history and the server-rendered pages (`:8710`); it also serves
-the built game client and replay files. It hands players to a game server with signed game tickets.
+the built game client and replay files, and hands players to a game server with signed game tickets.
 The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` covers room behaviour.
 
 ## Structure
 
-* `server/` — `app.py` (route table, `create_app()`, and the `get_app` factory uvicorn runs) and
-  `middleware.py` (`SecurityHeadersMiddleware`, slash normalization). `settings.py` (`LOBBY_`) sits
-  at the `lobby/` root so every feature may import it.
-* `auth/` — `SessionOrApiKeyBackend`, the route policy decorators (`policy.py`) and `csrf.py`.
-* `views/` — page and API handlers split by domain, re-exported from `views/__init__.py`
-  (`bot_api_handlers.py` is the bot JSON API); Jinja2 templates in `views/templates/`; `assets.py`
-  resolves the Vite manifest (or the Vite dev server under `LOBBY_VITE_DEV_URL`) into template
-  globals.
-* `rooms/` and `matchmaking/` — managers and WebSocket handlers, plus the room's client message
-  models; matchmaking is a FIFO queue that starts a 4-human game once 4 players wait, and its client
-  sends nothing (the socket only carries the disconnect, and any frame is discarded unanswered, so
-  it needs no rate limit). The two packages never import each other: they share `start_game` and
-  `LobbyPlayer`, and each gets the occupancy rule (below) as an injected callable.
-* There is one game server, configured as two settings that are never derived from each other: the
-  internal base URL the lobby calls (`POST /games`, `GET /players/{id}`) and the public WebSocket
-  origin it hands clients in `ws_url` (the lobby appends `/ws/{game_id}`).
-* `game_transition.py` — `start_game`, the one game start for rooms and matchmaking (sign a ticket
-  per player, `POST /games`, then `game_starting` and a 1000 close per player), plus
-  `create_game_on_server` and `is_user_playing`; `websocket_utils.py` — `check_origin`.
-* `players.py` — `LobbyPlayer`, one connected user in a room or the queue, and the only holder of
-  its socket: a `QueuedWebSocket` (`shared/websocket.py`) whose writer the socket's handler starts
-  after accept and stops in its `finally`. Every send or close, to the player's own socket or
-  another's, is an enqueue, so no handler, broadcast or reaper tick waits on a slow or dead peer:
-  the writer drops a peer it cannot serve, and that peer's own handler sees `ConnectionError` at
-  its next receive and cleans up. The pre-accept rejections and `accept` go through the shared
-  handshake helpers, so a peer gone before the handshake ends the handler quietly.
-* `occupancy.py` — `Occupancy`, the one owner of the occupancy rule.
-
-Services are created in `create_app()` and stored on `app.state`; handlers read them from
-`request.app.state`. Tests build the app through the `make_app` / `app` / `client` fixtures in
-`tests/conftest.py`: `make_app(**overrides)` for varied settings, and a `client` that sends the
-configured `Origin` on every request and WebSocket.
+* `server/` — the composition root (`create_app()` builds the services onto `app.state`) and the
+  middleware. `settings.py` sits at the `lobby/` root so every feature may import it.
+* `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
+* `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API), the Jinja2
+  templates, and the Vite manifest / dev-server resolution into template globals.
+* `rooms/` and `matchmaking/` — managers and WebSocket handlers. Matchmaking is a FIFO queue that
+  starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
+  The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the
+  occupancy rule as an injected callable.
+* `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls
+  and the "is this user playing" lookup. `websocket_utils.py` — the WebSocket `Origin` check.
+* `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
+  close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
+* `occupancy.py` — the one owner of the occupancy rule.
+* The one game server is two settings never derived from each other: the internal URL the lobby
+  calls and the public WebSocket origin it hands clients.
+* Tests build the app through the fixtures in `tests/conftest.py`.
 
 ## Game start
 
-* `start_game` raises `GameStartError` (its `reason` is the text players see) for any failure
-  before the game server's 201, and each caller recovers its own way: a room clears
-  `transitioning` and resyncs (`rooms/AGENTS.md`), a match fails terminally (below). After the 201
-  it only enqueues, so one slow player delays nobody else's `game_starting`.
-* A matchmaking match is resolved once, in the handler of the join that completed it: the four
-  matched players leave the queue for an in-flight set and are released from it whatever happens,
-  so none of them is ever left queued without a handler. A failed creation is terminal: all four
-  get `match_failed` and a 4000 close, the client offers to search again, and nothing is retried
-  or requeued. A matched player who disconnected meanwhile keeps the seat; the game server replaces
-  a seat nobody joins with AI.
-* Every game start attempt, room or matchmaking, signs and creates under a fresh `game_id` (a
-  room's id is not its game's id). A `GameTransitionError` may mean the game server created the
-  game anyway (a timeout after the POST arrived), so a game id is never reused: a retry under the
-  same id would collide with the orphan (409) until its pending timeout cancels it.
+* Every attempt creates the game under a fresh game id (a room's id is not its game's id): a failed
+  call may mean the game server created the game anyway, and a retry under the same id would
+  collide with that orphan.
+* A failure before the game server confirms creation raises `GameStartError`, whose `reason` is the
+  text players see; each caller recovers its own way. After confirmation delivery only enqueues, so
+  one slow player delays nobody else.
+* A match is resolved once, by the join that completed it, and a failed creation is terminal: the
+  four are told and closed, nothing is retried or requeued. A matched player who disconnected
+  meanwhile keeps the seat; the game server fills a seat nobody joins with AI.
 
 ## Occupancy
 
-* A user is in at most one place: one room seat, the matchmaking queue (queued, or matched while
-  their game is created), or one game they are playing. A playing user can neither join a room nor
-  queue, and a rejected join gets an `error` naming the reason and a 4000 close.
-* Room and queue occupancy is checked synchronously inside `join_room` / `add_player`, in the step
-  that seats or queues the user, so the two exclude each other atomically on the event loop.
-* "Playing" comes only from the game server's in-memory sessions (its internal per-user lookup),
-  never from `played_games`, whose `ended_at` stays NULL after a crash. The WebSocket handlers ask
-  the game server, under one short deadline, before the occupancy check; everything after that
-  lookup (`join_room` with its ack and broadcast, `add_player`) is one synchronous step, so the
-  lobby needs no lock. The answer can be stale by then: a start may hand the user's seat or queue
-  place to a new game while the lookup is in flight. So each join runs inside an
-  `Occupancy.admitting` window, every attempt to create a game calls `hand_to_game` once the game
-  server call is over, whatever its outcome (a failure may mean the game exists), and before the
-  seats or the matched players are released, and that check rejects an admission that was open at
-  that moment as already in a game.
-* The lookup fails open (warning, treated as not playing) on a transport error, timeout or
-  unexpected status, so a game server outage never locks users out of the lobby. `POST /games`
-  refuses a user already playing with 409 as the backstop, which surfaces as an ordinary failed
-  start.
-* The WebSocket joins are the only gates: room creation (`POST /rooms/new`, `POST /api/rooms`) does
-  not check.
+* A user is in at most one place: one room seat, the matchmaking queue (queued or matched), or one
+  game they are playing. A rejected join is told the reason and closed.
+* Room and queue occupancy is checked synchronously inside the step that seats or queues the user,
+  so the two exclude each other atomically on the event loop and the lobby needs no lock.
+* "Playing" comes only from the game server's in-memory sessions, never from `played_games`, whose
+  `ended_at` stays NULL after a crash. The handlers ask the game server before the occupancy check,
+  and `Occupancy` rejects a join whose answer a concurrent game start made stale.
+* The lookup fails open (treated as not playing) on a transport failure, a timeout or an unexpected
+  status, so a game server outage never locks users out; the game server refusing a user already
+  playing is the backstop.
+* The WebSocket joins are the only gates: room creation does not check.
 
 ## Auth model
 
-* Humans register and log in with username and password (bcrypt) and get a session cookie.
-* Bots get an API key from `cd backend && uv run python -m scripts.register_bot <name>` with the
-  `AuthSettings` environment set (`AUTH_DATABASE_PATH`, `AUTH_GAME_TICKET_SECRET`), printed once and
-  never stored. They send it as `X-API-Key` on `POST /api/rooms` and on the room and matchmaking
-  WebSocket handshakes, with the configured `Origin`; from the handshake on, a bot runs the human
-  code path. There is no bot session: every session is a human's, created by login.
-* `SessionOrApiKeyBackend` reads the session id from the cookie only; if there is none or it is not
-  valid, it falls back to a BOT account's `X-API-Key` (HTTP and WebSocket), so a valid cookie wins
-  over a key. The authenticated user carries `account_type` (HUMAN or BOT) so `bot_only` can tell
-  them apart. `bot_only` routes answer JSON 401/403 instead of redirecting to login; replay
-  retrieval (`/api/replays/{game_id}`) is public.
-* Game tickets are HMAC-SHA256, signed when a game starts, and verified by the game server with the
-  shared `AUTH_GAME_TICKET_SECRET`. On `game_starting` the client gets its ticket and the game
-  server's `ws_url`.
+* Humans register and log in with username and password and get a session cookie. Every session is
+  a human's; bots have none.
+* Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored.
+  They send it as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
+  `Origin`; from the handshake on, a bot runs the human code path.
+* The backend tries the session cookie first and falls back to a BOT account's `X-API-Key`, so a
+  valid cookie wins over a key. `bot_only` routes answer JSON errors, never a login redirect.
+* Game tickets are signed when a game starts and verified by the game server with the shared secret.
 
 ## Security requirements
 
 Mandatory for all lobby code; review must catch violations.
 
-* CSRF on every HTML form POST: the form has a hidden `csrf_token` field, the POST handler calls
-  `validate_csrf(request, form)` before touching the data, and the GET handler that renders it calls
-  `get_or_create_csrf_token()`, passes the token to the template and sets the cookie when `is_new`.
-  Bot API routes (JSON + API key) are exempt.
-* Every HTTP route gets exactly one policy decorator (`protected_html`, `bot_only`, `public_route`).
-  `validate_route_auth_policy()` fails startup only for a `Route` with no policy at all; it does not
-  catch stacked decorators, and `Mount`s (static files) are exempt. WebSocket routes
-  authenticate inside the handler. The decorators wrap async endpoints only and return their
-  rejection (JSON 401/403, login redirect) directly; they never raise for an exception handler to
-  map.
-* `TrustedHostMiddleware` rejects unknown `Host` headers; a new deployment host goes in
-  `LOBBY_ALLOWED_HOSTS`.
-* Session and CSRF cookies are `httponly=True`, `samesite="lax"`, Secure per `AUTH_COOKIE_SECURE`.
-* Credentials never travel in a URL: the session comes from the cookie only, a bot's key from
-  `X-API-Key`. uvicorn (its WebSocket handshake line) and Traefik (its access log) log every path
-  with its query string at INFO.
-* Room and matchmaking WebSockets check `Origin` against `LOBBY_WS_ALLOWED_ORIGIN` (`check_origin`),
-  which every deployment must set: a socket without that exact `Origin` is refused with 4003, and an
-  unauthenticated one with 4001. Both are pre-accept rejections, which uvicorn turns into an empty
-  HTTP 403 handshake response: a real client sees neither close code nor a reason, only tests see
-  the codes in-process.
-* `SecurityHeadersMiddleware` has two CSP tiers: lobby pages (`script-src 'self'`,
-  `connect-src 'self'`) and game pages (`/play/*`, `/game-assets/`, which add `ws: wss:` to
-  `connect-src`). A new route fits a tier or gets an explicit policy.
-* Replay serving (`views/replay_handlers.py`) resolves paths only through
-  `shared.storage.replay_file_path`, keeps the id length checks, path traversal protection and the
-  size limit.
+* Every HTML form POST validates the CSRF token (`auth/csrf.py`); bot API routes are exempt.
+* Every HTTP route gets exactly one policy decorator (`protected_html`, `bot_only`, `public_route`);
+  startup fails for a `Route` without one. WebSocket routes authenticate inside the handler.
+* Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
+* Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
+  environment turns Secure off.
+* Credentials never travel in a URL: uvicorn and Traefik log every path with its query string.
+* Room and matchmaking WebSockets refuse any socket whose `Origin` is not exactly the configured
+  one, a setting every deployment must supply.
+* Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
+  external WebSockets allowed). A new route fits a tier or gets an explicit policy.
+* Replay serving resolves paths only through `shared.storage.replay_file_path` and keeps its id
+  checks, path traversal protection and size limit.
 * Passwords, API keys, session ids and game tickets are never logged at INFO or above.

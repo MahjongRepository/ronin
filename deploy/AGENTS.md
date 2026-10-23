@@ -2,63 +2,50 @@
 
 The production deploy layer: a [spot](https://github.com/umputun/spot) playbook (`spot.yml`) and a
 production `docker-compose.yml` (Traefik + lobby + game) under `/opt/ronin/` on the server, run from
-a workstation through `make -C deploy <target> TARGET=dev` (`TARGET` picks `spot-env.<TARGET>.yml`).
-`README.md` is the runbook for a new server.
+a workstation through `make -C deploy <target> TARGET=<env>` (`TARGET` picks `spot-env.<env>.yml`,
+which holds the domain). `README.md` is the runbook for a new server and lists the targets.
 
 ## Architecture
 
-* `.github/workflows/release.yml` is the **only** path that builds the image (`deploy/Dockerfile`,
-  frontend + Python deps + trimmed Alpine runtime, non-root `app`, no CMD — compose supplies the
-  uvicorn command per service) and pushes it to GHCR as a public package. The deploy Makefiles have no
-  image build or push target, and the deploy has no `docker login`.
-* `Makefile` wraps spot: `spot-bootstrap` (base packages, `/opt/ronin` dirs, `.env` and `.env.system`
-  from their examples), `spot-provision` (`setup-ssh`, `setup-docker`, `setup-firewall`,
-  `setup-restic`, `setup-journald`), `spot-deploy`, `spot-update` / `spot-stop` / `spot-restart` /
-  `spot-down` / `spot-status`, `spot-check-logs-errors [SINCE=...]`, `spot-backup`,
-  `spot-backup-list`, `spot-restore [SNAPSHOT=<id>]`, `spot-download-backup` (restores into the
-  local `backend/storage.db` and `backend/data/replays/`) and `spot-run TASK=<task>`.
+* `.github/workflows/release.yml` is the **only** path that builds the image (`Dockerfile`) and
+  pushes it to GHCR as a public package. The deploy Makefiles have no build or push target, and the
+  deploy has no `docker login`.
+* `Makefile` wraps spot: one-time bootstrap and provisioning tasks, the deploy, service control,
+  an error-log grep, and backup, restore and download-backup tasks.
 * `Makefile.server` is uploaded to `/opt/ronin/Makefile` on every deploy for manual control on the
-  box (`update`, `stop`, `restart`, `down`, `status`, `logs`, `shell`).
+  box; the spot service-control tasks call its targets.
 
 ## Conventions
 
-* **Image is hardcoded**: `ghcr.io/mahjongrepository/ronin:latest` in `docker-compose.yml`, no image
-  or tag variables. `APP_VERSION` and `GIT_COMMIT` are baked in at build time; never set them in
-  compose or `.env`.
-* **Setup once, deploy many.** Bootstrap creates `/opt/ronin/.env` (`AUTH_GAME_TICKET_SECRET`,
-  `ACME_EMAIL`, `LOG_LEVEL`) and `.env.system` (`RESTIC_PASSWORD`) from the examples; deploy never
-  touches them. A key added to an example reaches only a fresh server — add it to the server file by
-  hand.
+* **Image is hardcoded** in `docker-compose.yml`, no image or tag variables. `APP_VERSION` and
+  `GIT_COMMIT` are baked in at build time; never set them in compose or `.env`.
+* **Setup once, deploy many.** Bootstrap creates `/opt/ronin/.env` (app secrets) and `.env.system`
+  (backup secret) from the `.env*.example` files; deploy never touches them. A key added to an example
+  reaches only a fresh server — add it to the server file by hand.
 * **Templates, not generated configs.** The deploy uploads `docker-compose.yml` and
-  `config/traefik-dynamic.yml` and substitutes `%%DOMAIN%%` with `sed`, failing if a placeholder
-  survives. Bind-mounted configs are rendered with `sed ... >` rather than `sed -i`, which would
-  replace the inode under the running container's mount.
+  `config/traefik-dynamic.yml` and substitutes `%%DOMAIN%%`, failing if a placeholder survives.
+  Bind-mounted configs are rendered with `sed ... >` rather than `sed -i`, which would replace the
+  inode under the running container's mount.
 * **Deploy never goes through `down`.** `docker compose up -d --remove-orphans` recreates only the
   changed services; a change to service names or port bindings needs a manual `down` first. The
-  deploy gates on lobby `:8710/health`, game `:8711/health` and a running Traefik.
-* **Bounded shutdown.** Both uvicorn commands pass `--timeout-graceful-shutdown 5` (uvicorn waits
-  forever for a client whose transport is stalled otherwise), and `stop_grace_period: 15s` leaves
-  room after it for the lifespan shutdown and the database drain before docker's SIGKILL.
+  deploy gates on both services' `/health` and a running Traefik.
+* **Bounded shutdown.** Both uvicorn commands pass a graceful-shutdown timeout (uvicorn otherwise
+  waits forever for a client whose transport is stalled), and `stop_grace_period` leaves room after
+  it for the lifespan shutdown and the database drain before docker's SIGKILL.
 * **Liveness is the WebSocket protocol ping.** Both uvicorn commands (and `bin/run-local-server.sh`)
-  pin `--ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20`; the apps run no ping of
-  their own. A missed pong closes the transport, which the app sees once its write buffer drains: a
-  game socket with a stuck buffer is still freed by its writer's send deadline, a lobby socket is
-  not (`backend/game/AGENTS.md`).
-* Per-service settings live in compose `environment:` (`AUTH_*`, `LOBBY_*`, `GAME_*`,
-  `LOG_FORMAT: json`), secrets only in `.env`. A deployment-specific setting has no default
-  (`backend/AGENTS.md`), so a new one must be added here or the service fails to start and the
-  deploy's health gate stops. A release that adds, renames or removes a required setting needs the
-  new image and the new compose together: ship it with `spot-deploy`, which uploads compose and
-  pulls in one task, never `spot-update` or the box's `make update`, which pull the new image under
-  the old compose. Rolling such a release back needs the old compose too. Lobby and game share one
-  SQLite DB at `/opt/ronin/data/db/ronin.db`.
+  pin the `--ws` ping flags; the apps run no ping of their own, so removing the flags leaves dead
+  sockets open.
+* Per-service settings live in compose `environment:`, secrets only in `.env`. A deployment-specific
+  setting has no default (`backend/AGENTS.md`), so a new one must be added here or the service fails
+  to start and the deploy's health gate stops. A release that adds, renames or removes a required
+  setting needs the new image and the new compose together: ship it with `spot-deploy`, which uploads
+  compose and pulls in one task, never `spot-update` or the box's `make update`, which pull the new
+  image under the old compose. Rolling such a release back needs the old compose too.
+* Lobby and game share one SQLite DB under `/opt/ronin/data/db/`.
 
 ## Logs and backups
 
-* Containers log to **journald** (`setup-journald`: persistent, 500 MB, 30 days); there are no application
-  log files on the server. `make -C deploy spot-check-logs-errors SINCE="2 hours ago"` greps app errors
-  and tracebacks and saves them to `/tmp/ronin-errors.log` on the workstation.
-* `setup-restic` installs a persistent daily systemd timer (04:00 plus up to 10 minutes of jitter)
-  running `scripts/backup.sh`: an
-  `sqlite3 .backup` of the DB plus the replays into a restic repository at `/opt/ronin/backups/` on
-  the same host.
+* Containers log to **journald** only; there are no application log files on the server. The
+  Makefile's log-check target pulls errors to the workstation.
+* A daily systemd timer backs up the database and replays with restic to a repository on the
+  **same host**, so a backup does not survive the loss of the box (`README.md`).

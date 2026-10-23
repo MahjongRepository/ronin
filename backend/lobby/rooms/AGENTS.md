@@ -1,45 +1,29 @@
 # Lobby rooms
 
-A room is a fixed 4-seat table (`LobbyRoomManager`, `models.py`). Messages are JSON text frames,
-modelled in `messages.py` (client → server) and built in `websocket.py` (server → client).
+A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its members,
+`manager.py` (`LobbyRoomManager`) the rules, `websocket.py` the per-connection handler, and
+`messages.py` the client → server message models. Server → client messages are plain dicts built in
+`websocket.py`; they are the wire reference.
 
-* Creating a room fills every seat with a tsumogiri bot; each joining human replaces the first bot
-  seat. Every `players` array holds exactly 4 entries in seat order, and bot seats are always ready.
-* The first player to join owns the room (`host_connection_id`) and is the only one who starts it:
-  non-owners send `set_ready`, the owner sends `start_game`. `can_start` is true once at least `min_human_players` humans are seated
-  (bot API, 1–4, default 1) and every non-owner human is ready. Nothing starts automatically. When
-  the owner leaves, ownership passes on (`owner_changed`).
-* Every room step after a join's playing lookup is synchronous (a send is an enqueue): the join
-  with its ack and broadcast, `set_ready`, chat, the start's flag, the cleanup with its host
-  transfer, the recovery and the reaper tick. Nothing interleaves inside a step, so rooms take no
-  lock, and a joiner is registered in the step that seats it.
-* Game transition: the owner's `start_game` sets `transitioning=True` in one step, so joins and
-  ready toggles arriving during the network call get `room_transitioning`. The host's handler then
-  runs the shared `start_game` (`lobby/AGENTS.md`) for every seated human, with `num_ai_players`
-  from the bot seats. On `GameStartError` it clears `transitioning`, which resets the ready flags,
-  and rebroadcasts the room state and `Failed to start game: <reason>`; a cancellation (only server
-  shutdown causes one) does not. After a 201 every seated player already has `game_starting` and a
-  1000 close queued, and the room is removed: transitioning is never cleared, the state never
-  rebroadcast and creation never retried.
-* A player who leaves a transitioning room keeps the seat: the ticket is already signed and sent
-  in `POST /games`, and the game server replaces that seat, whose human never gets `ws_url` or the
-  ticket, with AI. There is no host transfer, no `owner_changed` or `player_left`, no
-  `game_starting` for the leaver, and the room is not dropped when it empties. The transition
-  settles those seats: a failed start releases them, a successful one removes the room. The host
-  runs the transition in its own handler and cannot leave during it, so a failed start never
-  empties the room; `clear_transitioning` still drops a room left empty, as the manager's own rule.
-* Each room connection has its own rate limit (5 frames/s, burst 10), counted on every frame before
-  it is read, invalid ones included: a frame over it is answered `rate_limited` and dropped, and the
-  connection stays. It keeps one client's chat from overflowing a slow honest peer's send queue.
-  A binary frame is answered with an error and the connection stays. Chat echoes to its sender:
-  the browser shows only the echo.
-* A slow or dead socket never holds up or costs another player anything. A room's members are its
-  `RoomMember`s (the `LobbyPlayer` plus the room-only `ready` and `departed`), and a broadcast
-  encodes once and enqueues on each member's connection (`lobby/AGENTS.md`, `players.py`). A
-  handler ends normally on `ConnectionError`, which its next receive raises once the peer is gone,
-  its writer dropped it, or a queued close went out. The joiner's own `room_joined` ack runs inside
-  the handler's `try/finally`, so a failed ack frees the seat and the host.
-* Every room expires `room_ttl_seconds` (300s) after creation unless it is transitioning. Each
-  reaper tick removes every expired room and enqueues a 4002 close for each member in one pass, so
-  one room's slow socket never delays another room's expiry. A failed reaper tick is logged and the
-  next one still runs.
+* A new room seats a tsumogiri bot in every seat; a joining human takes the first bot seat and a
+  leaver hands that exact seat back to a bot, so seat positions never shift. Every `players` array
+  the server sends lists all 4 seats in seat order, and a bot seat is always ready.
+* The first player to join owns the room and is the only one who can start it; the owner cannot
+  toggle ready and always shows as ready. The room can start once at least `min_human_players`
+  humans (chosen at creation, bot API only) are seated and every non-owner human is ready. Nothing
+  starts automatically. When the owner leaves, ownership passes to the earliest remaining joiner.
+* Every room step after a join's playing lookup is synchronous because a send is an enqueue, so
+  nothing interleaves inside a step and rooms take no lock.
+* The owner's start marks the room transitioning, so joins and ready toggles arriving during the
+  game server call are refused as transitioning; the start itself is the shared `start_game`
+  (`lobby/AGENTS.md`). A failed start reopens the room with every ready flag reset and the reason
+  broadcast; a successful one removes it, never retried. A player who leaves a transitioning room
+  keeps the seat, because the ticket is already issued and the game server seats AI for a no-show;
+  nothing is announced to the room.
+* Each connection has its own rate limit, charged for every frame before it is decoded, invalid ones
+  included; a frame over it is answered rate-limited and dropped, and the connection stays. It
+  keeps one client's chat from overflowing a slow honest peer's send queue. A binary frame gets an
+  error and the connection stays. Chat echoes to its sender: the browser shows only the echo.
+* Every room expires `room_ttl_seconds` after creation unless it is transitioning. A reaper tick
+  removes every expired room and closes its members' sockets in one pass; a failed tick is logged
+  and the next one still runs.
