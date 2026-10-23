@@ -1,0 +1,306 @@
+# Backend architecture
+
+How the lobby, the game server and matchmaking fit together. The `AGENTS.md` files hold the rules
+of each package; this document is the map. The code (route tables, message models, settings
+classes) stays the reference for anything not drawn here.
+
+## Components
+
+Two Starlette processes share one SQLite database and one HMAC secret. The lobby is the only
+public HTTP surface; the game server exposes REST to the lobby only and a WebSocket to players.
+
+```mermaid
+flowchart LR
+    subgraph Client["Browser / bot"]
+        LobbyPages["Lobby pages<br/>(server-rendered + lobby scripts)"]
+        GameClient["Game client SPA<br/>(/play/{game_id})"]
+    end
+
+    subgraph Lobby["Lobby server :8710"]
+        Auth["Auth<br/>session cookie or X-API-Key"]
+        Rooms["Rooms<br/>LobbyRoomManager"]
+        MM["Matchmaking<br/>MatchmakingManager"]
+        Occ["Occupancy<br/>one place per user"]
+        Start["start_game<br/>(game_transition.py)"]
+        History["History & replay pages"]
+    end
+
+    subgraph Game["Game server :8711"]
+        REST["REST<br/>POST /games, GET /players/{user_id}"]
+        WS["WebSocket /ws/{game_id}<br/>MessagePack"]
+        SM["SessionManager<br/>live games, timers, AI takeover"]
+        Engine["MahjongGameService<br/>rules engine"]
+        Replay["ReplayCollector"]
+    end
+
+    DB[("SQLite<br/>players, played_games")]
+    Files[("Replay files")]
+
+    LobbyPages -- "HTTP + JSON WebSocket" --> Auth
+    Auth --> Rooms & MM
+    Rooms & MM --> Occ
+    Rooms & MM --> Start
+    Start -- "POST /games" --> REST
+    Occ -- "GET /players/{user_id}" --> REST
+    Start -. "game_starting:<br/>ws_url + game_ticket" .-> LobbyPages
+    LobbyPages -. "navigate" .-> GameClient
+    GameClient -- "JOIN_GAME / RECONNECT<br/>+ ticket" --> WS
+    WS --> SM --> Engine
+    SM --> Replay --> Files
+    REST --> SM
+    Auth --> DB
+    History --> DB
+    History --> Files
+    SM -- "start / finish records" --> DB
+```
+
+Key facts the diagram cannot show:
+
+* **Both servers are single-process asyncio.** Every state transition (seat, queue, join, action,
+  disconnect) is one synchronous step on the event loop, so neither server holds a lock. Sends and
+  closes only enqueue onto a per-connection writer task, so no step ever waits on a slow client.
+* **No shared in-memory state between the two servers.** The lobby learns "who is playing" by
+  asking the game server over REST; the game server learns who may join from the signed tickets.
+* **Live games are memory only.** The session layer owns each game's `GameRuntime`; the engine is
+  synchronous and stateless across games and knows nothing of sockets, accounts or time. A game
+  server restart loses every live game: the SQLite records and replay files are history, not
+  checkpoints.
+* **SQLite is behind one worker thread per process**, and the game server's record writes are
+  fire-and-forget (logged on failure).
+
+## Authentication
+
+```mermaid
+flowchart TD
+    Req["Request or WebSocket handshake"] --> Cookie{"session_id cookie<br/>valid?"}
+    Cookie -- yes --> Human["Authenticated human"]
+    Cookie -- no --> Key{"X-API-Key of a<br/>BOT account?"}
+    Key -- yes --> Bot["Authenticated bot<br/>(runs the human code path)"]
+    Key -- no --> Anon["Anonymous"]
+    Human & Bot & Anon --> Policy{"route policy"}
+    Policy -- "protected_html, anonymous" --> Redirect["303 /login?next=…"]
+    Policy -- "bot_only, anonymous" --> Err401["JSON 401"]
+    Policy -- "bot_only, human" --> Err403["JSON 403"]
+    Policy -- otherwise --> Ok["served"]
+```
+
+* Sessions are **in-memory** on the lobby with a 24h TTL: a restart logs everyone out.
+* Every HTTP route carries exactly one policy decorator; WebSocket handlers authenticate inside
+  (`Origin` check, then `websocket.user`).
+* **Game tickets** are HMAC-SHA256 tokens `{user_id, username, room_id=game_id, issued_at,
+  expires_at}` signed by the lobby and verified by the game server. They are the only credential the
+  game server knows; it never sees cookies or API keys.
+
+## Occupancy: one place per user
+
+A user is in at most one of: a room seat, the matchmaking queue (queued or matched), or a live game.
+Rooms and matchmaking never import each other; both receive the rule as an injected callable.
+
+```mermaid
+sequenceDiagram
+    participant H as Room/queue WebSocket handler
+    participant O as Occupancy
+    participant G as Game server
+
+    H->>O: admitting(user_id) opens
+    H->>O: find_game_conflict(user_id)
+    O->>G: GET /players/{user_id} (2s timeout, fails open)
+    G-->>O: 200 playing / 404 not playing
+    Note over H,O: one synchronous step
+    H->>O: find_lobby_conflict(user_id)
+    O-->>H: conflict reason or None
+    H->>H: seat or queue the user
+    H->>O: admitting closes
+```
+
+The lookup can go stale: a game start may hand the user to a game while the request is in flight.
+`start_game` therefore marks every open admission of its players, and `find_lobby_conflict`
+rejects a marked one as `already_in_game` in the same synchronous step that would seat or queue.
+
+The game server is the backstop: `POST /games` refuses a player already in one of its games with
+409, and "playing" is answered only from its in-memory sessions (a disconnected participant still
+counts until the game ends).
+
+## Rooms
+
+A room is a pre-game table of 4 fixed seats. Every seat starts with a tsumogiri bot; a joining human
+takes the first bot seat and a leaver hands the exact seat back. The first joiner owns the room and
+is the only one who can start it.
+
+```mermaid
+sequenceDiagram
+    actor Owner
+    actor Guest
+    participant L as Lobby (room WebSocket)
+    participant RM as LobbyRoomManager
+    participant GS as Game server
+
+    Owner->>L: POST /rooms/new, then WS /ws/rooms/{id}
+    L->>RM: join_room (occupancy check inside)
+    L-->>Owner: room_joined
+    Guest->>L: WS /ws/rooms/{id}
+    L->>RM: join_room
+    L-->>Guest: room_joined
+    L-->>Owner: player_joined
+    Guest->>L: set_ready
+    L-->>Owner: player_ready_changed
+    L-->>Guest: player_ready_changed
+    Owner->>L: start_game
+    L->>RM: start_game → room.transitioning = true
+    Note over L,RM: joins / ready toggles now get room_transitioning
+    L->>GS: start_game() (see Game start)
+    alt game created
+        L-->>Owner: game_starting + close 1000
+        L-->>Guest: game_starting + close 1000
+        L->>RM: remove_room
+    else GameStartError
+        L->>RM: clear_transitioning (ready flags reset)
+        L-->>Owner: player_ready_changed + error
+        L-->>Guest: player_ready_changed + error
+    end
+```
+
+Nothing starts automatically, and a room that nobody starts expires and closes its sockets. Ready,
+ownership and rate-limit rules are in `backend/lobby/rooms/AGENTS.md`.
+
+## Matchmaking
+
+A FIFO queue with no client messages: the socket's only signal is its disconnect.
+
+```mermaid
+sequenceDiagram
+    actor P1 as Player 1..3
+    actor P4 as Player 4
+    participant L as Lobby (matchmaking WebSocket)
+    participant MM as MatchmakingManager
+    participant GS as Game server
+
+    P1->>L: WS /ws/matchmaking
+    L->>MM: add_player (occupancy check inside)
+    L-->>P1: queue_joined {position}
+    L-->>P1: queue_update to the others
+    P4->>L: WS /ws/matchmaking
+    L->>MM: add_player, then try_match
+    MM-->>L: 4 players popped, marked in-flight
+    L->>GS: start_game(num_ai_players=0)
+    alt game created
+        L-->>P1: game_starting + close
+        L-->>P4: game_starting + close
+    else GameStartError
+        L-->>P1: error {message: match_failed} + close 4000
+        L-->>P4: error {message: match_failed} + close 4000
+    end
+    L->>MM: clear_in_flight
+```
+
+* The join that completes the match resolves it, inside that player's handler; the other three are
+  only written to.
+* A failed creation is terminal: nobody is requeued, because the game may exist on the game server
+  anyway.
+* A matched player who disconnects before the game starts keeps the seat; the game server gives a
+  no-show seat to AI.
+
+## Game start (shared by rooms and matchmaking)
+
+`start_game` in `lobby/game_transition.py` is the one handoff.
+
+```mermaid
+sequenceDiagram
+    participant C as Room or matchmaking handler
+    participant T as start_game
+    participant O as Occupancy
+    participant GS as Game server REST
+    participant SM as SessionManager
+    actor P as Each player
+
+    C->>T: start_game(players, num_ai_players)
+    T->>T: game_id = uuid4 (fresh per attempt)
+    T->>T: sign one ticket per player (room_id = game_id)
+    T->>GS: POST /games {game_id, players[name,user_id,game_ticket], num_ai_players}
+    GS->>GS: verify tickets, refuse user already playing (409), capacity (503)
+    GS->>SM: create_pending_game (pending timeout armed)
+    GS-->>T: 201
+    T->>O: hand_to_game(user_ids) (always, success or failure)
+    T-->>P: game_starting {ws_url, game_ticket, game_id, game_client_url}
+    T-->>P: close 1000
+    Note over P: lobby script stores url + ticket, navigates to /play/{game_id}
+```
+
+A failure before the 201 raises `GameStartError` and the caller recovers (room reopens, match
+fails). A fresh id per attempt means a timed-out request that did create the game leaves an orphan
+that times out on its own instead of colliding with a retry.
+
+## Game server: a game's life
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: POST /games
+    PENDING --> PLAYING: last expected JOIN_GAME
+    PENDING --> PLAYING: pending timeout, someone connected (absent seats → AI)
+    PENDING --> ENDING: pending timeout, nobody connected (abandoned)
+    PENDING --> ENDING: server fault
+    PLAYING --> PLAYING: action / timeout / disconnect (seat → AI) / RECONNECT (seat back)
+    PLAYING --> ENDING: game completed
+    PLAYING --> ENDING: last connected human leaves (abandoned)
+    PLAYING --> ENDING: server fault (fail_game)
+    ENDING --> CLOSED: finalizer task
+    CLOSED --> [*]
+```
+
+The end is claimed once, synchronously, for every reason: the claim sets ENDING, drops the game and
+its tickets from the registry (so the lobby's "playing" answer flips at once) and hands the effects
+to one finalizer task. The finalizer saves the replay (unless abandoned), posts the finish record
+(only for a game that recorded a start) and closes the sockets, then sets CLOSED.
+
+Per connection:
+
+```mermaid
+sequenceDiagram
+    actor P as Game client
+    participant WS as websocket_endpoint
+    participant R as MessageRouter
+    participant SM as SessionManager
+    participant E as Engine
+
+    P->>WS: connect /ws/{game_id}
+    WS->>SM: register_connection (auth timeout armed)
+    P->>R: JOIN_GAME {game_ticket}  or  RECONNECT {game_ticket}
+    R->>R: verify ticket, ticket.room_id == path game_id
+    R->>SM: join_game / reconnect (participant looked up by ticket)
+    SM-->>P: game_started events / game_reconnected snapshot (with wait_id)
+    loop each wait
+        SM-->>P: wait-opening event (draw, call prompt, meld, round end) stamped with the wait id
+        P->>R: action echoing that wait id
+        R->>SM: handle_game_action
+        SM->>E: validate + apply (AI seats and timeouts use the same pipeline)
+        E-->>SM: events + next Awaiting
+        SM-->>P: events (per-seat routing), timers re-armed from Awaiting
+    end
+    P-->>WS: socket closes
+    WS->>R: handle_disconnect
+    R->>SM: leave_game → seat played by AI until RECONNECT
+```
+
+* A participant is keyed by its ticket for the whole game and its seat never rotates, so a reconnect
+  with the same ticket resumes the same seat and timer bank.
+* An action for any wait but the current one is refused as stale and touches nothing.
+* Liveness is uvicorn's WebSocket ping; the apps run no heartbeat of their own. Rate limits, decode
+  strikes and the auth timeout are in `backend/game/AGENTS.md`.
+
+## Persistence
+
+| Store | Written by | Read by |
+|---|---|---|
+| `players` (SQLite) | Lobby: register, bot registration script | Lobby auth |
+| `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
+| Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}` |
+
+The finish record is built from the start record, never from end-of-game connection state, so a
+seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL, which is why
+"playing" is never derived from this table.
+
+## Local run
+
+`make run-local-server` starts the game server (`:8711`), the lobby (`:8710`) and Vite (`:5173`).
+In production Traefik fronts both services from one `docker-compose.yml`; the lobby's internal game
+server URL and the public WebSocket origin it hands players are two separate settings.
