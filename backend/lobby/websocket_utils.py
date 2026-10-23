@@ -16,12 +16,7 @@ def check_origin(websocket: WebSocket) -> bool:
     Verify the WebSocket origin header against the allowed origin setting.
     """
     settings: LobbyServerSettings = websocket.app.state.settings
-    ws_allowed_origin = settings.ws_allowed_origin
-    if not ws_allowed_origin:
-        return True
-
-    origin = websocket.headers.get("origin", "")
-    return origin == ws_allowed_origin
+    return websocket.headers.get("origin") == settings.ws_allowed_origin
 
 
 async def send_or_drop(websocket: WebSocket, text: str) -> bool:

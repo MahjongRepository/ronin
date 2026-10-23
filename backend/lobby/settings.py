@@ -50,7 +50,7 @@ class LobbyServerSettings(BaseSettings):
     game_assets_dir: str = "frontend/dist"
     vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server
     replay_dir: str = Field(min_length=1)
-    ws_allowed_origin: str | None
+    ws_allowed_origin: str = Field(min_length=1)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import pytest
+from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
 
+from lobby.server.app import create_app
+from lobby.settings import LobbyServerSettings
+from shared.auth.settings import AuthSettings
+
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable, Iterator
+    from pathlib import Path
+
+    from starlette.applications import Starlette
     from starlette.types import Message
 
 
@@ -68,15 +78,48 @@ class HeldLookup:
         return False
 
 
-def make_websocket(peer: AsgiPeer, **scope: object) -> WebSocket:
+@pytest.fixture
+def make_app(tmp_path: Path) -> Callable[..., Starlette]:
+    def build(
+        *, is_playing: Callable[[str], Awaitable[bool]] | None = nobody_playing, **settings_overrides: Any
+    ) -> Starlette:
+        static_dir = tmp_path / "public"
+        (static_dir / "styles").mkdir(parents=True, exist_ok=True)
+        (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
+        return create_app(
+            settings=LobbyServerSettings(static_dir=str(static_dir), **settings_overrides),
+            auth_settings=AuthSettings(database_path=str(tmp_path / "test.db")),
+            is_playing=is_playing,
+        )
+
+    return build
+
+
+@pytest.fixture
+def app(make_app: Callable[..., Starlette]) -> Starlette:
+    return make_app()
+
+
+def open_client(app: Starlette) -> TestClient:
+    return TestClient(app, headers={"origin": app.state.settings.ws_allowed_origin})
+
+
+@pytest.fixture
+def client(app: Starlette) -> Iterator[TestClient]:
+    with open_client(app) as test_client:
+        yield test_client
+
+
+def make_websocket(peer: AsgiPeer, *, app: Starlette, **scope: object) -> WebSocket:
+    origin_header = (b"origin", app.state.settings.ws_allowed_origin.encode())
     return WebSocket(
-        {"type": "websocket", "path": "/", "headers": [], "query_string": b"", **scope},
+        {"type": "websocket", "path": "/", "headers": [origin_header], "query_string": b"", "app": app, **scope},
         peer.receive,
         peer.send,
     )
 
 
 async def open_websocket(peer: AsgiPeer) -> WebSocket:
-    websocket = make_websocket(peer)
+    websocket = WebSocket({"type": "websocket", "path": "/", "headers": []}, peer.receive, peer.send)
     await websocket.accept()
     return websocket

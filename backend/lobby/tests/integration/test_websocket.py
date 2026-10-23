@@ -12,34 +12,8 @@ from lobby.auth.models import AuthenticatedPlayer
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.rooms import websocket as rooms_websocket_module
 from lobby.rooms.websocket import room_websocket
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
-from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket, nobody_playing
+from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket, open_client
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
-from shared.auth.settings import AuthSettings
-
-
-def _make_app(tmp_path, *, is_playing=nobody_playing, **settings_kwargs):
-    static_dir = tmp_path / "public"
-    (static_dir / "styles").mkdir(parents=True)
-    (static_dir / "styles" / "lobby.css").write_text("/* test */")
-
-    # Disable origin checking by default in tests (TestClient doesn't send
-    # a matching origin header). Tests that need origin checking should
-    # pass ws_allowed_origin explicitly.
-    settings_kwargs.setdefault("ws_allowed_origin", None)
-    return create_app(
-        settings=LobbyServerSettings(
-            static_dir=str(static_dir),
-            **settings_kwargs,
-        ),
-        auth_settings=AuthSettings(
-            game_ticket_secret="test-secret",
-            database_path=str(tmp_path / "test.db"),
-            cookie_secure=False,
-        ),
-        is_playing=is_playing,
-    )
 
 
 def _break_server_socket(app, *, room_id, username):
@@ -63,14 +37,9 @@ def _room_socket(app, peer, *, room_id, username):
 
 class TestRoomWebSocket:
     @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
-    @pytest.fixture
-    def client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "wsuser")
-            yield c
+    def client(self, client):
+        register_with_csrf(client, "wsuser")
+        return client
 
     @pytest.fixture
     def room_id(self, app):
@@ -95,9 +64,9 @@ class TestRoomWebSocket:
             assert msg["player_name"] == "wsuser"
             assert msg["text"] == "hello"
 
-    def test_room_websocket__when_non_owner_sets_ready__should_broadcast_ready_change(self, app, tmp_path):
+    def test_room_websocket__when_non_owner_sets_ready__should_broadcast_ready_change(self, app):
         room = app.state.room_manager.create_room("ready-room")
-        with TestClient(app) as c:
+        with open_client(app) as c:
             register_with_csrf(c, "owner")
 
             # Owner joins first
@@ -211,16 +180,11 @@ class TestRoomWebSocket:
 
 class TestStartGameErrors:
     @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
-    @pytest.fixture
-    def two_user_client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "owner")
-            logout_with_csrf(c)
-            register_with_csrf(c, "player2")
-            yield c
+    def two_user_client(self, client):
+        register_with_csrf(client, "owner")
+        logout_with_csrf(client)
+        register_with_csrf(client, "player2")
+        return client
 
     def test_room_websocket__when_non_owner_starts_game__should_send_not_owner(self, app, two_user_client):
         room = app.state.room_manager.create_room("nostart-room")
@@ -267,16 +231,11 @@ class TestStartGameErrors:
 
 class TestOwnerChanged:
     @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
-    @pytest.fixture
-    def two_user_client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "alice")
-            logout_with_csrf(c)
-            register_with_csrf(c, "bob")
-            yield c
+    def two_user_client(self, client):
+        register_with_csrf(client, "alice")
+        logout_with_csrf(client)
+        register_with_csrf(client, "bob")
+        return client
 
     @pytest.mark.xfail(reason="Flaky: intermittent WebSocket timeout", strict=False)
     def test_room_websocket__when_owner_leaves__should_send_owner_changed_then_player_left(self, app, two_user_client):
@@ -309,16 +268,11 @@ class TestOwnerChanged:
 
 class TestMultiPlayerWebSocket:
     @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
-    @pytest.fixture
-    def two_user_client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "alice")
-            logout_with_csrf(c)
-            register_with_csrf(c, "bob")
-            yield c
+    def two_user_client(self, client):
+        register_with_csrf(client, "alice")
+        logout_with_csrf(client)
+        register_with_csrf(client, "bob")
+        return client
 
     def test_room_websocket__when_player_leaves__should_broadcast_player_left(self, app, two_user_client):
         room = app.state.room_manager.create_room("multi-room")
@@ -400,14 +354,9 @@ def _route_game_server(monkeypatch, game_server):
 
 class TestGameTransition:
     @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
-    @pytest.fixture
-    def client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "wsuser")
-            yield c
+    def client(self, client):
+        register_with_csrf(client, "wsuser")
+        return client
 
     def test_room_websocket__when_owner_starts_game__should_send_game_starting_and_remove_room(
         self, client, app, monkeypatch
@@ -441,7 +390,7 @@ class TestGameTransition:
         room = app.state.room_manager.create_room("dead-peer-start")
         _route_game_server(monkeypatch, lambda _request: httpx.Response(201))
 
-        with TestClient(app) as client:
+        with open_client(app) as client:
             register_with_csrf(client, "bob")
             logout_with_csrf(client)
             register_with_csrf(client, "carol")
@@ -563,10 +512,6 @@ class TestGameTransition:
 
 
 class TestRoomWebSocketRaces:
-    @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
     async def test_room_websocket__when_room_joined_ack_fails__should_free_seat_and_drop_empty_room(self, app):
         app.state.room_manager.create_room("ack-fail-room")
         peer = AsgiPeer()
@@ -644,10 +589,6 @@ async def _join_room_and_leave(app, *, room_id, username):
 
 
 class TestRoomOccupancy:
-    @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
     async def test_room_websocket__when_user_is_queued__should_reject_with_already_in_queue(self, app):
         room = app.state.room_manager.create_room("queued-room")
         queue_peer = AsgiPeer()
@@ -681,10 +622,10 @@ class TestRoomOccupancy:
         await seated_handler
 
     async def test_room_websocket__when_the_users_room_starts_during_the_lookup__should_reject_with_already_in_game(
-        self, tmp_path, monkeypatch
+        self, make_app, monkeypatch
     ):
         held_lookup = HeldLookup()
-        app = _make_app(tmp_path, is_playing=held_lookup)
+        app = make_app(is_playing=held_lookup)
         monkeypatch.setattr(
             rooms_websocket_module, "create_game_on_server", AsyncMock(return_value="ws://localhost:8711/ws/game")
         )
@@ -709,7 +650,7 @@ class TestRoomOccupancy:
         assert second_room.is_empty
 
     async def test_room_websocket__when_app_wires_the_game_server_lookup__should_reject_only_the_playing_user(
-        self, tmp_path, monkeypatch
+        self, make_app, monkeypatch
     ):
         def game_server(request):
             if (request.url.host, request.url.path) == ("game-server.invalid", "/players/alice-id"):
@@ -718,7 +659,7 @@ class TestRoomOccupancy:
             return httpx.Response(404)
 
         _route_game_server(monkeypatch, game_server)
-        app = _make_app(tmp_path, is_playing=None)
+        app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("wired-room")
 
         alice_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
@@ -727,13 +668,13 @@ class TestRoomOccupancy:
         assert bob_peer.received_json()[0]["type"] == "room_joined"
 
     async def test_room_websocket__when_game_server_unreachable__should_let_the_user_join_and_warn(
-        self, tmp_path, monkeypatch, caplog
+        self, make_app, monkeypatch, caplog
     ):
         def unreachable_game_server(_request):
             raise httpx.ConnectError("connection refused")
 
         _route_game_server(monkeypatch, unreachable_game_server)
-        app = _make_app(tmp_path, is_playing=None)
+        app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("fail-open-room")
 
         alice_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
@@ -741,14 +682,14 @@ class TestRoomOccupancy:
         assert caplog.text.count("playing lookup failed") == 1
 
     async def test_room_websocket__when_game_server_lookup_times_out__should_let_the_user_join_and_warn(
-        self, tmp_path, monkeypatch, caplog
+        self, make_app, monkeypatch, caplog
     ):
         async def stalled_game_server(_request):
             await asyncio.Event().wait()
 
         monkeypatch.setattr(game_transition_module, "_PLAYING_LOOKUP_TIMEOUT_SECONDS", 0.01)
         _route_game_server(monkeypatch, stalled_game_server)
-        app = _make_app(tmp_path, is_playing=None)
+        app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("stalled-lookup-room")
 
         alice_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
@@ -757,59 +698,35 @@ class TestRoomOccupancy:
 
 
 class TestWebSocketOriginCheck:
-    @pytest.fixture
-    def app_with_origin(self, tmp_path):
-        return _make_app(tmp_path, ws_allowed_origin="http://localhost:3000")
-
-    @pytest.fixture
-    def client_with_origin(self, app_with_origin):
-        with TestClient(app_with_origin) as c:
-            register_with_csrf(c, "wsuser")
-            yield c
-
-    def test_room_websocket__when_origin_allowed__should_connect(self, client_with_origin, app_with_origin):
-        room = app_with_origin.state.room_manager.create_room("origin-test")
-        with client_with_origin.websocket_connect(
-            f"/ws/rooms/{room.room_id}",
-            headers={"origin": "http://localhost:3000"},
-        ) as ws:
-            msg = ws.receive_json()
-            assert msg["type"] == "room_joined"
-
-    def test_room_websocket__when_origin_forbidden__should_reject_connection(self, client_with_origin, app_with_origin):
-        room = app_with_origin.state.room_manager.create_room("bad-origin")
+    def test_room_websocket__when_origin_forbidden__should_reject_connection(self, client, app):
+        register_with_csrf(client, "wsuser")
+        room = app.state.room_manager.create_room("bad-origin")
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
-            client_with_origin.websocket_connect(
+            client.websocket_connect(
                 f"/ws/rooms/{room.room_id}",
                 headers={"origin": "http://evil.com"},
             ) as ws,
         ):
             ws.receive_json()
 
-    def test_room_websocket__when_origin_header_missing__should_reject_connection(
-        self, client_with_origin, app_with_origin
-    ):
-        room = app_with_origin.state.room_manager.create_room("no-origin")
-        with (
-            pytest.raises(Exception),  # noqa: B017, PT011
-            client_with_origin.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
-        ):
-            ws.receive_json()
+    def test_room_websocket__when_origin_header_missing__should_reject_connection(self, app):
+        room = app.state.room_manager.create_room("no-origin")
+        with TestClient(app) as client_without_origin:
+            register_with_csrf(client_without_origin, "wsuser")
+            with (
+                pytest.raises(Exception),  # noqa: B017, PT011
+                client_without_origin.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
+            ):
+                ws.receive_json()
 
 
 class TestWebSocketUnauthenticated:
-    @pytest.fixture
-    def unauthenticated_client(self, tmp_path):
-        app = _make_app(tmp_path)
+    def test_room_websocket__when_unauthenticated__should_reject_connection(self, client, app):
         app.state.room_manager.create_room("auth-test")
-        with TestClient(app) as c:
-            yield c
-
-    def test_room_websocket__when_unauthenticated__should_reject_connection(self, unauthenticated_client):
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
-            unauthenticated_client.websocket_connect(
+            client.websocket_connect(
                 "/ws/rooms/auth-test",
             ) as ws,
         ):

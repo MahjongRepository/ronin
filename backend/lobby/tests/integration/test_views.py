@@ -2,13 +2,10 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from starlette.testclient import TestClient
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
+from lobby.tests.conftest import open_client
 from lobby.tests.integration.conftest import register_with_csrf
-from shared.auth.settings import AuthSettings
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
 
@@ -40,33 +37,20 @@ def _create_vite_manifest(game_assets_dir):
     )
 
 
+@pytest.fixture
+def app(make_app, tmp_path, monkeypatch):
+    monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
+    game_assets_dir = tmp_path / "dist"
+    game_assets_dir.mkdir()
+    _create_vite_manifest(game_assets_dir)
+    return make_app(game_assets_dir=str(game_assets_dir))
+
+
 class TestLobbyViews:
     @pytest.fixture
-    def client(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        static_dir = tmp_path / "public"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
-
-        game_assets_dir = tmp_path / "dist"
-        game_assets_dir.mkdir()
-        _create_vite_manifest(game_assets_dir)
-
-        app = create_app(
-            settings=LobbyServerSettings(
-                static_dir=str(static_dir),
-                game_assets_dir=str(game_assets_dir),
-            ),
-            auth_settings=AuthSettings(
-                game_ticket_secret="test-secret",
-                database_path=str(tmp_path / "test.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
-            # Register and login a user for authenticated view tests
-            register_with_csrf(c, "viewuser")
-            yield c
+    def client(self, client):
+        register_with_csrf(client, "viewuser")
+        return client
 
     def test_lobby_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
@@ -153,29 +137,14 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
-    def test_play_page__when_assets_missing__should_return_503(self, tmp_path):
-        static_dir = tmp_path / "public"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
-
+    def test_play_page__when_assets_missing__should_return_503(self, make_app, tmp_path):
         game_assets_dir = tmp_path / "dist"
-        game_assets_dir.mkdir()
         vite_dir = game_assets_dir / ".vite"
-        vite_dir.mkdir()
+        vite_dir.mkdir(parents=True)
         (vite_dir / "manifest.json").write_text("{}")
 
-        app = create_app(
-            settings=LobbyServerSettings(
-                static_dir=str(static_dir),
-                game_assets_dir=str(game_assets_dir),
-            ),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "test.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
+        app = make_app(game_assets_dir=str(game_assets_dir))
+        with open_client(app) as c:
             register_with_csrf(c, "testuser")
 
             response = c.get("/play/test-game")
@@ -188,23 +157,8 @@ class TestLobbyViews:
         assert "javascript" in response.headers["content-type"]
         assert "console.log('game')" in response.text
 
-    def test_game_assets_route__when_dir_missing__should_not_mount(self, tmp_path):
-        static_dir = tmp_path / "public"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
-
-        nonexistent_dir = tmp_path / "no-such-dir"
-        app = create_app(
-            settings=LobbyServerSettings(
-                static_dir=str(static_dir),
-                game_assets_dir=str(nonexistent_dir),
-            ),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "test.db"),
-                cookie_secure=False,
-            ),
-        )
+    def test_game_assets_route__when_dir_missing__should_not_mount(self, make_app, tmp_path):
+        app = make_app(game_assets_dir=str(tmp_path / "no-such-dir"))
         route_names = {r.name for r in app.routes}
         assert "game_assets" not in route_names
 
@@ -231,51 +185,21 @@ class TestLobbyViews:
         assert "text/html" in response.headers["content-type"]
         assert 'data-room-id="test-room-42"' in response.text
 
-    def test_room_page__when_first_visit__should_set_csrf_cookie(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        static_dir = tmp_path / "pub"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
+    def test_room_page__when_first_visit__should_set_csrf_cookie(self, client):
+        client.app.state.room_manager.create_room("fresh-room")
+        client.cookies.delete(CSRF_COOKIE_NAME)
 
-        app = create_app(
-            settings=LobbyServerSettings(static_dir=str(static_dir)),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "t.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
-            register_with_csrf(c, "roomuser")
-            app.state.room_manager.create_room("fresh-room")
-            # Clear the CSRF cookie to simulate a direct visit
-            c.cookies.delete(CSRF_COOKIE_NAME)
-
-            response = c.get("/rooms/fresh-room")
-            assert response.status_code == 200
-            assert CSRF_COOKIE_NAME in response.cookies
+        response = client.get("/rooms/fresh-room")
+        assert response.status_code == 200
+        assert CSRF_COOKIE_NAME in response.cookies
 
     def test_room_page__when_room_not_found__should_redirect_to_lobby(self, client):
         response = client.get("/rooms/nonexistent-room", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/"
 
-    def test_storybook_page__when_first_visit__should_set_csrf_cookie(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        static_dir = tmp_path / "pub"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
-
-        app = create_app(
-            settings=LobbyServerSettings(static_dir=str(static_dir)),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "t.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
-            # Don't register - visit storybook directly (no prior CSRF cookie)
+    def test_storybook_page__when_first_visit__should_set_csrf_cookie(self, app):
+        with open_client(app) as c:
             response = c.get("/storybook")
             assert response.status_code == 200
             assert CSRF_COOKIE_NAME in response.cookies
@@ -292,25 +216,14 @@ class TestLobbyViews:
 
 class TestViteDevMode:
     @pytest.fixture
-    def client(self, tmp_path, monkeypatch):
+    def app(self, make_app, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        static_dir = tmp_path / "pub"
-        static_dir.mkdir()
+        return make_app(vite_dev_url="http://localhost:5173")
 
-        app = create_app(
-            settings=LobbyServerSettings(
-                static_dir=str(static_dir),
-                vite_dev_url="http://localhost:5173",
-            ),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "t.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
-            register_with_csrf(c, "viteuser")
-            yield c
+    @pytest.fixture
+    def client(self, client):
+        register_with_csrf(client, "viteuser")
+        return client
 
     def test_lobby_page__when_vite_dev_url_set__should_use_vite_dev_urls(self, client):
         response = client.get("/")
@@ -328,30 +241,9 @@ class TestViteDevMode:
 
 class TestHistoryPage:
     @pytest.fixture
-    def client(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        static_dir = tmp_path / "public"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
-
-        game_assets_dir = tmp_path / "dist"
-        game_assets_dir.mkdir()
-        _create_vite_manifest(game_assets_dir)
-
-        app = create_app(
-            settings=LobbyServerSettings(
-                static_dir=str(static_dir),
-                game_assets_dir=str(game_assets_dir),
-            ),
-            auth_settings=AuthSettings(
-                game_ticket_secret="test-secret",
-                database_path=str(tmp_path / "test.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
-            register_with_csrf(c, "gamesuser")
-            yield c
+    def client(self, client):
+        register_with_csrf(client, "gamesuser")
+        return client
 
     def test_history_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
@@ -430,21 +322,8 @@ class TestHistoryPage:
         assert "active-game" not in response.text
         assert "abandoned-game" not in response.text
 
-    def test_history_page__when_unauthenticated__should_redirect_to_login(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        static_dir = tmp_path / "pub"
-        (static_dir / "styles").mkdir(parents=True)
-        (static_dir / "styles" / "lobby.css").write_text("")
-
-        app = create_app(
-            settings=LobbyServerSettings(static_dir=str(static_dir)),
-            auth_settings=AuthSettings(
-                game_ticket_secret="s",
-                database_path=str(tmp_path / "t.db"),
-                cookie_secure=False,
-            ),
-        )
-        with TestClient(app) as c:
+    def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
+        with open_client(app) as c:
             response = c.get("/history", follow_redirects=False)
             assert response.status_code == 303
             assert "/login" in response.headers["location"]
