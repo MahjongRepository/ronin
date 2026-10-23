@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from shared.auth.session_store import AuthSessionStore
-from shared.dal.models import AccountType
 
 
 class TestCreateSession:
@@ -18,24 +17,6 @@ class TestCreateSession:
         assert session.username == "alice"
         assert session.session_id
         assert session.expires_at > session.created_at
-
-    def test_session_store_create_session__when_no_account_type__should_default_to_human(self):
-        store = AuthSessionStore()
-        session = store.create_session(user_id="user-1", username="alice")
-        assert session.account_type == AccountType.HUMAN
-
-    def test_session_store_create_session__when_bot__should_store_bot_account_type(self):
-        store = AuthSessionStore()
-        session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
-        assert session.account_type == AccountType.BOT
-
-    def test_session_store_create_session__when_bot_session_fetched__should_keep_account_type(self):
-        store = AuthSessionStore()
-        session = store.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
-
-        result = store.get_session(session.session_id)
-        assert result is not None
-        assert result.account_type == AccountType.BOT
 
 
 class TestGetSession:

@@ -5,7 +5,6 @@ from uuid import uuid4
 import structlog
 
 from shared.auth.models import AuthSession
-from shared.dal.models import AccountType
 from shared.tasks import cancel_and_wait
 
 CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
@@ -31,7 +30,6 @@ class AuthSessionStore:
         *,
         user_id: str,
         username: str,
-        account_type: AccountType = AccountType.HUMAN,
         ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
     ) -> AuthSession:
         """
@@ -44,7 +42,6 @@ class AuthSessionStore:
             username=username,
             created_at=now,
             expires_at=now + ttl_seconds,
-            account_type=account_type,
         )
         self._sessions[session.session_id] = session
         return session

@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from shared.dal.models import AccountType
-
 
 @dataclass
 class AuthSession:
@@ -14,4 +12,3 @@ class AuthSession:
     username: str
     created_at: float  # time.time()
     expires_at: float  # time.time() + TTL
-    account_type: AccountType = AccountType.HUMAN

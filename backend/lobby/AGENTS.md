@@ -77,19 +77,20 @@ configured `Origin` on every request and WebSocket.
   unexpected status, so a game server outage never locks users out of the lobby. `POST /games`
   refuses a user already playing with 409 as the backstop, which surfaces as an ordinary failed
   start.
-* The WebSocket joins are the only gates: room creation and the bot session routes do not check.
+* The WebSocket joins are the only gates: room creation (`POST /rooms/new`, `POST /api/rooms`) does
+  not check.
 
 ## Auth model
 
 * Humans register and log in with username and password (bcrypt) and get a session cookie.
 * Bots get an API key from `cd backend && uv run python -m scripts.register_bot <name>` with the
   `AuthSettings` environment set (`AUTH_DATABASE_PATH`, `AUTH_GAME_TICKET_SECRET`), printed once and
-  never stored. They send it as `X-API-Key` to
-  `POST /api/rooms` or `POST /api/matchmaking/join`, and open the returned `ws_url` with
-  `?session_id=...`.
-* `SessionOrApiKeyBackend` takes the session id from the cookie, or from the `session_id` query
-  parameter on a WebSocket that has no cookie; if that session is not valid it falls back to a bot's
-  `X-API-Key` (HTTP and WebSocket). It carries `account_type` (HUMAN or BOT) so `bot_only` can tell
+  never stored. They send it as `X-API-Key` on `POST /api/rooms` and on the room and matchmaking
+  WebSocket handshakes, with the configured `Origin`; from the handshake on, a bot runs the human
+  code path. There is no bot session: every session is a human's, created by login.
+* `SessionOrApiKeyBackend` reads the session id from the cookie only; if there is none or it is not
+  valid, it falls back to a BOT account's `X-API-Key` (HTTP and WebSocket), so a valid cookie wins
+  over a key. The authenticated user carries `account_type` (HUMAN or BOT) so `bot_only` can tell
   them apart. `bot_only` routes answer JSON 401/403 instead of redirecting to login; replay
   retrieval (`/api/replays/{game_id}`) is public.
 * Game tickets are HMAC-SHA256, signed when a game starts, and verified by the game server with the
@@ -113,10 +114,14 @@ Mandatory for all lobby code; review must catch violations.
 * `TrustedHostMiddleware` rejects unknown `Host` headers; a new deployment host goes in
   `LOBBY_ALLOWED_HOSTS`.
 * Session and CSRF cookies are `httponly=True`, `samesite="lax"`, Secure per `AUTH_COOKIE_SECURE`.
-* `session_id` is read from the query string only when `scope["type"] == "websocket"`; HTTP
-  sessions come from the cookie only.
+* Credentials never travel in a URL: the session comes from the cookie only, a bot's key from
+  `X-API-Key`. uvicorn (its WebSocket handshake line) and Traefik (its access log) log every path
+  with its query string at INFO.
 * Room and matchmaking WebSockets check `Origin` against `LOBBY_WS_ALLOWED_ORIGIN` (`check_origin`),
-  which every deployment must set: a socket without that exact `Origin` is refused with 4003.
+  which every deployment must set: a socket without that exact `Origin` is refused with 4003, and an
+  unauthenticated one with 4001. Both are pre-accept rejections, which uvicorn turns into an empty
+  HTTP 403 handshake response: a real client sees neither close code nor a reason, only tests see
+  the codes in-process.
 * `SecurityHeadersMiddleware` has two CSP tiers: lobby pages (`script-src 'self'`,
   `connect-src 'self'`) and game pages (`/play/*`, `/game-assets/`, which add `ws: wss:` to
   `connect-src`). A new route fits a tier or gets an explicit policy.
