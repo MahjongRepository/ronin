@@ -1,36 +1,9 @@
 import gzip
 
 import pytest
-from starlette.testclient import TestClient
 
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
 from lobby.views.replay_handlers import _load_replay
-from shared.auth.settings import AuthSettings
 from shared.storage import replay_file_path
-
-
-def _make_client(tmp_path):
-    replay_dir = tmp_path / "replays"
-    replay_dir.mkdir()
-
-    static_dir = tmp_path / "public"
-    static_dir.mkdir()
-    game_assets_dir = tmp_path / "dist"
-    game_assets_dir.mkdir()
-    app = create_app(
-        settings=LobbyServerSettings(
-            replay_dir=str(replay_dir),
-            static_dir=str(static_dir),
-            game_assets_dir=str(game_assets_dir),
-        ),
-        auth_settings=AuthSettings(
-            game_ticket_secret="test-secret",
-            database_path=str(tmp_path / "test.db"),
-            cookie_secure=False,
-        ),
-    )
-    return TestClient(app), replay_dir
 
 
 def _write_gzip_replay(replay_dir, game_id, content):
@@ -42,10 +15,20 @@ def _write_gzip_replay(replay_dir, game_id, content):
 
 class TestReplayContent:
     @pytest.fixture
-    def setup(self, tmp_path):
-        client, replay_dir = _make_client(tmp_path)
-        with client:
-            yield client, replay_dir
+    def replay_dir(self, tmp_path):
+        replay_dir = tmp_path / "replays"
+        replay_dir.mkdir()
+        return replay_dir
+
+    @pytest.fixture
+    def app(self, make_app, tmp_path, replay_dir):
+        game_assets_dir = tmp_path / "dist"
+        game_assets_dir.mkdir()
+        return make_app(replay_dir=str(replay_dir), game_assets_dir=str(game_assets_dir))
+
+    @pytest.fixture
+    def setup(self, client, replay_dir):
+        return client, replay_dir
 
     def test_replay_route__when_replay_exists__should_return_200_with_content(self, setup):
         client, replay_dir = setup

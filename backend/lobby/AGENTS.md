@@ -30,7 +30,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `occupancy.py` — `Occupancy`, the one owner of the occupancy rule.
 
 Services are created in `create_app()` and stored on `app.state`; handlers read them from
-`request.app.state`. Tests build the app with `create_app(settings=..., auth_settings=...)`.
+`request.app.state`. Tests build the app through the `make_app` / `app` / `client` fixtures in
+`tests/conftest.py`: `make_app(**overrides)` for varied settings, and a `client` that sends the
+configured `Origin` on every request and WebSocket.
 
 ## Game start
 
@@ -103,7 +105,8 @@ Mandatory for all lobby code; review must catch violations.
 * Session and CSRF cookies are `httponly=True`, `samesite="lax"`, Secure per `AUTH_COOKIE_SECURE`.
 * `session_id` is read from the query string only when `scope["type"] == "websocket"`; HTTP
   sessions come from the cookie only.
-* Room and matchmaking WebSockets check `Origin` against `LOBBY_WS_ALLOWED_ORIGIN` (`check_origin`).
+* Room and matchmaking WebSockets check `Origin` against `LOBBY_WS_ALLOWED_ORIGIN` (`check_origin`),
+  which every deployment must set: a socket without that exact `Origin` is refused with 4003.
 * `SecurityHeadersMiddleware` has two CSP tiers: lobby pages (`script-src 'self'`,
   `connect-src 'self'`) and game pages (`/play/*`, `/game-assets/`, which add `ws: wss:` to
   `connect-src`). A new route fits a tier or gets an explicit policy.

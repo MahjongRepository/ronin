@@ -4,23 +4,6 @@ import pytest
 from starlette.testclient import TestClient
 
 from lobby.rooms.manager import LobbyRoomManager
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
-from shared.auth.settings import AuthSettings
-
-
-@pytest.fixture
-def app(tmp_path):
-    static_dir = tmp_path / "public"
-    static_dir.mkdir()
-    return create_app(
-        settings=LobbyServerSettings(static_dir=str(static_dir)),
-        auth_settings=AuthSettings(
-            game_ticket_secret="test-secret",
-            database_path=str(tmp_path / "test.db"),
-            cookie_secure=False,
-        ),
-    )
 
 
 def _assert_database_closed(app) -> None:

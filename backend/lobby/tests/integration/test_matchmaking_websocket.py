@@ -3,38 +3,14 @@ import json
 from unittest.mock import AsyncMock
 
 import pytest
-from starlette.testclient import TestClient
 
 from lobby.auth.models import AuthenticatedPlayer
 from lobby.game_transition import GameTransitionError
 from lobby.matchmaking import websocket as matchmaking_websocket_module
 from lobby.matchmaking.websocket import matchmaking_websocket
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
-from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket, nobody_playing
+from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.game_ticket import verify_game_ticket
-from shared.auth.settings import AuthSettings
-
-
-def _make_app(tmp_path, *, is_playing=nobody_playing, **settings_kwargs):
-    static_dir = tmp_path / "public"
-    (static_dir / "styles").mkdir(parents=True)
-    (static_dir / "styles" / "lobby.css").write_text("/* test */")
-
-    settings_kwargs.setdefault("ws_allowed_origin", None)
-    return create_app(
-        settings=LobbyServerSettings(
-            static_dir=str(static_dir),
-            **settings_kwargs,
-        ),
-        auth_settings=AuthSettings(
-            game_ticket_secret="test-secret",
-            database_path=str(tmp_path / "test.db"),
-            cookie_secure=False,
-        ),
-        is_playing=is_playing,
-    )
 
 
 def _matchmaking_socket(app, peer, *, username):
@@ -52,14 +28,9 @@ async def _queue_player(app, username):
 
 class TestMatchmakingWebSocket:
     @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
-    @pytest.fixture
-    def client(self, app):
-        with TestClient(app) as c:
-            register_with_csrf(c, "player1")
-            yield c
+    def client(self, client):
+        register_with_csrf(client, "player1")
+        return client
 
     def test_matchmaking_websocket__when_authenticated_client_connects__should_send_queue_joined(self, client):
         with client.websocket_connect("/ws/matchmaking") as ws:
@@ -95,11 +66,11 @@ class TestMatchmakingWebSocket:
         first_peer.disconnect()
         await first_handler
 
-    async def test_matchmaking_websocket__when_user_is_playing__should_reject_with_already_in_game(self, tmp_path):
+    async def test_matchmaking_websocket__when_user_is_playing__should_reject_with_already_in_game(self, make_app):
         async def alice_playing(user_id):
             return user_id == "alice-id"
 
-        app = _make_app(tmp_path, is_playing=alice_playing)
+        app = make_app(is_playing=alice_playing)
 
         peer = AsgiPeer()
         await matchmaking_websocket(_matchmaking_socket(app, peer, username="alice"))
@@ -120,43 +91,20 @@ class TestMatchmakingWebSocket:
 
 
 class TestMatchmakingUnauthenticated:
-    @pytest.fixture
-    def unauthenticated_client(self, tmp_path):
-        app = _make_app(tmp_path)
-        with TestClient(app) as c:
-            yield c
-
-    def test_matchmaking_websocket__when_unauthenticated__should_reject_connection(self, unauthenticated_client):
+    def test_matchmaking_websocket__when_unauthenticated__should_reject_connection(self, client):
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
-            unauthenticated_client.websocket_connect("/ws/matchmaking") as ws,
+            client.websocket_connect("/ws/matchmaking") as ws,
         ):
             ws.receive_json()
 
 
 class TestMatchmakingOriginCheck:
-    @pytest.fixture
-    def app_with_origin(self, tmp_path):
-        return _make_app(tmp_path, ws_allowed_origin="http://localhost:3000")
-
-    @pytest.fixture
-    def client_with_origin(self, app_with_origin):
-        with TestClient(app_with_origin) as c:
-            register_with_csrf(c, "player1")
-            yield c
-
-    def test_matchmaking_websocket__when_origin_allowed__should_connect(self, client_with_origin):
-        with client_with_origin.websocket_connect(
-            "/ws/matchmaking",
-            headers={"origin": "http://localhost:3000"},
-        ) as ws:
-            msg = ws.receive_json()
-            assert msg["type"] == "queue_joined"
-
-    def test_matchmaking_websocket__when_origin_forbidden__should_reject_connection(self, client_with_origin):
+    def test_matchmaking_websocket__when_origin_forbidden__should_reject_connection(self, client):
+        register_with_csrf(client, "player1")
         with (
             pytest.raises(Exception),  # noqa: B017, PT011
-            client_with_origin.websocket_connect(
+            client.websocket_connect(
                 "/ws/matchmaking",
                 headers={"origin": "http://evil.com"},
             ) as ws,
@@ -165,10 +113,6 @@ class TestMatchmakingOriginCheck:
 
 
 class TestMatchmakingGameTransition:
-    @pytest.fixture
-    def app(self, tmp_path):
-        return _make_app(tmp_path)
-
     async def test_matchmaking_websocket__when_game_creation_fails__should_close_all_four_and_let_them_queue_again(
         self, app, monkeypatch
     ):
@@ -232,10 +176,10 @@ class TestMatchmakingGameTransition:
         ids=["created", "creation_failed_after_the_game_server_got_it"],
     )
     async def test_matchmaking_websocket__when_a_match_starts_during_the_lookup__should_reject_with_already_in_game(
-        self, tmp_path, monkeypatch, create_game, first_player_last_message
+        self, make_app, monkeypatch, create_game, first_player_last_message
     ):
         held_lookup = HeldLookup()
-        app = _make_app(tmp_path, is_playing=held_lookup)
+        app = make_app(is_playing=held_lookup)
         monkeypatch.setattr(matchmaking_websocket_module, "create_game_on_server", create_game)
         queued = [await _queue_player(app, username) for username in ("alice", "bob", "carol")]
 

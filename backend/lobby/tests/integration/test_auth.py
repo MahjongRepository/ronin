@@ -8,25 +8,18 @@ from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from starlette.testclient import TestClient
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
-from shared.auth.settings import AuthSettings
 from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-TEST_SECRET = "test-ticket-secret"
+    from starlette.testclient import TestClient
 
 
-def _make_client(tmp_path):
-    static_dir = tmp_path / "public"
-    (static_dir / "styles").mkdir(parents=True)
-    (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
-
+@pytest.fixture
+def app(make_app, tmp_path):
     game_assets_dir = tmp_path / "dist"
     game_assets_dir.mkdir()
 
@@ -52,18 +45,7 @@ def _make_client(tmp_path):
         ),
     )
 
-    app = create_app(
-        settings=LobbyServerSettings(
-            static_dir=str(static_dir),
-            game_assets_dir=str(game_assets_dir),
-        ),
-        auth_settings=AuthSettings(
-            game_ticket_secret=TEST_SECRET,
-            database_path=str(tmp_path / "test.db"),
-            cookie_secure=False,
-        ),
-    )
-    return TestClient(app)
+    return make_app(game_assets_dir=str(game_assets_dir))
 
 
 def _get_csrf_token(client: TestClient, path: str = "/login") -> str:
@@ -110,11 +92,6 @@ def _insert_bot(client, *, user_id: str, username: str) -> tuple[str, str]:
 
 
 class TestAuthEndpoints:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     def test_register_route__when_get__should_render_form_with_confirm_password(self, client):
         response = client.get("/register")
         assert response.status_code == 200
@@ -245,10 +222,9 @@ class TestAuthEndpoints:
 
 class TestCreateRoomRedirect:
     @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            _register_user(c, username="gameuser")
-            yield c
+    def client(self, client):
+        _register_user(client, username="gameuser")
+        return client
 
     def test_create_room_route__when_posted__should_redirect_to_room_page(self, client):
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
@@ -273,10 +249,9 @@ class TestCreateRoomRedirect:
 
 class TestJoinRoomRedirect:
     @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            _register_user(c, username="joinuser")
-            yield c
+    def client(self, client):
+        _register_user(client, username="joinuser")
+        return client
 
     def test_join_room_route__when_room_exists__should_redirect_to_room_page(self, client):
         room_manager = client.app.state.room_manager
@@ -301,11 +276,6 @@ class TestJoinRoomRedirect:
 
 
 class TestBotAuth:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     def test_bot_auth_route__when_key_and_room_valid__should_return_room_info_and_bot_session(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         room_manager = client.app.state.room_manager
@@ -373,11 +343,6 @@ class TestBotAuth:
 
 
 class TestBotCreateRoom:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     def test_bot_create_room_route__when_key_valid__should_create_room_with_four_ai_seats(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
 
@@ -467,11 +432,6 @@ class TestBotCreateRoom:
 
 
 class TestBotOnlyRoutes:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     def test_bot_auth_route__when_api_key_valid__should_issue_session_with_bot_account_type(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         room_manager = client.app.state.room_manager
@@ -523,11 +483,6 @@ class _RejectedRequest:
 
 
 class TestAuthPolicyWiring:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     @pytest.mark.parametrize(
         "case",
         [
@@ -569,11 +524,6 @@ class TestAuthPolicyWiring:
 
 
 class TestCsrfProtection:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     def test_csrf_protection__when_login_post_has_no_token__should_return_403(self, client):
         response = client.post("/login", data={"username": "a", "password": "b"})
         assert response.status_code == 403
@@ -636,11 +586,6 @@ class TestCsrfProtection:
 
 
 class TestBotMatchmakingAuth:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
     def test_bot_matchmaking_join_route__when_key_valid__should_return_bot_session_and_ws_url(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-mm-id", username="MatchBot")
 
