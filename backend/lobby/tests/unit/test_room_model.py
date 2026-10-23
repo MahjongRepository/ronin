@@ -70,16 +70,6 @@ class TestDerivedProperties:
         room.seats = ["c0", "c1", "c2", "c3"]
         assert room.num_ai_players == 0
 
-    def test_lobby_room_is_full__when_all_seats_occupied__should_be_true(self):
-        room = LobbyRoom(room_id="r1")
-        room.seats = ["c0", "c1", "c2", "c3"]
-        assert room.is_full is True
-
-    def test_lobby_room_is_full__when_seat_available__should_be_false(self):
-        room = LobbyRoom(room_id="r1")
-        room.seats[0] = "c0"
-        assert room.is_full is False
-
     def test_lobby_room_is_empty__when_no_players__should_be_true(self):
         room = LobbyRoom(room_id="r1")
         assert room.is_empty is True

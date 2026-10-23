@@ -75,14 +75,14 @@ async def matchmaking_websocket(websocket: WebSocket) -> None:
 async def _serve_player(player: LobbyPlayer, ctx: _MatchmakingContext) -> None:
     """
     Queue the player and wait for their socket to end; they leave the queue whatever happens.
+
+    An unexpected error is not caught here: it propagates to the ASGI server, which logs it, after the cleanup ran.
     """
     try:
         if await _try_join_queue(player, ctx):
             await _message_loop(player)
     except ConnectionError:
         pass
-    except Exception:  # pragma: no cover -- defensive catch-all
-        logger.exception("unexpected error in matchmaking websocket")
     finally:
         _cleanup_connection(player, ctx)
 

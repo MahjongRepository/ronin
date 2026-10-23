@@ -67,10 +67,6 @@ class LobbyRoom:
         return len(self.players)
 
     @property
-    def is_full(self) -> bool:
-        return None not in self.seats
-
-    @property
     def is_empty(self) -> bool:
         return self.player_count == 0
 

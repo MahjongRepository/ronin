@@ -28,6 +28,11 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   settles those seats: a failed start releases them, a successful one removes the room. The host
   runs the transition in its own handler and cannot leave during it, so a failed start never
   empties the room; `clear_transitioning` still drops a room left empty, as the manager's own rule.
+* Each room connection has its own rate limit (5 frames/s, burst 10), counted on every frame before
+  it is read, invalid ones included: a frame over it is answered `rate_limited` and dropped, and the
+  connection stays. It keeps one client's chat from overflowing a slow honest peer's send queue.
+  A binary frame is answered with an error and the connection stays. Chat echoes to its sender:
+  the browser shows only the echo.
 * A slow or dead socket never holds up or costs another player anything. A room's members are its
   `RoomMember`s (the `LobbyPlayer` plus the room-only `ready` and `departed`), and a broadcast
   encodes once and enqueues on each member's connection (`lobby/AGENTS.md`, `players.py`). A

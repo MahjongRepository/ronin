@@ -65,16 +65,13 @@ class LobbyRoomManager:
         if room.transitioning:
             return "room_transitioning"
 
-        if room.is_full:
+        seat = room.first_open_seat()
+        if seat is None:
             return "room_full"
 
         conflict = self._find_conflict(player.user_id)
         if conflict is not None:
             return conflict
-
-        seat = room.first_open_seat()
-        if seat is None:  # pragma: no cover — guarded by is_full above
-            return "room_full"
 
         room.seats[seat] = player.connection_id
         room.players[player.connection_id] = RoomMember(player=player)
