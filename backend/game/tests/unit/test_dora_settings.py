@@ -7,9 +7,10 @@ from game.logic.scoring import (
     collect_ura_dora_indicators,
 )
 from game.logic.settings import GameSettings
-from game.logic.wall import MAX_DORA_INDICATORS, URA_DORA_START_INDEX, Wall, add_dora_indicator
+from game.logic.wall import add_dora_indicator
 from game.logic.wall import collect_ura_dora_indicators as wall_collect_ura_dora
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.wall import FIRST_URA_POSITION, make_wall
 
 DORA_YAKU_ID = 120
 URA_DORA_YAKU_ID = 122
@@ -25,9 +26,6 @@ def _dora_han(result, yaku_id):
 
 def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, dead_wall=None):
     dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
-
-    if dead_wall is None:
-        dead_wall = tuple(range(14))
 
     players = (
         create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi),
@@ -111,9 +109,9 @@ class TestUraDoraSettingGating:
         # 4s -> ura dora is 5s (2 copies in hand)
         ura_ind = TilesConverter.string_to_136_array(sou="4")[0]
 
-        dead_wall = [0] * 14
+        dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[URA_DORA_START_INDEX] = ura_ind
+        dead_wall[FIRST_URA_POSITION] = ura_ind
 
         settings = GameSettings(has_akadora=False, has_uradora=True)
         game_state = _build_scoring_state(
@@ -139,9 +137,9 @@ class TestUraDoraSettingGating:
         dora_ind = TilesConverter.string_to_136_array(man="2")
         ura_ind = TilesConverter.string_to_136_array(sou="4")[0]
 
-        dead_wall = [0] * 14
+        dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[URA_DORA_START_INDEX] = ura_ind
+        dead_wall[FIRST_URA_POSITION] = ura_ind
 
         settings = GameSettings(has_akadora=False, has_uradora=False)
         game_state = _build_scoring_state(
@@ -164,9 +162,9 @@ class TestUraDoraSettingGating:
 class TestKanDoraSetting:
     def test_kan_dora__when_enabled__should_add_indicator(self):
         dead_wall = tuple(range(100, 114))
-        wall = Wall(
+        wall = make_wall(
             live_tiles=tuple(range(50)),
-            dead_wall_tiles=dead_wall,
+            dead_wall=dead_wall,
             dora_indicators=(dead_wall[2],),
         )
         # Simulate immediate dora reveal (closed kan path)
@@ -178,25 +176,23 @@ class TestKanDoraSetting:
 class TestKanUraDoraSettingGating:
     def test_kan_ura_dora__when_enabled__should_reveal_indicator_per_kan(self):
         dead_wall = tuple(range(100, 114))
-        wall = Wall(
+        wall = make_wall(
             live_tiles=(),
-            dead_wall_tiles=dead_wall,
+            dead_wall=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3]),
-            ura_dora_indicators=tuple(dead_wall[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS]),
         )
         result = wall_collect_ura_dora(wall, include_kan_ura=True)
-        assert result == [dead_wall[URA_DORA_START_INDEX], dead_wall[URA_DORA_START_INDEX + 1]]
+        assert result == [dead_wall[FIRST_URA_POSITION], dead_wall[FIRST_URA_POSITION + 1]]
 
     def test_kan_ura_dora__when_disabled__should_reveal_single_indicator(self):
         dead_wall = tuple(range(100, 114))
-        wall = Wall(
+        wall = make_wall(
             live_tiles=(),
-            dead_wall_tiles=dead_wall,
+            dead_wall=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3]),
-            ura_dora_indicators=tuple(dead_wall[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS]),
         )
         result = wall_collect_ura_dora(wall, include_kan_ura=False)
-        assert result == [dead_wall[URA_DORA_START_INDEX]]
+        assert result == [dead_wall[FIRST_URA_POSITION]]
 
     def test_collect_ura_dora_indicators__when_two_dora_indicators__should_reveal_two_with_kan_ura_and_one_without(
         self,

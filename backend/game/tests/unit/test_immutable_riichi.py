@@ -8,7 +8,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 
 
 class TestDeclareRiichiDaburi:
@@ -34,7 +34,7 @@ class TestDeclareRiichiDaburi:
             *tuple(MahjongPlayer(seat=i, name=f"AI{i}", score=25000, melds=melds_map.get(i, ())) for i in range(1, 4)),
         )
         round_state = MahjongRoundState(
-            wall=Wall(live_tiles=tuple(range(10))),
+            wall=make_wall(live_tiles=tuple(range(10))),
             players=players,
         )
         return MahjongGameState(

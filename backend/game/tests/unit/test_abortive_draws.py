@@ -11,6 +11,7 @@ from game.logic.enums import RoundResultType
 from game.logic.settings import GameSettings
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.wall import make_wall
 
 
 class TestKyuushuKyuuhaiThresholds:
@@ -24,7 +25,7 @@ class TestKyuushuKyuuhaiThresholds:
             )
             for i in range(4)
         )
-        return MahjongRoundState(players=players, current_player_seat=0)
+        return MahjongRoundState(wall=make_wall(), players=players, current_player_seat=0)
 
     def test_can_call_kyuushu_kyuuhai__when_custom_lower_threshold__should_allow_call_below_default(self):
         tiles = [
@@ -53,6 +54,7 @@ class TestFourWindsThresholds:
     def test_check_four_winds__when_custom_discard_count__should_use_configured_count(self):
         east_tiles = TilesConverter.string_to_136_array(honors="111")[:3]
         rs = MahjongRoundState(
+            wall=make_wall(),
             players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
             all_discards=tuple(east_tiles),
         )

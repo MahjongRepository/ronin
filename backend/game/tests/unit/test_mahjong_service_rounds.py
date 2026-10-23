@@ -25,7 +25,7 @@ from game.logic.types import (
     MeldCaller,
     TenpaiHand,
 )
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import (
     _find_player,
     _update_player,
@@ -247,7 +247,7 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
 
     def test_process_action_result__when_discard_has_no_callers_and_wall_is_empty__should_emit_round_end(self, service):
         runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
-        _update_round_state(runtime, wall=Wall())
+        _update_round_state(runtime, wall=make_wall())
 
         result = service._process_action_result_internal(runtime, _post_discard_result(runtime, []))
         round_end = [e for e in result if e.event == EventType.ROUND_END]
@@ -267,7 +267,7 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
             pending_seats=frozenset({ai_player_seat}),
             callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
-        _update_round_state(runtime, pending_call_prompt=prompt, wall=Wall())
+        _update_round_state(runtime, pending_call_prompt=prompt, wall=make_wall())
 
         result = service._process_action_result_internal(runtime, _post_discard_result(runtime, []))
         assert [e.event for e in result] == [EventType.ROUND_END]
@@ -370,7 +370,7 @@ class TestGameEndAwaiting:
         _update_round_state(
             runtime,
             current_player_seat=player.seat,
-            wall=Wall(),
+            wall=make_wall(),
         )
 
         game_state = runtime.state

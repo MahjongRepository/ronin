@@ -17,7 +17,6 @@ def _make_round_state(*, dealer_seat=0, round_wind=0, dora_indicators=None):
         current_player_seat=0,
         round_wind=round_wind,
         wall=tuple(range(70)),
-        dead_wall=tuple(range(14)),
         dora_indicators=TilesConverter.string_to_136_array(man="9") if dora_indicators is None else dora_indicators,
         all_discards=TilesConverter.string_to_136_array(man="1112"),
     )

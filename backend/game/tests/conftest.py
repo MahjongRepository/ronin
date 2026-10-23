@@ -9,11 +9,11 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import Wall, _extract_ura_dora
 from game.server.app import create_app
 from game.server.router import MessageRouter
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
+from game.tests.helpers.wall import make_wall
 from game.tests.mocks import MockConnection, MockGameService
 
 if TYPE_CHECKING:
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
     from game.logic.meld_wrapper import FrozenMeld
     from game.logic.settings import GameSettings
+    from game.logic.wall import Wall
 
 
 # ============================================================================
@@ -67,7 +68,7 @@ def create_round_state(
     *,
     players: Sequence[MahjongPlayer] | None = None,
     wall: Sequence[int] | None = None,
-    dead_wall: Sequence[int] | None = None,
+    dead_wall: Sequence[int | None] | None = None,
     dora_indicators: Sequence[int] | None = None,
     dealer_seat: int = 0,
     current_player_seat: int = 0,
@@ -84,12 +85,16 @@ def create_round_state(
     if wall_obj is not None:
         game_wall = wall_obj
     else:
-        dead_wall_tuple = tuple(dead_wall) if dead_wall is not None else ()
-        game_wall = Wall(
+        in_play = [
+            t
+            for p in players
+            for t in (*p.tiles, *(t for m in p.melds for t in m.tiles), *(d.tile_id for d in p.discards))
+        ]
+        game_wall = make_wall(
             live_tiles=tuple(wall) if wall is not None else (),
-            dead_wall_tiles=dead_wall_tuple,
+            dead_wall=dead_wall,
             dora_indicators=tuple(dora_indicators) if dora_indicators is not None else (),
-            ura_dora_indicators=_extract_ura_dora(dead_wall_tuple),
+            reserved=in_play,
             pending_dora_count=pending_dora_count,
         )
 

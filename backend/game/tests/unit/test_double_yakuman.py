@@ -25,7 +25,6 @@ def _create_game_state(dealer_seat: int = 0) -> MahjongGameState:
         round_wind=0,
         dora_indicators=dora_indicator_tiles,
         wall=tuple(range(70)),
-        dead_wall=tuple(range(14)),
         all_discards=dummy_discard_tiles,
     )
     return create_game_state(round_state=round_state)

@@ -8,7 +8,6 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import Wall
 from game.logic.win import (
     apply_temporary_furiten,
     can_call_ron,
@@ -22,6 +21,7 @@ from game.logic.win import (
     is_renhou,
     is_tenhou,
 )
+from game.tests.helpers.wall import make_wall
 
 
 class TestCheckTsumoMeldDedup:
@@ -87,7 +87,7 @@ class TestCanDeclareTsumo:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
@@ -310,7 +310,7 @@ class TestTemporaryFuritenResetOnDiscard:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
@@ -337,7 +337,7 @@ class TestTemporaryFuritenResetOnDiscard:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
@@ -361,7 +361,7 @@ class TestRiichiFuritenPermanent:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
@@ -389,7 +389,7 @@ class TestRiichiFuritenPermanent:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
@@ -414,7 +414,7 @@ class TestFuritenRiichiDeclarationAllowed:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(live_tiles=tuple(range(10))),
+            wall=make_wall(live_tiles=tuple(range(10))),
         )
         # verify player IS in furiten
         assert is_furiten(player) is True
@@ -434,7 +434,7 @@ class TestFuritenRiichiDeclarationAllowed:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(live_tiles=tuple(range(10))),
+            wall=make_wall(live_tiles=tuple(range(10))),
         )
         assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
 
@@ -443,6 +443,7 @@ class TestApplyTemporaryFuriten:
     def test_apply_temporary_furiten__when_applied__should_flag_only_that_seat(self):
         players = tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
+            wall=make_wall(),
             players=players,
             dealer_seat=0,
             current_player_seat=0,
@@ -462,7 +463,7 @@ class TestCanCallRon:
             dealer_seat=dealer_seat,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
@@ -595,6 +596,7 @@ class TestIsTenhou:
     def test_tenhou__when_dealer_first_draw__should_be_true(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
@@ -606,6 +608,7 @@ class TestIsTenhou:
     def test_tenhou__when_non_dealer__should_be_false(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=1,
             round_wind=0,
@@ -617,6 +620,7 @@ class TestIsTenhou:
     def test_tenhou__when_discards_made__should_be_false(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
@@ -637,6 +641,7 @@ class TestIsTenhou:
             MahjongPlayer(seat=i, name=f"Player{i}", score=25000, melds=(pon,) if i == 1 else ()) for i in range(4)
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
@@ -661,6 +666,7 @@ class TestIsTenhou:
             for i in range(4)
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
@@ -674,6 +680,7 @@ class TestIsChiihou:
     def test_chiihou__when_non_dealer_first_draw__should_be_true(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=1,
             round_wind=0,
@@ -685,6 +692,7 @@ class TestIsChiihou:
     def test_chiihou__when_dealer__should_be_false(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
@@ -707,6 +715,7 @@ class TestIsChiihou:
             MahjongPlayer(seat=3, name="Player3", score=25000),
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=1,
             round_wind=0,
@@ -726,6 +735,7 @@ class TestIsChiihou:
             MahjongPlayer(seat=i, name=f"Player{i}", score=25000, melds=(pon,) if i == 2 else ()) for i in range(4)
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=1,
             round_wind=0,
@@ -750,6 +760,7 @@ class TestIsChiihou:
             for i in range(4)
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=1,
             round_wind=0,
@@ -776,6 +787,7 @@ class TestIsRenhouClosedKan:
             for i in range(4)
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             dealer_seat=0,
             current_player_seat=2,
             round_wind=0,
@@ -791,7 +803,7 @@ class TestShibariDoraOnly:
             dealer_seat=0,
             current_player_seat=0,
             round_wind=0,
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(10)),
                 dora_indicators=dora_indicator_tiles,
             ),

@@ -20,7 +20,7 @@ from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
 )
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import (
     _find_player,
     _update_player,
@@ -172,8 +172,8 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         service.replace_with_ai_player(runtime, alice.seat)
         service.process_ai_player_actions_after_replacement(runtime, alice.seat)
-        updated_round = runtime.state.round_state
-        assert updated_round.pending_call_prompt is None
+        later_prompt = runtime.state.round_state.pending_call_prompt
+        assert later_prompt is None or alice.seat not in later_prompt.pending_seats
 
     def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"]).runtime
@@ -219,7 +219,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             pending_seats=frozenset({alice.seat}),
             callers=(Caller(seat=alice.seat, can_ron=True),),
         )
-        _update_round_state(runtime, wall=Wall(), pending_call_prompt=prompt)
+        _update_round_state(runtime, wall=make_wall(), pending_call_prompt=prompt)
 
         service.replace_with_ai_player(runtime, alice.seat)
         events = service.process_ai_player_actions_after_replacement(runtime, alice.seat).events

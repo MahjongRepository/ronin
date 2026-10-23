@@ -19,8 +19,8 @@ from game.logic.scoring import (
 from game.logic.settings import GameSettings, validate_settings
 from game.logic.state import Discard
 from game.logic.types import YakuInfo
-from game.logic.wall import Wall
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.wall import make_wall
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState
@@ -162,7 +162,7 @@ class TestNotenPenaltyConfigurable:
             )
             for i in range(4)
         )
-        round_state = create_round_state(players=players, wall_obj=Wall())
+        round_state = create_round_state(players=players, wall_obj=make_wall())
         return create_game_state(round_state=round_state, settings=settings)
 
     def test_process_exhaustive_draw__when_custom_noten_penalty_total__should_split_it(self):

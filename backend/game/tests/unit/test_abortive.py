@@ -14,6 +14,7 @@ from game.logic.enums import RoundResultType
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
+from game.tests.helpers.wall import make_wall
 
 _PIN_5S = tuple(TilesConverter.string_to_136_array(pin="5555"))
 
@@ -38,6 +39,7 @@ class TestCanCallKyuushuKyuuhai:
             MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
         )
         return MahjongRoundState(
+            wall=make_wall(),
             players=players,
             current_player_seat=0,
         )
@@ -92,7 +94,10 @@ class TestCanCallKyuushuKyuuhai:
         )
         kamicha = MahjongPlayer(seat=3, name="Kamicha", score=25000)
         round_state = MahjongRoundState(
-            players=(dealer, shimocha, toimen_on_first_draw, kamicha), dealer_seat=0, current_player_seat=2
+            wall=make_wall(),
+            players=(dealer, shimocha, toimen_on_first_draw, kamicha),
+            dealer_seat=0,
+            current_player_seat=2,
         )
 
         result = can_call_kyuushu_kyuuhai(toimen_on_first_draw, round_state, settings=GameSettings())
@@ -145,6 +150,7 @@ class TestCanCallKyuushuKyuuhai:
             MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
         )
         round_state = MahjongRoundState(
+            wall=make_wall(),
             players=players,
             current_player_seat=0,
         )
@@ -178,6 +184,7 @@ class TestCallKyuushuKyuuhai:
             MahjongPlayer(seat=3, name="AI3", score=25000),
         ]
         return MahjongRoundState(
+            wall=make_wall(),
             players=players,
             current_player_seat=current_player_seat,
         )
@@ -207,7 +214,7 @@ class TestCheckFourRiichi:
             MahjongPlayer(seat=2, name="AI2", is_riichi=(2 in riichi_seats), score=25000),
             MahjongPlayer(seat=3, name="AI3", is_riichi=(3 in riichi_seats), score=25000),
         ]
-        return MahjongRoundState(players=players)
+        return MahjongRoundState(wall=make_wall(), players=players)
 
     def test_check_four_riichi__when_four_players_in_riichi__should_abort(self):
         round_state = self._create_round_state(riichi_seats=(0, 1, 2, 3))
@@ -250,7 +257,7 @@ class TestCheckFourKans:
             MahjongPlayer(seat=2, name="AI2", melds=player2_melds, score=25000),
             MahjongPlayer(seat=3, name="AI3", melds=player3_melds, score=25000),
         )
-        return MahjongRoundState(players=players)
+        return MahjongRoundState(wall=make_wall(), players=players)
 
     def _create_kan_meld(self, tiles: list[int], meld_type: str = FrozenMeld.KAN) -> FrozenMeld:
         return FrozenMeld(meld_type=meld_type, tiles=tuple(tiles), opened=True)
@@ -324,6 +331,7 @@ class TestCheckFourWinds:
             MahjongPlayer(seat=3, name="AI3", score=25000),
         ]
         return MahjongRoundState(
+            wall=make_wall(),
             players=players,
             all_discards=all_discards,
         )

@@ -7,7 +7,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 
 
 class TestCanDeclareRiichi:
@@ -34,7 +34,7 @@ class TestCanDeclareRiichi:
         )
         players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
         round_state = MahjongRoundState(
-            wall=Wall(live_tiles=tuple(range(wall_size))),
+            wall=make_wall(live_tiles=tuple(range(wall_size))),
             players=players,
         )
         return player, round_state

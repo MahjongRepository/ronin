@@ -133,7 +133,7 @@ class MahjongRoundState(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    wall: Wall = Field(default_factory=Wall)
+    wall: Wall
     players: tuple[MahjongPlayer, ...] = ()
     dealer_seat: int = 0
     current_player_seat: int = 0
@@ -155,15 +155,12 @@ class MahjongGameState(BaseModel):
     """
     Immutable game state.
 
-    NOTE: round_state defaults to an empty MahjongRoundState.
-    For actual game initialization, always provide a properly initialized round_state.
-
     wait_id identifies the current wait (see `Awaiting`): the service bumps it once per call that ends the wait.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    round_state: MahjongRoundState = Field(default_factory=MahjongRoundState)
+    round_state: MahjongRoundState
     round_number: int = 0
     unique_dealers: int = 1
     honba_sticks: int = 0

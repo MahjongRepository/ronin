@@ -3,7 +3,7 @@ from mahjong.tile import TilesConverter
 from game.logic.ai_player import AIPlayer
 from game.logic.enums import KanType
 from game.logic.state import MahjongPlayer, MahjongRoundState
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_34_tile
 
 
@@ -18,7 +18,7 @@ def _make_round_state(
     )
     players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
     round_state = MahjongRoundState(
-        wall=Wall(live_tiles=tuple(range(10))),
+        wall=make_wall(live_tiles=tuple(range(10))),
         players=players,
     )
     return player, round_state

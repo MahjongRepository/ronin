@@ -65,8 +65,20 @@ leaves a partial state.
 
 ## Determinism
 
-The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py` (seeded per round);
-AI strategies must be deterministic for a given state. Seat assignment is part of the contract: the replay loader
-inverts the seeded seat permutation to rebuild the input order, so a change to it is a change to the replay format.
-A change to wall or RNG behaviour bumps `RNG_VERSION`; a change to the replay format bumps `REPLAY_VERSION`
-(`wire/replay_format.py`).
+The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py`: a SHAKE256 word
+stream over the seed, with a separate domain per use (the wall of each round, the first dealer), read through rejection
+sampling so no draw is biased; AI strategies must be deterministic for a given state. Seat assignment is part of the
+contract: the replay loader inverts the seeded seat permutation to rebuild the input order, so a change to it is a
+change to the replay format. A change to wall or RNG behaviour bumps `RNG_VERSION`; a change to the replay format
+bumps `REPLAY_VERSION` (`wire/replay_format.py`).
+
+## Tile ownership
+
+* The dead wall (`wall.py`) is modelled by role, never by index: a rinshan queue, five indicator stacks whose top is the
+  dora and bottom the ura, and a reserve for the live tiles pulled in after each kan. Dora and ura are derived from the
+  same stack prefix, so they cannot drift apart; `DeadWall` validates its partition on every construction, and the wall
+  functions construct it rather than `model_copy` it so the validator always runs.
+* Every state the engine adopts goes through `GameRuntime.commit()`, which checks that hands, melds, unclaimed discards,
+  the live wall and the dead wall own each of the 136 tiles exactly once (`invariants.py`). A failure is a server fault:
+  nothing is repaired or retried. Never assign `runtime.state` directly. Tests that stage hands or walls on a runtime use
+  the helpers in `tests/unit/helpers.py`, which restore ownership around what the test staged.

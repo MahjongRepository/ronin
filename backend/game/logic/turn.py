@@ -76,6 +76,7 @@ from game.logic.state_utils import (
     update_player,
 )
 from game.logic.tiles import tile_to_34
+from game.logic.wall import clear_pending_dora
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
     can_call_ron,
@@ -543,8 +544,7 @@ def process_tsumo_call(
 
     # clear pending dora: tsumo win (e.g. rinshan kaihou after open/added kan)
     # scores before the deferred dora indicator would have been revealed
-    new_wall = round_state.wall.model_copy(update={"pending_dora_count": 0})
-    new_round_state = round_state.model_copy(update={"wall": new_wall})
+    new_round_state = round_state.model_copy(update={"wall": clear_pending_dora(round_state.wall)})
 
     # the win tile is the last tile in hand (just drawn)
     win_tile = winner.tiles[-1]

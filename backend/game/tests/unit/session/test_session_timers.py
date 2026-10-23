@@ -151,10 +151,16 @@ class TestWaitTimers:
 
         manager.handle_game_action(conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager))
         second_round = manager.get_game("game1").awaiting
-        assert (second_round.kind, second_round.round_number) == (WaitKind.CALL, 1)
+        assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
         assert timer._bank_seconds == first_round_bank + config.round_bonus_seconds
 
-        manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=second_round.wait_id)
+        if second_round.kind == WaitKind.CALL:
+            manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=second_round.wait_id)
+        else:
+            drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
+            manager.handle_game_action(
+                conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=second_round.wait_id
+            )
         next_wait = manager.get_game("game1").awaiting
         assert next_wait.round_number == 1
         assert next_wait.wait_id != second_round.wait_id

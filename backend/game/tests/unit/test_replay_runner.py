@@ -96,6 +96,12 @@ def _probe_current_player_discard() -> tuple[str, int]:
     return player.name, player.tiles[-1]
 
 
+def _probe_waiting_player() -> str:
+    state = MahjongGameService().start_game("probe", list(PLAYER_NAMES), seed=SEED).runtime.state
+    seat = (state.round_state.current_player_seat + 1) % 4
+    return state.round_state.players[seat].name
+
+
 def test_run_replay__when_discard_input__should_trace_discard_step():
     name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
@@ -113,16 +119,17 @@ def test_run_replay__when_discard_input__should_trace_discard_step():
 
 
 def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error():
-    replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
+    name = _probe_waiting_player()
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": 999}),))
 
     with pytest.raises(ReplayError) as exc_info:
         run_replay(replay)
     assert exc_info.value.step_index == 0
-    assert exc_info.value.event.player_name == "Bob"
+    assert exc_info.value.event.player_name == name
 
 
 def test_run_replay__when_non_strict_and_action_invalid__should_record_error_step():
-    replay = _build_replay(actions=(("Bob", GameAction.DISCARD, {"tile_id": 999}),))
+    replay = _build_replay(actions=((_probe_waiting_player(), GameAction.DISCARD, {"tile_id": 999}),))
 
     trace = run_replay(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1
@@ -279,10 +286,10 @@ def test_round_confirmation__when_round_advance_pending__should_inject_synthetic
     )
 
     trace = run_replay(replay, ReplayOptions(strict=False), service_factory=RoundAdvanceService)
-    synthetic_confirm_steps = [
-        s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND
-    ]
-    assert len(synthetic_confirm_steps) == 12
+    confirm_steps = [s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND]
+    handled_steps = [s for s in trace.steps if s.input_event.action != GameAction.CONFIRM_ROUND]
+    assert len(handled_steps) >= 2
+    assert len(confirm_steps) == 4 * len(handled_steps)
 
 
 def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():

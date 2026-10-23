@@ -6,8 +6,8 @@ from game.logic.scoring import (
     collect_ura_dora_indicators,
 )
 from game.logic.settings import GameSettings
-from game.logic.wall import URA_DORA_START_INDEX
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.wall import FIRST_URA_POSITION
 
 # Yaku IDs from the mahjong library
 DORA_YAKU_ID = 120
@@ -25,9 +25,6 @@ def _dora_han(result, yaku_id):
 
 def _build_scoring_state(*, tiles, dora_indicators, is_riichi=False, dead_wall=None):
     tenhou_blocking_discards = TilesConverter.string_to_136_array(man="1112")
-
-    if dead_wall is None:
-        dead_wall = tuple(range(14))
 
     players = (
         create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi),
@@ -288,7 +285,7 @@ class TestUraDoraRevelation:
         player = create_player(seat=0, is_riichi=True, is_daburi=True)
 
         result = collect_ura_dora_indicators(player, round_state, settings=settings)
-        assert result == [dead_wall[URA_DORA_START_INDEX]]
+        assert result == [dead_wall[FIRST_URA_POSITION]]
 
     def test_ura_dora__when_riichi_tsumo__should_add_han(self):
         tiles = _base_hand()
@@ -299,9 +296,9 @@ class TestUraDoraRevelation:
         # Ura dora indicator: 4s -> ura dora is 5s (2 in hand = 2 ura dora)
         ura_ind = TilesConverter.string_to_136_array(sou="4")[0]
 
-        dead_wall = [0] * 14
+        dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[URA_DORA_START_INDEX] = ura_ind
+        dead_wall[FIRST_URA_POSITION] = ura_ind
 
         game_state = _build_scoring_state(
             tiles=tiles,
@@ -326,9 +323,9 @@ class TestUraDoraRevelation:
         dora_ind = TilesConverter.string_to_136_array(man="2")
         ura_ind = TilesConverter.string_to_136_array(sou="4")[0]
 
-        dead_wall = [0] * 14
+        dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[URA_DORA_START_INDEX] = ura_ind
+        dead_wall[FIRST_URA_POSITION] = ura_ind
 
         game_state = _build_scoring_state(
             tiles=tiles,
@@ -353,9 +350,9 @@ class TestUraDoraRevelation:
         dora_ind = TilesConverter.string_to_136_array(man="2")
         ura_ind = TilesConverter.string_to_136_array(sou="4")[0]
 
-        dead_wall = [0] * 14
+        dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[URA_DORA_START_INDEX] = ura_ind
+        dead_wall[FIRST_URA_POSITION] = ura_ind
 
         settings = GameSettings(has_akadora=False, has_uradora=False)
         game_state = _build_scoring_state(

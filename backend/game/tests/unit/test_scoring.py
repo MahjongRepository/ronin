@@ -12,7 +12,6 @@ from game.logic.scoring import (
     apply_tsumo_score,
     calculate_hand_value,
     calculate_hand_value_with_tiles,
-    collect_ura_dora_indicators,
 )
 from game.logic.settings import GameSettings
 from game.logic.state import (
@@ -22,8 +21,8 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
 from game.logic.types import YakuInfo
-from game.logic.wall import URA_DORA_START_INDEX
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.wall import FIRST_URA_POSITION
 
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:
@@ -41,7 +40,7 @@ def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> Mah
         round_wind=round_wind,
         dora_indicators=dora_indicator_tiles,  # 1m as dora indicator (makes 2m dora)
         wall=tuple(range(70)),  # some tiles in wall (not empty)
-        dead_wall=tuple(range(14)),  # dummy dead wall for ura dora
+        dead_wall=(None, None, None, *range(3, 14)),
         all_discards=dummy_discard_tiles,  # some discards to avoid tenhou/chiihou
     )
     return create_game_state(round_state=round_state)
@@ -263,7 +262,7 @@ class TestApplyTsumoScore:
             winner_seat=0,
             hand_result=hand_result,
         )
-        assert result.ura_dora_indicators == [dead_wall[URA_DORA_START_INDEX]]
+        assert result.ura_dora_indicators == [dead_wall[FIRST_URA_POSITION]]
 
 
 class TestApplyRonScore:
@@ -340,7 +339,7 @@ class TestApplyRonScore:
             hand_result=hand_result,
             winning_tile=0,
         )
-        assert result.ura_dora_indicators == [dead_wall[URA_DORA_START_INDEX]]
+        assert result.ura_dora_indicators == [dead_wall[FIRST_URA_POSITION]]
 
 
 class TestApplyDoubleRonScore:
@@ -474,7 +473,7 @@ class TestApplyDoubleRonScore:
             winning_tile=0,
         )
         assert {w.winner_seat: w.ura_dora_indicators for w in result.winners} == {
-            0: [dead_wall[URA_DORA_START_INDEX]],
+            0: [dead_wall[FIRST_URA_POSITION]],
             2: None,
         }
 
@@ -928,31 +927,6 @@ class TestNagashiManganPreservesRiichiSticks:
         assert new_game_state.riichi_sticks == 3
 
 
-class TestCollectUraDoraIndicators:
-    def test_collect_ura_dora_indicators__when_dead_wall_empty__should_return_none(self):
-        settings = GameSettings(has_uradora=True)
-        round_state = create_round_state(
-            dead_wall=(),
-            dora_indicators=(10,),
-        )
-        player = create_player(seat=0, is_riichi=True)
-
-        result = collect_ura_dora_indicators(player, round_state, settings=settings)
-        assert result is None
-
-    def test_collect_ura_dora_indicators__when_no_dora_indicators__should_return_none(self):
-        dead_wall = tuple(range(100, 114))
-        settings = GameSettings(has_uradora=True)
-        round_state = create_round_state(
-            dead_wall=dead_wall,
-            dora_indicators=(),
-        )
-        player = create_player(seat=0, is_riichi=True)
-
-        result = collect_ura_dora_indicators(player, round_state, settings=settings)
-        assert result is None
-
-
 class TestUraDoraScoringIntegration:
     def _build_game_state(self, *, dead_wall, dora_indicators, tiles, is_riichi):
         dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
@@ -986,11 +960,11 @@ class TestUraDoraScoringIntegration:
         ura_tile_1 = TilesConverter.string_to_136_array(sou="4")[0]
         ura_tile_2 = TilesConverter.string_to_136_array(sou="1")[0]
 
-        dead_wall = [0] * 14
+        dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_indicator_1
         dead_wall[3] = dora_indicator_2
-        dead_wall[URA_DORA_START_INDEX] = ura_tile_1
-        dead_wall[URA_DORA_START_INDEX + 1] = ura_tile_2
+        dead_wall[FIRST_URA_POSITION] = ura_tile_1
+        dead_wall[FIRST_URA_POSITION + 1] = ura_tile_2
 
         game_state = self._build_game_state(
             dead_wall=tuple(dead_wall),

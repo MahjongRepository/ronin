@@ -12,7 +12,7 @@ from game.tests.conftest import create_player, create_round_state
 def _make_round_state(*, wall=None, dead_wall=None, dora_indicators=None):
     return create_round_state(
         wall=tuple(range(70)) if wall is None else wall,
-        dead_wall=tuple(range(14)) if dead_wall is None else dead_wall,
+        dead_wall=dead_wall,
         dora_indicators=TilesConverter.string_to_136_array(man="9") if dora_indicators is None else dora_indicators,
     )
 
@@ -141,7 +141,6 @@ class TestRenhouToggle:
             round_wind=0,
             all_discards=(),
             wall=tuple(range(70)),
-            dead_wall=tuple(range(14)),
             dora_indicators=TilesConverter.string_to_136_array(man="9"),
         )
 
@@ -227,7 +226,6 @@ class TestRenhouEligibility:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
         round_state = create_round_state(
             wall=tuple(range(70)),
-            dead_wall=tuple(range(14)),
             dora_indicators=TilesConverter.string_to_136_array(man="9"),
             all_discards=(),
         )
