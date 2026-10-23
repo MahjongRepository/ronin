@@ -1,13 +1,10 @@
-from typing import TYPE_CHECKING
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
-from shared.validators import StringListEnvSettingsSource, parse_string_list
-
-if TYPE_CHECKING:
-    from pydantic_settings.sources.base import PydanticBaseSettingsSource
+from shared.validators import parse_string_list
 
 _HTTP_SCHEMES = frozenset({"http", "https"})
 _WS_SCHEMES = frozenset({"ws", "wss"})
@@ -44,8 +41,8 @@ class LobbyServerSettings(BaseSettings):
     model_config = {"env_prefix": "LOBBY_"}
 
     log_dir: str = ""
-    cors_origins: list[str] = []
-    allowed_hosts: list[str]
+    cors_origins: Annotated[list[str], NoDecode] = []
+    allowed_hosts: Annotated[list[str], NoDecode]
     game_server_url: str
     game_server_ws_url: str
     static_dir: str = "frontend/public"
@@ -74,14 +71,3 @@ class LobbyServerSettings(BaseSettings):
     @classmethod
     def validate_allowed_hosts(cls, v: str | list[str]) -> list[str]:
         return parse_string_list(v)
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (init_settings, StringListEnvSettingsSource(settings_cls), dotenv_settings, file_secret_settings)
