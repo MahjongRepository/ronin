@@ -27,29 +27,33 @@ class QueuedWebSocket:
     An accepted Starlette WebSocket written by its own writer task, so no caller waits on the socket.
 
     Sends and closes go into a bounded queue that the writer drains in order. A close is the last item: later sends and
-    closes are dropped. A connection the writer cannot serve (the queue is full, one send outlasts the send deadline, or
-    the transport reports the peer gone) is terminated: the queue is dropped, no close frame is attempted (it could not
-    pass a stalled transport), and `receive` raises ConnectionError, so the endpoint's normal disconnect path runs.
-    Every transport failure of a receive surfaces as ConnectionError too.
+    closes are dropped, as is everything enqueued once the writer is stopped. A connection the writer cannot serve (the
+    queue is full, one send outlasts the send deadline, or the transport reports the peer gone) is terminated: the queue
+    is dropped, no close frame is attempted (it could not pass a stalled transport), and `receive` raises
+    ConnectionError, so the endpoint's normal disconnect path runs. Every transport failure of a receive surfaces as
+    ConnectionError too.
     """
 
     def __init__(self, websocket: WebSocket, *, connection_id: str) -> None:
         self._websocket = websocket
         self._connection_id = connection_id
-        self._queue: asyncio.Queue[bytes | _CloseFrame] = asyncio.Queue(maxsize=_SEND_QUEUE_LIMIT)
-        self._close_queued = False
+        self._queue: asyncio.Queue[bytes | str | _CloseFrame] = asyncio.Queue(maxsize=_SEND_QUEUE_LIMIT)
+        self._closed = False
         self._terminated: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._writer: asyncio.Task[None] | None = None
 
     def send_bytes(self, data: bytes) -> None:
         self._enqueue(data)
 
+    def send_text(self, data: str) -> None:
+        self._enqueue(data)
+
     def close(self, code: int = 1000, reason: str = "") -> None:
         self._enqueue(_CloseFrame(code=code, reason=reason))
-        self._close_queued = True
+        self._closed = True
 
-    def _enqueue(self, item: bytes | _CloseFrame) -> None:
-        if self._close_queued or self._terminated.done():
+    def _enqueue(self, item: bytes | str | _CloseFrame) -> None:
+        if self._closed or self._terminated.done():
             return
 
         try:
@@ -99,14 +103,17 @@ class QueuedWebSocket:
     async def stop_writer(self) -> None:
         """
         Stop the writer, first letting it flush a queued close within the send deadline so the client gets its code.
+
+        Later sends and closes are dropped: nobody would write them.
         """
         if self._writer is None:
             return
 
         try:
-            if self._close_queued and not self._terminated.done():
+            if self._closed and not self._terminated.done():
                 await asyncio.wait({self._writer}, timeout=_SEND_DEADLINE_SECONDS)
         finally:
+            self._closed = True
             await cancel_and_wait([self._writer])
 
     async def _write_queue(self) -> None:
@@ -118,7 +125,10 @@ class QueuedWebSocket:
                         await self._websocket.close(code=item.code, reason=item.reason)
                         return
 
-                    await self._websocket.send_bytes(item)
+                    if isinstance(item, str):
+                        await self._websocket.send_text(item)
+                    else:
+                        await self._websocket.send_bytes(item)
             except TimeoutError:
                 logger.warning(
                     "websocket send blocked past its deadline, dropping the connection",

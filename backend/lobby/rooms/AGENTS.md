@@ -16,8 +16,8 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   which resets the ready flags, and rebroadcasts the room state; a cancellation (only server
   shutdown causes one) does not. Each attempt runs under a fresh game id, so a start after a
   failure that created the game anyway never collides with that orphan. After a 201 the game
-  exists with every signed ticket: `game_starting` goes best-effort to every seated
-  player, then the room is removed and its connections closed whatever happens. Transitioning is
+  exists with every signed ticket: the room is removed, and every seated player gets
+  `game_starting` and a 1000 close, enqueued, so a slow peer delays nobody else's. Transitioning is
   never cleared, the state never rebroadcast and creation never retried.
 * A player who leaves a transitioning room keeps the seat: the ticket is already signed and sent
   in `POST /games`, and the game server replaces that seat, whose human never gets `ws_url` or the
@@ -25,15 +25,14 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   `game_starting` for the leaver, and the room is not dropped when it empties. The transition
   settles those seats: a failed start releases them (and drops a room left empty), a successful one
   removes the room.
-* A dead socket never costs another player their seat. Room sends and closes go through
-  `send_or_drop` / `close_quietly` (`lobby/websocket_utils.py`): a failed send to a dead peer is
-  logged at info and skipped, a failed close is ignored, fan-out continues, and the exception never
-  reaches the sender's handler. A handler ends normally on `WebSocketDisconnected` as on
-  `WebSocketDisconnect`: it is what its next receive raises once another task closed its socket.
-  The joiner's own `room_joined` ack runs inside the handler's `try/finally`, so a failed ack frees
-  the seat and the host.
+* A slow or dead socket never holds up or costs another player anything. A room's members are its
+  `RoomMember`s (the `LobbyPlayer` plus the room-only `ready` and `departed`), and a broadcast
+  encodes once and enqueues on each member's connection (`lobby/AGENTS.md`, `players.py`). A
+  handler ends normally on `ConnectionError`, which its next receive raises once the peer is gone,
+  its writer dropped it, or a queued close went out. The joiner's own `room_joined` ack runs inside
+  the handler's `try/finally`, so a failed ack frees the seat and the host.
 * Every room expires `room_ttl_seconds` (300s) after creation unless it is transitioning. The
-  manager's reaper re-checks each expired room under its `join_lock`, and removes it and has
-  `on_room_expired` disconnect its players while holding the lock. A join in progress is therefore
-  registered before the close, and a start that won the lock keeps its room. A failed reaper tick is
-  logged and the next one still runs.
+  manager's reaper re-checks each expired room under its `join_lock`, removes it and enqueues a
+  4002 close for each member, so one room's slow socket never delays another room's expiry. A
+  start that won the lock keeps its room. A failed reaper tick is logged and the next one still
+  runs.

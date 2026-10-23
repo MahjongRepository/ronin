@@ -3,14 +3,17 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock
 
 import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
 
+from lobby.players import LobbyPlayer
 from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
 from shared.auth.settings import AuthSettings
+from shared.websocket import QueuedWebSocket
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterator
@@ -119,7 +122,10 @@ def make_websocket(peer: AsgiPeer, *, app: Starlette, **scope: object) -> WebSoc
     )
 
 
-async def open_websocket(peer: AsgiPeer) -> WebSocket:
-    websocket = WebSocket({"type": "websocket", "path": "/", "headers": []}, peer.receive, peer.send)
-    await websocket.accept()
-    return websocket
+def make_player(*, connection_id: str, user_id: str, username: str) -> LobbyPlayer:
+    return LobbyPlayer(
+        connection_id=connection_id,
+        user_id=user_id,
+        username=username,
+        connection=MagicMock(spec=QueuedWebSocket),
+    )

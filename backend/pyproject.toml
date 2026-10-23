@@ -154,13 +154,14 @@ source_modules = ["game.session"]
 forbidden_modules = ["game.replay"]
 
 [[tool.importlinter.contracts]]
-name = "lobby: server -> views -> features -> transition helpers -> auth -> settings"
+name = "lobby: server -> views -> features -> transition helpers -> players -> auth -> settings"
 type = "layers"
 layers = [
     "lobby.server",
     "lobby.views",
     "lobby.rooms | lobby.matchmaking",
     "lobby.game_transition | lobby.websocket_utils | lobby.occupancy",
+    "lobby.players",
     "lobby.auth",
     "lobby.settings",
 ]

@@ -5,13 +5,15 @@ import uuid
 from typing import TYPE_CHECKING
 
 import structlog
-from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketDisconnected, WebSocketState
 
 from lobby.game_transition import create_game_on_server, sign_player_tickets
-from lobby.matchmaking.models import QueueEntry
-from lobby.websocket_utils import check_origin, close_quietly, send_or_drop
+from lobby.players import LobbyPlayer
+from lobby.websocket_utils import check_origin
+from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
 if TYPE_CHECKING:
+    from starlette.websockets import WebSocket
+
     from lobby.matchmaking.manager import MatchmakingManager
     from lobby.occupancy import Occupancy
     from lobby.settings import LobbyServerSettings
@@ -29,12 +31,9 @@ class _MatchmakingContext:
 
     __slots__ = (
         "auth_settings",
-        "connection_id",
         "matchmaking_manager",
         "occupancy",
         "settings",
-        "user_id",
-        "username",
     )
 
     def __init__(self, websocket: WebSocket) -> None:
@@ -43,43 +42,52 @@ class _MatchmakingContext:
         self.matchmaking_manager: MatchmakingManager = websocket.app.state.matchmaking_manager
         self.occupancy: Occupancy = websocket.app.state.occupancy
 
-        self.connection_id: str = str(uuid.uuid4())
-        self.user_id: str = websocket.user.user_id
-        self.username: str = websocket.user.username
-
 
 async def matchmaking_websocket(websocket: WebSocket) -> None:
     """
-    Handle a WebSocket connection for matchmaking.
-
-    ``WebSocketDisconnected`` is a normal end too: it is what the next receive raises once another task (the handler
-    that resolved this player's match) closed this socket while the handler was not waiting on a receive.
+    Handle a WebSocket connection for matchmaking; this task owns the connection's writer.
     """
     if not check_origin(websocket):
-        await websocket.close(code=4003, reason="forbidden_origin")
+        await reject_websocket(websocket, code=4003, reason="forbidden_origin")
         return
 
     if not websocket.user.is_authenticated:
-        await websocket.close(code=4001, reason="unauthorized")
+        await reject_websocket(websocket, code=4001, reason="unauthorized")
         return
 
-    await websocket.accept()
-    ctx = _MatchmakingContext(websocket)
+    if not await accept_websocket(websocket):
+        return
 
+    connection_id = str(uuid.uuid4())
+    player = LobbyPlayer(
+        connection_id=connection_id,
+        user_id=websocket.user.user_id,
+        username=websocket.user.username,
+        connection=QueuedWebSocket(websocket, connection_id=connection_id),
+    )
+    player.connection.start_writer()
     try:
-        if not await _try_join_queue(websocket, ctx):
-            return
+        await _serve_player(player, _MatchmakingContext(websocket))
+    finally:
+        await player.connection.stop_writer()
 
-        await _message_loop(websocket)
-    except WebSocketDisconnect, WebSocketDisconnected:
+
+async def _serve_player(player: LobbyPlayer, ctx: _MatchmakingContext) -> None:
+    """
+    Queue the player and wait for their socket to end; they leave the queue whatever happens.
+    """
+    try:
+        if await _try_join_queue(player, ctx):
+            await _message_loop(player)
+    except ConnectionError:
         pass
     except Exception:  # pragma: no cover -- defensive catch-all
         logger.exception("unexpected error in matchmaking websocket")
     finally:
-        await _cleanup_connection(ctx)
+        _cleanup_connection(player, ctx)
 
 
-async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> bool:
+async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool:
     """
     Attempt to join the matchmaking queue.
 
@@ -89,22 +97,15 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
     occupancy rule in the same synchronous step that queues the user, including a start that handed the user to a game
     while that lookup was in flight.
     """
-    log = logger.bind(username=ctx.username, connection_id=ctx.connection_id)
-
-    entry = QueueEntry(
-        connection_id=ctx.connection_id,
-        user_id=ctx.user_id,
-        username=ctx.username,
-        websocket=websocket,
-    )
+    log = logger.bind(username=player.username, connection_id=player.connection_id)
 
     matched = None
     position = 0
-    with ctx.occupancy.admitting(ctx.user_id):
-        rejection = await ctx.occupancy.find_game_conflict(ctx.user_id)
+    with ctx.occupancy.admitting(player.user_id):
+        rejection = await ctx.occupancy.find_game_conflict(player.user_id)
         if rejection is None:
             try:
-                ctx.matchmaking_manager.add_player(entry)
+                ctx.matchmaking_manager.add_player(player)
             except ValueError as e:
                 rejection = str(e)
             else:
@@ -113,38 +114,37 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
 
     if rejection is not None:
         log.info("matchmaking rejected", reason=rejection)
-        await _send_error_and_close(websocket, reason=rejection)
+        _send_error_and_close(player, reason=rejection)
         return False
 
     if matched:
-        log.info("match found", players=[e.username for e in matched])
+        log.info("match found", players=[p.username for p in matched])
         await _handle_match(matched, ctx)
         return False
 
-    await websocket.send_json({"type": "queue_joined", "position": position, "queue_size": position})
+    player.send({"type": "queue_joined", "position": position, "queue_size": position})
     log.info("player queued", queue_size=position)
-    # Broadcast queue update to other waiting players (exclude self, already got queue_joined)
-    await _broadcast_queue_update(ctx, exclude=ctx.connection_id)
+    _broadcast_queue_update(ctx, exclude=player.connection_id)
     return True
 
 
-async def _message_loop(websocket: WebSocket) -> None:
+async def _message_loop(player: LobbyPlayer) -> None:
     """
     Wait for the client's disconnect; the client sends nothing, so any frame it does send is discarded unanswered.
     """
-    while (await websocket.receive())["type"] != "websocket.disconnect":
-        pass
+    while True:
+        await player.connection.receive()
 
 
-async def _send_error_and_close(websocket: WebSocket, *, reason: str) -> None:
+def _send_error_and_close(player: LobbyPlayer, *, reason: str) -> None:
     """
-    Tell the client why matchmaking ended for it and close with 4000; a peer that is already gone is skipped.
+    Tell the client why matchmaking ended for it and close with 4000.
     """
-    await send_or_drop(websocket, json.dumps({"type": "error", "message": reason}))
-    await close_quietly(websocket, code=4000, reason=reason)
+    player.send({"type": "error", "message": reason})
+    player.connection.close(code=4000, reason=reason)
 
 
-async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> None:
+async def _handle_match(matched: list[LobbyPlayer], ctx: _MatchmakingContext) -> None:
     """
     Create a game for the matched players, then send each of them ``game_starting`` and close their sockets.
 
@@ -162,35 +162,30 @@ async def _handle_match(matched: list[QueueEntry], ctx: _MatchmakingContext) -> 
         log.exception("failed to create game from matchmaking")
         created = None
     finally:
-        ctx.matchmaking_manager.clear_in_flight({e.user_id for e in matched})
+        ctx.matchmaking_manager.clear_in_flight({p.user_id for p in matched})
 
     if created is None:
-        for entry in matched:
-            await _send_error_and_close(entry.websocket, reason=_MATCH_FAILED)
+        for player in matched:
+            _send_error_and_close(player, reason=_MATCH_FAILED)
         return
 
     ws_url, ticket_map = created
     log.info("game created from matchmaking", ws_url=ws_url)
-    for entry in matched:
-        delivered = await send_or_drop(
-            entry.websocket,
-            json.dumps(
-                {
-                    "type": "game_starting",
-                    "ws_url": ws_url,
-                    "game_ticket": ticket_map[entry.connection_id],
-                    "game_id": game_id,
-                    "game_client_url": ctx.settings.game_client_url,
-                },
-            ),
+    for player in matched:
+        player.send(
+            {
+                "type": "game_starting",
+                "ws_url": ws_url,
+                "game_ticket": ticket_map[player.connection_id],
+                "game_id": game_id,
+                "game_client_url": ctx.settings.game_client_url,
+            },
         )
-        if not delivered:
-            log.warning("failed to deliver game_starting", connection_id=entry.connection_id)
-        await close_quietly(entry.websocket)
+        player.connection.close()
 
 
 async def _create_game(
-    matched: list[QueueEntry],
+    matched: list[LobbyPlayer],
     ctx: _MatchmakingContext,
     *,
     game_id: str,
@@ -201,7 +196,7 @@ async def _create_game(
     The attempt hands the matched users to the game whatever its outcome, before the caller releases them from the
     in-flight set: a failure may mean the game server created the game anyway.
     """
-    players_for_tickets = [(entry.user_id, entry.username, entry.connection_id) for entry in matched]
+    players_for_tickets = [(p.user_id, p.username, p.connection_id) for p in matched]
     player_specs, ticket_map = sign_player_tickets(
         players=players_for_tickets,
         game_id=game_id,
@@ -215,26 +210,26 @@ async def _create_game(
             settings=ctx.settings,
         )
     finally:
-        ctx.occupancy.hand_to_game(entry.user_id for entry in matched)
+        ctx.occupancy.hand_to_game(p.user_id for p in matched)
 
     return ws_url, ticket_map
 
 
-async def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | None = None) -> None:
+def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | None = None) -> None:
     """
     Send queue_update to all players currently in the queue.
     """
-    entries = ctx.matchmaking_manager.get_queue_entries()
-    message = json.dumps({"type": "queue_update", "queue_size": len(entries)})
-    for entry in entries:
-        if entry.connection_id != exclude and entry.websocket.client_state == WebSocketState.CONNECTED:
-            await send_or_drop(entry.websocket, message)
+    queued = ctx.matchmaking_manager.get_queued_players()
+    payload = json.dumps({"type": "queue_update", "queue_size": len(queued)})
+    for player in queued:
+        if player.connection_id != exclude:
+            player.connection.send_text(payload)
 
 
-async def _cleanup_connection(ctx: _MatchmakingContext) -> None:
+def _cleanup_connection(player: LobbyPlayer, ctx: _MatchmakingContext) -> None:
     """
     Remove player from queue on disconnect.
     """
-    ctx.matchmaking_manager.remove_player(ctx.connection_id)
-    logger.info("player left matchmaking queue", username=ctx.username)
-    await _broadcast_queue_update(ctx)
+    ctx.matchmaking_manager.remove_player(player.connection_id)
+    logger.info("player left matchmaking queue", username=player.username)
+    _broadcast_queue_update(ctx)

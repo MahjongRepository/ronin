@@ -4,10 +4,12 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from lobby.matchmaking.models import MATCHMAKING_SEATS, QueueEntry
+from lobby.matchmaking.models import MATCHMAKING_SEATS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from lobby.players import LobbyPlayer
 
 logger = structlog.get_logger()
 
@@ -28,22 +30,22 @@ class MatchmakingManager:
 
     def __init__(self, *, find_conflict: Callable[[str], str | None] = _no_conflict) -> None:
         self._find_conflict = find_conflict
-        self._queue: list[QueueEntry] = []
+        self._queue: list[LobbyPlayer] = []
         self._user_ids: set[str] = set()
         self._in_flight: set[str] = set()
 
-    def add_player(self, entry: QueueEntry) -> None:
+    def add_player(self, player: LobbyPlayer) -> None:
         """
         Add a player to the matchmaking queue.
 
         Raise ValueError with the occupancy conflict when the user cannot queue.
         """
-        conflict = self._find_conflict(entry.user_id)
+        conflict = self._find_conflict(player.user_id)
         if conflict is not None:
             raise ValueError(conflict)
 
-        self._queue.append(entry)
-        self._user_ids.add(entry.user_id)
+        self._queue.append(player)
+        self._user_ids.add(player.user_id)
 
     def has_user(self, user_id: str) -> bool:
         """
@@ -55,22 +57,22 @@ class MatchmakingManager:
         """
         Remove a player from the queue by connection_id.
         """
-        for i, entry in enumerate(self._queue):
-            if entry.connection_id == connection_id:
-                self._user_ids.discard(entry.user_id)
+        for i, player in enumerate(self._queue):
+            if player.connection_id == connection_id:
+                self._user_ids.discard(player.user_id)
                 self._queue.pop(i)
                 return
 
-    def try_match(self) -> list[QueueEntry] | None:
+    def try_match(self) -> list[LobbyPlayer] | None:
         """
         Pop MATCHMAKING_SEATS players if enough in queue, else None.
         """
         if len(self._queue) >= MATCHMAKING_SEATS:
             matched = self._queue[:MATCHMAKING_SEATS]
             self._queue = self._queue[MATCHMAKING_SEATS:]
-            for entry in matched:
-                self._user_ids.discard(entry.user_id)
-                self._in_flight.add(entry.user_id)
+            for player in matched:
+                self._user_ids.discard(player.user_id)
+                self._in_flight.add(player.user_id)
 
             return matched
 
@@ -80,9 +82,9 @@ class MatchmakingManager:
     def queue_size(self) -> int:
         return len(self._queue)
 
-    def get_queue_entries(self) -> list[QueueEntry]:
+    def get_queued_players(self) -> list[LobbyPlayer]:
         """
-        Return a snapshot of current queue entries.
+        Return a snapshot of the queued players.
         """
         return list(self._queue)
 

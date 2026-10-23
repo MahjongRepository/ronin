@@ -29,7 +29,7 @@ and must respect the same direction. The rules it pins:
   `wire` that never imports the server packages, and `session` never imports `replay`. `logic` and
   `wire` know nothing of auth or persistence.
 * `lobby`: `server` → `views` → `rooms` | `matchmaking` → `game_transition` | `websocket_utils` |
-  `occupancy` → `auth` → `settings`; `rooms` and `matchmaking` are independent of each other. What
+  `occupancy` → `players` → `auth` → `settings`; `rooms` and `matchmaking` are independent of each other. What
   both need from the other is injected in `create_app()` (the occupancy rule).
 * `shared`: `db` → `auth` → `dal`; only the two `server/app.py` composition roots, `scripts` and the
   `shared` tests import `shared.db`.

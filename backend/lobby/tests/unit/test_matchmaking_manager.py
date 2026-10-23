@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING
 
 import pytest
 
 from lobby.matchmaking.manager import MatchmakingManager
-from lobby.matchmaking.models import MATCHMAKING_SEATS, QueueEntry
+from lobby.matchmaking.models import MATCHMAKING_SEATS
+from lobby.tests.conftest import make_player
+
+if TYPE_CHECKING:
+    from lobby.players import LobbyPlayer
 
 
-def _make_entry(user_id: str = "u1", username: str = "alice", connection_id: str = "c1") -> QueueEntry:
-    return QueueEntry(
-        connection_id=connection_id,
-        user_id=user_id,
-        username=username,
-        websocket=MagicMock(),
-    )
+def _make_entry(user_id: str = "u1", username: str = "alice", connection_id: str = "c1") -> LobbyPlayer:
+    return make_player(connection_id=connection_id, user_id=user_id, username=username)
 
 
 class TestAddPlayer:

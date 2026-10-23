@@ -53,7 +53,7 @@ class FakeAsgiClient:
         return closed
 
     def read_frame(self, message: Message) -> object:
-        return message.get("bytes")
+        return message["bytes"] if "bytes" in message else message["text"]
 
     async def _receive_from_server(self, message: Message) -> None:
         if message["type"] == "websocket.accept":
