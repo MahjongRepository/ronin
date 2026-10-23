@@ -21,9 +21,6 @@ backend/**/tests
 backend/conftest.py
 backend/config
 **/*.md
-Dockerfile.agent
-Makefile.agent
 bin
 data
-progress*.txt
 .DS_Store
