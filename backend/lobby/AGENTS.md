@@ -22,11 +22,14 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   internal base URL the lobby calls (`POST /games`, `GET /players/{id}`) and the public WebSocket
   origin it hands clients in `ws_url` (the lobby appends `/ws/{game_id}`).
 * `game_transition.py` — `sign_player_tickets`, `create_game_on_server` and `is_user_playing`,
-  shared by rooms and matchmaking; `websocket_utils.py` — `check_origin` and the transport
-  contract. After accept, a dead peer raises only `WebSocketDisconnect` (the first failed send) or
-  `RuntimeError` (every later send or close), never `ConnectionError`. `send_or_drop` and
-  `close_quietly` absorb exactly those, and rooms and matchmaking send to other players through
-  them.
+  shared by rooms and matchmaking; `websocket_utils.py` — `check_origin`.
+* `players.py` — `LobbyPlayer`, one connected user in a room or the queue, and the only holder of
+  its socket: a `QueuedWebSocket` (`shared/websocket.py`) whose writer the socket's handler starts
+  after accept and stops in its `finally`. Every send or close, to the player's own socket or
+  another's, is an enqueue, so no handler, broadcast or reaper tick waits on a slow or dead peer:
+  the writer drops a peer it cannot serve, and that peer's own handler sees `ConnectionError` at
+  its next receive and cleans up. The pre-accept rejections and `accept` go through the shared
+  handshake helpers, so a peer gone before the handshake ends the handler quietly.
 * `occupancy.py` — `Occupancy`, the one owner of the occupancy rule.
 
 Services are created in `create_app()` and stored on `app.state`; handlers read them from

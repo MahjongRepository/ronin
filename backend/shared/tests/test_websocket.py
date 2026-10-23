@@ -20,12 +20,12 @@ class TestQueuedWebSocket:
         socket.start_writer()
 
         socket.send_bytes(b"1")
-        socket.send_bytes(b"2")
+        socket.send_text("2")
         socket.close(code=1000, reason="game_ended")
         socket.send_bytes(b"3")
         socket.close(code=1011, reason="internal_error")
         await socket.stop_writer()
-        assert client.written == [b"1", b"2", ClosedWith(code=1000, reason="game_ended")]
+        assert client.written == [b"1", "2", ClosedWith(code=1000, reason="game_ended")]
 
     @pytest.mark.parametrize(
         "transport_error",
@@ -82,6 +82,17 @@ class TestQueuedWebSocket:
 
         with pytest.raises(ConnectionError, match="WebSocket already disconnected"):
             await socket.receive()
+
+    async def test_queued_websocket__when_its_writer_stopped__should_drop_later_sends(self, monkeypatch, caplog):
+        monkeypatch.setattr(shared_websocket, "_SEND_QUEUE_LIMIT", 1)
+        client = FakeAsgiClient()
+        socket = await _open_queued_websocket(client)
+        socket.start_writer()
+        await socket.stop_writer()
+
+        socket.send_bytes(b"1")
+        socket.send_bytes(b"2")
+        assert "websocket send queue full" not in caplog.text
 
 
 async def test_websocket_handshake__when_peer_gone_before_accept__should_end_quietly():

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.tests.conftest import open_client
+from lobby.tests.conftest import make_player, open_client
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
@@ -85,7 +85,9 @@ class TestLobbyViews:
     def test_lobby_page__when_room_has_player__should_list_it_with_join(self, client):
         room_manager = client.app.state.room_manager
         room_manager.create_room("abc12345-long-id")
-        room_manager.join_room(connection_id="conn-1", room_id="abc12345-long-id", user_id="user-1", username="Alice")
+        room_manager.join_room(
+            room_id="abc12345-long-id", player=make_player(connection_id="conn-1", user_id="user-1", username="Alice")
+        )
 
         response = client.get("/")
         assert "abc12345" in response.text
@@ -97,7 +99,8 @@ class TestLobbyViews:
         room_manager.create_room("full-room")
         for i in range(4):
             room_manager.join_room(
-                connection_id=f"conn-full-{i}", room_id="full-room", user_id=f"user-full-{i}", username=f"Player{i}"
+                room_id="full-room",
+                player=make_player(connection_id=f"conn-full-{i}", user_id=f"user-full-{i}", username=f"Player{i}"),
             )
 
         response = client.get("/")

@@ -26,7 +26,6 @@ from lobby.game_transition import is_user_playing
 from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
-from lobby.rooms.connections import RoomConnectionManager
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import room_websocket
 from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
@@ -75,7 +74,7 @@ async def health(_request: Request) -> JSONResponse:
 def _create_seating(
     *,
     is_playing: Callable[[str], Awaitable[bool]],
-) -> tuple[RoomConnectionManager, LobbyRoomManager, MatchmakingManager, Occupancy]:
+) -> tuple[LobbyRoomManager, MatchmakingManager, Occupancy]:
     """
     Build the room and matchmaking managers and the occupancy rule they both enforce.
     """
@@ -86,23 +85,14 @@ def _create_seating(
         """
         return occupancy.find_lobby_conflict(user_id)
 
-    room_connections = RoomConnectionManager()
-    room_manager = LobbyRoomManager(
-        room_ttl_seconds=300,
-        on_room_expired=lambda room_id, _conn_ids: room_connections.close_connections(
-            room_id=room_id,
-            code=4002,
-            reason="room_expired",
-        ),
-        find_conflict=find_lobby_conflict,
-    )
+    room_manager = LobbyRoomManager(room_ttl_seconds=300, find_conflict=find_lobby_conflict)
     matchmaking_manager = MatchmakingManager(find_conflict=find_lobby_conflict)
     occupancy = Occupancy(
         is_seated=room_manager.has_user_in_any_room,
         is_queued=matchmaking_manager.has_user,
         is_playing=is_playing,
     )
-    return room_connections, room_manager, matchmaking_manager, occupancy
+    return room_manager, matchmaking_manager, occupancy
 
 
 def create_app(
@@ -125,7 +115,7 @@ def create_app(
     if is_playing is None:
         is_playing = functools.partial(is_user_playing, game_server_url=settings.game_server_url)
 
-    room_connections, room_manager, matchmaking_manager, occupancy = _create_seating(is_playing=is_playing)
+    room_manager, matchmaking_manager, occupancy = _create_seating(is_playing=is_playing)
 
     routes: list[BaseRoute] = [
         # Protected HTML routes (redirect to login when unauthenticated)
@@ -236,7 +226,6 @@ def create_app(
         game_repo=game_repo,
         auth_service=auth_service,
         room_manager=room_manager,
-        room_connections=room_connections,
         matchmaking_manager=matchmaking_manager,
         occupancy=occupancy,
     )
@@ -253,7 +242,6 @@ def _attach_state(  # noqa: PLR0913
     game_repo: SqliteGameRepository,
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
-    room_connections: RoomConnectionManager,
     matchmaking_manager: MatchmakingManager,
     occupancy: Occupancy,
 ) -> None:
@@ -301,7 +289,6 @@ def _attach_state(  # noqa: PLR0913
     app.state.game_assets_available = game_assets_available
     app.state.auth_service = auth_service
     app.state.room_manager = room_manager
-    app.state.room_connections = room_connections
     app.state.matchmaking_manager = matchmaking_manager
     app.state.occupancy = occupancy
 

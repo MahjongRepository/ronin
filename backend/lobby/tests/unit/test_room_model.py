@@ -1,4 +1,5 @@
-from lobby.rooms.models import BOT_NAME_PREFIX, TOTAL_SEATS, LobbyPlayer, LobbyRoom
+from lobby.rooms.models import BOT_NAME_PREFIX, TOTAL_SEATS, LobbyRoom, RoomMember
+from lobby.tests.conftest import make_player
 
 
 class TestSeatArray:
@@ -85,7 +86,7 @@ class TestDerivedProperties:
 
     def test_lobby_room_is_empty__when_player_present__should_be_false(self):
         room = LobbyRoom(room_id="r1")
-        room.players["c1"] = LobbyPlayer(connection_id="c1", user_id="u1", username="Alice")
+        room.players["c1"] = RoomMember(player=make_player(connection_id="c1", user_id="u1", username="Alice"))
         assert room.is_empty is False
 
 
@@ -98,11 +99,7 @@ class TestCanStart:
         room = LobbyRoom(room_id="r1")
         room.host_connection_id = "conn-1"
         room.seats[0] = "conn-1"
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Owner",
-        )
+        room.players["conn-1"] = RoomMember(player=make_player(connection_id="conn-1", user_id="u1", username="Owner"))
 
         assert room.can_start is True
 
@@ -111,16 +108,9 @@ class TestCanStart:
         room.host_connection_id = "conn-1"
         room.seats[0] = "conn-1"
         room.seats[1] = "conn-2"
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Owner",
-        )
-        room.players["conn-2"] = LobbyPlayer(
-            connection_id="conn-2",
-            user_id="u2",
-            username="Bob",
-            ready=False,
+        room.players["conn-1"] = RoomMember(player=make_player(connection_id="conn-1", user_id="u1", username="Owner"))
+        room.players["conn-2"] = RoomMember(
+            player=make_player(connection_id="conn-2", user_id="u2", username="Bob"), ready=False
         )
 
         assert room.can_start is False
@@ -130,16 +120,9 @@ class TestCanStart:
         room.host_connection_id = "conn-1"
         room.seats[0] = "conn-1"
         room.seats[1] = "conn-2"
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Owner",
-        )
-        room.players["conn-2"] = LobbyPlayer(
-            connection_id="conn-2",
-            user_id="u2",
-            username="Bob",
-            ready=True,
+        room.players["conn-1"] = RoomMember(player=make_player(connection_id="conn-1", user_id="u1", username="Owner"))
+        room.players["conn-2"] = RoomMember(
+            player=make_player(connection_id="conn-2", user_id="u2", username="Bob"), ready=True
         )
 
         assert room.can_start is True
@@ -149,11 +132,7 @@ class TestCanStart:
         room.host_connection_id = "conn-1"
         for i, cid in enumerate(["conn-1", "conn-2", "conn-3"]):
             room.seats[i] = cid
-            room.players[cid] = LobbyPlayer(
-                connection_id=cid,
-                user_id=f"u{i}",
-                username=f"P{i}",
-            )
+            room.players[cid] = RoomMember(player=make_player(connection_id=cid, user_id=f"u{i}", username=f"P{i}"))
 
         room.players["conn-2"].ready = True
         room.players["conn-3"].ready = False
@@ -179,16 +158,9 @@ class TestGetPlayerInfo:
         room.host_connection_id = "conn-1"
         room.seats[0] = "conn-1"
         room.seats[2] = "conn-2"
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Alice",
-        )
-        room.players["conn-2"] = LobbyPlayer(
-            connection_id="conn-2",
-            user_id="u2",
-            username="Bob",
-            ready=True,
+        room.players["conn-1"] = RoomMember(player=make_player(connection_id="conn-1", user_id="u1", username="Alice"))
+        room.players["conn-2"] = RoomMember(
+            player=make_player(connection_id="conn-2", user_id="u2", username="Bob"), ready=True
         )
 
         info = room.get_player_info()
@@ -214,11 +186,8 @@ class TestGetPlayerInfo:
         room = LobbyRoom(room_id="r1")
         room.host_connection_id = "conn-1"
         room.seats[0] = "conn-1"
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Owner",
-            ready=False,
+        room.players["conn-1"] = RoomMember(
+            player=make_player(connection_id="conn-1", user_id="u1", username="Owner"), ready=False
         )
 
         info = room.get_player_info()
@@ -227,11 +196,7 @@ class TestGetPlayerInfo:
     def test_lobby_room_get_player_info__should_name_bots_by_seat_index(self):
         room = LobbyRoom(room_id="r1")
         room.seats[0] = "conn-1"
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Alice",
-        )
+        room.players["conn-1"] = RoomMember(player=make_player(connection_id="conn-1", user_id="u1", username="Alice"))
 
         info = room.get_player_info()
         # Seats 1, 2, 3 are bots
@@ -243,11 +208,7 @@ class TestGetPlayerInfo:
 class TestHasUser:
     def test_lobby_room_has_user__when_user_present__should_be_true(self):
         room = LobbyRoom(room_id="r1")
-        room.players["conn-1"] = LobbyPlayer(
-            connection_id="conn-1",
-            user_id="u1",
-            username="Alice",
-        )
+        room.players["conn-1"] = RoomMember(player=make_player(connection_id="conn-1", user_id="u1", username="Alice"))
         assert room.has_user("u1") is True
 
     def test_lobby_room_has_user__when_user_absent__should_be_false(self):

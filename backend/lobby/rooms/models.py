@@ -3,8 +3,12 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from lobby.players import LobbyPlayer
 
 
 class LobbyPlayerInfo(BaseModel):
@@ -19,17 +23,15 @@ class LobbyPlayerInfo(BaseModel):
 
 
 @dataclass
-class LobbyPlayer:
+class RoomMember:
     """
-    Player connected to a lobby room via WebSocket.
+    A player seated in a room, with the state only a room has.
 
     ``departed`` marks a player who left while the room was transitioning: the seat is held for the game being created
     until the transition settles.
     """
 
-    connection_id: str
-    user_id: str
-    username: str
+    player: LobbyPlayer
     ready: bool = False
     departed: bool = False
 
@@ -54,7 +56,7 @@ class LobbyRoom:
     min_human_players: int = 1
     created_at: float = field(default_factory=time.monotonic)
     seats: list[str | None] = field(default_factory=lambda: [None] * TOTAL_SEATS)
-    players: dict[str, LobbyPlayer] = field(default_factory=dict)  # connection_id -> LobbyPlayer
+    players: dict[str, RoomMember] = field(default_factory=dict)
     join_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
@@ -88,7 +90,7 @@ class LobbyRoom:
         if self.player_count < self.min_human_players:
             return False
 
-        return all(p.ready for conn_id, p in self.players.items() if conn_id != self.host_connection_id)
+        return all(member.ready for conn_id, member in self.players.items() if conn_id != self.host_connection_id)
 
     def first_open_seat(self) -> int | None:
         """
@@ -120,11 +122,11 @@ class LobbyRoom:
         info: list[LobbyPlayerInfo] = []
         for i, conn_id in enumerate(self.seats):
             if conn_id is not None and conn_id in self.players:
-                p = self.players[conn_id]
+                member = self.players[conn_id]
                 info.append(
                     LobbyPlayerInfo(
-                        name=p.username,
-                        ready=True if conn_id == self.host_connection_id else p.ready,
+                        name=member.player.username,
+                        ready=True if conn_id == self.host_connection_id else member.ready,
                         is_bot=False,
                         is_owner=conn_id == self.host_connection_id,
                     ),
@@ -145,4 +147,4 @@ class LobbyRoom:
         """
         Check if a user is already in this room (prevents multi-tab seat hogging).
         """
-        return any(p.user_id == user_id for p in self.players.values())
+        return any(member.player.user_id == user_id for member in self.players.values())

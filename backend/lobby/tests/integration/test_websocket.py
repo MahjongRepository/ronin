@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -12,18 +11,8 @@ from lobby.auth.models import AuthenticatedPlayer
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.rooms import websocket as rooms_websocket_module
 from lobby.rooms.websocket import room_websocket
-from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket, open_client
+from lobby.tests.conftest import AsgiPeer, HeldLookup, make_player, make_websocket, open_client
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
-
-
-def _break_server_socket(app, *, room_id, username):
-    room = app.state.room_manager.get_room(room_id)
-    connection_id = next(conn_id for conn_id, player in room.players.items() if player.username == username)
-
-    async def broken_send(_message):
-        raise OSError("broken pipe")
-
-    app.state.room_connections._connections[room_id][connection_id]._send = broken_send
 
 
 def _room_socket(app, peer, *, room_id, username):
@@ -104,7 +93,8 @@ class TestRoomWebSocket:
         # Pre-fill all 4 seats
         for i in range(4):
             app.state.room_manager.join_room(
-                connection_id=f"prefill-{i}", room_id="full-room", user_id=f"user-{i}", username=f"P{i}"
+                room_id="full-room",
+                player=make_player(connection_id=f"prefill-{i}", user_id=f"user-{i}", username=f"P{i}"),
             )
 
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
@@ -237,7 +227,6 @@ class TestOwnerChanged:
         register_with_csrf(client, "bob")
         return client
 
-    @pytest.mark.xfail(reason="Flaky: intermittent WebSocket timeout", strict=False)
     def test_room_websocket__when_owner_leaves__should_send_owner_changed_then_player_left(self, app, two_user_client):
         room = app.state.room_manager.create_room("transfer-room")
         # Alice connects first (becomes owner)
@@ -292,20 +281,6 @@ class TestMultiPlayerWebSocket:
             # Bob should receive player_left
             msg = ws_bob.receive_json()
             assert msg["type"] == "player_left"
-
-    def test_room_websocket__when_a_peer_is_dead__should_keep_the_chat_sender_seated(self, app, two_user_client):
-        room = app.state.room_manager.create_room("dead-peer-chat")
-        with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
-            ws_bob.receive_json()
-            login_with_csrf(two_user_client, "alice")
-            with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
-                ws_alice.receive_json()
-                ws_bob.receive_json()
-                _break_server_socket(app, room_id=room.room_id, username="bob")
-
-                ws_alice.send_text(json.dumps({"type": "chat", "text": "hello"}))
-                assert ws_alice.receive_json() == {"type": "chat", "player_name": "alice", "text": "hello"}
-                assert [player.username for player in room.players.values()] == ["bob", "alice"]
 
     def test_room_websocket__when_second_player_joins__should_broadcast_four_seat_player_list(
         self, app, two_user_client
@@ -384,42 +359,30 @@ class TestGameTransition:
         assert "game_ticket" in msg
         assert app.state.room_manager.get_room("game-room") is None
 
-    def test_room_websocket__when_a_peer_is_dead_at_game_start__should_deliver_to_the_rest_and_remove_room(
-        self, app, caplog, monkeypatch
+    async def test_room_websocket__when_a_peer_is_held_at_game_start__should_deliver_to_the_rest_and_remove_room(
+        self, app, monkeypatch
     ):
-        room = app.state.room_manager.create_room("dead-peer-start")
         _route_game_server(monkeypatch, lambda _request: httpx.Response(201))
+        room = app.state.room_manager.create_room("held-peer-start")
+        host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
+        held_peer, held_handler = await _seat(app, room_id=room.room_id, username="bob")
+        late_peer, late_handler = await _seat(app, room_id=room.room_id, username="carol")
+        for member in room.players.values():
+            member.ready = True
+        held_peer.send_gate = asyncio.Event()
 
-        with open_client(app) as client:
-            register_with_csrf(client, "bob")
-            logout_with_csrf(client)
-            register_with_csrf(client, "carol")
-            logout_with_csrf(client)
-            register_with_csrf(client, "alice")
+        host_peer.send_from_client(json.dumps({"type": "start_game"}))
+        await host_handler
+        await late_handler
+        assert late_peer.received_json()[-1]["type"] == "game_starting"
+        assert late_peer.close_codes() == [1000]
+        assert app.state.room_manager.get_room("held-peer-start") is None
+        assert "game_starting" not in [message["type"] for message in held_peer.received_json()]
 
-            with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
-                ws_alice.receive_json()
-                login_with_csrf(client, "bob")
-                with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
-                    ws_bob.receive_json()
-                    ws_alice.receive_json()
-                    login_with_csrf(client, "carol")
-                    with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_carol:
-                        ws_carol.receive_json()
-                        ws_alice.receive_json()
-                        ws_bob.receive_json()
-                        for ws_ready in (ws_bob, ws_carol):
-                            ws_ready.send_text(json.dumps({"type": "set_ready", "ready": True}))
-                            for ws_seated in (ws_alice, ws_bob, ws_carol):
-                                ws_seated.receive_json()
-
-                        _break_server_socket(app, room_id=room.room_id, username="bob")
-                        ws_alice.send_text(json.dumps({"type": "start_game"}))
-                        assert ws_alice.receive_json()["type"] == "game_starting"
-                        assert ws_carol.receive_json()["type"] == "game_starting"
-
-        assert app.state.room_manager.get_room("dead-peer-start") is None
-        assert caplog.text.count("failed to deliver game_starting message") == 1
+        held_peer.send_gate.set()
+        await held_handler
+        assert held_peer.received_json()[-1]["type"] == "game_starting"
+        assert held_peer.close_codes() == [1000]
 
     def test_room_websocket__when_ticket_signing_raises__should_clear_transitioning_and_resync(self, client, app):
         room = app.state.room_manager.create_room("sign-fail-room")
@@ -521,56 +484,99 @@ class TestRoomWebSocketRaces:
         assert app.state.room_manager.get_room("ack-fail-room") is None
         assert app.state.room_manager.has_user_in_any_room("ghost-id") is False
 
-    async def test_room_websocket__when_another_task_closed_the_socket_mid_join__should_end_without_error(
-        self, app, caplog
-    ):
-        caplog.set_level(logging.INFO)
-        app.state.room_manager.create_room("closed-mid-join")
-        peer = AsgiPeer()
-        peer.send_gate = asyncio.Event()
-        websocket = _room_socket(app, peer, room_id="closed-mid-join", username="late")
-        handler = asyncio.create_task(room_websocket(websocket))
-        await peer.send_waiting.wait()
-
-        await websocket.close(code=4002, reason="room_expired")
-        peer.send_gate.set()
-        await handler
-        assert "player left room" in caplog.text
-        assert "unexpected error in room websocket" not in caplog.text
-        assert app.state.room_manager.get_room("closed-mid-join") is None
-
     async def test_room_websocket__when_handler_raises_unexpectedly__should_log_and_free_the_seat(
         self, app, monkeypatch, caplog
     ):
         app.state.room_manager.create_room("bug-room")
         peer = AsgiPeer()
+        peer.send_from_client(json.dumps({"type": "set_ready", "ready": True}))
 
-        def failing_add(**_kwargs):
-            raise ValueError("connection registry bug")
+        def failing_set_ready(*_args, **_kwargs):
+            raise ValueError("room manager bug")
 
-        monkeypatch.setattr(app.state.room_connections, "add", failing_add)
+        monkeypatch.setattr(app.state.room_manager, "set_ready", failing_set_ready)
 
         await room_websocket(_room_socket(app, peer, room_id="bug-room", username="unlucky"))
         assert "unexpected error in room websocket" in caplog.text
         assert app.state.room_manager.get_room("bug-room") is None
 
-    async def test_room_websocket__when_reaper_runs_during_join_ack__should_close_the_joiner(self, app):
-        room = app.state.room_manager.create_room("reap-room")
-        room.created_at -= 1000
-        peer = AsgiPeer()
-        peer.send_gate = asyncio.Event()
-        handler = asyncio.create_task(room_websocket(_room_socket(app, peer, room_id=room.room_id, username="late")))
-        await peer.send_waiting.wait()
+    async def test_room_websocket__when_a_player_readies_during_a_join_ack__should_send_the_joiner_the_change(
+        self, app
+    ):
+        room = app.state.room_manager.create_room("ready-during-ack")
+        host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
+        guest_peer, guest_handler = await _seat(app, room_id=room.room_id, username="bob")
+        joiner_peer = AsgiPeer()
+        joiner_peer.send_gate = asyncio.Event()
+        joiner_handler = asyncio.create_task(
+            room_websocket(_room_socket(app, joiner_peer, room_id=room.room_id, username="carol"))
+        )
+        await joiner_peer.send_waiting.wait()
 
-        reaper_tick = asyncio.create_task(app.state.room_manager._reap_expired_rooms())
-        await asyncio.sleep(0)
-        peer.send_gate.set()
-        await reaper_tick
-        assert peer.close_codes() == [4002]
+        guest_peer.send_from_client(json.dumps({"type": "set_ready", "ready": True}))
+        guest_peer.send_from_client(json.dumps({"type": "leave_room"}))
+        await guest_handler
+        joiner_peer.send_gate.set()
+        joiner_peer.send_from_client(json.dumps({"type": "leave_room"}))
+        await joiner_handler
+        joiner_messages = joiner_peer.received_json()
+        assert [message["type"] for message in joiner_messages] == [
+            "room_joined",
+            "player_ready_changed",
+            "player_left",
+        ]
+        assert joiner_messages[1]["players"][1] == {"name": "bob", "ready": True, "is_bot": False, "is_owner": False}
 
-        await handler
-        assert app.state.room_manager.get_room("reap-room") is None
-        assert "reap-room" not in app.state.room_connections._connections
+        host_peer.disconnect()
+        await host_handler
+
+    async def test_room_chat__when_a_peer_is_held__should_not_block_the_sender(self, app):
+        room = app.state.room_manager.create_room("held-peer-chat")
+        held_peer, held_handler = await _seat(app, room_id=room.room_id, username="bob")
+        sender_peer, sender_handler = await _seat(app, room_id=room.room_id, username="alice")
+        held_peer.send_gate = asyncio.Event()
+
+        sender_peer.send_from_client(json.dumps({"type": "chat", "text": "hello"}))
+        sender_peer.send_from_client(json.dumps({"type": "set_ready", "ready": True}))
+        sender_peer.send_from_client(json.dumps({"type": "leave_room"}))
+        await sender_handler
+        assert [message["type"] for message in sender_peer.received_json()] == [
+            "room_joined",
+            "chat",
+            "player_ready_changed",
+        ]
+        assert sender_peer.close_codes() == [1000]
+
+        held_peer.send_gate.set()
+        held_peer.disconnect()
+        await held_handler
+
+    async def test_room_reaper__when_a_member_of_an_expired_room_is_held__should_still_close_the_later_rooms(
+        self, app, caplog
+    ):
+        held_room = app.state.room_manager.create_room("held-room")
+        later_room = app.state.room_manager.create_room("later-room")
+        held_room.created_at -= 1000
+        later_room.created_at -= 1000
+        held_peer = AsgiPeer()
+        held_peer.send_gate = asyncio.Event()
+        held_handler = asyncio.create_task(
+            room_websocket(_room_socket(app, held_peer, room_id=held_room.room_id, username="alice"))
+        )
+        await held_peer.send_waiting.wait()
+        later_peer, later_handler = await _seat(app, room_id=later_room.room_id, username="bob")
+
+        await app.state.room_manager._reap_expired_rooms()
+        await later_handler
+        assert later_peer.close_codes() == [4002]
+        assert app.state.room_manager.get_room("held-room") is None
+        assert app.state.room_manager.get_room("later-room") is None
+
+        held_peer.send_gate.set()
+        await held_handler
+        assert [message["type"] for message in held_peer.received_json()] == ["room_joined"]
+        assert held_peer.close_codes() == [4002]
+        assert "unexpected error in room websocket" not in caplog.text
 
 
 async def _hold_open(handler_coroutine, peer):
@@ -579,6 +585,12 @@ async def _hold_open(handler_coroutine, peer):
     await peer.send_waiting.wait()
     peer.send_gate.set()
     return handler
+
+
+async def _seat(app, *, room_id, username):
+    peer = AsgiPeer()
+    handler = await _hold_open(room_websocket(_room_socket(app, peer, room_id=room_id, username=username)), peer)
+    return peer, handler
 
 
 async def _join_room_and_leave(app, *, room_id, username):

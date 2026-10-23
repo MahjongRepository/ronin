@@ -137,18 +137,20 @@ class TestMatchmakingGameTransition:
         await matchmaking_websocket(_matchmaking_socket(app, rejoining_peer, username="queued-0"))
         assert rejoining_peer.received_json()[0]["type"] == "queue_joined"
 
-    async def test_matchmaking_websocket__when_a_matched_peer_is_dead__should_start_the_game_for_the_rest(
-        self, app, monkeypatch, caplog
+    async def test_matchmaking_websocket__when_a_matched_peer_is_held__should_start_the_game_for_the_rest(
+        self, app, monkeypatch
     ):
         create_game = AsyncMock(return_value="ws://localhost:8711/ws/game")
         monkeypatch.setattr(matchmaking_websocket_module, "create_game_on_server", create_game)
         queued = [await _queue_player(app, f"queued-{i}") for i in range(3)]
-        dead_peer, _dead_handler = queued[1]
-        dead_peer.broken = True
+        held_peer, held_handler = queued[0]
+        held_peer.send_gate = asyncio.Event()
         fourth_peer = AsgiPeer()
 
         await matchmaking_websocket(_matchmaking_socket(app, fourth_peer, username="fourth"))
-        healthy_peers = {"queued-0": queued[0][0], "queued-2": queued[2][0], "fourth": fourth_peer}
+        for _peer, handler in queued[1:]:
+            await handler
+        healthy_peers = {"queued-1": queued[1][0], "queued-2": queued[2][0], "fourth": fourth_peer}
         for username, peer in healthy_peers.items():
             game_starting = peer.received_json()[-1]
             ticket = verify_game_ticket(game_starting["game_ticket"], "test-secret")
@@ -157,11 +159,12 @@ class TestMatchmakingGameTransition:
             assert ticket is not None
             assert ticket.username == username
             assert peer.close_codes() == [1000]
-        assert caplog.text.count("failed to deliver game_starting") == 1
+        assert "game_starting" not in [message["type"] for message in held_peer.received_json()]
 
-        dead_peer.disconnect(code=1006)
-        for _peer, handler in queued:
-            await handler
+        held_peer.send_gate.set()
+        await held_handler
+        assert held_peer.received_json()[-1]["type"] == "game_starting"
+        assert held_peer.close_codes() == [1000]
         assert app.state.matchmaking_manager.queue_size == 0
 
     @pytest.mark.parametrize(
@@ -196,19 +199,4 @@ class TestMatchmakingGameTransition:
         held_lookup.release.set()
         await late_join
         assert late_peer.received_json() == [{"type": "error", "message": "already_in_game"}]
-        assert app.state.matchmaking_manager.queue_size == 0
-
-    async def test_matchmaking_websocket__when_another_task_closed_the_socket_mid_join__should_end_without_error(
-        self, app, caplog
-    ):
-        peer = AsgiPeer()
-        peer.send_gate = asyncio.Event()
-        websocket = _matchmaking_socket(app, peer, username="late")
-        handler = asyncio.create_task(matchmaking_websocket(websocket))
-        await peer.send_waiting.wait()
-
-        await websocket.close(code=4000, reason="match_failed")
-        peer.send_gate.set()
-        await handler
-        assert "unexpected error in matchmaking websocket" not in caplog.text
         assert app.state.matchmaking_manager.queue_size == 0
