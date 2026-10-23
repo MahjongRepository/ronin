@@ -193,8 +193,10 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
             start = super().start_game(game_id, player_names, seed=seed)
             state = start.runtime.state
 
-            start.runtime.state = state.model_copy(
-                update={"game_phase": GamePhase.FINISHED},
+            start.runtime.commit(
+                state.model_copy(
+                    update={"game_phase": GamePhase.FINISHED},
+                )
             )
             return start
 
@@ -218,8 +220,10 @@ def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input
             start = super().start_game(game_id, player_names, seed=seed)
             state = start.runtime.state
 
-            start.runtime.state = state.model_copy(
-                update={"game_phase": GamePhase.FINISHED},
+            start.runtime.commit(
+                state.model_copy(
+                    update={"game_phase": GamePhase.FINISHED},
+                )
             )
             return start
 
@@ -423,8 +427,10 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
-                    runtime.state = state.model_copy(
-                        update={"round_state": new_round},
+                    runtime.commit(
+                        state.model_copy(
+                            update={"round_state": new_round},
+                        )
                     )
 
                 return _stub_update([])
@@ -444,8 +450,10 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
                 )
-                runtime.state = state.model_copy(
-                    update={"round_state": new_round},
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": new_round},
+                    )
                 )
 
             return events
@@ -523,8 +531,10 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.state = state.model_copy(
-                update={"round_state": new_round},
+            start.runtime.commit(
+                state.model_copy(
+                    update={"round_state": new_round},
+                )
             )
             return start
 
@@ -547,8 +557,10 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
-                    runtime.state = state.model_copy(
-                        update={"round_state": new_round},
+                    runtime.commit(
+                        state.model_copy(
+                            update={"round_state": new_round},
+                        )
                     )
 
                 return _stub_update([])
@@ -559,8 +571,10 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                runtime.state = state.model_copy(
-                    update={"round_state": new_round},
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": new_round},
+                    )
                 )
                 return _stub_update([])
 
@@ -611,8 +625,10 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.state = state.model_copy(
-                update={"round_state": new_round},
+            start.runtime.commit(
+                state.model_copy(
+                    update={"round_state": new_round},
+                )
             )
             return start
 
@@ -675,8 +691,10 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
-                    runtime.state = state.model_copy(
-                        update={"round_state": new_round},
+                    runtime.commit(
+                        state.model_copy(
+                            update={"round_state": new_round},
+                        )
                     )
 
                 return _stub_update([])
@@ -695,8 +713,10 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
                 )
-                runtime.state = state.model_copy(
-                    update={"round_state": new_round},
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": new_round},
+                    )
                 )
 
             return events
@@ -760,8 +780,10 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.state = state.model_copy(
-                update={"round_state": new_round},
+            start.runtime.commit(
+                state.model_copy(
+                    update={"round_state": new_round},
+                )
             )
             return start
 
@@ -781,11 +803,13 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                runtime.state = state.model_copy(
-                    update={
-                        "round_state": new_round,
-                        "game_phase": GamePhase.FINISHED,
-                    },
+                runtime.commit(
+                    state.model_copy(
+                        update={
+                            "round_state": new_round,
+                            "game_phase": GamePhase.FINISHED,
+                        },
+                    )
                 )
                 return _stub_update([])
 
@@ -821,11 +845,13 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                runtime.state = state.model_copy(
-                    update={
-                        "round_state": new_round,
-                        "game_phase": GamePhase.FINISHED,
-                    },
+                runtime.commit(
+                    state.model_copy(
+                        update={
+                            "round_state": new_round,
+                            "game_phase": GamePhase.FINISHED,
+                        },
+                    )
                 )
                 return _stub_update([])
 
@@ -843,8 +869,10 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
                 )
-                runtime.state = state.model_copy(
-                    update={"round_state": new_round},
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": new_round},
+                    )
                 )
 
             return events
@@ -899,8 +927,10 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.state = state.model_copy(
-                update={"round_state": new_round},
+            start.runtime.commit(
+                state.model_copy(
+                    update={"round_state": new_round},
+                )
             )
             return start
 
@@ -919,8 +949,10 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                runtime.state = state.model_copy(
-                    update={"round_state": new_round},
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": new_round},
+                    )
                 )
                 return _stub_update([])
 
@@ -933,8 +965,10 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": None},
                     )
-                    runtime.state = state.model_copy(
-                        update={"round_state": new_round},
+                    runtime.commit(
+                        state.model_copy(
+                            update={"round_state": new_round},
+                        )
                     )
 
                 return events

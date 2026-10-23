@@ -6,7 +6,10 @@ from game.replay.models import ReplayInput, ReplayInputEvent
 
 # Seed determines seat assignment via fill_seats(names, seed):
 # Alice -> seat 2, Bob -> seat 1, Charlie -> seat 0, Diana -> seat 3
-SEED = "0" * 191 + "d"  # 192-char hex seed that produces same seating as old float 0.5
+SEED = (
+    "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
+    "ef563e3bcf5af18c7663313c52eacd650ec18e6993c2ab70912ca363e0ed5bd9c088a5d406dc03584e33879746e7d79f"
+)
 PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
 
 # tile_34=27 is East wind (1z), tile IDs 108-111

@@ -77,14 +77,18 @@ def make_wall(
 ) -> Wall:
     """
     Build a test wall; the dead wall filler avoids live_tiles and reserved (hand, meld and discard tiles).
+
+    A live tile the test also placed in the dead wall (a dora indicator inside a range of live tiles) is swapped for a
+    free tile in the same position, so the wall stays a valid partition with the live count the test asked for.
     """
-    return Wall(
-        live_tiles=tuple(live_tiles),
-        dead_wall=make_dead_wall(
-            dead_wall,
-            dora_indicators=dora_indicators,
-            reserved=(*reserved, *live_tiles),
-            pending_dora_count=pending_dora_count,
-        ),
-        dice=dice,
+    dead = make_dead_wall(
+        dead_wall,
+        dora_indicators=dora_indicators,
+        reserved=(*reserved, *live_tiles),
+        pending_dora_count=pending_dora_count,
     )
+    dead_tiles = set(dead.tiles)
+    taken = dead_tiles | set(reserved) | set(live_tiles)
+    free = iter(t for t in range(NUM_TILES - 1, -1, -1) if t not in taken)
+    live = tuple(next(free) if t in dead_tiles else t for t in live_tiles)
+    return Wall(live_tiles=live, dead_wall=dead, dice=dice)

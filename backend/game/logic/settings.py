@@ -46,6 +46,10 @@ class LeftoverRiichiBets(StrEnum):
     LOST = "lost"  # They disappear
 
 
+MAX_KANS = 4
+MIN_WALL_FOR_KAN = 2
+
+
 class GameSettings(BaseModel):
     """
     Centralized configuration for all Mahjong game rules.
@@ -96,8 +100,8 @@ class GameSettings(BaseModel):
     # --- Meld Rules ---
     has_kuikae: bool = True
     has_kuikae_suji: bool = True
-    min_wall_for_kan: int = 2
-    max_kans_per_round: int = 4
+    min_wall_for_kan: int = MIN_WALL_FOR_KAN
+    max_kans_per_round: int = MAX_KANS
 
     # --- Abortive Draw Rules ---
     has_suukaikan: bool = True
@@ -150,7 +154,9 @@ def validate_settings(settings: GameSettings) -> None:
     """
     Validate that all settings values are supported by the engine.
 
-    Raises UnsupportedSettingsError for any setting value that is defined but not yet implemented in runtime logic.
+    Raises UnsupportedSettingsError for any setting value that is defined but not yet implemented in runtime logic, or
+    that breaks a fixed rule: a kan needs at least MIN_WALL_FOR_KAN live tiles, and the dead wall holds only MAX_KANS
+    rinshan tiles.
     """
     errors: list[str] = []
 
@@ -168,6 +174,12 @@ def validate_settings(settings: GameSettings) -> None:
 
     if sum(settings.uma) != 0:
         errors.append(f"uma values must sum to zero, got {sum(settings.uma)}")
+
+    if settings.min_wall_for_kan < MIN_WALL_FOR_KAN:
+        errors.append(f"min_wall_for_kan must be at least {MIN_WALL_FOR_KAN}, got {settings.min_wall_for_kan}")
+
+    if settings.max_kans_per_round > MAX_KANS:
+        errors.append(f"max_kans_per_round must be at most {MAX_KANS}, got {settings.max_kans_per_round}")
 
     if errors:
         raise UnsupportedSettingsError("; ".join(errors))

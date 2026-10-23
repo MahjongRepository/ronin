@@ -1,5 +1,4 @@
 import hashlib
-import random
 import secrets
 import string
 from typing import Protocol
@@ -11,6 +10,7 @@ SEED_BYTES = 96
 RNG_VERSION = "shake256-v1"
 _WALL_DOMAIN = b"ronin-wall-shake256-v1:"
 _DEALER_DOMAIN = b"ronin-dealer-shake256-v1:"
+_SEAT_DOMAIN = b"ronin-seat-shake256-v1:"
 _WORD_BYTES = 8
 _INITIAL_WORDS = 160
 _UINT64_BOUND = 1 << 64
@@ -167,15 +167,11 @@ def determine_first_dealer(seed_hex: str) -> tuple[int, tuple[int, int], tuple[i
     return dealer, first_dice, second_dice
 
 
-def create_seat_rng(seed_hex: str | None) -> random.Random:
+def seat_permutation(seed_hex: str) -> tuple[int, ...]:
     """
-    Create a seeded RNG for seat assignment (matchmaker).
+    Return the seed's permutation of the seats, from a dedicated stream (separate domain from the wall and dealer).
 
-    Uses stdlib random.Random for seat shuffling — statistical perfection is not critical for 4-seat assignment, and
-    this keeps the matchmaker off the wall stream.
+    The matchmaker seats the k input players at the first k entries; the replay loader inverts the whole permutation.
     """
-    if seed_hex is None:
-        return random.Random()  # noqa: S311
-
     validate_seed_hex(seed_hex)
-    return random.Random(int(seed_hex, 16))  # noqa: S311
+    return tuple(fisher_yates_shuffle(list(range(NUM_PLAYERS)), WordStream(_SEAT_DOMAIN, bytes.fromhex(seed_hex))))

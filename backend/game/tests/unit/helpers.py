@@ -162,7 +162,7 @@ def _rebalance_tiles(game_state: MahjongGameState, *, keep: int | None) -> Mahjo
 def _update_round_state(runtime: GameRuntime, **updates: object) -> MahjongRoundState:
     game_state = runtime.state
     new_round = game_state.round_state.model_copy(update=updates)
-    runtime.state = _rebalance_tiles(game_state.model_copy(update={"round_state": new_round}), keep=None)
+    runtime.commit(_rebalance_tiles(game_state.model_copy(update={"round_state": new_round}), keep=None))
     return runtime.state.round_state
 
 
@@ -173,5 +173,5 @@ def _update_player(runtime: GameRuntime, *, seat: int, **updates: object) -> Mah
     new_player = players[seat].model_copy(update=updates)
     players[seat] = new_player
     new_round = round_state.model_copy(update={"players": tuple(players)})
-    runtime.state = _rebalance_tiles(game_state.model_copy(update={"round_state": new_round}), keep=seat)
+    runtime.commit(_rebalance_tiles(game_state.model_copy(update={"round_state": new_round}), keep=seat))
     return runtime.state.round_state.players[seat]

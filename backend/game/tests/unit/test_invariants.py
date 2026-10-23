@@ -1,7 +1,8 @@
 import pytest
 
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.invariants import TileOwnershipError, verify_tile_ownership
+from game.logic.exceptions import TileOwnershipError
+from game.logic.invariants import verify_tile_ownership
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import SEED_BYTES

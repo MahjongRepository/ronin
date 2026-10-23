@@ -52,6 +52,17 @@ class TestValidateSettings:
         with pytest.raises(UnsupportedSettingsError, match=r"has_agariyame.*renhou_value=BAIMAN"):
             validate_settings(GameSettings(has_agariyame=True, renhou_value=RenhouValue.BAIMAN))
 
+    @pytest.mark.parametrize(
+        ("settings", "message"),
+        [
+            (GameSettings(min_wall_for_kan=1), "min_wall_for_kan must be at least 2"),
+            (GameSettings(max_kans_per_round=5), "max_kans_per_round must be at most 4"),
+        ],
+    )
+    def test_validate_settings__when_kan_limits_exceed_the_wall__should_raise(self, settings, message):
+        with pytest.raises(UnsupportedSettingsError, match=message):
+            validate_settings(settings)
+
     def test_validate_settings__when_uma_valid__should_pass(self):
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))
 
