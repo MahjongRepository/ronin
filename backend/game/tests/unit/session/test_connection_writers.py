@@ -7,17 +7,18 @@ from game.logic.enums import TimeoutType, WaitKind
 from game.logic.events import EventType
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
-from game.server import websocket as ws_module
 from game.server.router import MessageRouter
 from game.server.websocket import websocket_endpoint
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
-from game.tests.helpers.fake_websocket import ClosedWith, FakeWebSocketClient
+from game.tests.helpers.fake_websocket import FakeWebSocketClient
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
 from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
+from shared import websocket as shared_websocket
 from shared.dal.models import GameEndReason
+from shared.tests.helpers.fake_websocket import ClosedWith
 
 from .helpers import arrange_final_discard, run_timeout, runtime_of
 
@@ -136,7 +137,7 @@ class TestConnectionWriters:
     async def test_send_queue_overflow__when_a_held_reader_overflows__should_seat_an_ai_player_through_the_disconnect(
         self, table, monkeypatch
     ):
-        monkeypatch.setattr(ws_module, "_SEND_QUEUE_LIMIT", 2)
+        monkeypatch.setattr(shared_websocket, "_SEND_QUEUE_LIMIT", 2)
         bob = MockConnection(game_id="game1")
         table.manager.register_connection(bob)
         table.manager.join_game(bob, game_id="game1", session_token=table.tickets["Bob"])

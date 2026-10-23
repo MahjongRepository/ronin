@@ -4,8 +4,10 @@ Before working in `game/` or `lobby/`, read that directory's `AGENTS.md`. `share
 both servers use: auth sessions, password hashing and game tickets (`shared/auth/`), the
 persistence contracts and their models (`shared/dal/`: `Player`, `AccountType`, `PlayedGame`,
 repository interfaces) and the SQLite implementations (`shared/db/`), replay storage
-(`shared/storage.py`), logging, and the IMME meld encoding (`shared/lib/melds/`, see its
-`README.md`).
+(`shared/storage.py`), the WebSocket transport (`shared/websocket.py`: the per-connection writer
+`QueuedWebSocket` with its one queue limit and send deadline, and the pre-accept handshake helpers
+that end quietly for a peer already gone), the `TokenBucket` rate limiter (`shared/rate_limit.py`),
+logging, and the IMME meld encoding (`shared/lib/melds/`, see its `README.md`).
 
 Each process opens the database once, as a `shared.db.Database`: one worker thread owns the SQLite
 connection and runs the repositories' operations one at a time, in call order, so the event loop
