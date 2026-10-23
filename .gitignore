@@ -10,8 +10,6 @@ __pycache__
 .pytest_cache
 .ruff_cache
 
-progress*.txt
-
 .coverage
 backend/logs
 backend/storage.db*
