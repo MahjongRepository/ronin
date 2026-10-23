@@ -11,15 +11,18 @@ from lobby.game_transition import GameStartError, start_game
 from lobby.players import LobbyPlayer
 from lobby.rooms.messages import (
     LobbyChatMessage,
+    LobbyClientMessage,
     LobbyLeaveRoomMessage,
     LobbySetReadyMessage,
     LobbyStartGameMessage,
     parse_lobby_message,
 )
 from lobby.websocket_utils import check_origin
+from shared.rate_limit import TokenBucket
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
 if TYPE_CHECKING:
+    from starlette.types import Message
     from starlette.websockets import WebSocket
 
     from lobby.occupancy import Occupancy
@@ -29,6 +32,11 @@ if TYPE_CHECKING:
     from shared.auth.settings import AuthSettings
 
 logger = structlog.get_logger()
+
+_RATE_LIMIT_RATE = 5.0
+_RATE_LIMIT_BURST = 10
+_RATE_LIMITED = "rate_limited"
+_BINARY_FRAME = "Binary frames are not supported"
 
 
 class _RoomContext:
@@ -166,28 +174,50 @@ def _send_room_state(room: LobbyRoom) -> None:
 
 
 async def _message_loop(player: LobbyPlayer, ctx: _RoomContext) -> None:
+    """
+    Serve the player's messages in order until the socket ends or the player starts the game or leaves.
+    """
+    bucket = TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
     while True:
-        message = await player.connection.receive()
-        try:
-            parsed = parse_lobby_message(message["text"])
-        except json.JSONDecodeError:
-            player.send({"type": "error", "message": "Invalid JSON"})
-            continue
-        except (ValueError, ValidationError) as e:
-            player.send({"type": "error", "message": str(e)})
-            continue
-
-        if isinstance(parsed, LobbySetReadyMessage):
-            _handle_set_ready(player, ctx, message=parsed)
-        elif isinstance(parsed, LobbyStartGameMessage):
+        message = _read_message(player, bucket=bucket, frame=await player.connection.receive())
+        if isinstance(message, LobbySetReadyMessage):
+            _handle_set_ready(player, ctx, message=message)
+        elif isinstance(message, LobbyStartGameMessage):
             game_started = await _handle_start_game(player, ctx)
             if game_started:
                 return
-        elif isinstance(parsed, LobbyChatMessage):
-            _handle_chat(player, ctx, message=parsed)
-        elif isinstance(parsed, LobbyLeaveRoomMessage):
+        elif isinstance(message, LobbyChatMessage):
+            _handle_chat(player, ctx, message=message)
+        elif isinstance(message, LobbyLeaveRoomMessage):
             player.connection.close()
             return
+
+
+def _read_message(player: LobbyPlayer, *, bucket: TokenBucket, frame: Message) -> LobbyClientMessage | None:
+    """
+    Return the frame's room message, or None after answering the error that rejected it.
+
+    Every frame counts against the player's rate limit before it is read, so invalid frames, which each get an error
+    reply, count too; a frame over the limit is answered ``rate_limited`` and dropped, and the connection stays. A
+    binary frame is answered with an error, since the room speaks JSON text.
+    """
+    if not bucket.consume():
+        player.send({"type": "error", "message": _RATE_LIMITED})
+        return None
+
+    text = frame.get("text")
+    if text is None:
+        player.send({"type": "error", "message": _BINARY_FRAME})
+        return None
+
+    try:
+        return parse_lobby_message(text)
+    except json.JSONDecodeError:
+        player.send({"type": "error", "message": "Invalid JSON"})
+    except (ValueError, ValidationError) as e:
+        player.send({"type": "error", "message": str(e)})
+
+    return None
 
 
 def _handle_set_ready(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbySetReadyMessage) -> None:

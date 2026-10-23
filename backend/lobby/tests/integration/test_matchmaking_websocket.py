@@ -3,6 +3,7 @@ import json
 from unittest.mock import AsyncMock
 
 import pytest
+from starlette.websockets import WebSocketDisconnect
 
 from lobby import game_transition as game_transition_module
 from lobby.auth.models import AuthenticatedPlayer
@@ -91,25 +92,21 @@ class TestMatchmakingWebSocket:
 
 
 class TestMatchmakingUnauthenticated:
-    def test_matchmaking_websocket__when_unauthenticated__should_reject_connection(self, client):
-        with (
-            pytest.raises(Exception),  # noqa: B017, PT011
-            client.websocket_connect("/ws/matchmaking") as ws,
-        ):
-            ws.receive_json()
+    def test_matchmaking_websocket__when_unauthenticated__should_close_with_4001(self, client):
+        with pytest.raises(WebSocketDisconnect) as rejection, client.websocket_connect("/ws/matchmaking"):
+            pass
+        assert rejection.value.code == 4001
 
 
 class TestMatchmakingOriginCheck:
-    def test_matchmaking_websocket__when_origin_forbidden__should_reject_connection(self, client):
+    def test_matchmaking_websocket__when_origin_forbidden__should_close_with_4003(self, client):
         register_with_csrf(client, "player1")
         with (
-            pytest.raises(Exception),  # noqa: B017, PT011
-            client.websocket_connect(
-                "/ws/matchmaking",
-                headers={"origin": "http://evil.com"},
-            ) as ws,
+            pytest.raises(WebSocketDisconnect) as rejection,
+            client.websocket_connect("/ws/matchmaking", headers={"origin": "http://evil.com"}),
         ):
-            ws.receive_json()
+            pass
+        assert rejection.value.code == 4003
 
 
 class TestMatchmakingGameTransition:

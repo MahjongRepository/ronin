@@ -16,8 +16,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   globals.
 * `rooms/` and `matchmaking/` — managers and WebSocket handlers, plus the room's client message
   models; matchmaking is a FIFO queue that starts a 4-human game once 4 players wait, and its client
-  sends nothing (the socket only carries the disconnect). The two packages never import each
-  other: each gets the occupancy rule (below) as an injected callable.
+  sends nothing (the socket only carries the disconnect, and any frame is discarded unanswered, so
+  it needs no rate limit). The two packages never import each other: they share `start_game` and
+  `LobbyPlayer`, and each gets the occupancy rule (below) as an injected callable.
 * There is one game server, configured as two settings that are never derived from each other: the
   internal base URL the lobby calls (`POST /games`, `GET /players/{id}`) and the public WebSocket
   origin it hands clients in `ws_url` (the lobby appends `/ws/{game_id}`).

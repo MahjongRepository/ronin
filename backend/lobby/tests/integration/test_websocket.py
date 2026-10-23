@@ -5,10 +5,12 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from lobby import game_transition as game_transition_module
 from lobby.auth.models import AuthenticatedPlayer
 from lobby.matchmaking.websocket import matchmaking_websocket
+from lobby.rooms import websocket as rooms_websocket_module
 from lobby.rooms.websocket import room_websocket
 from lobby.tests.conftest import AsgiPeer, HeldLookup, make_player, make_websocket, open_client
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
@@ -101,12 +103,33 @@ class TestRoomWebSocket:
             assert msg["type"] == "error"
             assert msg["message"] == "room_full"
 
-    def test_room_websocket__when_message_not_json__should_send_error(self, client, room_id):
+    @pytest.mark.parametrize(
+        "send_invalid_frame",
+        [lambda ws: ws.send_text("not json"), lambda ws: ws.send_bytes(b"\x81")],
+        ids=["text_not_json", "binary"],
+    )
+    def test_room_websocket__when_frame_is_not_json_text__should_send_error_and_keep_the_seat(
+        self, client, app, room_id, send_invalid_frame
+    ):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
             ws.receive_json()  # room_joined
-            ws.send_text("not json")
+            send_invalid_frame(ws)
             msg = ws.receive_json()
             assert msg["type"] == "error"
+            assert app.state.room_manager.get_room(room_id).player_count == 1
+
+    def test_room_websocket__when_messages_exceed_the_burst__should_drop_them_with_rate_limited(
+        self, client, room_id, monkeypatch
+    ):
+        monkeypatch.setattr(rooms_websocket_module, "_RATE_LIMIT_RATE", 0.0)
+        with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
+            ws.receive_json()
+            for i in range(11):
+                ws.send_text(json.dumps({"type": "chat", "text": str(i)}))
+            replies = [ws.receive_json() for _ in range(11)]
+
+        assert [reply["text"] for reply in replies[:10]] == [str(i) for i in range(10)]
+        assert replies[10] == {"type": "error", "message": "rate_limited"}
 
     def test_room_websocket__when_message_oversized__should_send_error(self, client, room_id):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
@@ -709,36 +732,31 @@ class TestRoomOccupancy:
 
 
 class TestWebSocketOriginCheck:
-    def test_room_websocket__when_origin_forbidden__should_reject_connection(self, client, app):
+    def test_room_websocket__when_origin_forbidden__should_close_with_4003(self, client, app):
         register_with_csrf(client, "wsuser")
         room = app.state.room_manager.create_room("bad-origin")
         with (
-            pytest.raises(Exception),  # noqa: B017, PT011
-            client.websocket_connect(
-                f"/ws/rooms/{room.room_id}",
-                headers={"origin": "http://evil.com"},
-            ) as ws,
+            pytest.raises(WebSocketDisconnect) as rejection,
+            client.websocket_connect(f"/ws/rooms/{room.room_id}", headers={"origin": "http://evil.com"}),
         ):
-            ws.receive_json()
+            pass
+        assert rejection.value.code == 4003
 
-    def test_room_websocket__when_origin_header_missing__should_reject_connection(self, app):
+    def test_room_websocket__when_origin_header_missing__should_close_with_4003(self, app):
         room = app.state.room_manager.create_room("no-origin")
         with TestClient(app) as client_without_origin:
             register_with_csrf(client_without_origin, "wsuser")
             with (
-                pytest.raises(Exception),  # noqa: B017, PT011
-                client_without_origin.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
+                pytest.raises(WebSocketDisconnect) as rejection,
+                client_without_origin.websocket_connect(f"/ws/rooms/{room.room_id}"),
             ):
-                ws.receive_json()
+                pass
+        assert rejection.value.code == 4003
 
 
 class TestWebSocketUnauthenticated:
-    def test_room_websocket__when_unauthenticated__should_reject_connection(self, client, app):
+    def test_room_websocket__when_unauthenticated__should_close_with_4001(self, client, app):
         app.state.room_manager.create_room("auth-test")
-        with (
-            pytest.raises(Exception),  # noqa: B017, PT011
-            client.websocket_connect(
-                "/ws/rooms/auth-test",
-            ) as ws,
-        ):
-            ws.receive_json()
+        with pytest.raises(WebSocketDisconnect) as rejection, client.websocket_connect("/ws/rooms/auth-test"):
+            pass
+        assert rejection.value.code == 4001
