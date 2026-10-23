@@ -9,7 +9,7 @@ from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.types import SeatConfig
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
 
@@ -65,7 +65,7 @@ class TestGetAvailableActions:
         kan_tiles = tuple(TilesConverter.string_to_136_array(man="11112222333344"))
         round_state = _update_player(round_state, 0, tiles=kan_tiles)
         # empty the wall
-        round_state = round_state.model_copy(update={"wall": Wall()})
+        round_state = round_state.model_copy(update={"wall": make_wall()})
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         actions = get_available_actions(game_state, seat=0)

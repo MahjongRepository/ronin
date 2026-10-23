@@ -13,7 +13,8 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import DEAD_WALL_SIZE, RINSHAN_DRAW_INDICES, Wall
+from game.logic.wall import DEAD_WALL_SIZE
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_34_tiles
 
 
@@ -21,7 +22,7 @@ class TestDrawTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
         return MahjongRoundState(
-            wall=Wall(live_tiles=tuple(TilesConverter.string_to_136_array(man="1111222233"))),
+            wall=make_wall(live_tiles=tuple(TilesConverter.string_to_136_array(man="1111222233"))),
             players=players,
             current_player_seat=0,
         )
@@ -39,7 +40,7 @@ class TestDrawTileImmutable:
 
     def test_draw_tile__when_wall_is_empty__should_return_none(self):
         round_state = self._create_round_state()
-        round_state = round_state.model_copy(update={"wall": Wall()})
+        round_state = round_state.model_copy(update={"wall": make_wall()})
 
         result_state, drawn = draw_tile(round_state)
         assert drawn is None
@@ -60,7 +61,7 @@ class TestDrawFromDeadWallImmutable:
             *TilesConverter.string_to_136_array(pin="11112222333344"),
         )
         return MahjongRoundState(
-            wall=Wall(live_tiles=live_wall, dead_wall_tiles=dead_wall),
+            wall=make_wall(live_tiles=live_wall, dead_wall=dead_wall),
             players=players,
             current_player_seat=0,
         )
@@ -70,13 +71,13 @@ class TestDrawFromDeadWallImmutable:
 
         new_state, _drawn = draw_from_dead_wall(round_state)
         # dead wall should stay at 14 (one popped, one replenished from live wall)
-        assert len(new_state.wall.dead_wall_tiles) == DEAD_WALL_SIZE
+        assert len(new_state.wall.dead_wall.tiles) == DEAD_WALL_SIZE
         # original state unchanged
-        assert len(round_state.wall.dead_wall_tiles) == DEAD_WALL_SIZE
+        assert len(round_state.wall.dead_wall.tiles) == DEAD_WALL_SIZE
 
     def test_draw_from_dead_wall__when_drawing__should_return_first_rinshan_tile(self):
         round_state = self._create_round_state()
-        rinshan_tile = round_state.wall.dead_wall_tiles[RINSHAN_DRAW_INDICES[0]]
+        rinshan_tile = round_state.wall.dead_wall.rinshan[0]
 
         _new_state, drawn = draw_from_dead_wall(round_state)
         assert drawn == rinshan_tile
@@ -109,7 +110,7 @@ class TestDrawFromDeadWallImmutable:
         new_state, _drawn = draw_from_dead_wall(round_state)
         # live wall loses one tile (moved to dead wall)
         assert len(new_state.wall.live_tiles) == initial_wall_len - 1
-        assert new_state.wall.dead_wall_tiles[RINSHAN_DRAW_INDICES[0]] == last_wall_tile
+        assert new_state.wall.dead_wall.reserve == (last_wall_tile,)
         # original state unchanged
         assert len(round_state.wall.live_tiles) == initial_wall_len
 
@@ -158,7 +159,7 @@ class TestDiscardTileImmutable:
                 score=25000,
             ),
         )
-        return MahjongRoundState(players=players, current_player_seat=0)
+        return MahjongRoundState(wall=make_wall(), players=players, current_player_seat=0)
 
     def test_discard_tile__when_tile_not_in_hand__should_raise(self):
         round_state = self._create_round_state()

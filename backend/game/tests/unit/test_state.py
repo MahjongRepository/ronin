@@ -7,7 +7,7 @@ from game.logic.state import (
     MahjongRoundState,
     get_player_view,
 )
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 
 
 class TestGetPlayerView:
@@ -66,9 +66,9 @@ class TestGetPlayerView:
         )
 
         round_state = MahjongRoundState(
-            wall=Wall(
+            wall=make_wall(
                 live_tiles=tuple(range(84, 122)),
-                dead_wall_tiles=tuple(range(122, 136)),
+                dead_wall=tuple(range(122, 136)),
                 dora_indicators=(haku,),
             ),
             players=players,

@@ -122,7 +122,7 @@ class MahjongGameService(GameService):
         events = [self._create_game_started_event(runtime), *self._create_round_started_events(frozen_game)]
 
         new_game_state, draw_events = process_draw_phase(frozen_game)
-        runtime.state = new_game_state
+        runtime.commit(new_game_state)
         events.extend(convert_events(draw_events))
 
         # process AI player turns if dealer is an AI player
@@ -228,7 +228,7 @@ class MahjongGameService(GameService):
         Does NOT trigger AI player turns, to avoid recursion: the top-level caller runs them. Anything raised from here
         on comes after the commit and is a server fault.
         """
-        runtime.state = result.state
+        runtime.commit(result.state)
         events = self._process_action_result_internal(runtime, result)
         return self._append_furiten_changes(runtime, events)
 
@@ -346,7 +346,7 @@ class MahjongGameService(GameService):
         kind, seats = self._current_wait(runtime)
         kept = kind == call.kind and (seats < call.seats or (seats == call.seats and runtime.state is call.state))
         if not kept:
-            runtime.state = runtime.state.model_copy(update={"wait_id": call.state.wait_id + 1})
+            runtime.commit(runtime.state.model_copy(update={"wait_id": call.state.wait_id + 1}))
 
         return self._build_awaiting(runtime, kind=kind, seats=seats)
 
@@ -513,7 +513,7 @@ class MahjongGameService(GameService):
         Draw for the next player after a discard nobody can call (process_discard_phase already advanced the turn).
         """
         new_game_state, draw_events = process_draw_phase(runtime.state)
-        runtime.state = new_game_state
+        runtime.commit(new_game_state)
         events.extend(convert_events(draw_events))
         self._check_and_handle_round_end(runtime, events)
 
@@ -540,7 +540,7 @@ class MahjongGameService(GameService):
             action, data = response if response is not None else (GameAction.PASS, {})
             logger.debug("AI player call response", action=action.value, ai_seat=seat)
             result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
-            runtime.state = result.state
+            runtime.commit(result.state)
             events.extend(convert_events(result.events))
 
     def _handle_round_end(self, runtime: GameRuntime, round_result: RoundResult) -> list[ServiceEvent]:
@@ -559,7 +559,7 @@ class MahjongGameService(GameService):
                 winner_seat=game_result.winner_seat,
                 standings=[{"seat": s.seat, "score": s.final_score} for s in game_result.standings],
             )
-            runtime.state = frozen_game
+            runtime.commit(frozen_game)
             return [
                 ServiceEvent(
                     data=GameEndedEvent(
@@ -571,7 +571,7 @@ class MahjongGameService(GameService):
             ]
 
         # Store updated state
-        runtime.state = frozen_game
+        runtime.commit(frozen_game)
 
         # enter waiting state for round confirmation
         human_seats = frozenset(range(NUM_PLAYERS)) - runtime.ai.ai_player_seats
@@ -772,7 +772,7 @@ class MahjongGameService(GameService):
         """
         frozen_game = runtime.state
         frozen_game = init_round(frozen_game)
-        runtime.state = frozen_game
+        runtime.commit(frozen_game)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
         logger.debug("starting next round", hands=hands)
@@ -781,7 +781,7 @@ class MahjongGameService(GameService):
         events = self._create_round_started_events(frozen_game)
 
         new_game_state, draw_events = process_draw_phase(frozen_game)
-        runtime.state = new_game_state
+        runtime.commit(new_game_state)
         events.extend(convert_events(draw_events))
 
         if runtime.ai.is_ai_player(new_game_state.round_state.dealer_seat):

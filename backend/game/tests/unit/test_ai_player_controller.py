@@ -8,7 +8,7 @@ from game.logic.enums import GameAction, KanType, MeldCallType, PlayerAction, Ro
 from game.logic.state import Caller, MahjongPlayer, MahjongRoundState, MeldOption
 from game.logic.tiles import tile_to_34
 from game.logic.types import AIPlayerAction
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_136_tile
 
 
@@ -44,9 +44,8 @@ def _create_round_state(current_seat: int = 0) -> MahjongRoundState:
     )
     return MahjongRoundState(
         players=players,
-        wall=Wall(
+        wall=make_wall(
             live_tiles=tuple(range(50)),
-            dead_wall_tiles=tuple(range(14)),
             dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
         ),
         current_player_seat=current_seat,

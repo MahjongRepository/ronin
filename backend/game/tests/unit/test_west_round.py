@@ -13,6 +13,7 @@ from game.logic.types import (
     YakuInfo,
 )
 from game.tests.conftest import create_game_state
+from game.tests.helpers.wall import make_wall
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState
@@ -29,7 +30,7 @@ def _west_game_state(
 ) -> MahjongGameState:
     scores = player_scores or [25000, 25000, 25000, 25000]
     players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-    round_state = MahjongRoundState(players=players, dealer_seat=dealer_seat, round_wind=2)
+    round_state = MahjongRoundState(wall=make_wall(), players=players, dealer_seat=dealer_seat, round_wind=2)
 
     settings = GameSettings(
         game_type=game_type,
@@ -103,7 +104,7 @@ class TestWestRoundEndCondition:
     def test_west_round_end__when_still_in_primary_wind__should_ignore_threshold(self):
         scores = [35000, 20000, 22000, 23000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-        rs = MahjongRoundState(players=players, round_wind=1)
+        rs = MahjongRoundState(wall=make_wall(), players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.HANCHAN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=7, settings=settings)
 
@@ -222,7 +223,7 @@ class TestTonpusenSuddenDeath:
     def test_tonpusen_sudden_death__when_south_without_threshold__should_continue_game(self):
         scores = [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-        rs = MahjongRoundState(players=players, round_wind=1)
+        rs = MahjongRoundState(wall=make_wall(), players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
 
@@ -231,7 +232,7 @@ class TestTonpusenSuddenDeath:
     def test_tonpusen_sudden_death__when_south_with_threshold__should_end_game(self):
         scores = [31000, 24000, 22000, 23000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-        rs = MahjongRoundState(players=players, round_wind=1)
+        rs = MahjongRoundState(wall=make_wall(), players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
 
@@ -240,7 +241,7 @@ class TestTonpusenSuddenDeath:
     def test_tonpusen_sudden_death__when_past_south_4__should_end_game(self):
         scores = [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-        rs = MahjongRoundState(players=players, round_wind=1)
+        rs = MahjongRoundState(wall=make_wall(), players=players, round_wind=1)
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=9, settings=settings)
 

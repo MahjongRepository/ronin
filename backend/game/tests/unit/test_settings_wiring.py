@@ -29,6 +29,7 @@ from game.logic.types import (
     YakuInfo,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.wall import make_wall
 
 # shared tile tuples used by multiple helpers
 _OTHER_HAND = (20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32)
@@ -137,7 +138,7 @@ class TestGameTypeEnchousenExtensions:
     ) -> MahjongGameState:
         scores = player_scores or [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-        round_state = MahjongRoundState(players=players)
+        round_state = MahjongRoundState(wall=make_wall(), players=players)
         settings = GameSettings(game_type=game_type, enchousen=enchousen)
         return MahjongGameState(
             round_state=round_state,
@@ -180,7 +181,7 @@ class TestEnchousenNone:
     ) -> MahjongGameState:
         scores = [25000, 25000, 25000, 25000]
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
-        round_state = MahjongRoundState(players=players)
+        round_state = MahjongRoundState(wall=make_wall(), players=players)
         settings = GameSettings(enchousen=enchousen, game_type=game_type)
         return MahjongGameState(
             round_state=round_state,

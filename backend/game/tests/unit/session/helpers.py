@@ -16,7 +16,10 @@ if TYPE_CHECKING:
     from game.session.manager import SessionManager
     from game.session.models import GameSession, Participant
 
-ENGINE_SEED = "a" * 192
+ENGINE_SEED = (
+    "04a42c07b15b2cdfc5e518f3fe2d8fb0060412714f1d1a09558079cb875c0348b642e5faea6ceb315dc5ae346feca87c"
+    "a53baeb9ce574ae287e6dd2eb4c692b4c88fa6c1ca09eb3da03d5405da300f22c2ff88ce02c50097a7ee70b988c0e25b"
+)
 
 
 def participant_of(manager: SessionManager, conn: MockConnection) -> Participant:

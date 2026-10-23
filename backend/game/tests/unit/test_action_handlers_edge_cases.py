@@ -46,7 +46,7 @@ from game.logic.types import (
     PonActionData,
     SeatConfig,
 )
-from game.logic.wall import Wall
+from game.tests.helpers.wall import make_wall
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -99,9 +99,8 @@ class TestResolveMeldResponse:
         minimal_wall = list(range(16))
         round_state = round_state.model_copy(
             update={
-                "wall": Wall(
+                "wall": make_wall(
                     live_tiles=tuple(minimal_wall[:2]),
-                    dead_wall_tiles=tuple(minimal_wall[2:16]),
                     dora_indicators=round_state.wall.dora_indicators,
                     pending_dora_count=round_state.wall.pending_dora_count,
                 ),

@@ -139,7 +139,7 @@ class TestCallOpenKanImmutable:
         man_1m = TilesConverter.string_to_136_array(man="1111")
         player0_tiles = (man_1m[0], man_1m[1], man_1m[2], *_PIN_TILES)
         round_state = _round_state(player0_tiles, current_player_seat=3)
-        original_dead_wall_len = len(round_state.wall.dead_wall_tiles)
+        original_dead_wall_len = len(round_state.wall.dead_wall.tiles)
 
         new_state, meld = call_open_kan(
             round_state,
@@ -156,7 +156,7 @@ class TestCallOpenKanImmutable:
         assert meld.called_tile == man_1m[3]
         # 12 original - 3 for kan + 1 dead wall draw = 10
         assert len(new_state.players[0].tiles) == 10
-        assert len(new_state.wall.dead_wall_tiles) == original_dead_wall_len
+        assert len(new_state.wall.dead_wall.tiles) == original_dead_wall_len
         assert new_state.players[0].is_rinshan is True
         assert new_state.wall.pending_dora_count == 1
 

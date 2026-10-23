@@ -26,7 +26,6 @@ def _make_scoring_game_state(
         round_wind=0,
         dora_indicators=dora_indicators,
         wall=tuple(range(70)),
-        dead_wall=tuple(range(14)),
         all_discards=TilesConverter.string_to_136_array(man="1112"),
     )
     return create_game_state(round_state=round_state, settings=settings)

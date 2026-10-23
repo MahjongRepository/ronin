@@ -90,7 +90,6 @@ class TestRenhouScoring:
             round_wind=0,
             dora_indicators=dora_indicator_tiles,
             wall=tuple(range(70)),
-            dead_wall=tuple(range(14)),
             all_discards=(),
         )
         return create_game_state(round_state=round_state)

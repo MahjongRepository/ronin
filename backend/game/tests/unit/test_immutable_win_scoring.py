@@ -18,8 +18,8 @@ from game.logic.state import (
     MahjongRoundState,
 )
 from game.logic.types import YakuInfo
-from game.logic.wall import Wall
 from game.logic.win import can_call_ron
+from game.tests.helpers.wall import make_wall
 
 
 class TestCanCallRonFuritenGuards:
@@ -33,7 +33,7 @@ class TestCanCallRonFuritenGuards:
         round_state = MahjongRoundState(
             dealer_seat=0,
             players=tuple(players_list),
-            wall=Wall(dora_indicators=tuple(dora_tiles)),
+            wall=make_wall(dora_indicators=tuple(dora_tiles)),
             all_discards=tuple(TilesConverter.string_to_136_array(man="1112")),
         )
         win_tile = TilesConverter.string_to_136_array(pin="5")[0]
@@ -77,7 +77,7 @@ class TestProcessExhaustiveDrawPayment:
             )
             for seat in range(4)
         )
-        round_state = MahjongRoundState(players=players, wall=Wall())
+        round_state = MahjongRoundState(players=players, wall=make_wall())
         game_state = MahjongGameState(round_state=round_state)
 
         new_game, result = process_exhaustive_draw(game_state)
@@ -100,7 +100,7 @@ class TestApplyDoubleRonWithPao:
         # seat 0 has pao on seat 3
         players_list = list(players)
         players_list[0] = players_list[0].model_copy(update={"pao_seat": 3})
-        round_state = MahjongRoundState(dealer_seat=0, players=tuple(players_list))
+        round_state = MahjongRoundState(wall=make_wall(), dealer_seat=0, players=tuple(players_list))
         game_state = MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
         hand_result_0 = HandResult(
@@ -156,7 +156,7 @@ class TestProcessExhaustiveDrawNagashiTriggered:
             MahjongPlayer(seat=2, name="Player2", tiles=non_tempai_hand, score=25000),
             MahjongPlayer(seat=3, name="Player3", tiles=non_tempai_hand, score=25000),
         )
-        round_state = MahjongRoundState(players=players, wall=Wall(), dealer_seat=1)
+        round_state = MahjongRoundState(players=players, wall=make_wall(), dealer_seat=1)
         game_state = MahjongGameState(round_state=round_state)
 
         new_game, result = process_exhaustive_draw(game_state)
@@ -174,7 +174,7 @@ class TestCalculateHandValueErrors:
             dealer_seat=0,
             round_wind=0,
             players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
-            wall=Wall(dead_wall_tiles=dead_wall, dora_indicators=(dead_wall[2],)),
+            wall=make_wall(dead_wall=dead_wall, dora_indicators=(dead_wall[2],)),
         )
 
     def test_calculate_hand_value__when_hand_is_invalid__should_return_error(self):
