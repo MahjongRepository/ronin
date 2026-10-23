@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -11,6 +12,10 @@ import structlog
 from shared.auth.game_ticket import create_signed_ticket
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from lobby.occupancy import Occupancy
+    from lobby.players import LobbyPlayer
     from lobby.settings import LobbyServerSettings
 
 logger = structlog.get_logger()
@@ -20,8 +25,104 @@ class GameTransitionError(Exception):
     pass
 
 
+class GameStartError(Exception):
+    """
+    A game start that failed before the game server created the game; ``reason`` is the text the players are shown.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
 _HTTP_CREATED = HTTPStatus.CREATED
 _PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
+
+
+async def start_game(
+    players: Sequence[LobbyPlayer],
+    *,
+    num_ai_players: int,
+    settings: LobbyServerSettings,
+    ticket_secret: str,
+    occupancy: Occupancy,
+) -> str:
+    """
+    Create a game for the players, then send each of them ``game_starting`` and a 1000 close; return the game id.
+
+    Rooms and matchmaking both start games here, each keeping its own recovery. Every attempt gets a fresh game id: a
+    failure may mean the game server created the game anyway (a timeout after the POST arrived), and a retry under the
+    same id would collide with that orphan. The attempt hands the players to the game whatever its outcome, before the
+    caller releases their seats or queue places. Before the game server's 201 any exception (a cancellation, which only
+    server shutdown causes, aside) is logged and raised as ``GameStartError``. After it the game exists with every
+    signed ticket, so delivery only enqueues: a slow player delays nobody else, and one whose handler has ended gets
+    nothing (the game server replaces a seat nobody joins with AI).
+    """
+    game_id = str(uuid.uuid4())
+    log = logger.bind(game_id=game_id)
+    log.info("game transition starting", players=[player.username for player in players])
+
+    try:
+        ws_url, tickets = await _create_game(
+            players,
+            game_id=game_id,
+            num_ai_players=num_ai_players,
+            settings=settings,
+            ticket_secret=ticket_secret,
+        )
+    except GameTransitionError as e:
+        log.exception("failed to create game")
+        raise GameStartError(str(e)) from e
+    except Exception as e:
+        log.exception("unexpected error creating game")
+        raise GameStartError("internal error") from e
+    finally:
+        occupancy.hand_to_game(player.user_id for player in players)
+
+    for player, ticket in zip(players, tickets, strict=True):
+        player.send(
+            {
+                "type": "game_starting",
+                "ws_url": ws_url,
+                "game_ticket": ticket,
+                "game_id": game_id,
+                "game_client_url": settings.game_client_url,
+            },
+        )
+        player.connection.close()
+
+    log.info("game transition complete", ws_url=ws_url)
+    return game_id
+
+
+async def _create_game(
+    players: Sequence[LobbyPlayer],
+    *,
+    game_id: str,
+    num_ai_players: int,
+    settings: LobbyServerSettings,
+    ticket_secret: str,
+) -> tuple[str, list[str]]:
+    """
+    Sign a ticket per player and create the game; return the game server URL and the tickets in player order.
+    """
+    tickets = [
+        create_signed_ticket(
+            user_id=player.user_id, username=player.username, room_id=game_id, game_ticket_secret=ticket_secret
+        )
+        for player in players
+    ]
+    player_specs = [
+        {"name": player.username, "user_id": player.user_id, "game_ticket": ticket}
+        for player, ticket in zip(players, tickets, strict=True)
+    ]
+    ws_url = await create_game_on_server(
+        game_id=game_id,
+        players=player_specs,
+        num_ai_players=num_ai_players,
+        settings=settings,
+    )
+    return ws_url, tickets
 
 
 async def create_game_on_server(
@@ -84,32 +185,3 @@ async def is_user_playing(user_id: str, *, game_server_url: str) -> bool:
         )
 
     return False
-
-
-def sign_player_tickets(
-    *,
-    players: list[tuple[str, str, str]],
-    game_id: str,
-    ticket_secret: str,
-) -> tuple[list[dict], dict[str, str]]:
-    """
-    Sign game tickets for a list of players.
-
-    Args:
-        players: List of (user_id, username, connection_id) tuples.
-        game_id: The game ID to include in the ticket.
-        ticket_secret: HMAC secret for signing.
-
-    Returns:
-        (player_specs, ticket_map) where ticket_map is connection_id -> signed_ticket.
-    """
-    player_specs = []
-    ticket_map: dict[str, str] = {}
-    for user_id, username, conn_id in players:
-        signed_ticket = create_signed_ticket(
-            user_id=user_id, username=username, room_id=game_id, game_ticket_secret=ticket_secret
-        )
-        player_specs.append({"name": username, "user_id": user_id, "game_ticket": signed_ticket})
-        ticket_map[conn_id] = signed_ticket
-
-    return player_specs, ticket_map

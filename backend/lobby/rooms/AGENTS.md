@@ -14,20 +14,20 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   transfer, the recovery and the reaper tick. Nothing interleaves inside a step, so rooms take no
   lock, and a joiner is registered in the step that seats it.
 * Game transition: the owner's `start_game` sets `transitioning=True` in one step, so joins and
-  ready toggles arriving during the network call get `room_transitioning`. It then signs a ticket per human and calls the game server's `POST /games`
-  (with `num_ai_players` from the bot seats). Before a 201, any exception clears `transitioning`,
-  which resets the ready flags, and rebroadcasts the room state; a cancellation (only server
-  shutdown causes one) does not. Each attempt runs under a fresh game id, so a start after a
-  failure that created the game anyway never collides with that orphan. After a 201 the game
-  exists with every signed ticket: the room is removed, and every seated player gets
-  `game_starting` and a 1000 close, enqueued, so a slow peer delays nobody else's. Transitioning is
-  never cleared, the state never rebroadcast and creation never retried.
+  ready toggles arriving during the network call get `room_transitioning`. The host's handler then
+  runs the shared `start_game` (`lobby/AGENTS.md`) for every seated human, with `num_ai_players`
+  from the bot seats. On `GameStartError` it clears `transitioning`, which resets the ready flags,
+  and rebroadcasts the room state and `Failed to start game: <reason>`; a cancellation (only server
+  shutdown causes one) does not. After a 201 every seated player already has `game_starting` and a
+  1000 close queued, and the room is removed: transitioning is never cleared, the state never
+  rebroadcast and creation never retried.
 * A player who leaves a transitioning room keeps the seat: the ticket is already signed and sent
   in `POST /games`, and the game server replaces that seat, whose human never gets `ws_url` or the
   ticket, with AI. There is no host transfer, no `owner_changed` or `player_left`, no
   `game_starting` for the leaver, and the room is not dropped when it empties. The transition
-  settles those seats: a failed start releases them (and drops a room left empty), a successful one
-  removes the room.
+  settles those seats: a failed start releases them, a successful one removes the room. The host
+  runs the transition in its own handler and cannot leave during it, so a failed start never
+  empties the room; `clear_transitioning` still drops a room left empty, as the manager's own rule.
 * A slow or dead socket never holds up or costs another player anything. A room's members are its
   `RoomMember`s (the `LobbyPlayer` plus the room-only `ready` and `departed`), and a broadcast
   encodes once and enqueues on each member's connection (`lobby/AGENTS.md`, `players.py`). A

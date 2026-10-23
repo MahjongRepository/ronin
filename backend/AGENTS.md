@@ -28,9 +28,10 @@ and must respect the same direction. The rules it pins:
 * `game`: `server` → `session` → `messaging` → `wire` → `logic`; `replay` is a tool over `logic` and
   `wire` that never imports the server packages, and `session` never imports `replay`. `logic` and
   `wire` know nothing of auth or persistence.
-* `lobby`: `server` → `views` → `rooms` | `matchmaking` → `game_transition` | `websocket_utils` |
-  `occupancy` → `players` → `auth` → `settings`; `rooms` and `matchmaking` are independent of each other. What
-  both need from the other is injected in `create_app()` (the occupancy rule).
+* `lobby`: `server` → `views` → `rooms` | `matchmaking` → `game_transition` | `websocket_utils` →
+  `occupancy` | `players` → `auth` → `settings`. A `|` layer's packages never import each other, so
+  rooms and matchmaking share what they both need through the layers below them (`start_game`,
+  `LobbyPlayer`) and get the occupancy rule injected in `create_app()`.
 * `shared`: `db` → `auth` → `dal`; only the two `server/app.py` composition roots, `scripts` and the
   `shared` tests import `shared.db`.
 

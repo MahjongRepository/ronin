@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from lobby.game_transition import create_game_on_server, sign_player_tickets
+from lobby.game_transition import GameStartError, start_game
 from lobby.players import LobbyPlayer
 from lobby.websocket_utils import check_origin
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
@@ -146,73 +146,29 @@ def _send_error_and_close(player: LobbyPlayer, *, reason: str) -> None:
 
 async def _handle_match(matched: list[LobbyPlayer], ctx: _MatchmakingContext) -> None:
     """
-    Create a game for the matched players, then send each of them ``game_starting`` and close their sockets.
+    Start a game for the matched players.
 
     The four are released (neither queued nor in flight) whatever the outcome. A failed creation is terminal: each of
     them gets ``match_failed`` and a 4000 close, and rejoins on its own. It is never retried, because a failure may mean
     the game exists. A player who disconnected meanwhile keeps the seat: the game server replaces a seat nobody joins
     with AI.
     """
-    game_id = str(uuid.uuid4())
-    log = logger.bind(game_id=game_id)
-
     try:
-        created = await _create_game(matched, ctx, game_id=game_id)
-    except Exception:
-        log.exception("failed to create game from matchmaking")
-        created = None
-    finally:
-        ctx.matchmaking_manager.clear_in_flight({p.user_id for p in matched})
-
-    if created is None:
+        game_id = await start_game(
+            matched,
+            num_ai_players=0,
+            settings=ctx.settings,
+            ticket_secret=ctx.auth_settings.game_ticket_secret,
+            occupancy=ctx.occupancy,
+        )
+    except GameStartError:
         for player in matched:
             _send_error_and_close(player, reason=_MATCH_FAILED)
         return
-
-    ws_url, ticket_map = created
-    log.info("game created from matchmaking", ws_url=ws_url)
-    for player in matched:
-        player.send(
-            {
-                "type": "game_starting",
-                "ws_url": ws_url,
-                "game_ticket": ticket_map[player.connection_id],
-                "game_id": game_id,
-                "game_client_url": ctx.settings.game_client_url,
-            },
-        )
-        player.connection.close()
-
-
-async def _create_game(
-    matched: list[LobbyPlayer],
-    ctx: _MatchmakingContext,
-    *,
-    game_id: str,
-) -> tuple[str, dict[str, str]]:
-    """
-    Sign a ticket per matched player and create the game; return the game server URL and the tickets by connection.
-
-    The attempt hands the matched users to the game whatever its outcome, before the caller releases them from the
-    in-flight set: a failure may mean the game server created the game anyway.
-    """
-    players_for_tickets = [(p.user_id, p.username, p.connection_id) for p in matched]
-    player_specs, ticket_map = sign_player_tickets(
-        players=players_for_tickets,
-        game_id=game_id,
-        ticket_secret=ctx.auth_settings.game_ticket_secret,
-    )
-    try:
-        ws_url = await create_game_on_server(
-            game_id=game_id,
-            players=player_specs,
-            num_ai_players=0,
-            settings=ctx.settings,
-        )
     finally:
-        ctx.occupancy.hand_to_game(p.user_id for p in matched)
+        ctx.matchmaking_manager.clear_in_flight({player.user_id for player in matched})
 
-    return ws_url, ticket_map
+    logger.info("game created from matchmaking", game_id=game_id)
 
 
 def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | None = None) -> None:

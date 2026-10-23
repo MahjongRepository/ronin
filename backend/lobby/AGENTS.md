@@ -21,8 +21,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * There is one game server, configured as two settings that are never derived from each other: the
   internal base URL the lobby calls (`POST /games`, `GET /players/{id}`) and the public WebSocket
   origin it hands clients in `ws_url` (the lobby appends `/ws/{game_id}`).
-* `game_transition.py` — `sign_player_tickets`, `create_game_on_server` and `is_user_playing`,
-  shared by rooms and matchmaking; `websocket_utils.py` — `check_origin`.
+* `game_transition.py` — `start_game`, the one game start for rooms and matchmaking (sign a ticket
+  per player, `POST /games`, then `game_starting` and a 1000 close per player), plus
+  `create_game_on_server` and `is_user_playing`; `websocket_utils.py` — `check_origin`.
 * `players.py` — `LobbyPlayer`, one connected user in a room or the queue, and the only holder of
   its socket: a `QueuedWebSocket` (`shared/websocket.py`) whose writer the socket's handler starts
   after accept and stops in its `finally`. Every send or close, to the player's own socket or
@@ -39,6 +40,10 @@ configured `Origin` on every request and WebSocket.
 
 ## Game start
 
+* `start_game` raises `GameStartError` (its `reason` is the text players see) for any failure
+  before the game server's 201, and each caller recovers its own way: a room clears
+  `transitioning` and resyncs (`rooms/AGENTS.md`), a match fails terminally (below). After the 201
+  it only enqueues, so one slow player delays nobody else's `game_starting`.
 * A matchmaking match is resolved once, in the handler of the join that completed it: the four
   matched players leave the queue for an in-flight set and are released from it whatever happens,
   so none of them is ever left queued without a handler. A failed creation is terminal: all four
