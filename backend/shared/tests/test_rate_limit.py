@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from game.server.rate_limit import TokenBucket
+from shared.rate_limit import TokenBucket
 
 
 class TestTokenBucket:
@@ -23,7 +23,7 @@ class TestTokenBucket:
         assert bucket.consume() is False
 
         # Advance time by 0.5s -> should refill 5 tokens (10/s * 0.5s)
-        with patch("game.server.rate_limit.time") as mock_time:
+        with patch("shared.rate_limit.time") as mock_time:
             mock_time.monotonic.return_value = bucket._last_refill + 0.5
             assert bucket.consume() is True
 
@@ -31,7 +31,7 @@ class TestTokenBucket:
         bucket = TokenBucket(rate=10.0, burst=5)
 
         # Advance time by a large amount
-        with patch("game.server.rate_limit.time") as mock_time:
+        with patch("shared.rate_limit.time") as mock_time:
             mock_time.monotonic.return_value = bucket._last_refill + 100.0
             # Should get at most burst (5) tokens
             results = [bucket.consume() for _ in range(5)]
@@ -46,7 +46,7 @@ class TestTokenBucket:
         assert bucket.consume() is False
 
         # After 0.5s at rate=2, we get 1 token
-        with patch("game.server.rate_limit.time") as mock_time:
+        with patch("shared.rate_limit.time") as mock_time:
             mock_time.monotonic.return_value = bucket._last_refill + 0.5
             assert bucket.consume() is True
             assert bucket.consume() is False

@@ -8,9 +8,10 @@ hands each player a signed game ticket; players then connect to `/ws/{game_id}` 
 
 * `server/` — inbound: Starlette app (`app.py`, `get_app` factory), WebSocket endpoint
   (`websocket.py`), `MessageRouter` (`router.py`: parses client messages, verifies game tickets on
-  JOIN_GAME / RECONNECT, dispatches to `SessionManager`), `TokenBucket` rate limiter,
-  `GameServerSettings`. The router talks to the transport only through `ConnectionProtocol`, so
-  tests run it on `MockConnection`.
+  JOIN_GAME / RECONNECT, dispatches to `SessionManager`), `GameServerSettings`. The transport
+  under `WebSocketConnection` (writer, queue, receive) and `TokenBucket` are `shared/`'s. The
+  router talks to the transport only through `ConnectionProtocol`, so tests run it on
+  `MockConnection`.
 * `session/` — `SessionManager`, the registry of `GameSession`s and their lifecycle: pending games
   (`PlayerSpec` is its input), joins, disconnects, reconnects, timers, replay collection, the one
   end of every game.
@@ -52,7 +53,9 @@ Mandatory for all game server code; review must catch violations.
 * REST bodies are read with `request.stream()` and a hard size cutoff, never `await request.body()`
   on untrusted input; handle `ClientDisconnect`.
 * Validate the WebSocket `game_id` path parameter against `_GAME_ID_PATTERN` and
-  `_MAX_GAME_ID_LENGTH` before accepting.
+  `_MAX_GAME_ID_LENGTH` before accepting. The reject and the accept go through
+  `reject_websocket` / `accept_websocket`, so a peer gone before the handshake ends the endpoint
+  quietly.
 * Every background task has an owner and an exception boundary. A sleeping pending, auth or turn
   timer is cancelled when its game, wait or connection goes, and a cancel stops it even after its
   sleep ended; a fired timer detaches itself and runs its default action in one synchronous step,
@@ -69,12 +72,12 @@ Mandatory for all game server code; review must catch violations.
   write buffer to drain: at once for a peer with nothing pending, and for one whose buffer is stuck
   only through the connection writer's send deadline (below), which terminates it.
 * Sends and closes never raise or wait for a dead or slow socket (an encoding error still raises
-  at the caller): `WebSocketConnection` queues them (bounded) for its writer, FIFO, a close last and
-  nothing after it. A connection whose queue overflows, whose send outlasts the send deadline or
-  whose write fails is terminated without a close frame, and a dead socket surfaces only at
-  receive, as `ConnectionError`, so the endpoint's disconnect path seats an AI player. The endpoint
-  lets the writer flush a close it queued (within the send deadline) before returning, so the
-  client gets its close code.
+  at the caller): `WebSocketConnection` queues them (bounded) for its writer (`shared`'s
+  `QueuedWebSocket`), FIFO, a close last and nothing after it. A connection whose queue
+  overflows, whose send outlasts the send deadline or whose write fails is terminated without a
+  close frame, and a dead socket surfaces only at receive, as `ConnectionError`, so the endpoint's
+  disconnect path seats an AI player. The endpoint lets the writer flush a close it queued (within
+  the send deadline) before returning, so the client gets its close code.
 * The router's game action, JOIN_GAME, RECONNECT and disconnect handlers are the same kind of
   boundary (`SessionManager.fail_connection`, with the game captured before the call): any exception
   fails that game, or with no game is logged and the socket closed with 1011; a connection the game
@@ -95,7 +98,8 @@ Mandatory for all game server code; review must catch violations.
   (`create_started_game`, `disconnect_and_reconnect`) drives the session lifecycle, and the session
   suite's `fake_clock` and `held_sleep` fixtures run timers without waiting; `tests/helpers/auth.py` (`make_test_game_ticket`) signs tickets;
   `tests/helpers/websocket.py` drives a `TestClient` WebSocket; `tests/helpers/fake_websocket.py`
-  (`FakeWebSocketClient`) is the ASGI client side of a real Starlette WebSocket whose writes can be
-  held or failed, for the connection writer and the endpoint.
+  (`FakeWebSocketClient`) is the MessagePack face of `shared`'s `FakeAsgiClient`, the ASGI client
+  side of a real Starlette WebSocket whose writes can be held or failed, for the endpoint. The
+  writer's own tests live in `shared/tests/`.
 * Whole-game flows use the replay runner with fixtures in `tests/integration/replays/fixtures/` or a
   built `ReplayInput`, asserting on each step's `state_before` / `state_after`.
