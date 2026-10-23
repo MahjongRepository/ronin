@@ -11,8 +11,9 @@ from game.logic.events import (
     EventType,
 )
 from game.messaging.types import SessionErrorCode
-from game.session.models import GameLifecycle
-from game.session.timer import TimerConfig
+from game.session.manager import SessionManager
+from game.session.models import GameLifecycle, GameSession, Participant, PlayerSpec
+from game.session.timer import TimerConfig, TurnTimer
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import FakeGameRepository, MockConnection
 from game.wire.events import EVENT_TYPE_INT
@@ -36,8 +37,46 @@ from .helpers import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from game.session.manager import SessionManager
-    from game.session.models import Participant
+
+ARMING_CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20, meld_decision_seconds=3)
+
+
+class TestWaitTimerArming:
+    @pytest.fixture
+    def participant(self):
+        game = GameSession(game_id="g1", timer_config=ARMING_CONFIG)
+        return Participant(
+            spec=PlayerSpec(name="Alice", user_id="user-0", game_ticket="ticket-0"),
+            game=game,
+            timer=TurnTimer(ARMING_CONFIG),
+            seat=0,
+        )
+
+    @pytest.mark.parametrize(
+        "arming",
+        [
+            (SessionManager._start_turn_timer, TimeoutType.TURN, 25.0),
+            (SessionManager._start_meld_timer, TimeoutType.MELD, 3),
+            (
+                SessionManager._start_round_advance_timer,
+                TimeoutType.ROUND_ADVANCE,
+                ARMING_CONFIG.round_advance_timeout_seconds,
+            ),
+        ],
+    )
+    async def test_wait_timer__when_an_armed_timer_expires__should_report_its_participant_and_timeout_type(
+        self, participant, held_sleep, monkeypatch, arming
+    ):
+        manager = make_session_manager()
+        timeout_log = []
+        monkeypatch.setattr(manager, "_handle_timeout", lambda *timed_out: timeout_log.append(timed_out))
+        start, timeout_type, duration = arming
+        start(manager, participant)
+        await asyncio.sleep(0)
+        assert held_sleep.durations == [duration]
+
+        await held_sleep.release_all()
+        assert timeout_log == [(participant, timeout_type)]
 
 
 class TestSessionManagerTimers:

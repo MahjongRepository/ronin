@@ -346,7 +346,7 @@ class TestGameEndFromTimeout:
         game = game_of(manager)
         timed_out = game.awaiting
         bob_timer = bob.timer
-        manager._timer_manager.start_meld_timer(bob)
+        manager._start_meld_timer(bob)
         await fire_turn_timer_now(manager, game_id="game1", seat=alice.seat)
         await wait_for_background_tasks(manager)
         final_wait = game.awaiting
