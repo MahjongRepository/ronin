@@ -57,9 +57,11 @@ changes.
   with its state committed, so a caller needs no liveness re-check around an engine call. Pacing (turn,
   bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`), never a
   `GameSettings` field.
-* Per-game side state lives in narrow trackers with a `cleanup_game()`: `FuritenTracker` (emits
-  `FuritenEvent` on change) and `RoundAdvanceManager` (who still has to confirm the round end; AI
-  seats are pre-confirmed).
+* Everything the engine keeps for one game is its `GameRuntime` (`runtime.py`), the one per-game
+  store the service holds by game id (`cleanup_game()` drops it): the frozen state, the
+  `AIPlayerController`, the round's `FuritenTracker` (emits `FuritenEvent` on change, replaced at
+  each round start) and `pending_confirm`, the round end's `PendingRoundAdvance` (the human seats
+  still to confirm; AI seats never confirm), None otherwise.
 
 ## Turn rules
 

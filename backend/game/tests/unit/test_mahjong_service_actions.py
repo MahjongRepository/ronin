@@ -47,7 +47,7 @@ class TestMahjongGameServiceAddedKanChankan:
 
     def test_handle_action__when_ai_robber_passes_on_added_kan__should_complete_the_kan_and_draw(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
-        player = _find_player(service._games["game1"].round_state, "Player")
+        player = _find_player(service._runtimes["game1"].state.round_state, "Player")
         robber_seat = (player.seat + 1) % 4
         pin_3_copies = TilesConverter.string_to_136_array(pin="3333")
         pon = FrozenMeld(
@@ -77,7 +77,7 @@ class TestMahjongGameServiceAddedKanChankan:
             (EventType.FURITEN, SeatTarget(seat=robber_seat)),
         ]
         assert update.events[0].data.call_type == CallType.CHANKAN
-        round_state = service._games["game1"].round_state
+        round_state = service._runtimes["game1"].state.round_state
         assert round_state.pending_call_prompt is None
         assert round_state.players[player.seat].melds[0].meld_type == FrozenMeld.SHOUMINKAN
         assert update.awaiting.kind == WaitKind.TURN
@@ -92,7 +92,7 @@ class TestProcessActionResultRoundEnd:
     def test_process_action_result__when_round_ended__should_return_round_end_event(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
 
-        scores = {i: service._games["game1"].round_state.players[i].score for i in range(4)}
+        scores = {i: service._runtimes["game1"].state.round_state.players[i].score for i in range(4)}
         round_end = RoundEndEvent(
             result=ExhaustiveDrawResult(
                 type=RoundResultType.EXHAUSTIVE_DRAW,
@@ -104,9 +104,9 @@ class TestProcessActionResultRoundEnd:
             ),
         )
         _update_round_state(service, "game1", phase=RoundPhase.FINISHED, result=round_end.result)
-        result = ActionResult(events=[round_end], state=service._games["game1"], needs_post_discard=True)
+        result = ActionResult(events=[round_end], state=service._runtimes["game1"].state, needs_post_discard=True)
 
-        events = service._process_action_result_internal("game1", result)
+        events = service._process_action_result_internal(service._runtimes["game1"], result)
         assert [e.event for e in events] == [EventType.ROUND_END]
         assert service.is_round_advance_pending("game1")
 
@@ -118,7 +118,7 @@ class TestMahjongGameServiceChankanPrompt:
 
     def test_process_action_result__when_chankan_prompt_waits_for_human_player__should_keep_it_open(self, service):
         service.start_game("game1", ["Player"], seed="a" * 192)
-        game_state = service._games["game1"]
+        game_state = service._runtimes["game1"].state
         player = _find_player(game_state.round_state, "Player")
 
         prompt = PendingCallPrompt(
@@ -137,10 +137,10 @@ class TestMahjongGameServiceChankanPrompt:
             target=SeatTarget(seat=player.seat),
         )
 
-        result = ActionResult(events=[chankan_prompt], state=service._games["game1"])
-        events = service._process_action_result_internal("game1", result)
+        result = ActionResult(events=[chankan_prompt], state=service._runtimes["game1"].state)
+        events = service._process_action_result_internal(service._runtimes["game1"], result)
         assert [e.data for e in events] == [chankan_prompt]
-        assert service._games["game1"].round_state.pending_call_prompt == prompt
+        assert service._runtimes["game1"].state.round_state.pending_call_prompt == prompt
 
 
 class TestNoDataActionDispatchRouting:
@@ -154,7 +154,7 @@ class TestNoDataActionDispatchRouting:
     )
     def test_handle_action__when_no_data_action_out_of_turn__should_answer_error_and_run_nothing(self, service, action):
         service.start_game("game1", ["Player"], seed="a" * 192)
-        player = _find_player(service._games["game1"].round_state, "Player")
+        player = _find_player(service._runtimes["game1"].state.round_state, "Player")
         ai_seat_on_turn = (player.seat + 1) % 4
         _update_round_state(service, "game1", current_player_seat=ai_seat_on_turn)
         game_state = service.get_game_state("game1")
