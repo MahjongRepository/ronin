@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from game.logic.enums import GameAction, GamePhase
+from game.logic.enums import GameAction, GamePhase, WaitKind
 from game.logic.events import EventType
 from game.logic.mahjong_service import MahjongGameService
 from game.replay.loader import ReplayLoadError
@@ -13,7 +13,6 @@ from game.replay.models import (
     ReplayInput,
     ReplayInputAfterGameEndError,
     ReplayInputEvent,
-    ReplayInvariantError,
     ReplayStep,
     ReplayStepLimitError,
     ReplayTrace,
@@ -22,8 +21,8 @@ from game.replay.models import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from game.logic.runtime import GameRuntime
     from game.logic.service import GameService
-    from game.logic.state import MahjongGameState
 
 
 _CALL_RESPONSE_ACTIONS = frozenset(
@@ -52,11 +51,12 @@ class ReplayOptions:
 @dataclass(frozen=True)
 class _ReplayRunContext:
     """
-    Bundle service + options for internal replay functions.
+    Bundle the service, the options and the replayed game's runtime for internal replay functions.
     """
 
     service: GameService
     opts: ReplayOptions
+    runtime: GameRuntime
 
 
 @dataclass(frozen=True)
@@ -96,25 +96,17 @@ def run_replay(
         )
 
     factory = service_factory or _default_service_factory
-    service = factory()
-    ctx = _ReplayRunContext(service=service, opts=resolved_opts)
-
-    try:
-        return _execute_replay(ctx, replay)
-    finally:
-        service.cleanup_game(resolved_opts.game_id)
+    return _execute_replay(factory(), resolved_opts, replay)
 
 
 def _execute_replay(
-    ctx: _ReplayRunContext,
+    service: GameService,
+    opts: ReplayOptions,
     replay: ReplayInput,
 ) -> ReplayTrace:
     """
     Core replay execution loop.
     """
-    opts = ctx.opts
-    service = ctx.service
-
     if opts.auto_confirm_rounds:
         _reject_manual_confirm_rounds(replay)
 
@@ -127,10 +119,10 @@ def _execute_replay(
         seed=replay.seed,
         wall=list(replay.wall) if replay.wall is not None else None,
     )
+    runtime = start.runtime
+    ctx = _ReplayRunContext(service=service, opts=opts, runtime=runtime)
 
-    initial_state = _require_state(
-        service, game_id=opts.game_id, message="start_game completed but game state is missing"
-    )
+    initial_state = runtime.state
     seat_by_player = dict(zip(replay.player_names, start.seats, strict=True))
     seating = _ReplaySeating(
         seat_by_player=seat_by_player,
@@ -141,10 +133,7 @@ def _execute_replay(
     step_count = 0
     for input_event in replay.events:
         _check_step_limit(step_count, opts.max_steps)
-        current_state = _require_state(
-            service, game_id=opts.game_id, message="game state disappeared during replay execution"
-        )
-        if current_state.game_phase == GamePhase.FINISHED:
+        if runtime.state.game_phase == GamePhase.FINISHED:
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
                     f"Input remains after game end at step {step_count}: {input_event}",
@@ -164,12 +153,7 @@ def _execute_replay(
         step_count = _maybe_confirm_round(ctx, seating=seating, steps=steps, step_count=step_count)
 
         # Re-check game phase: auto-pass or round confirmation may have ended the game
-        post_synthetic_state = _require_state(
-            service,
-            game_id=opts.game_id,
-            message="game state disappeared after synthetic steps",
-        )
-        if post_synthetic_state.game_phase == GamePhase.FINISHED:
+        if runtime.state.game_phase == GamePhase.FINISHED:
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
                     f"Input remains after game end at step {step_count}: {input_event}",
@@ -192,7 +176,6 @@ def _execute_replay(
     # Handle any trailing round advance after all input events are consumed
     step_count = _maybe_confirm_round(ctx, seating=seating, steps=steps, step_count=step_count)
 
-    final_state = _require_state(service, game_id=opts.game_id, message="replay finished but final state is missing")
     return ReplayTrace(
         seed=replay.seed,
         rng_version=replay.rng_version,
@@ -200,7 +183,7 @@ def _execute_replay(
         startup_events=tuple(start.events),
         initial_state=initial_state,
         steps=tuple(steps),
-        final_state=final_state,
+        final_state=runtime.state,
     )
 
 
@@ -241,19 +224,6 @@ def _check_step_limit(step_count: int, max_steps: int) -> None:
         raise ReplayStepLimitError(f"Replay exceeded {max_steps} steps")
 
 
-def _require_state(
-    service: GameService,
-    *,
-    game_id: str,
-    message: str,
-) -> MahjongGameState:
-    state = service.get_game_state(game_id)
-    if state is None:
-        raise ReplayInvariantError(message)
-
-    return state
-
-
 def _process_input_event(
     ctx: _ReplayRunContext,
     input_event: ReplayInputEvent,
@@ -267,12 +237,10 @@ def _process_input_event(
     A rule judgment comes back as the ErrorEvent the live server sends; structural input (InvalidGameActionError) or a
     server fault raises and fails the replay.
     """
-    state_before = _require_state(
-        ctx.service, game_id=ctx.opts.game_id, message="game state disappeared before replay action"
-    )
+    state_before = ctx.runtime.state
 
     events = ctx.service.handle_action(
-        game_id=ctx.opts.game_id,
+        ctx.runtime,
         seat=seat,
         action=input_event.action,
         data=dict(input_event.data),
@@ -283,15 +251,12 @@ def _process_input_event(
         if errors:
             raise ReplayError(step_index=step_count, event=input_event, errors=errors)
 
-    state_after = _require_state(
-        ctx.service, game_id=ctx.opts.game_id, message="game state disappeared after replay action"
-    )
     steps.append(
         ReplayStep(
             input_event=input_event,
             emitted_events=tuple(events),
             state_before=state_before,
-            state_after=state_after,
+            state_after=ctx.runtime.state,
         ),
     )
     return step_count + 1
@@ -306,7 +271,7 @@ def _maybe_confirm_round(
     """
     Inject round confirmations if a round advance is pending.
     """
-    if ctx.opts.auto_confirm_rounds and ctx.service.is_round_advance_pending(ctx.opts.game_id):
+    if ctx.opts.auto_confirm_rounds and ctx.service.get_awaiting(ctx.runtime).kind == WaitKind.ROUND_ADVANCE:
         step_count = _inject_round_confirmations(ctx, seating=seating, steps=steps, step_count=step_count)
         _check_step_limit(step_count, ctx.opts.max_steps)
 
@@ -320,21 +285,15 @@ def _inject_round_confirmations(
     step_count: int,
 ) -> int:
     """
-    Inject synthetic CONFIRM_ROUND steps for all pending players.
+    Inject synthetic CONFIRM_ROUND steps for all pending players, in seat order.
     """
-    game_id = ctx.opts.game_id
-    for seat in ctx.service.get_pending_round_advance_seats(game_id):
+    for seat in sorted(ctx.service.get_awaiting(ctx.runtime).seats):
         _check_step_limit(step_count, ctx.opts.max_steps)
         player_name = seating.player_by_seat[seat]
 
-        synthetic_before = _require_state(
-            ctx.service,
-            game_id=game_id,
-            message="game state disappeared before synthetic confirm_round",
-        )
-
+        synthetic_before = ctx.runtime.state
         confirm_events = ctx.service.handle_action(
-            game_id=game_id, seat=seat, action=GameAction.CONFIRM_ROUND, data={}
+            ctx.runtime, seat=seat, action=GameAction.CONFIRM_ROUND, data={}
         ).events
 
         if ctx.opts.strict:
@@ -346,11 +305,6 @@ def _inject_round_confirmations(
                 )
                 raise ReplayError(step_index=step_count, event=synthetic_event, errors=errors)
 
-        state_after = _require_state(
-            ctx.service,
-            game_id=game_id,
-            message="game state disappeared after synthetic confirm_round",
-        )
         steps.append(
             ReplayStep(
                 input_event=ReplayInputEvent(
@@ -360,7 +314,7 @@ def _inject_round_confirmations(
                 synthetic=True,
                 emitted_events=tuple(confirm_events),
                 state_before=synthetic_before,
-                state_after=state_after,
+                state_after=ctx.runtime.state,
             ),
         )
         step_count += 1
@@ -383,10 +337,7 @@ def _handle_auto_pass_for_input(
       (it will be processed normally) and auto-pass the remaining seats.
     - Otherwise, auto-pass all pending seats first.
     """
-    state = _require_state(
-        ctx.service, game_id=ctx.opts.game_id, message="game state disappeared before auto-pass check"
-    )
-    prompt = state.round_state.pending_call_prompt
+    prompt = ctx.runtime.state.round_state.pending_call_prompt
     if prompt is None:
         return step_count
 
@@ -410,29 +361,21 @@ def _inject_pass_calls(
     exclude_seats: seats to skip (e.g., the seat of the next input event
     that is itself a call response).
     """
-    game_id = ctx.opts.game_id
-    state = _require_state(ctx.service, game_id=game_id, message="game state disappeared before auto-pass injection")
-    prompt = state.round_state.pending_call_prompt
+    prompt = ctx.runtime.state.round_state.pending_call_prompt
     if prompt is None:
         return step_count
 
     seats_to_pass = sorted(prompt.pending_seats - exclude_seats)
     for seat in seats_to_pass:
         # Re-read prompt state: earlier PASS may have resolved the prompt entirely
-        fresh_state = _require_state(
-            ctx.service, game_id=game_id, message="game state disappeared during auto-pass injection"
-        )
-        if fresh_state.round_state.pending_call_prompt is None:
+        if ctx.runtime.state.round_state.pending_call_prompt is None:
             break
 
         _check_step_limit(step_count, ctx.opts.max_steps)
         player_name = seating.player_by_seat[seat]
 
-        synthetic_before = _require_state(
-            ctx.service, game_id=game_id, message="game state disappeared before synthetic pass"
-        )
-
-        pass_events = ctx.service.handle_action(game_id=game_id, seat=seat, action=GameAction.PASS, data={}).events
+        synthetic_before = ctx.runtime.state
+        pass_events = ctx.service.handle_action(ctx.runtime, seat=seat, action=GameAction.PASS, data={}).events
 
         if ctx.opts.strict:
             errors = [e for e in pass_events if e.event == EventType.ERROR]
@@ -443,9 +386,6 @@ def _inject_pass_calls(
                 )
                 raise ReplayError(step_index=step_count, event=synthetic_event, errors=errors)
 
-        state_after = _require_state(
-            ctx.service, game_id=game_id, message="game state disappeared after synthetic pass"
-        )
         steps.append(
             ReplayStep(
                 input_event=ReplayInputEvent(
@@ -455,7 +395,7 @@ def _inject_pass_calls(
                 synthetic=True,
                 emitted_events=tuple(pass_events),
                 state_before=synthetic_before,
-                state_after=state_after,
+                state_after=ctx.runtime.state,
             ),
         )
         step_count += 1

@@ -21,13 +21,13 @@ describe("parseSessionMessage", () => {
 
         it("parses reconnect error code", () => {
             const wire = {
-                code: "reconnect_game_gone",
-                message: "Game no longer exists",
+                code: "reconnect_no_session",
+                message: "No disconnected session found",
                 type: SESSION_MESSAGE_TYPE.ERROR,
             };
             const result = parseSessionMessage(wire);
             expect(result.type).toBe("session_error");
-            expect(result).toHaveProperty("code", "reconnect_game_gone");
+            expect(result).toHaveProperty("code", "reconnect_no_session");
         });
     });
 

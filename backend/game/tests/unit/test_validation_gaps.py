@@ -665,15 +665,14 @@ class TestPendingCallPromptStateGate:
         )
         game_state = game_state.model_copy(update={"round_state": round_state})
 
-        service = MahjongGameService()
-        service._runtimes["test"] = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
-        update = service.handle_action(game_id="test", seat=0, action=action, data=action_data)
+        update = MahjongGameService().handle_action(runtime, seat=0, action=action, data=action_data)
         assert [(e.data.code, e.data.target) for e in update.events] == [
             (GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))
         ]
-        assert service._runtimes["test"].state is game_state
+        assert runtime.state is game_state
         assert update.awaiting.wait_id == game_state.wait_id
 
 
@@ -893,23 +892,22 @@ class TestKanRaisesInvalidGameActionError:
 class TestServerGeneratedActionRefusals:
     @pytest.fixture
     def service(self):
-        service = MahjongGameService()
-        service.start_game("test", ["Player"], seed="a" * 192)
-        return service
+        return MahjongGameService()
 
-    def _make_ai_seat_current(self, service):
-        ai_player_seat = min(service._runtimes["test"].ai.ai_player_seats)
-        round_state = service._runtimes["test"].state.round_state.model_copy(
-            update={"current_player_seat": ai_player_seat}
-        )
-        service._runtimes["test"].state = service._runtimes["test"].state.model_copy(
-            update={"round_state": round_state}
-        )
+    @pytest.fixture
+    def runtime(self, service):
+        return service.start_game("test", ["Player"], seed="a" * 192).runtime
+
+    @staticmethod
+    def _make_ai_seat_current(runtime):
+        ai_player_seat = min(runtime.ai.ai_player_seats)
+        round_state = runtime.state.round_state.model_copy(update={"current_player_seat": ai_player_seat})
+        runtime.state = runtime.state.model_copy(update={"round_state": round_state})
         return ai_player_seat
 
-    def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
-        game_state = service._runtimes["test"].state
-        ai_player_seat = min(service._runtimes["test"].ai.ai_player_seats)
+    def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service, runtime):
+        game_state = runtime.state
+        ai_player_seat = min(runtime.ai.ai_player_seats)
         prompt = PendingCallPrompt(
             kind=PromptKind.DISCARD,
             tile_id=0,
@@ -918,50 +916,50 @@ class TestServerGeneratedActionRefusals:
             callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
-        service._runtimes["test"].state = game_state.model_copy(update={"round_state": round_state})
+        runtime.state = game_state.model_copy(update={"round_state": round_state})
 
         with (
             patch.object(AIPlayer, "should_call_pon", return_value=True),
             pytest.raises(GeneratedActionError, match="call_pon refused"),
         ):
-            service._dispatch_ai_player_call_responses(service._runtimes["test"], prompt, [])
-        assert service._runtimes["test"].state.round_state.pending_call_prompt == prompt
+            service._dispatch_ai_player_call_responses(runtime, prompt, [])
+        assert runtime.state.round_state.pending_call_prompt == prompt
 
-    def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service):
-        ai_player_seat = self._make_ai_seat_current(service)
-        _update_player(service, game_id="test", seat=ai_player_seat, is_riichi=True)
-        state_before = service._runtimes["test"].state
+    def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service, runtime):
+        ai_player_seat = self._make_ai_seat_current(runtime)
+        _update_player(runtime, seat=ai_player_seat, is_riichi=True)
+        state_before = runtime.state
 
         with (
             patch.object(AIPlayer, "select_discard", lambda _self, player, _round_state: player.tiles[0]),
             pytest.raises(GeneratedActionError, match="invalid_discard"),
         ):
-            service._process_ai_player_followup(service._runtimes["test"])
-        assert service._runtimes["test"].state is state_before
+            service._process_ai_player_followup(runtime)
+        assert runtime.state is state_before
 
-    def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service):
-        player_seat = _find_player(service._runtimes["test"].state.round_state, "Player").seat
-        assert service._runtimes["test"].state.round_state.current_player_seat == player_seat
+    def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service, runtime):
+        player_seat = _find_player(runtime.state.round_state, "Player").seat
+        assert runtime.state.round_state.current_player_seat == player_seat
 
         with (
             patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
             pytest.raises(GeneratedActionError, match="discard refused") as exc_info,
         ):
-            service.handle_timeout(game_id="test", seat=player_seat, timeout_type=TimeoutType.TURN)
+            service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.TURN)
         assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
 
-    def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service):
-        player_seat = _find_player(service._runtimes["test"].state.round_state, "Player").seat
+    def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service, runtime):
+        player_seat = _find_player(runtime.state.round_state, "Player").seat
         with pytest.raises(GeneratedActionError, match="no round pending confirmation"):
-            service.handle_timeout(game_id="test", seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
+            service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
 
-    def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service):
-        ai_player_seat = self._make_ai_seat_current(service)
-        state_before = service._runtimes["test"].state
+    def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
+        ai_player_seat = self._make_ai_seat_current(runtime)
+        state_before = runtime.state
 
         with pytest.raises(AssertionError, match=f"seat {ai_player_seat} is controlled by an AI player"):
-            service.handle_action(game_id="test", seat=ai_player_seat, action=GameAction.DISCARD, data={"tile_id": 0})
-        assert service._runtimes["test"].state is state_before
+            service.handle_action(runtime, seat=ai_player_seat, action=GameAction.DISCARD, data={"tile_id": 0})
+        assert runtime.state is state_before
 
 
 class TestOpenKanDefenseInDepthGuards:

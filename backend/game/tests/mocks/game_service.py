@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, cast
 
+from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import GameAction, TimeoutType, WaitKind, WindName
 from game.logic.events import (
     BroadcastTarget,
@@ -11,6 +12,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
+from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
 from game.logic.settings import GameSettings, GameType
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
@@ -49,15 +51,17 @@ class _MockRoundState:
 
 
 class _MockGameState:
-    __slots__ = ("rng_version", "round_number", "round_state", "settings")
+    __slots__ = ("rng_version", "round_number", "round_state", "seed", "settings")
 
     def __init__(
         self,
+        seed: str = "",
         rng_version: str = RNG_VERSION,
         round_state: _MockRoundState | None = None,
         settings: _MockSettings | None = None,
         round_number: int = 0,
     ) -> None:
+        self.seed = seed
         self.rng_version = rng_version
         self.round_state = round_state or _MockRoundState()
         self.settings = settings or _MockSettings()
@@ -73,15 +77,10 @@ def mock_update(events: list[ServiceEvent], awaiting: Awaiting = MOCK_AWAITING) 
 
 
 class MockGameService(GameService):
-    def __init__(self) -> None:
-        self._seeds: dict[str, str] = {}  # game_id -> seed
-        self._all_player_names: dict[str, list[str]] = {}  # game_id -> all player names (including AI)
-        self._game_types: dict[str, str] = {}  # game_id -> game_type string
-
     def handle_action(
         self,
+        runtime: GameRuntime,
         *,
-        game_id: str,
         seat: int,
         action: GameAction,
         data: dict[str, Any],
@@ -105,13 +104,14 @@ class MockGameService(GameService):
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
     ) -> GameStart:
-        self._seeds[game_id] = seed if seed is not None else ""
-        if settings is not None:
-            self._game_types[game_id] = str(settings.game_type)
-
         all_names = player_names + ["AI"] * (4 - len(player_names))
-        self._all_player_names[game_id] = all_names
         player_count = len(player_names)
+        state = _MockGameState(
+            seed=seed if seed is not None else "",
+            round_state=_MockRoundState(players=[_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]),
+            settings=_MockSettings(game_type=str(settings.game_type)) if settings is not None else None,
+        )
+        runtime = GameRuntime(game_id=game_id, state=cast("MahjongGameState", state), ai=AIPlayerController({}))
 
         players = [
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
@@ -141,60 +141,53 @@ class MockGameService(GameService):
                 ),
             ),
         ]
-        return GameStart(events=events, awaiting=MOCK_AWAITING, seats=tuple(range(player_count)))
+        return GameStart(runtime=runtime, events=events, awaiting=MOCK_AWAITING, seats=tuple(range(player_count)))
 
-    def get_game_seed(self, game_id: str) -> str | None:
-        return self._seeds.get(game_id)
-
-    def get_awaiting(self, game_id: str) -> Awaiting:
+    def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
         return MOCK_AWAITING
 
-    def get_game_state(self, game_id: str) -> MahjongGameState | None:
-        if game_id not in self._seeds:
-            return None
+    def replace_with_ai_player(self, runtime: GameRuntime, seat: int) -> None:
+        pass
 
-        all_names = self._all_player_names.get(game_id, [])
-        players = [_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]
-        game_type = self._game_types.get(game_id, GameType.HANCHAN)
-        return cast(
-            "MahjongGameState",
-            _MockGameState(round_state=_MockRoundState(players=players), settings=_MockSettings(game_type=game_type)),
+    def restore_human_player(self, runtime: GameRuntime, seat: int) -> None:
+        pass
+
+    def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
+        return ReconnectionSnapshot(
+            game_id=runtime.game_id,
+            players=[
+                GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=False) for p in runtime.state.round_state.players
+            ],
+            dealer_seat=0,
+            dealer_dice=((1, 1), (1, 1)),
+            seat=seat,
+            round_wind=WindName.EAST,
+            round_number=0,
+            current_player_seat=0,
+            dora_indicators=[],
+            honba_sticks=0,
+            riichi_sticks=0,
+            my_tiles=[],
+            dice=(1, 1),
+            tiles_remaining=70,
+            player_states=[],
+            is_furiten=False,
         )
 
-    def cleanup_game(self, game_id: str) -> None:
-        self._seeds.pop(game_id, None)
-        self._all_player_names.pop(game_id, None)
-        self._game_types.pop(game_id, None)
-
-    def replace_with_ai_player(self, game_id: str, seat: int) -> None:
-        pass
-
-    def restore_human_player(self, game_id: str, seat: int) -> None:
-        pass
-
-    def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
-        return None
-
-    def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
+    def build_draw_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         return []
 
     def process_ai_player_actions_after_replacement(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         seat: int,
     ) -> GameUpdate:
         return GameUpdate(events=[], awaiting=MOCK_AWAITING)
 
-    def is_round_advance_pending(self, game_id: str) -> bool:
-        return False
-
-    def get_pending_round_advance_seats(self, game_id: str) -> list[int]:
-        return []
-
     def handle_timeout(
         self,
+        runtime: GameRuntime,
         *,
-        game_id: str,
         seat: int,
         timeout_type: TimeoutType,
     ) -> GameUpdate:

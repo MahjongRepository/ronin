@@ -32,6 +32,7 @@ from game.tests.unit.session.helpers import (
     game_of,
     participant_of,
     run_timeout,
+    runtime_of,
     wait_for_background_tasks,
 )
 from game.wire.compact import encode_draw
@@ -240,32 +241,6 @@ class TestReconnectEdgeCases:
         assert len(reconnect_errors) == 1
 
     @pytest.mark.asyncio
-    async def test_reconnect__when_snapshot_unavailable__should_return_snapshot_failed_and_restore_ai(self, manager):
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        alice_token = participant_of(manager, alice_conn).ticket
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: None
-
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(game_id, seat):
-            replace_calls.append((game_id, seat))
-            return original_replace(game_id, seat)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-        manager.leave_game(alice_conn, notify_player=False)
-
-        new_conn = MockConnection()
-        manager.register_connection(new_conn)
-        replace_calls.clear()
-        manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
-        assert any(m["code"] == SessionErrorCode.RECONNECT_SNAPSHOT_FAILED for m in error_msgs)
-        assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", 0)
-
-    @pytest.mark.asyncio
     async def test_reconnect__when_snapshot_raises__should_fail_the_game(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
@@ -295,7 +270,7 @@ class TestReconnectToEndedGame:
         alice_seat = participant_of(manager, conns[0]).seat
         bob_token = participant_of(manager, conns[1]).ticket
         manager.leave_game(conns[1], notify_player=False)
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert manager.get_game("game1") is None
 

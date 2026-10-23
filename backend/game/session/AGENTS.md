@@ -2,7 +2,7 @@
 
 `SessionManager` is the registry of live games and connections and runs each game's lifecycle
 transitions. A game is a `GameSession` (`models.py`): its participants, pacing (`TimerConfig`),
-lifecycle, last engine wait, start record, replay lines and pending timeout.
+lifecycle, engine runtime, last engine wait, start record, replay lines and pending timeout.
 
 A transition (a join, an action, a disconnect, a reconnect, a timeout, the start, the end claim) is
 one synchronous step: validation, engine call, bookkeeping, timers and socket enqueues. Transitions
@@ -28,6 +28,11 @@ flight), and an action checks its wait id. A sleeping task is superseded only by
   connected while it has a connection; its seat is bound once, at the start, to the seat
   `start_game` returned for its spec (by input order, never by name); its `TurnTimer` lives as long
   as it does. Every engine call names the player by seat.
+* **Engine runtime.** The game holds the `GameRuntime` `start_game` returned (`GameSession.runtime`)
+  from the start until the end claim drops it; every engine call passes it. The start record and
+  the replay's seed come from it right after the start. An engine call on a game without one is a
+  server fault (`_runtime_of`), unreachable: every caller holds a bound participant, a live ticket
+  or an armed timer, and the end claim clears all three.
 * **Pending game.** It waits for every participant's `JOIN_GAME`; it starts when they are all
   connected, or when the pending timeout fires with at least one connected, with AI players in the
   absent seats (an absent participant can RECONNECT later). With nobody connected the timeout
@@ -60,7 +65,7 @@ flight), and an action checks its wait id. A sleeping task is superseded only by
   only a pending or playing game can be claimed. The claim detaches the connected participants'
   connections and the replay lines (an abandoned game's are discarded) and spawns one finalizer
   task the manager owns on them, then releases the game from the registry with its tickets, cancels
-  the pending timeout and every sleeping timer, evicts those connections and frees the engine state.
+  the pending timeout and every sleeping timer, evicts those connections and drops the engine runtime.
   The finalizer saves the replay, posts the finish record and closes the connections (1000
   `game_ended` for a completion; for a failure the `internal_error` session error, then 1011). Each
   step and each close is its own error boundary; an unexpected error saving a completed game's

@@ -88,11 +88,8 @@ class MahjongGameService(GameService):
     """
     Game service for Mahjong implementing the GameService interface.
 
-    Maintains a GameRuntime for each of multiple concurrent games.
+    Holds no game: start_game hands each game's GameRuntime to the caller, and every later call takes it.
     """
-
-    def __init__(self) -> None:
-        self._runtimes: dict[str, GameRuntime] = {}
 
     def start_game(
         self,
@@ -106,10 +103,10 @@ class MahjongGameService(GameService):
         """
         Start a new mahjong game with the given players.
 
-        Uses matchmaker to assign seats randomly and fill with AI players. Returns initial state events for each player,
-        the first wait and each input player's seat, in input order. When seed is provided, the game is
-        deterministically reproducible. When seed is None, a random seed is generated. When wall is provided, use it
-        instead of generating from seed.
+        Uses matchmaker to assign seats randomly and fill with AI players. Returns the game's runtime, initial state
+        events for each player, the first wait and each input player's seat, in input order. When seed is provided, the
+        game is deterministically reproducible. When seed is None, a random seed is generated. When wall is provided,
+        use it instead of generating from seed.
         """
         game_seed = seed if seed is not None else generate_seed()
 
@@ -132,9 +129,7 @@ class MahjongGameService(GameService):
         if runtime.ai.is_ai_player(new_game_state.round_state.dealer_seat):
             events.extend(self._process_ai_player_followup(runtime))
 
-        awaiting = self._end_call(runtime, call)
-        self._runtimes[game_id] = runtime
-        return GameStart(events=events, awaiting=awaiting, seats=player_seats)
+        return GameStart(runtime=runtime, events=events, awaiting=self._end_call(runtime, call), seats=player_seats)
 
     def _create_game_started_event(self, runtime: GameRuntime) -> ServiceEvent:
         """
@@ -162,8 +157,8 @@ class MahjongGameService(GameService):
 
     def handle_action(
         self,
+        runtime: GameRuntime,
         *,
-        game_id: str,
         seat: int,
         action: GameAction,
         data: dict[str, Any],
@@ -171,10 +166,9 @@ class MahjongGameService(GameService):
         """
         Handle a game action from the player at a seat.
 
-        Processes the action and triggers AI player turns as needed. The game must exist: the session never acts on a
-        game that ended, so a missing one is a server fault (KeyError), as is an action for an AI player's seat.
+        Processes the action and triggers AI player turns as needed. An action for an AI player's seat is a server
+        fault.
         """
-        runtime = self._runtimes[game_id]
         call = self._begin_call(runtime)
         self._require_human_seat(runtime, seat)
         logger.debug("player action", action=action, action_data=data)
@@ -318,18 +312,10 @@ class MahjongGameService(GameService):
 
         return events
 
-    def get_game_state(self, game_id: str) -> MahjongGameState | None:
-        """
-        Return the current game state, or None if game doesn't exist.
-        """
-        runtime = self._runtimes.get(game_id)
-        return runtime.state if runtime is not None else None
-
-    def get_awaiting(self, game_id: str) -> Awaiting:
+    def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
         """
         Return what a running game waits for now, with the seats as the AI players hold them at this moment.
         """
-        runtime = self._runtimes[game_id]
         kind, seats = self._current_wait(runtime)
         return self._build_awaiting(runtime, kind=kind, seats=seats)
 
@@ -396,30 +382,10 @@ class MahjongGameService(GameService):
             round_number=game_state.round_number - 1 if round_over else game_state.round_number,
         )
 
-    def get_game_seed(self, game_id: str) -> str | None:
-        """
-        Return the seed for a game, or None if game doesn't exist.
-        """
-        runtime = self._runtimes.get(game_id)
-        return runtime.state.seed if runtime is not None else None
-
-    def is_round_advance_pending(self, game_id: str) -> bool:
-        """
-        Check if a round advance is waiting for player confirmation.
-        """
-        return self._runtimes[game_id].pending_confirm is not None
-
-    def get_pending_round_advance_seats(self, game_id: str) -> list[int]:
-        """
-        Return the seats that still need to confirm round advance, in seat order.
-        """
-        pending = self._runtimes[game_id].pending_confirm
-        return sorted(pending.unconfirmed_seats) if pending is not None else []
-
     def handle_timeout(
         self,
+        runtime: GameRuntime,
         *,
-        game_id: str,
         seat: int,
         timeout_type: TimeoutType,
     ) -> GameUpdate:
@@ -429,10 +395,8 @@ class MahjongGameService(GameService):
         For TURN timeout: the default discard (the drawn tile unless kuikae forbids it).
         For MELD timeout: pass on the call opportunity.
         For ROUND_ADVANCE timeout: auto-confirm round advancement.
-        The game must exist: the session never times out a game that ended, so a missing one is a server fault, as is a
-        timeout for an AI player's seat.
+        A timeout for an AI player's seat is a server fault.
         """
-        runtime = self._runtimes[game_id]
         call = self._begin_call(runtime)
         self._require_human_seat(runtime, seat)
         match timeout_type:
@@ -646,39 +610,23 @@ class MahjongGameService(GameService):
         events.extend(runtime.furiten.check_changes(runtime.state.round_state))
         return events
 
-    def cleanup_game(self, game_id: str) -> None:
-        """
-        Remove all game state for a game that was abandoned or cleaned up externally.
-        """
-        self._runtimes.pop(game_id, None)
-
-    def replace_with_ai_player(self, game_id: str, seat: int) -> None:
+    def replace_with_ai_player(self, runtime: GameRuntime, seat: int) -> None:
         """
         Replace a disconnected player with an AI player at their seat.
         """
-        runtime = self._runtimes.get(game_id)
-        if runtime is None:
-            return
-
         runtime.ai.add_ai_player(seat, AIPlayer())
         logger.info("replaced player with AI", replaced_seat=seat)
 
-    def restore_human_player(self, game_id: str, seat: int) -> None:
+    def restore_human_player(self, runtime: GameRuntime, seat: int) -> None:
         """
         Remove the AI player at a seat and restore it for human control.
         """
-        runtime = self._runtimes.get(game_id)
-        if runtime is not None:
-            runtime.ai.remove_ai_player(seat)
+        runtime.ai.remove_ai_player(seat)
 
-    def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
+    def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
         """
         Build a full game state snapshot for a reconnecting player at the given seat.
         """
-        runtime = self._runtimes.get(game_id)
-        if runtime is None:
-            return None
-
         game_state = runtime.state
         round_state = game_state.round_state
         players_info = [
@@ -724,17 +672,13 @@ class MahjongGameService(GameService):
             is_furiten=is_effective_furiten(round_state.players[seat]),
         )
 
-    def build_draw_event_for_seat(self, game_id: str, seat: int) -> list[ServiceEvent]:
+    def build_draw_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
         Rebuild the draw event with available actions for a specific seat.
 
         Right after the seat's own pon or chi it drew nothing, so there is no draw to rebuild (no draw follows a pon or
         chi on the live path either).
         """
-        runtime = self._runtimes.get(game_id)
-        if runtime is None:
-            return []
-
         game_state = runtime.state
         round_state = game_state.round_state
         if round_state.current_player_seat != seat or round_state.is_after_meld_call:
@@ -763,15 +707,12 @@ class MahjongGameService(GameService):
 
     def process_ai_player_actions_after_replacement(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         seat: int,
     ) -> GameUpdate:
         """
         Process pending AI player actions after a player was replaced with an AI player at the given seat.
-
-        The game must exist: the session replaces no player in a game that ended, so a missing one is a server fault.
         """
-        runtime = self._runtimes[game_id]
         call = self._begin_call(runtime)
         events = self._run_ai_player_actions_after_replacement(runtime, call.state, seat=seat)
         return GameUpdate(events=events, awaiting=self._end_call(runtime, call))

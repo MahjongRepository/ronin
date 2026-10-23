@@ -121,9 +121,3 @@ class ReplayInputAfterGameEndError(Exception):
     """
     Raised when replay contains extra input after game end in strict mode.
     """
-
-
-class ReplayInvariantError(Exception):
-    """
-    Raised when the engine violates replay-required invariants.
-    """

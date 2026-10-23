@@ -29,6 +29,7 @@ from .helpers import (
     game_of,
     participant_of,
     run_timeout,
+    runtime_of,
     wait_for_background_tasks,
 )
 
@@ -72,7 +73,7 @@ class TestWaitTimers:
         manager = make_session_manager(seeded_engine)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn).seat for conn in conns)
-        discarded_four_pin = arrange_ron_and_pon_on_a_discard(seeded_engine, discarder=alice, ron=bob, pon=carol)
+        discarded_four_pin = arrange_ron_and_pon_on_a_discard(runtime_of(manager), discarder=alice, ron=bob, pon=carol)
 
         manager.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
@@ -101,8 +102,8 @@ class TestWaitTimers:
         first_round_bank = config.initial_bank_seconds + config.round_bonus_seconds
         assert timer._bank_seconds == first_round_bank
 
-        arrange_exhaustive_draw(seeded_engine, game_id="game1")
-        drawn_tile = seeded_engine.get_game_state("game1").round_state.players[alice_seat].tiles[-1]
+        arrange_exhaustive_draw(runtime_of(manager))
+        drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
         manager.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
         )
@@ -134,8 +135,8 @@ class TestWaitTimers:
         game = game_of(manager)
         assert (game.awaiting.kind, game.awaiting.seats) == (WaitKind.TURN, frozenset({alice.seat}))
 
-        arrange_exhaustive_draw(seeded_engine, game_id="game1")
-        drawn_tile = seeded_engine.get_game_state("game1").round_state.players[alice.seat].tiles[-1]
+        arrange_exhaustive_draw(runtime_of(manager))
+        drawn_tile = runtime_of(manager).state.round_state.players[alice.seat].tiles[-1]
         manager.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
         )
@@ -165,7 +166,7 @@ class _GatedReplayStorage(LocalReplayStorage):
 
 
 def _discard_the_drawn_tile(manager: SessionManager, participant: Participant) -> None:
-    drawn_tile = manager._game_service.get_game_state("game1").round_state.players[participant.seat].tiles[-1]
+    drawn_tile = runtime_of(manager).state.round_state.players[participant.seat].tiles[-1]
     manager.handle_game_action(
         participant.connection,
         action=GameAction.DISCARD,
@@ -200,7 +201,7 @@ class TestTimerCallbackLifecycle:
         end_the_wait(manager, awaited)
         await asyncio.wait({slept})
         assert game.lifecycle is GameLifecycle.PLAYING
-        assert len(seeded_engine.get_game_state("game1").round_state.players[awaited_seat].discards) == 1
+        assert len(runtime_of(manager).state.round_state.players[awaited_seat].discards) == 1
         successor = game.at_seat(min(game.awaiting.seats))
         assert successor.timer.task not in (None, slept)
 
@@ -254,7 +255,7 @@ class TestTimerCallbackLifecycle:
         manager = make_session_manager(seeded_engine, repository=game_repo, storage=storage)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         assert await asyncio.to_thread(storage.save_started.wait, 5)
 

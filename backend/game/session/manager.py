@@ -41,6 +41,7 @@ from shared.tasks import cancel_and_wait
 if TYPE_CHECKING:
     from collections.abc import Coroutine
 
+    from game.logic.runtime import GameRuntime
     from game.logic.service import Awaiting, GameService
     from game.messaging.protocol import ConnectionProtocol
     from game.session.models import PlayerSpec
@@ -324,11 +325,12 @@ class SessionManager:
         """
         game.lifecycle = GameLifecycle.PLAYING
         start = self._game_service.start_game(game.game_id, [participant.name for participant in game.participants])
+        game.runtime = start.runtime
         for participant, seat in zip(game.participants, start.seats, strict=True):
             participant.seat = seat
 
-        game.replay = self._start_replay(game.game_id)
-        self._record_game_start(game)
+        game.replay = ReplayRecord(seed=start.runtime.state.seed, rng_version=start.runtime.state.rng_version)
+        self._record_game_start(game, start.runtime)
         absent = [participant for participant in game.participants if not participant.is_connected]
         self._follow_engine(game, events=start.events, awaiting=start.awaiting, actor=None)
         for participant in absent:
@@ -337,25 +339,11 @@ class SessionManager:
 
         logger.info("pending game completed", game_id=game.game_id)
 
-    def _start_replay(self, game_id: str) -> ReplayRecord | None:
-        """
-        Begin the game's replay with its seed, known once the engine started it; a game without one records none.
-        """
-        seed = self._game_service.get_game_seed(game_id)
-        if seed is None:
-            return None
-
-        game_state = self._game_service.get_game_state(game_id)
-        return ReplayRecord(seed=seed, rng_version=game_state.rng_version if game_state is not None else "")
-
-    def _record_game_start(self, game: GameSession) -> None:
+    def _record_game_start(self, game: GameSession, runtime: GameRuntime) -> None:
         """
         Capture the game's start record and post it: every seat in seat order, each participant's user_id by seat.
         """
-        game_state = self._game_service.get_game_state(game.game_id)
-        if game_state is None:
-            return
-
+        game_state = runtime.state
         user_ids_by_seat = {participant.seat: participant.user_id for participant in game.participants}
         standings = [
             PlayedGameStanding(name=p.name, seat=p.seat, user_id=user_ids_by_seat.get(p.seat, ""))
@@ -404,8 +392,9 @@ class SessionManager:
             return
 
         seat = self._seat_of(participant)
-        self._game_service.replace_with_ai_player(game.game_id, seat)
-        update = self._game_service.process_ai_player_actions_after_replacement(game.game_id, seat)
+        runtime = self._runtime_of(game)
+        self._game_service.replace_with_ai_player(runtime, seat)
+        update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
     def _kick_player(
@@ -460,7 +449,7 @@ class SessionManager:
             return
 
         try:
-            update = self._game_service.handle_action(game_id=game.game_id, seat=seat, action=action, data=data)
+            update = self._game_service.handle_action(self._runtime_of(game), seat=seat, action=action, data=data)
         except InvalidGameActionError as e:
             self._kick_player(participant, connection, error=e)
             return
@@ -527,19 +516,11 @@ class SessionManager:
 
         game = participant.game
         seat = self._seat_of(participant)
-        self._game_service.restore_human_player(game.game_id, seat)
-        snapshot = self._game_service.build_reconnection_snapshot(game.game_id, seat)
-        if snapshot is None:
-            self._game_service.replace_with_ai_player(game.game_id, seat)
-            self._send_error(
-                connection,
-                code=SessionErrorCode.RECONNECT_SNAPSHOT_FAILED,
-                message="Failed to build game state",
-            )
-            return
-
+        runtime = self._runtime_of(game)
+        self._game_service.restore_human_player(runtime, seat)
+        snapshot = self._game_service.build_reconnection_snapshot(runtime, seat)
         self._bind(participant, connection)
-        awaiting = self._game_service.get_awaiting(game.game_id)
+        awaiting = self._game_service.get_awaiting(runtime)
         game.awaiting = awaiting
         payload = snapshot.model_dump(by_alias=True, exclude_none=True)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
@@ -629,7 +610,7 @@ class SessionManager:
         if awaiting.kind != WaitKind.TURN or seat not in awaiting.seats:
             return
 
-        for event in self._game_service.build_draw_event_for_seat(participant.game.game_id, seat):
+        for event in self._game_service.build_draw_event_for_seat(self._runtime_of(participant.game), seat):
             connection.send_message(stamp_wait_id(service_event_payload(event), event, awaiting))
 
         self._timer_manager.start_turn_timer(participant)
@@ -763,6 +744,16 @@ class SessionManager:
 
         return participant.seat
 
+    @staticmethod
+    def _runtime_of(game: GameSession) -> GameRuntime:
+        """
+        Return the engine runtime of a playing game, which holds it from the start until its end claim drops it.
+        """
+        if game.runtime is None:
+            raise AssertionError("engine call on a game without a runtime")
+
+        return game.runtime
+
     def _handle_timeout(self, participant: Participant, timeout_type: TimeoutType) -> None:
         """
         Run a fired timer's default action; any unexpected error ends the game through fail_game.
@@ -773,7 +764,7 @@ class SessionManager:
         game = participant.game
         try:
             seat = self._seat_of(participant)
-            update = self._game_service.handle_timeout(game_id=game.game_id, seat=seat, timeout_type=timeout_type)
+            update = self._game_service.handle_timeout(self._runtime_of(game), seat=seat, timeout_type=timeout_type)
             self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason=f"{timeout_type} timeout failed", exc=exc)
@@ -792,9 +783,8 @@ class SessionManager:
         detaches the connected participants' connections and the replay lines (an abandoned game's replay is discarded)
         and spawns the finalizer on them, so a release step that raised would still leave the game finished. It then
         drops the game and its tickets from the registry, cancels the pending timeout and every sleeping timer, evicts
-        the detached connections and frees the engine state last, so a new game under the same id starts clean. The
-        finalizer saves the replay, posts the finish record and closes the detached connections (1000 for a completion,
-        `internal_error` and 1011 for a failure).
+        the detached connections and drops the engine runtime. The finalizer saves the replay, posts the finish record
+        and closes the detached connections (1000 for a completion, `internal_error` and 1011 for a failure).
         """
         if not game.is_active:
             return False
@@ -830,7 +820,7 @@ class SessionManager:
         for connection in connections:
             self._evict_connection(connection)
 
-        self._game_service.cleanup_game(game.game_id)
+        game.runtime = None
         return True
 
     async def _finish_game(self, game: GameSession, ending: _Ending) -> None:

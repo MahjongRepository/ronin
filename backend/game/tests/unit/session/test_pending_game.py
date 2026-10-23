@@ -18,7 +18,7 @@ from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import game_of
+from .helpers import game_of, runtime_of
 
 SHORT_PENDING_TIMEOUT = TimerConfig(pending_game_timeout_seconds=0.01)
 
@@ -158,7 +158,7 @@ class TestPendingGameTimeout:
         assert absent.seat is not None
         assert absent.seat != connected.seat
         assert not absent.is_connected
-        snapshot = seeded_engine.build_reconnection_snapshot("game1", connected.seat)
+        snapshot = seeded_engine.build_reconnection_snapshot(runtime_of(manager), connected.seat)
         assert snapshot.players[absent.seat].is_ai_player is True
 
         reconnecting = MockConnection()

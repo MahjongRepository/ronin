@@ -31,13 +31,15 @@ class TestGameServiceIntegration:
         return MahjongGameService()
 
     def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
-        human_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
+        start = service.start_game("game1", ["Player"], seed="a" * 192)
+        runtime = start.runtime
+        human_seat = start.seats[0]
 
         actions_processed = 0
         # play several discards (AI players will respond automatically)
         for _ in range(10):
-            game_state = service.get_game_state("game1")
-            if game_state is None or game_state.round_state.phase == RoundPhase.FINISHED:
+            game_state = runtime.state
+            if game_state.round_state.phase == RoundPhase.FINISHED:
                 break
 
             round_state = game_state.round_state
@@ -47,7 +49,7 @@ class TestGameServiceIntegration:
             if current_seat == human_seat and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 service.handle_action(
-                    game_id="game1",
+                    runtime,
                     seat=human_seat,
                     action=GameAction.DISCARD,
                     data={"tile_id": tile_to_discard},
@@ -63,12 +65,14 @@ class TestUnifiedDiscardClaimIntegration:
         return MahjongGameService()
 
     def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
-        human_seat = service.start_game("game1", ["Player"], seed="a" * 192).seats[0]
+        start = service.start_game("game1", ["Player"], seed="a" * 192)
+        runtime = start.runtime
+        human_seat = start.seats[0]
 
         found_prompt = False
         for _ in range(20):
-            game_state = service.get_game_state("game1")
-            if game_state is None or game_state.round_state.phase == RoundPhase.FINISHED:
+            game_state = runtime.state
+            if game_state.round_state.phase == RoundPhase.FINISHED:
                 break
 
             round_state = game_state.round_state
@@ -79,7 +83,7 @@ class TestUnifiedDiscardClaimIntegration:
 
             tile_to_discard = player.tiles[-1]
             events = service.handle_action(
-                game_id="game1",
+                runtime,
                 seat=human_seat,
                 action=GameAction.DISCARD,
                 data={"tile_id": tile_to_discard},

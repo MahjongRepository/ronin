@@ -7,7 +7,7 @@ from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockResultEvent, mock_update
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, game_of, participant_of
+from .helpers import create_started_game, game_of, participant_of, runtime_of
 
 
 class TestSessionManagerDisconnect:
@@ -18,7 +18,7 @@ class TestSessionManagerDisconnect:
 
         manager.leave_game(conns[0])
         assert manager.get_game("game1") is not None
-        snapshot = seeded_engine.build_reconnection_snapshot("game1", bob_seat)
+        snapshot = seeded_engine.build_reconnection_snapshot(runtime_of(manager), bob_seat)
         assert snapshot.players[alice_seat].is_ai_player is True
         assert snapshot.players[bob_seat].is_ai_player is False
 

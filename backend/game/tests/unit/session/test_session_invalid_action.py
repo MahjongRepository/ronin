@@ -19,6 +19,7 @@ from .helpers import (
     fire_turn_timer_now,
     participant_of,
     run_timeout,
+    runtime_of,
     wait_for_background_tasks,
 )
 
@@ -42,16 +43,15 @@ class TestSessionManagerInvalidAction:
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
-        def tracking_replace(game_id, seat):
-            replace_calls.append((game_id, seat))
-            return original_replace(game_id, seat)
+        def tracking_replace(runtime, seat):
+            replace_calls.append((runtime, seat))
+            return original_replace(runtime, seat)
 
         manager._game_service.replace_with_ai_player = tracking_replace
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
         manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
-        assert len(replace_calls) == 1
-        assert replace_calls[0] == ("game1", 0)
+        assert replace_calls == [(runtime_of(manager), 0)]
 
     async def test_invalid_action__when_player_sends_it__should_broadcast_player_left(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
@@ -161,7 +161,7 @@ class TestKickedConnection:
         kicked = next(conn for conn in conns if player_of[conn].seat == awaited_seat)
         other = next(conn for conn in conns if player_of[conn].seat != awaited_seat)
         kicked_token = player_of[kicked].ticket
-        held_tiles = set(seeded_engine.get_game_state("game1").round_state.players[awaited_seat].tiles)
+        held_tiles = set(runtime_of(manager).state.round_state.players[awaited_seat].tiles)
         foreign_tile = next(tile for tile in range(136) if tile not in held_tiles)
 
         manager.handle_game_action(
@@ -173,7 +173,11 @@ class TestKickedConnection:
         assert manager.get_connection_game(kicked) is None
         assert not player_of[kicked].is_connected
         other_seat = player_of[other].seat
-        assert seeded_engine.build_reconnection_snapshot("game1", other_seat).players[awaited_seat].is_ai_player
+        assert (
+            seeded_engine.build_reconnection_snapshot(runtime_of(manager), other_seat)
+            .players[awaited_seat]
+            .is_ai_player
+        )
         assert [m["type"] for m in other.sent_messages if m.get("type") in _SEAT_CHANGE_TYPES] == [
             SessionMessageType.PLAYER_LEFT
         ]
@@ -191,9 +195,9 @@ class TestStaleAction:
         alice = conns[0]
         alice_seat = participant_of(manager, alice).seat
         timed_out_wait = current_wait_id(manager)
-        timed_out_draw = seeded_engine.get_game_state("game1").round_state.players[alice_seat].tiles[-1]
+        timed_out_draw = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
-        state_before = seeded_engine.get_game_state("game1")
+        state_before = runtime_of(manager).state
         awaiting_before = manager.get_game("game1").awaiting
         deadline = participant_of(manager, alice).timer.task
         alice._outbox.clear()
@@ -211,7 +215,7 @@ class TestStaleAction:
             (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.STALE_ACTION)
         ]
         assert not alice.is_closed
-        assert seeded_engine.get_game_state("game1") is state_before
+        assert runtime_of(manager).state is state_before
         assert manager.get_game("game1").awaiting is awaiting_before
         assert participant_of(manager, alice).timer.task is deadline
 
@@ -223,7 +227,7 @@ class TestStaleAction:
         manager = make_session_manager(seeded_engine)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn).seat for conn in conns)
-        discarded_four_pin = arrange_pon_now_and_on_the_next_draw(seeded_engine, discarder=alice, caller=bob)
+        discarded_four_pin = arrange_pon_now_and_on_the_next_draw(runtime_of(manager), discarder=alice, caller=bob)
         manager.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
         )
@@ -234,12 +238,12 @@ class TestStaleAction:
         newer_prompt = manager.get_game("game1").awaiting
         assert (newer_prompt.kind, newer_prompt.seats) == (WaitKind.CALL, frozenset({bob}))
         assert newer_prompt.wait_id != first_prompt.wait_id
-        state_before = seeded_engine.get_game_state("game1")
+        state_before = runtime_of(manager).state
         conns[1]._outbox.clear()
 
         manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=first_prompt.wait_id)
         assert [m["cd"] for m in conns[1].sent_messages] == [GameErrorCode.STALE_ACTION]
-        assert seeded_engine.get_game_state("game1") is state_before
+        assert runtime_of(manager).state is state_before
         assert bob in state_before.round_state.pending_call_prompt.pending_seats
 
         await manager.shutdown()
