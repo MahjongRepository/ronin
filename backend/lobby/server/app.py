@@ -51,7 +51,7 @@ from lobby.views.auth_handlers import (
     register,
     register_page,
 )
-from lobby.views.bot_api_handlers import bot_auth, bot_create_room, bot_matchmaking_auth
+from lobby.views.bot_api_handlers import bot_create_room
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
@@ -157,14 +157,7 @@ def create_app(
         Route("/register", public_route(register_page), methods=["GET"], name="register_page"),
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
-        Route("/api/auth/bot", bot_only(bot_auth), methods=["POST"], name="bot_auth"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
-        Route(
-            "/api/matchmaking/join",
-            bot_only(bot_matchmaking_auth),
-            methods=["POST"],
-            name="bot_matchmaking_auth",
-        ),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
     ]
 

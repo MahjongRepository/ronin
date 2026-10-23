@@ -275,73 +275,6 @@ class TestJoinRoomRedirect:
         assert "Room not found" in response.text
 
 
-class TestBotAuth:
-    def test_bot_auth_route__when_key_and_room_valid__should_return_room_info_and_bot_session(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
-        room_manager = client.app.state.room_manager
-        room_manager.create_room("room-bot")
-
-        response = client.post(
-            "/api/auth/bot",
-            json={"room_id": "room-bot"},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["room_id"] == "room-bot"
-        assert "/ws/rooms/room-bot" in data["ws_url"]
-        assert "session_id" in data
-
-        auth_service = client.app.state.auth_service
-        session = auth_service.validate_session(data["session_id"])
-        assert session is not None
-        assert session.username == "TestBot"
-
-    def test_bot_auth_route__when_room_id_missing__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
-
-        response = client.post(
-            "/api/auth/bot",
-            json={},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 400
-        assert "required" in response.json()["error"]
-
-    def test_bot_auth_route__when_room_not_found__should_return_404(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
-
-        response = client.post(
-            "/api/auth/bot",
-            json={"room_id": "no-such-room"},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 404
-        assert response.json()["error"] == "Room not found"
-
-    def test_bot_auth_route__when_body_not_json__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
-
-        response = client.post(
-            "/api/auth/bot",
-            content="not json",
-            headers={"content-type": "application/json", "x-api-key": raw_key},
-        )
-        assert response.status_code == 400
-        assert "Invalid JSON" in response.json()["error"]
-
-    def test_bot_auth_route__when_body_is_json_array__should_return_400(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
-
-        response = client.post(
-            "/api/auth/bot",
-            json=[{"room_id": "room-1"}],
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 400
-        assert "Invalid JSON" in response.json()["error"]
-
-
 class TestBotCreateRoom:
     def test_bot_create_room_route__when_key_valid__should_create_room_with_four_ai_seats(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
@@ -353,9 +286,8 @@ class TestBotCreateRoom:
         )
         assert response.status_code == 201
         data = response.json()
-        assert "room_id" in data
-        assert "session_id" in data
-        assert "/ws/rooms/" in data["ws_url"]
+        assert set(data) == {"room_id", "ws_url"}
+        assert data["ws_url"].endswith(f"/ws/rooms/{data['room_id']}")
         room = client.app.state.room_manager.get_room(data["room_id"])
         assert room is not None
         # Empty room: no humans joined yet, all 4 seats are bots
@@ -419,37 +351,55 @@ class TestBotCreateRoom:
         assert response.status_code == 400
         assert "min_human_players" in response.json()["error"]
 
-    def test_bot_create_room_route__when_body_not_json__should_return_400(self, client):
+    @pytest.mark.parametrize("body", ["not json", '[{"min_human_players": 1}]'], ids=["not_json", "json_array"])
+    def test_bot_create_room_route__when_body_not_a_json_object__should_return_400(self, client, body):
         _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
 
         response = client.post(
             "/api/rooms",
-            content="not json",
+            content=body,
             headers={"content-type": "application/json", "x-api-key": raw_key},
         )
         assert response.status_code == 400
         assert "Invalid JSON" in response.json()["error"]
 
 
-class TestBotOnlyRoutes:
-    def test_bot_auth_route__when_api_key_valid__should_issue_session_with_bot_account_type(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
-        room_manager = client.app.state.room_manager
-        room_manager.create_room("room-bot")
+def _bot_room_socket_path(client: TestClient, raw_key: str) -> str:
+    response = client.post("/api/rooms", json={}, headers={"x-api-key": raw_key})
+    assert response.status_code == 201
+    return urlparse(response.json()["ws_url"]).path
 
-        response = client.post(
-            "/api/auth/bot",
-            json={"room_id": "room-bot"},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 200
-        data = response.json()
 
-        # Use the bot session to verify it preserves bot identity
-        auth_service = client.app.state.auth_service
-        session = auth_service.validate_session(data["session_id"])
-        assert session is not None
-        assert session.account_type == AccountType.BOT
+def _matchmaking_socket_path(_client: TestClient, _raw_key: str) -> str:
+    return "/ws/matchmaking"
+
+
+class TestBotLobbySocket:
+    @pytest.mark.parametrize(
+        ("socket_path", "expected_first_message"),
+        [
+            pytest.param(
+                _bot_room_socket_path,
+                {"type": "room_joined", "player_name": "SocketBot", "is_owner": True},
+                id="room",
+            ),
+            pytest.param(
+                _matchmaking_socket_path,
+                {"type": "queue_joined", "queue_size": 1, "position": 1},
+                id="matchmaking",
+            ),
+        ],
+    )
+    def test_bot_lobby_socket__when_api_key_header_sent__should_admit_the_bot(
+        self, client, socket_path, expected_first_message
+    ):
+        _, raw_key = _insert_bot(client, user_id="bot-socket-id", username="SocketBot")
+        path = socket_path(client, raw_key)
+        assert not client.cookies
+
+        with client.websocket_connect(path, headers={"x-api-key": raw_key}) as ws:
+            message = ws.receive_json()
+        assert {key: message[key] for key in expected_first_message} == expected_first_message
 
 
 def _no_credential(_client: TestClient) -> dict[str, str]:
@@ -469,7 +419,6 @@ AUTH_REQUIRED_BODY = b'{"error":"Authentication required"}'
 AUTH_REQUIRED_HEADERS = {"content-type": "application/json", "content-length": "35"}
 BOT_REQUIRED_BODY = b'{"error":"Bot account required"}'
 BOT_REQUIRED_HEADERS = {"content-type": "application/json", "content-length": "32"}
-BOT_ONLY_ROUTES = ["/api/rooms", "/api/auth/bot", "/api/matchmaking/join"]
 
 
 @dataclass(frozen=True)
@@ -486,26 +435,20 @@ class TestAuthPolicyWiring:
     @pytest.mark.parametrize(
         "case",
         [
-            *[
-                pytest.param(
-                    _RejectedRequest(_no_credential, "POST", path, 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS),
-                    id=f"no_credential-{path}",
-                )
-                for path in BOT_ONLY_ROUTES
-            ],
+            pytest.param(
+                _RejectedRequest(_no_credential, "POST", "/api/rooms", 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS),
+                id="no_credential-/api/rooms",
+            ),
             pytest.param(
                 _RejectedRequest(
                     _unknown_api_key, "POST", "/api/rooms", 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS
                 ),
                 id="unknown_api_key-/api/rooms",
             ),
-            *[
-                pytest.param(
-                    _RejectedRequest(_human_session, "POST", path, 403, BOT_REQUIRED_BODY, BOT_REQUIRED_HEADERS),
-                    id=f"human_session-{path}",
-                )
-                for path in BOT_ONLY_ROUTES
-            ],
+            pytest.param(
+                _RejectedRequest(_human_session, "POST", "/api/rooms", 403, BOT_REQUIRED_BODY, BOT_REQUIRED_HEADERS),
+                id="human_session-/api/rooms",
+            ),
             pytest.param(
                 _RejectedRequest(
                     _no_credential, "GET", "/", 303, b"", {"location": "/login?next=%2F", "content-length": "0"}
@@ -583,40 +526,3 @@ class TestCsrfProtection:
             data={"username": "a", "password": "b", "csrf_token": "forged-token"},
         )
         assert response.status_code == 403
-
-
-class TestBotMatchmakingAuth:
-    def test_bot_matchmaking_join_route__when_key_valid__should_return_bot_session_and_ws_url(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-mm-id", username="MatchBot")
-
-        response = client.post(
-            "/api/matchmaking/join",
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "session_id" in data
-        assert "/ws/matchmaking" in data["ws_url"]
-
-        # Verify the session is valid and preserves bot identity
-        auth_service = client.app.state.auth_service
-        session = auth_service.validate_session(data["session_id"])
-        assert session is not None
-        assert session.username == "MatchBot"
-        assert session.account_type == AccountType.BOT
-
-    def test_bot_matchmaking_join_route__when_session_validated__should_match_bot_user(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-ws-id", username="WSBot")
-        response = client.post(
-            "/api/matchmaking/join",
-            headers={"x-api-key": raw_key},
-        )
-        data = response.json()
-
-        # Verify the session_id from the endpoint can be validated by the auth service
-        # (the same validation the WebSocket auth backend uses for session_id query param)
-        auth_service = client.app.state.auth_service
-        session = auth_service.validate_session(data["session_id"])
-        assert session is not None
-        assert session.user_id == "bot-ws-id"
-        assert session.account_type == AccountType.BOT

@@ -112,11 +112,6 @@ class TestLogin:
         assert session.username == "alice"
         assert session.session_id
 
-    async def test_auth_service_login__when_human__should_create_human_session(self, auth_service):
-        await auth_service.register("alice", "password123")
-        session = await auth_service.login("alice", "password123")
-        assert session.account_type == AccountType.HUMAN
-
     async def test_auth_service_login__when_password_wrong__should_raise(self, auth_service):
         await auth_service.register("alice", "password123")
 
@@ -155,16 +150,6 @@ class TestValidateSession:
 
     def test_auth_service_validate_session__when_id_is_none__should_return_none(self, auth_service):
         assert auth_service.validate_session(None) is None
-
-
-class TestCreateSession:
-    def test_auth_service_create_session__when_no_account_type__should_default_to_human(self, auth_service):
-        session = auth_service.create_session(user_id="user-1", username="alice")
-        assert session.account_type == AccountType.HUMAN
-
-    def test_auth_service_create_session__when_bot__should_keep_account_type(self, auth_service):
-        session = auth_service.create_session(user_id="bot-1", username="TestBot", account_type=AccountType.BOT)
-        assert session.account_type == AccountType.BOT
 
 
 class TestLogout:
