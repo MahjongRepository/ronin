@@ -44,14 +44,6 @@ class TestLobbyViews:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        config_file = tmp_path / "servers.yaml"
-        servers_yaml = """
-servers:
-  - name: "test-server"
-    url: "http://localhost:8711"
-"""
-        config_file.write_text(servers_yaml)
-
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
@@ -62,7 +54,6 @@ servers:
 
         app = create_app(
             settings=LobbyServerSettings(
-                config_path=config_file,
                 static_dir=str(static_dir),
                 game_assets_dir=str(game_assets_dir),
             ),
@@ -163,9 +154,6 @@ servers:
         assert "text/html" in response.headers["content-type"]
 
     def test_play_page__when_assets_missing__should_return_503(self, tmp_path):
-        config_file = tmp_path / "servers.yaml"
-        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
@@ -178,7 +166,6 @@ servers:
 
         app = create_app(
             settings=LobbyServerSettings(
-                config_path=config_file,
                 static_dir=str(static_dir),
                 game_assets_dir=str(game_assets_dir),
             ),
@@ -202,9 +189,6 @@ servers:
         assert "console.log('game')" in response.text
 
     def test_game_assets_route__when_dir_missing__should_not_mount(self, tmp_path):
-        config_file = tmp_path / "servers.yaml"
-        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
@@ -212,7 +196,6 @@ servers:
         nonexistent_dir = tmp_path / "no-such-dir"
         app = create_app(
             settings=LobbyServerSettings(
-                config_path=config_file,
                 static_dir=str(static_dir),
                 game_assets_dir=str(nonexistent_dir),
             ),
@@ -250,15 +233,12 @@ servers:
 
     def test_room_page__when_first_visit__should_set_csrf_cookie(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        config_file = tmp_path / "cfg.yaml"
-        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "pub"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
 
         app = create_app(
-            settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+            settings=LobbyServerSettings(static_dir=str(static_dir)),
             auth_settings=AuthSettings(
                 game_ticket_secret="s",
                 database_path=str(tmp_path / "t.db"),
@@ -282,15 +262,12 @@ servers:
 
     def test_storybook_page__when_first_visit__should_set_csrf_cookie(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        config_file = tmp_path / "cfg.yaml"
-        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "pub"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
 
         app = create_app(
-            settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+            settings=LobbyServerSettings(static_dir=str(static_dir)),
             auth_settings=AuthSettings(
                 game_ticket_secret="s",
                 database_path=str(tmp_path / "t.db"),
@@ -317,15 +294,11 @@ class TestViteDevMode:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        config_file = tmp_path / "servers.yaml"
-        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "pub"
         static_dir.mkdir()
 
         app = create_app(
             settings=LobbyServerSettings(
-                config_path=config_file,
                 static_dir=str(static_dir),
                 vite_dev_url="http://localhost:5173",
             ),
@@ -357,9 +330,6 @@ class TestHistoryPage:
     @pytest.fixture
     def client(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        config_file = tmp_path / "servers.yaml"
-        config_file.write_text("servers:\n  - name: test\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
@@ -370,7 +340,6 @@ class TestHistoryPage:
 
         app = create_app(
             settings=LobbyServerSettings(
-                config_path=config_file,
                 static_dir=str(static_dir),
                 game_assets_dir=str(game_assets_dir),
             ),
@@ -463,15 +432,12 @@ class TestHistoryPage:
 
     def test_history_page__when_unauthenticated__should_redirect_to_login(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        config_file = tmp_path / "cfg.yaml"
-        config_file.write_text("servers:\n  - name: t\n    url: http://localhost:8711\n")
-
         static_dir = tmp_path / "pub"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("")
 
         app = create_app(
-            settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+            settings=LobbyServerSettings(static_dir=str(static_dir)),
             auth_settings=AuthSettings(
                 game_ticket_secret="s",
                 database_path=str(tmp_path / "t.db"),

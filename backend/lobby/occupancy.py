@@ -24,7 +24,7 @@ class Occupancy:
 
     Rooms and matchmaking each get ``find_lobby_conflict`` from ``create_app()`` and run it in the same synchronous step
     that seats or queues the user, so a seat and a queue place exclude each other atomically on the event loop. Their
-    WebSocket handlers await ``find_game_conflict`` before that step, inside ``admitting``: the game servers' answer can
+    WebSocket handlers await ``find_game_conflict`` before that step, inside ``admitting``: the game server's answer can
     be stale by the time that step runs, since a start may hand the user's seat or queue place to a new game while the
     lookup is in flight. Every attempt to create a game calls ``hand_to_game`` once the game server call is over,
     whatever its outcome (a failure may mean the game exists), and before the seats or the matched players are released;

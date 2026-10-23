@@ -11,12 +11,10 @@ from shared.auth.settings import AuthSettings
 
 @pytest.fixture
 def app(tmp_path):
-    config_file = tmp_path / "servers.yaml"
-    config_file.write_text("servers: []\n")
     static_dir = tmp_path / "public"
     static_dir.mkdir()
     return create_app(
-        settings=LobbyServerSettings(config_path=config_file, static_dir=str(static_dir)),
+        settings=LobbyServerSettings(static_dir=str(static_dir)),
         auth_settings=AuthSettings(
             game_ticket_secret="test-secret",
             database_path=str(tmp_path / "test.db"),

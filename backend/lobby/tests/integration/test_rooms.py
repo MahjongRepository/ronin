@@ -10,21 +10,12 @@ from shared.auth.settings import AuthSettings
 class TestLobbyEndpoints:
     @pytest.fixture
     def client(self, tmp_path):
-        config_file = tmp_path / "servers.yaml"
-        servers_yaml = """
-servers:
-  - name: "test-server"
-    url: "http://localhost:8711"
-"""
-        config_file.write_text(servers_yaml)
-
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True)
         (static_dir / "styles" / "lobby.css").write_text("/* test */")
 
         app = create_app(
             settings=LobbyServerSettings(
-                config_path=config_file,
                 static_dir=str(static_dir),
             ),
             auth_settings=AuthSettings(
@@ -45,11 +36,3 @@ servers:
         assert data["status"] == "ok"
         assert "version" in data
         assert "commit" in data
-
-    def test_servers_route__should_list_configured_servers(self, client):
-        response = client.get("/servers")
-        assert response.status_code == 200
-        data = response.json()
-        assert "servers" in data
-        assert len(data["servers"]) == 1
-        assert data["servers"][0]["name"] == "test-server"

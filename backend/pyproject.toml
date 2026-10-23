@@ -8,7 +8,6 @@ dependencies = [
     "pydantic==2.14.1",
     "pydantic-settings==2.15.0",
     "httpx==0.28.1",
-    "pyyaml==6.0.3",
     "mahjong==2.0.0",
     "msgpack==1.2.3",
     "xiangting==6.0.2",
@@ -155,14 +154,14 @@ source_modules = ["game.session"]
 forbidden_modules = ["game.replay"]
 
 [[tool.importlinter.contracts]]
-name = "lobby: server -> views -> features -> transition helpers -> auth, registry -> settings"
+name = "lobby: server -> views -> features -> transition helpers -> auth -> settings"
 type = "layers"
 layers = [
     "lobby.server",
     "lobby.views",
     "lobby.rooms | lobby.matchmaking",
     "lobby.game_transition | lobby.websocket_utils | lobby.occupancy",
-    "lobby.auth | lobby.registry",
+    "lobby.auth",
     "lobby.settings",
 ]
 

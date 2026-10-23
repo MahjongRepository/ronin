@@ -20,7 +20,6 @@ from lobby.websocket_utils import check_origin
 
 if TYPE_CHECKING:
     from lobby.occupancy import Occupancy
-    from lobby.registry.manager import RegistryManager
     from lobby.rooms.connections import RoomConnectionManager
     from lobby.rooms.manager import LobbyRoomManager
     from lobby.rooms.models import LobbyRoom
@@ -39,7 +38,6 @@ class _RoomContext:
         "auth_settings",
         "connection_id",
         "occupancy",
-        "registry",
         "room_connections",
         "room_id",
         "room_manager",
@@ -53,7 +51,6 @@ class _RoomContext:
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
         self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.room_connections: RoomConnectionManager = websocket.app.state.room_connections
-        self.registry: RegistryManager = websocket.app.state.registry
         self.occupancy: Occupancy = websocket.app.state.occupancy
 
         self.connection_id: str = str(uuid.uuid4())
@@ -97,7 +94,7 @@ async def _join(websocket: WebSocket, ctx: _RoomContext) -> bool:
     The whole flow (join, ack, register, broadcast) runs under the room's ``join_lock`` so concurrent joins cannot
     interleave: otherwise another player's broadcast could reach a connection that has not received its own
     ``room_joined`` yet. It runs inside the handler's ``try/finally``, so a failed ack still frees the seat (and the
-    host). The check that the user is not playing a game, which asks the game servers, runs before the lock;
+    host). The check that the user is not playing a game, which asks the game server, runs before the lock;
     ``join_room`` checks the rest of the occupancy rule under it, including a start that handed the user to a game
     while that lookup was in flight.
     """
@@ -282,7 +279,7 @@ async def _create_game(room: LobbyRoom, ctx: _RoomContext, *, game_id: str) -> t
             game_id=game_id,
             players=player_specs,
             num_ai_players=room.num_ai_players,
-            registry=ctx.registry,
+            settings=ctx.settings,
         )
     finally:
         ctx.occupancy.hand_to_game(player.user_id for player in room.players.values())

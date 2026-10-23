@@ -18,7 +18,6 @@ from starlette.staticfiles import StaticFiles
 from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
     bot_only,
-    protected_api,
     protected_html,
     public_route,
     validate_route_auth_policy,
@@ -27,7 +26,6 @@ from lobby.game_transition import is_user_playing
 from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
-from lobby.registry.manager import RegistryManager
 from lobby.rooms.connections import RoomConnectionManager
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import room_websocket
@@ -72,25 +70,6 @@ if TYPE_CHECKING:
 
 async def health(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok", "version": APP_VERSION, "commit": GIT_COMMIT})
-
-
-async def list_servers(request: Request) -> JSONResponse:
-    registry: RegistryManager = request.app.state.registry
-    await registry.check_health()
-
-    servers = registry.get_servers()
-    return JSONResponse(
-        {
-            "servers": [
-                {
-                    "name": s.name,
-                    "url": s.url,
-                    "healthy": s.healthy,
-                }
-                for s in servers
-            ],
-        },
-    )
 
 
 def _create_seating(
@@ -143,9 +122,8 @@ def create_app(
     static_dir = Path(settings.static_dir).resolve()
     game_assets_dir = Path(settings.game_assets_dir).resolve()
 
-    registry = RegistryManager(settings.config_path)
     if is_playing is None:
-        is_playing = functools.partial(is_user_playing, registry=registry)
+        is_playing = functools.partial(is_user_playing, game_server_url=settings.game_server_url)
 
     room_connections, room_manager, matchmaking_manager, occupancy = _create_seating(is_playing=is_playing)
 
@@ -179,8 +157,6 @@ def create_app(
             name="join_room_and_redirect",
         ),
         Route("/matchmaking", protected_html(matchmaking_page), methods=["GET"], name="matchmaking_page"),
-        # Protected JSON routes (return 401 JSON when unauthenticated)
-        Route("/servers", protected_api(list_servers), methods=["GET"], name="list_servers"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
@@ -257,7 +233,6 @@ def create_app(
         app,
         settings=settings,
         auth_settings=auth_settings,
-        registry=registry,
         game_repo=game_repo,
         auth_service=auth_service,
         room_manager=room_manager,
@@ -275,7 +250,6 @@ def _attach_state(  # noqa: PLR0913
     *,
     settings: LobbyServerSettings,
     auth_settings: AuthSettings,
-    registry: RegistryManager,
     game_repo: SqliteGameRepository,
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
@@ -286,7 +260,6 @@ def _attach_state(  # noqa: PLR0913
     app.state.game_repo = game_repo
     app.state.settings = settings
     app.state.auth_settings = auth_settings
-    app.state.registry = registry
 
     templates = create_templates()
     env_globals = cast("dict[str, object]", templates.env.globals)

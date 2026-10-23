@@ -27,8 +27,8 @@ and must respect the same direction. The rules it pins:
   `wire` that never imports the server packages, and `session` never imports `replay`. `logic` and
   `wire` know nothing of auth or persistence.
 * `lobby`: `server` → `views` → `rooms` | `matchmaking` → `game_transition` | `websocket_utils` |
-  `occupancy` → `auth` | `registry` → `settings`; `rooms` and `matchmaking` are independent of each
-  other. What both need from the other is injected in `create_app()` (the occupancy rule).
+  `occupancy` → `auth` → `settings`; `rooms` and `matchmaking` are independent of each other. What
+  both need from the other is injected in `create_app()` (the occupancy rule).
 * `shared`: `db` → `auth` → `dal`; only the two `server/app.py` composition roots, `scripts` and the
   `shared` tests import `shared.db`.
 
@@ -73,8 +73,8 @@ A new package joins a layer in the contract, or gets its own contract, in the sa
   `AUTH_`), `LobbyServerSettings` (`lobby/settings.py`, `LOBBY_`), `GameServerSettings`
   (`game/server/settings.py`, `GAME_`), `LoggingSettings` (`shared/logging.py`, no prefix).
 * A safe application default (timeouts, capacity, the cookie flag and bcrypt cost, asset paths inside
-  the app layout) stays in the class. A deployment-specific value (secrets, the database, replay and
-  server-list paths, allowed hosts and origins) is a required field with no default, so a
+  the app layout) stays in the class. A deployment-specific value (secrets, the database and replay
+  paths, the game server URLs, allowed hosts and origins) is a required field with no default, so a
   misconfigured deployment fails at startup: `deploy/docker-compose.yml` supplies it in production,
   `bin/local-settings.sh` (sourced by `bin/run-local-server.sh`) locally, and `.env.tests` in tests,
   where the paths point at `/nonexistent/` so a test that touches them must pass its own `tmp_path`.

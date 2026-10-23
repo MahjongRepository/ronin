@@ -12,7 +12,6 @@ from starlette.routing import Mount, Route
 from lobby.auth.models import AuthenticatedPlayer
 from lobby.auth.policy import (
     bot_only,
-    protected_api,
     protected_html,
     public_route,
     validate_route_auth_policy,
@@ -84,23 +83,6 @@ class TestProtectedHtml:
 
     async def test_protected_html__when_authenticated__should_call_handler(self):
         wrapped = protected_html(_dummy_handler)
-        request = _make_request(authenticated=True)
-
-        result = await wrapped(request)
-        assert result == "ok"
-
-
-class TestProtectedApi:
-    async def test_protected_api__when_unauthenticated__should_return_401(self):
-        wrapped = protected_api(_dummy_handler)
-        request = _make_request(authenticated=False)
-
-        result = await wrapped(request)
-        assert result.status_code == 401
-        assert result.body == b'{"error":"Authentication required"}'
-
-    async def test_protected_api__when_authenticated__should_call_handler(self):
-        wrapped = protected_api(_dummy_handler)
         request = _make_request(authenticated=True)
 
         result = await wrapped(request)
