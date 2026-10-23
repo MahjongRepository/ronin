@@ -1,10 +1,4 @@
 import json
-from typing import TYPE_CHECKING, Any
-
-from pydantic_settings import EnvSettingsSource
-
-if TYPE_CHECKING:
-    from pydantic.fields import FieldInfo
 
 
 def parse_string_list(value: str | list[str], *, allow_empty: bool = False) -> list[str]:
@@ -48,27 +42,3 @@ def parse_string_list(value: str | list[str], *, allow_empty: bool = False) -> l
         raise ValueError("String list value must not be empty")
 
     return result
-
-
-_STRING_LIST_FIELDS = {"cors_origins", "allowed_hosts"}
-
-
-class StringListEnvSettingsSource(EnvSettingsSource):
-    """
-    Env settings source that passes string-list fields as raw strings to validators.
-
-    pydantic-settings tries to JSON-decode list-typed fields from env vars before validators run. This subclass bypasses
-    that for string-list fields so our custom parse_string_list validator handles both JSON and CSV formats.
-    """
-
-    def prepare_field_value(
-        self,
-        field_name: str,
-        field: FieldInfo,
-        value: Any,  # noqa: ANN401
-        value_is_complex: bool,  # noqa: FBT001
-    ) -> Any:  # noqa: ANN401
-        if field_name in _STRING_LIST_FIELDS and isinstance(value, str):
-            return value
-
-        return super().prepare_field_value(field_name, field, value, value_is_complex)
