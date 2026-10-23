@@ -27,11 +27,11 @@ class AuthenticatedPlayer(BaseUser):
         return True
 
     @property
-    def display_name(self) -> str:  # pragma: no cover
+    def display_name(self) -> str:
         return self._username
 
     @property
-    def identity(self) -> str:  # pragma: no cover
+    def identity(self) -> str:
         return self._user_id
 
     @property
