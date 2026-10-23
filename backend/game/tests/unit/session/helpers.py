@@ -100,7 +100,7 @@ def fire_turn_timer_now(manager: SessionManager, *, game_id: str, seat: int) -> 
     configured = timer._config
     timer._config = TimerConfig(base_turn_seconds=0)
     timer._bank_seconds = 0
-    manager._timer_manager.start_turn_timer(participant)
+    manager._start_turn_timer(participant)
     timer._config = configured
     assert timer.task is not None
     return timer.task

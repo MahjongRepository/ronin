@@ -34,7 +34,6 @@ from game.session.models import GameLifecycle, GameSession, Participant
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
-from game.session.timer_manager import TimerManager
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
 
@@ -95,7 +94,6 @@ class SessionManager:
         self._connections: dict[str, ConnectionProtocol] = {}
         self._bound: dict[str, Participant] = {}
 
-        self._timer_manager = TimerManager(on_timeout=self._handle_timeout)
         self._auth_timeouts: dict[str, asyncio.Task[None]] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
 
@@ -613,7 +611,7 @@ class SessionManager:
         for event in self._game_service.build_draw_event_for_seat(self._runtime_of(participant.game), seat):
             connection.send_message(stamp_wait_id(service_event_payload(event), event, awaiting))
 
-        self._timer_manager.start_turn_timer(participant)
+        self._start_turn_timer(participant)
 
     def _follow_engine(
         self,
@@ -674,7 +672,7 @@ class SessionManager:
 
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
             for participant in connected:
-                self._timer_manager.start_round_advance_timer(participant)
+                self._start_round_advance_timer(participant)
 
             return
 
@@ -683,9 +681,21 @@ class SessionManager:
                 continue
 
             if awaiting.kind == WaitKind.TURN:
-                self._timer_manager.start_turn_timer(participant)
+                self._start_turn_timer(participant)
             else:
-                self._timer_manager.start_meld_timer(participant)
+                self._start_meld_timer(participant)
+
+    def _start_turn_timer(self, participant: Participant) -> None:
+        participant.timer.start_turn_timer(lambda: self._handle_timeout(participant, TimeoutType.TURN))
+
+    def _start_meld_timer(self, participant: Participant) -> None:
+        participant.timer.start_meld_timer(lambda: self._handle_timeout(participant, TimeoutType.MELD))
+
+    def _start_round_advance_timer(self, participant: Participant) -> None:
+        participant.timer.start_fixed_timer(
+            participant.game.timer_config.round_advance_timeout_seconds,
+            lambda: self._handle_timeout(participant, TimeoutType.ROUND_ADVANCE),
+        )
 
     def _broadcast_events(self, game: GameSession, events: list[ServiceEvent], awaiting: Awaiting) -> None:
         """
