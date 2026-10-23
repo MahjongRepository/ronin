@@ -22,6 +22,7 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
 from game.logic.types import YakuInfo
+from game.logic.wall import URA_DORA_START_INDEX
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 
@@ -262,7 +263,7 @@ class TestApplyTsumoScore:
             winner_seat=0,
             hand_result=hand_result,
         )
-        assert result.ura_dora_indicators == [dead_wall[7]]
+        assert result.ura_dora_indicators == [dead_wall[URA_DORA_START_INDEX]]
 
 
 class TestApplyRonScore:
@@ -339,7 +340,7 @@ class TestApplyRonScore:
             hand_result=hand_result,
             winning_tile=0,
         )
-        assert result.ura_dora_indicators == [dead_wall[7]]
+        assert result.ura_dora_indicators == [dead_wall[URA_DORA_START_INDEX]]
 
 
 class TestApplyDoubleRonScore:
@@ -472,7 +473,10 @@ class TestApplyDoubleRonScore:
             loser_seat=1,
             winning_tile=0,
         )
-        assert {w.winner_seat: w.ura_dora_indicators for w in result.winners} == {0: [dead_wall[7]], 2: None}
+        assert {w.winner_seat: w.ura_dora_indicators for w in result.winners} == {
+            0: [dead_wall[URA_DORA_START_INDEX]],
+            2: None,
+        }
 
     def test_apply_double_ron_score__when_no_winners__should_raise(self):
         game_state = self._create_game_state()
@@ -985,8 +989,8 @@ class TestUraDoraScoringIntegration:
         dead_wall = [0] * 14
         dead_wall[2] = dora_indicator_1
         dead_wall[3] = dora_indicator_2
-        dead_wall[7] = ura_tile_1
-        dead_wall[8] = ura_tile_2
+        dead_wall[URA_DORA_START_INDEX] = ura_tile_1
+        dead_wall[URA_DORA_START_INDEX + 1] = ura_tile_2
 
         game_state = self._build_game_state(
             dead_wall=tuple(dead_wall),

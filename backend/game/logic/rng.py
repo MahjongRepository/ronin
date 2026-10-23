@@ -1,11 +1,12 @@
 import hashlib
 import random
 import secrets
+import string
 
 from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import NUM_TILES
 
-SEED_BYTES = 96  # 768 bits — exceeds 136!/(4!)^34 ≈ 2^616 unique game space (136! ≈ 2^772.5)
+SEED_BYTES = 96
 RNG_VERSION = "pcg64dxsm-v1"  # Stored in game metadata for replay compatibility detection
 _DOMAIN_PREFIX = b"ronin-wall-v1:"  # Domain separator for hash-based derivation (versioned)
 _DEALER_DOMAIN_PREFIX = b"ronin-dealer-v1:"  # Domain separator for dealer determination
@@ -21,8 +22,9 @@ _UINT64_MASK = (1 << 64) - 1
 def validate_seed_hex(seed_hex: str) -> None:
     """Validate that a seed string is the correct hex format.
 
-    Enforces exact length (192 hex chars = 96 bytes = 768 bits) and valid hex characters.
-    Raises TypeError for non-string input, ValueError for invalid format.
+    Enforces exact length (192 hex chars = 96 bytes = 768 bits) and that every character is a hex digit; whitespace is
+    rejected even though bytes.fromhex would skip it. Raises TypeError for non-string input, ValueError for invalid
+    format.
     """
     if not isinstance(seed_hex, str):
         raise TypeError(f"Seed must be a string, got {type(seed_hex).__name__}")
@@ -31,10 +33,8 @@ def validate_seed_hex(seed_hex: str) -> None:
     if len(seed_hex) != expected_length:
         raise ValueError(f"Seed must be exactly {expected_length} hex characters, got {len(seed_hex)}")
 
-    try:
-        bytes.fromhex(seed_hex)
-    except ValueError:
-        raise ValueError("Seed contains invalid hex characters") from None
+    if any(char not in string.hexdigits for char in seed_hex):
+        raise ValueError("Seed contains invalid hex characters")
 
 
 class PCG64DXSM:
@@ -44,7 +44,9 @@ class PCG64DXSM:
     Uses a 128-bit LCG state with the full 128-bit multiplier and the DXSM
     (double-xorshift-multiply) output permutation for high-quality 64-bit output.
 
-    Reference: NumPy's default PCG64DXSM bit generator uses the same constants.
+    The DXSM output function and its multiplier are NumPy's, but NumPy's PCG64DXSM steps the LCG with the cheap 64-bit
+    multiplier and seeds differently, so this generator's stream is its own; the reference vectors in the tests pin this
+    implementation, not NumPy's.
 
     Chosen over MT19937: it passes the BigCrush/PractRand statistical tests, keeps 128 bits of state (vs 2.5KB), and the
     DXSM output mixes well enough to need no SHA512 post-processing. See O'Neill, M. (2014), "PCG: A Family of Simple
@@ -85,6 +87,9 @@ class PCG64DXSM:
 def generate_seed() -> str:
     """
     Generate a cryptographic seed as a hex string (192 chars / 768 bits).
+
+    The seed is hashed into 255 bits of PCG state per round, so at most 2^255 of the ~2^616 distinguishable walls are
+    reachable: unenumerable in practice, but not the full wall space.
     """
     return secrets.token_bytes(SEED_BYTES).hex()
 
@@ -142,9 +147,8 @@ def _fisher_yates_shuffle(tiles: list[int], pcg: PCG64DXSM) -> list[int]:
 
     For i in 0..n-2: swap tiles[i] with tiles[i + bounded_uint64(n - i)]
 
-    Uses rejection sampling via _bounded_uint64 to produce a provably unbiased
-    permutation. This follows the RNG research recommendation and industry best
-    practice (Node.js crypto.randomInt and NumPy both use rejection sampling).
+    Uses rejection sampling via _bounded_uint64, so given uniform 64-bit outputs every permutation is equally likely:
+    no modulo bias and no off-by-one in the swap range. Node.js crypto.randomInt and NumPy shuffle the same way.
     """
     n = len(tiles)
     result = list(tiles)

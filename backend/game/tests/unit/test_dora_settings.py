@@ -7,7 +7,7 @@ from game.logic.scoring import (
     collect_ura_dora_indicators,
 )
 from game.logic.settings import GameSettings
-from game.logic.wall import Wall, add_dora_indicator
+from game.logic.wall import MAX_DORA_INDICATORS, URA_DORA_START_INDEX, Wall, add_dora_indicator
 from game.logic.wall import collect_ura_dora_indicators as wall_collect_ura_dora
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
@@ -113,7 +113,7 @@ class TestUraDoraSettingGating:
 
         dead_wall = [0] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[7] = ura_ind
+        dead_wall[URA_DORA_START_INDEX] = ura_ind
 
         settings = GameSettings(has_akadora=False, has_uradora=True)
         game_state = _build_scoring_state(
@@ -141,7 +141,7 @@ class TestUraDoraSettingGating:
 
         dead_wall = [0] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[7] = ura_ind
+        dead_wall[URA_DORA_START_INDEX] = ura_ind
 
         settings = GameSettings(has_akadora=False, has_uradora=False)
         game_state = _build_scoring_state(
@@ -182,10 +182,10 @@ class TestKanUraDoraSettingGating:
             live_tiles=(),
             dead_wall_tiles=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3]),
-            ura_dora_indicators=(dead_wall[7], dead_wall[8], dead_wall[9], dead_wall[10], dead_wall[11]),
+            ura_dora_indicators=tuple(dead_wall[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS]),
         )
         result = wall_collect_ura_dora(wall, include_kan_ura=True)
-        assert result == [dead_wall[7], dead_wall[8]]
+        assert result == [dead_wall[URA_DORA_START_INDEX], dead_wall[URA_DORA_START_INDEX + 1]]
 
     def test_kan_ura_dora__when_disabled__should_reveal_single_indicator(self):
         dead_wall = tuple(range(100, 114))
@@ -193,10 +193,10 @@ class TestKanUraDoraSettingGating:
             live_tiles=(),
             dead_wall_tiles=dead_wall,
             dora_indicators=(dead_wall[2], dead_wall[3]),
-            ura_dora_indicators=(dead_wall[7], dead_wall[8], dead_wall[9], dead_wall[10], dead_wall[11]),
+            ura_dora_indicators=tuple(dead_wall[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS]),
         )
         result = wall_collect_ura_dora(wall, include_kan_ura=False)
-        assert result == [dead_wall[7]]
+        assert result == [dead_wall[URA_DORA_START_INDEX]]
 
     def test_collect_ura_dora_indicators__when_two_dora_indicators__should_reveal_two_with_kan_ura_and_one_without(
         self,

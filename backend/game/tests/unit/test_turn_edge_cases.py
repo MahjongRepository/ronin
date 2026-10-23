@@ -70,7 +70,7 @@ class TestRinshanTsumoAfterOpenKan:
             create_player(seat=2),
             create_player(seat=3),
         )
-        dead_wall = (*TilesConverter.string_to_136_array(sou="1111222233334"), sou_5s[1])
+        dead_wall = (sou_5s[1], *TilesConverter.string_to_136_array(sou="1111222233334"))
         round_state = create_round_state(
             players=players,
             wall=tuple(TilesConverter.string_to_136_array(pin="9999")),
