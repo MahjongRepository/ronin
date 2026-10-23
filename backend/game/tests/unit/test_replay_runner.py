@@ -58,7 +58,7 @@ def _build_replay(
 
 class _StubService:
     def __init__(self) -> None:
-        self._inner = MahjongGameService(auto_cleanup=False)
+        self._inner = MahjongGameService()
 
     def start_game(
         self,
@@ -95,7 +95,7 @@ class _StubService:
 
 
 def _probe_current_player_discard() -> tuple[str, int]:
-    svc = MahjongGameService(auto_cleanup=False)
+    svc = MahjongGameService()
     svc.start_game("probe", list(PLAYER_NAMES), seed=SEED)
     state = svc.get_game_state("probe")
     assert state is not None
@@ -192,7 +192,7 @@ def test_run_replay__when_replay_succeeds_or_fails__should_clean_up_game():
     replay = _build_replay()
     run_replay(
         replay,
-        service_factory=lambda: TrackingService(auto_cleanup=False),
+        service_factory=TrackingService,
     )
     assert len(cleanup_calls) == 1
 
@@ -202,7 +202,7 @@ def test_run_replay__when_replay_succeeds_or_fails__should_clean_up_game():
     with pytest.raises(ReplayError):
         run_replay(
             replay,
-            service_factory=lambda: TrackingService(auto_cleanup=False),
+            service_factory=TrackingService,
         )
     assert len(cleanup_calls) == 1
 
@@ -246,7 +246,7 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
-            self._inner._games[game_id] = state.model_copy(
+            self._inner._runtimes[game_id].state = state.model_copy(
                 update={"game_phase": GamePhase.FINISHED},
             )
             return start
@@ -272,7 +272,7 @@ def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input
             state = self._inner.get_game_state(game_id)
             assert state is not None
 
-            self._inner._games[game_id] = state.model_copy(
+            self._inner._runtimes[game_id].state = state.model_copy(
                 update={"game_phase": GamePhase.FINISHED},
             )
             return start
@@ -507,7 +507,7 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
-                    self._inner._games[game_id] = state.model_copy(
+                    self._inner._runtimes[game_id].state = state.model_copy(
                         update={"round_state": new_round},
                     )
 
@@ -529,7 +529,7 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={"round_state": new_round},
                 )
 
@@ -570,7 +570,7 @@ def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_gam
 
 def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_others():
     # Discover actual seat assignments (seed-dependent)
-    svc_probe = MahjongGameService(auto_cleanup=False)
+    svc_probe = MahjongGameService()
     svc_probe.start_game("probe-seats", list(PLAYER_NAMES), seed=SEED)
     probe_state = svc_probe.get_game_state("probe-seats")
     assert probe_state is not None
@@ -614,7 +614,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            self._inner._games[game_id] = state.model_copy(
+            self._inner._runtimes[game_id].state = state.model_copy(
                 update={"round_state": new_round},
             )
             return start
@@ -639,7 +639,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
-                    self._inner._games[game_id] = state.model_copy(
+                    self._inner._runtimes[game_id].state = state.model_copy(
                         update={"round_state": new_round},
                     )
 
@@ -652,7 +652,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={"round_state": new_round},
                 )
                 return _stub_update([])
@@ -705,7 +705,7 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            self._inner._games[game_id] = state.model_copy(
+            self._inner._runtimes[game_id].state = state.model_copy(
                 update={"round_state": new_round},
             )
             return start
@@ -770,7 +770,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": new_prompt},
                     )
-                    self._inner._games[game_id] = state.model_copy(
+                    self._inner._runtimes[game_id].state = state.model_copy(
                         update={"round_state": new_round},
                     )
 
@@ -791,7 +791,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={"round_state": new_round},
                 )
 
@@ -857,7 +857,7 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            self._inner._games[game_id] = state.model_copy(
+            self._inner._runtimes[game_id].state = state.model_copy(
                 update={"round_state": new_round},
             )
             return start
@@ -879,7 +879,7 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={
                         "round_state": new_round,
                         "game_phase": GamePhase.FINISHED,
@@ -920,7 +920,7 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={
                         "round_state": new_round,
                         "game_phase": GamePhase.FINISHED,
@@ -943,7 +943,7 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": prompt},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={"round_state": new_round},
                 )
 
@@ -1000,7 +1000,7 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            self._inner._games[game_id] = state.model_copy(
+            self._inner._runtimes[game_id].state = state.model_copy(
                 update={"round_state": new_round},
             )
             return start
@@ -1021,7 +1021,7 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
                 new_round = state.round_state.model_copy(
                     update={"pending_call_prompt": None},
                 )
-                self._inner._games[game_id] = state.model_copy(
+                self._inner._runtimes[game_id].state = state.model_copy(
                     update={"round_state": new_round},
                 )
                 return _stub_update([])
@@ -1036,7 +1036,7 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
                     new_round = state.round_state.model_copy(
                         update={"pending_call_prompt": None},
                     )
-                    self._inner._games[game_id] = state.model_copy(
+                    self._inner._runtimes[game_id].state = state.model_copy(
                         update={"round_state": new_round},
                     )
 

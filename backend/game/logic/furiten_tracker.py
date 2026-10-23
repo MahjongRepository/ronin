@@ -11,37 +11,22 @@ if TYPE_CHECKING:
 
 class FuritenTracker:
     """
-    Track per-seat furiten state and emit change events.
+    Track one round's per-seat furiten state and emit change events.
 
-    Maintain a boolean per seat per game. After each action, the caller
-    passes the current round state and the tracker compares effective furiten
-    against the last known value, emitting FuritenEvent for any changes.
+    Hold a boolean per seat, all False at the round's start (a new round gets a new tracker). After each action, the
+    caller passes the current round state and the tracker compares effective furiten against the last known value,
+    emitting FuritenEvent for any changes.
 
-    Skip recomputation for a seat whose player object is the one checked last
-    time. Pydantic model_copy preserves object identity for unchanged players,
-    and the tracker holds the checked object, so an identical object means
-    identical tiles, discards and furiten flags.
-
-    Follow the same pattern as RoundAdvanceManager: pure state tracking,
-    no side effects, narrow API, cleanup_game() for teardown.
+    Skip recomputation for a seat whose player object is the one checked last time. Pydantic model_copy preserves object
+    identity for unchanged players, and the tracker holds the checked object, so an identical object means identical
+    tiles, discards and furiten flags.
     """
 
     def __init__(self) -> None:
-        self._state: dict[str, dict[int, bool]] = {}
-        self._checked_players: dict[str, dict[int, MahjongPlayer]] = {}
+        self._state: dict[int, bool] = dict.fromkeys(range(NUM_PLAYERS), False)
+        self._checked_players: dict[int, MahjongPlayer] = {}
 
-    def init_game(self, game_id: str) -> None:
-        """
-        Initialize furiten tracking for a new game or round.
-        """
-        self._state[game_id] = dict.fromkeys(range(NUM_PLAYERS), False)
-        self._checked_players[game_id] = {}
-
-    def check_changes(
-        self,
-        game_id: str,
-        round_state: MahjongRoundState,
-    ) -> list[ServiceEvent]:
+    def check_changes(self, round_state: MahjongRoundState) -> list[ServiceEvent]:
         """
         Check all seats for furiten state changes and return events.
 
@@ -51,32 +36,18 @@ class FuritenTracker:
         if round_state.phase != RoundPhase.PLAYING:
             return []
 
-        if game_id not in self._state:
-            return []
-
-        furiten_state = self._state[game_id]
-        checked_players = self._checked_players[game_id]
         events: list[ServiceEvent] = []
         for seat in range(NUM_PLAYERS):
             player = round_state.players[seat]
-            if player is checked_players.get(seat):
+            if player is self._checked_players.get(seat):
                 continue
 
-            checked_players[seat] = player
+            self._checked_players[seat] = player
             current = is_effective_furiten(player)
-            previous = furiten_state.get(seat, False)
-
-            if current != previous:
-                furiten_state[seat] = current
+            if current != self._state[seat]:
+                self._state[seat] = current
                 events.append(
                     ServiceEvent.model_construct(data=FuritenEvent(is_furiten=current, target=SeatTarget(seat=seat))),
                 )
 
         return events
-
-    def cleanup_game(self, game_id: str) -> None:
-        """
-        Remove furiten state for a game.
-        """
-        self._state.pop(game_id, None)
-        self._checked_players.pop(game_id, None)

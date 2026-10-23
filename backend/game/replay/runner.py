@@ -70,7 +70,7 @@ class _ReplaySeating:
 
 
 def _default_service_factory() -> GameService:
-    return MahjongGameService(auto_cleanup=False)
+    return MahjongGameService()
 
 
 def run_replay(

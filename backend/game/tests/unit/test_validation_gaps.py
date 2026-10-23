@@ -40,6 +40,7 @@ from game.logic.melds import (
     validate_closed_kan,
 )
 from game.logic.round import draw_tile
+from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import (
     Caller,
@@ -665,16 +666,14 @@ class TestPendingCallPromptStateGate:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         service = MahjongGameService()
-        service._games["test"] = game_state
-        service._ai_player_controllers["test"] = AIPlayerController({})
-        service._furiten_tracker.init_game("test")
+        service._runtimes["test"] = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
         update = service.handle_action(game_id="test", seat=0, action=action, data=action_data)
         assert [(e.data.code, e.data.target) for e in update.events] == [
             (GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))
         ]
-        assert service._games["test"] is game_state
+        assert service._runtimes["test"].state is game_state
         assert update.awaiting.wait_id == game_state.wait_id
 
 
@@ -899,14 +898,18 @@ class TestServerGeneratedActionRefusals:
         return service
 
     def _make_ai_seat_current(self, service):
-        ai_player_seat = min(service._ai_player_controllers["test"].ai_player_seats)
-        round_state = service._games["test"].round_state.model_copy(update={"current_player_seat": ai_player_seat})
-        service._games["test"] = service._games["test"].model_copy(update={"round_state": round_state})
+        ai_player_seat = min(service._runtimes["test"].ai.ai_player_seats)
+        round_state = service._runtimes["test"].state.round_state.model_copy(
+            update={"current_player_seat": ai_player_seat}
+        )
+        service._runtimes["test"].state = service._runtimes["test"].state.model_copy(
+            update={"round_state": round_state}
+        )
         return ai_player_seat
 
     def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
-        game_state = service._games["test"]
-        ai_player_seat = min(service._ai_player_controllers["test"].ai_player_seats)
+        game_state = service._runtimes["test"].state
+        ai_player_seat = min(service._runtimes["test"].ai.ai_player_seats)
         prompt = PendingCallPrompt(
             kind=PromptKind.DISCARD,
             tile_id=0,
@@ -915,30 +918,30 @@ class TestServerGeneratedActionRefusals:
             callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
-        service._games["test"] = game_state.model_copy(update={"round_state": round_state})
+        service._runtimes["test"].state = game_state.model_copy(update={"round_state": round_state})
 
         with (
             patch.object(AIPlayer, "should_call_pon", return_value=True),
             pytest.raises(GeneratedActionError, match="call_pon refused"),
         ):
-            service._dispatch_ai_player_call_responses("test", prompt, [])
-        assert service._games["test"].round_state.pending_call_prompt == prompt
+            service._dispatch_ai_player_call_responses(service._runtimes["test"], prompt, [])
+        assert service._runtimes["test"].state.round_state.pending_call_prompt == prompt
 
     def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service):
         ai_player_seat = self._make_ai_seat_current(service)
         _update_player(service, game_id="test", seat=ai_player_seat, is_riichi=True)
-        state_before = service._games["test"]
+        state_before = service._runtimes["test"].state
 
         with (
             patch.object(AIPlayer, "select_discard", lambda _self, player, _round_state: player.tiles[0]),
             pytest.raises(GeneratedActionError, match="invalid_discard"),
         ):
-            service._process_ai_player_followup("test")
-        assert service._games["test"] is state_before
+            service._process_ai_player_followup(service._runtimes["test"])
+        assert service._runtimes["test"].state is state_before
 
     def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service):
-        player_seat = _find_player(service._games["test"].round_state, "Player").seat
-        assert service._games["test"].round_state.current_player_seat == player_seat
+        player_seat = _find_player(service._runtimes["test"].state.round_state, "Player").seat
+        assert service._runtimes["test"].state.round_state.current_player_seat == player_seat
 
         with (
             patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
@@ -948,17 +951,17 @@ class TestServerGeneratedActionRefusals:
         assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
 
     def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service):
-        player_seat = _find_player(service._games["test"].round_state, "Player").seat
+        player_seat = _find_player(service._runtimes["test"].state.round_state, "Player").seat
         with pytest.raises(GeneratedActionError, match="no round pending confirmation"):
             service.handle_timeout(game_id="test", seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
 
     def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service):
         ai_player_seat = self._make_ai_seat_current(service)
-        state_before = service._games["test"]
+        state_before = service._runtimes["test"].state
 
         with pytest.raises(AssertionError, match=f"seat {ai_player_seat} is controlled by an AI player"):
             service.handle_action(game_id="test", seat=ai_player_seat, action=GameAction.DISCARD, data={"tile_id": 0})
-        assert service._games["test"] is state_before
+        assert service._runtimes["test"].state is state_before
 
 
 class TestOpenKanDefenseInDepthGuards:

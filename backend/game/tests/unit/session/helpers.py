@@ -101,7 +101,7 @@ def fire_turn_timer_now(manager: SessionManager, *, game_id: str, seat: int) -> 
 
 
 def arrange_exhaustive_draw(engine: MahjongGameService, *, game_id: str) -> None:
-    wall = engine._games[game_id].round_state.wall
+    wall = engine._runtimes[game_id].state.round_state.wall
     _update_round_state(engine, game_id, wall=wall.model_copy(update={"live_tiles": ()}))
 
 
@@ -130,7 +130,7 @@ def arrange_pon_now_and_on_the_next_draw(engine: MahjongGameService, *, discarde
     discarder_hand = TilesConverter.string_to_136_array(man="2468", pin="2356", sou="2", honors="3456") + four_pins[2:]
     _update_player(engine, game_id="game1", seat=caller, tiles=tuple(caller_hand))
     _update_player(engine, game_id="game1", seat=discarder, tiles=tuple(discarder_hand))
-    wall = engine._games["game1"].round_state.wall
+    wall = engine._runtimes["game1"].state.round_state.wall
     live_tiles = (nine_sous[2], *(tile for tile in wall.live_tiles if tile != nine_sous[2]))
     _update_round_state(engine, "game1", wall=wall.model_copy(update={"live_tiles": live_tiles}))
     return four_pins[2]

@@ -39,7 +39,8 @@ from game.logic.matchmaker import fill_seats
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.rng import generate_seed
 from game.logic.round import choose_default_discard
-from game.logic.round_advance import RoundAdvanceManager
+from game.logic.round_advance import PendingRoundAdvance
+from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
@@ -87,15 +88,11 @@ class MahjongGameService(GameService):
     """
     Game service for Mahjong implementing the GameService interface.
 
-    Maintains game states for multiple concurrent games.
+    Maintains a GameRuntime for each of multiple concurrent games.
     """
 
-    def __init__(self, *, auto_cleanup: bool = True) -> None:
-        self._games: dict[str, MahjongGameState] = {}
-        self._ai_player_controllers: dict[str, AIPlayerController] = {}
-        self._furiten_tracker = FuritenTracker()
-        self._round_advance = RoundAdvanceManager()
-        self._auto_cleanup = auto_cleanup
+    def __init__(self) -> None:
+        self._runtimes: dict[str, GameRuntime] = {}
 
     def start_game(
         self,
@@ -118,61 +115,39 @@ class MahjongGameService(GameService):
 
         seat_configs, player_seats = fill_seats(player_names, seed=game_seed)
         frozen_game = init_game(seat_configs, seed=game_seed, settings=settings, wall=wall)
-        self._games[game_id] = frozen_game
-        call = self._begin_call(game_id)
+        ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
+        runtime = GameRuntime(game_id=game_id, state=frozen_game, ai=AIPlayerController(ai_players))
+        call = self._begin_call(runtime)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
         logger.debug("starting game", player_names=player_names, hands=hands)
 
-        self._furiten_tracker.init_game(game_id)
-
-        ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
-
-        ai_player_controller = AIPlayerController(ai_players)
-        self._ai_player_controllers[game_id] = ai_player_controller
-
-        events: list[ServiceEvent] = []
-        events.append(
-            self._create_game_started_event(
-                game_id=game_id,
-                game_state=frozen_game,
-                ai_player_seats=ai_player_controller.ai_player_seats,
-            ),
-        )
-        events.extend(self._create_round_started_events(frozen_game))
+        events = [self._create_game_started_event(runtime), *self._create_round_started_events(frozen_game)]
 
         new_game_state, draw_events = process_draw_phase(frozen_game)
-        self._games[game_id] = new_game_state
+        runtime.state = new_game_state
         events.extend(convert_events(draw_events))
 
         # process AI player turns if dealer is an AI player
-        dealer_seat = new_game_state.round_state.dealer_seat
-        if ai_player_controller.is_ai_player(dealer_seat):
-            ai_player_events = self._process_ai_player_followup(game_id)
-            events.extend(ai_player_events)
+        if runtime.ai.is_ai_player(new_game_state.round_state.dealer_seat):
+            events.extend(self._process_ai_player_followup(runtime))
 
-        return GameStart(events=events, awaiting=self._end_call(game_id, call), seats=player_seats)
+        awaiting = self._end_call(runtime, call)
+        self._runtimes[game_id] = runtime
+        return GameStart(events=events, awaiting=awaiting, seats=player_seats)
 
-    def _create_game_started_event(
-        self,
-        game_id: str,
-        game_state: MahjongGameState,
-        ai_player_seats: set[int] | None = None,
-    ) -> ServiceEvent:
+    def _create_game_started_event(self, runtime: GameRuntime) -> ServiceEvent:
         """
         Create a single game_started event broadcast to all players.
         """
+        game_state = runtime.state
         players = [
-            GamePlayerInfo(
-                seat=p.seat,
-                name=p.name,
-                is_ai_player=p.seat in (ai_player_seats or set()),
-            )
+            GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=runtime.ai.is_ai_player(p.seat))
             for p in game_state.round_state.players
         ]
         return ServiceEvent(
             data=GameStartedEvent(
-                game_id=game_id,
+                game_id=runtime.game_id,
                 players=players,
                 dealer_seat=game_state.round_state.dealer_seat,
                 dealer_dice=game_state.dealer_dice,
@@ -199,15 +174,16 @@ class MahjongGameService(GameService):
         Processes the action and triggers AI player turns as needed. The game must exist: the session never acts on a
         game that ended, so a missing one is a server fault (KeyError), as is an action for an AI player's seat.
         """
-        call = self._begin_call(game_id)
-        self._require_human_seat(game_id, seat)
+        runtime = self._runtimes[game_id]
+        call = self._begin_call(runtime)
+        self._require_human_seat(runtime, seat)
         logger.debug("player action", action=action, action_data=data)
-        events = self._run_action(game_id, call.state, seat=seat, action=action, data=data)
-        return GameUpdate(events=events, awaiting=self._end_call(game_id, call))
+        events = self._run_action(runtime, call.state, seat=seat, action=action, data=data)
+        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
     def _run_action(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         game_state: MahjongGameState,
         *,
         seat: int,
@@ -219,7 +195,7 @@ class MahjongGameService(GameService):
         """
         # handle confirm_round before dispatching to game logic
         if action == GameAction.CONFIRM_ROUND:
-            return self._handle_confirm_round(game_id, seat)
+            return self._handle_confirm_round(runtime, seat)
 
         # reject game actions when the round is not in progress
         if game_state.round_state.phase != RoundPhase.PLAYING:
@@ -238,39 +214,33 @@ class MahjongGameService(GameService):
         if isinstance(result, Refusal):
             return self._create_error_event(code=result.code, message=result.message, seat=seat)
 
-        events = self._commit_and_process(game_id, result)
-        return self._continue_with_ai_players(game_id, events)
+        events = self._commit_and_process(runtime, result)
+        return self._continue_with_ai_players(runtime, events)
 
-    def _continue_with_ai_players(self, game_id: str, events: list[ServiceEvent]) -> list[ServiceEvent]:
+    def _continue_with_ai_players(self, runtime: GameRuntime, events: list[ServiceEvent]) -> list[ServiceEvent]:
         """
         Run the AI players' turns after an action, when the round still plays and no call prompt waits.
-
-        The game may be gone by now: a game end cleans it up.
         """
-        game_state = self._games.get(game_id)
-        if game_state is None:
-            return events
-
-        round_state = game_state.round_state
+        round_state = runtime.state.round_state
         if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
-            events.extend(self._process_ai_player_followup(game_id))
+            events.extend(self._process_ai_player_followup(runtime))
 
         return events
 
-    def _commit_and_process(self, game_id: str, result: ActionResult) -> list[ServiceEvent]:
+    def _commit_and_process(self, runtime: GameRuntime, result: ActionResult) -> list[ServiceEvent]:
         """
         Store a handler's result and run what follows it (_process_action_result_internal).
 
         Does NOT trigger AI player turns, to avoid recursion: the top-level caller runs them. Anything raised from here
         on comes after the commit and is a server fault.
         """
-        self._games[game_id] = result.state
-        events = self._process_action_result_internal(game_id, result)
-        return self._append_furiten_changes(game_id, events)
+        runtime.state = result.state
+        events = self._process_action_result_internal(runtime, result)
+        return self._append_furiten_changes(runtime, events)
 
     def _dispatch_generated_action(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         *,
         seat: int,
         action: GameAction,
@@ -283,7 +253,7 @@ class MahjongGameService(GameService):
         kick the seat or count the refusal as progress.
         """
         try:
-            result = self._dispatch_action(self._games[game_id], seat=seat, action=action, data=data)
+            result = self._dispatch_action(runtime.state, seat=seat, action=action, data=data)
         except InvalidGameActionError as e:
             raise GeneratedActionError(f"seat {seat} {action.value} refused: {e.reason}") from e
 
@@ -329,7 +299,7 @@ class MahjongGameService(GameService):
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"action {action} has no handler")
 
-    def _process_action_result_internal(self, game_id: str, result: ActionResult) -> list[ServiceEvent]:
+    def _process_action_result_internal(self, runtime: GameRuntime, result: ActionResult) -> list[ServiceEvent]:
         """
         Run what follows a stored result, without the AI players' turns.
 
@@ -337,14 +307,14 @@ class MahjongGameService(GameService):
         Otherwise a discard nobody can call leads to the next player's draw.
         """
         events = convert_events(result.events)
-        if self._check_and_handle_round_end(game_id, events):
+        if self._check_and_handle_round_end(runtime, events):
             return events
 
-        prompt = self._games[game_id].round_state.pending_call_prompt
+        prompt = runtime.state.round_state.pending_call_prompt
         if prompt is not None:
-            self._answer_call_prompt_for_ai_players(game_id, prompt, events)
+            self._answer_call_prompt_for_ai_players(runtime, prompt, events)
         elif result.needs_post_discard:
-            self._draw_after_discard(game_id, events)
+            self._draw_after_discard(runtime, events)
 
         return events
 
@@ -352,62 +322,59 @@ class MahjongGameService(GameService):
         """
         Return the current game state, or None if game doesn't exist.
         """
-        return self._games.get(game_id)
+        runtime = self._runtimes.get(game_id)
+        return runtime.state if runtime is not None else None
 
     def get_awaiting(self, game_id: str) -> Awaiting:
         """
         Return what a running game waits for now, with the seats as the AI players hold them at this moment.
         """
-        kind, seats = self._current_wait(game_id)
-        return self._build_awaiting(game_id, kind=kind, seats=seats, game_state=self._games[game_id])
+        runtime = self._runtimes[game_id]
+        kind, seats = self._current_wait(runtime)
+        return self._build_awaiting(runtime, kind=kind, seats=seats)
 
-    def _begin_call(self, game_id: str) -> _CallStart:
+    def _begin_call(self, runtime: GameRuntime) -> _CallStart:
         """
-        Capture the game's state and wait before an engine call that may change them; the game must exist.
+        Capture the game's state and wait before an engine call that may change them.
         """
-        kind, seats = self._current_wait(game_id)
-        return _CallStart(state=self._games[game_id], kind=kind, seats=seats)
+        kind, seats = self._current_wait(runtime)
+        return _CallStart(state=runtime.state, kind=kind, seats=seats)
 
-    def _require_human_seat(self, game_id: str, seat: int) -> None:
+    @staticmethod
+    def _require_human_seat(runtime: GameRuntime, seat: int) -> None:
         """
         Refuse a call on behalf of a seat an AI player controls: the session only ever acts for a connected human.
         """
-        if self._ai_player_controllers[game_id].is_ai_player(seat):
+        if runtime.ai.is_ai_player(seat):
             raise AssertionError(f"seat {seat} is controlled by an AI player")
 
-    def _end_call(self, game_id: str, call: _CallStart) -> Awaiting:
+    def _end_call(self, runtime: GameRuntime, call: _CallStart) -> Awaiting:
         """
         Return what the game waits for after a call, bumping the wait id when the call ended the wait it began in.
 
         The call kept its wait when that wait is of the same kind and either lost seats (a partial prompt response or
         confirmation, or an AI player answering for a replaced seat) or, with the same seats, left the state untouched
         (an error result, a timeout or replacement with nothing to do). Same seats on a changed state is a new wait: the
-        turn came back to the same seat, or a kan's replacement draw. A game that ended may already be cleaned up: its
-        final wait (NONE) still gets the bumped id, in the round the call was played in.
+        turn came back to the same seat, or a kan's replacement draw.
         """
-        kind, seats = self._current_wait(game_id)
-        game_state = self._games.get(game_id)
-        kept = kind == call.kind and (seats < call.seats or (seats == call.seats and game_state is call.state))
-        wait_id = call.state.wait_id if kept else call.state.wait_id + 1
-        if game_state is None:
-            return Awaiting(kind=kind, seats=seats, wait_id=wait_id, round_number=call.state.round_number)
-
+        kind, seats = self._current_wait(runtime)
+        kept = kind == call.kind and (seats < call.seats or (seats == call.seats and runtime.state is call.state))
         if not kept:
-            game_state = game_state.model_copy(update={"wait_id": wait_id})
-            self._games[game_id] = game_state
+            runtime.state = runtime.state.model_copy(update={"wait_id": call.state.wait_id + 1})
 
-        return self._build_awaiting(game_id, kind=kind, seats=seats, game_state=game_state)
+        return self._build_awaiting(runtime, kind=kind, seats=seats)
 
-    def _current_wait(self, game_id: str) -> tuple[WaitKind, frozenset[int]]:
+    @staticmethod
+    def _current_wait(runtime: GameRuntime) -> tuple[WaitKind, frozenset[int]]:
         """
         Return the kind of the game's current wait and every seat it waits on, AI players included.
         """
-        game_state = self._games.get(game_id)
-        if game_state is None or game_state.game_phase == GamePhase.FINISHED:
+        game_state = runtime.state
+        if game_state.game_phase == GamePhase.FINISHED:
             return WaitKind.NONE, frozenset()
 
-        if self._round_advance.is_pending(game_id):
-            return WaitKind.ROUND_ADVANCE, frozenset(self._round_advance.get_unconfirmed_seats(game_id))
+        if runtime.pending_confirm is not None:
+            return WaitKind.ROUND_ADVANCE, runtime.pending_confirm.unconfirmed_seats
 
         prompt = game_state.round_state.pending_call_prompt
         if prompt is not None:
@@ -415,23 +382,16 @@ class MahjongGameService(GameService):
 
         return WaitKind.TURN, frozenset({game_state.round_state.current_player_seat})
 
-    def _build_awaiting(
-        self,
-        game_id: str,
-        *,
-        kind: WaitKind,
-        seats: frozenset[int],
-        game_state: MahjongGameState,
-    ) -> Awaiting:
+    @staticmethod
+    def _build_awaiting(runtime: GameRuntime, *, kind: WaitKind, seats: frozenset[int]) -> Awaiting:
         """
         Build the Awaiting for a wait: its seats without the AI players' ones, and the round it belongs to.
         """
-        controller = self._ai_player_controllers.get(game_id)
-        human_seats = frozenset(s for s in seats if controller is None or not controller.is_ai_player(s))
+        game_state = runtime.state
         round_over = game_state.round_state.phase == RoundPhase.FINISHED
         return Awaiting(
             kind=kind,
-            seats=human_seats,
+            seats=frozenset(s for s in seats if not runtime.ai.is_ai_player(s)),
             wait_id=game_state.wait_id,
             round_number=game_state.round_number - 1 if round_over else game_state.round_number,
         )
@@ -440,20 +400,21 @@ class MahjongGameService(GameService):
         """
         Return the seed for a game, or None if game doesn't exist.
         """
-        game_state = self._games.get(game_id)
-        return game_state.seed if game_state is not None else None
+        runtime = self._runtimes.get(game_id)
+        return runtime.state.seed if runtime is not None else None
 
     def is_round_advance_pending(self, game_id: str) -> bool:
         """
         Check if a round advance is waiting for player confirmation.
         """
-        return self._round_advance.is_pending(game_id)
+        return self._runtimes[game_id].pending_confirm is not None
 
     def get_pending_round_advance_seats(self, game_id: str) -> list[int]:
         """
         Return the seats that still need to confirm round advance, in seat order.
         """
-        return sorted(self._round_advance.get_unconfirmed_seats(game_id))
+        pending = self._runtimes[game_id].pending_confirm
+        return sorted(pending.unconfirmed_seats) if pending is not None else []
 
     def handle_timeout(
         self,
@@ -471,23 +432,24 @@ class MahjongGameService(GameService):
         The game must exist: the session never times out a game that ended, so a missing one is a server fault, as is a
         timeout for an AI player's seat.
         """
-        call = self._begin_call(game_id)
-        self._require_human_seat(game_id, seat)
+        runtime = self._runtimes[game_id]
+        call = self._begin_call(runtime)
+        self._require_human_seat(runtime, seat)
         match timeout_type:
             case TimeoutType.TURN:
-                events = self._handle_turn_timeout(game_id, seat)
+                events = self._handle_turn_timeout(runtime, seat)
             case TimeoutType.MELD:
-                events = self._handle_meld_timeout(game_id, seat)
+                events = self._handle_meld_timeout(runtime, seat)
             case TimeoutType.ROUND_ADVANCE:
-                events = self._handle_round_advance_timeout(game_id, seat)
+                events = self._handle_round_advance_timeout(runtime, seat)
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"unknown timeout type: {timeout_type}")
 
-        return GameUpdate(events=events, awaiting=self._end_call(game_id, call))
+        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
     def _run_generated_action(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         *,
         seat: int,
         action: GameAction,
@@ -496,15 +458,15 @@ class MahjongGameService(GameService):
         """
         Run a timeout's default action for a seat, then the AI players' turns it leads to.
         """
-        result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
-        events = self._commit_and_process(game_id, result)
-        return self._continue_with_ai_players(game_id, events)
+        result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
+        events = self._commit_and_process(runtime, result)
+        return self._continue_with_ai_players(runtime, events)
 
-    def _handle_turn_timeout(self, game_id: str, seat: int) -> list[ServiceEvent]:
+    def _handle_turn_timeout(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
         Handle TURN timeout: make the default discard (choose_default_discard).
         """
-        round_state = self._games[game_id].round_state
+        round_state = runtime.state.round_state
         if round_state.phase != RoundPhase.PLAYING or round_state.current_player_seat != seat:
             logger.debug("turn timeout ignored: not the seat's turn")
             return []
@@ -515,29 +477,29 @@ class MahjongGameService(GameService):
 
         tile_id = choose_default_discard(round_state.players[seat])
         logger.info("turn timeout, auto-discarding", tile_id=tile_id)
-        return self._run_generated_action(game_id, seat=seat, action=GameAction.DISCARD, data={"tile_id": tile_id})
+        return self._run_generated_action(runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": tile_id})
 
-    def _handle_meld_timeout(self, game_id: str, seat: int) -> list[ServiceEvent]:
+    def _handle_meld_timeout(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
         Handle MELD timeout: pass on the call opportunity.
         """
-        prompt = self._games[game_id].round_state.pending_call_prompt
+        prompt = runtime.state.round_state.pending_call_prompt
         if prompt is None or seat not in prompt.pending_seats:
             return []
 
         logger.info("meld timeout, auto-passing")
-        return self._run_generated_action(game_id, seat=seat, action=GameAction.PASS, data={})
+        return self._run_generated_action(runtime, seat=seat, action=GameAction.PASS, data={})
 
-    def _handle_round_advance_timeout(self, game_id: str, seat: int) -> list[ServiceEvent]:
+    def _handle_round_advance_timeout(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
         Handle ROUND_ADVANCE timeout: confirm the round end for the seat.
 
         The timer runs only while the seat's confirmation is pending, so finding none is a server fault.
         """
-        if not self._round_advance.is_pending(game_id):
+        if runtime.pending_confirm is None:
             raise GeneratedActionError(f"round advance timeout for seat {seat} with no round pending confirmation")
 
-        return self._handle_confirm_round(game_id, seat)
+        return self._handle_confirm_round(runtime, seat)
 
     def _create_error_event(
         self,
@@ -550,7 +512,7 @@ class MahjongGameService(GameService):
         """
         return [ServiceEvent(data=ErrorEvent(code=code, message=message, target=SeatTarget(seat=seat)))]
 
-    def _check_and_handle_round_end(self, game_id: str, events: list[ServiceEvent]) -> bool:
+    def _check_and_handle_round_end(self, runtime: GameRuntime, events: list[ServiceEvent]) -> bool:
         """
         Handle the round's end when the stored round carries its result; return whether it did.
 
@@ -558,19 +520,19 @@ class MahjongGameService(GameService):
         RoundEndEvent itself is already there. The result stays on the round through the round-advance wait, so finding
         that wait already open means the round end would be applied twice: a server fault.
         """
-        result = self._games[game_id].round_state.result
+        result = runtime.state.round_state.result
         if result is None:
             return False
 
-        if self._round_advance.is_pending(game_id):
+        if runtime.pending_confirm is not None:
             raise AssertionError("round end already handled: its round advance is pending")
 
-        events.extend(self._handle_round_end(game_id, result))
+        events.extend(self._handle_round_end(runtime, result))
         return True
 
     def _answer_call_prompt_for_ai_players(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         prompt: PendingCallPrompt,
         events: list[ServiceEvent],
     ) -> None:
@@ -579,21 +541,21 @@ class MahjongGameService(GameService):
 
         Human seats still pending keep the prompt open (and the round without a result).
         """
-        self._dispatch_ai_player_call_responses(game_id, prompt, events)
-        self._check_and_handle_round_end(game_id, events)
+        self._dispatch_ai_player_call_responses(runtime, prompt, events)
+        self._check_and_handle_round_end(runtime, events)
 
-    def _draw_after_discard(self, game_id: str, events: list[ServiceEvent]) -> None:
+    def _draw_after_discard(self, runtime: GameRuntime, events: list[ServiceEvent]) -> None:
         """
         Draw for the next player after a discard nobody can call (process_discard_phase already advanced the turn).
         """
-        new_game_state, draw_events = process_draw_phase(self._games[game_id])
-        self._games[game_id] = new_game_state
+        new_game_state, draw_events = process_draw_phase(runtime.state)
+        runtime.state = new_game_state
         events.extend(convert_events(draw_events))
-        self._check_and_handle_round_end(game_id, events)
+        self._check_and_handle_round_end(runtime, events)
 
     def _dispatch_ai_player_call_responses(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         prompt: PendingCallPrompt,
         events: list[ServiceEvent],
     ) -> None:
@@ -604,25 +566,24 @@ class MahjongGameService(GameService):
         resolution happens when the last caller responds. Updates stored state from each handler result. A refused
         response is a server fault (GeneratedActionError), never a silent pass.
         """
-        ai_player_controller = self._ai_player_controllers[game_id]
-        ai_player_seats = sorted(s for s in prompt.pending_seats if ai_player_controller.is_ai_player(s))
+        ai_player_seats = sorted(s for s in prompt.pending_seats if runtime.ai.is_ai_player(s))
         for seat in ai_player_seats:
-            response = ai_player_controller.get_call_response(
-                round_state=self._games[game_id].round_state,
+            response = runtime.ai.get_call_response(
+                round_state=runtime.state.round_state,
                 tile_id=prompt.tile_id,
                 caller=prompt.caller(seat),
             )
             action, data = response if response is not None else (GameAction.PASS, {})
             logger.debug("AI player call response", action=action.value, ai_seat=seat)
-            result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
-            self._games[game_id] = result.state
+            result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
+            runtime.state = result.state
             events.extend(convert_events(result.events))
 
-    def _handle_round_end(self, game_id: str, round_result: RoundResult) -> list[ServiceEvent]:
+    def _handle_round_end(self, runtime: GameRuntime, round_result: RoundResult) -> list[ServiceEvent]:
         """
         Handle the end of a round -- enter waiting state for confirmations.
         """
-        frozen_game = self._games[game_id]
+        frozen_game = runtime.state
         logger.info("round ended", result_type=type(round_result).__name__)
 
         frozen_game = process_round_end(frozen_game, round_result)
@@ -634,12 +595,7 @@ class MahjongGameService(GameService):
                 winner_seat=game_result.winner_seat,
                 standings=[{"seat": s.seat, "score": s.final_score} for s in game_result.standings],
             )
-            # Always store finalized state before cleanup decision
-            self._games[game_id] = frozen_game
-
-            if self._auto_cleanup:
-                self.cleanup_game(game_id)
-
+            runtime.state = frozen_game
             return [
                 ServiceEvent(
                     data=GameEndedEvent(
@@ -651,24 +607,23 @@ class MahjongGameService(GameService):
             ]
 
         # Store updated state
-        self._games[game_id] = frozen_game
+        runtime.state = frozen_game
 
         # enter waiting state for round confirmation
-        ai_player_controller = self._ai_player_controllers.get(game_id)
-        ai_player_seats = ai_player_controller.ai_player_seats if ai_player_controller else set()
-        if self._round_advance.setup_pending(game_id, ai_player_seats):
-            # all AI players (no players) -- advance immediately
-            return self._start_next_round(game_id)
+        human_seats = frozenset(range(NUM_PLAYERS)) - runtime.ai.ai_player_seats
+        if not human_seats:
+            return self._start_next_round(runtime)
 
+        runtime.pending_confirm = PendingRoundAdvance(required_seats=human_seats)
         # return empty -- the RoundEndEvent is already in the caller's events list
         return []
 
-    def _handle_confirm_round(self, game_id: str, seat: int) -> list[ServiceEvent]:
+    def _handle_confirm_round(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
         Handle a player confirming readiness for the next round.
         """
-        result = self._round_advance.confirm_seat(game_id, seat)
-        if result is None:
+        pending = runtime.pending_confirm
+        if pending is None:
             logger.warning("confirm round rejected: no round pending")
             return self._create_error_event(
                 code=GameErrorCode.INVALID_ACTION,
@@ -676,69 +631,58 @@ class MahjongGameService(GameService):
                 seat=seat,
             )
 
-        if not result:
+        if not pending.confirm(seat):
             return []  # still waiting for other players
 
         # all confirmed -- start next round
         # _start_next_round already handles AI player dealer followup
-        return self._start_next_round(game_id)
+        runtime.pending_confirm = None
+        return self._start_next_round(runtime)
 
-    def _append_furiten_changes(self, game_id: str, events: list[ServiceEvent]) -> list[ServiceEvent]:
+    def _append_furiten_changes(self, runtime: GameRuntime, events: list[ServiceEvent]) -> list[ServiceEvent]:
         """
         Append furiten state-change events if round is still playing.
         """
-        game_state = self._games.get(game_id)
-        if game_state is None:
-            return events
-
-        events.extend(self._furiten_tracker.check_changes(game_id, game_state.round_state))
+        events.extend(runtime.furiten.check_changes(runtime.state.round_state))
         return events
 
     def cleanup_game(self, game_id: str) -> None:
         """
         Remove all game state for a game that was abandoned or cleaned up externally.
         """
-        self._games.pop(game_id, None)
-        self._ai_player_controllers.pop(game_id, None)
-        self._furiten_tracker.cleanup_game(game_id)
-        self._round_advance.cleanup_game(game_id)
+        self._runtimes.pop(game_id, None)
 
     def replace_with_ai_player(self, game_id: str, seat: int) -> None:
         """
         Replace a disconnected player with an AI player at their seat.
         """
-        ai_player_controller = self._ai_player_controllers.get(game_id)
-        if ai_player_controller is None:
+        runtime = self._runtimes.get(game_id)
+        if runtime is None:
             return
 
-        ai_player_controller.add_ai_player(seat, AIPlayer())
+        runtime.ai.add_ai_player(seat, AIPlayer())
         logger.info("replaced player with AI", replaced_seat=seat)
 
     def restore_human_player(self, game_id: str, seat: int) -> None:
         """
         Remove the AI player at a seat and restore it for human control.
         """
-        controller = self._ai_player_controllers.get(game_id)
-        if controller:
-            controller.remove_ai_player(seat)
+        runtime = self._runtimes.get(game_id)
+        if runtime is not None:
+            runtime.ai.remove_ai_player(seat)
 
     def build_reconnection_snapshot(self, game_id: str, seat: int) -> ReconnectionSnapshot | None:
         """
         Build a full game state snapshot for a reconnecting player at the given seat.
         """
-        game_state = self._games.get(game_id)
-        if game_state is None:
+        runtime = self._runtimes.get(game_id)
+        if runtime is None:
             return None
 
+        game_state = runtime.state
         round_state = game_state.round_state
-        controller = self._ai_player_controllers.get(game_id)
-
         players_info = [
-            GamePlayerInfo(
-                seat=p.seat,
-                name=p.name,
-                is_ai_player=controller.is_ai_player(p.seat) if controller else False,
-            )
+            GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=runtime.ai.is_ai_player(p.seat))
             for p in round_state.players
         ]
 
@@ -762,7 +706,7 @@ class MahjongGameService(GameService):
 
         view = get_player_view(game_state, seat)
         return ReconnectionSnapshot(
-            game_id=game_id,
+            game_id=runtime.game_id,
             players=players_info,
             dealer_seat=round_state.dealer_seat,
             dealer_dice=game_state.dealer_dice,
@@ -787,10 +731,11 @@ class MahjongGameService(GameService):
         Right after the seat's own pon or chi it drew nothing, so there is no draw to rebuild (no draw follows a pon or
         chi on the live path either).
         """
-        game_state = self._games.get(game_id)
-        if game_state is None:
+        runtime = self._runtimes.get(game_id)
+        if runtime is None:
             return []
 
+        game_state = runtime.state
         round_state = game_state.round_state
         if round_state.current_player_seat != seat or round_state.is_after_meld_call:
             return []
@@ -804,16 +749,17 @@ class MahjongGameService(GameService):
         draw_event = create_draw_event(game_state, seat=seat, tile_id=tile_id)
         return convert_events([draw_event])
 
-    def _auto_confirm_pending_advance(self, game_id: str, seat: int) -> list[ServiceEvent] | None:
+    def _auto_confirm_pending_advance(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent] | None:
         """
         Auto-confirm a seat's pending round advance after AI player replacement.
 
         Returns events if the pending advance was handled, None if not applicable.
         """
-        if not self._round_advance.is_seat_required(game_id, seat):
+        pending = runtime.pending_confirm
+        if pending is None or seat not in pending.required_seats:
             return None
 
-        return self._handle_confirm_round(game_id, seat)
+        return self._handle_confirm_round(runtime, seat)
 
     def process_ai_player_actions_after_replacement(
         self,
@@ -825,13 +771,14 @@ class MahjongGameService(GameService):
 
         The game must exist: the session replaces no player in a game that ended, so a missing one is a server fault.
         """
-        call = self._begin_call(game_id)
-        events = self._run_ai_player_actions_after_replacement(game_id, call.state, seat=seat)
-        return GameUpdate(events=events, awaiting=self._end_call(game_id, call))
+        runtime = self._runtimes[game_id]
+        call = self._begin_call(runtime)
+        events = self._run_ai_player_actions_after_replacement(runtime, call.state, seat=seat)
+        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
     def _run_ai_player_actions_after_replacement(
         self,
-        game_id: str,
+        runtime: GameRuntime,
         game_state: MahjongGameState,
         *,
         seat: int,
@@ -840,7 +787,7 @@ class MahjongGameService(GameService):
         Resolve the replaced seat's pending round confirmation or call response as an AI player, then run the AI turns.
         """
         # if there's a pending round advance, auto-confirm for the replaced player
-        advance_events = self._auto_confirm_pending_advance(game_id, seat)
+        advance_events = self._auto_confirm_pending_advance(runtime, seat)
         if advance_events is not None:
             return advance_events
 
@@ -853,60 +800,55 @@ class MahjongGameService(GameService):
         # if the replaced player had a pending call prompt, resolve their response as AI player
         prompt = round_state.pending_call_prompt
         if prompt is not None and seat in prompt.pending_seats:
-            self._dispatch_ai_player_call_responses(game_id, prompt, events)
-            self._append_furiten_changes(game_id, events)
+            self._dispatch_ai_player_call_responses(runtime, prompt, events)
+            self._append_furiten_changes(runtime, events)
 
             # Re-fetch state after AI player responses
-            game_state = self._games[game_id]
+            game_state = runtime.state
             round_state = game_state.round_state
             if round_state.pending_call_prompt is not None:
                 # other player callers still pending
                 return events
 
             # prompt fully resolved - check round end
-            if self._check_and_handle_round_end(game_id, events):
+            if self._check_and_handle_round_end(runtime, events):
                 return events
 
         # Re-fetch state
-        game_state = self._games[game_id]
+        game_state = runtime.state
         round_state = game_state.round_state
 
         # process AI player turns if current player is an AI player
         if round_state.phase == RoundPhase.PLAYING and round_state.pending_call_prompt is None:
-            ai_player_events = self._process_ai_player_followup(game_id)
+            ai_player_events = self._process_ai_player_followup(runtime)
             events.extend(ai_player_events)
 
         return events
 
-    def _start_next_round(self, game_id: str) -> list[ServiceEvent]:
+    def _start_next_round(self, runtime: GameRuntime) -> list[ServiceEvent]:
         """
         Start the next round and return events.
         """
-        frozen_game = self._games[game_id]
+        frozen_game = runtime.state
         frozen_game = init_round(frozen_game)
-        self._games[game_id] = frozen_game
+        runtime.state = frozen_game
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
         logger.debug("starting next round", hands=hands)
 
-        self._furiten_tracker.init_game(game_id)
-
-        ai_player_controller = self._ai_player_controllers[game_id]
-
+        runtime.furiten = FuritenTracker()
         events = self._create_round_started_events(frozen_game)
 
         new_game_state, draw_events = process_draw_phase(frozen_game)
-        self._games[game_id] = new_game_state
+        runtime.state = new_game_state
         events.extend(convert_events(draw_events))
 
-        dealer_seat = new_game_state.round_state.dealer_seat
-        if ai_player_controller.is_ai_player(dealer_seat):
-            ai_player_events = self._process_ai_player_followup(game_id)
-            events.extend(ai_player_events)
+        if runtime.ai.is_ai_player(new_game_state.round_state.dealer_seat):
+            events.extend(self._process_ai_player_followup(runtime))
 
         return events
 
-    def _process_ai_player_followup(self, game_id: str) -> list[ServiceEvent]:
+    def _process_ai_player_followup(self, runtime: GameRuntime) -> list[ServiceEvent]:
         """
         Process AI player turn actions iteratively.
 
@@ -914,37 +856,28 @@ class MahjongGameService(GameService):
         turn discards (or ends the round), so the loop always progresses; a refused AI action raises instead.
         """
         all_events: list[ServiceEvent] = []
-        ai_player_controller = self._ai_player_controllers.get(game_id)
-        if ai_player_controller is None:
-            return all_events
-
-        while (game_state := self._games.get(game_id)) is not None:
-            round_state = game_state.round_state
+        while True:
+            round_state = runtime.state.round_state
             if round_state.phase != RoundPhase.PLAYING or round_state.pending_call_prompt is not None:
                 break
 
             current_seat = round_state.current_player_seat
-            if not ai_player_controller.is_ai_player(current_seat):
+            if not runtime.ai.is_ai_player(current_seat):
                 break
 
-            all_events.extend(self._execute_ai_player_turn(game_id, ai_player_controller, seat=current_seat))
+            all_events.extend(self._execute_ai_player_turn(runtime, seat=current_seat))
 
         return all_events
 
-    def _execute_ai_player_turn(
-        self,
-        game_id: str,
-        ai_player_controller: AIPlayerController,
-        seat: int,
-    ) -> list[ServiceEvent]:
+    def _execute_ai_player_turn(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
         Execute a single AI player turn action; an AI that has no action or makes a refused one is a server fault.
         """
-        action_data = ai_player_controller.get_turn_action(seat, self._games[game_id].round_state)
+        action_data = runtime.ai.get_turn_action(seat, runtime.state.round_state)
         if action_data is None:
             raise GeneratedActionError(f"AI seat {seat} returned no turn action")
 
         action, data = action_data
         logger.debug("AI player action", action=action.value, ai_seat=seat)
-        result = self._dispatch_generated_action(game_id, seat=seat, action=action, data=data)
-        return self._commit_and_process(game_id, result)
+        result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
+        return self._commit_and_process(runtime, result)

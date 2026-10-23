@@ -53,10 +53,10 @@ def _update_round_state(
     game_id: str,
     **updates: object,
 ) -> MahjongRoundState:
-    game_state = service._games[game_id]
+    game_state = service._runtimes[game_id].state
     new_round = game_state.round_state.model_copy(update=updates)
     new_game = game_state.model_copy(update={"round_state": new_round})
-    service._games[game_id] = new_game
+    service._runtimes[game_id].state = new_game
     return new_round
 
 
@@ -67,7 +67,7 @@ def _update_player(
     seat: int,
     **updates: object,
 ) -> MahjongPlayer:
-    game_state = service._games[game_id]
+    game_state = service._runtimes[game_id].state
     round_state = game_state.round_state
     players = list(round_state.players)
     old_player = players[seat]
@@ -76,5 +76,5 @@ def _update_player(
     players[seat] = new_player
     new_round = round_state.model_copy(update={"players": tuple(players)})
     new_game = game_state.model_copy(update={"round_state": new_round})
-    service._games[game_id] = new_game
+    service._runtimes[game_id].state = new_game
     return new_player
