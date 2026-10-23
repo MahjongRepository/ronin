@@ -29,8 +29,8 @@ a workstation through `make -C deploy <target> TARGET=dev` (`TARGET` picks `spot
   `ACME_EMAIL`, `LOG_LEVEL`) and `.env.system` (`RESTIC_PASSWORD`) from the examples; deploy never
   touches them. A key added to an example reaches only a fresh server — add it to the server file by
   hand.
-* **Templates, not generated configs.** The deploy uploads `docker-compose.yml`, `config/servers.yaml`
-  and `config/traefik-dynamic.yml` and substitutes `%%DOMAIN%%` with `sed`, failing if a placeholder
+* **Templates, not generated configs.** The deploy uploads `docker-compose.yml` and
+  `config/traefik-dynamic.yml` and substitutes `%%DOMAIN%%` with `sed`, failing if a placeholder
   survives. Bind-mounted configs are rendered with `sed ... >` rather than `sed -i`, which would
   replace the inode under the running container's mount.
 * **Deploy never goes through `down`.** `docker compose up -d --remove-orphans` recreates only the
@@ -47,7 +47,11 @@ a workstation through `make -C deploy <target> TARGET=dev` (`TARGET` picks `spot
 * Per-service settings live in compose `environment:` (`AUTH_*`, `LOBBY_*`, `GAME_*`,
   `LOG_FORMAT: json`), secrets only in `.env`. A deployment-specific setting has no default
   (`backend/AGENTS.md`), so a new one must be added here or the service fails to start and the
-  deploy's health gate stops. Lobby and game share one SQLite DB at `/opt/ronin/data/db/ronin.db`.
+  deploy's health gate stops. A release that adds, renames or removes a required setting needs the
+  new image and the new compose together: ship it with `spot-deploy`, which uploads compose and
+  pulls in one task, never `spot-update` or the box's `make update`, which pull the new image under
+  the old compose. Rolling such a release back needs the old compose too. Lobby and game share one
+  SQLite DB at `/opt/ronin/data/db/ronin.db`.
 
 ## Logs and backups
 

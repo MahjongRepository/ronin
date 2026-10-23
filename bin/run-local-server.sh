@@ -48,15 +48,6 @@ wait_for_server() {
     return 1
 }
 
-CONFIG_DIR=$(mktemp -d)
-CONFIG_FILE="$CONFIG_DIR/servers.yaml"
-cat > "$CONFIG_FILE" <<EOF
-servers:
-  - name: "local-1"
-    url: "http://localhost:$GAME_PORT"
-EOF
-export LOBBY_CONFIG_PATH="$CONFIG_FILE"
-
 # Enable Vite dev mode in the lobby backend
 export LOBBY_VITE_DEV_URL="http://localhost:${VITE_PORT}"
 # Override VITE_LOBBY_URL so the game client points to the correct lobby port
@@ -76,7 +67,6 @@ cleanup() {
     if [ -n "$VITE_PID" ]; then
         kill_tree "$VITE_PID"
     fi
-    rm -rf "$CONFIG_DIR"
 }
 
 trap cleanup EXIT INT TERM

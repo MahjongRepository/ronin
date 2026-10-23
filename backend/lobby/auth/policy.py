@@ -57,22 +57,6 @@ def protected_html(endpoint: Endpoint) -> Endpoint:
     return wrapper
 
 
-def protected_api(endpoint: Endpoint) -> Endpoint:
-    """
-    Require authentication; return a JSON 401 for unauthenticated API requests.
-    """
-
-    @functools.wraps(endpoint)
-    async def wrapper(request: Request) -> Response:
-        if not has_required_scope(request, ["authenticated"]):
-            return _unauthenticated()
-
-        return await endpoint(request)
-
-    setattr(wrapper, AUTH_POLICY_ATTR, "protected_api")
-    return wrapper
-
-
 def bot_only(endpoint: Endpoint) -> Endpoint:
     """
     Require authentication and bot account type.

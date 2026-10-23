@@ -14,7 +14,6 @@ from lobby.websocket_utils import check_origin, close_quietly, send_or_drop
 if TYPE_CHECKING:
     from lobby.matchmaking.manager import MatchmakingManager
     from lobby.occupancy import Occupancy
-    from lobby.registry.manager import RegistryManager
     from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
 
@@ -33,7 +32,6 @@ class _MatchmakingContext:
         "connection_id",
         "matchmaking_manager",
         "occupancy",
-        "registry",
         "settings",
         "user_id",
         "username",
@@ -43,7 +41,6 @@ class _MatchmakingContext:
         self.settings: LobbyServerSettings = websocket.app.state.settings
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
         self.matchmaking_manager: MatchmakingManager = websocket.app.state.matchmaking_manager
-        self.registry: RegistryManager = websocket.app.state.registry
         self.occupancy: Occupancy = websocket.app.state.occupancy
 
         self.connection_id: str = str(uuid.uuid4())
@@ -88,7 +85,7 @@ async def _try_join_queue(websocket: WebSocket, ctx: _MatchmakingContext) -> boo
 
     Return True if the player is queued and should enter the message loop. Return False if the connection was rejected
     or this join completed a match, whether its game was created or not: either way the socket is closed. The check that
-    the user is not playing a game, which asks the game servers, runs first; ``add_player`` then checks the rest of the
+    the user is not playing a game, which asks the game server, runs first; ``add_player`` then checks the rest of the
     occupancy rule in the same synchronous step that queues the user, including a start that handed the user to a game
     while that lookup was in flight.
     """
@@ -215,7 +212,7 @@ async def _create_game(
             game_id=game_id,
             players=player_specs,
             num_ai_players=0,
-            registry=ctx.registry,
+            settings=ctx.settings,
         )
     finally:
         ctx.occupancy.hand_to_game(entry.user_id for entry in matched)

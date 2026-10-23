@@ -18,8 +18,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   models; matchmaking is a FIFO queue that starts a 4-human game once 4 players wait, and its client
   sends nothing (the socket only carries the disconnect). The two packages never import each
   other: each gets the occupancy rule (below) as an injected callable.
-* `registry/` — game servers from `servers.yaml`, health-checked on every request that needs one,
-  with no caching.
+* There is one game server, configured as two settings that are never derived from each other: the
+  internal base URL the lobby calls (`POST /games`, `GET /players/{id}`) and the public WebSocket
+  origin it hands clients in `ws_url` (the lobby appends `/ws/{game_id}`).
 * `game_transition.py` — `sign_player_tickets`, `create_game_on_server` and `is_user_playing`,
   shared by rooms and matchmaking; `websocket_utils.py` — `check_origin` and the transport
   contract. After accept, a dead peer raises only `WebSocketDisconnect` (the first failed send) or
@@ -51,15 +52,15 @@ Services are created in `create_app()` and stored on `app.state`; handlers read 
   queue, and a rejected join gets an `error` naming the reason and a 4000 close.
 * Room and queue occupancy is checked synchronously inside `join_room` / `add_player`, in the step
   that seats or queues the user, so the two exclude each other atomically on the event loop.
-* "Playing" comes only from the game servers' in-memory sessions (their internal per-user lookup),
+* "Playing" comes only from the game server's in-memory sessions (its internal per-user lookup),
   never from `played_games`, whose `ended_at` stays NULL after a crash. The WebSocket handlers ask
-  every server in the registry, concurrently under one short deadline, before the occupancy check
-  (a room takes its `join_lock` for it; matchmaking's `add_player` is one synchronous step and needs
-  no lock). The answer can be stale by then: a start may hand the user's seat or queue place to a
-  new game while the lookup is in flight. So each join runs inside an `Occupancy.admitting` window,
-  every attempt to create a game calls `hand_to_game` once the game server call is over, whatever
-  its outcome (a failure may mean the game exists), and before the seats or the matched players are
-  released, and that check rejects an admission that was open at that moment as already in a game.
+  the game server, under one short deadline, before the occupancy check (a room takes its
+  `join_lock` for it; matchmaking's `add_player` is one synchronous step and needs no lock). The
+  answer can be stale by then: a start may hand the user's seat or queue place to a new game while
+  the lookup is in flight. So each join runs inside an `Occupancy.admitting` window, every attempt
+  to create a game calls `hand_to_game` once the game server call is over, whatever its outcome (a
+  failure may mean the game exists), and before the seats or the matched players are released, and
+  that check rejects an admission that was open at that moment as already in a game.
 * The lookup fails open (warning, treated as not playing) on a transport error, timeout or
   unexpected status, so a game server outage never locks users out of the lobby. `POST /games`
   refuses a user already playing with 409 as the backstop, which surfaces as an ordinary failed
@@ -77,8 +78,8 @@ Services are created in `create_app()` and stored on `app.state`; handlers read 
 * `SessionOrApiKeyBackend` takes the session id from the cookie, or from the `session_id` query
   parameter on a WebSocket that has no cookie; if that session is not valid it falls back to a bot's
   `X-API-Key` (HTTP and WebSocket). It carries `account_type` (HUMAN or BOT) so `bot_only` can tell
-  them apart. `protected_api` routes answer 401 instead of redirecting to login; replay retrieval
-  (`/api/replays/{game_id}`) is public.
+  them apart. `bot_only` routes answer JSON 401/403 instead of redirecting to login; replay
+  retrieval (`/api/replays/{game_id}`) is public.
 * Game tickets are HMAC-SHA256, signed when a game starts, and verified by the game server with the
   shared `AUTH_GAME_TICKET_SECRET`. On `game_starting` the client gets its ticket and the game
   server's `ws_url`.
@@ -91,9 +92,9 @@ Mandatory for all lobby code; review must catch violations.
   `validate_csrf(request, form)` before touching the data, and the GET handler that renders it calls
   `get_or_create_csrf_token()`, passes the token to the template and sets the cookie when `is_new`.
   Bot API routes (JSON + API key) are exempt.
-* Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_api`, `bot_only`,
-  `public_route`). `validate_route_auth_policy()` fails startup only for a `Route` with no policy at
-  all; it does not catch stacked decorators, and `Mount`s (static files) are exempt. WebSocket routes
+* Every HTTP route gets exactly one policy decorator (`protected_html`, `bot_only`, `public_route`).
+  `validate_route_auth_policy()` fails startup only for a `Route` with no policy at all; it does not
+  catch stacked decorators, and `Mount`s (static files) are exempt. WebSocket routes
   authenticate inside the handler. The decorators wrap async endpoints only and return their
   rejection (JSON 401/403, login redirect) directly; they never raise for an exception handler to
   map.

@@ -18,15 +18,6 @@ from shared.auth.settings import AuthSettings
 
 
 def _make_app(tmp_path, *, is_playing=nobody_playing, **settings_kwargs):
-    config_file = tmp_path / "servers.yaml"
-    servers_yaml = """
-servers:
-  - name: "test-server"
-    url: "http://localhost:8711"
-    client_url: "http://localhost:8711"
-"""
-    config_file.write_text(servers_yaml)
-
     static_dir = tmp_path / "public"
     (static_dir / "styles").mkdir(parents=True)
     (static_dir / "styles" / "lobby.css").write_text("/* test */")
@@ -34,7 +25,6 @@ servers:
     settings_kwargs.setdefault("ws_allowed_origin", None)
     return create_app(
         settings=LobbyServerSettings(
-            config_path=config_file,
             static_dir=str(static_dir),
             **settings_kwargs,
         ),

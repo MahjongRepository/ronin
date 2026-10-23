@@ -124,9 +124,6 @@ tasks:
       - name: upload docker-compose
         copy: {src: "docker-compose.yml", dst: "/opt/ronin/docker-compose.yml"}
 
-      - name: upload server config
-        copy: {src: "config/servers.yaml", dst: "/tmp/ronin-servers.yaml"}
-
       - name: upload traefik config
         copy: {src: "config/traefik-dynamic.yml", dst: "/tmp/ronin-traefik-dynamic.yml"}
 
@@ -139,9 +136,8 @@ tasks:
           sed -i "s|%%DOMAIN%%|$DOMAIN|g" /opt/ronin/docker-compose.yml
           # Render bind-mounted configs via > to preserve inodes.
           # sed -i would create new inodes, breaking container bind mounts.
-          sed "s|%%DOMAIN%%|$DOMAIN|g" /tmp/ronin-servers.yaml > /opt/ronin/config/servers.yaml
           sed "s|%%DOMAIN%%|$DOMAIN|g" /tmp/ronin-traefik-dynamic.yml > /opt/ronin/config/traefik-dynamic.yml
-          rm -f /tmp/ronin-servers.yaml /tmp/ronin-traefik-dynamic.yml
+          rm -f /tmp/ronin-traefik-dynamic.yml
           # Fail if any placeholders remain after rendering
           if grep -rq '%%DOMAIN%%' /opt/ronin/docker-compose.yml /opt/ronin/config/; then
             echo "ERROR: unrendered %%DOMAIN%% placeholders found"

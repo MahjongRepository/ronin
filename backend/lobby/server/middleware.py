@@ -114,7 +114,7 @@ class SlashNormalizationMiddleware:
     Strip trailing slashes so that /path/ is handled the same as /path.
 
     Without this, Starlette's default ``redirect_slashes=True`` responds with a 307 redirect for the trailing-slash
-    variant.  That redirect bypasses authentication middleware, which means unauthenticated requests to ``/servers/``
+    variant.  That redirect bypasses authentication middleware, which means unauthenticated requests to ``/api/rooms/``
     would get a redirect instead of a 401.
 
     Applied as ASGI middleware, it rewrites the path *before* routing, eliminating the need for duplicate trailing-slash

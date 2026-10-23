@@ -23,14 +23,6 @@ TEST_SECRET = "test-ticket-secret"
 
 
 def _make_client(tmp_path):
-    config_file = tmp_path / "servers.yaml"
-    servers_yaml = """
-servers:
-  - name: "test-server"
-    url: "http://localhost:8711"
-"""
-    config_file.write_text(servers_yaml)
-
     static_dir = tmp_path / "public"
     (static_dir / "styles").mkdir(parents=True)
     (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
@@ -62,7 +54,6 @@ servers:
 
     app = create_app(
         settings=LobbyServerSettings(
-            config_path=config_file,
             static_dir=str(static_dir),
             game_assets_dir=str(game_assets_dir),
         ),
@@ -501,23 +492,6 @@ class TestBotOnlyRoutes:
         assert session.account_type == AccountType.BOT
 
 
-class TestApiKeyProtectedEndpoints:
-    @pytest.fixture
-    def client(self, tmp_path):
-        with _make_client(tmp_path) as c:
-            yield c
-
-    def test_servers_route__when_api_key_valid__should_list_servers(self, client):
-        _, raw_key = _insert_bot(client, user_id="bot-srv-id", username="ServerBot")
-
-        response = client.get(
-            "/servers",
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 200
-        assert "servers" in response.json()
-
-
 def _no_credential(_client: TestClient) -> dict[str, str]:
     return {}
 
@@ -564,10 +538,6 @@ class TestAuthPolicyWiring:
                 )
                 for path in BOT_ONLY_ROUTES
             ],
-            pytest.param(
-                _RejectedRequest(_no_credential, "GET", "/servers", 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS),
-                id="no_credential-/servers",
-            ),
             pytest.param(
                 _RejectedRequest(
                     _unknown_api_key, "POST", "/api/rooms", 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS

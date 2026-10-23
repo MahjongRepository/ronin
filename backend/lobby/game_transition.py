@@ -11,8 +11,7 @@ import structlog
 from shared.auth.game_ticket import create_signed_ticket
 
 if TYPE_CHECKING:
-    from lobby.registry.manager import RegistryManager
-    from lobby.registry.types import GameServer
+    from lobby.settings import LobbyServerSettings
 
 logger = structlog.get_logger()
 
@@ -30,24 +29,19 @@ async def create_game_on_server(
     game_id: str,
     players: list[dict],
     num_ai_players: int,
-    registry: RegistryManager,
+    settings: LobbyServerSettings,
 ) -> str:
     """
-    Call POST /games on a game server.
+    Call POST /games on the game server.
 
     Return the game server WebSocket URL. A ``GameTransitionError`` may mean the game was created anyway (a timeout
     after the request arrived), so a caller must never reuse the game id for another attempt.
     """
-    await registry.check_health()
-    healthy_servers = registry.get_healthy_servers()
-    if not healthy_servers:
-        raise GameTransitionError("No healthy game servers available")
 
-    server = healthy_servers[0]
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             response = await client.post(
-                f"{server.url}/games",
+                f"{settings.game_server_url}/games",
                 json={
                     "game_id": game_id,
                     "players": players,
@@ -61,41 +55,31 @@ async def create_game_on_server(
         except httpx.RequestError as e:
             raise GameTransitionError(f"Failed to connect to game server: {e}") from e
 
-    ws_url = server.client_url.replace("http://", "ws://").replace("https://", "wss://")
-    return f"{ws_url}/ws/{game_id}"
+    return f"{settings.game_server_ws_url}/ws/{game_id}"
 
 
-async def is_user_playing(user_id: str, *, registry: RegistryManager) -> bool:
+async def is_user_playing(user_id: str, *, game_server_url: str) -> bool:
     """
-    Ask every game server the registry knows, concurrently, whether the user is playing a game on it.
+    Ask the game server whether the user is playing a game on it.
 
-    The whole lookup takes at most ``_PLAYING_LOOKUP_TIMEOUT_SECONDS``: each server's request runs under that one
-    deadline. Fail open: a server that cannot be reached in time, or answers anything but 200 or 404, is logged and
-    counted as "not playing", so a game server outage never locks users out of rooms and matchmaking.
+    The lookup takes at most ``_PLAYING_LOOKUP_TIMEOUT_SECONDS``. Fail open: a game server that cannot be reached in
+    time, or answers anything but 200 or 404, is logged and counted as "not playing", so a game server outage never
+    locks users out of rooms and matchmaking.
     """
 
-    async with httpx.AsyncClient() as client, asyncio.TaskGroup() as lookups:
-        answers = [
-            lookups.create_task(_is_user_playing_on(client, server, user_id)) for server in registry.get_servers()
-        ]
-
-    return any(answer.result() for answer in answers)
-
-
-async def _is_user_playing_on(client: httpx.AsyncClient, server: GameServer, user_id: str) -> bool:
-    log = logger.bind(server_name=server.name)
-    try:
-        async with asyncio.timeout(_PLAYING_LOOKUP_TIMEOUT_SECONDS):
-            response = await client.get(f"{server.url}/players/{quote(user_id, safe='')}")
-    except (httpx.HTTPError, TimeoutError) as e:
-        log.warning("playing lookup failed, treating the user as not playing", error=repr(e))
-        return False
+    async with httpx.AsyncClient() as client:
+        try:
+            async with asyncio.timeout(_PLAYING_LOOKUP_TIMEOUT_SECONDS):
+                response = await client.get(f"{game_server_url}/players/{quote(user_id, safe='')}")
+        except (httpx.HTTPError, TimeoutError) as e:
+            logger.warning("playing lookup failed, treating the user as not playing", error=repr(e))
+            return False
 
     if response.status_code == HTTPStatus.OK:
         return True
 
     if response.status_code != HTTPStatus.NOT_FOUND:
-        log.warning(
+        logger.warning(
             "playing lookup got an unexpected status, treating the user as not playing", status=response.status_code
         )
 
