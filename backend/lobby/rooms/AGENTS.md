@@ -9,9 +9,12 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   non-owners send `set_ready`, the owner sends `start_game`. `can_start` is true once at least `min_human_players` humans are seated
   (bot API, 1–4, default 1) and every non-owner human is ready. Nothing starts automatically. When
   the owner leaves, ownership passes on (`owner_changed`).
-* Game transition: under the room's `join_lock` the lobby only sets `transitioning=True`, then
-  releases the lock before any network call, so joins arriving meanwhile get `room_transitioning`
-  instead of waiting. It then signs a ticket per human and calls the game server's `POST /games`
+* Every room step after a join's playing lookup is synchronous (a send is an enqueue): the join
+  with its ack and broadcast, `set_ready`, chat, the start's flag, the cleanup with its host
+  transfer, the recovery and the reaper tick. Nothing interleaves inside a step, so rooms take no
+  lock, and a joiner is registered in the step that seats it.
+* Game transition: the owner's `start_game` sets `transitioning=True` in one step, so joins and
+  ready toggles arriving during the network call get `room_transitioning`. It then signs a ticket per human and calls the game server's `POST /games`
   (with `num_ai_players` from the bot seats). Before a 201, any exception clears `transitioning`,
   which resets the ready flags, and rebroadcasts the room state; a cancellation (only server
   shutdown causes one) does not. Each attempt runs under a fresh game id, so a start after a
@@ -31,8 +34,7 @@ modelled in `messages.py` (client → server) and built in `websocket.py` (serve
   handler ends normally on `ConnectionError`, which its next receive raises once the peer is gone,
   its writer dropped it, or a queued close went out. The joiner's own `room_joined` ack runs inside
   the handler's `try/finally`, so a failed ack frees the seat and the host.
-* Every room expires `room_ttl_seconds` (300s) after creation unless it is transitioning. The
-  manager's reaper re-checks each expired room under its `join_lock`, removes it and enqueues a
-  4002 close for each member, so one room's slow socket never delays another room's expiry. A
-  start that won the lock keeps its room. A failed reaper tick is logged and the next one still
-  runs.
+* Every room expires `room_ttl_seconds` (300s) after creation unless it is transitioning. Each
+  reaper tick removes every expired room and enqueues a 4002 close for each member in one pass, so
+  one room's slow socket never delays another room's expiry. A failed reaper tick is logged and the
+  next one still runs.

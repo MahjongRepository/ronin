@@ -425,24 +425,22 @@ class TestRemoveRoom:
 
 
 class TestRoomReaper:
-    @pytest.mark.asyncio
-    async def test_room_manager_reaper__when_room_expired__should_remove_room_and_close_its_players(self):
+    def test_room_manager_reaper__when_room_expired__should_remove_room_and_close_its_players(self):
         mgr = LobbyRoomManager(room_ttl_seconds=0)
         mgr.create_room("room-1")
         player = make_player(connection_id="conn-1", user_id="user-1", username="Alice")
         mgr.join_room(room_id="room-1", player=player)
 
-        await mgr._reap_expired_rooms()
+        mgr._reap_expired_rooms()
         assert mgr.get_room("room-1") is None
         player.connection.close.assert_called_once_with(code=4002, reason="room_expired")
 
-    @pytest.mark.asyncio
-    async def test_room_manager_reaper__when_room_transitioning__should_keep_room(self):
+    def test_room_manager_reaper__when_room_transitioning__should_keep_room(self):
         mgr = LobbyRoomManager(room_ttl_seconds=0)
         room = mgr.create_room("room-1")
         room.transitioning = True
 
-        await mgr._reap_expired_rooms()
+        mgr._reap_expired_rooms()
         assert mgr.get_room("room-1") is not None
 
     @pytest.mark.asyncio
@@ -465,27 +463,12 @@ class TestRoomReaper:
 
         await mgr.stop_reaper()
 
-    async def test_room_manager_reaper__when_a_start_won_the_room_lock__should_keep_room_and_its_sockets(self):
-        mgr = LobbyRoomManager(room_ttl_seconds=0)
-        room = mgr.create_room("room-1")
-        player = make_player(connection_id="conn-1", user_id="user-1", username="Alice")
-        mgr.join_room(room_id="room-1", player=player)
-
-        async with room.join_lock:
-            reaper_tick = asyncio.create_task(mgr._reap_expired_rooms())
-            await asyncio.sleep(0)
-            mgr.start_game("room-1", "conn-1")
-
-        await reaper_tick
-        assert mgr.get_room("room-1") is room
-        player.connection.close.assert_not_called()
-
     async def test_room_manager_reaper__when_a_tick_raises__should_log_and_keep_reaping(self, monkeypatch, caplog):
         mgr = LobbyRoomManager(room_ttl_seconds=0, reaper_interval_seconds=0)
         second_tick = asyncio.Event()
         tick_count = 0
 
-        async def failing_first_tick():
+        def failing_first_tick():
             nonlocal tick_count
             tick_count += 1
             if tick_count == 1:

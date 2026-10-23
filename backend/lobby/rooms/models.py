@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -57,7 +56,6 @@ class LobbyRoom:
     created_at: float = field(default_factory=time.monotonic)
     seats: list[str | None] = field(default_factory=lambda: [None] * TOTAL_SEATS)
     players: dict[str, RoomMember] = field(default_factory=dict)
-    join_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
     def num_ai_players(self) -> int:

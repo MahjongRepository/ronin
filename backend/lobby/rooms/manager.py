@@ -246,28 +246,24 @@ class LobbyRoomManager:
         while True:
             await asyncio.sleep(self._reaper_interval_seconds)
             try:
-                await self._reap_expired_rooms()
+                self._reap_expired_rooms()
             except Exception:
                 logger.exception("room reaper tick failed")
 
     def _is_expired(self, room: LobbyRoom, now: float) -> bool:
         return not room.transitioning and now - room.created_at > self._room_ttl_seconds
 
-    async def _reap_expired_rooms(self) -> None:
+    def _reap_expired_rooms(self) -> None:
         """
         Remove rooms that have exceeded their TTL and close their players' sockets with 4002.
 
-        Each room is re-checked and removed under its ``join_lock``, so a start that won the lock is kept. A close is an
-        enqueue on the player's connection, so no room waits on another room's slow socket.
+        One synchronous pass: a close is an enqueue on the player's connection, so no room waits on another room's slow
+        socket, and no join or start can interleave with the tick.
         """
         now = time.monotonic()
-        candidates = [(room_id, room) for room_id, room in self._rooms.items() if self._is_expired(room, now)]
-        for room_id, room in candidates:
-            async with room.join_lock:
-                if self._rooms.get(room_id) is not room or not self._is_expired(room, now):
-                    continue
-
-                self.remove_room(room_id)
-                logger.info("room expired", room_id=room_id)
-                for member in room.players.values():
-                    member.player.connection.close(code=4002, reason="room_expired")
+        expired = [room for room in self._rooms.values() if self._is_expired(room, now)]
+        for room in expired:
+            self.remove_room(room.room_id)
+            logger.info("room expired", room_id=room.room_id)
+            for member in room.players.values():
+                member.player.connection.close(code=4002, reason="room_expired")
