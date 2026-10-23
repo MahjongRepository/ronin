@@ -9,7 +9,6 @@ from starlette.testclient import TestClient
 from lobby import game_transition as game_transition_module
 from lobby.auth.models import AuthenticatedPlayer
 from lobby.matchmaking.websocket import matchmaking_websocket
-from lobby.rooms import websocket as rooms_websocket_module
 from lobby.rooms.websocket import room_websocket
 from lobby.tests.conftest import AsgiPeer, HeldLookup, make_player, make_websocket, open_client
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
@@ -388,7 +387,7 @@ class TestGameTransition:
         room = app.state.room_manager.create_room("sign-fail-room")
 
         with (
-            patch("lobby.rooms.websocket.sign_player_tickets", side_effect=ValueError("bad ticket secret")),
+            patch("lobby.game_transition.create_signed_ticket", side_effect=ValueError("bad ticket secret")),
             client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
         ):
             ws.receive_json()
@@ -639,7 +638,7 @@ class TestRoomOccupancy:
         held_lookup = HeldLookup()
         app = make_app(is_playing=held_lookup)
         monkeypatch.setattr(
-            rooms_websocket_module, "create_game_on_server", AsyncMock(return_value="ws://localhost:8711/ws/game")
+            game_transition_module, "create_game_on_server", AsyncMock(return_value="ws://localhost:8711/ws/game")
         )
         first_room = app.state.room_manager.create_room("first-room")
         second_room = app.state.room_manager.create_room("second-room")

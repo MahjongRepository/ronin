@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import ValidationError
 
-from lobby.game_transition import GameTransitionError, create_game_on_server, sign_player_tickets
+from lobby.game_transition import GameStartError, start_game
 from lobby.players import LobbyPlayer
 from lobby.rooms.messages import (
     LobbyChatMessage,
@@ -213,10 +213,11 @@ def _handle_set_ready(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyS
 
 async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
     """
-    Handle start_game — only the owner can trigger game transition.
+    Start the game when the owner asks; return True when it was created.
 
-    ``start_game`` marks the room transitioning in the same synchronous step, so a join or a ready toggle arriving while
-    the game is created gets ``room_transitioning``.
+    The manager marks the room transitioning in one synchronous step, so a join or a ready toggle arriving while the
+    game is created gets ``room_transitioning``. A failed start reopens the room; after a successful one the room is
+    removed: transitioning is never cleared, the state never rebroadcast and creation never retried.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
@@ -228,93 +229,31 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
         player.send({"type": "error", "message": error})
         return False
 
-    return await _transition_to_game(room, ctx)
-
-
-async def _transition_to_game(room: LobbyRoom, ctx: _RoomContext) -> bool:
-    """
-    Create the game, then deliver ``game_starting`` and dispose of the room.
-
-    Return True when the game was created. Each attempt gets a fresh game id: a failure may mean the game server created
-    the game anyway (a timeout after the POST arrived), and that orphan must not make the next start collide with it.
-    Before the game server answers 201 any exception is undone by ``_recover_failed_start`` (a cancellation, which only
-    server shutdown causes, is not). After it the game exists with every signed ticket: each seated player gets
-    ``game_starting`` and a 1000 close, enqueued, and the room is removed. Transitioning is never cleared, the state is
-    never rebroadcast and creation is never retried.
-    """
-    game_id = str(uuid.uuid4())
-    log = logger.bind(room_id=room.room_id, game_id=game_id)
-    log.info("game transition starting", player_count=room.player_count)
-
     try:
-        ws_url, ticket_map = await _create_game(room, ctx, game_id=game_id)
-    except GameTransitionError as e:
-        log.exception("failed to create game")
-        _recover_failed_start(room, ctx, reason=str(e))
-        return False
-    except Exception:
-        log.exception("unexpected error creating game")
-        _recover_failed_start(room, ctx, reason="internal error")
+        game_id = await start_game(
+            [member.player for member in room.players.values()],
+            num_ai_players=room.num_ai_players,
+            settings=ctx.settings,
+            ticket_secret=ctx.auth_settings.game_ticket_secret,
+            occupancy=ctx.occupancy,
+        )
+    except GameStartError as e:
+        _recover_failed_start(room, ctx, reason=e.reason)
         return False
 
     ctx.room_manager.remove_room(room.room_id)
-    for connection_id, member in room.players.items():
-        member.player.send(
-            {
-                "type": "game_starting",
-                "ws_url": ws_url,
-                "game_ticket": ticket_map[connection_id],
-                "game_id": game_id,
-                "game_client_url": ctx.settings.game_client_url,
-            },
-        )
-        member.player.connection.close()
-
-    log.info("game transition complete", ws_url=ws_url)
+    logger.info("room handed to its game", room_id=room.room_id, game_id=game_id)
     return True
-
-
-async def _create_game(room: LobbyRoom, ctx: _RoomContext, *, game_id: str) -> tuple[str, dict[str, str]]:
-    """
-    Sign a ticket per seated human and create the game; return the game server URL and the tickets by connection.
-
-    The attempt hands the seated users to the game whatever its outcome, before the caller releases their seats: a
-    failure may mean the game server created the game anyway.
-    """
-    players_for_tickets = [
-        (member.player.user_id, member.player.username, conn_id) for conn_id, member in room.players.items()
-    ]
-    player_specs, ticket_map = sign_player_tickets(
-        players=players_for_tickets,
-        game_id=game_id,
-        ticket_secret=ctx.auth_settings.game_ticket_secret,
-    )
-    try:
-        ws_url = await create_game_on_server(
-            game_id=game_id,
-            players=player_specs,
-            num_ai_players=room.num_ai_players,
-            settings=ctx.settings,
-        )
-    finally:
-        ctx.occupancy.hand_to_game(member.player.user_id for member in room.players.values())
-
-    return ws_url, ticket_map
 
 
 def _recover_failed_start(room: LobbyRoom, ctx: _RoomContext, *, reason: str) -> None:
     """
     Reopen the room after a start that failed before the game was created, and resync every client.
 
-    ``clear_transitioning`` resets the ready flags and releases the seats of players who left meanwhile, dropping the
-    room when nobody is left. Through this handler the room always survives, since the host runs the transition in its
-    own handler and so cannot leave during it; the dropped-room return is kept for C20, whose shared ``start_game`` runs
-    the transition for rooms and matchmaking alike.
+    ``clear_transitioning`` resets the ready flags and releases the seats of players who left meanwhile. The host runs
+    the transition in its own handler and so cannot leave during it, so the room always survives here.
     """
     ctx.room_manager.clear_transitioning(room.room_id)
-    if ctx.room_manager.get_room(room.room_id) is None:
-        return
-
     _send_room_state(room)
     _broadcast(room, {"type": "error", "message": f"Failed to start game: {reason}"})
 

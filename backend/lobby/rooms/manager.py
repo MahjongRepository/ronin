@@ -175,7 +175,7 @@ class LobbyRoomManager:
 
         Reset the transitioning flag and every ready state, release the seats of players who left during the transition,
         and drop the room if none is left. The rooms handler never empties a room this way (its host runs the transition
-        and cannot leave during it); the drop is kept for C20's shared ``start_game``.
+        and cannot leave during it), so the drop is the manager's own rule.
         """
         room = self._rooms.get(room_id)
         if room is None:

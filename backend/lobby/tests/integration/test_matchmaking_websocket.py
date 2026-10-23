@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from lobby import game_transition as game_transition_module
 from lobby.auth.models import AuthenticatedPlayer
 from lobby.game_transition import GameTransitionError
-from lobby.matchmaking import websocket as matchmaking_websocket_module
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket
 from lobby.tests.integration.conftest import register_with_csrf
@@ -117,7 +117,7 @@ class TestMatchmakingGameTransition:
         self, app, monkeypatch
     ):
         monkeypatch.setattr(
-            matchmaking_websocket_module,
+            game_transition_module,
             "create_game_on_server",
             AsyncMock(side_effect=GameTransitionError("read timed out after the game server got the request")),
         )
@@ -141,7 +141,7 @@ class TestMatchmakingGameTransition:
         self, app, monkeypatch
     ):
         create_game = AsyncMock(return_value="ws://localhost:8711/ws/game")
-        monkeypatch.setattr(matchmaking_websocket_module, "create_game_on_server", create_game)
+        monkeypatch.setattr(game_transition_module, "create_game_on_server", create_game)
         queued = [await _queue_player(app, f"queued-{i}") for i in range(3)]
         held_peer, held_handler = queued[0]
         held_peer.send_gate = asyncio.Event()
@@ -183,7 +183,7 @@ class TestMatchmakingGameTransition:
     ):
         held_lookup = HeldLookup()
         app = make_app(is_playing=held_lookup)
-        monkeypatch.setattr(matchmaking_websocket_module, "create_game_on_server", create_game)
+        monkeypatch.setattr(game_transition_module, "create_game_on_server", create_game)
         queued = [await _queue_player(app, username) for username in ("alice", "bob", "carol")]
 
         held_lookup.held_user_id = "alice-id"
