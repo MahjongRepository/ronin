@@ -6,7 +6,7 @@ from game.logic.matchmaker import fill_seats
 
 class TestFillSeats:
     def test_fill_seats__when_one_player__should_add_three_ai_players(self):
-        configs, seats = fill_seats(["Alice"])
+        configs, seats = fill_seats(["Alice"], seed="a" * 192)
         assert len(configs) == 4
         player_configs = [c for c in configs if c.ai_player_type is None]
         ai_player_configs = [c for c in configs if c.ai_player_type is not None]
@@ -15,7 +15,7 @@ class TestFillSeats:
         assert configs[seats[0]].name == "Alice"
 
     def test_fill_seats__when_one_player__should_name_ai_players_tsumogiri_n(self):
-        configs, _seats = fill_seats(["Alice"])
+        configs, _seats = fill_seats(["Alice"], seed="a" * 192)
         ai_player_configs = [c for c in configs if c.ai_player_type is not None]
         assert [c.name for c in ai_player_configs] == ["Tsumogiri 1", "Tsumogiri 2", "Tsumogiri 3"]
         assert all(c.ai_player_type == AIPlayerType.TSUMOGIRI for c in ai_player_configs)
@@ -48,7 +48,7 @@ class TestFillSeatsFourPlayers:
     def test_fill_seats__when_four_players__should_seat_each_input_player_at_its_returned_seat(self):
         names = ["Alice", "Bob", "Charlie", "Dave"]
 
-        configs, seats = fill_seats(names, seed="a" * 192)
+        configs, seats = fill_seats(names, seed="ab" * 96)
         assert sorted(seats) == [0, 1, 2, 3]
         assert seats != (0, 1, 2, 3)
         assert all(c.ai_player_type is None for c in configs)
@@ -58,8 +58,8 @@ class TestFillSeatsFourPlayers:
 class TestFillSeatsValidation:
     def test_fill_seats__when_no_players__should_raise(self):
         with pytest.raises(ValueError, match="Expected 1 to 4"):
-            fill_seats([])
+            fill_seats([], seed="a" * 192)
 
     def test_fill_seats__when_more_than_four_players__should_raise(self):
         with pytest.raises(ValueError, match="Expected 1 to 4"):
-            fill_seats(["A", "B", "C", "D", "E"])
+            fill_seats(["A", "B", "C", "D", "E"], seed="a" * 192)

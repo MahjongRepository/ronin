@@ -55,6 +55,12 @@ class ScoringError(Exception):
     """
 
 
+class TileOwnershipError(Exception):
+    """
+    A committed game state does not own each of the 136 tiles exactly once: a server fault, never a player's.
+    """
+
+
 class UnsupportedSettingsError(Exception):
     """
     Game settings contain unsupported values that cannot be silently ignored.

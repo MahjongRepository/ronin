@@ -902,7 +902,7 @@ class TestServerGeneratedActionRefusals:
     def _make_ai_seat_current(runtime):
         ai_player_seat = min(runtime.ai.ai_player_seats)
         round_state = runtime.state.round_state.model_copy(update={"current_player_seat": ai_player_seat})
-        runtime.state = runtime.state.model_copy(update={"round_state": round_state})
+        runtime.commit(runtime.state.model_copy(update={"round_state": round_state}))
         return ai_player_seat
 
     def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service, runtime):
@@ -916,7 +916,7 @@ class TestServerGeneratedActionRefusals:
             callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
         round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
-        runtime.state = game_state.model_copy(update={"round_state": round_state})
+        runtime.commit(game_state.model_copy(update={"round_state": round_state}))
 
         with (
             patch.object(AIPlayer, "should_call_pon", return_value=True),

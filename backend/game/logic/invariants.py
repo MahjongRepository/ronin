@@ -3,16 +3,11 @@ from __future__ import annotations
 from collections import Counter
 from typing import TYPE_CHECKING
 
+from game.logic.exceptions import TileOwnershipError
 from game.logic.tiles import NUM_TILES
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer
-
-
-class TileOwnershipError(AssertionError):
-    """
-    A committed game state does not own each of the 136 tiles exactly once: an engine fault, never a player's.
-    """
 
 
 def _unclaimed_discards(players: tuple[MahjongPlayer, ...]) -> list[int]:

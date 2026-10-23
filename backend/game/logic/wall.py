@@ -1,14 +1,14 @@
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from game.logic.rng import generate_shuffled_wall_and_dice
-from game.logic.settings import NUM_PLAYERS
+from game.logic.settings import MAX_KANS, NUM_PLAYERS
 from game.logic.tiles import NUM_TILES, sort_tiles
 
 TILES_PER_STACK = 2
 DEAD_WALL_STACKS = 7
 DEAD_WALL_SIZE = DEAD_WALL_STACKS * TILES_PER_STACK
-RINSHAN_STACKS = 2
-MAX_RINSHAN_DRAWS = RINSHAN_STACKS * TILES_PER_STACK
+MAX_RINSHAN_DRAWS = MAX_KANS
+RINSHAN_STACKS = MAX_RINSHAN_DRAWS // TILES_PER_STACK
 MAX_DORA_INDICATORS = DEAD_WALL_STACKS - RINSHAN_STACKS
 TILES_PER_DEAL_BLOCK = 4
 DEAL_BLOCKS = 3
@@ -94,6 +94,9 @@ class DeadWall(BaseModel):
 class Wall(BaseModel):
     """
     Immutable wall state for a mahjong round: the live wall in draw order, the dead wall and the break dice.
+
+    The live and dead walls never share a tile; the model validates that on every construction, and the wall functions
+    construct it rather than model_copy it so the validator always runs.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -101,6 +104,20 @@ class Wall(BaseModel):
     live_tiles: tuple[int, ...]
     dead_wall: DeadWall
     dice: tuple[int, int] = (1, 1)
+
+    @model_validator(mode="after")
+    def _check_live_tiles(self) -> Wall:
+        live = set(self.live_tiles)
+        if len(live) != len(self.live_tiles) or not all(0 <= t < NUM_TILES for t in live):
+            raise ValueError("live wall must hold distinct tile ids")
+
+        if len(live) > NUM_TILES - DEAD_WALL_SIZE:
+            raise ValueError(f"live wall holds {len(live)} tiles, more than {NUM_TILES - DEAD_WALL_SIZE}")
+
+        if not live.isdisjoint(self.dead_wall.tiles):
+            raise ValueError("live wall and dead wall share tiles")
+
+        return self
 
     @property
     def dora_indicators(self) -> tuple[int, ...]:
@@ -127,6 +144,14 @@ class WallBreakInfo(BaseModel):
     dice_sum: int
     target_seat: int
     break_stack: int
+
+
+def _rebuild_wall(wall: Wall, *, live_tiles: tuple[int, ...] | None = None, dead_wall: DeadWall | None = None) -> Wall:
+    return Wall(
+        live_tiles=wall.live_tiles if live_tiles is None else live_tiles,
+        dead_wall=wall.dead_wall if dead_wall is None else dead_wall,
+        dice=wall.dice,
+    )
 
 
 def compute_wall_break_info(dice: tuple[int, int], dealer_seat: int) -> WallBreakInfo:
@@ -232,8 +257,7 @@ def deal_initial_hands(wall: Wall, dealer_seat: int) -> tuple[Wall, list[list[in
         hands[seat].append(live[pos])
         pos += TILES_PER_FINAL_DEAL
 
-    new_wall = wall.model_copy(update={"live_tiles": tuple(live[pos:])})
-    return new_wall, [sort_tiles(hand) for hand in hands]
+    return _rebuild_wall(wall, live_tiles=tuple(live[pos:])), [sort_tiles(hand) for hand in hands]
 
 
 def draw_tile(wall: Wall) -> tuple[Wall, int | None]:
@@ -245,7 +269,7 @@ def draw_tile(wall: Wall) -> tuple[Wall, int | None]:
     if not wall.live_tiles:
         return wall, None
 
-    return wall.model_copy(update={"live_tiles": wall.live_tiles[1:]}), wall.live_tiles[0]
+    return _rebuild_wall(wall, live_tiles=wall.live_tiles[1:]), wall.live_tiles[0]
 
 
 def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
@@ -267,7 +291,7 @@ def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
         revealed_count=dead.revealed_count,
         pending_reveals=dead.pending_reveals,
     )
-    return wall.model_copy(update={"live_tiles": wall.live_tiles[:-1], "dead_wall": new_dead}), tile
+    return _rebuild_wall(wall, live_tiles=wall.live_tiles[:-1], dead_wall=new_dead), tile
 
 
 def _with_reveals(dead: DeadWall, *, revealed_count: int, pending_reveals: int) -> DeadWall:
@@ -289,7 +313,7 @@ def add_dora_indicator(wall: Wall) -> tuple[Wall, int]:
         raise AssertionError(f"Cannot add more than {MAX_DORA_INDICATORS} dora indicators")
 
     new_dead = _with_reveals(dead, revealed_count=dead.revealed_count + 1, pending_reveals=dead.pending_reveals)
-    return wall.model_copy(update={"dead_wall": new_dead}), new_dead.dora_indicators[-1]
+    return _rebuild_wall(wall, dead_wall=new_dead), new_dead.dora_indicators[-1]
 
 
 def increment_pending_dora(wall: Wall) -> Wall:
@@ -304,7 +328,7 @@ def increment_pending_dora(wall: Wall) -> Wall:
         )
 
     new_dead = _with_reveals(dead, revealed_count=dead.revealed_count, pending_reveals=dead.pending_reveals + 1)
-    return wall.model_copy(update={"dead_wall": new_dead})
+    return _rebuild_wall(wall, dead_wall=new_dead)
 
 
 def reveal_pending_dora(wall: Wall) -> tuple[Wall, list[int]]:
@@ -317,7 +341,7 @@ def reveal_pending_dora(wall: Wall) -> tuple[Wall, list[int]]:
 
     revealed_count = dead.revealed_count + dead.pending_reveals
     new_dead = _with_reveals(dead, revealed_count=revealed_count, pending_reveals=0)
-    return wall.model_copy(update={"dead_wall": new_dead}), list(new_dead.dora_indicators[dead.revealed_count :])
+    return _rebuild_wall(wall, dead_wall=new_dead), list(new_dead.dora_indicators[dead.revealed_count :])
 
 
 def clear_pending_dora(wall: Wall) -> Wall:
@@ -328,9 +352,7 @@ def clear_pending_dora(wall: Wall) -> Wall:
     if dead.pending_reveals == 0:
         return wall
 
-    return wall.model_copy(
-        update={"dead_wall": _with_reveals(dead, revealed_count=dead.revealed_count, pending_reveals=0)}
-    )
+    return _rebuild_wall(wall, dead_wall=_with_reveals(dead, revealed_count=dead.revealed_count, pending_reveals=0))
 
 
 def is_wall_exhausted(wall: Wall) -> bool:

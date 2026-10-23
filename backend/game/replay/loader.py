@@ -8,7 +8,7 @@ from typing import Any
 
 from game.logic.enums import GameAction
 from game.logic.events import EventType
-from game.logic.rng import RNG_VERSION, create_seat_rng, validate_seed_hex
+from game.logic.rng import RNG_VERSION, seat_permutation, validate_seed_hex
 from game.logic.settings import NUM_PLAYERS
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
@@ -183,11 +183,9 @@ def _reconstruct_input_order(
     """
     Reconstruct the original player name input order from the seed.
 
-    During replay, fill_seats receives all 4 names (human + AI) and calls
-    rng.sample(range(4), 4) to assign seats. This function inverts that
-    permutation: given the seed and the seat-to-name mapping, it produces
-    the name ordering that, when fed back through fill_seats with the same
-    seed, recreates the original seating.
+    During replay, fill_seats receives all 4 names (human + AI) and seats them by the seed's seat permutation. This
+    function inverts that permutation: given the seed and the seat-to-name mapping, it produces the name ordering that,
+    fed back through fill_seats with the same seed, recreates the original seating.
     """
     expected_seats = set(range(NUM_PLAYERS))
     if set(seat_to_name.keys()) != expected_seats:
@@ -195,9 +193,7 @@ def _reconstruct_input_order(
             f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}",
         )
 
-    rng = create_seat_rng(seed)
-    seat_order = rng.sample(range(NUM_PLAYERS), NUM_PLAYERS)
-    first, second, third, fourth = (seat_to_name[s] for s in seat_order)
+    first, second, third, fourth = (seat_to_name[s] for s in seat_permutation(seed))
     return first, second, third, fourth
 
 

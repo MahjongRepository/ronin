@@ -167,6 +167,22 @@ class TestDeadWallValidation:
             DeadWall(rinshan=dead.rinshan, indicators=dead.indicators, reserve=(), revealed_count=4, pending_reveals=2)
 
 
+class TestWallValidation:
+    @pytest.mark.parametrize(
+        ("live_tiles", "message"),
+        [
+            ((0, 0), "distinct"),
+            ((NUM_TILES,), "distinct"),
+            (tuple(range(NUM_TILES - DEAD_WALL_SIZE + 1)), "more than 122"),
+            ((NUM_TILES - 1,), "share tiles"),
+        ],
+    )
+    def test_wall__when_live_tiles_break_the_partition__should_raise(self, live_tiles, message):
+        dead = create_wall_from_tiles(list(range(NUM_TILES))).dead_wall
+        with pytest.raises(ValidationError, match=message):
+            Wall(live_tiles=live_tiles, dead_wall=dead)
+
+
 class TestDealInitialHands:
     def test_deal_initial_hands__when_dealt__should_give_each_seat_13_sorted_unique_tiles(self):
         wall = make_wall(live_tiles=range(122))

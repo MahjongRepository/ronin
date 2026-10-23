@@ -7,12 +7,12 @@ from game.logic.rng import (
     SEED_BYTES,
     WordStream,
     bounded_uint,
-    create_seat_rng,
     determine_first_dealer,
     fisher_yates_shuffle,
     generate_seed,
     generate_shuffled_wall_and_dice,
     roll_dice,
+    seat_permutation,
     validate_seed_hex,
 )
 from game.logic.tiles import NUM_TILES
@@ -150,6 +150,6 @@ class TestDetermineFirstDealer:
             determine_first_dealer("short")
 
 
-class TestCreateSeatRng:
-    def test_create_seat_rng__when_same_seed__should_sample_same_seats(self):
-        assert create_seat_rng(FIXED_SEED).sample(range(4), 4) == create_seat_rng(FIXED_SEED).sample(range(4), 4)
+class TestSeatPermutation:
+    def test_seat_permutation__when_fixed_seed__should_match_pinned_vector(self):
+        assert seat_permutation(FIXED_SEED) == (2, 3, 0, 1)
