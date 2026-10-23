@@ -19,7 +19,7 @@ from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
 
-from .helpers import arrange_final_discard, run_timeout
+from .helpers import arrange_final_discard, run_timeout, runtime_of
 
 if TYPE_CHECKING:
     from game.session.manager import SessionManager
@@ -102,15 +102,13 @@ async def _start_over_sockets(table: _Table) -> tuple[FakeWebSocketClient, FakeW
 
 
 class TestConnectionWriters:
-    async def test_slow_reader__when_its_writes_are_held__should_not_delay_another_seats_action(
-        self, table, seeded_engine
-    ):
+    async def test_slow_reader__when_its_writes_are_held__should_not_delay_another_seats_action(self, table):
         alice, bob = await _start_over_sockets(table)
         bob_seat = table.seat_of("Bob")
         table.advance_to_turn_of(bob_seat)
         alice.hold_writes()
         wait_id = table.manager.get_game("game1").awaiting.wait_id
-        tile = seeded_engine.get_game_state("game1").round_state.players[bob_seat].tiles[-1]
+        tile = runtime_of(table.manager).state.round_state.players[bob_seat].tiles[-1]
 
         bob.send({"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": tile, "wi": wait_id})
         bob.send({"t": WireClientMessageType.CHAT, "text": "sent after the discard"})
@@ -122,12 +120,12 @@ class TestConnectionWriters:
         )
 
     async def test_game_end__when_one_reader_is_held__should_close_the_others_after_game_end_without_waiting(
-        self, table, seeded_engine
+        self, table
     ):
         alice, bob = await _start_over_sockets(table)
         alice_seat = table.seat_of("Alice")
         table.advance_to_turn_of(alice_seat)
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        arrange_final_discard(runtime_of(table.manager), seat=alice_seat)
         alice.hold_writes()
 
         run_timeout(table.manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
@@ -150,7 +148,9 @@ class TestConnectionWriters:
         assert alice.written == []
         assert [m for m in bob.sent_messages if m.get("type") == SessionMessageType.CHAT] == []
         assert not table.manager._participants_by_ticket[table.tickets["Alice"]].is_connected
-        snapshot = table.manager._game_service.build_reconnection_snapshot("game1", table.seat_of("Bob"))
+        snapshot = table.manager._game_service.build_reconnection_snapshot(
+            runtime_of(table.manager), table.seat_of("Bob")
+        )
         assert snapshot.players[table.seat_of("Alice")].is_ai_player is True
         assert {"type": SessionMessageType.PLAYER_LEFT, "player_name": "Alice"} in bob.sent_messages
         await table.manager.shutdown()

@@ -57,11 +57,14 @@ changes.
   with its state committed, so a caller needs no liveness re-check around an engine call. Pacing (turn,
   bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`), never a
   `GameSettings` field.
-* Everything the engine keeps for one game is its `GameRuntime` (`runtime.py`), the one per-game
-  store the service holds by game id (`cleanup_game()` drops it): the frozen state, the
-  `AIPlayerController`, the round's `FuritenTracker` (emits `FuritenEvent` on change, replaced at
-  each round start) and `pending_confirm`, the round end's `PendingRoundAdvance` (the human seats
-  still to confirm; AI seats never confirm), None otherwise.
+* The service holds no game. Everything the engine keeps for one game is its `GameRuntime`
+  (`runtime.py`): the frozen state (the only part that is a snapshot; the runtime itself is mutated
+  in place), the `AIPlayerController`, the round's `FuritenTracker` (emits `FuritenEvent` on change,
+  replaced at each round start) and `pending_confirm`, the round end's `PendingRoundAdvance` (the
+  human seats still to confirm; AI seats never confirm), None otherwise. `start_game` builds it
+  locally and returns it in `GameStart`, so a start that raises leaves nothing behind; every later
+  call takes it. The caller owns it, and dropping it disposes the game: there is no game id
+  registry, no cleanup call and no "game not found" path.
 
 ## Turn rules
 
@@ -108,8 +111,7 @@ Every refusal or failure has exactly one outcome (`exceptions.py` holds the clas
   every action echoes the wait id, and the session answers a stale one with `STALE_ACTION`.
 * **Server fault, the session ends the game through `fail_game`**: everything else, with no blame
   guessing and no fabricated pass, win or retry. That covers wall and engine invariants
-  (`AssertionError`), a call for a game the service does not hold (`KeyError`: the session never
-  acts on a game that ended), the scoring library failing on a hand judged a win (`ScoringError`), anything
+  (`AssertionError`), the scoring library failing on a hand judged a win (`ScoringError`), anything
   raised during call resolution (responses were validated on submit) or after a result is stored,
   and an action the server made itself: an AI decision or a timeout default that is refused (a `Refusal` or
   an `InvalidGameActionError`), or an AI turn with no action, raises `GeneratedActionError`

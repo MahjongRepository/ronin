@@ -188,8 +188,8 @@ describe("game view message handling", () => {
             capturedMessageHandler!({ d: 0, t: 1 });
 
             capturedMessageHandler!({
-                code: "reconnect_game_gone",
-                message: "Game no longer exists",
+                code: "reconnect_no_session",
+                message: "No disconnected session found",
                 type: "session_error",
             });
 

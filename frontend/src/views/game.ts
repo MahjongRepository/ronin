@@ -201,10 +201,8 @@ function attemptConnection(wsUrl: string, gameTicket: string): void {
 
 const PERMANENT_RECONNECT_CODES = new Set([
     "reconnect_no_session",
-    "reconnect_game_gone",
     "reconnect_game_mismatch",
     "reconnect_already_active",
-    "reconnect_snapshot_failed",
     "invalid_ticket",
 ]);
 

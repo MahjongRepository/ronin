@@ -44,6 +44,7 @@ from .helpers import (
     game_of,
     participant_of,
     run_timeout,
+    runtime_of,
     wait_for_background_tasks,
 )
 
@@ -164,8 +165,8 @@ class TestFailGame:
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
         winning_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
-        _update_player(seeded_engine, game_id="game1", seat=alice_seat, tiles=winning_hand)
-        _update_round_state(seeded_engine, "game1", current_player_seat=alice_seat, pending_call_prompt=None)
+        _update_player(runtime_of(manager), seat=alice_seat, tiles=winning_hand)
+        _update_round_state(runtime_of(manager), current_player_seat=alice_seat, pending_call_prompt=None)
 
         with (
             patch("game.logic.turn.calculate_hand_value", return_value=HandResult(error="library failure")),
@@ -194,7 +195,7 @@ class TestFailGame:
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
-        round_state = seeded_engine.get_game_state("game1").round_state
+        round_state = runtime_of(manager).state.round_state
         assert round_state.current_player_seat == alice_seat
         assert round_state.pending_call_prompt is None
 
@@ -245,7 +246,7 @@ class TestGameEndOwnership:
         alice = conns[0]
         alice_seat = participant_of(manager, alice).seat
         game = game_of(manager)
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
         replay_saving = asyncio.Event()
         resume_saving = asyncio.Event()
         save = collector.save
@@ -275,7 +276,8 @@ class TestGameEndOwnership:
         conns = create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
         alice_seat = participant_of(manager, alice).seat
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        game = game_of(manager)
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
         send_bytes = alice.send_bytes
 
         def fail_on_game_end(data: bytes) -> None:
@@ -294,7 +296,7 @@ class TestGameEndOwnership:
         assert [m.get("code") for m in alice.sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
         assert (alice._close_code, alice._close_reason) == (1011, "internal_error")
         assert manager.get_game("game1") is None
-        assert seeded_engine.get_game_state("game1") is None
+        assert game.runtime is None
 
 
 class TestGameEndFromAction:
@@ -337,7 +339,7 @@ class TestGameEndFromTimeout:
         manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn) for conn in conns)
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice.seat)
+        arrange_final_discard(runtime_of(manager), seat=alice.seat)
 
         assert manager.get_playing_game_id("user-0") == "game1"
 
@@ -365,7 +367,7 @@ class TestGameEndFromTimeout:
         manager = make_session_manager(seeded_engine)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert manager.get_game("game1") is None
 

@@ -19,6 +19,7 @@ from .helpers import (
     game_of,
     participant_of,
     run_timeout,
+    runtime_of,
     wait_for_background_tasks,
 )
 
@@ -81,26 +82,14 @@ class TestGameStartRecording:
             **{seat: (f"Tsumogiri {number}", "") for number, seat in enumerate(ai_seats, start=2)},
         }
 
-        human = seeded_engine.get_game_state("game1").round_state.players[human_seat]
-        assert seeded_engine.get_game_state("game1").round_state.current_player_seat == human_seat
+        human = runtime_of(manager).state.round_state.players[human_seat]
+        assert runtime_of(manager).state.round_state.current_player_seat == human_seat
         manager.handle_game_action(
             conns[0], action=GameAction.DISCARD, data={"tile_id": human.tiles[-1]}, wait_id=current_wait_id(manager)
         )
-        human_after = seeded_engine.get_game_state("game1").round_state.players[human_seat]
+        human_after = runtime_of(manager).state.round_state.players[human_seat]
         assert [d.tile_id for d in human_after.discards] == [human.tiles[-1]]
         assert game_of(manager).lifecycle is GameLifecycle.PLAYING
-
-    async def test_game_history__when_game_state_missing__should_record_neither_start_nor_finish(
-        self, manager_with_repo, game_repo
-    ):
-        manager_with_repo._game_service.get_game_state = lambda _: None
-        conns = create_started_game(manager_with_repo)
-
-        manager_with_repo.leave_game(conns[0])
-        await wait_for_background_tasks(manager_with_repo)
-        assert manager_with_repo.get_game("game1") is None
-        assert game_repo.games == {}
-        assert game_repo.finishes == []
 
 
 class TestGameCompletionRecording:
@@ -171,7 +160,7 @@ class TestGameCompletionRecording:
         await pending_timeout
         alice_seat = participant_of(manager, alice).seat
         bob_seat = manager._participants_by_ticket["ticket-1"].seat
-        arrange_final_discard(seeded_engine, game_id="game1", seat=alice_seat)
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
 
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await wait_for_background_tasks(manager)

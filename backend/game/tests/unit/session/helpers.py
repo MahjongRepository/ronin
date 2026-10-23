@@ -12,7 +12,7 @@ from game.tests.unit.helpers import _update_player, _update_round_state
 
 if TYPE_CHECKING:
     from game.logic.enums import TimeoutType
-    from game.logic.mahjong_service import MahjongGameService
+    from game.logic.runtime import GameRuntime
     from game.session.manager import SessionManager
     from game.session.models import GameSession, Participant
 
@@ -27,6 +27,12 @@ def game_of(manager: SessionManager, game_id: str = "game1") -> GameSession:
     game = manager.get_game(game_id)
     assert game is not None
     return game
+
+
+def runtime_of(manager: SessionManager, game_id: str = "game1") -> GameRuntime:
+    runtime = game_of(manager, game_id).runtime
+    assert runtime is not None
+    return runtime
 
 
 def create_started_game(
@@ -100,39 +106,39 @@ def fire_turn_timer_now(manager: SessionManager, *, game_id: str, seat: int) -> 
     return timer.task
 
 
-def arrange_exhaustive_draw(engine: MahjongGameService, *, game_id: str) -> None:
-    wall = engine._runtimes[game_id].state.round_state.wall
-    _update_round_state(engine, game_id, wall=wall.model_copy(update={"live_tiles": ()}))
+def arrange_exhaustive_draw(runtime: GameRuntime) -> None:
+    wall = runtime.state.round_state.wall
+    _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
 
 
-def arrange_final_discard(engine: MahjongGameService, *, game_id: str, seat: int) -> None:
-    _update_player(engine, game_id=game_id, seat=seat, score=-1000)
-    arrange_exhaustive_draw(engine, game_id=game_id)
+def arrange_final_discard(runtime: GameRuntime, *, seat: int) -> None:
+    _update_player(runtime, seat=seat, score=-1000)
+    arrange_exhaustive_draw(runtime)
 
 
-def arrange_ron_and_pon_on_a_discard(engine: MahjongGameService, *, discarder: int, ron: int, pon: int) -> int:
+def arrange_ron_and_pon_on_a_discard(runtime: GameRuntime, *, discarder: int, ron: int, pon: int) -> int:
     four_pins = TilesConverter.string_to_136_array(pin="444")
     ittsu_waiting_on_four_pin = TilesConverter.string_to_136_array(man="123456789", pin="1123")
     pair_of_four_pin = four_pins[:2] + TilesConverter.string_to_136_array(sou="123456789", honors="12")
     discarder_hand = TilesConverter.string_to_136_array(pin="556789", honors="3456777") + four_pins[2:]
     for seat, tiles in ((ron, ittsu_waiting_on_four_pin), (pon, pair_of_four_pin), (discarder, discarder_hand)):
-        _update_player(engine, game_id="game1", seat=seat, tiles=tuple(tiles))
+        _update_player(runtime, seat=seat, tiles=tuple(tiles))
 
     return four_pins[2]
 
 
-def arrange_pon_now_and_on_the_next_draw(engine: MahjongGameService, *, discarder: int, caller: int) -> int:
+def arrange_pon_now_and_on_the_next_draw(runtime: GameRuntime, *, discarder: int, caller: int) -> int:
     four_pins = TilesConverter.string_to_136_array(pin="444")
     nine_sous = TilesConverter.string_to_136_array(sou="999")
     caller_hand = (
         four_pins[:2] + nine_sous[:2] + TilesConverter.string_to_136_array(man="135", pin="79", sou="13", honors="12")
     )
     discarder_hand = TilesConverter.string_to_136_array(man="2468", pin="2356", sou="2", honors="3456") + four_pins[2:]
-    _update_player(engine, game_id="game1", seat=caller, tiles=tuple(caller_hand))
-    _update_player(engine, game_id="game1", seat=discarder, tiles=tuple(discarder_hand))
-    wall = engine._runtimes["game1"].state.round_state.wall
+    _update_player(runtime, seat=caller, tiles=tuple(caller_hand))
+    _update_player(runtime, seat=discarder, tiles=tuple(discarder_hand))
+    wall = runtime.state.round_state.wall
     live_tiles = (nine_sous[2], *(tile for tile in wall.live_tiles if tile != nine_sous[2]))
-    _update_round_state(engine, "game1", wall=wall.model_copy(update={"live_tiles": live_tiles}))
+    _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": live_tiles}))
     return four_pins[2]
 
 

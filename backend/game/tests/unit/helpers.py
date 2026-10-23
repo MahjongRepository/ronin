@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from mahjong.tile import TilesConverter
 
 if TYPE_CHECKING:
-    from game.logic.mahjong_service import MahjongGameService
+    from game.logic.runtime import GameRuntime
     from game.logic.state import (
         MahjongPlayer,
         MahjongRoundState,
@@ -48,33 +48,19 @@ def _find_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
     raise ValueError(f"player {name} not found")
 
 
-def _update_round_state(
-    service: MahjongGameService,
-    game_id: str,
-    **updates: object,
-) -> MahjongRoundState:
-    game_state = service._runtimes[game_id].state
+def _update_round_state(runtime: GameRuntime, **updates: object) -> MahjongRoundState:
+    game_state = runtime.state
     new_round = game_state.round_state.model_copy(update=updates)
-    new_game = game_state.model_copy(update={"round_state": new_round})
-    service._runtimes[game_id].state = new_game
+    runtime.state = game_state.model_copy(update={"round_state": new_round})
     return new_round
 
 
-def _update_player(
-    service: MahjongGameService,
-    *,
-    game_id: str,
-    seat: int,
-    **updates: object,
-) -> MahjongPlayer:
-    game_state = service._runtimes[game_id].state
+def _update_player(runtime: GameRuntime, *, seat: int, **updates: object) -> MahjongPlayer:
+    game_state = runtime.state
     round_state = game_state.round_state
     players = list(round_state.players)
-    old_player = players[seat]
-
-    new_player = old_player.model_copy(update=updates)
+    new_player = players[seat].model_copy(update=updates)
     players[seat] = new_player
     new_round = round_state.model_copy(update={"players": tuple(players)})
-    new_game = game_state.model_copy(update={"round_state": new_round})
-    service._runtimes[game_id].state = new_game
+    runtime.state = game_state.model_copy(update={"round_state": new_round})
     return new_player
