@@ -6,6 +6,7 @@ from game.logic.scoring import (
     collect_ura_dora_indicators,
 )
 from game.logic.settings import GameSettings
+from game.logic.wall import URA_DORA_START_INDEX
 from game.tests.conftest import create_game_state, create_player, create_round_state
 
 # Yaku IDs from the mahjong library
@@ -287,7 +288,7 @@ class TestUraDoraRevelation:
         player = create_player(seat=0, is_riichi=True, is_daburi=True)
 
         result = collect_ura_dora_indicators(player, round_state, settings=settings)
-        assert result == [dead_wall[7]]
+        assert result == [dead_wall[URA_DORA_START_INDEX]]
 
     def test_ura_dora__when_riichi_tsumo__should_add_han(self):
         tiles = _base_hand()
@@ -300,7 +301,7 @@ class TestUraDoraRevelation:
 
         dead_wall = [0] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[7] = ura_ind
+        dead_wall[URA_DORA_START_INDEX] = ura_ind
 
         game_state = _build_scoring_state(
             tiles=tiles,
@@ -327,7 +328,7 @@ class TestUraDoraRevelation:
 
         dead_wall = [0] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[7] = ura_ind
+        dead_wall[URA_DORA_START_INDEX] = ura_ind
 
         game_state = _build_scoring_state(
             tiles=tiles,
@@ -354,7 +355,7 @@ class TestUraDoraRevelation:
 
         dead_wall = [0] * 14
         dead_wall[2] = dora_ind[0]
-        dead_wall[7] = ura_ind
+        dead_wall[URA_DORA_START_INDEX] = ura_ind
 
         settings = GameSettings(has_akadora=False, has_uradora=False)
         game_state = _build_scoring_state(

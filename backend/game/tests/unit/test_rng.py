@@ -43,6 +43,11 @@ class TestValidateSeedHex:
         with pytest.raises(ValueError, match="invalid hex"):
             validate_seed_hex(bad_seed)
 
+    def test_validate_seed_hex__when_whitespace_padded__should_raise(self):
+        padded_seed = " " * 2 + "ab" * (SEED_BYTES - 1)
+        with pytest.raises(ValueError, match="invalid hex"):
+            validate_seed_hex(padded_seed)
+
 
 class TestPCG64DXSM:
     def test_pcg64dxsm__when_same_state__should_yield_same_outputs(self):

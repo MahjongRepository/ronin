@@ -8,6 +8,8 @@ from game.logic.wall import (
     FIRST_DORA_INDEX,
     LIVE_WALL_STACKS,
     MAX_DORA_INDICATORS,
+    MAX_RINSHAN_DRAWS,
+    RINSHAN_DRAW_INDICES,
     URA_DORA_START_INDEX,
     Wall,
     _split_wall_by_dice,
@@ -189,7 +191,7 @@ class TestDrawTile:
 
 
 class TestDrawFromDeadWall:
-    def test_draw_from_dead_wall__when_successive_draws__should_follow_right_to_left_order(self):
+    def test_draw_from_dead_wall__when_successive_draws__should_take_the_two_stacks_nearest_the_break(self):
         dead = tuple(range(100, 114))
         live = tuple(range(50, 70))
         wall = Wall(live_tiles=live, dead_wall_tiles=dead)
@@ -199,7 +201,7 @@ class TestDrawFromDeadWall:
         for _ in range(4):
             current_wall, tile = draw_from_dead_wall(current_wall)
             drawn_tiles.append(tile)
-        assert drawn_tiles == [dead[13], dead[12], dead[11], dead[10]]
+        assert drawn_tiles == [dead[0], dead[7], dead[1], dead[8]]
 
     def test_draw_from_dead_wall__when_drawn__should_replenish_from_live_wall(self):
         dead = tuple(range(14))
@@ -208,8 +210,7 @@ class TestDrawFromDeadWall:
 
         new_wall, _ = draw_from_dead_wall(wall)
         assert len(new_wall.dead_wall_tiles) == 14
-        # Last live tile replaces the drawn position (index 13)
-        assert new_wall.dead_wall_tiles[13] == 23
+        assert new_wall.dead_wall_tiles[RINSHAN_DRAW_INDICES[0]] == 23
         assert len(new_wall.live_tiles) == len(live) - 1
 
     def test_draw_from_dead_wall__when_drawn__should_increment_rinshan_draws_count(self):
@@ -248,17 +249,25 @@ class TestDrawFromDeadWall:
         # live wall lost exactly 4 tiles (one per replenishment)
         assert len(current_wall.live_tiles) == len(live) - 4
 
-    def test_draw_from_dead_wall__when_drawn__should_leave_dora_and_ura_positions(self):
-        dead = tuple(range(100, 114))
-        live = tuple(range(50, 70))
-        wall = Wall(live_tiles=live, dead_wall_tiles=dead)
-        current_wall = wall
-        for _ in range(4):
-            current_wall, _ = draw_from_dead_wall(current_wall)
+    def test_draw_from_dead_wall__when_four_kans_reveal_five_dora__should_keep_indicators_out_of_hands(self):
+        wall = create_wall(seed=FIXED_SEED, round_number=0, dealer_seat=0)
+        original_dead = wall.dead_wall_tiles
 
-        # Dora indicator positions (2-6) and ura dora positions (7-9) are unchanged
-        for i in range(2, 10):
-            assert current_wall.dead_wall_tiles[i] == dead[i]
+        drawn: list[int] = []
+        for _ in range(MAX_RINSHAN_DRAWS):
+            wall, tile = draw_from_dead_wall(wall)
+            wall, _ = add_dora_indicator(wall)
+            drawn.append(tile)
+
+        ura = collect_ura_dora_indicators(wall, include_kan_ura=True)
+        assert len(wall.dora_indicators) == MAX_DORA_INDICATORS
+        assert len(ura) == MAX_DORA_INDICATORS
+        assert not set(drawn) & set(wall.dora_indicators)
+        assert not set(drawn) & set(ura)
+        for i, indicator in enumerate(wall.dora_indicators):
+            assert indicator == original_dead[FIRST_DORA_INDEX + i]
+            assert ura[i] == original_dead[FIRST_DORA_INDEX + i + DEAD_WALL_STACKS]
+            assert wall.dead_wall_tiles[FIRST_DORA_INDEX + i + DEAD_WALL_STACKS] == ura[i]
 
 
 class TestAddDoraIndicator:
@@ -393,7 +402,7 @@ class TestCollectUraDoraIndicators:
         assert ura == []
 
     def test_collect_ura_dora__when_fewer_ura_than_dora__should_return_available(self):
-        dead = tuple(range(100, 108))
+        dead = tuple(range(100, 114))
         ura_dora = (dead[URA_DORA_START_INDEX],)  # only 1 ura dora available
         wall = Wall(
             live_tiles=(),
@@ -404,38 +413,6 @@ class TestCollectUraDoraIndicators:
         ura = collect_ura_dora_indicators(wall, include_kan_ura=True)
         assert len(ura) == 1
         assert ura[0] == dead[URA_DORA_START_INDEX]
-
-    def test_collect_ura_dora__when_rinshan_drawn__should_keep_ura_indicators(self):
-        dead = tuple(range(100, 114))
-        live = tuple(range(50, 70))
-        ura_dora = tuple(dead[URA_DORA_START_INDEX : URA_DORA_START_INDEX + MAX_DORA_INDICATORS])
-        wall = Wall(
-            live_tiles=live,
-            dead_wall_tiles=dead,
-            dora_indicators=(dead[FIRST_DORA_INDEX],),
-            ura_dora_indicators=ura_dora,
-        )
-
-        # Perform 4 rinshan draws (overwrites positions 13, 12, 11, 10 in dead wall)
-        current_wall = wall
-        for _ in range(4):
-            current_wall, _ = draw_from_dead_wall(current_wall)
-        # Positions 10 and 11 in dead wall are now overwritten with live tiles
-        assert current_wall.dead_wall_tiles[10] != dead[10]
-        assert current_wall.dead_wall_tiles[11] != dead[11]
-        # But the ura dora indicators are preserved from the original values
-        assert current_wall.ura_dora_indicators == ura_dora
-
-        # Add kan dora indicators
-        current_wall = current_wall.model_copy(
-            update={
-                "dora_indicators": tuple(dead[FIRST_DORA_INDEX : FIRST_DORA_INDEX + MAX_DORA_INDICATORS]),
-            },
-        )
-        ura = collect_ura_dora_indicators(current_wall, include_kan_ura=True)
-        assert len(ura) == MAX_DORA_INDICATORS
-        for i in range(MAX_DORA_INDICATORS):
-            assert ura[i] == dead[URA_DORA_START_INDEX + i]
 
 
 class TestComputeWallBreakInfo:

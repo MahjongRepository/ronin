@@ -5,11 +5,12 @@ from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import NUM_TILES, sort_tiles
 
 DEAD_WALL_SIZE = 14
+DEAD_WALL_STACKS = DEAD_WALL_SIZE // 2
 FIRST_DORA_INDEX = 2
 MAX_DORA_INDICATORS = 5
-URA_DORA_START_INDEX = 7
-RINSHAN_START_INDEX = 13  # Rinshan draws start from here and go left (13, 12, 11, 10)
-MAX_RINSHAN_DRAWS = 4
+URA_DORA_START_INDEX = FIRST_DORA_INDEX + DEAD_WALL_STACKS
+RINSHAN_DRAW_INDICES = (0, 7, 1, 8)
+MAX_RINSHAN_DRAWS = len(RINSHAN_DRAW_INDICES)
 TILES_PER_DEAL_BLOCK = 4
 DEAL_BLOCKS = 3
 TILES_PER_FINAL_DEAL = 1
@@ -18,7 +19,6 @@ TILES_PER_FINAL_DEAL = 1
 STACKS_PER_PLAYER = 17  # 34 tiles / 2 tiles per stack
 TILES_PER_STACK = 2
 TOTAL_STACKS = NUM_PLAYERS * STACKS_PER_PLAYER  # 68
-DEAD_WALL_STACKS = DEAD_WALL_SIZE // TILES_PER_STACK  # 7
 LIVE_WALL_STACKS = TOTAL_STACKS - DEAD_WALL_STACKS  # 61
 
 
@@ -54,8 +54,8 @@ def _extract_ura_dora(dead_wall_tiles: tuple[int, ...]) -> tuple[int, ...]:
     """
     Extract ura dora tiles from the dead wall at creation time.
 
-    Captures tiles at bottom-row positions 7-11, corresponding to the dora indicator positions 2-6. Stored eagerly
-    because rinshan replacement draws can overwrite positions 10-11.
+    Captures bottom-row positions 9-13, the tiles directly under the dora indicator positions 2-6, so the ura for
+    indicator i is always the tile beneath it.
     """
     ura_end = URA_DORA_START_INDEX + MAX_DORA_INDICATORS
     return tuple(dead_wall_tiles[i] for i in range(URA_DORA_START_INDEX, min(ura_end, len(dead_wall_tiles))))
@@ -94,14 +94,15 @@ def _split_wall_by_dice(
 
     Returns (live_tiles, dead_wall_tiles).
 
-    Dead wall layout (preserves existing convention):
+    Dead wall layout, stack 0 adjacent to the break:
       top row:    [0]  [1]  [2]  [3]  [4]  [5]  [6]    <- tops of 7 stacks
       bottom row: [7]  [8]  [9]  [10] [11] [12] [13]   <- bottoms of 7 stacks
-      Dora indicators: indices 2, 3, 4, 5, 6
-      Rinshan draws: indices 13, 12, 11, 10 (right-to-left)
+      Dora indicators: indices 2, 3, 4, 5, 6 (third stack from the break, then away from it)
+      Ura dora: indices 9, 10, 11, 12, 13 (directly under each indicator)
+      Rinshan draws: indices 0, 7, 1, 8 (the two stacks nearest the break)
 
-    Live wall: tiles in dealing order (top, bottom per stack, starting from
-    the stack left of the break going counter-clockwise).
+    Live wall: tiles in dealing order (top, bottom per stack, starting from the stack left of the break and moving
+    away from the dead wall, which is clockwise around the table).
     """
     if len(tiles) != NUM_TILES:
         raise ValueError(f"Expected {NUM_TILES} tiles, got {len(tiles)}")
@@ -223,15 +224,14 @@ def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:
     """
     Draw replacement tile from the dead wall after kan declaration.
 
-    Draws are taken from right to left: indices 13, 12, 11, 10 for
-    successive kan declarations. After drawing, replenishes the dead
-    wall by moving the last tile from the live wall to the drawn
-    position to maintain the dead wall size.
+    Successive kan declarations take RINSHAN_DRAW_INDICES in order, the two stacks nearest the break, so no draw ever
+    touches a dora or ura dora position. After drawing, replenishes the dead wall by moving the last tile from the live
+    wall to the drawn position to maintain the dead wall size.
     """
     if wall.rinshan_draws_count >= MAX_RINSHAN_DRAWS:
         raise AssertionError("No more rinshan draw positions available")
 
-    draw_index = RINSHAN_START_INDEX - wall.rinshan_draws_count
+    draw_index = RINSHAN_DRAW_INDICES[wall.rinshan_draws_count]
 
     tile = wall.dead_wall_tiles[draw_index]
     if not wall.live_tiles:
@@ -321,9 +321,6 @@ def tiles_remaining(wall: Wall) -> int:
 def collect_ura_dora_indicators(wall: Wall, *, include_kan_ura: bool) -> list[int]:
     """
     Get ura dora indicator tile IDs for riichi winners.
-
-    Uses the eagerly stored ura_dora_indicators tuple (captured at wall creation) so that rinshan replenishment cannot
-    corrupt the values.
 
     When include_kan_ura is False, return only 1 ura dora indicator. When True, return one per revealed dora indicator.
     Returns empty list if no ura dora or dora indicators are available.

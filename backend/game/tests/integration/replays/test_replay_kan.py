@@ -63,8 +63,7 @@ def _build_added_kan_events() -> tuple[ReplayInputEvent, ...]:
             action=GameAction.CALL_KAN,
             data={"tile_id": 111, "kan_type": "added"},
         ),
-        # 9. Alice discards replacement tile (135 from dead wall)
-        ReplayInputEvent(player_name="Alice", action=GameAction.DISCARD, data={"tile_id": 135}),
+        ReplayInputEvent(player_name="Alice", action=GameAction.DISCARD, data={"tile_id": 122}),
     )
 
 
@@ -93,13 +92,12 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     assert set(kan_meld.tiles) == set(EAST_WIND_TILES)
     # Tile 111 must NOT be in Alice's hand (it was used for kan)
     assert 111 not in alice_after_kan.tiles
-    # Replacement tile 135 (from dead wall) must be in Alice's hand
-    assert 135 in alice_after_kan.tiles
+    assert 122 in alice_after_kan.tiles
     # The discard step after kan must have succeeded
     discard_after_kan = non_synthetic_steps[-1]
     assert discard_after_kan.input_event.action == GameAction.DISCARD
     assert discard_after_kan.input_event.player_name == "Alice"
-    assert discard_after_kan.input_event.data["tile_id"] == 135
+    assert discard_after_kan.input_event.data["tile_id"] == 122
     # State transitions must be consistent
     for i in range(len(trace.steps) - 1):
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before

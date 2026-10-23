@@ -13,7 +13,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.wall import DEAD_WALL_SIZE, Wall
+from game.logic.wall import DEAD_WALL_SIZE, RINSHAN_DRAW_INDICES, Wall
 from game.tests.unit.helpers import _string_to_34_tiles
 
 
@@ -74,12 +74,12 @@ class TestDrawFromDeadWallImmutable:
         # original state unchanged
         assert len(round_state.wall.dead_wall_tiles) == DEAD_WALL_SIZE
 
-    def test_draw_from_dead_wall__when_drawing__should_return_last_dead_wall_tile(self):
+    def test_draw_from_dead_wall__when_drawing__should_return_first_rinshan_tile(self):
         round_state = self._create_round_state()
-        last_tile = round_state.wall.dead_wall_tiles[-1]
+        rinshan_tile = round_state.wall.dead_wall_tiles[RINSHAN_DRAW_INDICES[0]]
 
         _new_state, drawn = draw_from_dead_wall(round_state)
-        assert drawn == last_tile
+        assert drawn == rinshan_tile
 
     def test_draw_from_dead_wall__when_drawing__should_add_tile_to_current_player_hand(self):
         round_state = self._create_round_state()
@@ -109,8 +109,7 @@ class TestDrawFromDeadWallImmutable:
         new_state, _drawn = draw_from_dead_wall(round_state)
         # live wall loses one tile (moved to dead wall)
         assert len(new_state.wall.live_tiles) == initial_wall_len - 1
-        # replenish tile is appended at the end of dead wall
-        assert new_state.wall.dead_wall_tiles[-1] == last_wall_tile
+        assert new_state.wall.dead_wall_tiles[RINSHAN_DRAW_INDICES[0]] == last_wall_tile
         # original state unchanged
         assert len(round_state.wall.live_tiles) == initial_wall_len
 
