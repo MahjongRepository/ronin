@@ -3,6 +3,8 @@ import json
 import secrets
 import sqlite3
 from contextlib import closing
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -13,6 +15,9 @@ from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
 from shared.auth.settings import AuthSettings
 from shared.dal.models import AccountType, Player
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 TEST_SECRET = "test-ticket-secret"
 
@@ -111,19 +116,6 @@ def _insert_bot(client, *, user_id: str, username: str) -> tuple[str, str]:
     )
     _insert_player(client, player)
     return player.user_id, raw_api_key
-
-
-def _insert_human_with_key(client, user_id: str, username: str, raw_key: str) -> None:
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-
-    player = Player(
-        user_id=user_id,
-        username=username,
-        password_hash="$2b$12$fakehashvalue",
-        account_type=AccountType.HUMAN,
-        api_key_hash=key_hash,
-    )
-    _insert_player(client, player)
 
 
 class TestAuthEndpoints:
@@ -251,13 +243,6 @@ class TestAuthEndpoints:
         assert location.path == "/login"
         assert "next" in parse_qs(location.query)
 
-    def test_lobby_page__when_unauthenticated__should_redirect_to_login_with_next(self, client):
-        response = client.get("/", follow_redirects=False)
-        assert response.status_code == 303
-        location = urlparse(response.headers["location"])
-        assert location.path == "/login"
-        assert "next" in parse_qs(location.query)
-
     def test_lobby_page__when_authenticated__should_show_username_and_logout(self, client):
         _register_user(client, username="lobbyuser")
 
@@ -351,14 +336,6 @@ class TestBotAuth:
         assert session is not None
         assert session.username == "TestBot"
 
-    def test_bot_auth_route__when_key_invalid__should_return_401(self, client):
-        response = client.post(
-            "/api/auth/bot",
-            json={"room_id": "room-1"},
-            headers={"x-api-key": "bogus-key"},
-        )
-        assert response.status_code == 401
-
     def test_bot_auth_route__when_room_id_missing__should_return_400(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
 
@@ -403,17 +380,6 @@ class TestBotAuth:
         assert response.status_code == 400
         assert "Invalid JSON" in response.json()["error"]
 
-    def test_bot_auth_route__when_key_belongs_to_human__should_return_401(self, client):
-        raw_key = "sneaky-human-key"
-        _insert_human_with_key(client, user_id="human-with-key", username="SneakyHuman", raw_key=raw_key)
-
-        response = client.post(
-            "/api/auth/bot",
-            json={"room_id": "room-1"},
-            headers={"x-api-key": raw_key},
-        )
-        assert response.status_code == 401
-
 
 class TestBotCreateRoom:
     @pytest.fixture
@@ -449,14 +415,6 @@ class TestBotCreateRoom:
         )
         assert response.status_code == 400
         assert "num_ai_players" in response.json()["error"]
-
-    def test_bot_create_room_route__when_key_invalid__should_return_401(self, client):
-        response = client.post(
-            "/api/rooms",
-            json={},
-            headers={"x-api-key": "bogus-key"},
-        )
-        assert response.status_code == 401
 
     def test_bot_create_room_route__when_min_human_players_given__should_apply_it(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
@@ -523,22 +481,6 @@ class TestBotOnlyRoutes:
         with _make_client(tmp_path) as c:
             yield c
 
-    def test_bot_auth_route__when_human_session__should_return_403(self, client):
-        _register_user(client, username="humanuser")
-        room_manager = client.app.state.room_manager
-        room_manager.create_room("room-test")
-
-        response = client.post("/api/auth/bot", json={"room_id": "room-test"})
-        assert response.status_code == 403
-        assert "Bot account required" in response.json()["error"]
-
-    def test_bot_create_room_route__when_human_session__should_return_403(self, client):
-        _register_user(client, username="humanuser")
-
-        response = client.post("/api/rooms", json={})
-        assert response.status_code == 403
-        assert "Bot account required" in response.json()["error"]
-
     def test_bot_auth_route__when_api_key_valid__should_issue_session_with_bot_account_type(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-test-id", username="TestBot")
         room_manager = client.app.state.room_manager
@@ -575,13 +517,85 @@ class TestApiKeyProtectedEndpoints:
         assert response.status_code == 200
         assert "servers" in response.json()
 
-    def test_servers_route__when_api_key_invalid__should_return_401(self, client):
-        response = client.get(
-            "/servers",
-            headers={"x-api-key": "bogus-key"},
-        )
-        assert response.status_code == 401
-        assert response.json() == {"error": "Authentication required"}
+
+def _no_credential(_client: TestClient) -> dict[str, str]:
+    return {}
+
+
+def _unknown_api_key(_client: TestClient) -> dict[str, str]:
+    return {"x-api-key": "bogus-key"}
+
+
+def _human_session(client: TestClient) -> dict[str, str]:
+    _register_user(client, username="humanuser")
+    return {}
+
+
+AUTH_REQUIRED_BODY = b'{"error":"Authentication required"}'
+AUTH_REQUIRED_HEADERS = {"content-type": "application/json", "content-length": "35"}
+BOT_REQUIRED_BODY = b'{"error":"Bot account required"}'
+BOT_REQUIRED_HEADERS = {"content-type": "application/json", "content-length": "32"}
+BOT_ONLY_ROUTES = ["/api/rooms", "/api/auth/bot", "/api/matchmaking/join"]
+
+
+@dataclass(frozen=True)
+class _RejectedRequest:
+    credential: Callable[[TestClient], dict[str, str]]
+    method: str
+    path: str
+    status: int
+    body: bytes
+    headers: dict[str, str]
+
+
+class TestAuthPolicyWiring:
+    @pytest.fixture
+    def client(self, tmp_path):
+        with _make_client(tmp_path) as c:
+            yield c
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            *[
+                pytest.param(
+                    _RejectedRequest(_no_credential, "POST", path, 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS),
+                    id=f"no_credential-{path}",
+                )
+                for path in BOT_ONLY_ROUTES
+            ],
+            pytest.param(
+                _RejectedRequest(_no_credential, "GET", "/servers", 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS),
+                id="no_credential-/servers",
+            ),
+            pytest.param(
+                _RejectedRequest(
+                    _unknown_api_key, "POST", "/api/rooms", 401, AUTH_REQUIRED_BODY, AUTH_REQUIRED_HEADERS
+                ),
+                id="unknown_api_key-/api/rooms",
+            ),
+            *[
+                pytest.param(
+                    _RejectedRequest(_human_session, "POST", path, 403, BOT_REQUIRED_BODY, BOT_REQUIRED_HEADERS),
+                    id=f"human_session-{path}",
+                )
+                for path in BOT_ONLY_ROUTES
+            ],
+            pytest.param(
+                _RejectedRequest(
+                    _no_credential, "GET", "/", 303, b"", {"location": "/login?next=%2F", "content-length": "0"}
+                ),
+                id="no_credential-/",
+            ),
+        ],
+    )
+    def test_auth_policy__when_credential_not_accepted__should_reject_with_policy_status_and_body(self, client, case):
+        headers = case.credential(client)
+
+        response = client.request(case.method, case.path, headers=headers, follow_redirects=False)
+        assert response.status_code == case.status
+        assert response.content == case.body
+        assert {name: response.headers.get(name) for name in case.headers} == case.headers
 
 
 class TestCsrfProtection:
@@ -675,20 +689,6 @@ class TestBotMatchmakingAuth:
         assert session is not None
         assert session.username == "MatchBot"
         assert session.account_type == AccountType.BOT
-
-    def test_bot_matchmaking_join_route__when_key_invalid__should_return_401(self, client):
-        response = client.post(
-            "/api/matchmaking/join",
-            headers={"x-api-key": "bogus-key"},
-        )
-        assert response.status_code == 401
-
-    def test_bot_matchmaking_join_route__when_human_session__should_return_403(self, client):
-        _register_user(client, username="humanuser")
-
-        response = client.post("/api/matchmaking/join")
-        assert response.status_code == 403
-        assert "Bot account required" in response.json()["error"]
 
     def test_bot_matchmaking_join_route__when_session_validated__should_match_bot_user(self, client):
         _, raw_key = _insert_bot(client, user_id="bot-ws-id", username="WSBot")

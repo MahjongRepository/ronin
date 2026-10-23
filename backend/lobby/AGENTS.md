@@ -94,7 +94,9 @@ Mandatory for all lobby code; review must catch violations.
 * Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_api`, `bot_only`,
   `public_route`). `validate_route_auth_policy()` fails startup only for a `Route` with no policy at
   all; it does not catch stacked decorators, and `Mount`s (static files) are exempt. WebSocket routes
-  authenticate inside the handler.
+  authenticate inside the handler. The decorators wrap async endpoints only and return their
+  rejection (JSON 401/403, login redirect) directly; they never raise for an exception handler to
+  map.
 * `TrustedHostMiddleware` rejects unknown `Host` headers; a new deployment host goes in
   `LOBBY_ALLOWED_HOSTS`.
 * Session and CSRF cookies are `httponly=True`, `samesite="lax"`, Secure per `AUTH_COOKIE_SECURE`.

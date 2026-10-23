@@ -3,24 +3,21 @@ from __future__ import annotations
 import contextlib
 import functools
 from datetime import UTC, datetime
-from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import structlog
 from starlette.applications import Starlette
-from starlette.exceptions import HTTPException
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.responses import JSONResponse, PlainTextResponse, Response
+from starlette.responses import JSONResponse
 from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
     bot_only,
-    collect_protected_api_paths,
     protected_api,
     protected_html,
     public_route,
@@ -71,32 +68,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
 
     from starlette.requests import Request
-
-
-def _make_auth_error_handler(
-    protected_api_paths: set[str],
-) -> Callable[[Request, Exception], Awaitable[Response]]:
-    """
-    Build an HTTPException handler that rewrites 401s on protected JSON endpoints.
-    """
-
-    async def _auth_error_handler(request: Request, exc: Exception) -> Response:
-        """
-        Rewrite 401 errors on protected JSON endpoints to JSON responses.
-
-        All other HTTP exceptions delegate to Starlette's default behavior (plain-text response with the exception
-        detail).
-        """
-        http_exc = cast("HTTPException", exc)
-        if http_exc.status_code == HTTPStatus.UNAUTHORIZED and request.url.path in protected_api_paths:
-            return JSONResponse({"error": "Authentication required"}, status_code=HTTPStatus.UNAUTHORIZED)
-
-        if http_exc.status_code in {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}:
-            return Response(status_code=http_exc.status_code, headers=http_exc.headers)
-
-        return PlainTextResponse(http_exc.detail or "", status_code=http_exc.status_code, headers=http_exc.headers)
-
-    return _auth_error_handler
 
 
 async def health(_request: Request) -> JSONResponse:
@@ -247,7 +218,6 @@ def create_app(
         logger.warning("game assets directory not found, /game-assets/ will not be served", path=str(game_assets_dir))
 
     validate_route_auth_policy(routes)
-    protected_api_paths = collect_protected_api_paths(routes)
 
     # Initialize database and auth components
     db = Database(auth_settings.database_path)
@@ -271,11 +241,7 @@ def create_app(
             await session_store.stop_cleanup()
             await db.close()
 
-    app = Starlette(
-        routes=routes,
-        lifespan=lifespan,
-        exception_handlers={HTTPException: _make_auth_error_handler(protected_api_paths)},
-    )
+    app = Starlette(routes=routes, lifespan=lifespan)
     app.add_middleware(SlashNormalizationMiddleware)
     app.add_middleware(AuthenticationMiddleware, backend=SessionOrApiKeyBackend(auth_service))
     app.add_middleware(

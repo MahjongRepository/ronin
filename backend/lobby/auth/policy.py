@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import functools
-import inspect
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
-from starlette.authentication import has_required_scope, requires
-from starlette.exceptions import HTTPException
+from starlette.authentication import has_required_scope
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from shared.dal.models import AccountType
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-    from typing import Any
+    from collections.abc import Awaitable, Callable
 
     from starlette.requests import Request
     from starlette.routing import BaseRoute
+
+    type Endpoint = Callable[[Request], Awaitable[Response]]
 
 AUTH_POLICY_ATTR = "__auth_policy__"
 
@@ -34,118 +34,80 @@ def _login_redirect(request: Request) -> RedirectResponse:
     return RedirectResponse(url=login_url, status_code=303)
 
 
-def protected_html(endpoint: Callable[..., Any]) -> Callable[..., Any]:
+def _unauthenticated() -> JSONResponse:
+    return JSONResponse({"error": "Authentication required"}, status_code=HTTPStatus.UNAUTHORIZED)
+
+
+def protected_html(endpoint: Endpoint) -> Endpoint:
     """
     Require authentication; redirect unauthenticated users to login.
 
-    Supports both sync and async endpoints.  Uses relative redirect URLs to prevent Host-header open redirect attacks.
-    Starlette's built-in ``requires(redirect=...)`` generates absolute URLs derived from the Host header, which an
-    attacker can control.
+    Uses relative redirect URLs to prevent Host-header open redirect attacks. Starlette's built-in
+    ``requires(redirect=...)`` generates absolute URLs derived from the Host header, which an attacker can control.
     """
-    if inspect.iscoroutinefunction(endpoint):
-
-        @functools.wraps(endpoint)
-        async def async_wrapper(request: Request, **kwargs: str) -> Response:
-            if not has_required_scope(request, ["authenticated"]):
-                return _login_redirect(request)
-
-            return await endpoint(request, **kwargs)
-
-        setattr(async_wrapper, AUTH_POLICY_ATTR, "protected_html")
-        return async_wrapper
 
     @functools.wraps(endpoint)
-    def sync_wrapper(request: Request, **kwargs: str) -> Response:
+    async def wrapper(request: Request) -> Response:
         if not has_required_scope(request, ["authenticated"]):
             return _login_redirect(request)
 
-        return endpoint(request, **kwargs)
+        return await endpoint(request)
 
-    setattr(sync_wrapper, AUTH_POLICY_ATTR, "protected_html")
-    return sync_wrapper
+    setattr(wrapper, AUTH_POLICY_ATTR, "protected_html")
+    return wrapper
 
 
-def protected_api(endpoint: Callable[..., Any]) -> Callable[..., Any]:
+def protected_api(endpoint: Endpoint) -> Endpoint:
     """
-    Require authentication; raise 401 for unauthenticated API requests.
+    Require authentication; return a JSON 401 for unauthenticated API requests.
     """
-    wrapped = requires("authenticated", status_code=401)(endpoint)
-    setattr(wrapped, AUTH_POLICY_ATTR, "protected_api")
-    return wrapped
+
+    @functools.wraps(endpoint)
+    async def wrapper(request: Request) -> Response:
+        if not has_required_scope(request, ["authenticated"]):
+            return _unauthenticated()
+
+        return await endpoint(request)
+
+    setattr(wrapper, AUTH_POLICY_ATTR, "protected_api")
+    return wrapper
 
 
-def bot_only(endpoint: Callable[..., Any]) -> Callable[..., Any]:
+def bot_only(endpoint: Endpoint) -> Endpoint:
     """
     Require authentication and bot account type.
 
-    Returns 401 (via HTTPException) when unauthenticated. Returns 403 JSON when authenticated but not a bot account.
+    Return a JSON 401 when unauthenticated and a JSON 403 when authenticated but not a bot account.
     """
-    if inspect.iscoroutinefunction(endpoint):
-
-        @functools.wraps(endpoint)
-        async def async_wrapper(request: Request, **kwargs: str) -> Response:
-            if not has_required_scope(request, ["authenticated"]):
-                raise HTTPException(status_code=401)
-
-            if request.user.account_type != AccountType.BOT:
-                return JSONResponse({"error": "Bot account required"}, status_code=403)
-
-            return await endpoint(request, **kwargs)
-
-        setattr(async_wrapper, AUTH_POLICY_ATTR, "bot_only")
-        return async_wrapper
 
     @functools.wraps(endpoint)
-    def sync_wrapper(request: Request, **kwargs: str) -> Response:
+    async def wrapper(request: Request) -> Response:
         if not has_required_scope(request, ["authenticated"]):
-            raise HTTPException(status_code=401)
+            return _unauthenticated()
 
         if request.user.account_type != AccountType.BOT:
-            return JSONResponse({"error": "Bot account required"}, status_code=403)
+            return JSONResponse({"error": "Bot account required"}, status_code=HTTPStatus.FORBIDDEN)
 
-        return endpoint(request, **kwargs)
+        return await endpoint(request)
 
-    setattr(sync_wrapper, AUTH_POLICY_ATTR, "bot_only")
-    return sync_wrapper
+    setattr(wrapper, AUTH_POLICY_ATTR, "bot_only")
+    return wrapper
 
 
-def public_route(endpoint: Callable[..., Any]) -> Callable[..., Any]:
+def public_route(endpoint: Endpoint) -> Endpoint:
     """
     Mark endpoint as explicitly public (no auth required).
 
     Returns a thin wrapper so the marker lives on the wrapper, not on the original callable.  This prevents accidental
     policy leakage when the same function object is reused on another route without wrapping.
     """
-    if inspect.iscoroutinefunction(endpoint):
-
-        @functools.wraps(endpoint)
-        async def async_wrapper(request: Request, **kwargs: str) -> Response:
-            return await endpoint(request, **kwargs)
-
-        setattr(async_wrapper, AUTH_POLICY_ATTR, "public")
-        return async_wrapper
 
     @functools.wraps(endpoint)
-    def sync_wrapper(request: Request, **kwargs: str) -> Response:
-        return endpoint(request, **kwargs)
+    async def wrapper(request: Request) -> Response:
+        return await endpoint(request)
 
-    setattr(sync_wrapper, AUTH_POLICY_ATTR, "public")
-    return sync_wrapper
-
-
-_API_POLICIES = {"protected_api", "bot_only"}
-
-
-def collect_protected_api_paths(routes: list[BaseRoute]) -> set[str]:
-    """
-    Return the set of path strings for routes marked ``protected_api`` or ``bot_only``.
-    """
-    paths: set[str] = set()
-    for route in routes:
-        if isinstance(route, Route) and getattr(route.endpoint, AUTH_POLICY_ATTR, None) in _API_POLICIES:
-            paths.add(route.path)
-
-    return paths
+    setattr(wrapper, AUTH_POLICY_ATTR, "public")
+    return wrapper
 
 
 def validate_route_auth_policy(routes: list[BaseRoute]) -> None:
