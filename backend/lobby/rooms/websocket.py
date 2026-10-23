@@ -93,7 +93,7 @@ async def _serve_player(player: LobbyPlayer, ctx: _RoomContext) -> None:
     except Exception:
         logger.exception("unexpected error in room websocket", room_id=ctx.room_id, username=player.username)
     finally:
-        await _cleanup_connection(player, ctx)
+        _cleanup_connection(player, ctx)
 
 
 async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
@@ -117,26 +117,23 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
             _reject_join(player, ctx, reason=game_conflict)
             return False
 
-        async with room.join_lock:
-            result = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
-            if isinstance(result, str):
-                _reject_join(player, ctx, reason=result)
-                return False
+        result = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
+        if isinstance(result, str):
+            _reject_join(player, ctx, reason=result)
+            return False
 
-            player.send(result)
-            logger.info(
-                "player joined room", room_id=ctx.room_id, username=player.username, player_count=room.player_count
-            )
-            _broadcast(
-                room,
-                {
-                    "type": "player_joined",
-                    "player_name": player.username,
-                    "players": [p.model_dump() for p in room.get_player_info()],
-                    "can_start": room.can_start,
-                },
-                exclude=player.connection_id,
-            )
+        player.send(result)
+        logger.info("player joined room", room_id=ctx.room_id, username=player.username, player_count=room.player_count)
+        _broadcast(
+            room,
+            {
+                "type": "player_joined",
+                "player_name": player.username,
+                "players": [p.model_dump() for p in room.get_player_info()],
+                "can_start": room.can_start,
+            },
+            exclude=player.connection_id,
+        )
 
     return True
 
@@ -218,20 +215,18 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
     """
     Handle start_game — only the owner can trigger game transition.
 
-    Acquires join_lock only for the atomic start_game() call which sets transitioning=True. The lock is released BEFORE
-    the network call in _transition_to_game(), so concurrent joins are rejected quickly with "room_transitioning"
-    instead of blocking on the lock.
+    ``start_game`` marks the room transitioning in the same synchronous step, so a join or a ready toggle arriving while
+    the game is created gets ``room_transitioning``.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
         player.send({"type": "error", "message": "not_in_room"})
         return False
 
-    async with room.join_lock:
-        error = ctx.room_manager.start_game(ctx.room_id, player.connection_id)
-        if error is not None:
-            player.send({"type": "error", "message": error})
-            return False
+    error = ctx.room_manager.start_game(ctx.room_id, player.connection_id)
+    if error is not None:
+        player.send({"type": "error", "message": error})
+        return False
 
     return await _transition_to_game(room, ctx)
 
@@ -333,43 +328,42 @@ def _handle_chat(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyChatMe
         _broadcast(room, {"type": "chat", "player_name": player.username, "text": message.text})
 
 
-async def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext) -> None:
+def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext) -> None:
     """
     Release the player's seat once the socket ends and tell the rest of the room.
 
-    Acquires join_lock so that cleanup waits for any in-progress join to finish. A player leaving a transitioning room
-    keeps the seat (``leave_room``), so nothing is announced.
+    One synchronous step, so the new owner gets ``owner_changed`` before ``player_left`` and nothing interleaves. A
+    player leaving a transitioning room keeps the seat (``leave_room``), so nothing is announced.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
         return
 
-    async with room.join_lock:
-        was_host = room.host_connection_id == player.connection_id
-        if not ctx.room_manager.leave_room(ctx.room_id, player.connection_id):
-            return
+    was_host = room.host_connection_id == player.connection_id
+    if not ctx.room_manager.leave_room(ctx.room_id, player.connection_id):
+        return
 
-        logger.info("player left room", room_id=ctx.room_id, username=player.username)
-        room = ctx.room_manager.get_room(ctx.room_id)
-        if room is None or room.transitioning:
-            return
+    logger.info("player left room", room_id=ctx.room_id, username=player.username)
+    room = ctx.room_manager.get_room(ctx.room_id)
+    if room is None or room.transitioning:
+        return
 
-        if was_host and room.host_connection_id is not None:
-            room.players[room.host_connection_id].player.send(
-                {
-                    "type": "owner_changed",
-                    "is_owner": True,
-                    "can_start": room.can_start,
-                    "players": [p.model_dump() for p in room.get_player_info()],
-                },
-            )
-
-        _broadcast(
-            room,
+    if was_host and room.host_connection_id is not None:
+        room.players[room.host_connection_id].player.send(
             {
-                "type": "player_left",
-                "player_name": player.username,
-                "players": [p.model_dump() for p in room.get_player_info()],
+                "type": "owner_changed",
+                "is_owner": True,
                 "can_start": room.can_start,
+                "players": [p.model_dump() for p in room.get_player_info()],
             },
         )
+
+    _broadcast(
+        room,
+        {
+            "type": "player_left",
+            "player_name": player.username,
+            "players": [p.model_dump() for p in room.get_player_info()],
+            "can_start": room.can_start,
+        },
+    )

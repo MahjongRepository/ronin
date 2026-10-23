@@ -566,7 +566,7 @@ class TestRoomWebSocketRaces:
         await held_peer.send_waiting.wait()
         later_peer, later_handler = await _seat(app, room_id=later_room.room_id, username="bob")
 
-        await app.state.room_manager._reap_expired_rooms()
+        app.state.room_manager._reap_expired_rooms()
         await later_handler
         assert later_peer.close_codes() == [4002]
         assert app.state.room_manager.get_room("held-room") is None
