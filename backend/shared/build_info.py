@@ -1,5 +1,13 @@
-import os
 import subprocess
+
+from pydantic_settings import BaseSettings
+
+
+class BuildInfo(BaseSettings):
+    model_config = {"env_prefix": ""}
+
+    app_version: str = "dev"
+    git_commit: str = ""
 
 
 def _git_short_sha() -> str:
@@ -16,5 +24,7 @@ def _git_short_sha() -> str:
         return "dev"
 
 
-APP_VERSION: str = os.environ.get("APP_VERSION", "dev")
-GIT_COMMIT: str = os.environ.get("GIT_COMMIT") or _git_short_sha()
+_build_info = BuildInfo()
+
+APP_VERSION: str = _build_info.app_version
+GIT_COMMIT: str = _build_info.git_commit or _git_short_sha()
