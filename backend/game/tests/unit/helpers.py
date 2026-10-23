@@ -54,10 +54,13 @@ def _find_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
     raise ValueError(f"player {name} not found")
 
 
-def _imply_claimed_discards(players: list[MahjongPlayer]) -> list[MahjongPlayer]:
+def _imply_claimed_discards(players: list[MahjongPlayer]) -> list[int]:
     """
     Give every meld called from another seat the discard record it implies, when the staged state lacks it.
+
+    Updates players in place and returns the tiles added, so the round's all_discards history can carry them too.
     """
+    implied: list[int] = []
     for player in players:
         for meld in player.melds:
             if meld.called_tile is None or meld.from_who is None or meld.from_who == player.seat:
@@ -74,8 +77,9 @@ def _imply_claimed_discards(players: list[MahjongPlayer]) -> list[MahjongPlayer]
                 players[meld.from_who] = source.model_copy(
                     update={"discards": (*source.discards, Discard(tile_id=meld.called_tile))},
                 )
+                implied.append(meld.called_tile)
 
-    return players
+    return implied
 
 
 def _staged_tiles(players: list[MahjongPlayer], wall: Wall, *, keep: int | None) -> Counter[int]:
@@ -105,12 +109,19 @@ def _rebalance_tiles(game_state: MahjongGameState, *, keep: int | None) -> Mahjo
     """
     round_state = game_state.round_state
     wall = round_state.wall
-    players = _imply_claimed_discards(list(round_state.players))
+    players = list(round_state.players)
+    all_discards = (*round_state.all_discards, *_imply_claimed_discards(players))
     taken = _staged_tiles(players, wall, keep=keep)
     free = iter(t for t in range(NUM_TILES - 1, -1, -1) if taken[t] == 0 and t not in wall.live_tiles)
 
     def claim(tile: int) -> int:
-        tile = tile if taken[tile] == 0 else next(free)
+        if taken[tile]:
+            replacement = next(free, None)
+            if replacement is None:
+                raise ValueError("staged state owns more than 136 tiles: a staged tile is still held elsewhere")
+
+            tile = replacement
+
         taken[tile] += 1
         return tile
 
@@ -130,7 +141,6 @@ def _rebalance_tiles(game_state: MahjongGameState, *, keep: int | None) -> Mahjo
     live = tuple(t for t in wall.live_tiles if taken[t] == 0) if keep is not None else wall.live_tiles
     taken.update(live)
     missing = [t for t in range(NUM_TILES) if taken[t] == 0]
-    all_discards = round_state.all_discards
     if keep is None:
         for i, tile in enumerate(missing):
             seat = (round_state.dealer_seat + i) % len(players)
