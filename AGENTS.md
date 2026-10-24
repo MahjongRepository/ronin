@@ -28,7 +28,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 The `Makefile` lists the targets; the non-obvious ones:
 
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and Vite (`:5173`) together,
-  with `.env.local` sourced when present.
+  with `.env.local` sourced when present. To see the app in a browser, drive it with the
+  `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
