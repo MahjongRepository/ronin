@@ -177,7 +177,7 @@ class TestApplyTsumoScore:
         game_state = self._create_game_state()
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        new_game_state, _result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=0,
             hand_result=hand_result,
@@ -189,6 +189,7 @@ class TestApplyTsumoScore:
         assert new_round_state.players[1].score == 25000 - 2000
         assert new_round_state.players[2].score == 25000 - 2000
         assert new_round_state.players[3].score == 25000 - 2000
+        assert result.hand_result.points == 6000
 
     def test_apply_tsumo_score__when_honba__should_add_100_per_honba_to_each_loser(self):
         # tsumo with 2 honba sticks = +200 total (100 per loser)
@@ -196,7 +197,7 @@ class TestApplyTsumoScore:
         game_state = game_state.model_copy(update={"honba_sticks": 2})
         hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
 
-        new_game_state, _result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
@@ -209,6 +210,7 @@ class TestApplyTsumoScore:
         # non-dealers pay 500 + 200
         assert new_round_state.players[2].score == 25000 - 700
         assert new_round_state.players[3].score == 25000 - 700
+        assert result.hand_result.points == 2000
 
     def test_apply_tsumo_score__when_riichi_sticks__should_award_and_clear_them(self):
         # tsumo with 2 riichi sticks on table
@@ -282,7 +284,7 @@ class TestApplyRonScore:
         game_state = game_state.model_copy(update={"honba_sticks": 3})
         hand_result = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
-        new_game_state, _result = apply_ron_score(
+        new_game_state, result = apply_ron_score(
             game_state,
             winner_seat=0,
             loser_seat=1,
@@ -294,6 +296,7 @@ class TestApplyRonScore:
         assert new_round_state.players[0].score == 25000 + 2900
         # loser pays 2000 + 900
         assert new_round_state.players[1].score == 25000 - 2900
+        assert result.hand_result.points == 2000
 
     def test_apply_ron_score__when_riichi_sticks__should_award_them_to_winner_only(self):
         # ron with 3 riichi sticks
@@ -642,7 +645,7 @@ class TestPaoTsumoScoring:
         game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
         hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
 
-        new_game_state, _result = apply_tsumo_score(
+        new_game_state, result = apply_tsumo_score(
             game_state,
             winner_seat=1,
             hand_result=hand_result,
@@ -652,6 +655,7 @@ class TestPaoTsumoScoring:
         # total normal: 32000 + 600 honba = 32600
         assert new_round_state.players[1].score == 25000 + 32600
         assert new_round_state.players[2].score == 25000 - 32600
+        assert result.hand_result.points == 32000
 
 
 class TestPaoRonScoring:

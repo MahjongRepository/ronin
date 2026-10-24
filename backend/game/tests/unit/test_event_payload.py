@@ -155,7 +155,7 @@ class TestMeldEventPayload:
         assert decoded["from_seat"] == 2
 
 
-_HAND_RESULT = HandResultInfo(han=1, fu=30, yaku=[])
+_HAND_RESULT = HandResultInfo(han=1, fu=30, yaku=[], points=1000)
 _SCORES = {0: 25000, 1: 25000, 2: 25000, 3: 25000}
 
 
@@ -262,6 +262,7 @@ class TestRoundEndPayload:
         payload = service_event_payload(event)
         assert payload["ps"] == 2
         assert payload["ud"] == [10]
+        assert payload["hr"]["pt"] == 10
 
     def test_round_end_payload__when_double_ron_winner_fields_none__should_omit_them(self):
         event = ServiceEvent(

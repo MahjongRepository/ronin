@@ -44,6 +44,29 @@ const SAY_OF_MELD = {
     [wire.MELD.PON]: 'peng',
 };
 
+/** How long a win's ロン or ツモ shows before its result, which fades every call out: upstream Game.delay's minimum. */
+const WIN_CALL_MS = 500;
+
+/**
+ * A win as majiang-ui's hule message. Its defen is the hand's value alone (the server's hr.pt), which the dialog
+ * prints and names (満貫, 跳満, …) by; the winner's score change can't stand in for it, since it holds the honba, the
+ * riichi sticks and any pao the winner owes another winner. Without ura-dora to show, fubaopai is null: the dialog
+ * hides the ura row only for null.
+ */
+function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai }) {
+    return {
+        hule: {
+            l,
+            shoupai,
+            baojia,
+            ...yaku.buildHupai(hr),
+            defen:    hr.pt * wire.SCORE_DIV,
+            fenpei,
+            fubaopai: fubaopai && fubaopai.length ? fubaopai : null,
+        },
+    };
+}
+
 class Translate {
 
     constructor(player, shadow) {
@@ -54,6 +77,8 @@ class Translate {
         this.retry = null;
         this.roundDialogOpen = false;
         this.pendingJieju = null;
+        this.kaijuFed = false;
+        this.winCallTimer = null;
     }
 
     syncWall() {
@@ -136,6 +161,7 @@ class Translate {
         s.startRound();
         this.retry = null;
         this.roundDialogOpen = false;
+        clearTimeout(this.winCallTimer);
 
         const defen = [];
         const shoupai = [];
@@ -155,11 +181,20 @@ class Translate {
             baopai:     s.dora[0],
         };
 
-        this.feed({ kaiju: this.kaiju() }, 'kaiju');
+        if (! this.kaijuFed) this.feedKaiju();
         this.feed({ qipai }, 'qipai');
 
         s.startRoundLog({ qipai });
         this.syncWall();
+    }
+
+    /**
+     * The game start sets the model's players and the board's viewpoint. Its screen is not shown: the server sends
+     * the first deal and the dealer's draw with it, on the dealer's turn timer, so the deal fed next hides it at once.
+     */
+    feedKaiju() {
+        this.feed({ kaiju: this.kaiju() }, 'kaiju');
+        this.kaijuFed = true;
     }
 
     draw(msg) {
@@ -227,6 +262,7 @@ class Translate {
         this.feed(m, 'dapai');
         s.logMessage(m);
         this.syncWall();
+        if (isRiichi && P._view) P._view.say('lizhi', l);
     }
 
     meld(msg) {
@@ -315,25 +351,19 @@ class Translate {
         return out;
     }
 
-    buildHule(winnerSeat, hr, closedTiles, ml, winTile, uraInd, loserSeat, sch) {
+    /** The hule message of one winner: a tsumo or ron round end itself, or one entry of a double ron's winners. */
+    buildHule(winner, winTile, loserSeat, sch) {
         const s = this.shadow;
-        const { hupai, fanshu, fu, damanguan } = yaku.buildHupai(hr);
-        let hand = fullHandStr(closedTiles, mianzi.meldStrsFrom(ml), winTile);
-        if (s.riichi[winnerSeat]) hand += '*';
-        return {
-            hule: {
-                l:          s.l(winnerSeat),
-                shoupai:    hand,
-                baojia:     loserSeat == null ? null : s.l(loserSeat),
-                hupai,
-                fu,
-                fanshu,
-                defen:      ((Translate.scoreMap(sch)[winnerSeat] || 0)) * wire.SCORE_DIV,
-                fenpei:     this.fenpei(sch),
-                fubaopai:   (uraInd || []).map(tiles.tileToStr),
-                damanguan,
-            },
-        };
+        let shoupai = fullHandStr(winner.ct, mianzi.meldStrsFrom(winner.ml), winTile);
+        if (s.riichi[winner.ws]) shoupai += '*';
+        return huleMessage({
+            l:        s.l(winner.ws),
+            shoupai,
+            baojia:   loserSeat == null ? null : s.l(loserSeat),
+            hr:       winner.hr,
+            fenpei:   this.fenpei(sch),
+            fubaopai: winner.ud && winner.ud.map(tiles.tileToStr),
+        });
     }
 
     revealedHands(tenpaiHands) {
@@ -348,22 +378,27 @@ class Translate {
     roundEnd(msg) {
         const s = this.shadow;
         const P = this.player;
+        clearTimeout(this.winCallTimer);
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
 
         let m;
+        let winners = [];
         switch (msg.rt) {
         case wire.RT.TSUMO:
-            m = this.buildHule(msg.ws, msg.hr, msg.ct, msg.ml, msg.wt, msg.ud, null, msg.sch);
+            m = this.buildHule(msg, msg.wt, null, msg.sch);
+            winners = [msg.ws];
             break;
         case wire.RT.RON:
-            m = this.buildHule(msg.ws, msg.hr, msg.ct, msg.ml, msg.wt, msg.ud, msg.ls, msg.sch);
+            m = this.buildHule(msg, msg.wt, msg.ls, msg.sch);
+            winners = [msg.ws];
             break;
         case wire.RT.DOUBLE_RON: {
             const mine = (msg.wn || []).find(w => w.ws == s.mySeat);
             const w = mine || (msg.wn || [])[0];
-            m = this.buildHule(w.ws, w.hr, w.ct, w.ml, msg.wt, w.ud, msg.ls, msg.sch);
+            m = this.buildHule(w, msg.wt, msg.ls, msg.sch);
+            winners = (msg.wn || []).map(x => x.ws);
             break;
         }
         case wire.RT.EXHAUSTIVE:
@@ -384,14 +419,21 @@ class Translate {
         const kind = m.hule ? 'hule' : 'pingju';
         s.roundAdvance = msg[wire.WAIT_ID] != null;
         this.roundDialogOpen = true;
-        this.feed(m, kind, Offer.NO_OFFER, reply => {
-            this.roundDialogOpen = false;
-            this.onDecision(kind, reply);
-            this.showPendingJieju();
-        });
+        const showResult = () => {
+            this.feed(m, kind, Offer.NO_OFFER, reply => {
+                this.roundDialogOpen = false;
+                this.onDecision(kind, reply);
+                this.showPendingJieju();
+            });
+        };
         s.logMessage(m);
         s.closeRound();
         this.syncWall();
+
+        if (! winners.length) return showResult();
+        const call = msg.rt == wire.RT.TSUMO ? 'zimo' : 'rong';
+        if (P._view) for (const seat of winners) P._view.say(call, s.l(seat));
+        this.winCallTimer = setTimeout(showResult, WIN_CALL_MS);
     }
 
     gameEnd(msg) {
@@ -452,6 +494,7 @@ class Translate {
         this.readPlayers(msg.p);
         this.retry = null;
         this.roundDialogOpen = false;
+        clearTimeout(this.winCallTimer);
 
         s.startRound();
         s.scores = [0, 0, 0, 0];
@@ -502,7 +545,7 @@ class Translate {
             shoupai[l] = seat == s.mySeat ? myHandStr : '_'.repeat(13);
         }
         P.clear_handler();
-        this.feed({ kaiju: this.kaiju() }, 'kaiju');
+        this.feedKaiju();
         const qipai = { zhuangfeng: msg.w, jushu: s.roundInWind, changbang: msg.h,
                         lizhibang: msg.r, defen, shoupai, baopai: s.dora[0] };
         this.feed({ qipai }, 'qipai');
@@ -587,4 +630,5 @@ class Translate {
     }
 }
 
+export { ABORTIVE_NAMES, huleMessage };
 export default Translate;

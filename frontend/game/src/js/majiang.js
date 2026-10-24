@@ -10,6 +10,5 @@ import jQuery from 'jquery';
 
 globalThis.Majiang = Core;
 globalThis.Majiang.UI = UI;
-globalThis.Majiang.VERSION = '2.5.4';
 globalThis.jQuery  = jQuery;
 globalThis.$ = jQuery;

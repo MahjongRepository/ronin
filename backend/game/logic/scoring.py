@@ -57,6 +57,12 @@ class HandResult:
     yaku: list[YakuInfo] = field(default_factory=list)
     error: str | None = None  # error message if calculation failed
 
+    def to_info(self, points: int) -> HandResultInfo:
+        """
+        Build the wire hand result, worth points to its winner.
+        """
+        return HandResultInfo(han=self.han, fu=self.fu, yaku=self.yaku, points=points)
+
 
 @dataclass(frozen=True)
 class ScoringContext:
@@ -296,21 +302,23 @@ def apply_tsumo_score(
     is_dealer_win = winner_seat == round_state.dealer_seat
     honba_bonus_per_loser = game_state.honba_sticks * settings.honba_tsumo_bonus_per_loser
 
+    hand_points = sum(
+        _tsumo_payment_for_seat(
+            s,
+            is_dealer_win=is_dealer_win,
+            dealer_seat=round_state.dealer_seat,
+            hand_result=hand_result,
+            honba_bonus_per_loser=0,
+        )
+        for s in range(NUM_PLAYERS)
+        if s != winner_seat
+    )
+
     score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
 
     if winner.pao_seat is not None:
         # pao tsumo: liable player pays the full amount
-        total_payment = sum(
-            _tsumo_payment_for_seat(
-                s,
-                is_dealer_win=is_dealer_win,
-                dealer_seat=round_state.dealer_seat,
-                hand_result=hand_result,
-                honba_bonus_per_loser=honba_bonus_per_loser,
-            )
-            for s in range(NUM_PLAYERS)
-            if s != winner_seat
-        )
+        total_payment = hand_points + honba_bonus_per_loser * (NUM_PLAYERS - 1)
         score_changes[winner.pao_seat] = -total_payment
         score_changes[winner_seat] = total_payment
     else:
@@ -341,11 +349,7 @@ def apply_tsumo_score(
         new_game_state,
         TsumoResult(
             winner_seat=winner_seat,
-            hand_result=HandResultInfo(
-                han=hand_result.han,
-                fu=hand_result.fu,
-                yaku=hand_result.yaku,
-            ),
+            hand_result=hand_result.to_info(points=hand_points),
             scores=scores,
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
@@ -416,11 +420,7 @@ def apply_ron_score(
             winner_seat=winner_seat,
             loser_seat=loser_seat,
             winning_tile=winning_tile,
-            hand_result=HandResultInfo(
-                han=hand_result.han,
-                fu=hand_result.fu,
-                yaku=hand_result.yaku,
-            ),
+            hand_result=hand_result.to_info(points=hand_result.cost_main),
             scores=scores,
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
@@ -493,11 +493,7 @@ def apply_double_ron_score(
         winner_results.append(
             DoubleRonWinner(
                 winner_seat=winner_seat,
-                hand_result=HandResultInfo(
-                    han=hand_result.han,
-                    fu=hand_result.fu,
-                    yaku=hand_result.yaku,
-                ),
+                hand_result=hand_result.to_info(points=hand_result.cost_main),
                 riichi_sticks_collected=(
                     riichi_bonus // settings.riichi_stick_value if winner_seat == riichi_receiver else 0
                 ),

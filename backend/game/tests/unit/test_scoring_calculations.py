@@ -21,14 +21,14 @@ class TestGetWinnerSeatsDoubleRon:
             winners=[
                 DoubleRonWinner(
                     winner_seat=0,
-                    hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0)),
+                    hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0), points=1000),
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],
                 ),
                 DoubleRonWinner(
                     winner_seat=3,
-                    hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0)),
+                    hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0), points=2000),
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],

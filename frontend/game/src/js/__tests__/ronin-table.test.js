@@ -43,7 +43,7 @@ class TablePlayer extends Majiang.Player {
 
 const BASE_HAND = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112];
 
-function startTable(myTiles = BASE_HAND) {
+function startTable(myTiles = BASE_HAND, round = {}) {
     const shadow = new Shadow();
     const player = new TablePlayer();
     const translate = new Translate(player, shadow);
@@ -79,6 +79,7 @@ function startTable(myTiles = BASE_HAND) {
         mt: myTiles,
         p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
         dc: [1, 1],
+        ...round,
     });
     return {
         player,
@@ -91,6 +92,9 @@ function startTable(myTiles = BASE_HAND) {
 
 const draw = (seat, tile, extra = {}) => ({ t: 1, d: seat * 136 + tile, ...extra });
 const discard = (seat, tile) => ({ t: 2, d: seat * 136 + tile });
+const riichiDiscard = (seat, tile) => ({ t: 2, d: 2 * 544 + seat * 136 + tile });
+const WIN_CALL_MS = 500;
+const shownOf = (table, name) => table.player.shown.filter((shown) => shown.name === name);
 
 describe("the ronin table (Translate and Reply)", () => {
     let consoleError;
@@ -102,6 +106,7 @@ describe("the ronin table (Translate and Reply)", () => {
     afterEach(() => {
         expect(consoleError).not.toHaveBeenCalled();
         vi.restoreAllMocks();
+        vi.useRealTimers();
     });
 
     it("echoes the wait id of the server message that opened each decision", () => {
@@ -257,6 +262,7 @@ describe("the ronin table (Translate and Reply)", () => {
     });
 
     it("confirms a round end that opens a wait and holds the final standings until the last result is dismissed", () => {
+        vi.useFakeTimers();
         const table = startTable();
         const tsumo = {
             t: 4,
@@ -269,6 +275,7 @@ describe("the ronin table (Translate and Reply)", () => {
                     { yi: 13, han: 1 },
                     { yi: 120, han: 2 },
                 ],
+                pt: 39,
             },
             sch: { 0: 39, 1: -13, 2: -13, 3: -13 },
             ct: [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 109, 18],
@@ -277,9 +284,12 @@ describe("the ronin table (Translate and Reply)", () => {
         };
 
         table.receive({ ...tsumo, wi: 9 });
+        vi.advanceTimersByTime(WIN_CALL_MS);
         expect(table.player.shown.at(-1).data).toMatchObject({
             fanshu: 3,
             damanguan: 0,
+            defen: 3900,
+            fubaopai: null,
             hupai: [
                 { name: "断幺九", fanshu: 1 },
                 { name: "ドラ", fanshu: 2 },
@@ -297,6 +307,7 @@ describe("the ronin table (Translate and Reply)", () => {
                 { s: 3, sc: 237, fs: -26 },
             ],
         });
+        vi.advanceTimersByTime(WIN_CALL_MS);
         expect(table.player.lastShown).toBe("hule");
         table.decide({});
         expect(table.player.lastShown).toBe("jieju");
@@ -304,6 +315,146 @@ describe("the ronin table (Translate and Reply)", () => {
         table.decide({});
 
         expect(table.sent).toEqual([{ t: 3, a: 9, wi: 9 }, "lobby"]);
+    });
+
+    it("gives the result dialog a double ron winner's hand value, not its score change net of pao it owes", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+
+        table.receive({
+            t: 4,
+            rt: 2,
+            ls: 0,
+            wt: 2,
+            wn: [
+                {
+                    ws: 1,
+                    hr: {
+                        han: 5,
+                        fu: 30,
+                        yk: [
+                            { yi: 1, han: 1 },
+                            { yi: 13, han: 1 },
+                            { yi: 120, han: 3 },
+                        ],
+                        pt: 80,
+                    },
+                    rc: 0,
+                    ct: [5, 10, 14, 37, 41, 45, 73, 77, 81, 113, 114, 118, 119],
+                    ml: [],
+                    ud: [8],
+                },
+                {
+                    ws: 2,
+                    hr: { han: 13, fu: 30, yk: [{ yi: 102, han: 13 }], pt: 320 },
+                    rc: 0,
+                    ct: [6, 11, 15],
+                    ml: [],
+                    ps: 1,
+                },
+            ],
+            sch: { 0: -240, 1: -80, 2: 320, 3: 0 },
+            wi: 9,
+        });
+        vi.advanceTimersByTime(WIN_CALL_MS);
+
+        expect(shownOf(table, "hule")[0].data).toMatchObject({
+            l: 1,
+            defen: 8000,
+            fenpei: [-24000, -8000, 32000, 0],
+            fubaopai: ["m3"],
+        });
+    });
+
+    it("drops a win's pending result when the next round starts before it shows", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+
+        table.receive({
+            t: 4,
+            rt: 0,
+            ws: 0,
+            hr: { han: 1, fu: 30, yk: [{ yi: 1, han: 1 }], pt: 15 },
+            sch: { 0: 15, 1: -5, 2: -5, 3: -5 },
+            ct: BASE_HAND,
+            ml: [],
+            wt: 120,
+            wi: 9,
+        });
+        table.receive({
+            t: 9,
+            s: 0,
+            w: 0,
+            n: 1,
+            dl: 1,
+            cp: 1,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
+            dc: [1, 1],
+        });
+        table.receive(draw(0, 120, { wi: 10 }));
+        vi.advanceTimersByTime(WIN_CALL_MS);
+
+        expect(shownOf(table, "hule")).toHaveLength(0);
+        expect(table.player.lastShown).toBe("zimo");
+        expect(table.translate.roundDialogOpen).toBe(false);
+        table.decide({ dapai: "z4_" });
+        expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 10 }]);
+    });
+
+    it("feeds the game start once, not again with each round's deal", () => {
+        const table = startTable();
+
+        table.receive({
+            t: 9,
+            s: 0,
+            w: 0,
+            n: 1,
+            dl: 1,
+            cp: 1,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
+            dc: [1, 1],
+        });
+
+        expect(shownOf(table, "kaiju")).toHaveLength(1);
+        expect(shownOf(table, "qipai")).toHaveLength(2);
+    });
+
+    it("calls out a riichi as it is discarded and a win before its result", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+        const say = vi.fn();
+        table.player.view = { kaiju() {}, redraw() {}, update() {}, say };
+
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(riichiDiscard(1, 124));
+        expect(say).toHaveBeenLastCalledWith("lizhi", 1);
+
+        table.receive({
+            t: 4,
+            rt: 0,
+            ws: 1,
+            hr: { han: 1, fu: 30, yk: [{ yi: 1, han: 1 }] },
+            rc: 1,
+            sch: { 0: -5, 1: 21, 2: -3, 3: -3 },
+            ct: [5, 10, 14, 37, 41, 45, 73, 77, 81, 113, 114, 118, 119],
+            ml: [],
+            wt: 2,
+            wi: 2,
+        });
+        expect(say).toHaveBeenLastCalledWith("zimo", 1);
+        expect(table.player.lastShown).not.toBe("hule");
+        vi.advanceTimersByTime(WIN_CALL_MS);
+        expect(table.player.lastShown).toBe("hule");
     });
 
     it("resumes its turn after a reconnect without taking the re-sent draw twice", () => {
