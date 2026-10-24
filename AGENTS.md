@@ -15,8 +15,10 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
   * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
-* `frontend/` — TypeScript / lit-html / Vite / Bun: the lobby scripts and the game client SPA. See
+* `frontend/` — TypeScript / lit-html / Vite / Bun: two isolated apps, each its own package. See
   `frontend/AGENTS.md`.
+  * `frontend/lobby/` — the scripts and styles of the lobby pages. See `frontend/lobby/AGENTS.md`.
+  * `frontend/game/` — the game client SPA. See `frontend/game/AGENTS.md`.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
@@ -27,7 +29,9 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make run-local-server` — game server (`:8711`), lobby (`:8710`) and Vite (`:5173`) together,
+* `make install-frontend` — `bun install` in each frontend app.
+* `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
+  frontend app (`:5173` lobby, `:5174` game client) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
@@ -39,7 +43,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 ## Workflow
 
 * While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
-  `cd frontend && bunx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
+  `cd frontend/<app> && bunx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
   `make lint` and `make typecheck` are fine.
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
@@ -63,7 +67,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 * Backend test names follow `test_<subject>__when_<condition>__should_<expected>`: `<condition>` is
   the scenario or input state, `<expected>` the observable outcome. Drop the `when_` clause only for
   unconditional behaviour (`test_wall__should_hold_136_tiles`). `backend/AGENTS.md` defines
-  `<subject>`; frontend test titles follow `frontend/AGENTS.md`.
+  `<subject>`; frontend test titles follow each app's `AGENTS.md`.
 * Keep committed suites lean: essential flows and fixed bugs, not every nuance. To probe a nuance,
   write a throwaway test or script in the scratchpad and delete it once answered; never commit it.
 * One scenario per test: several assertions about one call or one short flow are fine. Before adding

@@ -1,7 +1,7 @@
 # Lobby server
 
-Accounts, rooms, matchmaking, game history and the server-rendered pages (`:8710`); it also serves
-the built game client and replay files, and hands players to a game server with signed game tickets.
+Accounts, rooms, matchmaking, game history and the server-rendered pages (`:8710`); it also hosts
+the game client and serves replay files, and hands players to a game server with signed game tickets.
 The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` covers room behaviour.
 
 ## Structure
@@ -10,7 +10,12 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   middleware. `settings.py` sits at the `lobby/` root so every feature may import it.
 * `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
 * `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API), the Jinja2
-  templates, and the Vite manifest / dev-server resolution into template globals.
+  templates, and the lobby app's Vite manifest / dev-server resolution into template globals.
+  `game_client.py` hosts the game client, a separate app the lobby knows only by its built
+  directory: it answers the game pages with that app's `index.html` and serves its files under
+  `/game-assets/`, or proxies both to the app's Vite dev server when `game_client_dev_url` is set.
+  The proxy exists only for local runs, so the game page keeps the lobby's origin and the
+  `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
 * `rooms/` and `matchmaking/` — managers and WebSocket handlers. Matchmaking is a FIFO queue that
   starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
   The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from starlette.responses import PlainTextResponse
-
 from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
 
 if TYPE_CHECKING:
@@ -11,16 +9,15 @@ if TYPE_CHECKING:
     from starlette.responses import Response
     from starlette.templating import Jinja2Templates
 
+    from lobby.views.game_client import GameClient
+
 
 async def play_page(request: Request) -> Response:
     """
-    GET /play/{game_id} — render the game client page.
+    GET /play/* — serve the game client's page; the game client routes the path itself.
     """
-    templates: Jinja2Templates = request.app.state.templates
-    if not request.app.state.game_assets_available:
-        return PlainTextResponse("Game client assets not available", status_code=503)
-
-    return templates.TemplateResponse(request, "play.html")
+    game_client: GameClient = request.app.state.game_client
+    return await game_client.serve_page()
 
 
 async def storybook_page(request: Request) -> Response:

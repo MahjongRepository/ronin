@@ -7,6 +7,15 @@ from lobby.views.assets import (
 from lobby.views.assets import (
     resolve_vite_asset_urls as resolve_vite_asset_urls,
 )
+from lobby.views.game_client import (
+    GAME_ASSETS_PATH as GAME_ASSETS_PATH,
+)
+from lobby.views.game_client import (
+    BuiltGameClient as BuiltGameClient,
+)
+from lobby.views.game_client import (
+    DevGameClient as DevGameClient,
+)
 from lobby.views.game_handlers import (
     play_page as play_page,
 )

@@ -5,14 +5,29 @@ ARG ALPINE_VERSION=3.23
 # =============================================================================
 # Stage 1: Build frontend assets
 # =============================================================================
-FROM oven/bun:1.3.9-alpine AS frontend-builder
+FROM oven/bun:1.3.9-alpine AS lobby-builder
 
-WORKDIR /app/frontend
+WORKDIR /app/frontend/lobby
 
-COPY frontend/package.json frontend/bun.lock ./
+COPY frontend/lobby/package.json frontend/lobby/bun.lock ./
 RUN bun install --frozen-lockfile
 
-COPY frontend/ ./
+COPY frontend/lobby/ ./
+
+ARG APP_VERSION=dev
+ARG GIT_COMMIT=unknown
+ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
+
+RUN bun run build
+
+FROM oven/bun:1.3.9-alpine AS game-builder
+
+WORKDIR /app/frontend/game
+
+COPY frontend/game/package.json frontend/game/bun.lock ./
+RUN bun install --frozen-lockfile
+
+COPY frontend/game/ ./
 
 ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown
@@ -89,11 +104,10 @@ COPY --from=builder /app/.venv /app/.venv
 # mapping: backend/lobby -> lobby, backend/game -> game, backend/shared -> shared.
 COPY backend/ backend/
 
-# Copy built frontend assets from the frontend-builder stage.
-# All production assets (game client + lobby CSS) are content-hashed in dist/.
-COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+COPY --from=lobby-builder /app/frontend/lobby/dist /app/frontend/lobby/dist
+COPY --from=game-builder /app/frontend/game/dist /app/frontend/game/dist
 # Static files served at /static/ (currently empty — logo.svg is content-hashed in dist/assets/)
-COPY frontend/public /app/frontend/public
+COPY frontend/lobby/public /app/frontend/lobby/public
 
 # Create directories for runtime data
 RUN mkdir -p /app/data/logs /app/data/replays /app/data/db && \

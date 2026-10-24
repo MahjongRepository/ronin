@@ -20,8 +20,9 @@ your scratchpad (`$S` below).
 2. Wait for it: `curl -sf --retry 40 --retry-delay 1 --retry-connrefused http://localhost:8710/health`.
    If it never comes up, read the background shell's output instead of retrying; tracebacks from
    all three servers land there.
-3. Always open pages on the lobby, `http://localhost:8710`. It serves every page, including the
-   game client under `/play/`, and pulls scripts from Vite on `:5173`; Vite itself serves no page.
+3. Always open pages on the lobby, `http://localhost:8710`. It serves every page: lobby pages pull
+   their scripts from the lobby's Vite on `:5173`, and the game client under `/play/` is proxied
+   from its Vite on `:5174`. Neither Vite serves a page you should open.
 
 ## Logging in
 
@@ -49,7 +50,7 @@ agent-browser wait 1000 && agent-browser get url
 ## Reaching the pages
 
 Take ids from the UI, never invent them. Templates in `backend/lobby/views/templates/` are the
-lobby pages; the game client routes are in `frontend/src/index.ts`. There are no test ids:
+lobby pages; the game client routes are in `frontend/game/src/index.ts`. There are no test ids:
 select by element id, class or `snapshot -i` refs.
 
 - **Room:** click `.lobby-create-btn` (New Table) on `/`. A new room seats `dev` as host with three

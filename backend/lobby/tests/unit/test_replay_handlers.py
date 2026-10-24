@@ -22,9 +22,9 @@ class TestReplayContent:
 
     @pytest.fixture
     def app(self, make_app, tmp_path, replay_dir):
-        game_assets_dir = tmp_path / "dist"
-        game_assets_dir.mkdir()
-        return make_app(replay_dir=str(replay_dir), game_assets_dir=str(game_assets_dir))
+        game_client_dir = tmp_path / "game-dist"
+        game_client_dir.mkdir()
+        return make_app(replay_dir=str(replay_dir), game_client_dir=str(game_client_dir))
 
     @pytest.fixture
     def setup(self, client, replay_dir):
@@ -144,7 +144,6 @@ class TestReplayContent:
     def test_replay_page_route__should_serve_play_page(self, setup):
         client, _replay_dir = setup
         response = client.get("/play/history/game-123")
-        # Without game assets built, play_page returns 503
         assert response.status_code == 503
 
     def test_replay_page_route__when_unauthenticated__should_not_redirect_to_login(self, setup):

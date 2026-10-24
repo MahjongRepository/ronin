@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterator
     from pathlib import Path
 
+    import httpx
     from starlette.applications import Starlette
     from starlette.types import Message
 
@@ -84,7 +85,10 @@ class HeldLookup:
 @pytest.fixture
 def make_app(tmp_path: Path) -> Callable[..., Starlette]:
     def build(
-        *, is_playing: Callable[[str], Awaitable[bool]] | None = nobody_playing, **settings_overrides: Any
+        *,
+        is_playing: Callable[[str], Awaitable[bool]] | None = nobody_playing,
+        game_client_dev_transport: httpx.AsyncBaseTransport | None = None,
+        **settings_overrides: Any,
     ) -> Starlette:
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True, exist_ok=True)
@@ -93,6 +97,7 @@ def make_app(tmp_path: Path) -> Callable[..., Starlette]:
             settings=LobbyServerSettings(static_dir=str(static_dir), **settings_overrides),
             auth_settings=AuthSettings(database_path=str(tmp_path / "test.db")),
             is_playing=is_playing,
+            game_client_dev_transport=game_client_dev_transport,
         )
 
     return build

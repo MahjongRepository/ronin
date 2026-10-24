@@ -1,33 +1,32 @@
 import json
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
+from starlette.applications import Starlette
+from starlette.responses import HTMLResponse, PlainTextResponse
+from starlette.routing import Route
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.conftest import make_player, open_client
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
+_GAME_CLIENT_INDEX = '<div id="app"></div><script type="module" src="/game-assets/assets/index-abc123.js"></script>'
 
-def _create_vite_manifest(game_assets_dir):
-    assets_dir = game_assets_dir / "assets"
-    assets_dir.mkdir()
-    (assets_dir / "game-abc123.js").write_text("console.log('game');")
-    (assets_dir / "game-abc123.css").write_text("body{}")
-    (assets_dir / "lobby-test.js").write_text("console.log('lobby');")
-    (assets_dir / "lobby-test.css").write_text("body { color: red; }")
 
-    vite_dir = game_assets_dir / ".vite"
+def _create_lobby_assets(assets_dir):
+    built_dir = assets_dir / "assets"
+    built_dir.mkdir(parents=True)
+    (built_dir / "lobby-test.js").write_text("console.log('lobby');")
+    (built_dir / "lobby-test.css").write_text("body { color: red; }")
+
+    vite_dir = assets_dir / ".vite"
     vite_dir.mkdir()
     (vite_dir / "manifest.json").write_text(
         json.dumps(
             {
                 "src/index.ts": {
-                    "file": "assets/game-abc123.js",
-                    "css": ["assets/game-abc123.css"],
-                    "isEntry": True,
-                },
-                "src/lobby/index.ts": {
                     "file": "assets/lobby-test.js",
                     "css": ["assets/lobby-test.css"],
                     "isEntry": True,
@@ -37,13 +36,21 @@ def _create_vite_manifest(game_assets_dir):
     )
 
 
+def _create_game_client_build(game_client_dir):
+    built_dir = game_client_dir / "assets"
+    built_dir.mkdir(parents=True)
+    (built_dir / "index-abc123.js").write_text("console.log('game');")
+    (game_client_dir / "index.html").write_text(_GAME_CLIENT_INDEX)
+
+
 @pytest.fixture
 def app(make_app, tmp_path, monkeypatch):
     monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-    game_assets_dir = tmp_path / "dist"
-    game_assets_dir.mkdir()
-    _create_vite_manifest(game_assets_dir)
-    return make_app(game_assets_dir=str(game_assets_dir))
+    assets_dir = tmp_path / "lobby-dist"
+    game_client_dir = tmp_path / "game-dist"
+    _create_lobby_assets(assets_dir)
+    _create_game_client_build(game_client_dir)
+    return make_app(assets_dir=str(assets_dir), game_client_dir=str(game_client_dir))
 
 
 class TestLobbyViews:
@@ -67,11 +74,11 @@ class TestLobbyViews:
 
     def test_lobby_page__when_visited__should_include_css_link(self, client):
         response = client.get("/")
-        assert "/game-assets/assets/lobby-test.css" in response.text
+        assert "/lobby-assets/assets/lobby-test.css" in response.text
 
     def test_lobby_page__when_visited__should_include_script_tag(self, client):
         response = client.get("/")
-        assert "/game-assets/assets/lobby-test.js" in response.text
+        assert "/lobby-assets/assets/lobby-test.js" in response.text
         assert '<script type="module"' in response.text
 
     def test_lobby_page__when_visited__should_show_create_room_form(self, client):
@@ -112,18 +119,11 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/css" in response.headers["content-type"]
 
-    def test_play_page__when_visited__should_return_html(self, client):
+    def test_play_page__when_visited__should_serve_game_client_index(self, client):
         response = client.get("/play/test-game")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-
-    def test_play_page__when_visited__should_include_hashed_script(self, client):
-        response = client.get("/play/test-game")
-        assert "/game-assets/assets/game-abc123.js" in response.text
-
-    def test_play_page__when_visited__should_include_hashed_css(self, client):
-        response = client.get("/play/test-game")
-        assert "/game-assets/assets/game-abc123.css" in response.text
+        assert response.text == _GAME_CLIENT_INDEX
 
     def test_storybook_melds_page__when_visited__should_return_html(self, client):
         response = client.get("/play/storybook/melds")
@@ -140,13 +140,11 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
-    def test_play_page__when_assets_missing__should_return_503(self, make_app, tmp_path):
-        game_assets_dir = tmp_path / "dist"
-        vite_dir = game_assets_dir / ".vite"
-        vite_dir.mkdir(parents=True)
-        (vite_dir / "manifest.json").write_text("{}")
+    def test_play_page__when_index_missing__should_return_503(self, make_app, tmp_path):
+        game_client_dir = tmp_path / "empty-game-dist"
+        game_client_dir.mkdir()
 
-        app = make_app(game_assets_dir=str(game_assets_dir))
+        app = make_app(game_client_dir=str(game_client_dir))
         with open_client(app) as c:
             register_with_csrf(c, "testuser")
 
@@ -155,15 +153,20 @@ class TestLobbyViews:
             assert "Game client assets not available" in response.text
 
     def test_game_assets_route__when_asset_requested__should_serve_it(self, client):
-        response = client.get("/game-assets/assets/game-abc123.js")
+        response = client.get("/game-assets/assets/index-abc123.js")
         assert response.status_code == 200
         assert "javascript" in response.headers["content-type"]
-        assert "console.log('game')" in response.text
+        assert response.text == "console.log('game');"
 
     def test_game_assets_route__when_dir_missing__should_not_mount(self, make_app, tmp_path):
-        app = make_app(game_assets_dir=str(tmp_path / "no-such-dir"))
+        app = make_app(game_client_dir=str(tmp_path / "no-such-dir"))
         route_names = {r.name for r in app.routes}
         assert "game_assets" not in route_names
+
+    def test_lobby_assets_route__when_asset_requested__should_serve_it(self, client):
+        response = client.get("/lobby-assets/assets/lobby-test.js")
+        assert response.status_code == 200
+        assert response.text == "console.log('lobby');"
 
     def test_matchmaking_page__when_visited__should_return_html(self, client):
         response = client.get("/matchmaking")
@@ -217,11 +220,45 @@ class TestLobbyViews:
         assert "Form Elements" in response.text
 
 
+_DEV_GAME_CLIENT_PAGE = '<script type="module" src="/game-assets/@vite/client"></script>'
+
+
+async def _dev_game_client_page(request):
+    if "text/html" not in request.headers.get("accept", ""):
+        return PlainTextResponse("not html", status_code=406)
+
+    return HTMLResponse(_DEV_GAME_CLIENT_PAGE)
+
+
+async def _dev_game_client_file(request):
+    return PlainTextResponse(
+        f"{request.path_params['path']}?{request.scope['query_string'].decode()}",
+        media_type="text/javascript",
+        headers={"etag": '"v1"', "x-dev-only": "1"},
+    )
+
+
+_DEV_GAME_CLIENT_SERVER = Starlette(
+    routes=[
+        Route("/game-assets/", _dev_game_client_page),
+        Route("/game-assets/{path:path}", _dev_game_client_file),
+    ],
+)
+
+
+def _refuse_connection(request):
+    raise httpx.ConnectError("connection refused", request=request)
+
+
 class TestViteDevMode:
     @pytest.fixture
     def app(self, make_app, monkeypatch):
         monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
-        return make_app(vite_dev_url="http://localhost:5173")
+        return make_app(
+            vite_dev_url="http://localhost:5173",
+            game_client_dev_url="http://localhost:5174",
+            game_client_dev_transport=httpx.ASGITransport(app=_DEV_GAME_CLIENT_SERVER),
+        )
 
     @pytest.fixture
     def client(self, client):
@@ -231,15 +268,30 @@ class TestViteDevMode:
     def test_lobby_page__when_vite_dev_url_set__should_use_vite_dev_urls(self, client):
         response = client.get("/")
         assert "http://localhost:5173/src/styles/lobby-app.scss" in response.text
-        assert "http://localhost:5173/src/lobby/index.ts" in response.text
-        assert "http://localhost:5173/@vite/client" in response.text
-
-    def test_play_page__when_vite_dev_url_set__should_use_vite_dev_urls(self, client):
-        response = client.get("/play/test-game")
-        assert response.status_code == 200
-        assert "http://localhost:5173/src/styles/game-app.scss" in response.text
         assert "http://localhost:5173/src/index.ts" in response.text
         assert "http://localhost:5173/@vite/client" in response.text
+
+    def test_play_page__when_game_client_dev_url_set__should_serve_dev_server_page(self, client):
+        response = client.get("/play/test-game")
+        assert response.status_code == 200
+        assert response.text == _DEV_GAME_CLIENT_PAGE
+
+    def test_game_assets_route__when_game_client_dev_url_set__should_proxy_encoded_path_and_query(self, client):
+        response = client.get("/game-assets/src/tile%23back.svg?import&t=1")
+        assert response.status_code == 200
+        assert response.text == "src/tile#back.svg?import&t=1"
+        assert "javascript" in response.headers["content-type"]
+        assert response.headers["etag"] == '"v1"'
+        assert "x-dev-only" not in response.headers
+
+    def test_game_assets_route__when_dev_server_unreachable__should_return_502(self, make_app):
+        app = make_app(
+            game_client_dev_url="http://localhost:5174",
+            game_client_dev_transport=httpx.MockTransport(_refuse_connection),
+        )
+        with open_client(app) as c:
+            response = c.get("/game-assets/src/index.ts")
+            assert response.status_code == 502
 
 
 class TestHistoryPage:

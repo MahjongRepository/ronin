@@ -5,7 +5,7 @@ let capturedStatusHandler: ((status: string) => void) | null = null;
 
 const mockConnect = vi.fn();
 
-vi.mock("@/lobby/lobby-socket", () => ({
+vi.mock("@/lobby-socket", () => ({
     LobbySocket: class MockLobbySocket {
         constructor(
             onMessage: (message: Record<string, unknown>) => void,
@@ -20,7 +20,7 @@ vi.mock("@/lobby/lobby-socket", () => ({
     },
 }));
 
-const { initMatchmakingPage } = await import("@/lobby/matchmaking");
+const { initMatchmakingPage } = await import("@/matchmaking");
 
 const WS_URL = "ws://lobby/ws/matchmaking";
 

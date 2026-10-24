@@ -20,23 +20,20 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def app(make_app, tmp_path):
-    game_assets_dir = tmp_path / "dist"
-    game_assets_dir.mkdir()
+    lobby_assets_dir = tmp_path / "dist"
+    lobby_assets_dir.mkdir()
 
-    assets_dir = game_assets_dir / "assets"
+    assets_dir = lobby_assets_dir / "assets"
     assets_dir.mkdir()
-    (assets_dir / "game-test.js").write_text("console.log('test');")
-    (assets_dir / "game-test.css").write_text("body{}")
     (assets_dir / "lobby-test.js").write_text("console.log('lobby');")
     (assets_dir / "lobby-test.css").write_text("body{}")
 
-    vite_dir = game_assets_dir / ".vite"
+    vite_dir = lobby_assets_dir / ".vite"
     vite_dir.mkdir()
     (vite_dir / "manifest.json").write_text(
         json.dumps(
             {
-                "src/index.ts": {"file": "assets/game-test.js", "css": ["assets/game-test.css"], "isEntry": True},
-                "src/lobby/index.ts": {
+                "src/index.ts": {
                     "file": "assets/lobby-test.js",
                     "css": ["assets/lobby-test.css"],
                     "isEntry": True,
@@ -45,7 +42,7 @@ def app(make_app, tmp_path):
         ),
     )
 
-    return make_app(game_assets_dir=str(game_assets_dir))
+    return make_app(assets_dir=str(lobby_assets_dir))
 
 
 def _get_csrf_token(client: TestClient, path: str = "/login") -> str:

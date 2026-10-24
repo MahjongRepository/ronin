@@ -50,6 +50,11 @@ class TestLobbyServerSettings:
         settings = LobbyServerSettings()
         assert (settings.game_server_url, settings.game_server_ws_url) == ("http://game:8711", "wss://ronin.example")
 
+    def test_lobby_server_settings__when_game_client_dev_url_not_an_origin__should_raise(self, monkeypatch):
+        monkeypatch.setenv("LOBBY_GAME_CLIENT_DEV_URL", "http://localhost:5174/game-assets")
+        with pytest.raises(ValidationError, match="game_client_dev_url"):
+            LobbyServerSettings()
+
     def test_lobby_server_settings__when_log_dir_env_set__should_override_log_dir(self, monkeypatch):
         monkeypatch.setenv("LOBBY_LOG_DIR", "custom/lobby-logs")
         settings = LobbyServerSettings()

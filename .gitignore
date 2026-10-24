@@ -21,7 +21,7 @@ backend/profiles/
 deploy/assets/
 deploy/spot-llm.txt
 
-frontend/coverage
+frontend/*/coverage
 
 # ---
 

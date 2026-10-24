@@ -9,10 +9,12 @@
 thoughts
 *.pyc
 **/__pycache__
-frontend/node_modules
-frontend/.oxfmtrc.json
-frontend/.oxlintrc.json
-frontend/.stylelintrc.json
+frontend/*/node_modules
+frontend/*/dist
+frontend/*/coverage
+frontend/*/.oxfmtrc.json
+frontend/*/.oxlintrc.json
+frontend/*/.stylelintrc.json
 backend/logs
 backend/storage.db*
 backend/data

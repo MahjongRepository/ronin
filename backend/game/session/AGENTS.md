@@ -48,7 +48,7 @@ interleave.
   them for the new wait's connected seats, an unchanged one touches only an actor that left it.
   Every pacing duration comes from `TimerConfig`, the one pacing model (the engine has none; the
   auth timeout and transport ping are not pacing). The browser client's silence watchdog limit is
-  hand-derived from its defaults (`frontend/AGENTS.md`): re-derive it when they change.
+  hand-derived from its defaults (`frontend/game/AGENTS.md`): re-derive it when they change.
 * **Finish records come from the start record.** The start record is captured right after the
   engine starts the game, every seat in seat order with each participant's `user_id` by seat; every
   finish record (completed, abandoned or failed) is built whole from it, never from engine or

@@ -1,7 +1,7 @@
 import "@/styles/lobby-app.scss";
-import { initGamesCopyLinkButtons } from "@/lobby/games-history";
-import { initMatchmakingPage } from "@/lobby/matchmaking";
-import { initRoomPage } from "@/lobby/room";
+import { initGamesCopyLinkButtons } from "@/games-history";
+import { initMatchmakingPage } from "@/matchmaking";
+import { initRoomPage } from "@/room";
 
 const roomContainer = document.getElementById("room-app");
 if (roomContainer) {

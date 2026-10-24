@@ -6,6 +6,7 @@ from pathlib import Path
 from starlette.templating import Jinja2Templates
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+LOBBY_ENTRY = "src/index.ts"
 
 
 def create_templates() -> Jinja2Templates:
@@ -15,13 +16,13 @@ def create_templates() -> Jinja2Templates:
     return Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-def load_vite_manifest(game_assets_dir: str) -> dict[str, dict]:
+def load_vite_manifest(assets_dir: str) -> dict[str, dict]:
     """
     Load the Vite manifest mapping source paths to build outputs.
 
     Vite 6.x stores the manifest at <outDir>/.vite/manifest.json.
     """
-    manifest_path = Path(game_assets_dir).resolve() / ".vite" / "manifest.json"
+    manifest_path = Path(assets_dir).resolve() / ".vite" / "manifest.json"
     if not manifest_path.exists():
         return {}
 
@@ -51,35 +52,21 @@ def _resolve_css_url(entry: dict, base_path: str) -> str | None:
     return None
 
 
-def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/game-assets") -> dict[str, str]:
+def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/lobby-assets") -> dict[str, str]:
     """
-    Extract asset URLs from Vite manifest entries.
+    Extract the lobby entry's script and stylesheet URLs from the Vite manifest.
 
-    Two entry points:
-    - src/index.ts -> game_js + game_css
-    - src/lobby/index.ts -> lobby_js + lobby_css
-
-    Return a flat dict with keys: game_js, game_css, lobby_js, lobby_css.
-    All dict access uses .get() to gracefully handle partial manifests.
+    Return a dict with the keys ``lobby_js`` and ``lobby_css``, each present only when the manifest names it.
     """
     base_path = base_path.rstrip("/")
     urls: dict[str, str] = {}
 
-    game_entry = manifest.get("src/index.ts", {})
-    game_js = game_entry.get("file")
-    if game_js:
-        urls["game_js"] = f"{base_path}/{game_js}"
-
-    game_css = _resolve_css_url(game_entry, base_path)
-    if game_css:
-        urls["game_css"] = game_css
-
-    lobby_entry = manifest.get("src/lobby/index.ts", {})
-    lobby_js = lobby_entry.get("file")
+    entry = manifest.get(LOBBY_ENTRY, {})
+    lobby_js = entry.get("file")
     if lobby_js:
         urls["lobby_js"] = f"{base_path}/{lobby_js}"
 
-    lobby_css = _resolve_css_url(lobby_entry, base_path)
+    lobby_css = _resolve_css_url(entry, base_path)
     if lobby_css:
         urls["lobby_css"] = lobby_css
 
