@@ -21,8 +21,6 @@ Below are third-party libraries related to mahjong that were used in Ronin:
 - [mahjong](https://github.com/MahjongRepository/mahjong) for hand yaku calculations and scoring
 - [xiangting-py](https://github.com/Apricot-S/xiangting-py) for fast shanten calculations
 
-## Assets
+## Game client
 
-Tiles sets:
-
-- https://github.com/FluffyStuff/riichi-mahjong-tiles
+The game client is based on [MajiangNG](https://github.com/MahjongRepository/MajiangNG).

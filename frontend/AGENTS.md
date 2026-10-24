@@ -1,13 +1,14 @@
 # Frontend
 
-Two isolated apps, each its own Bun package with its own dependencies, lockfile, TypeScript, lint,
+Two isolated apps, each its own Bun package with its own dependencies, lockfile, language, lint,
 format and test config, and its own styles:
 
-* `lobby/` — the scripts and styles of the server-rendered lobby pages. See `lobby/AGENTS.md`.
-* `game/` — the game client SPA under `/play/*`. See `game/AGENTS.md`.
+* `lobby/` — the scripts and styles of the server-rendered lobby pages (TypeScript / lit-html). See
+  `lobby/AGENTS.md`.
+* `game/` — the game client under `/play/*` (MajiangNG: JavaScript / jQuery). See `game/AGENTS.md`.
 
 Neither app imports from the other, and nothing is shared between them at build time: a module both
-need (the Pico setup, the theme tokens) is copied into each. They meet only at the runtime contract
+need is copied into each. They meet only at the runtime contract
 in `docs/architecture.md` (*Game client contract*), so the game client can be replaced by any app
 that honours it.
 

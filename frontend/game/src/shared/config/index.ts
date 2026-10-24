@@ -1,1 +1,0 @@
-export { getLobbyUrl } from "./env";
