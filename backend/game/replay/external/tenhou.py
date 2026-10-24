@@ -201,18 +201,17 @@ def _format_sc(scores: dict[str, int], score_changes: dict[str, int]) -> str:
     return ",".join(parts)
 
 
-def _hand_payment_from_winner_change(
-    winner_change_wire: int,
-    riichi_sticks_collected: int,
-) -> int:
+def _hand_payment(hand: dict[str, Any], winner_change_wire: int, riichi_sticks_collected: int, honba: int) -> int:
     """
-    Compute the hand payment for the tenhou ten attribute.
+    Compute the hand payment for the tenhou ten attribute: full points (not hundreds), honba included, riichi excluded.
 
-    winner_change_wire is in wire format (divided by WIRE_SCORE_DIVISOR). Tenhou ten uses full points (not hundreds), so
-    convert back. Tenhou ten includes honba but excludes riichi.
+    Wire values are divided by WIRE_SCORE_DIVISOR. A replay recorded before the hand result carried its points has only
+    the winner's net score change, which misstates a double ron winner who owes pao to the other winner.
     """
-    riichi_bonus = riichi_sticks_collected * 1000
-    return winner_change_wire * WIRE_SCORE_DIVISOR - riichi_bonus
+    if "pt" in hand:
+        return hand["pt"] * WIRE_SCORE_DIVISOR + honba * 300
+
+    return winner_change_wire * WIRE_SCORE_DIVISOR - riichi_sticks_collected * 1000
 
 
 def _compute_limit(han: int) -> int:
@@ -471,9 +470,7 @@ class TenhouConverter:
         yaku_string = build_yaku_string(hand["yk"])
         sc_string = _format_sc(result["scs"], result["sch"])
 
-        winner_change = result["sch"].get(str(winner), 0)
-        riichi_sticks = result.get("rc", 0)
-        payment = _hand_payment_from_winner_change(winner_change, riichi_sticks)
+        payment = _hand_payment(hand, result["sch"].get(str(winner), 0), result.get("rc", 0), self.honba)
 
         # Winner's hand and winning tile from result
         hai_string = ",".join(str(t) for t in result.get("ct", []))
@@ -513,9 +510,7 @@ class TenhouConverter:
             limit = _compute_limit(hand["han"])
             yaku_string = build_yaku_string(hand["yk"])
 
-            winner_change = result["sch"].get(str(winner), 0)
-            riichi_sticks = w.get("rc", 0)
-            payment = _hand_payment_from_winner_change(winner_change, riichi_sticks)
+            payment = _hand_payment(hand, result["sch"].get(str(winner), 0), w.get("rc", 0), self.honba)
 
             hai_string = ",".join(str(t) for t in w.get("ct", []))
             ura_dora_attr = _format_ura_dora_attr(w.get("ud"))

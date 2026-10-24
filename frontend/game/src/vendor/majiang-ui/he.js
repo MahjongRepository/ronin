@@ -7,7 +7,7 @@ import $ from 'jquery';
 
 export default class He {
 
-    constructor(root, pai, he, open) {
+    constructor(root, pai, he) {
 
         this._node = {
             root:   root,
@@ -16,13 +16,10 @@ export default class He {
         };
         this._pai  = pai;
         this._he   = he;
-        this._open = open;
         this._node.chouma.addClass('hide');
     }
 
-    redraw(open) {
-
-        if (open != null) this._open = open;
+    redraw() {
 
         this._node.root.attr('aria-label', '捨て牌');
         this._node.chouma.attr('aria-label', 'リーチ');
@@ -37,7 +34,7 @@ export default class He {
             if (p.match(/[\+\=\-]/)) continue;
 
             let pai = this._pai(p);
-            if (this._open && p[2] == '_') {
+            if (p[2] == '_') {
                 pai.addClass('mopai');
             }
             if (lizhi) {

@@ -46,7 +46,7 @@ def _exhaustive_draw(*, tempai_seats: list[int], noten_seats: list[int]) -> Exha
 def _tsumo(winner_seat: int) -> TsumoResult:
     return TsumoResult(
         winner_seat=winner_seat,
-        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
+        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         riichi_sticks_collected=0,
@@ -61,7 +61,7 @@ def _ron(winner_seat: int, loser_seat: int) -> RonResult:
         winner_seat=winner_seat,
         loser_seat=loser_seat,
         winning_tile=0,
-        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)]),
+        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         riichi_sticks_collected=0,
@@ -71,7 +71,7 @@ def _ron(winner_seat: int, loser_seat: int) -> RonResult:
 
 
 def _double_ron(winner1: int, winner2: int, loser: int) -> DoubleRonResult:
-    hr = HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)])
+    hr = HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000)
     return DoubleRonResult(
         loser_seat=loser,
         winning_tile=0,

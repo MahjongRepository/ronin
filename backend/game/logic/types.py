@@ -130,11 +130,15 @@ class YakuInfo(BaseModel):
 class HandResultInfo(BaseModel):
     """
     Hand value information for win results.
+
+    points is the hand's value without honba or riichi sticks, which pao does not change: the ron payment, or every
+    tsumo payment together.
     """
 
     han: int
     fu: int
     yaku: list[YakuInfo] = Field(serialization_alias="yk")
+    points: WireScore = Field(serialization_alias="pt")
 
 
 class TsumoResult(BaseModel):

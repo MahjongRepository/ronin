@@ -135,6 +135,24 @@ class TestApplyDoubleRonWithPao:
         assert result.winners[0].pao_seat == 3
         assert result.winners[1].pao_seat is None
 
+    def test_apply_double_ron_score__when_one_winner_owes_pao_to_the_other__should_report_each_hand_value(self):
+        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players_list = list(players)
+        players_list[2] = players_list[2].model_copy(update={"pao_seat": 1})
+        round_state = MahjongRoundState(wall=make_wall(), dealer_seat=0, players=tuple(players_list))
+        game_state = MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+        mangan = HandResult(han=5, fu=30, cost_main=8000, yaku=[YakuInfo(yaku_id=0, han=5)])
+        yakuman = HandResult(han=13, fu=30, cost_main=32000, yaku=[YakuInfo(yaku_id=0, han=13)])
+
+        _new_game, result = apply_double_ron_score(
+            game_state,
+            winners=[(1, mangan), (2, yakuman)],
+            loser_seat=0,
+            winning_tile=0,
+        )
+        assert result.score_changes == {0: -24000, 1: -8000, 2: 32000, 3: 0}
+        assert [w.hand_result.points for w in result.winners] == [8000, 32000]
+
 
 class TestProcessExhaustiveDrawNagashiTriggered:
     def test_process_exhaustive_draw__when_only_terminal_honor_discards__should_pay_nagashi_mangan(self):

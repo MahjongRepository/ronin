@@ -98,7 +98,6 @@ export default class Board {
         this.viewpoint = 0;
         this.sound_on  = true
         this.open_shoupai;
-        this.open_he;
         this.dummy_name = null;
         this.no_player_name;
 
@@ -157,7 +156,7 @@ export default class Board {
             this._view.he[l]
                     = new He(show($(`.he.${c}`, this._root)),
                                     this._pai, this._model.he[l])
-                        .redraw(this.open_he);
+                        .redraw();
 
             this._view.say[l] = hide($(`.say.${c}`, this._root).text(''));
             this._say[l] = null;

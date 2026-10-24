@@ -5,7 +5,7 @@
 
 export default {
 
-    show: node => node.removeClass('hide fadeout'),
+    show: node => node.off('transitionend').removeClass('hide fadeout'),
 
     hide: node => node.addClass('hide fadeout'),
 

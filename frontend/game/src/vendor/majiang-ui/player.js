@@ -85,6 +85,7 @@ export default class Player extends Majiang.Player {
                     this._mianzi(m, true)
                         .on('click.mianzi',()=>this.callback(msg)));
         }
+        clearTimeout(this._mianzi_timeout);
         show(this._node.mianzi.width($(this._node.dapai).width()));
         setSelector($('.mianzi', this._node.mianzi), 'mianzi',
                     {touch: false, focus: null});
@@ -92,7 +93,8 @@ export default class Player extends Majiang.Player {
     }
 
     clear_mianzi() {
-        setTimeout(()=>hide(this._node.mianzi), 400);
+        clearTimeout(this._mianzi_timeout);
+        this._mianzi_timeout = setTimeout(()=>hide(this._node.mianzi), 400);
         clearSelector('mianzi');
     }
 

@@ -21,7 +21,7 @@ export default class HuleDialog {
             root:   root,
             hule:   $('.hule',   root),
             pingju: $('.pingju', root),
-            fenpei: $('.fenpai', root),
+            fenpei: $('.fenpei', root),
         };
         this._r_hupai = $('.r_hupai', root).eq(0);
         this._r_defen = $('.r_defen', root).eq(0);
@@ -114,13 +114,13 @@ export default class HuleDialog {
         const feng_hanzi = ['東','南','西','北'];
         const class_name = ['main','xiajia','duimian','shangjia'];
 
-        $('.diff', this._node.fenpai).removeClass('plus minus');
+        $('.diff', this._node.fenpei).removeClass('plus minus');
 
         for (let l = 0; l < 4; l++) {
 
             let id = this._model.player_id[l];
             let c  = class_name[(id + 4 - this._viewpoint) % 4];
-            let node = $(`.${c}`, this._node.fenpai);
+            let node = $(`.${c}`, this._node.fenpei);
 
             $('.feng', node).text(feng_hanzi[l]);
 

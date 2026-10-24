@@ -7,6 +7,7 @@ import Translate from './ronin/translate.js';
 import Reply from './ronin/reply.js';
 import RoninPlayer from './ronin/player.js';
 import RoninSession from './ronin/session.js';
+import { showChat } from './ronin/chat.js';
 import wire from './ronin/wire.js';
 
 const { scale } = Majiang.UI.Util;
@@ -52,7 +53,7 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
         wsUrl, gameId, gameTicket: ticket,
         onEvent:        msg => translate.handle(msg),
         onSessionError: (code, message) => toast('エラー: ' + message),
-        onChat:         (name, text) => showChat(name, text),
+        onChat:         (name, text) => chat(name, text),
         onPlayerStatus: (name, connected) => {
             const seat = shadow.names.indexOf(name);
             if (seat >= 0) {
@@ -69,15 +70,9 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
         if (code != wire.GAME_ERROR.STALE_ACTION) toast('操作が拒否されました: ' + message);
     };
 
-    const CLASSES = ['main', 'xiajia', 'duimian', 'shangjia'];
-
-    function showChat(name, text) {
+    function chat(name, text) {
         const seat = shadow.names.indexOf(name);
-        if (seat < 0) { toast(name + ': ' + text); return; }
-        const c = CLASSES[(seat - shadow.mySeat + 4) % 4];
-        const node = $('#board .board .say.' + c);
-        node.text(text).show();
-        setTimeout(() => node.hide(), 4000);
+        if (seat < 0 || ! showChat(player._view, shadow.l(seat), text)) toast(name + ': ' + text);
     }
 
     function toast(text) {
