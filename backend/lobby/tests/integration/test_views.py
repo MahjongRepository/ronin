@@ -125,20 +125,13 @@ class TestLobbyViews:
         assert "text/html" in response.headers["content-type"]
         assert response.text == _GAME_CLIENT_INDEX
 
-    def test_storybook_melds_page__when_visited__should_return_html(self, client):
-        response = client.get("/play/storybook/melds")
+    @pytest.mark.parametrize(
+        "page", ["board", "discards", "hand", "melds", "decisions", "table", "win", "draw", "standings"]
+    )
+    def test_storybook_page__when_visited__should_serve_game_client_index(self, client, page):
+        response = client.get(f"/play/storybook/{page}")
         assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_storybook_hand_page__when_visited__should_return_html(self, client):
-        response = client.get("/play/storybook/hand")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_storybook_discards_page__when_visited__should_return_html(self, client):
-        response = client.get("/play/storybook/discards")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
+        assert response.text == _GAME_CLIENT_INDEX
 
     def test_play_page__when_index_missing__should_return_503(self, make_app, tmp_path):
         game_client_dir = tmp_path / "empty-game-dist"

@@ -1,6 +1,9 @@
 import $ from "jquery";
 
 import { STORYBOOK_PAGE, storybookPath } from "./routes.js";
+import { SAMPLE_PLAYERS, showBoardPage } from "./storybook/board-page.js";
+import { showDecisionsPage, showTablePage } from "./storybook/in-round.js";
+import { showDrawPage, showStandingsPage, showWinPage } from "./storybook/round-end.js";
 
 const PAGE_TITLES = Object.freeze({
     [STORYBOOK_PAGE.INDEX]: "Tiles",
@@ -8,6 +11,11 @@ const PAGE_TITLES = Object.freeze({
     [STORYBOOK_PAGE.DISCARDS]: "Discards",
     [STORYBOOK_PAGE.HAND]: "Hand",
     [STORYBOOK_PAGE.MELDS]: "Melds",
+    [STORYBOOK_PAGE.DECISIONS]: "Decisions",
+    [STORYBOOK_PAGE.TABLE]: "Table",
+    [STORYBOOK_PAGE.WIN]: "Win",
+    [STORYBOOK_PAGE.DRAW]: "Draw",
+    [STORYBOOK_PAGE.STANDINGS]: "Standings",
 });
 
 const TILE_SUITS = Object.freeze([
@@ -22,6 +30,7 @@ const HAND_SAMPLES = Object.freeze([
     { title: "Closed hand with a drawn tile", hand: "m123p456s789z1122", draw: "z2", open: true },
     { title: "Red fives", hand: "m0556p0556s0556z1", open: true },
     { title: "Opponent's hand (face down)", hand: "m123p456s789z1122", draw: "z2", open: false },
+    { title: "Single tile after four melds", hand: "s9,m1-23,p777=,s2222+,z666-", open: true },
 ]);
 
 const MELD_SAMPLES = Object.freeze([
@@ -45,7 +54,6 @@ const DISCARD_SAMPLES = Object.freeze([
     },
 ]);
 
-const BOARD_PLAYERS = Object.freeze(["Ronin", "Bot 1", "Bot 2", "Bot 3"]);
 const STARTING_POINTS = 25000;
 const BOARD_EVENTS = Object.freeze([
     { zimo: { l: 0, p: "z4" } },
@@ -142,7 +150,7 @@ function renderRiver(pai, { discards, call }) {
         $('<div class="lizhi">').append(riichiStick),
         '<div class="dapai">',
     );
-    new Majiang.UI.He(node, pai, he).redraw(true);
+    new Majiang.UI.He(node, pai, he).redraw();
     return node;
 }
 
@@ -151,13 +159,13 @@ function renderDiscards(pai) {
 }
 
 function createBoardModel() {
-    const model = new Majiang.Board({ title: "Storybook", player: [...BOARD_PLAYERS], qijia: 0 });
+    const model = new Majiang.Board({ title: "Storybook", player: [...SAMPLE_PLAYERS], qijia: 0 });
     model.qipai({
         zhuangfeng: 0,
         jushu: 0,
         changbang: 1,
         lizhibang: 0,
-        defen: BOARD_PLAYERS.map(() => STARTING_POINTS),
+        defen: SAMPLE_PLAYERS.map(() => STARTING_POINTS),
         baopai: "s3",
         shoupai: ["m123p405s789z1122", "", "", ""],
     });
@@ -168,13 +176,18 @@ function createBoardModel() {
     return model;
 }
 
-function showBoard(pai) {
-    const audio = Majiang.UI.audio($("#loaddata"));
-    const board = new Majiang.UI.Board($("#board .board"), pai, audio, createBoardModel());
-    board.viewpoint = 0;
-    board.redraw();
-    Majiang.UI.Util.scale($("#board"), $("#space"));
+function showSampleBoard(header, pai) {
+    showBoardPage(header, pai, createBoardModel());
 }
+
+const BOARD_PAGES = Object.freeze({
+    [STORYBOOK_PAGE.BOARD]: showSampleBoard,
+    [STORYBOOK_PAGE.DECISIONS]: showDecisionsPage,
+    [STORYBOOK_PAGE.TABLE]: showTablePage,
+    [STORYBOOK_PAGE.WIN]: showWinPage,
+    [STORYBOOK_PAGE.DRAW]: showDrawPage,
+    [STORYBOOK_PAGE.STANDINGS]: showStandingsPage,
+});
 
 const SAMPLE_PAGES = Object.freeze({
     [STORYBOOK_PAGE.INDEX]: renderTiles,
@@ -187,13 +200,12 @@ export function showStorybook(page) {
     const pai = Majiang.UI.pai($("#loaddata"));
     const nav = renderNav(page);
 
-    if (page === STORYBOOK_PAGE.BOARD) {
-        $("body").prepend(nav);
-        showBoard(pai);
+    if (page in BOARD_PAGES) {
+        BOARD_PAGES[page](nav, pai);
         return;
     }
 
-    $("#space, #board, body > .version").remove();
+    $("#space, #board").remove();
     $("body")
         .removeClass("board")
         .addClass("storybook")

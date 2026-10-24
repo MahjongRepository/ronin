@@ -37,6 +37,7 @@ body.storybook
         margin: 8px 0
     .storybook-nav
         display: flex
+        flex-wrap: wrap
         gap: 8px
         margin-bottom: 16px
         a
@@ -49,7 +50,11 @@ body.storybook
                 background: page-accent
                 color: page-background
 
+body.board:has(> .storybook-header)
+    display: flow-root
+
 body.board > .storybook-header
+    display: flow-root
     color: page-text
     a
         color: page-accent
@@ -77,3 +82,6 @@ body.board > .storybook-header
         figcaption
             font-family: fixed-font
             font-size: 12px
+
+.storybook-header .storybook-variants
+    font-size: 14px

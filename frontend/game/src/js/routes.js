@@ -10,6 +10,11 @@ export const STORYBOOK_PAGE = Object.freeze({
     DISCARDS: "discards",
     HAND: "hand",
     MELDS: "melds",
+    DECISIONS: "decisions",
+    TABLE: "table",
+    WIN: "win",
+    DRAW: "draw",
+    STANDINGS: "standings",
 });
 const STORYBOOK_PAGES = Object.values(STORYBOOK_PAGE);
 
