@@ -318,8 +318,8 @@ honours this contract can replace it.
 * **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
-  WebSocket connections to any host; no `eval`, so libraries that compile code at runtime (Zod's
-  JIT) must be switched off. A client needing more changes `SecurityHeadersMiddleware` in the lobby.
+  WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must
+  run without it. A client needing more changes `SecurityHeadersMiddleware` in the lobby.
 
 ## Local run
 

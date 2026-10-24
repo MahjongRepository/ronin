@@ -1,9 +1,18 @@
 {
-  "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "tabWidth": 4,
-  "printWidth": 100,
-  "useTabs": false,
-  "semi": true,
-  "singleQuote": false,
-  "sortImports": {}
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "tabWidth": 4,
+    "printWidth": 100,
+    "useTabs": false,
+    "semi": true,
+    "singleQuote": false,
+    "ignorePatterns": [
+        "*.md",
+        "index.html",
+        "public/**",
+        "src/css/**",
+        "src/js/majiang.js",
+        "src/js/ronin.js",
+        "src/js/ronin/**",
+        "src/vendor/**"
+    ]
 }

@@ -52,8 +52,6 @@ wait_for_server() {
 # Enable Vite dev mode in the lobby backend
 export LOBBY_VITE_DEV_URL="http://localhost:${VITE_PORT}"
 export LOBBY_GAME_CLIENT_DEV_URL="http://localhost:${GAME_VITE_PORT}"
-# Override VITE_LOBBY_URL so the game client points to the correct lobby port
-export VITE_LOBBY_URL="http://localhost:${LOBBY_PORT}"
 
 CLEANING_UP=false
 cleanup() {

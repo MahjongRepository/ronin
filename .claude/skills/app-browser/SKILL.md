@@ -50,7 +50,7 @@ agent-browser wait 1000 && agent-browser get url
 ## Reaching the pages
 
 Take ids from the UI, never invent them. Templates in `backend/lobby/views/templates/` are the
-lobby pages; the game client routes are in `frontend/game/src/index.ts`. There are no test ids:
+lobby pages; the game client routes are in `frontend/game/src/js/routes.js`. There are no test ids:
 select by element id, class or `snapshot -i` refs.
 
 - **Room:** click `.lobby-create-btn` (New Table) on `/`. A new room seats `dev` as host with three

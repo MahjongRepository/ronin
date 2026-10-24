@@ -1,0 +1,79 @@
+@import "font"
+@import "pai"
+@import "shoupai"
+@import "he"
+
+page-background = #154
+page-text = white
+page-accent = #fc6
+
+body.page
+body.storybook
+    margin: 0
+    padding: 16px
+    background: page-background
+    color: page-text
+    font-family: menu-font
+    a
+        color: page-accent
+
+.missing-session
+    font-size: 24px
+    padding: 40px
+    text-align: center
+
+.replay
+    h1
+        font-size: 20px
+    .replay-content
+        font-family: fixed-font
+        font-size: 12px
+        white-space: pre-wrap
+        word-break: break-all
+
+.storybook-header
+    h1
+        font-size: 24px
+        margin: 8px 0
+    .storybook-nav
+        display: flex
+        gap: 8px
+        margin-bottom: 16px
+        a
+            padding: 2px 12px
+            border: solid 1px page-accent
+            border-radius: 12px
+            font-family: menu-font
+            text-decoration: none
+            &.active
+                background: page-accent
+                color: page-background
+
+body.board > .storybook-header
+    color: page-text
+    a
+        color: page-accent
+
+.storybook-samples
+    max-width: 800px
+    .storybook-sample
+        margin-bottom: 24px
+        h2
+            font-size: 16px
+            font-weight: normal
+        .shoupai
+            shoupai-size: 680px 60px 56px 42px
+        .he
+            he-size: 300px 42px
+    .storybook-tile-row
+        display: flex
+        flex-wrap: wrap
+        gap: 4px
+        margin-bottom: 8px
+    .storybook-tile
+        margin: 0
+        text-align: center
+        pai-size: 56px
+        figcaption
+            font-family: fixed-font
+            font-size: 12px

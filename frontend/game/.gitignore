@@ -1,4 +1,2 @@
-node_modules
-dist
-out
-*.tsbuildinfo
+node_modules/
+dist/
