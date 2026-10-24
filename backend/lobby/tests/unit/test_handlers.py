@@ -41,56 +41,28 @@ class TestResolveViteAssetUrls:
     def test_resolve_vite_asset_urls__when_manifest_empty__should_return_empty_dict(self):
         assert resolve_vite_asset_urls({}) == {}
 
-    def test_resolve_vite_asset_urls__when_full_manifest__should_resolve_game_and_lobby_urls(self):
+    def test_resolve_vite_asset_urls__when_lobby_entry_built__should_resolve_lobby_js_and_css(self):
         manifest = {
             "src/index.ts": {
-                "file": "assets/game-abc123.js",
-                "css": ["assets/game-def456.css"],
-                "isEntry": True,
-            },
-            "src/lobby/index.ts": {
-                "file": "assets/lobby-ghi789.js",
-                "css": ["assets/lobby-jkl012.css"],
-                "isEntry": True,
-            },
-        }
-        urls = resolve_vite_asset_urls(manifest)
-        assert urls["game_js"] == "/game-assets/assets/game-abc123.js"
-        assert urls["game_css"] == "/game-assets/assets/game-def456.css"
-        assert urls["lobby_js"] == "/game-assets/assets/lobby-ghi789.js"
-        assert urls["lobby_css"] == "/game-assets/assets/lobby-jkl012.css"
-
-    def test_resolve_vite_asset_urls__when_lobby_entry_only__should_resolve_lobby_js_and_css(self):
-        manifest = {
-            "src/lobby/index.ts": {
                 "file": "assets/lobby-abc123.js",
                 "css": ["assets/lobby-def456.css"],
                 "isEntry": True,
             },
         }
-        urls = resolve_vite_asset_urls(manifest)
-        assert urls["lobby_js"] == "/game-assets/assets/lobby-abc123.js"
-        assert urls["lobby_css"] == "/game-assets/assets/lobby-def456.css"
 
-    def test_resolve_vite_asset_urls__when_entry_has_no_file__should_omit_game_js(self):
+        urls = resolve_vite_asset_urls(manifest)
+        assert urls == {
+            "lobby_js": "/lobby-assets/assets/lobby-abc123.js",
+            "lobby_css": "/lobby-assets/assets/lobby-def456.css",
+        }
+
+    def test_resolve_vite_asset_urls__when_entry_has_no_file__should_omit_lobby_js(self):
         manifest = {
             "src/index.ts": {"isEntry": True},
         }
-        urls = resolve_vite_asset_urls(manifest)
-        assert "game_js" not in urls
 
-    def test_resolve_vite_asset_urls__when_lobby_entry_missing__should_omit_lobby_urls(self):
-        manifest = {
-            "src/index.ts": {
-                "file": "assets/game.js",
-                "css": ["assets/game.css"],
-                "isEntry": True,
-            },
-        }
         urls = resolve_vite_asset_urls(manifest)
-        assert "game_js" in urls
         assert "lobby_js" not in urls
-        assert "lobby_css" not in urls
 
 
 class TestFormatDuration:

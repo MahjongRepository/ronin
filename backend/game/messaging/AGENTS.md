@@ -16,5 +16,5 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   the reconnect snapshot always carries it. Every game action must echo it, and one for another wait
   is refused as stale. The replay collector shapes its own payloads, so live-only metadata like the
   wait id never reaches a replay file.
-* The frontend mirrors this protocol in `frontend/src/shared/protocol/`; change both in the same
+* The frontend mirrors this protocol in `frontend/game/src/shared/protocol/`; change both in the same
   change.

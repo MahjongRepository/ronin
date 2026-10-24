@@ -31,6 +31,9 @@ from lobby.rooms.websocket import room_websocket
 from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
 from lobby.settings import LobbyServerSettings
 from lobby.views import (
+    GAME_ASSETS_PATH,
+    BuiltGameClient,
+    DevGameClient,
     create_room_and_redirect,
     create_templates,
     history_page,
@@ -64,6 +67,7 @@ logger = structlog.get_logger()
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
 
+    import httpx
     from starlette.requests import Request
 
 
@@ -99,9 +103,13 @@ def create_app(
     settings: LobbyServerSettings | None = None,
     auth_settings: AuthSettings | None = None,  # required in production (via get_app)
     is_playing: Callable[[str], Awaitable[bool]] | None = None,
+    game_client_dev_transport: httpx.AsyncBaseTransport | None = None,
 ) -> Starlette:
     """
-    Build the lobby app; ``is_playing`` replaces the game-server lookup of a user already playing (tests only).
+    Build the lobby app.
+
+    ``is_playing`` replaces the game-server lookup of a user already playing, and ``game_client_dev_transport`` the
+    network under the game client's dev-server proxy (tests only).
     """
     if settings is None:  # pragma: no cover (entrypoint)
         settings = LobbyServerSettings()
@@ -110,7 +118,8 @@ def create_app(
         auth_settings = AuthSettings()
 
     static_dir = Path(settings.static_dir).resolve()
-    game_assets_dir = Path(settings.game_assets_dir).resolve()
+    assets_dir = Path(settings.assets_dir).resolve()
+    game_client = _create_game_client(settings, dev_transport=game_client_dev_transport)
 
     if is_playing is None:
         is_playing = functools.partial(is_user_playing, game_server_url=settings.game_server_url)
@@ -169,12 +178,12 @@ def create_app(
     if static_dir.is_dir():
         routes.append(Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"))
 
-    if game_assets_dir.is_dir():
-        routes.append(
-            Mount("/game-assets", app=StaticFiles(directory=str(game_assets_dir)), name="game_assets"),
-        )
+    if assets_dir.is_dir():
+        routes.append(Mount("/lobby-assets", app=StaticFiles(directory=str(assets_dir)), name="lobby_assets"))
     else:
-        logger.warning("game assets directory not found, /game-assets/ will not be served", path=str(game_assets_dir))
+        logger.warning("lobby assets directory not found, /lobby-assets/ will not be served", path=str(assets_dir))
+
+    routes.extend(_game_client_routes(game_client))
 
     validate_route_auth_policy(routes)
 
@@ -212,6 +221,7 @@ def create_app(
     app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
+    app.state.game_client = game_client
     _attach_state(
         app,
         settings=settings,
@@ -255,23 +265,17 @@ def _attach_state(  # noqa: PLR0913
         env_globals["vite_dev_url"] = vite_dev_url
 
         env_globals["lobby_css_url"] = f"{vite_dev_url}/src/styles/lobby-app.scss"
-        env_globals["lobby_js_url"] = f"{vite_dev_url}/src/lobby/index.ts"
-        env_globals["game_css_url"] = f"{vite_dev_url}/src/styles/game-app.scss"
-        env_globals["game_js_url"] = f"{vite_dev_url}/src/index.ts"
-        game_assets_available = True
+        env_globals["lobby_js_url"] = f"{vite_dev_url}/src/index.ts"
     else:
         # Production (or standalone dev without Vite): read Vite manifest
         env_globals["vite_dev"] = False
         env_globals["vite_dev_url"] = ""
 
-        manifest = load_vite_manifest(settings.game_assets_dir)
+        manifest = load_vite_manifest(settings.assets_dir)
         urls = resolve_vite_asset_urls(manifest)
 
         env_globals["lobby_css_url"] = urls.get("lobby_css", "")
         env_globals["lobby_js_url"] = urls.get("lobby_js", "")
-        env_globals["game_css_url"] = urls.get("game_css", "")
-        env_globals["game_js_url"] = urls.get("game_js", "")
-        game_assets_available = bool(urls.get("game_js"))
 
     env_globals["app_version"] = APP_VERSION
     env_globals["git_commit"] = GIT_COMMIT
@@ -279,11 +283,45 @@ def _attach_state(  # noqa: PLR0913
     env_globals["dev_mode"] = dev_mode
 
     app.state.templates = templates
-    app.state.game_assets_available = game_assets_available
     app.state.auth_service = auth_service
     app.state.room_manager = room_manager
     app.state.matchmaking_manager = matchmaking_manager
     app.state.occupancy = occupancy
+
+
+def _create_game_client(
+    settings: LobbyServerSettings,
+    *,
+    dev_transport: httpx.AsyncBaseTransport | None,
+) -> BuiltGameClient | DevGameClient:
+    if settings.game_client_dev_url:
+        return DevGameClient(origin=settings.game_client_dev_url, transport=dev_transport)
+
+    return BuiltGameClient(directory=Path(settings.game_client_dir).resolve())
+
+
+def _game_client_routes(game_client: BuiltGameClient | DevGameClient) -> list[BaseRoute]:
+    """
+    Serve the game client's files under ``/game-assets/``: proxied to its dev server, or from its build.
+    """
+    if isinstance(game_client, DevGameClient):
+        return [
+            Route(
+                f"{GAME_ASSETS_PATH}/{{path:path}}",
+                public_route(game_client.serve_asset),
+                methods=["GET"],
+                name="game_assets",
+            ),
+        ]
+
+    if not game_client.directory.is_dir():
+        logger.warning(
+            "game client directory not found, the game client will not be served",
+            path=str(game_client.directory),
+        )
+        return []
+
+    return [Mount(GAME_ASSETS_PATH, app=StaticFiles(directory=str(game_client.directory)), name="game_assets")]
 
 
 def get_app() -> Starlette:  # pragma: no cover (entrypoint)  # deadcode: ignore

@@ -1,11 +1,6 @@
-import { describeOccupancyError } from "@/lobby/occupancy-errors";
-import {
-    LOG_TYPE_SYSTEM,
-    type PlayerInfo,
-    type RoomState,
-    getMyReadyState,
-} from "@/lobby/room/state";
-import { storeGameSession } from "@/shared/session";
+import { describeOccupancyError } from "@/occupancy-errors";
+import { LOG_TYPE_SYSTEM, type PlayerInfo, type RoomState, getMyReadyState } from "@/room/state";
+import { storeGameSession } from "@/session";
 
 interface UpdateUICallbacks {
     updateActionButton: () => void;

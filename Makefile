@@ -4,7 +4,9 @@ BE_RUN := uv run --project backend
 
 DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
+FRONTEND_APPS := lobby game
+
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -30,17 +32,20 @@ format:
 typecheck:
 	cd backend && uv run ty check
 
+install-frontend:
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun install) || exit 1; done
+
 typecheck-frontend:
-	cd frontend && bun run typecheck
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run typecheck) || exit 1; done
 
 format-frontend:
-	cd frontend && bun run fmt
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run fmt) || exit 1; done
 
 lint-frontend:
-	cd frontend && bun run lint
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run lint) || exit 1; done
 
 test-frontend:
-	cd frontend && bun run test
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run test) || exit 1; done
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

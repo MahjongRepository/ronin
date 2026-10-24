@@ -299,8 +299,31 @@ The finish record is built from the start record, never from end-of-game connect
 seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL, which is why
 "playing" is never derived from this table.
 
+## Game client contract
+
+The game client (`frontend/game/`) is a separate app the lobby hosts on its own origin; any app that
+honours this contract can replace it.
+
+* **Hosting:** the lobby answers the game client's pages with the app's built `index.html`
+  (`LOBBY_GAME_CLIENT_DIR`) and serves that directory under `/game-assets/`, so the app builds with
+  that base path; the app routes the path itself. The pages are an explicit list in the lobby's
+  route table, each with its login policy (`/play/{game_id}` requires a login; the replay
+  `/play/history/{game_id}` and the storybook pages do not); any other path is a 404, so a new client
+  route needs its path added there.
+* **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
+  `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session
+  storage is per origin, which is why the game client must be served by the lobby.
+* **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
+  (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect.
+* **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required.
+* **Leaving:** the client returns players to the lobby at `/`.
+* **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
+  WebSocket connections to any host; no `eval`, so libraries that compile code at runtime (Zod's
+  JIT) must be switched off. A client needing more changes `SecurityHeadersMiddleware` in the lobby.
+
 ## Local run
 
-`make run-local-server` starts the game server (`:8711`), the lobby (`:8710`) and Vite (`:5173`).
+`make run-local-server` starts the game server (`:8711`), the lobby (`:8710`) and a Vite dev server
+per frontend app: the lobby's (`:5173`) and the game client's (`:5174`, proxied by the lobby).
 In production Traefik fronts both services from one `docker-compose.yml`; the lobby's internal game
 server URL and the public WebSocket origin it hands players are two separate settings.

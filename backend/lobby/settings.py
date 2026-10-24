@@ -45,10 +45,12 @@ class LobbyServerSettings(BaseSettings):
     allowed_hosts: Annotated[list[str], NoDecode]
     game_server_url: str
     game_server_ws_url: str
-    static_dir: str = "frontend/public"
-    game_client_url: str = "/play"
-    game_assets_dir: str = "frontend/dist"
+    static_dir: str = "frontend/lobby/public"
+    assets_dir: str = "frontend/lobby/dist"
     vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server
+    game_client_url: str = "/play"
+    game_client_dir: str = "frontend/game/dist"
+    game_client_dev_url: str = ""
     replay_dir: str = Field(min_length=1)
     ws_allowed_origin: str = Field(min_length=1)
 
@@ -66,6 +68,14 @@ class LobbyServerSettings(BaseSettings):
     @classmethod
     def validate_game_server_ws_url(cls, v: str) -> str:
         return _parse_url_origin(v, _WS_SCHEMES)
+
+    @field_validator("game_client_dev_url")
+    @classmethod
+    def validate_game_client_dev_url(cls, v: str) -> str:
+        if not v:
+            return v
+
+        return _parse_url_origin(v, _HTTP_SCHEMES)
 
     @field_validator("allowed_hosts", mode="before")
     @classmethod

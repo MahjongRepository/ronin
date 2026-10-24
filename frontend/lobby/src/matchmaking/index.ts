@@ -1,6 +1,6 @@
-import { LobbySocket } from "@/lobby/lobby-socket";
-import { describeOccupancyError } from "@/lobby/occupancy-errors";
-import { storeGameSession } from "@/shared/session";
+import { LobbySocket } from "@/lobby-socket";
+import { describeOccupancyError } from "@/occupancy-errors";
+import { storeGameSession } from "@/session";
 
 const MATCH_FAILED = "match_failed";
 const RETRYABLE_ERRORS: ReadonlySet<unknown> = new Set([MATCH_FAILED, "already_in_game"]);
