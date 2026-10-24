@@ -135,6 +135,11 @@ def create_app(
         Route("/play/storybook/discards", public_route(play_page), methods=["GET"], name="storybook_discards_page"),
         Route("/play/storybook/hand", public_route(play_page), methods=["GET"], name="storybook_hand_page"),
         Route("/play/storybook/melds", public_route(play_page), methods=["GET"], name="storybook_melds_page"),
+        Route("/play/storybook/decisions", public_route(play_page), methods=["GET"], name="storybook_decisions_page"),
+        Route("/play/storybook/table", public_route(play_page), methods=["GET"], name="storybook_table_page"),
+        Route("/play/storybook/win", public_route(play_page), methods=["GET"], name="storybook_win_page"),
+        Route("/play/storybook/draw", public_route(play_page), methods=["GET"], name="storybook_draw_page"),
+        Route("/play/storybook/standings", public_route(play_page), methods=["GET"], name="storybook_standings_page"),
         Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
         Route(
