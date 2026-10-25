@@ -1,6 +1,5 @@
 import rules from "../ronin/rules.js";
-import { ABORTIVE_NAMES, huleMessage, pingjuMessage } from "../ronin/translate.js";
-import wire from "../ronin/wire.js";
+import { ABORTIVE_NAMES, huleMessage, jiejuStandings, pingjuMessage } from "../ronin/translate.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
@@ -287,27 +286,27 @@ const GAME_ROUNDS = Object.freeze([
     },
 ]);
 
+const EXHAUSTIVE_SAMPLE = DRAW_SAMPLES.find((sample) => sample.key === "exhaustive");
+
 const FINAL_ROUND = Object.freeze({
     round: { zhuangfeng: 1, jushu: 3, changbang: 0, lizhibang: 0 },
     defen: [28400, 37800, 25600, 8200],
-    baopai: "m1",
-    hand: "m2347p777s12257z3",
-    events: rotation(["z1 p9 s6", "m6>z3 m8>s1", "m9 z2", "p1 z5"]),
-    end: hule({
-        l: 1,
-        baojia: 0,
-        shoupai: "m234678p777s2257s6",
-        hr: { han: 2, fu: 40, yk: yaku([YAKU.TANYAO, 1], [YAKU.DORA, 1]), pt: 26 },
-        fenpei: [-2600, 2600, 0, 0],
-    }),
+    baopai: EXHAUSTIVE_SAMPLE.baopai,
+    hand: "m88p234067s567z22",
+    events: EXHAUSTIVE_SAMPLE.events,
+    end: EXHAUSTIVE_SAMPLE.end,
 });
 
-const GAME_STANDINGS = Object.freeze([
-    { s: 0, sc: 404, fs: 50 },
-    { s: 3, sc: 258, fs: 6 },
-    { s: 1, sc: 256, fs: -14 },
-    { s: 2, sc: 82, fs: -42 },
-]);
+const GAME_END = Object.freeze({
+    ws: 0,
+    st: [
+        { s: 0, sc: 393, fs: 49 },
+        { s: 3, sc: 269, fs: 7 },
+        { s: 1, sc: 241, fs: -16 },
+        { s: 2, sc: 97, fs: -40 },
+    ],
+    lb: 10,
+});
 
 function viewpointSeatIndex(jushu) {
     return (VIEWPOINT - QIJIA - jushu + 8) % 4;
@@ -342,17 +341,16 @@ function createRoundModel(log) {
     return model;
 }
 
-function createJieju(standings, log) {
-    const defen = [];
-    const point = [];
-    const rank = [];
-    standings.forEach(({ s, sc, fs }, i) => {
-        defen[s] = sc * wire.SCORE_DIV;
-        point[s] = fs;
-        rank[s] = i + 1;
-    });
+function createJieju(gameEnd, log) {
     const player = [...SAMPLE_PLAYERS];
-    return { title: GAME_TITLE, rule: rules, player, qijia: QIJIA, defen, point, rank, log };
+    return {
+        title: GAME_TITLE,
+        rule: rules,
+        player,
+        qijia: QIJIA,
+        ...jiejuStandings(gameEnd),
+        log,
+    };
 }
 
 function showRoundEndPage(header, pai, variants) {
@@ -375,7 +373,7 @@ export function showDrawPage(header, pai) {
 
 export function showStandingsPage(header, pai) {
     const finalLog = sampleLog(FINAL_ROUND);
-    const paipu = createJieju(GAME_STANDINGS, [...GAME_ROUNDS.map(summaryLog), finalLog]);
+    const paipu = createJieju(GAME_END, [...GAME_ROUNDS.map(summaryLog), finalLog]);
     const model = createRoundModel(finalLog);
     model.jieju(paipu);
     showBoardPage(header, pai, model, { viewpoint: VIEWPOINT }).summary(paipu);

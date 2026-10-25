@@ -279,6 +279,7 @@ class GameEndResult(BaseModel):
     type: RoundResultType = RoundResultType.GAME_END
     winner_seat: int
     standings: list[PlayerStanding]
+    leftover_riichi_bonus: int
 
 
 class MeldCaller(BaseModel):

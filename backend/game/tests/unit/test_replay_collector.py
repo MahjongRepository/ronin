@@ -111,6 +111,7 @@ def _make_game_ended_event() -> ServiceEvent:
         data=GameEndedEvent(
             winner_seat=0,
             standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
+            leftover_riichi_bonus=0,
         ),
     )
 

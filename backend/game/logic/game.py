@@ -393,15 +393,11 @@ def finalize_game(
     # handle remaining riichi sticks based on settings
     settings = game_state.settings
     new_round_state = round_state
-    new_riichi_sticks = game_state.riichi_sticks
-    if new_riichi_sticks > 0:
-        if settings.leftover_riichi_bets == LeftoverRiichiBets.WINNER:
-            riichi_bonus = new_riichi_sticks * settings.riichi_stick_value
-            new_score = round_state.players[winner_seat].score + riichi_bonus
-            new_round_state = update_player(new_round_state, winner_seat, score=new_score)
-
-        # sticks are cleared regardless (WINNER: collected; LOST: disappear)
-        new_riichi_sticks = 0
+    riichi_bonus = 0
+    if settings.leftover_riichi_bets == LeftoverRiichiBets.WINNER:
+        riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
+        new_score = round_state.players[winner_seat].score + riichi_bonus
+        new_round_state = update_player(new_round_state, winner_seat, score=new_score)
 
     # sort players by placement (descending score, ties broken by starting dealer proximity)
     sorted_players = sorted(new_round_state.players, key=_tie_break_key)
@@ -425,7 +421,7 @@ def finalize_game(
     new_game_state = game_state.model_copy(
         update={
             "round_state": new_round_state,
-            "riichi_sticks": new_riichi_sticks,
+            "riichi_sticks": 0,
             "game_phase": GamePhase.FINISHED,
         },
     )
@@ -433,4 +429,5 @@ def finalize_game(
     return new_game_state, GameEndResult(
         winner_seat=winner_seat,
         standings=standings,
+        leftover_riichi_bonus=riichi_bonus,
     )
