@@ -64,7 +64,7 @@ function pingju(name, fenpei, draw = {}) {
     return pingjuMessage({ name, fenpei, ...draw });
 }
 
-const WIN_SAMPLES = Object.freeze([
+export const WIN_SAMPLES = Object.freeze([
     {
         key: "ron",
         title: "Riichi ron with ura-dora",
@@ -114,6 +114,7 @@ const WIN_SAMPLES = Object.freeze([
             ...turn(2, "s3>m5"),
             ...turn(3, "p8"),
             ...turn(0, "s7"),
+            { zimo: { l: 1, p: "m6" } },
         ],
         end: hule({
             l: 1,
@@ -267,7 +268,7 @@ const WIN_SAMPLES = Object.freeze([
     },
 ]);
 
-const DRAW_SAMPLES = Object.freeze([
+export const DRAW_SAMPLES = Object.freeze([
     {
         key: "exhaustive",
         title: "Exhaustive draw, two tenpai",
@@ -371,7 +372,7 @@ const GAME_ROUNDS = Object.freeze([
 
 const EXHAUSTIVE_SAMPLE = DRAW_SAMPLES.find((sample) => sample.key === "exhaustive");
 
-const FINAL_ROUND = Object.freeze({
+export const FINAL_ROUND = Object.freeze({
     round: { zhuangfeng: 1, jushu: 3, changbang: 0, lizhibang: 0 },
     defen: [28400, 37800, 25600, 8200],
     baopai: EXHAUSTIVE_SAMPLE.baopai,
@@ -395,7 +396,7 @@ function viewpointSeatIndex(jushu) {
     return (VIEWPOINT - QIJIA - jushu + 8) % 4;
 }
 
-function sampleLog({ round, defen, baopai, hand, events, end }) {
+export function sampleLog({ round, defen, baopai, hand, events, end }) {
     const viewpointL = viewpointSeatIndex(round.jushu);
     const shoupai = SAMPLE_PLAYERS.map((_, l) => (l === viewpointL ? hand : ""));
     return [{ qipai: { ...round, defen, baopai, shoupai } }, ...events, end];
@@ -415,7 +416,7 @@ function playEvent(model, event) {
     model[MODEL_ACTIONS[type]](hiddenDraw ? { l: data.l } : data);
 }
 
-function createRoundModel(log) {
+export function createRoundModel(log) {
     const model = new Majiang.Board({
         title: GAME_TITLE,
         player: [...SAMPLE_PLAYERS],
