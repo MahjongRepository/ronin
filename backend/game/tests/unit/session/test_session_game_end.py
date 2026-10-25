@@ -371,7 +371,6 @@ class TestGameEndFromTimeout:
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert manager.get_game("game1") is None
 
-        manager.broadcast_chat(conns[1], "gg")
         manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=0)
         await wait_for_background_tasks(manager)
         assert conns[1].sent_messages[-1]["t"] == EVENT_TYPE_INT[EventType.GAME_END]

@@ -26,7 +26,6 @@ from game.messaging.types import (
     GameLeftMessage,
     PlayerLeftMessage,
     PlayerReconnectedMessage,
-    SessionChatMessage,
     SessionErrorCode,
     SessionMessageType,
 )
@@ -486,16 +485,6 @@ class SessionManager:
             target=SeatTarget(seat=seat),
         )
         connection.send_message(service_event_payload(ServiceEvent(data=error)))
-
-    def broadcast_chat(self, connection: ConnectionProtocol, text: str) -> None:
-        participant = self._bound_participant(connection)
-        if participant is None:
-            return
-
-        self._broadcast_to_game(
-            participant.game,
-            SessionChatMessage(player_name=participant.name, text=text).model_dump(),
-        )
 
     def reconnect(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
         """

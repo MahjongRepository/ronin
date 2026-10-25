@@ -29,13 +29,12 @@ const LOBBY_CODES = new Set([
 class RoninSession {
 
     constructor({ wsUrl, gameId, gameTicket,
-                  onEvent, onSessionError, onChat, onPlayerStatus, onReconnected }) {
+                  onEvent, onSessionError, onPlayerStatus, onReconnected }) {
         this.wsUrl   = wsUrl;
         this.gameId  = gameId;
         this.ticket  = gameTicket;
         this.onEvent = onEvent || (() => {});
         this.onSessionError = onSessionError || (() => {});
-        this.onChat  = onChat || (() => {});
         this.onPlayerStatus = onPlayerStatus || (() => {});
         this.onReconnected = onReconnected || (() => {});
 
@@ -108,9 +107,6 @@ class RoninSession {
         switch (type) {
         case wire.SESSION.ERROR:
             this.handleError(msg.code || '', msg.message || '');
-            break;
-        case wire.SESSION.CHAT:
-            this.onChat(msg.player_name, msg.text);
             break;
         case wire.SESSION.PLAYER_LEFT:
             this.onPlayerStatus(msg.player_name, false);

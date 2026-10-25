@@ -112,13 +112,10 @@ class TestConnectionWriters:
         tile = runtime_of(table.manager).state.round_state.players[bob_seat].tiles[-1]
 
         bob.send({"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": tile, "wi": wait_id})
-        bob.send({"t": WireClientMessageType.CHAT, "text": "sent after the discard"})
-        await bob.wait_for_message(lambda m: m.get("text") == "sent after the discard")
-        assert table.manager.get_game("game1").awaiting.wait_id != wait_id
-        assert any(
-            m.get("t") == EVENT_TYPE_INT[EventType.DISCARD] and decode_discard(m["d"])[:2] == (bob_seat, tile)
-            for m in bob.messages
+        await bob.wait_for_message(
+            lambda m: m.get("t") == EVENT_TYPE_INT[EventType.DISCARD] and decode_discard(m["d"])[:2] == (bob_seat, tile)
         )
+        assert table.manager.get_game("game1").awaiting.wait_id != wait_id
 
     async def test_game_end__when_one_reader_is_held__should_close_the_others_after_game_end_without_waiting(
         self, table
@@ -142,12 +139,9 @@ class TestConnectionWriters:
         table.manager.register_connection(bob)
         table.manager.join_game(bob, game_id="game1", session_token=table.tickets["Bob"])
         alice, alice_endpoint = table.join_over_socket("Alice", held=True)
-        for n in range(5):
-            alice.send({"t": WireClientMessageType.CHAT, "text": f"post-overflow-{n}"})
 
         await alice_endpoint
         assert alice.written == []
-        assert [m for m in bob.sent_messages if m.get("type") == SessionMessageType.CHAT] == []
         assert not table.manager._participants_by_ticket[table.tickets["Alice"]].is_connected
         snapshot = table.manager._game_service.build_reconnection_snapshot(
             runtime_of(table.manager), table.seat_of("Bob")

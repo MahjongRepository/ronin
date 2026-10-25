@@ -5,7 +5,6 @@ from pydantic import ValidationError
 
 from game.logic.enums import GameAction
 from game.messaging.types import (
-    ChatMessage,
     ChiMessage,
     DiscardMessage,
     ErrorMessage,
@@ -71,8 +70,6 @@ class MessageRouter:
             self._handle_join_game(connection, message)
         elif isinstance(message, ReconnectMessage):
             self._handle_reconnect(connection, message)
-        elif isinstance(message, ChatMessage):
-            self._session_manager.broadcast_chat(connection, text=message.text)
 
     def _verify_ticket(
         self,

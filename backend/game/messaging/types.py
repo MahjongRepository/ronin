@@ -1,21 +1,16 @@
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, Field, TypeAdapter
 
 from game.logic.enums import KanType
 from game.logic.tiles import NUM_TILES
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 
-# ASCII control character boundaries for input validation
-_SPACE_ORD = 0x20
-_DEL_ORD = 0x7F
-
 
 class SessionMessageType(StrEnum):
     GAME_LEFT = "game_left"
     PLAYER_LEFT = "player_left"
-    CHAT = "chat"
     ERROR = "session_error"
     GAME_RECONNECTED = "game_reconnected"
     PLAYER_RECONNECTED = "player_reconnected"
@@ -96,19 +91,6 @@ GameActionMessage = Annotated[
 ]
 
 
-class ChatMessage(BaseModel):
-    t: Literal[WireClientMessageType.CHAT] = WireClientMessageType.CHAT
-    text: str = Field(min_length=1, max_length=1000)
-
-    @field_validator("text")
-    @classmethod
-    def _validate_text(cls, v: str) -> str:
-        if any((ord(c) < _SPACE_ORD and c not in ("\t", "\n", "\r")) or ord(c) == _DEL_ORD for c in v):
-            raise ValueError("text must not contain control characters")
-
-        return v
-
-
 class ReconnectMessage(BaseModel):
     t: Literal[WireClientMessageType.RECONNECT] = WireClientMessageType.RECONNECT
     game_ticket: str = Field(min_length=1, max_length=2000)
@@ -126,7 +108,6 @@ ClientMessage = (
     | ChiMessage
     | KanMessage
     | NoDataActionMessage
-    | ChatMessage
     | ReconnectMessage
     | JoinGameMessage
 )
@@ -139,12 +120,6 @@ class GameLeftMessage(BaseModel):
 class PlayerLeftMessage(BaseModel):
     type: Literal[SessionMessageType.PLAYER_LEFT] = SessionMessageType.PLAYER_LEFT
     player_name: str
-
-
-class SessionChatMessage(BaseModel):
-    type: Literal[SessionMessageType.CHAT] = SessionMessageType.CHAT
-    player_name: str
-    text: str
 
 
 class ErrorMessage(BaseModel):
@@ -163,7 +138,7 @@ class PlayerReconnectedMessage(BaseModel):
 
 
 _NonGameMessage = Annotated[
-    ChatMessage | ReconnectMessage | JoinGameMessage,
+    ReconnectMessage | JoinGameMessage,
     Field(discriminator="t"),
 ]
 
