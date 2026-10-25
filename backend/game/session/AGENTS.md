@@ -48,9 +48,12 @@ interleave.
   them for the new wait's connected seats, an unchanged one touches only an actor that left it.
   Every pacing duration comes from `TimerConfig`, the one pacing model (the engine has none; the
   auth timeout and transport ping are not pacing). A round advance waits its timeout once per result
-  the client shows in turn, so a double ron's waits it once per winner. The game client's silence
-  watchdog limit is derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait needs a
-  longer limit.
+  the client shows in turn, so a double ron's waits it once per winner. The game start pause holds
+  the first deal back after `game_started` so the client shows the start: no wait is open and no
+  timer runs until the deal, a seat left empty then gets its AI player only with the deal (no AI
+  move goes out ahead of it), and a RECONNECT answers retry later until then. The game client's
+  silence watchdog limit is derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait
+  needs a longer limit.
 * **Finish records come from the start record.** The start record is captured right after the
   engine starts the game, every seat in seat order with each participant's `user_id` by seat; every
   finish record (completed, abandoned or failed) is built whole from it, never from engine or

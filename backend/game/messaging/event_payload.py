@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from game.logic.service import Awaiting
 
 WAIT_ID_KEY = "wi"
+VIEWER_SEAT_KEY = "s"
 
 _TURN_OPENING_MELDS = frozenset({MeldViewType.PON, MeldViewType.CHI})
 
@@ -114,6 +115,16 @@ def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     payload["ac"] = available_calls
     return payload
+
+
+def stamp_viewer_seat(payload: dict[str, Any], seat: int) -> dict[str, Any]:
+    """
+    Return a copy of a broadcast payload stamped with its recipient's seat (`s`).
+
+    The game start is broadcast, but each client reads its own seat from it to draw the table from that seat. Only the
+    socket payloads carry it, never a replay file.
+    """
+    return {**payload, VIEWER_SEAT_KEY: seat}
 
 
 def stamp_wait_id(payload: dict[str, Any], event: ServiceEvent, awaiting: Awaiting) -> dict[str, Any]:

@@ -115,7 +115,12 @@ class TestFailGame:
         game_repo = FakeGameRepository()
         collector = MagicMock(spec=ReplayCollector)
         collector.save = AsyncMock(side_effect=KeyError("replay buffer"))
-        manager = SessionManager(MockGameService(), replay_collector=collector, game_repository=game_repo)
+        manager = SessionManager(
+            MockGameService(),
+            replay_collector=collector,
+            game_repository=game_repo,
+            timer_config=TimerConfig(game_start_pause_seconds=0),
+        )
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         conns[0].send_message = MagicMock(side_effect=ValueError("encoder broke"))
         monkeypatch.setattr(manager_module, "build_finish_record", MagicMock(side_effect=KeyError("seat 3")))
@@ -137,7 +142,9 @@ class TestFailGame:
     async def test_pending_game_timeout__when_game_start_raises__should_fail_the_game(self):
         game_service = MockGameService()
         game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
-        manager = make_session_manager(game_service, timer_config=TimerConfig(pending_game_timeout_seconds=0.01))
+        manager = make_session_manager(
+            game_service, timer_config=TimerConfig(pending_game_timeout_seconds=0.01, game_start_pause_seconds=0)
+        )
         manager.create_pending_game(
             game_id="game1",
             player_specs=[

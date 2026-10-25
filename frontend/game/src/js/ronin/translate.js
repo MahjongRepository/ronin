@@ -155,7 +155,6 @@ class Translate {
         this.retry = null;
         this.roundDialogOpen = false;
         this.pendingJieju = null;
-        this.kaijuFed = false;
         this.winCallTimer = null;
     }
 
@@ -202,10 +201,12 @@ class Translate {
     gameStarted(msg) {
         const s = this.shadow;
         s.gameId = msg.gid;
+        s.mySeat = msg.s;
         s.qijia = msg.dl;
         s.title = gameTitle(msg.gt, new Date());
         this.readPlayers(msg.p);
         s.playersConnected = [true, true, true, true];
+        this.feedKaiju();
     }
 
     readPlayers(players) {
@@ -259,7 +260,6 @@ class Translate {
             baopai:     s.dora[0],
         };
 
-        if (! this.kaijuFed) this.feedKaiju();
         this.feed({ qipai }, 'qipai');
 
         s.startRoundLog({ qipai });
@@ -267,12 +267,12 @@ class Translate {
     }
 
     /**
-     * The game start sets the model's players and the board's viewpoint. Its screen is not shown: the server sends
-     * the first deal and the dealer's draw with it, on the dealer's turn timer, so the deal fed next hides it at once.
+     * The game start sets the model's players and the board's viewpoint, and shows the start screen from the seat the
+     * game_started message names. The server holds the first deal back for its game start pause, so the screen stays
+     * up that long before the deal hides it; a reconnect feeds it right before its own deal.
      */
     feedKaiju() {
         this.feed({ kaiju: this.kaiju() }, 'kaiju');
-        this.kaijuFed = true;
     }
 
     draw(msg) {

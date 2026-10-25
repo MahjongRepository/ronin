@@ -60,6 +60,7 @@ function startTable(myTiles = BASE_HAND, round = {}, game = {}) {
     const receive = (message) => translate.handle(message);
     receive({
         t: 8,
+        s: 0,
         gid: "g",
         dl: 0,
         dd: [
@@ -514,26 +515,41 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 10 }]);
     });
 
-    it("feeds the game start once, not again with each round's deal", () => {
-        const table = startTable();
-
-        table.receive({
-            t: 9,
-            s: 0,
-            w: 0,
-            n: 1,
-            dl: 1,
-            cp: 1,
-            di: [132],
-            h: 0,
-            r: 0,
-            mt: BASE_HAND,
-            p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
-            dc: [1, 1],
+    it("shows the game start from the seat game_started names before any deal, and not again with a deal", () => {
+        const player = new TablePlayer();
+        const translate = new Translate(player, new Shadow());
+        translate.handle({
+            t: 8,
+            s: 2,
+            gid: "g",
+            dl: 0,
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 2 })),
+            gt: 0,
         });
+        expect(player.shown.map((shown) => shown.name)).toEqual(["kaiju"]);
+        expect(player.shown[0].data.id).toBe(2);
 
-        expect(shownOf(table, "kaiju")).toHaveLength(1);
-        expect(shownOf(table, "qipai")).toHaveLength(2);
+        for (const n of [0, 1]) {
+            translate.handle({
+                t: 9,
+                s: 2,
+                w: 0,
+                n,
+                dl: n,
+                cp: n,
+                di: [132],
+                h: 0,
+                r: 0,
+                mt: BASE_HAND,
+                p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
+                dc: [1, 1],
+            });
+        }
+        expect(player.shown.map((shown) => shown.name)).toEqual(["kaiju", "qipai", "qipai"]);
     });
 
     it("titles the game start with the game's length and local start time, not the game id", () => {

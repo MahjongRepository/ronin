@@ -145,7 +145,9 @@ class TestGameCompletionRecording:
         self, seeded_engine, game_repo
     ):
         manager = make_session_manager(
-            seeded_engine, repository=game_repo, timer_config=TimerConfig(pending_game_timeout_seconds=0.01)
+            seeded_engine,
+            repository=game_repo,
+            timer_config=TimerConfig(pending_game_timeout_seconds=0.01, game_start_pause_seconds=0),
         )
         manager.create_pending_game(
             game_id="game1",

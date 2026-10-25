@@ -86,7 +86,8 @@ class GameSession:
     reported the game waits for (set from the start on); the session drives the timers from it and checks an action's
     wait id against it. start_record is the game's record as posted at the start (seat order, every seat's name and
     user_id); every finish record is built from it. replay holds the lines recorded since the start until the end claim
-    detaches them.
+    detaches them. start_pause is the sleeping task that holds back the first deal while the game start shows; while it
+    is set, awaiting is still None.
     """
 
     game_id: str
@@ -98,6 +99,7 @@ class GameSession:
     start_record: PlayedGame | None = None
     replay: ReplayRecord | None = None
     pending_timeout: asyncio.Task[None] | None = None
+    start_pause: asyncio.Task[None] | None = None
 
     @property
     def is_active(self) -> bool:

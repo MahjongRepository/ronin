@@ -305,6 +305,7 @@ export const TABLE_VARIANTS = Object.freeze([
         title: "Game start",
         gameStarted: {
             t: wire.E.GAME_STARTED,
+            s: VIEWPOINT,
             gid: "3f2b6c1e-8a4d-4f0b-9c7e-5d1a2b3c4d5e",
             gt: wire.GAME_TYPE.HANCHAN,
             dl: 0,
@@ -374,12 +375,9 @@ function drawTable(header, pai, { table, say = [], connected }) {
 
 function showGameStart(header, pai, { gameStarted }) {
     const player = new RoninPlayer($("#board"), pai, Majiang.UI.audio($("#loaddata")));
-    const translate = new Translate(player, new Shadow());
-    translate.handle(gameStarted);
-
     player.view = showBoardPage(header, pai, player.model, { viewpoint: VIEWPOINT, dealt: false });
     player.view.sound_on = false;
-    player.action({ kaiju: { ...translate.kaiju(), id: VIEWPOINT } });
+    new Translate(player, new Shadow()).handle(gameStarted);
 }
 
 function showTableVariant(header, pai, variant) {
