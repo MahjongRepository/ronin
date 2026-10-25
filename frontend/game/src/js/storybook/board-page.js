@@ -1,6 +1,7 @@
 import $ from "jquery";
 
 const VARIANT_PARAM = "state";
+const STORYBOOK_PREF_KEY = "Majiang.pref.storybook";
 
 export const SAMPLE_PLAYERS = Object.freeze(["Ronin", "Bot 1", "Bot 2", "Bot 3"]);
 
@@ -38,6 +39,7 @@ export function showBoardPage(header, pai, model, { viewpoint = 0 } = {}) {
     const board = new Majiang.UI.Board($("#board .board"), pai, audio, model);
     board.viewpoint = viewpoint;
     board.redraw();
+    new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY, null);
     fitBoardBelowHeader();
     document.fonts.ready.then(fitBoardBelowHeader);
     $(window).on("resize", fitBoardBelowHeader);

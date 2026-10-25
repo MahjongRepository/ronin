@@ -261,9 +261,11 @@
           </tr>
         </table>
       </div>
-      <div class="controller"><img class="exit" src="/img/icon-exit.png" title="終了 [q]"><img class="summary" src="/img/icon-list.png" title="集計表示 [?]"><img class="sound on" src="/img/icon-volume-up.png" title="音声OFF [a]"><img class="sound off" src="/img/icon-mutealt.png" title="音声ON [a]"><img class="analyzer" src="/img/icon-lightbulb-idea.png" title="検討ON/OFF [i]"><img class="export" src="/img/icon-export.png" title="天鳳牌譜 [t]">
-        <div></div><img class="first" src="/img/icon-step-backward.png" title="配牌/前局 [←]"><img class="prev" src="/img/icon-backward.png" title="戻る [↑]"><img class="play on" src="/img/icon-play.png" title="再開 [space]"><img class="play off" src="/img/icon-pause.png" title="停止 [space]"><img class="next" src="/img/icon-forward.png" title="進む [↓]"><img class="last" src="/img/icon-step-forward.png" title="結果/次局 [→]">
-        <div class="speed"><img class="minus" src="/img/icon-minus-sign.png" title="速度- [-]"><span></span><span></span><span></span><span></span><span></span><img class="plus" src="/img/icon-plus-sign.png" title="速度+ [+]"></div>
+      <div class="controller">
+        <button class="settings-toggle" type="button" title="設定" aria-label="設定" aria-haspopup="true" aria-expanded="false" aria-controls="settings-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="3.5" stroke-dasharray="3.338 3.338"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2.5"/></svg></button>
+        <div class="settings-menu hide" id="settings-menu" role="group" aria-label="設定">
+          <button class="sound" type="button" role="switch" aria-checked="true" aria-label="音声" title="音声 [a]"><img class="on" src="/img/icon-volume-up.png" alt=""><img class="off" src="/img/icon-mutealt.png" alt=""><span>音声</span><span class="state">ON</span></button>
+        </div>
       </div>
       <div class="download hide"><a><img src="/img/icon-download-alt.png">牌譜保存</a></div>
     </div>

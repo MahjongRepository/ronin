@@ -42,11 +42,6 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
     scale($('#board'), $('#space'));
     $(window).on('resize', ()=>scale($('#board'), $('#space')));
 
-    $('#board .controller img.exit').on('click', ()=>{
-        session.close();
-        window.location.href = '/';
-    });
-
     const shadow    = new Shadow();
     const translate = new Translate(player, shadow);
     const session   = new RoninSession({

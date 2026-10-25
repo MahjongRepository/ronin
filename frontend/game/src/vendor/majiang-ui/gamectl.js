@@ -3,6 +3,8 @@
  */
 "use strict";
 
+import $ from 'jquery';
+
 import fadein from './fadein.js';
 const { hide, show } = fadein;
 
@@ -19,48 +21,33 @@ export default class GameCtl {
         this._storage = storage;
         this._pref = localStorage.getItem(storage)
                         ? JSON.parse(localStorage.getItem(storage))
-                        : { sound_on: true, speed: 3 };
+                        : { sound_on: true };
 
         if (game) game._view.no_player_name = true;
         this.redraw();
     }
 
     redraw() {
-
-        $('.speed span', this._node.controller).css('visibility','visible');
-
         this.sound(this._pref.sound_on);
-        this.speed(this._pref.speed);
-
+        this.menu(false);
         this.set_handler();
-    }
-
-    speed(speed) {
-        if (! this._game) return false;
-        if (speed < 1) speed = 1;
-        if (speed > 5) speed = 5;
-        this._game.speed = speed;
-        $('.speed span', this._root).each((i, n)=>{
-            $(n).css('visibility', i < speed ? 'visible' : 'hidden');
-        });
-        this._pref.speed = speed;
-        localStorage.setItem(this._storage, JSON.stringify(this._pref));
-        return false;
     }
 
     sound(on) {
         this._view.forEach(v => v.sound_on = on);
-        if (on) {
-            hide($('.sound.off', this._node.controller));
-            show($('.sound.on', this._node.controller));
-        }
-        else {
-            hide($('.sound.on', this._node.controller));
-            show($('.sound.off', this._node.controller));
-        }
+        $('.sound', this._node.controller)
+            .attr('aria-checked', String(on))
+            .find('.state').text(on ? 'ON' : 'OFF');
         this._pref.sound_on = on;
         localStorage.setItem(this._storage, JSON.stringify(this._pref));
         return false;
+    }
+
+    menu(open) {
+        this._menu_open = open;
+        $('.settings-toggle', this._node.controller)
+            .attr('aria-expanded', String(open));
+        $('.settings-menu', this._node.controller).toggleClass('hide', ! open);
     }
 
     set_handler() {
@@ -68,19 +55,29 @@ export default class GameCtl {
         this.clear_handler();
 
         const ctl = this._node.controller;
+        const toggle = $('.settings-toggle', ctl);
+        toggle.on('click', ()=>this.menu(! this._menu_open));
         $('.sound', ctl).on('click', ()=>this.sound(! this._pref.sound_on));
-        $('.minus', ctl).on('click', ()=>this.speed(this._game.speed - 1));
-        $('.plus',  ctl).on('click', ()=>this.speed(this._game.speed + 1));
+        ctl.on('click.controler', (ev)=>ev.stopPropagation());
 
+        $(document).on('click.controler', (ev)=>{
+            if (this._menu_open && ! ctl.has(ev.target).length) this.menu(false);
+        });
+        $(window).on('keydown.controler', (ev)=>{
+            if (ev.key != 'Escape' || ! this._menu_open) return;
+            const focused = ctl.has(document.activeElement).length;
+            this.menu(false);
+            if (focused) toggle.trigger('focus');
+        });
         $(window).on('keyup.controler', (ev)=>{
-            if      (ev.key == 'a') this.sound(! this._pref.sound_on);
-            else if (ev.key == '-') this.speed(this._game.speed - 1);
-            else if (ev.key == '+') this.speed(this._game.speed + 1);
+            if (ev.key == 'a') this.sound(! this._pref.sound_on);
         });
     }
 
     clear_handler() {
-        $('.sound, .minus, .plus', this._node.controller).off('click');
+        $('.settings-toggle, .sound', this._node.controller).off('click');
+        this._node.controller.off('.controler');
+        $(document).off('.controler');
         $(window).off('.controler');
     }
 
