@@ -32,6 +32,14 @@ function fitBoardBelowHeader() {
     });
 }
 
+/** On a short screen the header is one scrolling row; scroll it so the shown variant is in view. */
+function revealActiveVariant(header) {
+    header
+        .find(".storybook-variants .active")
+        .get(0)
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
 export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true } = {}) {
     $("#space").remove();
     $("body").prepend(header);
@@ -42,8 +50,12 @@ export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true 
         board.redraw();
     }
     new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY, null);
+    const layOutPage = () => {
+        fitBoardBelowHeader();
+        revealActiveVariant(header);
+    };
     fitBoardBelowHeader();
-    document.fonts.ready.then(fitBoardBelowHeader);
-    $(window).on("resize", fitBoardBelowHeader);
+    document.fonts.ready.then(layOutPage);
+    $(window).on("resize", layOutPage);
     return board;
 }
