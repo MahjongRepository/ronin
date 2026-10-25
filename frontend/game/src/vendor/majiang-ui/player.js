@@ -38,7 +38,7 @@ export default class Player extends Majiang.Player {
         this.clear_dapai();
         clearSelector('kaiju');
         clearSelector('dialog');
-        clearSelector('summary');
+        $('.summary .exit', this._node.root).off('.summary');
     }
 
     callback(reply) {
@@ -327,11 +327,8 @@ export default class Player extends Majiang.Player {
     }
 
     action_jieju(jieju) {
-        $('.summary', this._node.root).off('click')
-                                    .on('click.summary', ()=>this.callback());
-        setTimeout(()=>{
-            setSelector($('.summary', this._node.root), 'summary',
-                        { touch: false });
-        }, 800);
+        const exit = $('.summary .exit', this._node.root);
+        exit.off('.summary').on('click.summary', ()=>this.callback());
+        setTimeout(()=>exit.trigger('focus'), 800);
     }
 }

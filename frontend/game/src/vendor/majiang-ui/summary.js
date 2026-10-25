@@ -10,6 +10,16 @@ import Majiang from '../majiang-core/index.js';
 import fadein from './fadein.js';
 const { hide, show, fadeIn, fadeOut } = fadein;
 
+const LIZHI_DEPOSIT = 1000;
+
+function score_text(score) {
+    return (''+score).replace(/(\d)(\d{3})$/,'$1,$2');
+}
+
+function diff_text(diff) {
+    return diff > 0 ? '+' + score_text(diff) : score_text(diff);
+}
+
 export default function(root, paipu, viewpoint, dummy_name) {
 
     let player = $('.r_player .player', root);
@@ -18,6 +28,13 @@ export default function(root, paipu, viewpoint, dummy_name) {
         let name = (dummy_name) ? dummy_name[id]
                  : paipu.player[id].replace(/\n.*$/,'')
         player.eq(i).text(name);
+    }
+
+    let rank = $('.r_rank .rank', root);
+    for (let i = 0; i < 4; i++) {
+        let id = (viewpoint + i) % 4;
+        rank.eq(i).text(paipu.rank[id] ? `${paipu.rank[id]}位` : '')
+                  .toggleClass('top', paipu.rank[id] == 1);
     }
 
     let r_diff = $('.r_diff', root).eq(0).clone();
@@ -52,8 +69,17 @@ export default function(root, paipu, viewpoint, dummy_name) {
             :                               'ロン'
         );
         $('.back',  r_diff).removeClass('zhuangjia');
-        $('.diff',  r_diff).removeClass('baojia hule').text('');
+        $('.diff',  r_diff).removeClass('baojia hule even').text('');
         $('.lizhi', r_diff).text('');
+
+        let diff = [0,0,0,0];
+        for (let data of last) {
+            let fenpei = (data.hule || data.pingju).fenpei;
+            for (let l = 0; l < 4; l++) diff[l] += fenpei[l];
+        }
+        for (let l = 0; l < 4; l++) diff[l] -= lizhi[l] * LIZHI_DEPOSIT;
+        let even = last.length > 0 && diff.every(d => d == 0);
+        let tenpai = even && last[0].pingju && last[0].pingju.tenpai;
 
         for (let i = 0; i < 4; i++) {
 
@@ -63,34 +89,43 @@ export default function(root, paipu, viewpoint, dummy_name) {
 
             if (last.length == 0) continue;
 
-            if (lizhi[l]) $('.lizhi', r_diff).eq(i).text('*');
+            if (lizhi[l]) $('.lizhi', r_diff).eq(i).text('リ');
 
-            let diff = 0;
             for (let data of last) {
-                if (data.hule)   diff += data.hule.fenpei[l];
-                if (data.pingju) diff += data.pingju.fenpei[l];
                 if (! data.hule) continue;
                 if (data.hule.baojia == l)
                         $('.diff', r_diff).eq(i).addClass('baojia');
                 if (data.hule.l      == l)
                         $('.diff', r_diff).eq(i).addClass('hule');
             }
-            diff = diff > 0 ? '+' + diff
-                 : diff < 0 ? ''  + diff
-                 :            '';
-            diff = diff.replace(/(\d)(\d{3})$/,'$1,$2');
-            $('.diff', r_diff).eq(i).text(diff);
+            $('.diff', r_diff).eq(i).toggleClass('even', even).text(
+                  tenpai      ? (tenpai[l] ? 'テンパイ' : 'ノーテン')
+                : even        ? '±0'
+                : diff[l]     ? diff_text(diff[l])
+                :               '');
         }
 
         body.append(r_diff);
+    }
+
+    let gongtuo = paipu.gongtuo || [0,0,0,0];
+    if (gongtuo.some(d => d)) {
+        let r_gongtuo = $('<tr class="r_gongtuo">')
+                            .append($('<th colspan="3">').text('残り供託'));
+        for (let i = 0; i < 4; i++) {
+            let id = (viewpoint + i) % 4;
+            r_gongtuo.append($('<td>').append($('<span class="diff">')
+                    .toggleClass('hule', gongtuo[id] > 0)
+                    .text(gongtuo[id] ? diff_text(gongtuo[id]) : '')));
+        }
+        body.append(r_gongtuo);
     }
 
     let defen = $('.r_defen .defen', root);
     for (let i = 0; i < 4; i++) {
         defen.eq(i).removeClass('plus minus');
         let id = (viewpoint + i) % 4;
-        defen.eq(i).text((''+(paipu.defen[id] ?? ''))
-                                .replace(/(\d)(\d{3})$/,'$1,$2'));
+        defen.eq(i).text(score_text(paipu.defen[id] ?? ''));
         if (paipu.rank[id] == 1) defen.eq(i).addClass('plus');
         if (paipu.defen[id] < 0) defen.eq(i).addClass('minus');
     }

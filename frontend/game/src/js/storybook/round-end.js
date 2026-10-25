@@ -271,7 +271,14 @@ const GAME_ROUNDS = Object.freeze([
     { round: [0, 3, 0], pingju: { name: ABORTIVE_NAMES.nine_terminals, fenpei: NO_PAYMENTS } },
     { round: [0, 3, 1], riichi: [1], hule: { l: 2, baojia: 1, fenpei: [0, -5500, 6500, 0] } },
     { round: [1, 0, 0], hule: { l: 0, baojia: null, fenpei: [12000, -4000, -4000, -4000] } },
-    { round: [1, 0, 1], pingju: { name: EXHAUSTIVE_DRAW, fenpei: NO_PAYMENTS } },
+    {
+        round: [1, 0, 1],
+        pingju: {
+            name: EXHAUSTIVE_DRAW,
+            fenpei: NO_PAYMENTS,
+            tenpai: [false, false, false, false],
+        },
+    },
     { round: [1, 1, 2], hule: { l: 2, baojia: 1, fenpei: [0, -2600, 2600, 0] } },
     {
         round: [1, 2, 0],
