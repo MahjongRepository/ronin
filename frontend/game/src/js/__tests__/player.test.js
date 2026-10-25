@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../majiang.js";
 
 const SELECTOR_HIDE_MS = 400;
+const DIALOG_READY_MS = 800;
 const CHI_OPTIONS = ["m345-", "m45-6", "m5-67"];
 const BUTTONS =
     '<span class="button cansel">×</span><span class="button chi">チー</span><span class="button gang">カン</span>';
@@ -18,6 +19,7 @@ function createPlayer() {
         `<div class="player-button">${BUTTONS}</div>`,
         '<div class="select-mianzi">',
         '<div class="shoupai main"><div class="bingpai"></div></div>',
+        '<div class="hule-dialog"><button class="next" type="button">次へ</button></div>',
     );
     const player = new Majiang.UI.Player(root, renderTile, () => ({ play() {} }));
     player._callback = vi.fn();
@@ -89,5 +91,19 @@ describe("Majiang.UI.Player", () => {
 
         vi.advanceTimersByTime(1200);
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+    });
+
+    it("hands a round result's keyboard focus to its 次へ button, which continues once", () => {
+        const { player, root } = createPlayer();
+        $(document.body).append(root);
+        const next = $(".hule-dialog .next", root);
+
+        player.action_hule();
+        vi.advanceTimersByTime(DIALOG_READY_MS);
+        expect(document.activeElement).toBe(next[0]);
+
+        next.trigger("click");
+        expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+        root.remove();
     });
 });

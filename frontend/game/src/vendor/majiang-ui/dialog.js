@@ -13,12 +13,29 @@ import Shan    from './shan.js';
 import fadein from './fadein.js';
 const { hide, show, fadeIn, fadeOut } = fadein;
 
+const feng_hanzi = ['東','南','西','北'];
+const yakuman_name = ['役満','ダブル役満','トリプル役満','四倍役満','五倍役満','六倍役満'];
+const player_role = { '九種九牌': '宣言', '流し満貫': '達成' };
+
+function yakuman(n) {
+    return yakuman_name[Math.min(n, yakuman_name.length) - 1];
+}
+
+function fanshu_text(fanshu) {
+    return (''+fanshu)[0] == '*' ? yakuman(fanshu.length) : fanshu + '翻';
+}
+
+function score_text(defen) {
+    return (''+defen).replace(/(\d)(\d{3})$/, '$1,$2');
+}
+
 export default class HuleDialog {
 
     constructor(root, pai, model, viewpoint = 0) {
 
         this._node = {
             root:   root,
+            title:  $('.title',  root),
             hule:   $('.hule',   root),
             pingju: $('.pingju', root),
             fenpei: $('.fenpei', root),
@@ -39,6 +56,11 @@ export default class HuleDialog {
         hide(this._node.pingju);
         show(this._node.hule);
 
+        this._node.title.text(
+            hule.baojia == null ? `${this.name(hule.l)} ツモ`
+                                : `${this.name(hule.l)} ロン ← ${this.name(hule.baojia)}`);
+        show(this._node.title);
+
         if (hule.fubaopai) show($('.shan.fubaopai', this._node.hule));
         else               hide($('.shan.fubaopai', this._node.hule));
 
@@ -53,8 +75,7 @@ export default class HuleDialog {
             for (let h of hule.hupai) {
                 let r_hupai = this._r_hupai.clone();
                 $('.name',   r_hupai).text(h.name);
-                $('.fanshu', r_hupai).text(
-                                    h.fanshu + (h.fanshu[0] == '*' ?'' : '翻'));
+                $('.fanshu', r_hupai).text(fanshu_text(h.fanshu));
                 hupai.append(show(r_hupai));
             }
             let text = hule.damanguan ? ''
@@ -98,48 +119,50 @@ export default class HuleDialog {
 
         hide(this._node.root);
         hide(this._node.hule);
+        hide(this._node.title);
         show(this._node.pingju);
 
-        this._node.pingju.text(pingju.name);
+        $('.name', this._node.pingju).text(pingju.name);
+        let players = (pingju.players || []).map(l => this.name(l)).join('・');
+        let role = player_role[pingju.name];
+        $('.players', this._node.pingju)
+                .text(players && role ? `${role}: ${players}` : players);
 
-        if (pingju.fenpei) this.fenpei(pingju.fenpei);
+        if (pingju.fenpei) this.fenpei(pingju.fenpei, pingju.tenpai);
 
         this._node.root.attr('aria-label', '流局情報')
         fadeIn(this._node.root);
         return this;
     }
 
-    fenpei(fenpei) {
+    name(l) {
+        return this._model.player[this._model.player_id[l]].replace(/\n.*$/,'');
+    }
 
-        const feng_hanzi = ['東','南','西','北'];
-        const class_name = ['main','xiajia','duimian','shangjia'];
+    fenpei(fenpei, tenpai) {
 
-        $('.diff', this._node.fenpei).removeClass('plus minus');
-
+        let rows = [];
         for (let l = 0; l < 4; l++) {
 
             let id = this._model.player_id[l];
-            let c  = class_name[(id + 4 - this._viewpoint) % 4];
-            let node = $(`.${c}`, this._node.fenpei);
-
-            $('.feng', node).text(feng_hanzi[l]);
-
-            let player = this._model.player[id].replace(/\n.*$/,'');
-            $('.player', node).text(player);
-
-            let defen = (''+this._model.defen[id])
-                                .replace(/(\d)(\d{3})$/, '$1,$2');
-            $('.defen', node).text(defen);
-
             let diff = fenpei[l];
-            if      (diff > 0) $('.diff', node).addClass('plus');
-            else if (diff < 0) $('.diff', node).addClass('minus');
-            diff = diff > 0 ? '+' + diff
-                 : diff < 0 ? ''  + diff
-                 :            '';
-            diff = diff.replace(/(\d)(\d{3})$/, '$1,$2');
-            $('.diff', node).text(diff);
+            let row = $('<tr>').toggleClass('main', id == this._viewpoint);
+
+            row.append($('<td class="feng">').text(feng_hanzi[l]));
+            row.append($('<td class="player">').text(this.name(l)));
+            if (tenpai) row.append($('<td class="tenpai">')
+                                .toggleClass('noten', ! tenpai[l])
+                                .text(tenpai[l] ? 'テンパイ' : 'ノーテン'));
+            row.append($('<td class="defen">')
+                                .text(score_text(this._model.defen[id] + diff)));
+            row.append($('<td class="diff">')
+                                .addClass(diff > 0 ? 'plus' : diff < 0 ? 'minus' : '')
+                                .text(diff > 0 ? '+' + score_text(diff)
+                                    : diff < 0 ? score_text(diff)
+                                    :            ''));
+            rows.push(row);
         }
+        this._node.fenpei.empty().append(rows);
     }
 
     hide() {
