@@ -1,20 +1,51 @@
 import $ from "jquery";
 import { afterEach, describe, expect, it } from "vitest";
 
+import "../majiang.js";
 import HuleDialog from "../../vendor/majiang-ui/dialog.js";
 
-const SCORE_LINE =
-    '<span class="feng"></span>: <span class="player"></span><span class="defen"></span><span class="diff"></span>';
+const PLAYERS = ["Ronin", "Bot 1", "Bot 2", "Bot 3"];
 
 function renderDialog() {
-    const lines = ["main", "xiajia", "duimian", "shangjia"]
-        .map((seat) => `<div class="${seat}">${SCORE_LINE}</div>`)
-        .join("");
     return $(`<div class="hule-dialog">
-        <div class="hule"><table class="hupai"><tr class="r_hupai"></tr><tr class="r_defen"></tr></table></div>
-        <div class="pingju"></div>
-        <div class="fenpei">${lines}</div>
+        <div class="title"></div>
+        <div class="hule">
+            <div class="shan"><span class="baopai"></span><span class="fubaopai"></span></div>
+            <div class="shoupai"><div class="bingpai"></div><div class="fulou"></div></div>
+            <table class="hupai">
+                <tr class="r_hupai"><td class="name"></td><td class="fanshu"></td></tr>
+                <tr class="r_defen"><td class="defen"></td></tr>
+            </table>
+        </div>
+        <div class="pingju"><div class="name"></div><div class="players"></div></div>
+        <table class="fenpei"></table>
     </div>`);
+}
+
+function renderTile(p) {
+    return $('<span class="pai">').attr("data-pai", p);
+}
+
+function createModel(defen) {
+    return {
+        player_id: [1, 2, 3, 0],
+        player: PLAYERS,
+        defen,
+        shan: { baopai: ["m1"], fubaopai: null },
+    };
+}
+
+function scoreRows(root) {
+    return root
+        .find(".fenpei tr")
+        .map((i, row) =>
+            $(row)
+                .children()
+                .map((j, cell) => $(cell).text())
+                .get()
+                .join(" "),
+        )
+        .get();
 }
 
 afterEach(() => {
@@ -22,28 +53,67 @@ afterEach(() => {
 });
 
 describe("Majiang.UI.HuleDialog", () => {
-    it("fills the score lines inside the dialog and leaves .diff cells elsewhere alone", () => {
+    it("lists each player's tenpai, settled score and change on an exhaustive draw, inside the dialog only", () => {
         const standings = $(
             '<table class="summary"><tr><td class="main"><span class="defen">40,400</span><span class="diff plus">+7,000</span></td></tr></table>',
         );
         const root = renderDialog();
         $(document.body).append(standings, root);
-        const model = {
-            player_id: [0, 1, 2, 3],
-            player: ["Ronin", "Bot 1", "Bot 2", "Bot 3"],
-            defen: [31000, 21000, 20000, 28000],
-        };
+        const model = createModel([31000, 21000, 20000, 28000]);
 
-        new HuleDialog(root, null, model).pingju({ name: "荒牌平局", fenpei: [1500, -1500, 0, 0] });
+        new HuleDialog(root, renderTile, model).pingju({
+            name: "荒牌平局",
+            shoupai: [null, null, null, null],
+            fenpei: [1500, -1500, -1500, 1500],
+            tenpai: [true, false, false, true],
+            players: [],
+        });
 
-        const main = root.find(".fenpei .main");
-        expect(main.find(".feng").text()).toBe("東");
-        expect(main.find(".defen").text()).toBe("31,000");
-        expect(main.find(".diff").text()).toBe("+1,500");
-        expect(main.find(".diff").hasClass("plus")).toBe(true);
-        expect(root.find(".fenpei .xiajia .diff").hasClass("minus")).toBe(true);
+        expect(scoreRows(root)).toEqual([
+            "東 Bot 1 テンパイ 22,500 +1,500",
+            "南 Bot 2 ノーテン 18,500 -1,500",
+            "西 Bot 3 ノーテン 26,500 -1,500",
+            "北 Ronin テンパイ 32,500 +1,500",
+        ]);
+        expect(root.find(".fenpei tr.main .player").text()).toBe("Ronin");
+        expect(root.find(".pingju .players").text()).toBe("");
         expect(standings.find(".defen").text()).toBe("40,400");
         expect(standings.find(".diff").text()).toBe("+7,000");
-        expect(standings.find(".diff").hasClass("plus")).toBe(true);
+    });
+
+    it("names who declared nine terminals", () => {
+        const root = renderDialog();
+        const model = createModel([25000, 25000, 25000, 25000]);
+
+        new HuleDialog(root, renderTile, model).pingju({
+            name: "九種九牌",
+            shoupai: [null, null, null, null],
+            fenpei: [0, 0, 0, 0],
+            tenpai: null,
+            players: [2],
+        });
+
+        expect(root.find(".pingju .players").text()).toBe("宣言: Bot 3");
+        expect(root.find(".fenpei .tenpai")).toHaveLength(0);
+    });
+
+    it("heads a ron with its winner and loser, and labels a double yakuman by name", () => {
+        const root = renderDialog();
+        const model = createModel([25000, 25000, 25000, 25000]);
+
+        new HuleDialog(root, renderTile, model).hule({
+            l: 3,
+            baojia: 1,
+            shoupai: "m19p19s19z1234567m1",
+            hupai: [{ name: "国士無双十三面", fanshu: "**" }],
+            fanshu: 26,
+            fu: 0,
+            damanguan: 2,
+            defen: 64000,
+            fenpei: [0, -64000, 0, 64000],
+        });
+
+        expect(root.find(".title").text()).toBe("Ronin ロン ← Bot 2");
+        expect(root.find(".hupai .r_hupai .fanshu").text()).toBe("ダブル役満");
     });
 });

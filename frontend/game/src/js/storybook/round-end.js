@@ -1,5 +1,5 @@
 import rules from "../ronin/rules.js";
-import { ABORTIVE_NAMES, huleMessage } from "../ronin/translate.js";
+import { ABORTIVE_NAMES, huleMessage, pingjuMessage } from "../ronin/translate.js";
 import wire from "../ronin/wire.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
@@ -8,7 +8,6 @@ const QIJIA = 0;
 const GAME_TITLE = "Ronin: storybook";
 const EXHAUSTIVE_DRAW = "荒牌平局";
 const NAGASHI_MANGAN = "流し満貫";
-const NO_REVEALED_HANDS = Object.freeze([null, null, null, null]);
 const NO_PAYMENTS = Object.freeze([0, 0, 0, 0]);
 
 const YAKU = Object.freeze({
@@ -59,8 +58,8 @@ function hule({ baojia = null, ...win }) {
     return huleMessage({ baojia, ...win });
 }
 
-function pingju(name, fenpei, shoupai = NO_REVEALED_HANDS) {
-    return { pingju: { name, shoupai, fenpei } };
+function pingju(name, fenpei, draw = {}) {
+    return pingjuMessage({ name, fenpei, ...draw });
 }
 
 const WIN_SAMPLES = Object.freeze([
@@ -200,11 +199,10 @@ const DRAW_SAMPLES = Object.freeze([
             "z3 s1 p1 m9 z5 s9 z6 p9 m1 z4 s2 p7 m4 s7 p6 m6 z1",
             "s4>z1 z7>m1 s8>p3 p1_ m9_ z3_ s1_ z5_ p2_ m3_ z4_ s9_ p6_ m7_ z6_ s5_ m2_",
         ]),
-        end: pingju(
-            EXHAUSTIVE_DRAW,
-            [-1500, 1500, -1500, 1500],
-            [null, "m88p234067s567z22", null, "m456p789s23488z77"],
-        ),
+        end: pingju(EXHAUSTIVE_DRAW, [-1500, 1500, -1500, 1500], {
+            shoupai: [null, "m88p234067s567z22", null, "m456p789s23488z77"],
+            tenpai: [false, true, false, true],
+        }),
     },
     {
         key: "nine-terminals",
@@ -214,7 +212,7 @@ const DRAW_SAMPLES = Object.freeze([
         baopai: "s4",
         hand: "m1469p157s39z1236",
         events: [...rotation(["p5", "s8"]), { zimo: { l: 2, p: "z7" } }],
-        end: pingju(ABORTIVE_NAMES.nine_terminals, NO_PAYMENTS),
+        end: pingju(ABORTIVE_NAMES.nine_terminals, NO_PAYMENTS, { players: [2] }),
     },
     {
         key: "four-riichi",
@@ -244,11 +242,11 @@ const DRAW_SAMPLES = Object.freeze([
             "z1 m9 p1 z5 s9 z7 m1 p9 z2 s1 z6 m9 z3 p1 s9 z4 m1",
             "z1 z7 m9 p9 z5 s1 p2 z6 m7 p7 z3 s2 p8_ m3_ z2_ s8_ p4_",
         ]),
-        end: pingju(
-            NAGASHI_MANGAN,
-            [-4000, -2000, 8000, -2000],
-            [null, null, null, "m34p555s345678z44"],
-        ),
+        end: pingju(NAGASHI_MANGAN, [-4000, -2000, 8000, -2000], {
+            shoupai: [null, null, null, "m34p555s345678z44"],
+            tenpai: [false, false, false, true],
+            players: [2],
+        }),
     },
 ]);
 

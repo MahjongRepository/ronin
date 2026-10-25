@@ -317,7 +317,8 @@ export default class Player extends Majiang.Player {
                                     .on('click.dialog', ()=>this.callback());
         setTimeout(()=>{
             setSelector($('.hule-dialog', this._node.root), 'dialog',
-                        { touch: false });
+                        { touch: false, focus: null });
+            $('.hule-dialog .next', this._node.root).trigger('focus');
         }, 800);
     }
 

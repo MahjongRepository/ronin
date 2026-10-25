@@ -130,15 +130,23 @@ body.board
         display: flex
         overflow: auto
         align-items: center
+        background: rgba(0, 0, 0, 0.5)
         transition: opacity 0.2s ease-in
         &:focus
             outline: none
         > div
             margin: auto 0
             > div
-                display: table
+                box-sizing: border-box
                 background: rgb(3,17,14)
+                border: solid 1px #375
+                border-radius: 6px
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6)
                 margin: auto
+                > .title
+                    font-family: text-font
+                    text-align: center
+                    line-height: 1.2
                 .hule
                     .shan
                         font-family: title-font
@@ -150,6 +158,7 @@ body.board
                             float: right
                     .shoupai
                         clear: both
+                        margin: 0 auto
                     .hupai
                         font-family: title-font
                         line-height: 1
@@ -161,28 +170,59 @@ body.board
                         text-align: center
                         font-family: defen-font
                 .pingju
-                    font-family: title-font
                     text-align: center
-                .fenpei
-                    font-family: defen-font
-                    > *
-                        position: absolute
-                        transform-origin: 0% 0%
-                        display: inline-block
-                        .player
+                    .name
+                        font-family: title-font
+                        line-height: 1.2
+                    .players
+                        font-family: text-font
+                        &:empty
                             display: none
-                        .defen
-                            display: inline-block
-                            float: right
-                            text-align: right
-                        .diff
-                            display: inline-block
-                            float: right
-                            text-align: right
-                        .plus
-                            color: #0ff
-                        .minus
-                            color: #f00
+                .fenpei
+                    margin: 0 auto
+                    border-collapse: collapse
+                    font-family: defen-font
+                    td
+                        padding: 2px 8px
+                        white-space: nowrap
+                    tr.main
+                        background: rgba(255, 255, 255, 0.1)
+                        font-weight: bold
+                    .feng
+                        color: #fc6
+                    .player
+                        font-family: text-font
+                        max-width: 9em
+                        overflow: hidden
+                        text-overflow: ellipsis
+                    .tenpai
+                        font-family: text-font
+                        color: #fc6
+                        &.noten
+                            color: #999
+                    .defen
+                    .diff
+                        text-align: right
+                    .diff
+                        min-width: 4.5em
+                    .plus
+                        color: #0ff
+                    .minus
+                        color: #f66
+                .next
+                    display: block
+                    margin: 0 0 0 auto
+                    border: solid 1px #fc6
+                    border-radius: 4px
+                    background: transparent
+                    color: #fc6
+                    font-family: menu-font
+                    cursor: pointer
+                    &:hover
+                    &:focus-visible
+                        background: #fc6
+                        color: black
+                        outline: none
     > .summary
         z-index: 1
         display: flex

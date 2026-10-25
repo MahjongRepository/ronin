@@ -366,6 +366,43 @@ describe("the ronin table (Translate and Reply)", () => {
         });
     });
 
+    it("gives a nagashi mangan's result each seat's tenpai and its achievers, in dealer-relative order", () => {
+        const table = startTable(BASE_HAND, { dl: 1 });
+
+        table.receive({
+            t: 4,
+            rt: 5,
+            qs: [2],
+            ts: [1, 3],
+            ns: [0, 2],
+            th: [],
+            sch: { 0: -20, 1: -40, 2: 80, 3: -20 },
+            wi: 9,
+        });
+
+        expect(shownOf(table, "pingju")[0].data).toMatchObject({
+            name: "流し満貫",
+            fenpei: [-4000, 8000, -2000, -2000],
+            tenpai: [true, false, true, false],
+            players: [1],
+        });
+    });
+
+    it("names the seat that declared nine terminals in its result", () => {
+        const table = startTable(BASE_HAND, { dl: 1 });
+
+        table.receive({
+            t: 4,
+            rt: 4,
+            rn: "nine_terminals",
+            s: 0,
+            sch: { 0: 0, 1: 0, 2: 0, 3: 0 },
+            wi: 9,
+        });
+
+        expect(shownOf(table, "pingju")[0].data).toMatchObject({ tenpai: null, players: [3] });
+    });
+
     it("drops a win's pending result when the next round starts before it shows", () => {
         vi.useFakeTimers();
         const table = startTable();

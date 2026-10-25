@@ -67,6 +67,14 @@ function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai }) {
     };
 }
 
+/**
+ * A draw as majiang-ui's pingju message. tenpai marks each seat's tenpai on a draw that judges it (null otherwise);
+ * players names who the draw is about: the seat that declared nine terminals, the seats that made nagashi mangan.
+ */
+function pingjuMessage({ name, shoupai = [null, null, null, null], fenpei, tenpai = null, players = [] }) {
+    return { pingju: { name, shoupai, fenpei, tenpai, players } };
+}
+
 class Translate {
 
     constructor(player, shadow) {
@@ -375,6 +383,11 @@ class Translate {
         return shoupai;
     }
 
+    tenpaiByL(tenpaiSeats) {
+        const seats = tenpaiSeats || [];
+        return [0, 1, 2, 3].map(l => seats.includes((this.shadow.dealer + l) % 4));
+    }
+
     roundEnd(msg) {
         const s = this.shadow;
         const P = this.player;
@@ -402,15 +415,17 @@ class Translate {
             break;
         }
         case wire.RT.EXHAUSTIVE:
-            m = { pingju: { name: '荒牌平局', shoupai: this.revealedHands(msg.th), fenpei: this.fenpei(msg.sch) } };
+            m = pingjuMessage({ name: '荒牌平局', shoupai: this.revealedHands(msg.th),
+                                fenpei: this.fenpei(msg.sch), tenpai: this.tenpaiByL(msg.ts) });
             break;
         case wire.RT.ABORTIVE:
-            m = { pingju: { name: ABORTIVE_NAMES[msg.rn] || '途中流局',
-                            shoupai: [null, null, null, null],
-                            fenpei: this.fenpei(msg.sch) } };
+            m = pingjuMessage({ name: ABORTIVE_NAMES[msg.rn] || '途中流局', fenpei: this.fenpei(msg.sch),
+                                players: msg.s == null ? [] : [s.l(msg.s)] });
             break;
         case wire.RT.NAGASHI:
-            m = { pingju: { name: '流し満貫', shoupai: this.revealedHands(msg.th), fenpei: this.fenpei(msg.sch) } };
+            m = pingjuMessage({ name: '流し満貫', shoupai: this.revealedHands(msg.th),
+                                fenpei: this.fenpei(msg.sch), tenpai: this.tenpaiByL(msg.ts),
+                                players: (msg.qs || []).map(seat => s.l(seat)) });
             break;
         default:
             console.warn('[ronin] unknown round result rt =', msg.rt);
@@ -630,5 +645,5 @@ class Translate {
     }
 }
 
-export { ABORTIVE_NAMES, huleMessage };
+export { ABORTIVE_NAMES, huleMessage, pingjuMessage };
 export default Translate;
