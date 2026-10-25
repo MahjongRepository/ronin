@@ -43,6 +43,7 @@ def _make_game_end_events(*, num_rounds: int = 1) -> list[ServiceEvent]:
                 standings=[
                     PlayerStanding(seat=0, score=25000, final_score=0),
                 ],
+                leftover_riichi_bonus=0,
                 num_rounds=num_rounds,
             ),
         ),
@@ -108,6 +109,7 @@ class TestGameCompletionRecording:
                         PlayerStanding(seat=2, score=20000, final_score=-15),
                         PlayerStanding(seat=3, score=15000, final_score=-35),
                     ],
+                    leftover_riichi_bonus=0,
                     num_rounds=8,
                 ),
             ),

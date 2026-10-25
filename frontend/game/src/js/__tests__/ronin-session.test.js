@@ -120,7 +120,7 @@ describe("RoninSession", () => {
         let events;
         ({ session, events } = connectSession());
 
-        latestSocket().receive({ t: 10, ws: 0, st: [] });
+        latestSocket().receive({ t: 10, ws: 0, st: [], lb: 0 });
         latestSocket().drop();
         vi.advanceTimersByTime(60_000);
 

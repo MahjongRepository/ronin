@@ -1,5 +1,5 @@
 from game.logic.game import _get_winner_seats, _goshashonyu_round, calculate_final_scores, finalize_game
-from game.logic.settings import GameSettings
+from game.logic.settings import GameSettings, LeftoverRiichiBets
 from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
@@ -127,3 +127,16 @@ class TestFinalizeGameRiichiSticks:
         assert new_state.round_state.players[0].score == 32000
         assert new_state.riichi_sticks == 0
         assert result.standings[0].score == 32000
+        assert result.leftover_riichi_bonus == 2000
+
+    def test_finalize_game__when_leftover_riichi_bets_lost__should_clear_the_sticks_without_a_bonus(self):
+        players = tuple(create_player(seat=i, score=score) for i, score in enumerate([30000, 25000, 22000, 21000]))
+        round_state = create_round_state(players=players)
+        settings = GameSettings(leftover_riichi_bets=LeftoverRiichiBets.LOST)
+        game_state = create_game_state(round_state, riichi_sticks=2, settings=settings)
+
+        new_state, result = finalize_game(game_state)
+
+        assert new_state.riichi_sticks == 0
+        assert result.standings[0].score == 30000
+        assert result.leftover_riichi_bonus == 0
