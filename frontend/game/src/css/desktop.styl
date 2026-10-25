@@ -13,10 +13,8 @@
             .jushu
                 font-size: 32px
             .jicun
-                padding: 0 8px
-                img.chouma
-                    width: 60px
-                    height: 8px
+                padding: 2px 4px 0
+                font-size: 15px
         .shan
             padding: 6px
             pai-size: 42px
@@ -84,19 +82,21 @@
             transform: translate(490px, 260px) rotate(180deg)
         &.shangjia
             transform: translate(260px, 250px) rotate(90deg)
+    // Each hand sits 4px in from its own edge of the table and its melds end
+    // 6px short of the next edge, so no tile runs into the board's border.
     .shoupai
         &.main
-            shoupai-size: 680px 60px 56px 42px
-            transform: translate(120px, 620px)
+            shoupai-size: 674px 60px 56px 42px
+            transform: translate(120px, 616px)
         &.xiajia
-            shoupai-size: 560px 60px 42px 42px
-            transform: translate(740px, 560px) rotate(270deg)
+            shoupai-size: 554px 60px 42px 42px
+            transform: translate(736px, 560px) rotate(270deg)
         &.duimian
-            shoupai-size: 680px 60px 42px 42px
-            transform: translate(680px, 60px) rotate(180deg)
+            shoupai-size: 674px 60px 42px 42px
+            transform: translate(680px, 64px) rotate(180deg)
         &.shangjia
-            shoupai-size: 560px 60px 42px 42px
-            transform: translate(60px, 120px) rotate(90deg)
+            shoupai-size: 554px 60px 42px 42px
+            transform: translate(64px, 120px) rotate(90deg)
     .say
         width:  200px
         height: 100px
@@ -155,10 +155,6 @@
                         font-size: 24px
                     .jicun
                         font-size: 16px
-                        .chouma
-                            padding-left: 8px
-                            width: 60px
-                            height: 8px
                 .pingju
                     margin: 24px 0
                     .name
