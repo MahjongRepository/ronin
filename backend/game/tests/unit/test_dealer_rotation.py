@@ -76,8 +76,22 @@ def _double_ron(winner1: int, winner2: int, loser: int) -> DoubleRonResult:
         loser_seat=loser,
         winning_tile=0,
         winners=[
-            DoubleRonWinner(winner_seat=winner1, hand_result=hr, riichi_sticks_collected=0, closed_tiles=[0], melds=[]),
-            DoubleRonWinner(winner_seat=winner2, hand_result=hr, riichi_sticks_collected=0, closed_tiles=[0], melds=[]),
+            DoubleRonWinner(
+                winner_seat=winner1,
+                hand_result=hr,
+                score_changes={},
+                riichi_sticks_collected=0,
+                closed_tiles=[0],
+                melds=[],
+            ),
+            DoubleRonWinner(
+                winner_seat=winner2,
+                hand_result=hr,
+                score_changes={},
+                riichi_sticks_collected=0,
+                closed_tiles=[0],
+                melds=[],
+            ),
         ],
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 0, 1: 0, 2: 0, 3: 0},
@@ -99,6 +113,7 @@ def _abortive() -> AbortiveDrawResult:
     return AbortiveDrawResult(
         reason=AbortiveDrawType.FOUR_WINDS,
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+        score_changes={0: 0, 1: 0, 2: 0, 3: 0},
     )
 
 

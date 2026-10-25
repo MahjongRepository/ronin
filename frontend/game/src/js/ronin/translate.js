@@ -104,9 +104,11 @@ function tenpaiByL(tenpaiSeats, dealer) {
  * A finished round of the reconnect snapshot's round history (rh) as the round log the final standings read: the deal
  * (wind, round, honba), each riichi that stood as its riichi discard followed by the next draw (the paipu shape the
  * standings take a riichi deposit from), then the result with its score changes. The standings read nothing else of
- * a round, so the rest is left out. A double ron shows the viewer's win, else the first, as a live round end does.
+ * a round, so the rest is left out. A double ron logs a win per winner, as a live round end does; the history holds
+ * only the round's total score changes, so the first win carries them all and the others none, which the standings
+ * sum to the same row.
  */
-function ledgerRound(entry, qijia, mySeat) {
+function ledgerRound(entry, qijia) {
     const l = seat => (seat - entry.dl + 4) % 4;
     const log = [{ qipai: { zhuangfeng: entry.w, jushu: (entry.dl - qijia + 4) % 4, changbang: entry.h } }];
     for (const seat of entry.rs) {
@@ -118,8 +120,10 @@ function ledgerRound(entry, qijia, mySeat) {
         log.push(pingjuMessage({ name: '流局', fenpei, tenpai }));
         return log;
     }
-    const winner = entry.ws.includes(mySeat) ? mySeat : entry.ws[0];
-    log.push({ hule: { l: l(winner), baojia: entry.ls == null ? null : l(entry.ls), fenpei } });
+    const baojia = entry.ls == null ? null : l(entry.ls);
+    entry.ws.forEach((winner, i) => {
+        log.push({ hule: { l: l(winner), baojia, fenpei: i == 0 ? fenpei : [0, 0, 0, 0] } });
+    });
     return log;
 }
 
@@ -419,8 +423,11 @@ class Translate {
         return fenpeiByL(Translate.scoreMap(sch), this.shadow.dealer);
     }
 
-    /** The hule message of one winner: a tsumo or ron round end itself, or one entry of a double ron's winners. */
-    buildHule(winner, winTile, loserSeat, sch) {
+    /**
+     * The hule message of one winner: a tsumo or ron round end itself, or one entry of a double ron's winners, whose
+     * own score changes (sch) hold only what that win moved.
+     */
+    buildHule(winner, winTile, loserSeat) {
         const s = this.shadow;
         let shoupai = fullHandStr(winner.ct, mianzi.meldStrsFrom(winner.ml), winTile);
         if (s.riichi[winner.ws]) shoupai += '*';
@@ -429,7 +436,7 @@ class Translate {
             shoupai,
             baojia:   loserSeat == null ? null : s.l(loserSeat),
             hr:       winner.hr,
-            fenpei:   this.fenpei(sch),
+            fenpei:   this.fenpei(winner.sch),
             fubaopai: winner.ud && winner.ud.map(tiles.tileToStr),
         });
     }
@@ -465,60 +472,61 @@ class Translate {
         s.prompt = null;
         this.retry = null;
 
-        let m;
-        let winners = [];
+        let results;
         switch (msg.rt) {
         case wire.RT.TSUMO:
-            m = this.buildHule(msg, msg.wt, null, msg.sch);
-            winners = [msg.ws];
+            results = [this.buildHule(msg, msg.wt, null)];
             break;
         case wire.RT.RON:
-            m = this.buildHule(msg, msg.wt, msg.ls, msg.sch);
-            winners = [msg.ws];
+            results = [this.buildHule(msg, msg.wt, msg.ls)];
             break;
-        case wire.RT.DOUBLE_RON: {
-            const mine = (msg.wn || []).find(w => w.ws == s.mySeat);
-            const w = mine || (msg.wn || [])[0];
-            m = this.buildHule(w, msg.wt, msg.ls, msg.sch);
-            winners = (msg.wn || []).map(x => x.ws);
+        case wire.RT.DOUBLE_RON:
+            results = msg.wn.map(w => this.buildHule(w, msg.wt, msg.ls));
             break;
-        }
         case wire.RT.EXHAUSTIVE:
-            m = pingjuMessage({ name: '荒牌平局', shoupai: this.revealedHands(msg.th),
-                                fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer) });
+            results = [pingjuMessage({ name: '荒牌平局', shoupai: this.revealedHands(msg.th),
+                                       fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer) })];
             break;
         case wire.RT.ABORTIVE:
             if (msg.rn == 'four_winds') this.withdrawLastRiichi();
-            m = pingjuMessage({ name: ABORTIVE_NAMES[msg.rn] || '途中流局', fenpei: this.fenpei(msg.sch),
-                                players: msg.s == null ? [] : [s.l(msg.s)] });
+            results = [pingjuMessage({ name: ABORTIVE_NAMES[msg.rn] || '途中流局', fenpei: this.fenpei(msg.sch),
+                                       players: msg.s == null ? [] : [s.l(msg.s)] })];
             break;
         case wire.RT.NAGASHI:
-            m = pingjuMessage({ name: '流し満貫', shoupai: this.revealedHands(msg.th),
-                                fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer),
-                                players: (msg.qs || []).map(seat => s.l(seat)) });
+            results = [pingjuMessage({ name: '流し満貫', shoupai: this.revealedHands(msg.th),
+                                       fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer),
+                                       players: (msg.qs || []).map(seat => s.l(seat)) })];
             break;
         default:
             console.warn('[ronin] unknown round result rt =', msg.rt);
             return;
         }
-        const kind = m.hule ? 'hule' : 'pingju';
         s.roundAdvance = msg[wire.WAIT_ID] != null;
         this.roundDialogOpen = true;
-        const showResult = () => {
-            this.feed(m, kind, Offer.NO_OFFER, reply => {
-                this.roundDialogOpen = false;
-                this.onDecision(kind, reply);
-                this.showPendingJieju();
-            });
-        };
-        s.logMessage(m);
+        for (const m of results) s.logMessage(m);
         s.closeRound();
         this.syncWall();
 
-        if (! winners.length) return showResult();
+        const winners = results.filter(m => m.hule).map(m => m.hule.l);
+        if (! winners.length) return this.showResults(results);
         const call = msg.rt == wire.RT.TSUMO ? 'zimo' : 'rong';
-        if (P._view) for (const seat of winners) P._view.say(call, s.l(seat));
-        this.winCallTimer = setTimeout(showResult, WIN_CALL_MS);
+        if (P._view) for (const l of winners) P._view.say(call, l);
+        this.winCallTimer = setTimeout(() => this.showResults(results), WIN_CALL_MS);
+    }
+
+    /**
+     * Show a round's results one after another, each dismissed before the next: a double ron's wins in the server's
+     * order, counter-clockwise from the discarder, so the first is the one that took the riichi sticks. The round is
+     * confirmed, and the final standings shown, only once the last is dismissed.
+     */
+    showResults([m, ...rest]) {
+        const kind = m.hule ? 'hule' : 'pingju';
+        this.feed(m, kind, Offer.NO_OFFER, reply => {
+            if (rest.length) return this.showResults(rest);
+            this.roundDialogOpen = false;
+            this.onDecision(kind, reply);
+            this.showPendingJieju();
+        });
     }
 
     gameEnd(msg) {
@@ -574,7 +582,7 @@ class Translate {
         s.dora = (msg.di || []).map(tiles.tileToStr);
         s.wallOffset = (msg.tr || 0) - 70;
         s.log = null;
-        s.rounds = msg.rh.map(entry => ledgerRound(entry, s.qijia, s.mySeat));
+        s.rounds = msg.rh.map(entry => ledgerRound(entry, s.qijia));
 
         const pst = {};
         const discards = {};

@@ -274,6 +274,7 @@ class TestRoundEndPayload:
                         DoubleRonWinner(
                             winner_seat=0,
                             hand_result=_HAND_RESULT,
+                            score_changes=_SCORES,
                             riichi_sticks_collected=0,
                             closed_tiles=[],
                             melds=[],
@@ -281,6 +282,7 @@ class TestRoundEndPayload:
                         DoubleRonWinner(
                             winner_seat=2,
                             hand_result=_HAND_RESULT,
+                            score_changes=_SCORES,
                             riichi_sticks_collected=0,
                             closed_tiles=[],
                             melds=[],

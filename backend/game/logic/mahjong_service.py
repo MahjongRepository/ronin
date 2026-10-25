@@ -55,6 +55,7 @@ from game.logic.types import (
     ChiActionData,
     DiscardActionData,
     DiscardInfo,
+    DoubleRonResult,
     GamePlayerInfo,
     KanActionData,
     PlayerReconnectState,
@@ -376,11 +377,13 @@ class MahjongGameService(GameService):
         """
         game_state = runtime.state
         round_over = game_state.round_state.phase == RoundPhase.FINISHED
+        pending = runtime.pending_confirm
         return Awaiting(
             kind=kind,
             seats=frozenset(s for s in seats if not runtime.ai.is_ai_player(s)),
             wait_id=game_state.wait_id,
             round_number=game_state.round_number - 1 if round_over else game_state.round_number,
+            results_shown=pending.results_shown if kind == WaitKind.ROUND_ADVANCE and pending is not None else 1,
         )
 
     def handle_timeout(
@@ -580,7 +583,8 @@ class MahjongGameService(GameService):
         if not human_seats:
             return self._start_next_round(runtime)
 
-        runtime.pending_confirm = PendingRoundAdvance(required_seats=human_seats)
+        results_shown = len(round_result.winners) if isinstance(round_result, DoubleRonResult) else 1
+        runtime.pending_confirm = PendingRoundAdvance(required_seats=human_seats, results_shown=results_shown)
         # return empty -- the RoundEndEvent is already in the caller's events list
         return []
 

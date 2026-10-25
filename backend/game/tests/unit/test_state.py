@@ -110,6 +110,7 @@ class TestFinishRound:
             DoubleRonWinner(
                 winner_seat=seat,
                 hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+                score_changes={2: -1000, seat: 1000},
                 riichi_sticks_collected=0,
                 closed_tiles=[],
                 melds=[],

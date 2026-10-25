@@ -118,7 +118,6 @@ export default class Board {
         shoupai.fromString(hule.shoupai);
         if (hule.baojia != null) shoupai.dapai(shoupai.get_dapai().pop());
         if (this._fenpei) {
-            this.changbang = 0;
             this.lizhibang = 0;
             for (let l = 0; l < 4; l++) {
                 this.defen[this.player_id[l]] += this._fenpei[l];

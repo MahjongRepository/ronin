@@ -1,3 +1,5 @@
+import $ from "jquery";
+
 import rules from "../ronin/rules.js";
 import { ABORTIVE_NAMES, huleMessage, jiejuStandings, pingjuMessage } from "../ronin/translate.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
@@ -182,6 +184,42 @@ const WIN_SAMPLES = Object.freeze([
             fenpei: [-4200, 8600, -2200, -2200],
         }),
     },
+    {
+        key: "double-ron",
+        title: "Double ron, shown win by win",
+        round: { zhuangfeng: 0, jushu: 0, changbang: 1, lizhibang: 1 },
+        defen: [27000, 24000, 26000, 22000],
+        baopai: "p1",
+        hand: "p22234678s78z666",
+        events: rotation([
+            "z1_ m9_ p9_ s1_ z2_ m1_",
+            "z4 m1 s9 p1 z7 m8",
+            "z3 p9 m9 z5 s2 s6",
+            "z2 s1 m9 p1* z4_",
+        ]),
+        end: [
+            hule({
+                l: 3,
+                baojia: 2,
+                shoupai: "m234678p567s4588s6*",
+                hr: {
+                    han: 3,
+                    fu: 30,
+                    yk: yaku([YAKU.RIICHI, 1], [YAKU.PINFU, 1], [YAKU.TANYAO, 1]),
+                    pt: 39,
+                },
+                fenpei: [0, 0, -4200, 6200],
+                fubaopai: ["z1"],
+            }),
+            hule({
+                l: 0,
+                baojia: 2,
+                shoupai: "p22234678s78z666s6",
+                hr: { han: 4, fu: 40, yk: yaku([YAKU.HATSU, 1], [YAKU.DORA, 3]), pt: 120 },
+                fenpei: [12300, 0, -12300, 0],
+            }),
+        ],
+    },
 ]);
 
 const DRAW_SAMPLES = Object.freeze([
@@ -326,17 +364,20 @@ function summaryLog({ round: [zhuangfeng, jushu, changbang], riichi = [], ...end
     return [{ qipai: { zhuangfeng, jushu, changbang } }, ...riichiTurns, end];
 }
 
+function playEvent(model, event) {
+    const [type, data] = Object.entries(event)[0];
+    const hiddenDraw = MODEL_ACTIONS[type] === "zimo" && data.l !== viewpointSeatIndex(model.jushu);
+    model[MODEL_ACTIONS[type]](hiddenDraw ? { l: data.l } : data);
+}
+
 function createRoundModel(log) {
     const model = new Majiang.Board({
         title: GAME_TITLE,
         player: [...SAMPLE_PLAYERS],
         qijia: QIJIA,
     });
-    const viewpointL = viewpointSeatIndex(log[0].qipai.jushu);
     for (const event of log) {
-        const [type, data] = Object.entries(event)[0];
-        const hiddenDraw = MODEL_ACTIONS[type] === "zimo" && data.l !== viewpointL;
-        model[MODEL_ACTIONS[type]](hiddenDraw ? { l: data.l } : data);
+        playEvent(model, event);
     }
     return model;
 }
@@ -353,14 +394,26 @@ function createJieju(gameEnd, log) {
     };
 }
 
+/** Show a round's results the way a player sees them: the first at once, each next one when its dialog is clicked. */
+function showResults(board, model, [result, ...rest]) {
+    board.update(result);
+    if (!rest.length) {
+        return;
+    }
+    $(".hule-dialog").one("click", () => {
+        playEvent(model, rest[0]);
+        showResults(board, model, rest);
+    });
+}
+
 function showRoundEndPage(header, pai, variants) {
     const sample = currentVariant(variants);
     header.append(renderVariantNav(variants, sample));
-    const board = showBoardPage(header, pai, createRoundModel(sampleLog(sample)), {
-        viewpoint: VIEWPOINT,
-    });
+    const [first, ...rest] = [sample.end].flat();
+    const model = createRoundModel(sampleLog({ ...sample, end: first }));
+    const board = showBoardPage(header, pai, model, { viewpoint: VIEWPOINT });
     board.sound_on = false;
-    board.update(sample.end);
+    showResults(board, model, [first, ...rest]);
 }
 
 export function showWinPage(header, pai) {

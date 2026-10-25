@@ -20,13 +20,15 @@ class Awaiting:
     prompt, or the seats still to confirm the round end; none once the game is over. wait_id identifies the wait: it
     changes exactly when a call ends the current wait (an error result, a partial prompt response or confirmation, and a
     replacement that resolves nothing keep it), so a later wait of the same kind for the same seat gets a new one.
-    round_number is the round the wait belongs to; a round advance belongs to the round that ended.
+    round_number is the round the wait belongs to; a round advance belongs to the round that ended. results_shown is how
+    many results a round advance shows in turn (one per winner of a double ron), one for any other wait.
     """
 
     kind: WaitKind
     seats: frozenset[int]
     wait_id: int
     round_number: int
+    results_shown: int = 1
 
 
 @dataclass(frozen=True)

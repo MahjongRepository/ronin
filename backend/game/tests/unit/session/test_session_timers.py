@@ -1,6 +1,7 @@
 import asyncio
 import threading
 from dataclasses import replace
+from functools import partial
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -10,6 +11,7 @@ from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
 from game.logic.events import (
     EventType,
 )
+from game.logic.service import Awaiting
 from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
 from game.session.models import GameLifecycle, GameSession, Participant, PlayerSpec
@@ -41,6 +43,19 @@ if TYPE_CHECKING:
 ARMING_CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20, meld_decision_seconds=3)
 
 
+def _arm_double_ron_round_advance(manager: SessionManager, participant: Participant) -> None:
+    participant.connection = MockConnection()
+    participant.game.participants.append(participant)
+    awaiting = Awaiting(
+        kind=WaitKind.ROUND_ADVANCE,
+        seats=frozenset({participant.seat}),
+        wait_id=1,
+        round_number=0,
+        results_shown=2,
+    )
+    manager._start_wait_timers(participant.game, previous=awaiting, awaiting=awaiting)
+
+
 class TestWaitTimerArming:
     @pytest.fixture
     def participant(self):
@@ -58,9 +73,14 @@ class TestWaitTimerArming:
             (SessionManager._start_turn_timer, TimeoutType.TURN, 25.0),
             (SessionManager._start_meld_timer, TimeoutType.MELD, 3),
             (
-                SessionManager._start_round_advance_timer,
+                partial(SessionManager._start_round_advance_timer, results_shown=1),
                 TimeoutType.ROUND_ADVANCE,
                 ARMING_CONFIG.round_advance_timeout_seconds,
+            ),
+            (
+                _arm_double_ron_round_advance,
+                TimeoutType.ROUND_ADVANCE,
+                2 * ARMING_CONFIG.round_advance_timeout_seconds,
             ),
         ],
     )

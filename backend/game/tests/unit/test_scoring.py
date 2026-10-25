@@ -20,13 +20,17 @@ from game.logic.state import (
 )
 from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
-from game.logic.types import YakuInfo
+from game.logic.types import DoubleRonResult, YakuInfo
 from game.tests.conftest import create_game_state, create_player, create_round_state
 from game.tests.helpers.wall import FIRST_URA_POSITION
 
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:
     return [YakuInfo(yaku_id=yid, han=0) for yid in yaku_ids]
+
+
+def _sum_winner_changes(result: DoubleRonResult) -> dict[int, int]:
+    return {seat: sum(w.score_changes[seat] for w in result.winners) for seat in range(4)}
 
 
 def _create_scoring_game_state(dealer_seat: int = 0, round_wind: int = 0) -> MahjongGameState:
@@ -389,7 +393,7 @@ class TestApplyDoubleRonScore:
         hand_result_2 = HandResult(han=2, fu=30, cost_main=2000, cost_additional=0, yaku=_yaku(0))
 
         winners = [(0, hand_result_1), (2, hand_result_2)]
-        new_game_state, _result = apply_double_ron_score(
+        new_game_state, result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=1,
@@ -401,6 +405,11 @@ class TestApplyDoubleRonScore:
         assert new_round_state.players[2].score == 25000 + 2600
         # loser pays both (2000+600)*2 = 5200
         assert new_round_state.players[1].score == 25000 - 5200
+        assert {w.winner_seat: w.score_changes for w in result.winners} == {
+            0: {0: 2600, 1: -2600, 2: 0, 3: 0},
+            2: {0: 0, 1: -2600, 2: 2600, 3: 0},
+        }
+        assert _sum_winner_changes(result) == result.score_changes
 
     def test_apply_double_ron_score__when_riichi_sticks__should_award_them_to_winner_closest_after_loser(self):
         # riichi sticks go to winner closest to loser's right (counter-clockwise)
@@ -427,6 +436,11 @@ class TestApplyDoubleRonScore:
         # riichi sticks cleared
         assert new_game_state.riichi_sticks == 0
         assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {0: 0, 2: 2}
+        assert {w.winner_seat: w.score_changes for w in result.winners} == {
+            0: {0: 2000, 1: -2000, 2: 0, 3: 0},
+            2: {0: 0, 1: -2000, 2: 4000, 3: 0},
+        }
+        assert _sum_winner_changes(result) == result.score_changes
 
     def test_apply_double_ron_score__when_loser_seat_3__should_award_sticks_to_seat_0(self):
         # different loser seat changes who gets riichi
