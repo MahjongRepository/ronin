@@ -87,3 +87,36 @@ body.board > .storybook-header
 
 .storybook-header .storybook-variants
     font-size: 14px
+
+@media screen and (max-height: 450px)
+    body.storybook
+        padding: 8px 16px
+
+    body.board > .storybook-header
+    body.storybook > .storybook-header
+        display: flex
+        align-items: center
+        gap: 8px
+        padding: 4px 0
+        overflow-x: auto
+        scrollbar-width: none
+        scroll-padding-inline: 8px
+        h1
+            flex: none
+            margin: 0
+            font-size: 14px
+        .storybook-nav
+            flex: none
+            flex-wrap: nowrap
+            gap: 4px
+            margin: 0
+            font-size: 13px
+            a
+                padding: 1px 8px
+        .storybook-variants
+            padding-left: 8px
+            border-left: solid 1px page-accent
+
+    body.board > .storybook-header
+        box-sizing: border-box
+        padding-inline: 8px

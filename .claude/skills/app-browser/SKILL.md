@@ -62,8 +62,12 @@ select by element id, class or `snapshot -i` refs.
   waiting state.
 - **History and replay:** `/history` lists recent games; click a card (`main article`, its
   `data-replay-url` holds `/play/history/<game_id>`). Step a replay with its `<` / `>` buttons.
-- **Storybooks:** `/storybook` (lobby styles, dev only) and `/play/storybook` plus its
-  `/board`, `/discards`, `/hand` and `/melds` pages (game components).
+- **Storybooks:** `/storybook` (lobby styles, dev only) and `/play/storybook` plus the pages its
+  header links to (game components; a board page with several states takes `?state=<key>` from its
+  variant links). At `max-height: 450px` (a viewport 450px tall or less) the header is one
+  horizontally scrolling row, so the board keeps nearly full height. The WebKit recipe below
+  reaches it only with the `"iPhone 13 landscape"` device; its default portrait `"iPhone 13"` is
+  too tall and shows the full wrapped header.
 
 ## Screenshots
 
@@ -112,3 +116,8 @@ Run it outside the backend project, pinned to the version whose browsers are ins
 `uv run --no-project --with playwright==1.63.0 python $S/phone.py $T`. Never `full_page=True`:
 to show a whole page, set the viewport height to `document.documentElement.scrollHeight` and take a
 normal screenshot. Delete the script once done.
+
+Verdana, the game client's UI font, isn't installed on this machine. So WebKit here draws that
+text in DejaVu Sans, while Chromium (on the `lang="ja"` game pages) uses Noto Sans CJK JP. That
+font difference between the two engines comes from this machine, not from the client, so don't
+chase it. Real iPhones, Macs and Windows have Verdana.
