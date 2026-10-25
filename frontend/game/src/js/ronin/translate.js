@@ -443,6 +443,20 @@ class Translate {
         return shoupai;
     }
 
+    /**
+     * The server ends a four winds round on its fourth discard before it finalizes that discard's riichi, so neither
+     * the model nor the round log may take its deposit. A triple ron abort ends on the discard too, but majiang-core's
+     * board and the final standings already skip that one by its name.
+     */
+    withdrawLastRiichi() {
+        const log = this.shadow.log;
+        const i = log ? log.findLastIndex(m => m.dapai) : -1;
+        if (i < 0 || log[i].dapai.p.slice(-1) != '*') return;
+        const { p, l } = log[i].dapai;
+        log[i] = { dapai: { p: p.slice(0, -1), l } };
+        this.player._model._lizhi = false;
+    }
+
     roundEnd(msg) {
         const s = this.shadow;
         const P = this.player;
@@ -474,6 +488,7 @@ class Translate {
                                 fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer) });
             break;
         case wire.RT.ABORTIVE:
+            if (msg.rn == 'four_winds') this.withdrawLastRiichi();
             m = pingjuMessage({ name: ABORTIVE_NAMES[msg.rn] || '途中流局', fenpei: this.fenpei(msg.sch),
                                 players: msg.s == null ? [] : [s.l(msg.s)] });
             break;

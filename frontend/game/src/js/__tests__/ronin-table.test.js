@@ -430,6 +430,32 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(shownOf(table, "pingju")[0].data).toMatchObject({ tenpai: null, players: [3] });
     });
 
+    it("takes no riichi deposit for a riichi discard that ends the round in four winds, in its result or the final standings", () => {
+        const table = startTable();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z1" });
+        table.receive(discard(0, 108));
+        table.receive(discard(1, 109));
+        table.receive(discard(2, 110));
+        table.receive(riichiDiscard(3, 111));
+
+        table.receive({ t: 4, rt: 4, rn: "four_winds", sch: { 0: 0, 1: 0, 2: 0, 3: 0 } });
+        expect(table.player.lastShown).toBe("pingju");
+        expect(table.player.model.defen).toEqual([25000, 25000, 25000, 25000]);
+        expect(table.player.model.lizhibang).toBe(0);
+
+        table.receive({
+            t: 10,
+            ws: 0,
+            st: [0, 1, 2, 3].map((s) => ({ s, sc: 250, fs: 0 })),
+            lb: 0,
+        });
+        table.decide({});
+        const root = renderSummary();
+        summary(root, table.player.shown.at(-1).data, 0);
+        expect(rowTexts(root, ".r_diff")).toEqual(["東一局|0本場|流局|±0|±0|±0|±0"]);
+    });
+
     it("drops a win's pending result when the next round starts before it shows", () => {
         vi.useFakeTimers();
         const table = startTable();
