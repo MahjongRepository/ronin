@@ -4,7 +4,8 @@ from dataclasses import replace
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import GameAction, KanType, PlayerAction, PromptKind, RoundPhase, WaitKind
+from game.logic.action_result import ActionResult
+from game.logic.enums import GameAction, KanType, PlayerAction, PromptKind, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
     DiscardEvent,
     EventType,
@@ -355,6 +356,34 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
 
         assert service.build_reconnection_snapshot(runtime, alice.seat).is_furiten is True
         assert service.build_reconnection_snapshot(runtime, bob.seat).is_furiten is False
+
+    def test_build_reconnection_snapshot__when_round_ended_before__should_list_it_with_its_own_dealer_and_honba(
+        self, service
+    ):
+        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+        alice = _find_player(runtime.state.round_state, "Alice")
+        riichi_seat = (alice.seat + 1) % 4
+        first_dealer = runtime.state.round_state.dealer_seat
+        tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
+        _update_player(runtime, seat=riichi_seat, tiles=tuple(tenpai_hand), is_riichi=True)
+        _update_round_state(runtime, wall=make_wall())
+        service._process_action_result_internal(runtime, ActionResult([], state=runtime.state, needs_post_discard=True))
+        service.handle_timeout(runtime, seat=alice.seat, timeout_type=TimeoutType.ROUND_ADVANCE)
+        assert runtime.state.round_number == 1
+
+        payload = service.build_reconnection_snapshot(runtime, alice.seat).model_dump(by_alias=True, exclude_none=True)
+        assert payload["h"] == 1
+        assert payload["rh"] == [
+            {
+                "w": 0,
+                "dl": first_dealer,
+                "h": 0,
+                "rs": (riichi_seat,),
+                "ws": (),
+                "ts": (riichi_seat,),
+                "sch": {seat: 30 if seat == riichi_seat else -10 for seat in range(4)},
+            },
+        ]
 
 
 class TestMahjongGameServiceBuildDrawEventForSeat:

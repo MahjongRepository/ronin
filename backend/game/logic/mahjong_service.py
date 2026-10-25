@@ -672,6 +672,7 @@ class MahjongGameService(GameService):
             tiles_remaining=tiles_remaining(round_state.wall),
             player_states=player_states,
             is_furiten=is_effective_furiten(round_state.players[seat]),
+            round_history=list(game_state.round_history),
         )
 
     def build_draw_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:

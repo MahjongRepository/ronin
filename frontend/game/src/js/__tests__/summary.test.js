@@ -1,29 +1,11 @@
-import $ from "jquery";
 import { describe, expect, it } from "vitest";
 
 import "../majiang.js";
 import summary from "../../vendor/majiang-ui/summary.js";
+import { renderSummary, rowTexts } from "./summary-table.js";
 
 const PLAYERS = ["Ronin", "Bot 1", "Bot 2", "Bot 3"];
 const NO_PAYMENTS = [0, 0, 0, 0];
-
-function renderSummary() {
-    const cells = (tag, cls) => `<${tag} class="${cls}"></${tag}>`.repeat(4);
-    return $(`<div class="summary"><table>
-        <thead>
-            <tr class="r_rank"><th colspan="3"></th>${cells("td", "rank")}</tr>
-            <tr class="r_player">${cells("th", "player")}</tr>
-        </thead>
-        <tbody class="body"><tr class="r_diff">
-            <th class="jushu"></th><th class="changbang"></th><th class="last"></th>
-            ${'<td class="back"><span class="diff"></span><span class="lizhi"></span></td>'.repeat(4)}
-        </tr></tbody>
-        <tfoot>
-            <tr class="r_defen"><th colspan="3"></th>${cells("td", "defen")}</tr>
-            <tr class="r_point"><th colspan="3"></th>${cells("td", "point")}</tr>
-        </tfoot>
-    </table></div>`);
-}
 
 function round(jushu, events) {
     return [{ qipai: { zhuangfeng: 0, jushu, changbang: 0 } }, ...events];
@@ -39,19 +21,6 @@ function createPaipu(log, { defen, gongtuo }) {
         gongtuo,
         log,
     };
-}
-
-function rowTexts(root, selector) {
-    return root
-        .find(selector)
-        .map((i, row) =>
-            $(row)
-                .children()
-                .map((j, cell) => $(cell).text())
-                .get()
-                .join("|"),
-        )
-        .get();
 }
 
 describe("summary", () => {

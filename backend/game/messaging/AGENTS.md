@@ -12,6 +12,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   when it has any; no draw follows the seat's own pon or chi, nor is one re-sent on a reconnect
   before that seat's discard; a discard's call prompt is split per seat; `furiten` goes only to its
   seat, and only on a change, so the `game_reconnected` snapshot carries the seat's current furiten.
+  Past rounds are never re-sent either, so the snapshot carries every finished round's ledger entry
+  for the final standings.
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
   the reconnect snapshot always carries it. Every game action must echo it, and one for another wait
   is refused as stale. The replay collector shapes its own payloads, so live-only metadata like the

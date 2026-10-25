@@ -371,12 +371,34 @@ class PlayerReconnectState(BaseModel):
     is_riichi: bool = Field(serialization_alias="ri")
 
 
+class RoundHistoryEntry(BaseModel):
+    """
+    A finished round as the final standings' ledger shows it: its wind, dealer and honba, and its outcome.
+
+    riichi_seats are the seats whose riichi stood, so their deposit counts against the round; winner_seats is empty on a
+    draw and holds every winner of a double ron; loser_seat is set on a ron; tenpai_seats only on a draw that judges
+    tenpai (exhaustive or nagashi mangan).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    round_wind: WireWindField = Field(serialization_alias="w")
+    dealer_seat: int = Field(serialization_alias="dl")
+    honba_sticks: int = Field(serialization_alias="h")
+    riichi_seats: tuple[int, ...] = Field(serialization_alias="rs")
+    winner_seats: tuple[int, ...] = Field(serialization_alias="ws")
+    loser_seat: int | None = Field(default=None, serialization_alias="ls")
+    tenpai_seats: tuple[int, ...] | None = Field(default=None, serialization_alias="ts")
+    score_changes: WireScoreMap = Field(serialization_alias="sch")
+
+
 class ReconnectionSnapshot(BaseModel):
     """
     Full game state snapshot sent to a reconnecting player.
 
     is_furiten is the reconnecting seat's own effective furiten: the furiten event goes only to its seat and is not sent
-    again, so the snapshot restores it.
+    again, so the snapshot restores it. round_history lists every finished round in play order, the current one included
+    once it has ended, so a reconnected client's standings cover the rounds it never saw.
     """
 
     game_id: str = Field(serialization_alias="gid")
@@ -395,6 +417,7 @@ class ReconnectionSnapshot(BaseModel):
     tiles_remaining: int = Field(serialization_alias="tr")
     player_states: list[PlayerReconnectState] = Field(serialization_alias="pst")
     is_furiten: bool = Field(serialization_alias="f")
+    round_history: list[RoundHistoryEntry] = Field(serialization_alias="rh")
 
 
 # discriminated union for all round results

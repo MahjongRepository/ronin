@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Majiang from "../../vendor/majiang-core/index.js";
+import summary from "../../vendor/majiang-ui/summary.js";
 
 import Reply from "../ronin/reply.js";
 import Shadow from "../ronin/shadow.js";
 import Translate from "../ronin/translate.js";
 import { NO_OFFER } from "../ronin/offer.js";
+import { renderSummary, rowTexts } from "./summary-table.js";
 
 const DECISIONS = [
     "kaiju",
@@ -527,6 +529,69 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.player.lastShown).toBe("hule");
     });
 
+    it("seeds the final standings with the rounds before a reconnect, so each column adds up to its final score", () => {
+        const table = startTable(BASE_HAND, {}, { gt: 1 });
+        table.translate.reconnect({
+            gid: "g",
+            p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 0 })),
+            dl: 3,
+            dd: [
+                [2, 3],
+                [1, 4],
+            ],
+            s: 0,
+            w: 0,
+            n: 3,
+            cp: 3,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            dc: [1, 1],
+            tr: 70,
+            pst: [308, 214, 134, 344].map((sc, s) => ({ s, sc, dsc: [], ml: [], ri: false })),
+            f: false,
+            rh: [
+                { w: 0, dl: 0, h: 0, rs: [1], ws: [3], ls: 2, sch: { 0: 0, 1: 0, 2: -80, 3: 90 } },
+                {
+                    w: 0,
+                    dl: 1,
+                    h: 0,
+                    rs: [],
+                    ws: [],
+                    ts: [0, 3],
+                    sch: { 0: 15, 1: -15, 2: -15, 3: 15 },
+                },
+                { w: 0, dl: 2, h: 1, rs: [], ws: [0], sch: { 0: 43, 1: -11, 2: -21, 3: -11 } },
+            ],
+            wi: 7,
+        });
+        table.receive({ t: 4, rt: 3, ts: [], ns: [0, 1, 2, 3], th: [], scs: {}, sch: {} });
+        table.receive({
+            t: 10,
+            ws: 3,
+            st: [
+                { s: 3, sc: 344, fs: 54 },
+                { s: 0, sc: 308, fs: 11 },
+                { s: 1, sc: 214, fs: -16 },
+                { s: 2, sc: 134, fs: -49 },
+            ],
+            lb: 0,
+        });
+        table.decide({});
+        expect(table.player.lastShown).toBe("jieju");
+
+        const root = renderSummary();
+        summary(root, table.player.shown.at(-1).data, 0);
+        expect(rowTexts(root, ".r_diff")).toEqual([
+            "東一局|0本場|ロン||-1,000リ|-8,000|+9,000",
+            "東二局|0本場|流局|+1,500|-1,500|-1,500|+1,500",
+            "東三局|1本場|ツモ|+4,300|-1,100|-2,100|-1,100",
+            "東四局|0本場|流局|ノーテン|ノーテン|ノーテン|ノーテン",
+        ]);
+        expect(rowTexts(root, ".r_defen")).toEqual(["|30,800|21,400|13,400|34,400"]);
+    });
+
     it("resumes its turn after a reconnect without taking the re-sent draw twice", () => {
         const table = startTable();
         const hand = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112, 120];
@@ -556,6 +621,7 @@ describe("the ronin table (Translate and Reply)", () => {
                 ri: false,
             })),
             f: false,
+            rh: [],
             wi: 7,
         });
         table.receive(draw(0, 120, { wi: 7 }));

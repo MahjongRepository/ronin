@@ -64,6 +64,7 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
             PlayerReconnectState(seat=i, score=25000, discards=[], melds=[], is_riichi=False) for i in range(4)
         ],
         is_furiten=False,
+        round_history=[],
     )
 
 
