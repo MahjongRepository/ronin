@@ -7,7 +7,8 @@ const SELECTOR_HIDE_MS = 400;
 const DIALOG_READY_MS = 800;
 const CHI_OPTIONS = ["m345-", "m45-6", "m5-67"];
 const BUTTONS =
-    '<span class="button cansel">×</span><span class="button chi">チー</span><span class="button gang">カン</span>';
+    '<span class="button cansel">×</span><span class="button chi">チー</span><span class="button gang">カン</span>' +
+    '<span class="button rong">ロン</span><span class="button zimo">ツモ</span><span class="button pingju">流局</span>';
 
 function renderTile(p) {
     return $('<span class="pai">').attr("data-pai", p.slice(0, 2));
@@ -67,13 +68,25 @@ describe("Majiang.UI.Player", () => {
         expect(selector.hasClass("hide")).toBe(true);
     });
 
-    it("starts a call prompt's keyboard focus on × so Enter passes rather than calls", () => {
+    it("starts a prompt's keyboard focus on its ツモ or ロン, else on ×, so Enter wins when it can and never calls", () => {
         const { player } = createPlayer();
         offerCallPrompt(player);
-
         pressKey("Enter");
+        expect(player._callback).toHaveBeenLastCalledWith(undefined);
 
-        expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+        player.set_button("gang", () => player.callback({ gang: "m1111" }));
+        player.set_button("zimo", () => player.callback({ hule: "-" }));
+        player.set_button("pingju", () => player.callback({ daopai: "-" }));
+        player.show_button(() => player.select_dapai());
+        pressKey("Enter");
+        expect(player._callback).toHaveBeenLastCalledWith({ hule: "-" });
+
+        player.set_button("chi", () => player.select_mianzi(CHI_OPTIONS));
+        player.set_button("rong", () => player.callback({ hule: "-" }));
+        player.show_button(() => player.callback());
+        pressKey("Enter");
+        expect(player._callback).toHaveBeenCalledTimes(3);
+        expect(player._callback).toHaveBeenLastCalledWith({ hule: "-" });
     });
 
     it("backs out of a meld selector to the same call prompt, whose timeout then passes", () => {

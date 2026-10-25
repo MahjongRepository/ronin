@@ -67,8 +67,10 @@ export default class Player extends Majiang.Player {
         this._node.root.on('click.button', handler);
 
         show(this._node.button.width($(this._node.dapai).width()));
-        setSelector($('.button[tabindex]', this._node.button),
-                    'button', {focus: 0, touch: false});
+        const buttons = $('.button[tabindex]', this._node.button);
+        const win = buttons.filter('.zimo, .rong');
+        setSelector(buttons, 'button',
+                    {focus: win.length ? buttons.index(win) : 0, touch: false});
     }
 
     clear_button() {
