@@ -35,6 +35,7 @@
         transform: translate(120px, 600px)
     .player-button
         transform: translate(120px, 580px)
+        min-width: 180px + 4 * 66px
         .button
             width: 4em
             height: 24px
@@ -42,16 +43,18 @@
             font-size: 16px
     .select-mianzi
         transform: translate(120px, 560px)
-        height: pai-width(42px) * 2
         .mianzi
             padding: 4px
             margin-left: 4px
             mianzi-size: 42px
         .back
             width: 4em
-            padding: 6px 0
+            height: 24px
             margin-left: 4px
             font-size: 16px
+    .player-button::before
+    .select-mianzi::before
+        width: 180px
     > .player
         font-size: 18px
         width: 180px
