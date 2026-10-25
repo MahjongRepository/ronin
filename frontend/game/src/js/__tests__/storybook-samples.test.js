@@ -9,6 +9,13 @@ import {
     createTableModel,
     dealDecision,
 } from "../storybook/in-round.js";
+import {
+    DRAW_SAMPLES,
+    FINAL_ROUND,
+    WIN_SAMPLES,
+    createRoundModel,
+    sampleLog,
+} from "../storybook/round-end.js";
 
 const TILE_SET_SIZE = 136;
 const DEAD_WALL_SIZE = 14;
@@ -25,12 +32,27 @@ function playDecisionModel({ hand, events }) {
     return model;
 }
 
+function playRoundEnd(sample) {
+    const [first, ...rest] = [sample.end].flat();
+    const model = createRoundModel([...sampleLog({ ...sample, end: first }), ...rest]);
+    const uraDora = [first, ...rest].map((result) => result.hule?.fubaopai).find(Boolean) ?? [];
+    return [model, uraDora];
+}
+
 const SAMPLES = [
-    ...DECISION_VARIANTS.map((variant) => [`decisions/${variant.key}`, playDecisionModel(variant)]),
+    ...DECISION_VARIANTS.map((variant) => [
+        `decisions/${variant.key}`,
+        playDecisionModel(variant),
+        [],
+    ]),
     ...TABLE_VARIANTS.filter((variant) => variant.table).map((variant) => [
         `table/${variant.key}`,
         createTableModel(variant.table),
+        [],
     ]),
+    ...WIN_SAMPLES.map((sample) => [`wins/${sample.key}`, ...playRoundEnd(sample)]),
+    ...DRAW_SAMPLES.map((sample) => [`draws/${sample.key}`, ...playRoundEnd(sample)]),
+    ["standings/final-round", ...playRoundEnd(FINAL_ROUND)],
 ];
 
 function concealedTiles(shoupai) {
@@ -73,18 +95,21 @@ function countBy(tiles, key) {
     return counts;
 }
 
-describe("storybook in-round samples", () => {
-    it.each(SAMPLES)("%s shows at most four of a tile and the rule's red fives", (_, model) => {
-        const tiles = shownTiles(model);
-        const copies = countBy(tiles, (p) => p.replace(RED_FIVE, "5"));
-        const redFives = countBy(
-            tiles.filter((p) => p[1] === RED_FIVE),
-            (p) => p[0],
-        );
+describe("storybook samples", () => {
+    it.each(SAMPLES)(
+        "%s shows at most four of a tile and the rule's red fives",
+        (_, model, uraDora) => {
+            const tiles = [...shownTiles(model), ...uraDora];
+            const copies = countBy(tiles, (p) => p.replace(RED_FIVE, "5"));
+            const redFives = countBy(
+                tiles.filter((p) => p[1] === RED_FIVE),
+                (p) => p[0],
+            );
 
-        expect(Object.entries(copies).filter(([, n]) => n > COPIES_PER_TILE)).toEqual([]);
-        expect(Object.entries(redFives).filter(([s, n]) => n > RONIN_RULE.赤牌[s])).toEqual([]);
-    });
+            expect(Object.entries(copies).filter(([, n]) => n > COPIES_PER_TILE)).toEqual([]);
+            expect(Object.entries(redFives).filter(([s, n]) => n > RONIN_RULE.赤牌[s])).toEqual([]);
+        },
+    );
 
     it.each(SAMPLES)("%s accounts for all 136 tiles and a dora per kan", (_, model) => {
         const inHands = model.shoupai.reduce(
