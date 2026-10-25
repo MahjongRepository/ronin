@@ -6,6 +6,7 @@ import * as immef from './immef.js';
 import * as mianzi from './mianzi.js';
 import * as Offer from './offer.js';
 import Shadow from './shadow.js';
+import TurnClock from './clock.js';
 import rules from './rules.js';
 import * as yaku  from './yaku.js';
 
@@ -49,6 +50,9 @@ const KIND_OF_MELD = {
     [wire.MELD.CLOSED_KAN]: 'gang',
     [wire.MELD.ADDED_KAN]:  'gang',
 };
+
+/** The seat's own pon or chi opens its turn without a draw. */
+const TURN_OPENING_MELDS = new Set([wire.MELD.CHI, wire.MELD.PON]);
 
 const SAY_OF_MELD = {
     [wire.MELD.CHI]: 'chi',
@@ -156,6 +160,7 @@ class Translate {
         this.roundDialogOpen = false;
         this.pendingJieju = null;
         this.winCallTimer = null;
+        this.clock = new TurnClock();
     }
 
     syncWall() {
@@ -193,9 +198,14 @@ class Translate {
         }
     }
 
+    /** A refused answer leaves the server's wait open, so the decision reopens with what is left of its countdown. */
     gameError(msg) {
         this.onGameError(msg.cd, msg.msg);
-        if (msg.cd != wire.GAME_ERROR.STALE_ACTION && this.retry) this.retry();
+        if (msg.cd == wire.GAME_ERROR.STALE_ACTION || ! this.retry) return;
+        this.clock.resume();
+        const left = this.clock.remaining();
+        if (left) this.player.countdown(left);
+        this.retry();
     }
 
     gameStarted(msg) {
@@ -204,6 +214,7 @@ class Translate {
         s.mySeat = msg.s;
         s.qijia = msg.dl;
         s.title = gameTitle(msg.gt, new Date());
+        this.clock.configure(msg[wire.TIMER_SETTINGS]);
         this.readPlayers(msg.p);
         s.playersConnected = [true, true, true, true];
         this.feedKaiju();
@@ -241,6 +252,7 @@ class Translate {
         this.retry = null;
         this.roundDialogOpen = false;
         clearTimeout(this.winCallTimer);
+        this.clock.addRoundBonus();
 
         const defen = [];
         const shoupai = [];
@@ -275,13 +287,20 @@ class Translate {
         this.feed({ kaiju: this.kaiju() }, 'kaiju');
     }
 
+    /**
+     * The seat's draw opens its turn. It also ends any call prompt the seat left unanswered: one that timed out on the
+     * server gets no message of its own when this draw comes next.
+     */
     draw(msg) {
         const s = this.shadow;
         const { seat, tileId } = immef.decodeDraw(msg.d);
         if (seat != s.mySeat) return;
 
+        this.player.clear_handler();
+        s.prompt = null;
         const zimo = { p: tiles.tileToStr(tileId), l: s.l(seat) };
         s.drawnTileId = tileId;
+        this.player.countdown(this.clock.startTurn());
 
         if (s.hand.indexOf(tileId) >= 0) {
             this.present('zimo', Offer.forTurn(msg.aa, s), P => P.action_zimo(zimo, false));
@@ -321,6 +340,7 @@ class Translate {
         const l = s.l(seat);
         const p = tiles.tileToStr(tileId) + (isRiichi ? '*' : '');
 
+        this.endCountdown();
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
@@ -349,6 +369,7 @@ class Translate {
         const meld = immef.decodeMeldCompact(msg.m);
         const mine = meld.callerSeat == s.mySeat;
 
+        this.endCountdown();
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
@@ -377,6 +398,7 @@ class Translate {
 
         const l = s.l(meld.callerSeat);
         const m = { [kind]: { m: str, l } };
+        if (mine && TURN_OPENING_MELDS.has(meld.meldType)) P.countdown(this.clock.startTurn());
         this.feed(m, kind);
         s.logMessage(m);
         this.syncWall();
@@ -391,6 +413,7 @@ class Translate {
         const offer = Offer.forPrompt(msg, s);
         const chankan = msg.clt == wire.CLT.CHANKAN;
         const dapai = s.lastDapai;
+        this.player.countdown(this.clock.startCallDecision());
         this.retry = () => {
             s.prompt = msg;
             this.present(chankan ? 'chankan' : 'dapai', offer,
@@ -405,8 +428,23 @@ class Translate {
         P.clear_handler();
         P.offer = offer;
         this.shadow.offerActions = offer.actions;
-        P._callback = reply => this.onDecision(kind, reply || {});
+        P._callback = reply => this.answer(kind, reply || {});
         show(P);
+    }
+
+    /**
+     * Send the seat's answer. The server ends the turn of an own kan at once, but the kan's meld reaches the seat only
+     * after other seats pass on robbing it, so the clock holds at the answer instead of waiting for it.
+     */
+    answer(kind, reply) {
+        if (kind == 'zimo' && reply.gang) this.clock.pause();
+        this.onDecision(kind, reply);
+    }
+
+    /** End the seat's countdown when the server ends its wait: on its answer, a timeout or another seat's call. */
+    endCountdown() {
+        this.clock.stop();
+        this.player.clear_timer();
     }
 
     dora(msg) {
@@ -468,6 +506,7 @@ class Translate {
         const s = this.shadow;
         const P = this.player;
         clearTimeout(this.winCallTimer);
+        this.endCountdown();
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
@@ -553,7 +592,7 @@ class Translate {
         this.feed({ jieju: paipu }, 'jieju');
     }
 
-    feed(msg, kind, offer = Offer.NO_OFFER, callback = reply => this.onDecision(kind, reply)) {
+    feed(msg, kind, offer = Offer.NO_OFFER, callback = reply => this.answer(kind, reply)) {
         this.player.offer = offer;
         this.shadow.offerActions = offer.actions;
         this.player.action(msg, reply => callback(reply || {}));
@@ -572,6 +611,7 @@ class Translate {
         s.honba = msg.h;
         s.riichiSticks = msg.r;
         s.waitId = msg[wire.WAIT_ID];
+        this.clock.configure(msg[wire.TIMER_SETTINGS]);
         this.readPlayers(msg.p);
         this.retry = null;
         this.roundDialogOpen = false;
@@ -707,7 +747,10 @@ class Translate {
 
         if (P._view && P._view.redraw) P._view.redraw();
 
-        if (myTurn) this.present('fulou', Offer.NO_OFFER, P => P.select_dapai());
+        P.clear_timer();
+        if (! myTurn) return;
+        P.countdown(this.clock.startTurn());
+        this.present('fulou', Offer.NO_OFFER, P => P.select_dapai());
     }
 }
 

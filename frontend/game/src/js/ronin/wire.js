@@ -89,6 +89,9 @@ const wire = {
 
     WAIT_ID: 'wi',
 
+    /* game_started, game_reconnected: tm = { tb, bk, rb, mb, md } */
+    TIMER_SETTINGS: 'tm',
+
     NUM_TILES:     136,
     SEAT_SPACE:    544,   /* 4 × 136 */
     DISCARD_FLAGS: 4,     /* bit 0 = tsumogiri, bit 1 = riichi */

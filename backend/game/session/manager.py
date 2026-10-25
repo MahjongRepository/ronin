@@ -20,6 +20,7 @@ from game.messaging.event_payload import (
     WAIT_ID_KEY,
     service_event_payload,
     shape_call_prompt_payload,
+    stamp_timer_settings,
     stamp_viewer_seat,
     stamp_wait_id,
 )
@@ -30,6 +31,7 @@ from game.messaging.types import (
     PlayerReconnectedMessage,
     SessionErrorCode,
     SessionMessageType,
+    TimerSettings,
 )
 from game.session.models import GameLifecycle, GameSession, Participant
 from game.session.played_game import build_finish_record
@@ -530,8 +532,9 @@ class SessionManager:
         Bind a new connection to a disconnected participant of a playing game and send it the game's state.
 
         Take the seat back from the AI player (`restore_human_player`), send the `game_reconnected` snapshot with the
-        current wait id, broadcast `player_reconnected`, and, when the game awaits that seat's turn, re-send its draw
-        and start its turn timer. A RECONNECT on a connection the server already evicted is dropped unanswered.
+        current wait id and the seat's timer settings (its bank as of its last turn), broadcast `player_reconnected`,
+        and, when the game awaits that seat's turn, re-send its draw and start its turn timer. A RECONNECT on a
+        connection the server already evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
             return
@@ -551,7 +554,7 @@ class SessionManager:
         payload = snapshot.model_dump(by_alias=True, exclude_none=True)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
         payload[WAIT_ID_KEY] = awaiting.wait_id
-        connection.send_message(payload)
+        connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
 
         self._broadcast_to_game(
             game,
@@ -767,11 +770,24 @@ class SessionManager:
 
     def _send_to_each_seat(self, game: GameSession, message: dict[str, Any]) -> None:
         """
-        Send a broadcast message to every connected participant, each copy stamped with its recipient's seat.
+        Send a broadcast message to every connected participant, each copy stamped with its recipient's seat and timer
+        settings.
         """
         for participant in game.participants:
             if participant.connection is not None:
-                participant.connection.send_message(stamp_viewer_seat(message, self._seat_of(participant)))
+                stamped = stamp_viewer_seat(message, self._seat_of(participant))
+                participant.connection.send_message(stamp_timer_settings(stamped, self._timer_settings(participant)))
+
+    @staticmethod
+    def _timer_settings(participant: Participant) -> TimerSettings:
+        config = participant.game.timer_config
+        return TimerSettings(
+            base_turn_seconds=config.base_turn_seconds,
+            bank_seconds=participant.timer.bank_seconds,
+            round_bonus_seconds=config.round_bonus_seconds,
+            max_bank_seconds=config.max_bank_seconds,
+            meld_decision_seconds=config.meld_decision_seconds,
+        )
 
     @staticmethod
     def _broadcast_to_game(

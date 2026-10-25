@@ -11,6 +11,8 @@ import selector from './selector.js';
 const { hide, show, fadeIn }         = fadein;
 const { setSelector, clearSelector } = selector;
 
+export const BEEP_SECONDS = 5;
+
 import mianzi from './mianzi.js';
 
 export default class Player extends Majiang.Player {
@@ -163,29 +165,44 @@ export default class Player extends Majiang.Player {
 
         delete this._default_reply;
 
-        let time_limit = Date.now() + (limit + allowed) * 1000;
+        let limit_ms   = Math.round(limit * 1000);
+        let allowed_ms = Math.round(allowed * 1000);
+        let bank       = Math.round(allowed);
+        let time_limit = Date.now() + limit_ms + allowed_ms;
 
         if (this._timer_id) clearInterval(this._timer_id);
-        this._timer_id = setInterval(()=>{
-            if (time_limit <= Date.now()) {
-                this.callback(this._default_reply);
+        let last_time;
+        const tick = ()=>{
+            let rest_ms = time_limit - Date.now();
+            if (rest_ms <= 0) {
+                this.timeout();
                 return;
             }
-            let time = Math.ceil((time_limit - Date.now()) / 1000);
-            if (time <= limit || time <= allowed) {
-                if (time != this._node.timer.text()) {
-                    if (this.sound_on && audio && time <= 5) {
-                        audio.currentTime = 0;
-                        audio.play();
-                    }
-                    this._node.timer.text(time);
-                }
+            let time = Math.ceil(rest_ms / 1000);
+            let in_base = rest_ms > allowed_ms;
+            let base = Math.ceil((rest_ms - allowed_ms) / 1000);
+            let text = ! in_base ? `${time}`
+                     : bank      ? `${base}+${bank}`
+                     :             `${base}`;
+            if (text == this._node.timer.text()) return;
+            if (this.sound_on && audio && time <= BEEP_SECONDS && time != last_time) {
+                audio.currentTime = 0;
+                audio.play();
             }
-        }, 200);
+            last_time = time;
+            this._node.timer.text(text)
+                .toggleClass('bank', bank > 0 && ! in_base);
+        };
+        tick();
+        this._timer_id = setInterval(tick, 200);
+    }
+
+    timeout() {
+        this.callback(this._default_reply);
     }
 
     show_timer() {
-        show(this._node.timer.width($(this._node.dapai).width() + 20));
+        show(this._node.timer.width($(this._node.dapai).width() + 64));
     }
 
     clear_timer() {

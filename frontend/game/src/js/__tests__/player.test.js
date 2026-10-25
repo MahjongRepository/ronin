@@ -2,6 +2,7 @@ import $ from "jquery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
+import RoninPlayer from "../ronin/player.js";
 
 const SELECTOR_HIDE_MS = 400;
 const DIALOG_READY_MS = 800;
@@ -14,7 +15,7 @@ function renderTile(p) {
     return $('<span class="pai">').attr("data-pai", p.slice(0, 2));
 }
 
-function createPlayer() {
+function createPlayer(Player = Majiang.UI.Player) {
     const root = $("<div>").append(
         '<div class="timer">',
         `<div class="player-button">${BUTTONS}</div>`,
@@ -23,7 +24,7 @@ function createPlayer() {
         '<div class="hule-dialog"><button class="next" type="button">次へ</button></div>',
         '<div class="summary"><table></table><button class="exit" type="button">ロビーへ戻る</button></div>',
     );
-    const player = new Majiang.UI.Player(root, renderTile, () => ({ play() {} }));
+    const player = new Player(root, renderTile, () => ({ play() {} }));
     player._callback = vi.fn();
     return { player, root, selector: $(".select-mianzi", root) };
 }
@@ -107,6 +108,21 @@ describe("Majiang.UI.Player", () => {
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
     });
 
+    it("counts a turn's base time down beside its bank, then the bank alone", () => {
+        const { player, root } = createPlayer();
+        const timer = $(".timer", root);
+
+        player.set_timer(5, 30);
+        expect([timer.text(), timer.hasClass("bank")]).toEqual(["5+30", false]);
+        vi.advanceTimersByTime(2000);
+        expect(timer.text()).toBe("3+30");
+        vi.advanceTimersByTime(3200);
+        expect([timer.text(), timer.hasClass("bank")]).toEqual(["30", true]);
+
+        player.set_timer(5, 0.2);
+        expect([timer.text(), timer.hasClass("bank")]).toEqual(["5", false]);
+    });
+
     it("hands a round result's keyboard focus to its 次へ button, which continues once", () => {
         const { player, root } = createPlayer();
         $(document.body).append(root);
@@ -136,5 +152,28 @@ describe("Majiang.UI.Player", () => {
         exit.trigger("click");
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
         root.remove();
+    });
+});
+
+describe("RoninPlayer", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("stops a countdown that runs out at 0 and leaves the decision open, answering nothing, not even the riichi discard it would default to", () => {
+        const { player, root } = createPlayer(RoninPlayer);
+        $(".shoupai.main .bingpai", root).append(renderTile("m1"));
+        player.countdown([1, 0]);
+        player.select_dapai(["m1"]);
+
+        vi.advanceTimersByTime(1200);
+        expect(player._callback).not.toHaveBeenCalled();
+        expect($(".timer", root).text()).toBe("0");
+        $(".shoupai.main .pai", root).trigger("click");
+        expect(player._callback).toHaveBeenCalledExactlyOnceWith({ dapai: "m1*" });
     });
 });

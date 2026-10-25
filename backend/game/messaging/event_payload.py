@@ -20,9 +20,11 @@ from game.wire.events import EVENT_TYPE_INT
 
 if TYPE_CHECKING:
     from game.logic.service import Awaiting
+    from game.messaging.types import TimerSettings
 
 WAIT_ID_KEY = "wi"
 VIEWER_SEAT_KEY = "s"
+TIMER_SETTINGS_KEY = "tm"
 
 _TURN_OPENING_MELDS = frozenset({MeldViewType.PON, MeldViewType.CHI})
 
@@ -125,6 +127,16 @@ def stamp_viewer_seat(payload: dict[str, Any], seat: int) -> dict[str, Any]:
     socket payloads carry it, never a replay file.
     """
     return {**payload, VIEWER_SEAT_KEY: seat}
+
+
+def stamp_timer_settings(payload: dict[str, Any], timer: TimerSettings) -> dict[str, Any]:
+    """
+    Return a copy of a payload stamped with its recipient's timer settings (`tm`).
+
+    The game start and the reconnect snapshot carry them, so the client counts its own turns down without the server
+    syncing each one. Only the socket payloads carry them, never a replay file.
+    """
+    return {**payload, TIMER_SETTINGS_KEY: timer.model_dump(by_alias=True)}
 
 
 def stamp_wait_id(payload: dict[str, Any], event: ServiceEvent, awaiting: Awaiting) -> dict[str, Any]:

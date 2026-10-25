@@ -54,6 +54,13 @@ class TurnTimer:
         """
         return self._active_task
 
+    @property
+    def bank_seconds(self) -> float:
+        """
+        The bank left, as of the last stop: a running turn has not deducted from it yet.
+        """
+        return self._bank_seconds
+
     def add_round_bonus(self) -> None:
         """
         Add round bonus time to the bank, capped at max_bank_seconds.

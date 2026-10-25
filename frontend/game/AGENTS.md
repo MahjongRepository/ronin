@@ -74,6 +74,16 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
   `backend/game/wire/`; change both in the same change. The client sends no heartbeat: liveness is
   the WebSocket protocol ping (`docs/architecture.md`), and the server refuses unknown message types.
+* **Turn countdown:** only the seat's own decisions are counted down, in majiang-ui's timer above
+  the right end of the hand: a turn's base time beside its bank (`5+30`), then the bank alone, a
+  call prompt's fixed time. `TurnClock` (`src/js/ronin/clock.js`) keeps the bank from the timer
+  settings of `game_started` or the reconnect snapshot and mirrors the server's pacing rules,
+  never re-synced: a decision runs from the server message that opens its wait to the one that
+  ends it, because a refused answer leaves the server's timer running. An own kan is the
+  exception: its meld waits out other seats' chankan prompt, so the clock holds at the answer
+  (and runs on if it is refused). A countdown that runs out stops at 0 and does nothing else: the
+  decision stays open until the server's timeout plays the default, never majiang-ui's default
+  reply (a riichi discard, say), which could reach the server before its own deadline.
 * **Silence watchdog:** since the client sends nothing on its own, a socket whose peer vanished (a
   FIN lost while the device slept) never fires `onclose`. `RoninSession` treats a server silent
   longer than any legitimate wait as a drop and reconnects, measured on the wall clock so the first

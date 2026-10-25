@@ -169,6 +169,8 @@ class TestBankTimePreservation:
         manager.reconnect(new_conn, game_id="game1", session_token=alice.ticket)
         assert alice.connection is new_conn
         assert alice.timer._bank_seconds == bank_after_leave
+        reconnected = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
+        assert reconnected["tm"]["bk"] == bank_after_leave
 
     @pytest.mark.asyncio
     async def test_bank_time__when_player_leaves_during_meld_prompt__should_keep_bank_unchanged(self, manager):
